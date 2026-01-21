@@ -1,6 +1,6 @@
 """Certificate models for node and service identities."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -40,7 +40,9 @@ class JoinCertificate(BaseModel):
         """Check if certificate is currently valid."""
         if current_time is None:
             current_time = datetime.utcnow()
-        return self.issued_at <= current_time <= self.expires_at
+        # Allow 5 minutes of clock skew
+        max_skew = timedelta(minutes=5)
+        return (self.issued_at - max_skew) <= current_time <= (self.expires_at + max_skew)
 
 
 class ServiceManifest(BaseModel):
