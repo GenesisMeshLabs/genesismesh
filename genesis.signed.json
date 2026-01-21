@@ -1,0 +1,29 @@
+{
+  "network_name": "USG",
+  "network_version": "v0.1",
+  "root_public_key": "NFpN4varT2Oc3cay1IQi0wZXMakwiPYYBtWxzAgmpII=",
+  "network_authority": {
+    "public_key": "Vne5zy4IhVerFDUTWTusZxhyYYFvXa/ssbNfd9smopI=",
+    "valid_from": "2026-01-21T16:44:37.925424",
+    "valid_to": "2026-04-21T16:44:37.925424"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [],
+  "signatures": [
+    {
+      "key_id": "rs-2025-q1",
+      "sig": "xrqlGeU0as/peW0URTv0EGAHWbFT5KZ59y1E0tRL2GHDOCYnYoqcv3k66L8GyNVaYcJZxCs9ydQR2YVu1keBDA=="
+    }
+  ]
+}

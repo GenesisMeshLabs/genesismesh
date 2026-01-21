@@ -1,0 +1,29 @@
+{
+  "network_name": "TEST-NET",
+  "network_version": "v0.1",
+  "root_public_key": "NFpN4varT2Oc3cay1IQi0wZXMakwiPYYBtWxzAgmpII=",
+  "network_authority": {
+    "public_key": "Vne5zy4IhVerFDUTWTusZxhyYYFvXa/ssbNfd9smopI=",
+    "valid_from": "2026-01-17T07:05:21.273782",
+    "valid_to": "2026-04-17T07:05:21.273782"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [
+    {
+      "id": "node-1",
+      "endpoint": "localhost:8080"
+    }
+  ],
+  "signatures": []
+}
