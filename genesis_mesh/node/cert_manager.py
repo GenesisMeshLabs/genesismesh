@@ -109,14 +109,14 @@ class CertificateManager:
         Returns:
             True if renewal needed
         """
-        if cert.is_expired():
+        if not cert.is_valid():
             logger.error("Certificate has already expired!")
             return True
 
         # Calculate remaining validity percentage
         now = datetime.utcnow()
-        total_validity = (cert.valid_to - cert.valid_from).total_seconds()
-        remaining = (cert.valid_to - now).total_seconds()
+        total_validity = (cert.expires_at - cert.issued_at).total_seconds()
+        remaining = (cert.expires_at - now).total_seconds()
         percent_remaining = remaining / total_validity
 
         if percent_remaining <= self._renewal_threshold:
@@ -138,7 +138,7 @@ class CertificateManager:
                 new_cert = await asyncio.to_thread(self.renew_certificate)
 
                 # Verify new certificate
-                if not new_cert or new_cert.is_expired():
+                if not new_cert or not new_cert.is_valid():
                     raise ValueError("Received invalid certificate")
 
                 # Reset failure count
@@ -146,7 +146,7 @@ class CertificateManager:
 
                 logger.info(
                     f"Certificate renewed successfully "
-                    f"(valid until {new_cert.valid_to})"
+                    f"(valid until {new_cert.expires_at})"
                 )
 
                 # Notify callback
@@ -190,8 +190,8 @@ class CertificateManager:
             return None
 
         now = datetime.utcnow()
-        total_validity = (cert.valid_to - cert.valid_from).total_seconds()
-        remaining = (cert.valid_to - now).total_seconds()
+        total_validity = (cert.expires_at - cert.issued_at).total_seconds()
+        remaining = (cert.expires_at - now).total_seconds()
         renewal_time = total_validity * self._renewal_threshold
 
         time_until_renewal = remaining - renewal_time
@@ -208,16 +208,16 @@ class CertificateManager:
             }
 
         now = datetime.utcnow()
-        total_validity = (cert.valid_to - cert.valid_from).total_seconds()
-        remaining = (cert.valid_to - now).total_seconds()
+        total_validity = (cert.expires_at - cert.issued_at).total_seconds()
+        remaining = (cert.expires_at - now).total_seconds()
         percent_remaining = (remaining / total_validity) * 100
 
         return {
             "has_certificate": True,
-            "certificate_id": cert.certificate_id,
-            "valid_from": cert.valid_from.isoformat(),
-            "valid_to": cert.valid_to.isoformat(),
-            "is_expired": cert.is_expired(),
+            "certificate_id": cert.cert_id,
+            "valid_from": cert.issued_at.isoformat(),
+            "valid_to": cert.expires_at.isoformat(),
+            "is_expired": not cert.is_valid(),
             "percent_remaining": round(percent_remaining, 2),
             "seconds_remaining": round(remaining, 0),
             "should_renew": self._should_renew(cert),

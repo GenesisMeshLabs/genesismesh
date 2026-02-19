@@ -65,6 +65,7 @@ class ControlMessageHandler:
 
         # Processed message IDs (prevent replay)
         self._processed_messages: Dict[str, float] = {}
+        self._replay_lock = asyncio.Lock()
 
         # Local revocation cache
         self._revoked_certs: Dict[str, Dict[str, Any]] = {}
@@ -109,10 +110,13 @@ class ControlMessageHandler:
         Returns:
             Tuple of (success, error_message)
         """
-        # Check for replay attacks
+        # Check for replay attacks (lock protects check-then-mark atomicity)
         import time
-        if message.message_id in self._processed_messages:
-            return False, "Control message already processed (replay attack?)"
+        async with self._replay_lock:
+            if message.message_id in self._processed_messages:
+                return False, "Control message already processed (replay attack?)"
+            # Mark as processed atomically with the check
+            self._processed_messages[message.message_id] = time.time()
 
         # Get issuer public key
         public_key = self.get_public_key(message.issuer)
@@ -128,9 +132,6 @@ class ControlMessageHandler:
         if not is_valid:
             logger.warning(f"Invalid control message: {error}")
             return False, error
-
-        # Mark as processed
-        self._processed_messages[message.message_id] = time.time()
 
         # Check if message is targeted at us
         if message.target and message.target != self.node_id:
@@ -383,17 +384,18 @@ class ControlMessageHandler:
             max_age: Maximum age in seconds
         """
         import time
-        now = time.time()
-        stale_ids = [
-            msg_id for msg_id, timestamp in self._processed_messages.items()
-            if (now - timestamp) > max_age
-        ]
+        async with self._replay_lock:
+            now = time.time()
+            stale_ids = [
+                msg_id for msg_id, timestamp in self._processed_messages.items()
+                if (now - timestamp) > max_age
+            ]
 
-        for msg_id in stale_ids:
-            del self._processed_messages[msg_id]
+            for msg_id in stale_ids:
+                del self._processed_messages[msg_id]
 
-        if stale_ids:
-            logger.debug(f"Cleaned up {len(stale_ids)} processed message IDs")
+            if stale_ids:
+                logger.debug(f"Cleaned up {len(stale_ids)} processed message IDs")
 
     async def _trim_replay_cache(self, max_entries: int):
         """
@@ -402,18 +404,19 @@ class ControlMessageHandler:
         Args:
             max_entries: Maximum number of entries to keep
         """
-        if len(self._processed_messages) <= max_entries:
-            return
+        async with self._replay_lock:
+            if len(self._processed_messages) <= max_entries:
+                return
 
-        # Sort by timestamp and keep newest
-        sorted_items = sorted(
-            self._processed_messages.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+            # Sort by timestamp and keep newest
+            sorted_items = sorted(
+                self._processed_messages.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
 
-        self._processed_messages = dict(sorted_items[:max_entries])
-        logger.info(f"Trimmed replay cache to {max_entries} entries")
+            self._processed_messages = dict(sorted_items[:max_entries])
+            logger.info(f"Trimmed replay cache to {max_entries} entries")
 
     async def _load_replay_cache(self):
         """Load replay cache from disk."""
@@ -425,8 +428,26 @@ class ControlMessageHandler:
             if cache_file.exists():
                 with open(cache_file, 'r') as f:
                     data = json.load(f)
-                    self._processed_messages = data.get("processed_messages", {})
-                    logger.info(f"Loaded {len(self._processed_messages)} replay cache entries")
+
+                raw = data.get("processed_messages", {})
+
+                # Validate structure: must be {str: float/int}
+                if not isinstance(raw, dict):
+                    logger.warning("Replay cache has invalid format, ignoring")
+                    return
+
+                validated: Dict[str, float] = {}
+                for msg_id, timestamp in raw.items():
+                    if isinstance(msg_id, str) and isinstance(timestamp, (int, float)):
+                        validated[msg_id] = float(timestamp)
+                    else:
+                        logger.warning(f"Skipping invalid replay cache entry: {msg_id!r}")
+
+                async with self._replay_lock:
+                    self._processed_messages = validated
+                logger.info(f"Loaded {len(validated)} replay cache entries")
+        except (json.JSONDecodeError, TypeError, KeyError) as e:
+            logger.error(f"Corrupt replay cache file, starting fresh: {e}")
         except Exception as e:
             logger.error(f"Error loading replay cache: {e}")
 
@@ -439,12 +460,15 @@ class ControlMessageHandler:
             cache_file = Path(self._replay_cache_file)
             cache_file.parent.mkdir(parents=True, exist_ok=True)
 
+            async with self._replay_lock:
+                snapshot = dict(self._processed_messages)
+
             with open(cache_file, 'w') as f:
                 json.dump({
-                    "processed_messages": self._processed_messages
+                    "processed_messages": snapshot
                 }, f, indent=2)
 
-            logger.info(f"Saved {len(self._processed_messages)} replay cache entries")
+            logger.info(f"Saved {len(snapshot)} replay cache entries")
         except Exception as e:
             logger.error(f"Error saving replay cache: {e}")
 

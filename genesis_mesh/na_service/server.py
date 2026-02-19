@@ -59,6 +59,20 @@ class NetworkAuthorityService:
 
         logger.info(f"Network Authority service initialized for network: {genesis_block.network_name}")
 
+    VALID_ROLE_PREFIXES = ['role:anchor', 'role:bridge', 'role:client', 'role:operator', 'role:service:']
+
+    def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
+        """
+        Validate that all roles use allowed prefixes.
+
+        Returns:
+            (is_valid, error_message) tuple
+        """
+        for role in roles:
+            if not any(role.startswith(prefix) for prefix in self.VALID_ROLE_PREFIXES):
+                return False, f"Invalid role: {role}"
+        return True, None
+
     def _setup_routes(self):
         """Set up Flask routes."""
 
@@ -98,10 +112,9 @@ class NetworkAuthorityService:
                     return jsonify({"error": "node_public_key required"}), 400
 
                 # Validate roles
-                valid_role_prefixes = ['role:anchor', 'role:bridge', 'role:client', 'role:operator', 'role:service:']
-                for role in roles:
-                    if not any(role.startswith(prefix) for prefix in valid_role_prefixes):
-                        return jsonify({"error": f"Invalid role: {role}"}), 400
+                valid, error = self._validate_roles(roles)
+                if not valid:
+                    return jsonify({"error": error}), 400
 
                 # Create join certificate
                 cert = self._issue_join_certificate(
@@ -109,6 +122,15 @@ class NetworkAuthorityService:
                     roles=roles,
                     validity_hours=validity_hours
                 )
+
+                # Track the issued certificate's roles and key binding
+                self.connected_nodes[cert.cert_id] = {
+                    "node_public_key": node_public_key,
+                    "roles": roles,
+                    "status": "joined",
+                    "last_heartbeat": datetime.utcnow().isoformat(),
+                    "remote_addr": request.remote_addr
+                }
 
                 logger.info(f"Issued join certificate {cert.cert_id} for roles {roles}")
 
@@ -146,9 +168,12 @@ class NetworkAuthorityService:
                 if not cert_id or not node_public_key:
                     return jsonify({"error": "cert_id and node_public_key required"}), 400
 
-                # Update node tracking
+                # Update node tracking — merge with existing data to
+                # preserve roles and other fields set during /join
                 now = datetime.utcnow()
+                existing = self.connected_nodes.get(cert_id, {})
                 self.connected_nodes[cert_id] = {
+                    **existing,
                     "node_public_key": node_public_key,
                     "status": status,
                     "last_heartbeat": now.isoformat(),
@@ -171,6 +196,9 @@ class NetworkAuthorityService:
             """
             Renew a node's join certificate.
 
+            Roles are preserved from the original certificate. Clients cannot
+            escalate privileges by requesting different roles during renewal.
+
             Expected JSON body:
             {
                 "cert_id": "<current-certificate-id>",
@@ -187,16 +215,36 @@ class NetworkAuthorityService:
                 if not cert_id or not node_public_key:
                     return jsonify({"error": "cert_id and node_public_key required"}), 400
 
-                # Check if node is known (has sent heartbeats)
+                # Require the cert to be known — unknown certs cannot be renewed
                 if cert_id not in self.connected_nodes:
                     logger.warning(f"Renewal request from unknown cert {cert_id[:8]}...")
-                    # Still allow renewal, but log it
+                    return jsonify({"error": "Unknown certificate. Cannot renew."}), 403
 
-                # Get existing roles from the node tracking or default
-                existing_node = self.connected_nodes.get(cert_id, {})
-                roles = data.get('roles', existing_node.get('roles', ['role:client']))
+                existing_node = self.connected_nodes[cert_id]
 
-                # Issue new certificate
+                # Verify the public key matches what was originally registered
+                if existing_node.get("node_public_key") != node_public_key:
+                    logger.warning(
+                        f"Renewal key mismatch for cert {cert_id[:8]}...: "
+                        f"expected {existing_node.get('node_public_key', '?')[:8]}, "
+                        f"got {node_public_key[:8]}"
+                    )
+                    return jsonify({"error": "Public key does not match certificate"}), 403
+
+                # Roles are always preserved from server-side state — ignore
+                # any client-supplied roles to prevent privilege escalation
+                roles = existing_node.get('roles', ['role:client'])
+
+                if 'roles' in data and sorted(data['roles']) != sorted(roles):
+                    logger.warning(
+                        f"Renewal role escalation attempt for cert {cert_id[:8]}...: "
+                        f"requested {data['roles']}, authorized {roles}"
+                    )
+                    return jsonify({
+                        "error": "Role changes are not permitted during renewal"
+                    }), 403
+
+                # Issue new certificate with preserved roles
                 new_cert = self._issue_join_certificate(
                     node_public_key=node_public_key,
                     roles=roles,
@@ -204,12 +252,11 @@ class NetworkAuthorityService:
                 )
 
                 # Update node tracking with new cert
-                if cert_id in self.connected_nodes:
-                    old_info = self.connected_nodes.pop(cert_id)
-                    self.connected_nodes[new_cert.cert_id] = {
-                        **old_info,
-                        "renewed_from": cert_id
-                    }
+                old_info = self.connected_nodes.pop(cert_id)
+                self.connected_nodes[new_cert.cert_id] = {
+                    **old_info,
+                    "renewed_from": cert_id
+                }
 
                 logger.info(f"Renewed certificate {cert_id[:8]}... -> {new_cert.cert_id[:8]}...")
 
