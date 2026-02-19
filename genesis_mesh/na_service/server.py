@@ -168,9 +168,12 @@ class NetworkAuthorityService:
                 if not cert_id or not node_public_key:
                     return jsonify({"error": "cert_id and node_public_key required"}), 400
 
-                # Update node tracking
+                # Update node tracking — merge with existing data to
+                # preserve roles and other fields set during /join
                 now = datetime.utcnow()
+                existing = self.connected_nodes.get(cert_id, {})
                 self.connected_nodes[cert_id] = {
+                    **existing,
                     "node_public_key": node_public_key,
                     "status": status,
                     "last_heartbeat": now.isoformat(),
