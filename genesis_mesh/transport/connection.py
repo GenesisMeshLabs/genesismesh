@@ -261,16 +261,8 @@ class Connection:
         elif message.message_type == MessageType.PONG:
             await self._handle_pong(message)
         elif message.message_type == MessageType.HANDSHAKE_ACK:
-            # Transition to ESTABLISHED state
-            old_state = self.state
-            self.state = ConnectionState.ESTABLISHED
-            self.connected_at = time.time()
-            logger.info(f"Connection to {self.peer_id} established")
-
-            # Start ping loop now that connection is established
-            if old_state != ConnectionState.ESTABLISHED and not self._ping_task:
-                self._ping_task = asyncio.create_task(self._ping_loop())
-                logger.debug(f"Started ping loop for {self.peer_id}")
+            # Transition to ESTABLISHED state via the single code path
+            self.set_established()
 
         # Forward to application callback
         if self.on_message:

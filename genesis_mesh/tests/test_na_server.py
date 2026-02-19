@@ -257,3 +257,72 @@ def test_validate_roles_mixed_valid_invalid(na_service):
     valid, error = na_service._validate_roles(["role:client", "role:superadmin"])
     assert valid is False
     assert "superadmin" in error
+
+
+# ── /heartbeat: role preservation ─────────────────────────────────────
+
+
+def test_heartbeat_preserves_roles(client):
+    """Heartbeat should NOT overwrite roles stored during /join."""
+    join_resp, join_data = _join(client, roles=["role:anchor"])
+    cert_id = join_data["cert_id"]
+    node_key = join_data["node_public_key"]
+
+    # Send a heartbeat
+    hb_resp = client.post("/heartbeat", json={
+        "cert_id": cert_id,
+        "node_public_key": node_key,
+        "status": "healthy",
+    })
+    assert hb_resp.status_code == 200
+
+    # Now renew — roles should still be role:anchor (not default role:client)
+    renew_resp = client.post("/renew", json={
+        "cert_id": cert_id,
+        "node_public_key": node_key,
+    })
+    assert renew_resp.status_code == 201
+    assert renew_resp.get_json()["roles"] == ["role:anchor"]
+
+
+def test_heartbeat_then_role_escalation_still_rejected(client):
+    """After heartbeat, role escalation via /renew should still be rejected."""
+    join_resp, join_data = _join(client, roles=["role:client"])
+    cert_id = join_data["cert_id"]
+    node_key = join_data["node_public_key"]
+
+    # Send heartbeat
+    client.post("/heartbeat", json={
+        "cert_id": cert_id,
+        "node_public_key": node_key,
+        "status": "healthy",
+    })
+
+    # Attempt escalation
+    renew_resp = client.post("/renew", json={
+        "cert_id": cert_id,
+        "node_public_key": node_key,
+        "roles": ["role:operator"],
+    })
+    assert renew_resp.status_code == 403
+
+
+def test_multiple_heartbeats_preserve_roles(client):
+    """Multiple heartbeats should not degrade role data."""
+    join_resp, join_data = _join(client, roles=["role:bridge", "role:anchor"])
+    cert_id = join_data["cert_id"]
+    node_key = join_data["node_public_key"]
+
+    for _ in range(5):
+        client.post("/heartbeat", json={
+            "cert_id": cert_id,
+            "node_public_key": node_key,
+            "status": "healthy",
+        })
+
+    renew_resp = client.post("/renew", json={
+        "cert_id": cert_id,
+        "node_public_key": node_key,
+    })
+    assert renew_resp.status_code == 201
+    assert sorted(renew_resp.get_json()["roles"]) == ["role:anchor", "role:bridge"]
