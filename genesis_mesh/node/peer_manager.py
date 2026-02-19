@@ -125,11 +125,15 @@ class PeerManager:
     async def remove_peer(self, peer_id: str):
         """Remove a peer."""
         async with self._lock:
-            if peer_id in self.peers:
-                state = self.peers.pop(peer_id)
-                if state.connection:
-                    await state.connection.close()
-                logger.info(f"Removed peer {peer_id}")
+            await self._remove_peer_nolock(peer_id)
+
+    async def _remove_peer_nolock(self, peer_id: str):
+        """Remove a peer. Caller must hold _lock."""
+        if peer_id in self.peers:
+            state = self.peers.pop(peer_id)
+            if state.connection:
+                await state.connection.close()
+            logger.info(f"Removed peer {peer_id}")
 
     def get_peer(self, peer_id: str) -> Optional[PeerState]:
         """Get peer state by ID."""
@@ -159,13 +163,17 @@ class PeerManager:
             delta: Reputation change (positive or negative)
         """
         async with self._lock:
-            if peer_id in self.peers:
-                peer = self.peers[peer_id]
-                peer.info.reputation = max(0.0, min(1.0, peer.info.reputation + delta))
+            await self._update_reputation_nolock(peer_id, delta)
 
-                # Blacklist if reputation too low
-                if peer.info.reputation < 0.1:
-                    await self.blacklist_peer(peer_id)
+    async def _update_reputation_nolock(self, peer_id: str, delta: float):
+        """Update peer reputation score. Caller must hold _lock."""
+        if peer_id in self.peers:
+            peer = self.peers[peer_id]
+            peer.info.reputation = max(0.0, min(1.0, peer.info.reputation + delta))
+
+            # Blacklist if reputation too low
+            if peer.info.reputation < 0.1:
+                await self._blacklist_peer_nolock(peer_id)
 
     async def blacklist_peer(self, peer_id: str):
         """
@@ -175,12 +183,16 @@ class PeerManager:
             peer_id: Peer to blacklist
         """
         async with self._lock:
-            if peer_id in self.peers:
-                state = self.peers[peer_id]
-                state.blacklisted_until = time.time() + self.blacklist_duration
-                if state.connection:
-                    await state.connection.close()
-                logger.warning(f"Blacklisted peer {peer_id} for {self.blacklist_duration}s")
+            await self._blacklist_peer_nolock(peer_id)
+
+    async def _blacklist_peer_nolock(self, peer_id: str):
+        """Blacklist a peer temporarily. Caller must hold _lock."""
+        if peer_id in self.peers:
+            state = self.peers[peer_id]
+            state.blacklisted_until = time.time() + self.blacklist_duration
+            if state.connection:
+                await state.connection.close()
+            logger.warning(f"Blacklisted peer {peer_id} for {self.blacklist_duration}s")
 
     async def record_connection_attempt(self, peer_id: str, success: bool):
         """
@@ -198,11 +210,11 @@ class PeerManager:
 
                 if not success:
                     state.failed_attempts += 1
-                    await self.update_reputation(peer_id, -0.1)
+                    await self._update_reputation_nolock(peer_id, -0.1)
 
                     # Blacklist after too many failures
                     if state.failed_attempts >= 5:
-                        await self.blacklist_peer(peer_id)
+                        await self._blacklist_peer_nolock(peer_id)
                 else:
                     state.failed_attempts = 0
                     state.last_handshake = time.time()
@@ -273,7 +285,7 @@ class PeerManager:
 
             for peer_id in stale_peers:
                 logger.info(f"Removing stale peer {peer_id}")
-                await self.remove_peer(peer_id)
+                await self._remove_peer_nolock(peer_id)
 
     def get_stats(self) -> dict:
         """Get peer management statistics."""
