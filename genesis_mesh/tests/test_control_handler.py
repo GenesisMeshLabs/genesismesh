@@ -33,6 +33,7 @@ def _make_control_message(
     message_id: str = "msg-1",
     command: str = ControlCommand.POLICY_UPDATE,
     roles: list[str] | None = None,
+    target: str | None = None,
 ) -> ControlMessageModel:
     """Create a signed control message."""
     from datetime import datetime, timedelta
@@ -44,6 +45,7 @@ def _make_control_message(
         issuer_roles=roles or ["role:operator"],
         issued_at=datetime.utcnow(),
         expires_at=datetime.utcnow() + timedelta(hours=1),
+        target=target,
         data={"policy": {"policy_id": "test"}},
     )
     sig = sign_model(msg, handler._keypair.private_key, "test-issuer")
@@ -274,3 +276,62 @@ async def test_save_and_reload_replay_cache():
         await handler2._load_replay_cache()
 
         assert handler2._processed_messages == handler._processed_messages
+
+
+# ── Untargeted message: does not pollute replay cache ─────────────
+
+
+@pytest.mark.asyncio
+async def test_untargeted_message_does_not_pollute_replay_cache():
+    """A message targeted at another node must NOT consume a replay slot."""
+    handler = _make_handler(node_id="node-1")
+    msg = _make_control_message(handler, message_id="foreign-1", target="node-99")
+
+    ok, err = await handler.handle_control_message(msg)
+    assert ok is False
+    assert "not targeted" in err
+
+    # The message ID should NOT be in the replay cache
+    assert "foreign-1" not in handler._processed_messages
+
+
+@pytest.mark.asyncio
+async def test_targeted_duplicate_rejected_as_replay():
+    """A message targeted at us, sent twice, should be rejected on replay."""
+    handler = _make_handler(node_id="node-1")
+    msg = _make_control_message(handler, message_id="dup-target-1", target="node-1")
+
+    ok1, _ = await handler.handle_control_message(msg)
+    assert ok1 is True
+
+    ok2, err2 = await handler.handle_control_message(msg)
+    assert ok2 is False
+    assert "already processed" in err2
+
+
+@pytest.mark.asyncio
+async def test_targeted_message_executes_successfully():
+    """A message targeted at us should execute and be recorded in replay cache."""
+    handler = _make_handler(node_id="node-1")
+    msg = _make_control_message(handler, message_id="for-us-1", target="node-1")
+
+    ok, _ = await handler.handle_control_message(msg)
+    assert ok is True
+    assert "for-us-1" in handler._processed_messages
+
+
+@pytest.mark.asyncio
+async def test_untargeted_then_retargetable():
+    """After ignoring a message for another node, the same ID can still be
+    accepted when it arrives properly targeted (e.g. via broadcast)."""
+    handler = _make_handler(node_id="node-1")
+
+    # First: arrives targeted at a different node
+    msg_foreign = _make_control_message(handler, message_id="multi-1", target="node-99")
+    ok1, _ = await handler.handle_control_message(msg_foreign)
+    assert ok1 is False
+
+    # Second: same message_id arrives as broadcast (no target)
+    msg_broadcast = _make_control_message(handler, message_id="multi-1", target=None)
+    ok2, _ = await handler.handle_control_message(msg_broadcast)
+    assert ok2 is True
