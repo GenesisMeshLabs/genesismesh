@@ -18,8 +18,10 @@ from ..crypto import (
     load_private_key,
     load_public_key,
     verify_model_signature,
-    public_key_from_b64
+    public_key_from_b64,
+    sign_data
 )
+import uuid as _uuid
 
 logger = logging.getLogger(__name__)
 
@@ -245,9 +247,34 @@ class MeshNode:
             "policy_id": self.policy_manifest.policy_id if self.policy_manifest else None
         }
 
+    def _sign_request(self, payload: dict) -> dict:
+        """
+        Add authentication fields (timestamp, nonce, signature) to a request payload.
+
+        Args:
+            payload: Request payload to sign
+
+        Returns:
+            Payload with timestamp, nonce, and signature added
+        """
+        payload["timestamp"] = datetime.utcnow().isoformat()
+        payload["nonce"] = str(_uuid.uuid4())
+
+        # Build canonical form (everything except 'signature', sorted)
+        canonical = json.dumps(
+            {k: v for k, v in sorted(payload.items()) if k != 'signature'},
+            sort_keys=True,
+            separators=(',', ':')
+        )
+        payload["signature"] = sign_data(
+            canonical.encode('utf-8'),
+            self.node_keypair.private_key
+        )
+        return payload
+
     def send_heartbeat(self, na_endpoint: str) -> bool:
         """
-        Send a heartbeat to the Network Authority.
+        Send a signed heartbeat to the Network Authority.
 
         Args:
             na_endpoint: Network Authority endpoint
@@ -260,13 +287,16 @@ class MeshNode:
             return False
 
         try:
+            payload = {
+                "cert_id": self.join_certificate.cert_id,
+                "node_public_key": self.node_keypair.public_key_b64,
+                "status": "healthy"
+            }
+            signed_payload = self._sign_request(payload)
+
             response = requests.post(
                 f"{na_endpoint}/heartbeat",
-                json={
-                    "cert_id": self.join_certificate.cert_id,
-                    "node_public_key": self.node_keypair.public_key_b64,
-                    "status": "healthy"
-                },
+                json=signed_payload,
                 timeout=5
             )
             response.raise_for_status()
@@ -294,14 +324,17 @@ class MeshNode:
         logger.info(f"Renewing certificate {self.join_certificate.cert_id[:8]}...")
 
         try:
+            payload = {
+                "cert_id": self.join_certificate.cert_id,
+                "node_public_key": self.node_keypair.public_key_b64,
+                "roles": self.roles,
+                "validity_hours": validity_hours
+            }
+            signed_payload = self._sign_request(payload)
+
             response = requests.post(
                 f"{na_endpoint}/renew",
-                json={
-                    "cert_id": self.join_certificate.cert_id,
-                    "node_public_key": self.node_keypair.public_key_b64,
-                    "roles": self.roles,
-                    "validity_hours": validity_hours
-                },
+                json=signed_payload,
                 timeout=10
             )
             response.raise_for_status()

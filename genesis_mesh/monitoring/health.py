@@ -41,13 +41,19 @@ class HealthChecker:
     - Component status
     """
 
+    # Configuration for connectivity probing
+    PROBE_SAMPLE_SIZE = 3  # Max peers to probe
+    PROBE_TIMEOUT = 5.0  # Timeout per probe in seconds
+    DEGRADED_SUCCESS_RATIO = 0.5  # Below this → DEGRADED
+
     def __init__(
         self,
         node_id: str,
         get_certificate_status: Callable,
         get_peer_stats: Callable,
         get_routing_stats: Callable,
-        get_crl_status: Optional[Callable] = None
+        get_crl_status: Optional[Callable] = None,
+        probe_peer: Optional[Callable] = None
     ):
         """
         Initialize health checker.
@@ -58,12 +64,16 @@ class HealthChecker:
             get_peer_stats: Function to get peer statistics
             get_routing_stats: Function to get routing statistics
             get_crl_status: Function to get CRL status (optional)
+            probe_peer: Async function(peer_id) -> float|None that pings a
+                        peer and returns RTT in seconds, or None on failure.
+                        When not provided, connectivity check is skipped.
         """
         self.node_id = node_id
         self.get_certificate_status = get_certificate_status
         self.get_peer_stats = get_peer_stats
         self.get_routing_stats = get_routing_stats
         self.get_crl_status = get_crl_status
+        self.probe_peer = probe_peer
 
         self.checks: Dict[str, HealthCheck] = {}
         self._last_full_check = 0
@@ -279,15 +289,98 @@ class HealthChecker:
             )
 
     async def _check_connectivity(self):
-        """Check actual connectivity to peers."""
-        # This would ping a few peers to verify connectivity
-        # For now, mark as healthy
-        self.checks["connectivity"] = HealthCheck(
-            name="connectivity",
-            status=HealthStatus.HEALTHY,
-            message="Connectivity check passed",
-            last_check=time.time()
-        )
+        """
+        Check actual connectivity by probing a sample of peers.
+
+        Probes up to PROBE_SAMPLE_SIZE peers and maps the success ratio
+        to a health status:
+        - UNHEALTHY: zero peers reachable
+        - DEGRADED: success ratio below DEGRADED_SUCCESS_RATIO
+        - HEALTHY: otherwise
+        """
+        if not self.probe_peer:
+            # No probe callback available — skip rather than lie
+            logger.debug("Connectivity check skipped: no probe_peer callback")
+            return
+
+        try:
+            stats = self.get_peer_stats()
+            peer_ids: List[str] = stats.get("connected_peer_ids", [])
+
+            if not peer_ids:
+                self.checks["connectivity"] = HealthCheck(
+                    name="connectivity",
+                    status=HealthStatus.UNHEALTHY,
+                    message="No peers available to probe",
+                    last_check=time.time(),
+                    details={"probed": 0, "succeeded": 0}
+                )
+                return
+
+            # Sample a bounded subset
+            import random
+            sample = random.sample(peer_ids, min(self.PROBE_SAMPLE_SIZE, len(peer_ids)))
+
+            # Probe concurrently with timeout
+            async def _probe_with_timeout(pid: str):
+                try:
+                    rtt = await asyncio.wait_for(
+                        self.probe_peer(pid),
+                        timeout=self.PROBE_TIMEOUT
+                    )
+                    return pid, rtt
+                except (asyncio.TimeoutError, Exception):
+                    return pid, None
+
+            results = await asyncio.gather(*[_probe_with_timeout(pid) for pid in sample])
+
+            succeeded = [(pid, rtt) for pid, rtt in results if rtt is not None]
+            failed = [(pid, rtt) for pid, rtt in results if rtt is None]
+            success_ratio = len(succeeded) / len(results) if results else 0.0
+            rtts = [rtt for _, rtt in succeeded]
+            median_rtt = sorted(rtts)[len(rtts) // 2] if rtts else None
+
+            details = {
+                "probed": len(results),
+                "succeeded": len(succeeded),
+                "failed": len(failed),
+                "success_ratio": round(success_ratio, 2),
+                "median_rtt_ms": round(median_rtt * 1000, 1) if median_rtt else None,
+                "timeout_count": len(failed),
+            }
+
+            if len(succeeded) == 0:
+                status = HealthStatus.UNHEALTHY
+                message = f"All {len(results)} probed peers unreachable"
+            elif success_ratio < self.DEGRADED_SUCCESS_RATIO:
+                status = HealthStatus.DEGRADED
+                message = (
+                    f"Connectivity degraded: {len(succeeded)}/{len(results)} peers reachable "
+                    f"(median RTT {details['median_rtt_ms']}ms)"
+                )
+            else:
+                status = HealthStatus.HEALTHY
+                message = (
+                    f"{len(succeeded)}/{len(results)} peers reachable "
+                    f"(median RTT {details['median_rtt_ms']}ms)"
+                )
+
+            self.checks["connectivity"] = HealthCheck(
+                name="connectivity",
+                status=status,
+                message=message,
+                last_check=time.time(),
+                details=details
+            )
+
+        except Exception as e:
+            logger.error(f"Error checking connectivity: {e}")
+            self.checks["connectivity"] = HealthCheck(
+                name="connectivity",
+                status=HealthStatus.UNKNOWN,
+                message=f"Connectivity check failed: {e}",
+                last_check=time.time()
+            )
 
     def get_health_summary(self) -> dict:
         """Get health check summary."""
