@@ -104,20 +104,34 @@ class ControlMessageHandler:
         """
         Handle a control message.
 
+        Only messages that are targeted at this node (or broadcast with
+        no target) and pass validation are marked as processed.  Messages
+        targeted at other nodes are returned as "ignored" without
+        polluting the replay cache, so routing/forwarding is not blocked.
+
         Args:
             message: Control message to handle
 
         Returns:
             Tuple of (success, error_message)
         """
-        # Check for replay attacks (lock protects check-then-mark atomicity)
         import time
+
+        # ── Pre-check: is this message for us? ────────────────────────
+        # Evaluate targeting BEFORE writing to the replay cache so that
+        # messages intended for other nodes don't consume replay slots.
+        if message.target and message.target != self.node_id:
+            logger.debug(f"Control message not for us (target={message.target})")
+            return False, "Message not targeted at this node"
+
+        # ── Replay check (atomic check-then-mark) ────────────────────
         async with self._replay_lock:
             if message.message_id in self._processed_messages:
                 return False, "Control message already processed (replay attack?)"
             # Mark as processed atomically with the check
             self._processed_messages[message.message_id] = time.time()
 
+        # ── Validate signature + authorization ────────────────────────
         # Get issuer public key
         public_key = self.get_public_key(message.issuer)
         if not public_key:
@@ -133,17 +147,11 @@ class ControlMessageHandler:
             logger.warning(f"Invalid control message: {error}")
             return False, error
 
-        # Check if message is targeted at us
-        if message.target and message.target != self.node_id:
-            logger.debug(f"Control message not for us (target={message.target})")
-            return False, "Message not targeted at this node"
-
-        # Get handler
+        # ── Dispatch ──────────────────────────────────────────────────
         handler = self._handlers.get(message.command)
         if not handler:
             return False, f"No handler for command: {message.command}"
 
-        # Execute handler
         try:
             result = await handler(message)
             logger.info(

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time as _time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,7 @@ from flask import Flask, request, jsonify
 import nacl.signing
 
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
-from ..crypto import load_private_key, sign_model, verify_model_signature
+from ..crypto import load_private_key, sign_model, verify_model_signature, sign_data, verify_signature
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ class NetworkAuthorityService:
         if na_pub_b64 != our_pub_b64:
             raise ValueError("NA private key does not match genesis block")
 
+        # Nonce replay cache for authenticated requests: {nonce: timestamp}
+        self._used_nonces: dict[str, float] = {}
+        self._nonce_max_age = 300.0  # 5 minutes freshness window
+
         logger.info(f"Network Authority service initialized for network: {genesis_block.network_name}")
 
     VALID_ROLE_PREFIXES = ['role:anchor', 'role:bridge', 'role:client', 'role:operator', 'role:service:']
@@ -72,6 +77,70 @@ class NetworkAuthorityService:
             if not any(role.startswith(prefix) for prefix in self.VALID_ROLE_PREFIXES):
                 return False, f"Invalid role: {role}"
         return True, None
+
+    def _verify_request_signature(self, data: dict, node_public_key: str) -> tuple[bool, str | None]:
+        """
+        Verify a signed API request (proof-of-possession).
+
+        The request body must include:
+        - signature: base64 Ed25519 signature over the canonical payload
+        - timestamp: ISO-8601 UTC timestamp (must be within freshness window)
+        - nonce: unique string (prevents replay)
+
+        The signature covers the canonical JSON of the payload *excluding*
+        the 'signature' key itself.
+
+        Returns:
+            (is_valid, error_message) tuple
+        """
+        signature_b64 = data.get('signature')
+        timestamp_str = data.get('timestamp')
+        nonce = data.get('nonce')
+
+        if not signature_b64 or not timestamp_str or not nonce:
+            return False, "Missing authentication fields: signature, timestamp, and nonce required"
+
+        # Verify timestamp freshness
+        try:
+            request_time = datetime.fromisoformat(timestamp_str)
+        except (ValueError, TypeError):
+            return False, "Invalid timestamp format"
+
+        now = datetime.utcnow()
+        age = abs((now - request_time).total_seconds())
+        if age > self._nonce_max_age:
+            return False, f"Request timestamp too old ({age:.0f}s > {self._nonce_max_age:.0f}s)"
+
+        # Check nonce replay
+        if nonce in self._used_nonces:
+            return False, "Nonce already used (replay detected)"
+
+        # Build canonical payload (everything except 'signature')
+        payload = {k: v for k, v in sorted(data.items()) if k != 'signature'}
+        canonical = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+
+        # Verify Ed25519 signature
+        try:
+            if not verify_signature(canonical.encode('utf-8'), signature_b64, node_public_key):
+                return False, "Invalid signature"
+        except Exception as e:
+            return False, f"Signature verification error: {e}"
+
+        # Accept nonce (record after successful verification)
+        self._used_nonces[nonce] = _time.time()
+
+        # Periodic nonce cleanup (lightweight, inline)
+        self._cleanup_nonces()
+
+        return True, None
+
+    def _cleanup_nonces(self):
+        """Remove expired nonces from replay cache."""
+        now = _time.time()
+        expired = [n for n, ts in self._used_nonces.items()
+                   if (now - ts) > self._nonce_max_age * 2]
+        for n in expired:
+            del self._used_nonces[n]
 
     def _setup_routes(self):
         """Set up Flask routes."""
@@ -152,11 +221,17 @@ class NetworkAuthorityService:
             """
             Receive heartbeat from a node.
 
+            Requires proof-of-possession: the request must be signed by
+            the node's private key corresponding to node_public_key.
+
             Expected JSON body:
             {
                 "cert_id": "<certificate-id>",
                 "node_public_key": "<base64-key>",
-                "status": "healthy"
+                "status": "healthy",
+                "timestamp": "<ISO-8601 UTC>",
+                "nonce": "<unique-string>",
+                "signature": "<base64-ed25519-sig>"
             }
             """
             try:
@@ -167,6 +242,17 @@ class NetworkAuthorityService:
 
                 if not cert_id or not node_public_key:
                     return jsonify({"error": "cert_id and node_public_key required"}), 400
+
+                # Verify the node registered this cert
+                existing = self.connected_nodes.get(cert_id)
+                if existing and existing.get("node_public_key") != node_public_key:
+                    return jsonify({"error": "Public key does not match certificate"}), 403
+
+                # Authenticate: verify signature proves possession of private key
+                auth_ok, auth_err = self._verify_request_signature(data, node_public_key)
+                if not auth_ok:
+                    logger.warning(f"Heartbeat auth failed for {cert_id[:8]}...: {auth_err}")
+                    return jsonify({"error": auth_err}), 401
 
                 # Update node tracking — merge with existing data to
                 # preserve roles and other fields set during /join
@@ -196,14 +282,18 @@ class NetworkAuthorityService:
             """
             Renew a node's join certificate.
 
-            Roles are preserved from the original certificate. Clients cannot
-            escalate privileges by requesting different roles during renewal.
+            Requires proof-of-possession: the request must be signed by
+            the node's private key. Roles are preserved from the original
+            certificate — clients cannot escalate privileges during renewal.
 
             Expected JSON body:
             {
                 "cert_id": "<current-certificate-id>",
                 "node_public_key": "<base64-key>",
-                "validity_hours": 168
+                "validity_hours": 168,
+                "timestamp": "<ISO-8601 UTC>",
+                "nonce": "<unique-string>",
+                "signature": "<base64-ed25519-sig>"
             }
             """
             try:
@@ -230,6 +320,12 @@ class NetworkAuthorityService:
                         f"got {node_public_key[:8]}"
                     )
                     return jsonify({"error": "Public key does not match certificate"}), 403
+
+                # Authenticate: verify signature proves possession of private key
+                auth_ok, auth_err = self._verify_request_signature(data, node_public_key)
+                if not auth_ok:
+                    logger.warning(f"Renewal auth failed for {cert_id[:8]}...: {auth_err}")
+                    return jsonify({"error": auth_err}), 401
 
                 # Roles are always preserved from server-side state — ignore
                 # any client-supplied roles to prevent privilege escalation
