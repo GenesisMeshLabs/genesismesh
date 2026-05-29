@@ -73,12 +73,14 @@ class MeshNodeRuntime:
         na_endpoint: str,
         listen_host: str = "0.0.0.0",
         listen_port: int = 0,
+        bootstrap_peers: list[str] | None = None,
     ):
         """Create a runtime around a joined `MeshNode`."""
         self.node = node
         self.na_endpoint = na_endpoint.rstrip("/")
         self.listen_host = listen_host
         self.listen_port = listen_port
+        self.bootstrap_peers: list[str] = list(bootstrap_peers or [])
         self.node_id = node.node_keypair.public_key_b64
 
         self.connection_pool = ConnectionPool()
@@ -178,6 +180,7 @@ class MeshNodeRuntime:
         self._monitor_task = asyncio.create_task(self._monitor_loop())
 
         await self._bootstrap_anchors()
+        await self._connect_explicit_peers()
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         logger.info("Mesh node runtime started")
 
@@ -240,6 +243,15 @@ class MeshNodeRuntime:
                 await websocket.close()
             except Exception:
                 pass
+
+    async def _connect_explicit_peers(self) -> None:
+        """Connect to peers supplied via --peer at join time."""
+        for endpoint in self.bootstrap_peers:
+            try:
+                await self._connect_endpoint(endpoint)
+                logger.info("Connected to explicit peer %s", endpoint)
+            except Exception as exc:
+                logger.warning("Failed to connect to explicit peer %s: %s", endpoint, exc)
 
     async def _bootstrap_anchors(self):
         """Connect to bootstrap anchors listed in the genesis block."""
