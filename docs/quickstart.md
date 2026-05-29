@@ -1,191 +1,189 @@
-# Genesis Mesh - Quick Start Guide
+# Quick Start
 
-This guide creates a local Genesis Mesh development network. Production
-deployments should use mounted secrets, the container entry point, and the
-infrastructure guidance in [](operations/infrastructure.md).
+This guide creates a local Genesis Mesh development network through the
+high-level `genesis-mesh` command. The command is organized around the three
+people who operate the system: an operator who runs the Network Authority, a
+node operator who joins the mesh, and a developer who wants a local smoke test.
 
 ```{mermaid}
 flowchart TD
-    keys["Generate root, NA, and operator keys"]
-    genesis["Create and sign genesis block"]
-    na["Start Network Authority"]
-    invite["Create invite token"]
-    node["Start node with invite"]
-    smoke["Run smoke workflow"]
+    init["genesis-mesh init"]
+    na["genesis-mesh na start"]
+    invite["genesis-mesh admin invite"]
+    join["genesis-mesh join"]
+    status["genesis-mesh status"]
+    dev["genesis-mesh dev up"]
 
-    keys --> genesis
-    genesis --> na
+    init --> na
     na --> invite
-    invite --> node
-    node --> smoke
+    invite --> join
+    join --> status
+    init --> dev
 ```
 
 ## Prerequisites
 
-Install dependencies:
+Install the package in editable mode so the `genesis-mesh` console command is
+available:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-## 1. Generate Authority Keys
-
-The Root Sovereign key is the offline constitutional authority. Keep it offline
-and secure.
+On Windows Git Bash, user-level Python installs commonly put console scripts
+under `%APPDATA%\Python\Python314\Scripts`, which Git Bash may not have on
+`PATH`. Prefer using the project virtual environment:
 
 ```bash
-python -m genesis_mesh.cli keygen root \
-  --output keys/root \
-  --key-id rs-2025-q1
+source .venv/Scripts/activate
+python -m pip install -e .
+genesis-mesh --help
 ```
 
-The Network Authority key signs certificates, CRLs, and policies.
+Or add the user script directory to the current Git Bash session:
 
 ```bash
-python -m genesis_mesh.cli keygen network-authority \
-  --output keys/na \
-  --key-id na-2025-q1
+export PATH="$HOME/AppData/Roaming/Python/Python314/Scripts:$PATH"
+genesis-mesh --help
 ```
 
-Generate a separate operator key for admin API calls:
+## Operator Workflow
+
+Initialize local keys, a signed genesis block, and `genesis-mesh.toml`:
 
 ```bash
-python -m genesis_mesh.cli keygen node \
-  --output keys/operator \
-  --key-id operator-local
+genesis-mesh init
 ```
 
-## 2. Create and Sign a Genesis Block
+If you previously ran `genesis-mesh dev down`, run `genesis-mesh init` again
+before `genesis-mesh na start`; `dev down` removes the local config and
+generated artifacts.
+
+Start the Network Authority from that config:
 
 ```bash
-python -m genesis_mesh.cli genesis create \
-  --network-name "USG" \
-  --network-version "v0.1" \
-  --root-key keys/root.pub \
-  --na-key keys/na.pub \
-  --na-valid-days 90 \
-  --anchor anchor-local:127.0.0.1:8443 \
-  --output genesis.json
+genesis-mesh na start
 ```
 
-Sign the genesis block with the offline root key:
+The command is blocking. Open `http://127.0.0.1:8443/` in a browser to see the
+Network Authority landing page with links to health, policy, CRL, and node
+routes. Keep the server running in one terminal, then create an invite token
+from another terminal:
 
 ```bash
-python -m genesis_mesh.cli genesis sign \
-  --genesis genesis.json \
-  --root-private-key keys/root.key \
-  --key-id rs-2025-q1 \
-  --output genesis.signed.json
+INVITE_TOKEN=$(genesis-mesh admin invite --role anchor)
 ```
 
-Verify the signed genesis block:
+PowerShell equivalent:
+
+```powershell
+$INVITE_TOKEN = genesis-mesh admin invite --role anchor
+```
+
+The invite controls the node's roles and maximum certificate validity. The
+Network Authority assigns roles from the invite and ignores client-supplied
+roles during `/join`.
+
+## Node Operator Workflow
+
+Join the mesh with one command:
 
 ```bash
-python -m genesis_mesh.cli genesis verify \
-  --genesis genesis.signed.json
+genesis-mesh join --na http://127.0.0.1:8443 --token "$INVITE_TOKEN"
 ```
 
-## 3. Start the Network Authority
+PowerShell:
 
-Validate the Network Authority configuration:
+```powershell
+genesis-mesh join --na http://127.0.0.1:8443 --token $INVITE_TOKEN
+```
+
+`join` enrolls the node, saves the join certificate and active policy, writes
+the config, and keeps future commands from repeating genesis and bootstrap
+paths. Add `--persistent` when you want the peer runtime to stay running after
+enrollment:
 
 ```bash
-python -m genesis_mesh.na_service \
-  --genesis genesis.signed.json \
-  --na-private-key keys/na.key \
-  --key-id na-2025-q1 \
-  --operator-public-key operator-local=keys/operator.pub
+genesis-mesh join --na http://127.0.0.1:8443 --token "$INVITE_TOKEN" --persistent
 ```
 
-Run the local development server through the WSGI app:
+Invite tokens are single-use. If you already joined once and only want to start
+the persistent runtime, reuse the saved local certificate and omit the token:
 
 ```bash
-export GENESIS_FILE=genesis.signed.json
-export NA_PRIVATE_KEY_FILE=keys/na.key
-export NA_KEY_ID=na-2025-q1
-export OPERATOR_PUBLIC_KEYS_JSON="{\"operator-local\":\"$(grep -v '^#' keys/operator.pub | tr -d '\r\n')\"}"
-python -m flask --app genesis_mesh.na_service.wsgi run --host 127.0.0.1 --port 8443
+genesis-mesh join --na http://127.0.0.1:8443 --persistent
 ```
 
-For container or production-style startup, use `start.sh` with `GENESIS_FILE`
-and `NA_PRIVATE_KEY_FILE` pointing at mounted secret files. The script runs
-Gunicorn and defaults to port `8443`. Pass operator public keys to the WSGI app
-with `OPERATOR_PUBLIC_KEYS_JSON`, for example
-`{"operator-local":"<base64-public-key>"}`.
+Running that command in two terminals with the same `genesis-mesh.toml` starts
+two runtimes for the same node identity. The Network Authority will still show
+one active node because both processes use the same node key and certificate.
+Use a separate config/home directory for each local node when testing multiple
+identities.
 
-The Network Authority exposes:
-
-- `GET /healthz` for liveness.
-- `GET /readyz` for readiness.
-- `GET /genesis` for the active genesis block.
-- `GET /policy` for the active policy manifest.
-- `GET /crl` for the active signed CRL.
-- `POST /admin/invite` for operator-authenticated invite creation.
-- `POST /join` for invite-token-backed certificate issuance.
-
-## 4. Create an Invite Token
-
-Node enrollment requires a single-use invite token. Admin requests are signed by
-an operator key, not by the NA private key. Until a dedicated operator CLI is
-added, use the admin API signing pattern shown in `examples/test_workflow.py`.
-
-The invite controls the node roles and maximum certificate validity. The NA
-ignores client-supplied roles during `/join` and assigns roles from the invite.
-
-## 5. Start a Node
-
-Start an anchor node with the invite token:
+Check local status:
 
 ```bash
-python -m genesis_mesh.node \
-  --genesis genesis.signed.json \
-  --bootstrap http://localhost:8443 \
-  --role role:anchor \
-  --validity-hours 168 \
-  --invite-token "$INVITE_TOKEN" \
-  --persistent
+genesis-mesh status
 ```
 
-Start a client node with a separate invite token:
+`status` uses the config to show Network Authority health and local node
+certificate information.
+
+The local `init` workflow intentionally creates no peer bootstrap anchors. The
+Network Authority HTTP API is not a peer WebSocket endpoint. Add a bootstrap
+anchor only when you have another Genesis Mesh node listening on its peer
+runtime port.
+
+## Developer Workflow
+
+Run the in-process smoke workflow:
 
 ```bash
-python -m genesis_mesh.node \
-  --genesis genesis.signed.json \
-  --bootstrap http://localhost:8443 \
-  --role role:client \
-  --validity-hours 24 \
-  --invite-token "$CLIENT_INVITE_TOKEN" \
-  --persistent
+genesis-mesh dev up
 ```
 
-The node verifies the genesis block, requests a join certificate with its invite,
-fetches policy, and starts the persistent runtime when `--persistent` is set.
+This starts a local Network Authority in process, creates operator-authenticated
+invite tokens, enrolls nodes, fetches policy, and validates node status.
 
-## 6. Test the Workflow
-
-Run the Python smoke workflow:
+Clean local generated artifacts created by `genesis-mesh init`:
 
 ```bash
-python examples/test_workflow.py
+genesis-mesh dev down
 ```
 
-The shell quickstart creates keys and signed genesis artifacts:
+Stop `genesis-mesh na start` and any persistent node runtime before running
+`dev down`. On Windows, SQLite keeps `.genesis-mesh/na.db` locked while the
+Network Authority process is running.
 
-```bash
-bash examples/quickstart.sh
-```
+## Config Files
+
+By default, commands look for config in this order:
+
+1. `--config <path>`
+2. `GENESIS_MESH_CONFIG`
+3. `./genesis-mesh.toml`
+4. `~/.genesis-mesh/config.toml`
+
+The config stores the Network Authority endpoint, genesis path, key paths,
+certificate path, and policy path. Private keys and generated databases must not
+be committed. Local CLI output is ignored by default through
+`genesis-mesh.toml`, `.genesis-mesh/`, `keys/`, and SQLite database patterns.
 
 ## Roles
 
-- `role:anchor`: Gateway or relay node.
-- `role:bridge`: Edge resiliency node.
-- `role:client`: Endpoint node.
-- `role:operator`: Policy or administrative operator.
-- `role:service:<name>`: Service-specific identity.
+- `role:anchor`: gateway or relay node.
+- `role:bridge`: edge resiliency node.
+- `role:client`: endpoint node.
+- `role:operator`: policy or administrative operator.
+- `role:service:<name>`: service-specific identity.
+
+Role arguments accept either `anchor` or `role:anchor`; the CLI normalizes the
+short form.
 
 ## Security Notes
 
-- Keep Root Sovereign private keys offline.
+- Keep Root Sovereign private keys offline outside local demos.
 - Keep NA private keys inside the NA process, a secret manager, or an HSM.
 - Use separate operator keys for admin API calls.
 - Treat invite tokens as secrets; they are single-use enrollment credentials.
@@ -194,21 +192,32 @@ bash examples/quickstart.sh
 
 ## Troubleshooting
 
-### Genesis block signature verification fails
+### `genesis-mesh` is not found
 
-- Confirm `keys/root.pub` matches the private key used for signing.
-- Confirm the genesis block was not edited after signing.
-- Re-run `python -m genesis_mesh.cli genesis verify`.
+Install the package in editable mode:
+
+```bash
+python -m pip install -e .
+```
+
+Then reopen the shell or activate the virtual environment that installed it. On
+Windows user installs, Python may place scripts under
+`%APPDATA%\Python\Python314\Scripts`; add that directory to `PATH` if pip warns
+that installed scripts are not available.
 
 ### Node cannot join
 
-- Confirm the NA is reachable at the `--bootstrap` URL.
+- Confirm `genesis-mesh na start` is still running.
+- Confirm the URL passed to `--na` matches the Network Authority endpoint.
 - Confirm the invite token exists, is unused, and has not expired.
-- Confirm the invite allows the requested certificate validity.
-- Check NA logs for `/join` errors.
+- Check Network Authority logs for `/join` errors.
 
-### Certificate validation fails
+### Genesis block signature verification fails
 
-- Confirm the NA public key in genesis matches the running NA private key.
-- Confirm system clocks are synchronized.
-- Confirm the certificate has not expired or been revoked.
+Run:
+
+```bash
+genesis-mesh genesis verify --genesis .genesis-mesh/genesis.signed.json
+```
+
+Confirm the genesis block was not edited after signing.

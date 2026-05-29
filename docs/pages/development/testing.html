@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -305,11 +305,15 @@ put the generated Sphinx <code class="docutils literal notranslate"><span class=
 </section>
 <section id="smoke-workflow">
 <h2>Smoke Workflow<a class="headerlink" href="#smoke-workflow" title="Link to this heading">¶</a></h2>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">examples</span><span class="p">\</span><span class="n">test_workflow</span><span class="p">.</span><span class="n">py</span>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">genesis-mesh</span> <span class="n">dev</span> <span class="n">up</span>
 </pre></div>
 </div>
 <p>This starts a local Network Authority, creates operator-authenticated invite
 tokens, enrolls nodes, fetches policy, and validates node status.</p>
+<p>The underlying script remains available for direct debugging:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">examples</span><span class="p">\</span><span class="n">test_workflow</span><span class="p">.</span><span class="n">py</span>
+</pre></div>
+</div>
 </section>
 <section id="container-smoke-checks">
 <h2>Container Smoke Checks<a class="headerlink" href="#container-smoke-checks" title="Link to this heading">¶</a></h2>

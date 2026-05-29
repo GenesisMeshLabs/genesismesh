@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Overview" href="concepts/overview.html"><link rel="prev" title="Genesis Mesh - Quick Start Guide" href="quickstart.html">
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Overview" href="concepts/overview.html"><link rel="prev" title="Quick Start" href="quickstart.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Installation - Genesis Mesh</title>
@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -273,6 +273,7 @@ development.</p>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">pip</span> <span class="n">install</span> <span class="p">-</span><span class="n">-upgrade</span> <span class="n">pip</span>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">pip</span> <span class="n">install</span> <span class="n">-r</span> <span class="n">requirements</span><span class="p">.</span><span class="n">txt</span>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">pip</span> <span class="n">install</span> <span class="n">-r</span> <span class="n">docs</span><span class="p">/</span><span class="n">requirements</span><span class="p">.</span><span class="n">txt</span>
+<span class="n">python</span> <span class="n">-m</span> <span class="n">pip</span> <span class="n">install</span> <span class="n">-e</span> <span class="p">.</span>
 </pre></div>
 </div>
 </section>
@@ -283,15 +284,33 @@ development.</p>
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>docs/requirements.txt
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
 </section>
 <section id="verify-the-install">
 <h2>Verify the Install<a class="headerlink" href="#verify-the-install" title="Link to this heading">¶</a></h2>
 <div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">-m</span> <span class="n">pytest</span> <span class="n">genesis_mesh</span><span class="p">/</span><span class="n">tests</span> <span class="n">-v</span>
+<span class="n">genesis-mesh</span> <span class="p">-</span><span class="n">-help</span>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">mypy</span> <span class="n">genesis_mesh</span> <span class="p">-</span><span class="n">-ignore-missing-imports</span>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">pip_audit</span> <span class="n">-r</span> <span class="n">requirements</span><span class="p">.</span><span class="n">txt</span>
 <span class="n">python</span> <span class="n">-m</span> <span class="n">sphinx</span> <span class="n">-b</span> <span class="n">html</span> <span class="n">-W</span> <span class="n">docs</span> <span class="n">docs</span><span class="p">/</span><span class="n">pages</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> reports that scripts were installed outside
+<code class="docutils literal notranslate"><span class="pre">PATH</span></code>, add the reported scripts directory to your shell profile. On the current
+Windows/Python layout this is commonly
+<code class="docutils literal notranslate"><span class="pre">%APPDATA%\Python\Python314\Scripts</span></code>.</p>
+<p>For Git Bash on Windows, the equivalent one-session fix is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/AppData/Roaming/Python/Python314/Scripts:</span><span class="nv">$PATH</span><span class="s2">&quot;</span>
+genesis-mesh<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>If you use the repository virtual environment instead, activate it before
+running <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>.venv/Scripts/activate
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+genesis-mesh<span class="w"> </span>--help
 </pre></div>
 </div>
 </section>
@@ -299,6 +318,7 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 <h2>Runtime Requirements<a class="headerlink" href="#runtime-requirements" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Python 3.14 for the current tested environment.</p></li>
+<li><p>The editable package install for the <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> console command.</p></li>
 <li><p>Network access between the Network Authority and nodes.</p></li>
 <li><p>A signed genesis block.</p></li>
 <li><p>A Network Authority private key matching the genesis block.</p></li>
@@ -310,9 +330,13 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 <p>Development commands may generate local keys, databases, and genesis artifacts.
 The repository ignores these by default:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.genesis-mesh/</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">keys/</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.key</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.db</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*.db-shm</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*.db-wal</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">examples/genesis/demo/</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">docs/pages/</span></code> is generated HTML output and is intentionally available for tracking.</p></li>
 </ul>
@@ -340,7 +364,7 @@ The repository ignores these by default:</p>
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Genesis Mesh - Quick Start Guide</div>
+                <div class="title">Quick Start</div>
                 
               </div>
             </a>

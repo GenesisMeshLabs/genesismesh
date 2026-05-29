@@ -36,78 +36,50 @@ flowchart TD
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Quick Start
 
-The commands below write generated genesis files into the current working
-directory. Checked-in sample genesis artifacts live under `examples/genesis/` so
-the repository root stays focused on source, package, and runtime files.
-
-### 1. Generate authority keys
+The high-level CLI is organized around three workflows.
 
 ```bash
-python -m genesis_mesh.cli keygen root --output keys/root
-python -m genesis_mesh.cli keygen network-authority --output keys/na
-python -m genesis_mesh.cli keygen node --output keys/operator --key-id operator-local
+# Operator: create keys, genesis, and config.
+genesis-mesh init
+
+# Operator: start the local Network Authority in one terminal.
+genesis-mesh na start
+
+# Browser: open the Network Authority console.
+# http://127.0.0.1:8443/
+
+# Operator: create a single-use invite in another terminal.
+INVITE_TOKEN=$(genesis-mesh admin invite --role anchor)
+
+# Node operator: enroll this machine.
+genesis-mesh join --na http://127.0.0.1:8443 --token "$INVITE_TOKEN"
+
+# Either persona: inspect configured NA and node state.
+genesis-mesh status
 ```
 
-### 2. Create and sign a genesis block
+PowerShell invite capture:
+
+```powershell
+$INVITE_TOKEN = genesis-mesh admin invite --role anchor
+genesis-mesh join --na http://127.0.0.1:8443 --token $INVITE_TOKEN
+```
+
+For a local developer smoke test:
 
 ```bash
-python -m genesis_mesh.cli genesis create \
-  --network-name "USG" \
-  --root-key keys/root.pub \
-  --na-key keys/na.pub \
-  --anchor anchor-local:127.0.0.1:8443 \
-  --output genesis.json
-
-python -m genesis_mesh.cli genesis sign \
-  --genesis genesis.json \
-  --root-private-key keys/root.key \
-  --output genesis.signed.json
+genesis-mesh dev up
 ```
 
-### 3. Start the Network Authority
-
-Validate the Network Authority configuration:
-
-```bash
-python -m genesis_mesh.na_service \
-  --genesis genesis.signed.json \
-  --na-private-key keys/na.key \
-  --operator-public-key operator-local=keys/operator.pub
-```
-
-Run the local development server through the WSGI app:
-
-```bash
-export GENESIS_FILE=genesis.signed.json
-export NA_PRIVATE_KEY_FILE=keys/na.key
-export OPERATOR_PUBLIC_KEYS_JSON="{\"operator-local\":\"$(grep -v '^#' keys/operator.pub | tr -d '\r\n')\"}"
-python -m flask --app genesis_mesh.na_service.wsgi run --host 127.0.0.1 --port 8443
-```
-
-Production/container startup uses `start.sh` and Gunicorn. It requires mounted
-`GENESIS_FILE` and `NA_PRIVATE_KEY_FILE` paths, plus operator public keys through
-`OPERATOR_PUBLIC_KEYS_JSON`, and fails closed when either required secret file is
-missing.
-
-### 4. Enroll a node
-
-Enrollment is permissioned. Create a single-use invite token through the
-operator-authenticated `POST /admin/invite` endpoint, then pass that token to
-the node. `examples/test_workflow.py` shows the operator-signed admin request
-format end to end.
-
-```bash
-python -m genesis_mesh.node \
-  --genesis genesis.signed.json \
-  --bootstrap http://localhost:8443 \
-  --role role:anchor \
-  --invite-token "$INVITE_TOKEN" \
-  --persistent
-```
+Production/container startup still uses `start.sh` and Gunicorn. It requires
+mounted `GENESIS_FILE` and `NA_PRIVATE_KEY_FILE` paths, plus operator public
+keys through `OPERATOR_PUBLIC_KEYS_JSON`, and fails closed when either required
+secret file is missing.
 
 ## Documentation
 

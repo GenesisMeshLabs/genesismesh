@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -287,11 +287,15 @@ Authority startup.</p>
     container --&gt; gunicorn
     </pre><section id="local-development">
 <h2>Local Development<a class="headerlink" href="#local-development" title="Link to this heading">¶</a></h2>
-<p>Use the local CLI while developing or running smoke tests:</p>
-<p>Use <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.na_service</span></code> to validate local configuration and
-app-factory construction. Run the HTTP service through the WSGI entry point.
-For local development, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">flask</span> <span class="pre">--app</span> <span class="pre">genesis_mesh.na_service.wsgi</span> <span class="pre">run</span></code>
-is enough; production/container startup uses Gunicorn through <code class="docutils literal notranslate"><span class="pre">start.sh</span></code>.</p>
+<p>Use the high-level CLI while developing or running smoke tests:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>init
+genesis-mesh<span class="w"> </span>na<span class="w"> </span>start
+genesis-mesh<span class="w"> </span>dev<span class="w"> </span>up
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code> uses the Flask local server and reads
+<code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code>. Production/container startup uses Gunicorn through
+<code class="docutils literal notranslate"><span class="pre">start.sh</span></code>.</p>
 </section>
 <section id="container-startup">
 <h2>Container Startup<a class="headerlink" href="#container-startup" title="Link to this heading">¶</a></h2>

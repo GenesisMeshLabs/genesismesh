@@ -1,7 +1,48 @@
 # Configuration Reference
 
-Genesis Mesh uses command-line arguments for local development and environment
+Genesis Mesh uses `genesis-mesh.toml` for local CLI workflows and environment
 variables for container startup.
+
+## CLI Config Discovery
+
+The `genesis-mesh` command looks for config in this order:
+
+1. `--config <path>`
+2. `GENESIS_MESH_CONFIG`
+3. `./genesis-mesh.toml`
+4. `~/.genesis-mesh/config.toml`
+
+`genesis-mesh init` writes a local config by default. `genesis-mesh join`
+updates that config with node certificate and policy paths.
+
+Example:
+
+```toml
+[network]
+name = "USG"
+version = "v0.1"
+na_endpoint = "http://127.0.0.1:8443"
+
+[paths]
+home = ".genesis-mesh"
+genesis = ".genesis-mesh/genesis.signed.json"
+na_private_key = ".genesis-mesh/keys/na.key"
+operator_private_key = ".genesis-mesh/keys/operator.key"
+operator_public_key = ".genesis-mesh/keys/operator.pub"
+node_private_key = ".genesis-mesh/keys/node.key"
+node_certificate = ".genesis-mesh/node.cert.json"
+policy = ".genesis-mesh/policy.json"
+
+[na]
+key_id = "na-local"
+host = "127.0.0.1"
+port = 8443
+
+[operator]
+key_id = "operator-local"
+```
+
+Private-key paths in this file are local secrets and must not be committed.
 
 ## Network Authority Environment
 
@@ -36,10 +77,14 @@ in deployment manifests.
 
 Private keys and databases should not be committed. The repository ignores:
 
+- `genesis-mesh.toml`
+- `.genesis-mesh/`
 - `*.key`
 - `*.pem`
 - `keys/`
 - `*.db`
+- `*.db-shm`
+- `*.db-wal`
 - `*.sqlite`
 
 Operator public keys are not private, but they are authorization data and should

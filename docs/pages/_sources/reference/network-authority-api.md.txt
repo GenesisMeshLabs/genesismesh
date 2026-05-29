@@ -5,6 +5,7 @@ and health.
 
 ```{mermaid}
 flowchart TB
+    home["Browser console\n/"]
     health["Health\n/healthz /readyz"]
     public["Public network data\n/genesis /policy /crl"]
     enrollment["Enrollment\n/join"]
@@ -15,9 +16,19 @@ flowchart TB
 
     auth --> admin
     node_sig --> node_ops
+    home --> health
+    home --> public
     enrollment --> public
     admin --> public
 ```
+
+## Browser Console
+
+### `GET /`
+
+Returns a human-readable Network Authority home page with links to public,
+health, node, and operator routes. It is intended for operators opening the NA
+from a browser and does not replace signed API clients for write operations.
 
 ## Health
 
@@ -28,6 +39,12 @@ Liveness probe. Does not perform dependency checks.
 ### `GET /readyz`
 
 Readiness probe. Verifies database connectivity and migration state.
+
+### `GET /nodes`
+
+Returns recently active, non-revoked nodes from persisted certificate state.
+Rows are considered active when their latest join or heartbeat timestamp is
+within the Network Authority active-node window.
 
 ## Public Network Data
 

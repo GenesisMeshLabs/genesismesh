@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -264,8 +264,46 @@
         <article role="main" id="furo-main-content">
           <section id="configuration-reference">
 <h1>Configuration Reference<a class="headerlink" href="#configuration-reference" title="Link to this heading">¶</a></h1>
-<p>Genesis Mesh uses command-line arguments for local development and environment
+<p>Genesis Mesh uses <code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code> for local CLI workflows and environment
 variables for container startup.</p>
+<section id="cli-config-discovery">
+<h2>CLI Config Discovery<a class="headerlink" href="#cli-config-discovery" title="Link to this heading">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> command looks for config in this order:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--config</span> <span class="pre">&lt;path&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GENESIS_MESH_CONFIG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">./genesis-mesh.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~/.genesis-mesh/config.toml</span></code></p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code> writes a local config by default. <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">join</span></code>
+updates that config with node certificate and policy paths.</p>
+<p>Example:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[network]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;USG&quot;</span>
+<span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;v0.1&quot;</span>
+<span class="n">na_endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;http://127.0.0.1:8443&quot;</span>
+
+<span class="k">[paths]</span>
+<span class="n">home</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh&quot;</span>
+<span class="n">genesis</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/genesis.signed.json&quot;</span>
+<span class="n">na_private_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/keys/na.key&quot;</span>
+<span class="n">operator_private_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/keys/operator.key&quot;</span>
+<span class="n">operator_public_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/keys/operator.pub&quot;</span>
+<span class="n">node_private_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/keys/node.key&quot;</span>
+<span class="n">node_certificate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/node.cert.json&quot;</span>
+<span class="n">policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;.genesis-mesh/policy.json&quot;</span>
+
+<span class="k">[na]</span>
+<span class="n">key_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;na-local&quot;</span>
+<span class="n">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span>
+<span class="n">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8443</span>
+
+<span class="k">[operator]</span>
+<span class="n">key_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;operator-local&quot;</span>
+</pre></div>
+</div>
+<p>Private-key paths in this file are local secrets and must not be committed.</p>
+</section>
 <section id="network-authority-environment">
 <h2>Network Authority Environment<a class="headerlink" href="#network-authority-environment" title="Link to this heading">¶</a></h2>
 <div class="table-wrapper colwidths-auto docutils container">
@@ -353,10 +391,14 @@ in deployment manifests.</p>
 <h2>Files and Secrets<a class="headerlink" href="#files-and-secrets" title="Link to this heading">¶</a></h2>
 <p>Private keys and databases should not be committed. The repository ignores:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.genesis-mesh/</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.key</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.pem</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">keys/</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.db</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*.db-shm</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*.db-wal</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*.sqlite</span></code></p></li>
 </ul>
 <p>Operator public keys are not private, but they are authorization data and should
@@ -420,6 +462,7 @@ be reviewed like any other security-sensitive configuration.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Configuration Reference</a><ul>
+<li><a class="reference internal" href="#cli-config-discovery">CLI Config Discovery</a></li>
 <li><a class="reference internal" href="#network-authority-environment">Network Authority Environment</a></li>
 <li><a class="reference internal" href="#node-environment">Node Environment</a></li>
 <li><a class="reference internal" href="#files-and-secrets">Files and Secrets</a></li>

@@ -26,14 +26,27 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.mypy_cache/
+.pytest_cache/
 .git
 .gitignore
 .azure/
 infrastructure/terraform.tfstate*
 docs/_build/
+docs/pages/.doctrees/
 docs_buildhtml/
 examples/genesis/demo/
+
+# Local CLI/runtime output must never enter the build context.
+genesis-mesh.toml
+.genesis-mesh/
+.node*/
+
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.key
+*.pem
+*.crt
 keys/
