@@ -3,6 +3,7 @@
 import pytest
 from genesis_mesh.crypto import (
     generate_keypair,
+    save_keypair,
     sign_data,
     verify_signature,
     sign_model,
@@ -153,3 +154,18 @@ def test_node_rejects_policy_signed_by_wrong_key():
     node = MeshNode(genesis, node_keypair)
 
     assert node._verify_policy_manifest(policy) is False
+
+
+def test_save_keypair_tolerates_filesystems_without_chmod(tmp_path, monkeypatch):
+    """Key saving should still work on mounted filesystems that reject chmod."""
+    keypair = generate_keypair()
+
+    def chmod_raises(self, mode):
+        raise PermissionError("chmod unsupported")
+
+    monkeypatch.setattr("pathlib.Path.chmod", chmod_raises)
+
+    private_path, public_path = save_keypair(keypair, str(tmp_path / "node"), "node-test")
+
+    assert private_path.exists()
+    assert public_path.exists()
