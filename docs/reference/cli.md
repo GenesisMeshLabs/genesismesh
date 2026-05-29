@@ -61,7 +61,8 @@ This command uses Flask's local server and is intended for development. Use the
 container entry point and Gunicorn for production-style deployments.
 
 If `genesis-mesh dev down` was run earlier, recreate local config first with
-`genesis-mesh init`; `dev down` removes `genesis-mesh.toml` and `.genesis-mesh/`.
+`genesis-mesh init`; `dev down` removes `genesis-mesh.toml`, `.genesis-mesh/`,
+and local `.node*/` smoke-test directories.
 
 ### `genesis-mesh admin invite`
 
@@ -155,8 +156,8 @@ validates node status.
 
 ### `genesis-mesh dev down`
 
-Removes local artifacts created by `genesis-mesh init` in the current working
-directory:
+Removes local artifacts created by `genesis-mesh init` and smoke-test node
+directories in the current working directory:
 
 ```bash
 genesis-mesh dev down

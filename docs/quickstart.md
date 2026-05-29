@@ -58,7 +58,7 @@ genesis-mesh init
 
 If you previously ran `genesis-mesh dev down`, run `genesis-mesh init` again
 before `genesis-mesh na start`; `dev down` removes the local config and
-generated artifacts.
+generated artifacts, including local `.node*/` smoke-test directories.
 
 Start the Network Authority from that config:
 
@@ -160,7 +160,8 @@ genesis-mesh dev down
 
 Stop `genesis-mesh na start` and any persistent node runtime before running
 `dev down`. On Windows, SQLite keeps `.genesis-mesh/na.db` locked while the
-Network Authority process is running.
+Network Authority process is running. The command also removes local `.node*/`
+directories created by smoke tests.
 
 ## Config Files
 

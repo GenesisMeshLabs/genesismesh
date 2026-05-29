@@ -99,3 +99,22 @@ def test_nodes_endpoint_reads_persisted_certificate_state(na_service, node_keypa
     assert payload["count"] == 1
     assert payload["nodes"][cert.cert_id]["status"] == "joined"
     assert payload["nodes"][cert.cert_id]["roles"] == ["role:anchor"]
+
+
+def test_metrics_endpoint_exposes_network_authority_counters(na_service, node_keypair):
+    """The Network Authority should expose Prometheus-readable operational counters."""
+    cert = na_service._issue_join_certificate(
+        node_public_key=node_keypair.public_key_b64,
+        roles=["role:anchor"],
+        validity_hours=24,
+    )
+    na_service.db.issue_cert(cert, "127.0.0.1")
+
+    resp = na_service.app.test_client().get("/metrics")
+
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/plain"
+    body = resp.get_data(as_text=True)
+    assert "genesis_mesh_na_issued_certs_total 1" in body
+    assert "genesis_mesh_na_active_nodes 1" in body
+    assert "genesis_mesh_na_revoked_certs_total 0" in body

@@ -60,3 +60,37 @@ bash infrastructure/azure/deploy_to_azure.sh
 Both scripts target port `8443`, matching the Docker image and `start.sh`. The
 scripts set the expected environment variable names; production environments
 still need to mount the genesis and NA key files at those configured paths.
+
+## Terraform Verification
+
+Run Terraform checks from a Linux filesystem, WSL, or a containerized Terraform
+runner. Installing providers directly under a Windows-mounted path can fail on
+provider executable permissions.
+
+```bash
+cd infrastructure
+terraform fmt -check -diff
+terraform init -backend=false -input=false
+terraform validate
+```
+
+The generic SSH path can be planned without cloud credentials by targeting the
+`null_resource`:
+
+```bash
+terraform plan \
+  -refresh=false \
+  -input=false \
+  -target=null_resource.generic_ssh \
+  -var='target_provider=generic_ssh' \
+  -var='bootstrap_endpoint=https://na.example.com' \
+  -var='genesis_uri=https://na.example.com/genesis.signed.json' \
+  -var='generic_ssh_host=127.0.0.1' \
+  -var='generic_ssh_private_key=dummy'
+```
+
+Before deploying to AWS, Azure, GCP, or Alibaba Cloud, run a real
+`terraform plan` for that provider with the intended cloud credentials,
+network IDs, image IDs, security groups, and secret-mounting strategy. Treat
+that cloud-specific plan as a deployment gate; the repository cannot verify it
+without access to the target account.

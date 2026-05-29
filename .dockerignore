@@ -33,7 +33,7 @@ venv.bak/
 .azure/
 infrastructure/terraform.tfstate*
 docs/_build/
-docs/pages/.doctrees/
+docs/pages/
 docs_buildhtml/
 examples/genesis/demo/
 

@@ -9,6 +9,9 @@ Authority exposes HTTP health endpoints.
   respond.
 - `GET /readyz`: readiness. Use this to determine whether the service is ready
   to receive traffic.
+- `GET /metrics`: Prometheus text exposition for Network Authority counters,
+  including issued certificates, active nodes, revoked certificates, CRL
+  sequence, and policy versions.
 
 ## Node Health
 

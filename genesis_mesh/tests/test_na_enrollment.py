@@ -424,6 +424,25 @@ def test_heartbeat_rejects_expired_persisted_certificate(na_service, client, nod
     assert event["details"]["reason"] == "certificate_expired"
 
 
+def test_heartbeat_rejects_not_yet_valid_persisted_certificate(na_service, client, node_keypair):
+    """Heartbeat must reject certificates whose persisted validity has not started."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    future_issued_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    with na_service.db.conn:
+        na_service.db.conn.execute(
+            "UPDATE issued_certs SET issued_at = ? WHERE cert_id = ?",
+            (future_issued_at.isoformat(), join_data["cert_id"]),
+        )
+
+    resp = signed_heartbeat(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    assert "not yet valid" in resp.get_json()["error"].lower()
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "heartbeat_rejected"
+    assert event["details"]["reason"] == "certificate_not_yet_valid"
+
+
 def test_renew_without_signature_rejected(client, node_keypair):
     """Renewal without auth fields is rejected with 401."""
     _, join_data, kp = join_node(client, keypair=node_keypair)
@@ -465,6 +484,25 @@ def test_renew_rejects_expired_persisted_certificate(na_service, client, node_ke
     event = na_service.db.list_audit_events()[-1]
     assert event["event_type"] == "renewal_rejected"
     assert event["details"]["reason"] == "certificate_expired"
+
+
+def test_renew_rejects_not_yet_valid_persisted_certificate(na_service, client, node_keypair):
+    """Renewal must reject certificates whose persisted validity has not started."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    future_issued_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    with na_service.db.conn:
+        na_service.db.conn.execute(
+            "UPDATE issued_certs SET issued_at = ? WHERE cert_id = ?",
+            (future_issued_at.isoformat(), join_data["cert_id"]),
+        )
+
+    resp = signed_renew(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    assert "not yet valid" in resp.get_json()["error"].lower()
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "renewal_rejected"
+    assert event["details"]["reason"] == "certificate_not_yet_valid"
 
 
 def test_renewal_validity_is_capped_by_original_invite(client, node_keypair):

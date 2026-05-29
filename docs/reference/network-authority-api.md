@@ -6,7 +6,7 @@ and health.
 ```{mermaid}
 flowchart TB
     home["Browser console\n/"]
-    health["Health\n/healthz /readyz"]
+    health["Health and metrics\n/healthz /readyz /metrics"]
     public["Public network data\n/genesis /policy /crl"]
     enrollment["Enrollment\n/join"]
     node_ops["Node operations\n/heartbeat /renew"]
@@ -46,6 +46,12 @@ Readiness probe. Verifies database connectivity and migration state.
 Returns recently active, non-revoked nodes from persisted certificate state.
 Rows are considered active when their latest join or heartbeat timestamp is
 within the Network Authority active-node window.
+
+### `GET /metrics`
+
+Returns Prometheus text metrics for Network Authority operations. The endpoint
+includes counters and gauges for issued certificates, recently active nodes,
+revoked certificates, active CRL sequence, and persisted policy versions.
 
 ## Public Network Data
 
