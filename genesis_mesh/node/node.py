@@ -2,26 +2,21 @@
 
 import json
 import logging
-import signal
-import time
+import uuid as _uuid
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, List
+from typing import Any, Optional, List
 
 import requests
-import nacl.signing
 
-from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..crypto import (
-    generate_keypair,
     KeyPair,
-    load_private_key,
-    load_public_key,
-    verify_model_signature,
+    generate_keypair,
     public_key_from_b64,
-    sign_data
+    sign_data,
+    verify_model_signature,
 )
-import uuid as _uuid
+from ..models import GenesisBlock, JoinCertificate, PolicyManifest
+from .persistent_runner import run_persistent_node
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +82,12 @@ class MeshNode:
         logger.info("Genesis block signatures verified successfully")
         return True
 
-    def join_network(self, na_endpoint: str, validity_hours: int = 168) -> JoinCertificate:
+    def join_network(
+        self,
+        na_endpoint: str,
+        validity_hours: int = 168,
+        invite_token: Optional[str] = None,
+    ) -> JoinCertificate:
         """
         Request a join certificate from the Network Authority.
 
@@ -104,11 +104,13 @@ class MeshNode:
         logger.info(f"Requesting join certificate from {na_endpoint}")
 
         # Prepare join request
-        request_data = {
+        request_data: dict[str, Any] = {
             "node_public_key": self.node_keypair.public_key_b64,
             "roles": self.roles,
             "validity_hours": validity_hours
         }
+        if invite_token:
+            request_data["invite_token"] = invite_token
 
         # Send join request
         try:
@@ -387,151 +389,13 @@ class MeshNode:
             heartbeat_interval: Seconds between heartbeats
             renewal_threshold_hours: Renew cert if less than this many hours remain
         """
-        self._na_endpoint = na_endpoint
-        self._running = True
-
-        def signal_handler(signum, frame):
-            logger.info("Shutdown signal received")
-            self._running = False
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
-        logger.info(f"Node running in persistent mode (heartbeat every {heartbeat_interval}s)")
-
-        last_heartbeat = 0
-        heartbeat_failures = 0
-        max_failures = 5
-
-        while self._running:
-            now = time.time()
-
-            # Send heartbeat
-            if now - last_heartbeat >= heartbeat_interval:
-                if self.send_heartbeat(na_endpoint):
-                    heartbeat_failures = 0
-                else:
-                    heartbeat_failures += 1
-                    logger.warning(f"Heartbeat failure {heartbeat_failures}/{max_failures}")
-
-                    if heartbeat_failures >= max_failures:
-                        logger.error("Too many heartbeat failures, attempting reconnect...")
-                        # Try to rejoin
-                        try:
-                            self.join_network(na_endpoint)
-                            heartbeat_failures = 0
-                        except Exception as e:
-                            logger.error(f"Reconnect failed: {e}")
-
-                last_heartbeat = now
-
-            # Check certificate renewal
-            if self.should_renew_certificate(renewal_threshold_hours):
-                logger.info("Certificate nearing expiry, renewing...")
-                if not self.renew_certificate(na_endpoint):
-                    logger.error("Certificate renewal failed!")
-
-            # Sleep a bit before next iteration
-            time.sleep(1)
-
-        logger.info("Node shutdown complete")
+        run_persistent_node(
+            self,
+            na_endpoint,
+            heartbeat_interval=heartbeat_interval,
+            renewal_threshold_hours=renewal_threshold_hours,
+        )
 
     def stop(self):
         """Stop the node's run loop."""
         self._running = False
-
-
-def main():
-    """CLI entry point for mesh node."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description='Genesis Mesh Node')
-    parser.add_argument('--genesis', required=True,
-                        help='Path to signed genesis block JSON')
-    parser.add_argument('--node-key',
-                        help='Path to node private key (generates new if not provided)')
-    parser.add_argument('--bootstrap', required=True,
-                        help='Network Authority endpoint for bootstrap')
-    parser.add_argument('--role', action='append', dest='roles',
-                        help='Node roles (can be specified multiple times)')
-    parser.add_argument('--validity-hours', type=int, default=168,
-                        help='Certificate validity hours')
-    parser.add_argument('--persistent', action='store_true',
-                        help='Run in persistent mode with heartbeats')
-    parser.add_argument('--heartbeat-interval', type=int, default=30,
-                        help='Heartbeat interval in seconds (default: 30)')
-    parser.add_argument('--debug', action='store_true',
-                        help='Enable debug mode')
-
-    args = parser.parse_args()
-
-    # Setup logging
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
-    # Load genesis block
-    with open(args.genesis, 'r') as f:
-        genesis_data = json.load(f)
-        genesis_block = GenesisBlock(**genesis_data)
-
-    # Load or generate node keypair
-    node_keypair = None
-    if args.node_key:
-        private_key = load_private_key(args.node_key)
-        node_keypair = KeyPair(
-            private_key=private_key,
-            public_key=private_key.verify_key
-        )
-        logger.info(f"Loaded node key from {args.node_key}")
-    else:
-        logger.info("Generating new node keypair")
-
-    # Set roles (auto-prefix with 'role:' if not already prefixed)
-    if args.roles:
-        roles = [
-            r if r.startswith('role:') else f'role:{r}'
-            for r in args.roles
-        ]
-    else:
-        roles = ['role:client']
-
-    # Create node
-    node = MeshNode(
-        genesis_block=genesis_block,
-        node_keypair=node_keypair,
-        roles=roles
-    )
-
-    # Join network
-    try:
-        node.join_network(args.bootstrap, args.validity_hours)
-        node.fetch_policy(args.bootstrap)
-
-        # Print status
-        status = node.get_status()
-        print("\n=== Node Status ===")
-        for key, value in status.items():
-            print(f"{key}: {value}")
-
-        logger.info("Node successfully joined the network")
-
-        # Run in persistent mode if requested
-        if args.persistent:
-            print("\n=== Running in persistent mode (Ctrl+C to stop) ===")
-            node.run(
-                na_endpoint=args.bootstrap,
-                heartbeat_interval=args.heartbeat_interval
-            )
-
-    except Exception as e:
-        logger.error(f"Failed to join network: {e}")
-        return 1
-
-    return 0
-
-
-if __name__ == '__main__':
-    import sys
-    sys.exit(main())

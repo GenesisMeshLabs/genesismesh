@@ -1,10 +1,16 @@
-"""Control-plane message handler."""
+"""Control-plane dispatcher and replay protection."""
+
+from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from typing import Dict, Callable, Optional, Any, List
+import time
+from pathlib import Path
+from typing import Any, Callable, Optional
 
-from ..models.control_plane import ControlMessageModel, ControlCommand
+from ..models.control_plane import ControlMessageModel
+from .control_commands import register_control_command_handlers
 from .rbac import RBACEnforcer
 
 
@@ -12,11 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class ControlMessageHandler:
-    """
-    Handles incoming control-plane messages.
-
-    Validates authorization and executes commands.
-    """
+    """Validate and dispatch signed control-plane messages for a node."""
 
     def __init__(
         self,
@@ -29,28 +31,26 @@ class ControlMessageHandler:
         on_bootstrap_update: Optional[Callable] = None,
         on_shutdown: Optional[Callable] = None,
         audit_logger: Optional[Any] = None,
-        health_monitor: Optional[Any] = None
+        health_monitor: Optional[Any] = None,
     ):
-        """
-        Initialize control message handler.
+        """Create a control message dispatcher.
 
         Args:
-            node_id: Local node ID
-            rbac_enforcer: RBAC enforcer instance
-            get_public_key: Function to get public key by key ID
-            on_policy_update: Callback for policy updates
-            on_cert_revoked: Callback for certificate revocations
-            on_node_revoked: Callback for node revocations
-            on_bootstrap_update: Callback for bootstrap updates
-            on_shutdown: Callback for shutdown requests
-            audit_logger: Audit logger instance
-            health_monitor: Health monitor instance
+            node_id: Local node ID.
+            rbac_enforcer: RBAC validator used for control messages.
+            get_public_key: Lookup function for issuer public keys.
+            on_policy_update: Optional callback for policy update commands.
+            on_cert_revoked: Optional callback for certificate revocations.
+            on_node_revoked: Optional callback for node revocations.
+            on_bootstrap_update: Optional callback for bootstrap updates.
+            on_shutdown: Optional callback for shutdown requests.
+            audit_logger: Optional security audit logger.
+            health_monitor: Optional node health monitor.
         """
         self.node_id = node_id
         self.rbac_enforcer = rbac_enforcer
         self.get_public_key = get_public_key
 
-        # Callbacks for control actions
         self.on_policy_update = on_policy_update
         self.on_cert_revoked = on_cert_revoked
         self.on_node_revoked = on_node_revoked
@@ -59,95 +59,56 @@ class ControlMessageHandler:
         self.audit_logger = audit_logger
         self.health_monitor = health_monitor
 
-        # Command handlers
-        self._handlers: Dict[str, Callable] = {}
-        self._register_default_handlers()
-
-        # Processed message IDs (prevent replay)
-        self._processed_messages: Dict[str, float] = {}
+        self._handlers: dict[str, Callable] = {}
+        self._processed_messages: dict[str, float] = {}
         self._replay_lock = asyncio.Lock()
 
-        # Local revocation cache
-        self._revoked_certs: Dict[str, Dict[str, Any]] = {}
-        self._revoked_nodes: Dict[str, Dict[str, Any]] = {}
+        self._revoked_certs: dict[str, dict[str, Any]] = {}
+        self._revoked_nodes: dict[str, dict[str, Any]] = {}
+        self._bootstrap_anchors: list[str] = []
 
-        # Bootstrap anchor list
-        self._bootstrap_anchors: List[str] = []
-
-        # Cleanup task
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._replay_cache_file: Optional[str] = None
         self._running = False
+        self._keypair: Any = None
 
-    def _register_default_handlers(self):
-        """Register default command handlers."""
-        self.register_handler(ControlCommand.POLICY_UPDATE, self._handle_policy_update)
-        self.register_handler(ControlCommand.REVOKE_CERTIFICATE, self._handle_revoke_certificate)
-        self.register_handler(ControlCommand.REVOKE_NODE, self._handle_revoke_node)
-        self.register_handler(ControlCommand.UPDATE_BOOTSTRAP, self._handle_update_bootstrap)
-        self.register_handler(ControlCommand.SHUTDOWN_NODE, self._handle_shutdown_node)
+        self._register_default_handlers()
 
-    def register_handler(self, command: str, handler: Callable):
-        """
-        Register a command handler.
+    def _register_default_handlers(self) -> None:
+        """Register built-in control command implementations."""
+        register_control_command_handlers(self)
 
-        Args:
-            command: Command name
-            handler: Handler function (async)
-        """
+    def register_handler(self, command: str, handler: Callable) -> None:
+        """Register an async handler for a control command."""
         self._handlers[command] = handler
-        logger.debug(f"Registered handler for command: {command}")
+        logger.debug("Registered handler for command: %s", command)
 
     async def handle_control_message(
         self,
-        message: ControlMessageModel
+        message: ControlMessageModel,
     ) -> tuple[bool, Optional[str]]:
-        """
-        Handle a control message.
-
-        Only messages that are targeted at this node (or broadcast with
-        no target) and pass validation are marked as processed.  Messages
-        targeted at other nodes are returned as "ignored" without
-        polluting the replay cache, so routing/forwarding is not blocked.
-
-        Args:
-            message: Control message to handle
-
-        Returns:
-            Tuple of (success, error_message)
-        """
-        import time
-
-        # ── Pre-check: is this message for us? ────────────────────────
-        # Evaluate targeting BEFORE writing to the replay cache so that
-        # messages intended for other nodes don't consume replay slots.
+        """Validate, de-duplicate, and dispatch a control message."""
         if message.target and message.target != self.node_id:
-            logger.debug(f"Control message not for us (target={message.target})")
+            logger.debug("Control message not for us (target=%s)", message.target)
             return False, "Message not targeted at this node"
 
-        # ── Replay check (atomic check-then-mark) ────────────────────
         async with self._replay_lock:
             if message.message_id in self._processed_messages:
                 return False, "Control message already processed (replay attack?)"
-            # Mark as processed atomically with the check
             self._processed_messages[message.message_id] = time.time()
 
-        # ── Validate signature + authorization ────────────────────────
-        # Get issuer public key
         public_key = self.get_public_key(message.issuer)
         if not public_key:
             return False, f"Unknown issuer: {message.issuer}"
 
-        # Validate message
         is_valid, error = self.rbac_enforcer.validate_control_message(
             message,
-            public_key
+            public_key,
         )
-
         if not is_valid:
-            logger.warning(f"Invalid control message: {error}")
+            logger.warning("Invalid control message: %s", error)
             return False, error
 
-        # ── Dispatch ──────────────────────────────────────────────────
         handler = self._handlers.get(message.command)
         if not handler:
             return False, f"No handler for command: {message.command}"
@@ -155,199 +116,31 @@ class ControlMessageHandler:
         try:
             result = await handler(message)
             logger.info(
-                f"Executed control command {message.command} from {message.issuer}"
+                "Executed control command %s from %s",
+                message.command,
+                message.issuer,
             )
             return True, result
-        except Exception as e:
-            logger.error(f"Error executing control command: {e}")
-            return False, str(e)
+        except Exception as exc:
+            logger.exception("Error executing control command")
+            return False, str(exc)
 
-    async def _handle_policy_update(self, message: ControlMessageModel) -> str:
-        """Handle policy update command."""
-        policy_data = message.data.get("policy", {})
-        logger.info(f"Received policy update: {policy_data}")
-
-        # Apply policy update via callback
-        if self.on_policy_update:
-            try:
-                await self.on_policy_update(policy_data)
-            except Exception as e:
-                logger.error(f"Error applying policy update: {e}")
-                if self.audit_logger:
-                    self.audit_logger.log_policy_updated(
-                        policy_id=policy_data.get("policy_id", "unknown"),
-                        issuer=message.issuer
-                    )
-                raise
-
-        # Update health status to degraded during policy application
-        if self.health_monitor:
-            # Policy updates might temporarily affect operations
-            pass
-
-        # Log to audit
-        if self.audit_logger:
-            self.audit_logger.log_policy_updated(
-                policy_id=policy_data.get("policy_id", "unknown"),
-                issuer=message.issuer
-            )
-
-        logger.info(f"Policy update applied successfully: {policy_data.get('policy_id')}")
-        return "Policy update applied"
-
-    async def _handle_revoke_certificate(self, message: ControlMessageModel) -> str:
-        """Handle certificate revocation."""
-        cert_id = message.data.get("certificate_id")
-        reason = message.data.get("reason", "No reason provided")
-        logger.warning(f"Certificate {cert_id} revoked: {reason}")
-
-        # Add to local revocation cache
-        import time
-        self._revoked_certs[cert_id] = {
-            "reason": reason,
-            "revoked_at": time.time(),
-            "revoked_by": message.issuer
-        }
-
-        # Call revocation callback
-        if self.on_cert_revoked:
-            try:
-                await self.on_cert_revoked(cert_id, reason)
-            except Exception as e:
-                logger.error(f"Error in cert revocation callback: {e}")
-
-        # Log to audit
-        if self.audit_logger:
-            self.audit_logger.log_certificate_revoked(
-                cert_id=cert_id,
-                reason=reason,
-                issuer=message.issuer
-            )
-
-        logger.info(f"Certificate {cert_id} added to local revocation cache")
-        return f"Certificate {cert_id} revoked"
-
-    async def _handle_revoke_node(self, message: ControlMessageModel) -> str:
-        """Handle node revocation."""
-        node_id = message.data.get("node_id")
-        reason = message.data.get("reason", "No reason provided")
-        logger.warning(f"Node {node_id} revoked: {reason}")
-
-        # Add to local node blacklist
-        import time
-        self._revoked_nodes[node_id] = {
-            "reason": reason,
-            "revoked_at": time.time(),
-            "revoked_by": message.issuer
-        }
-
-        # Disconnect and blacklist via callback
-        if self.on_node_revoked:
-            try:
-                await self.on_node_revoked(node_id, reason)
-            except Exception as e:
-                logger.error(f"Error in node revocation callback: {e}")
-
-        # Log to audit
-        if self.audit_logger:
-            self.audit_logger.log_node_blacklisted(
-                peer_id=node_id,
-                reason=reason
-            )
-
-        logger.info(f"Node {node_id} blacklisted and disconnected")
-        return f"Node {node_id} revoked"
-
-    async def _handle_update_bootstrap(self, message: ControlMessageModel) -> str:
-        """Handle bootstrap anchor update."""
-        anchors = message.data.get("anchors", [])
-        logger.info(f"Updated bootstrap anchors: {anchors}")
-
-        # Update local bootstrap list
-        self._bootstrap_anchors = anchors
-
-        # Apply bootstrap update via callback
-        if self.on_bootstrap_update:
-            try:
-                await self.on_bootstrap_update(anchors)
-            except Exception as e:
-                logger.error(f"Error updating bootstrap anchors: {e}")
-                raise
-
-        # Log to audit
-        if self.audit_logger:
-            from ..audit.logger import EventType
-            self.audit_logger.log_event(
-                event_type=EventType.CONTROL_MESSAGE_ACCEPTED,
-                action=f"Updated bootstrap anchors: {len(anchors)}",
-                result="success",
-                actor=message.issuer,
-                details={"anchors": anchors}
-            )
-
-        logger.info(f"Bootstrap anchors updated: {len(anchors)} anchors")
-        return f"Updated {len(anchors)} bootstrap anchors"
-
-    async def _handle_shutdown_node(self, message: ControlMessageModel) -> str:
-        """Handle node shutdown command."""
-        reason = message.data.get("reason", "No reason provided")
-        grace_period = message.data.get("grace_period", 30)
-        logger.critical(f"Received shutdown command: {reason} (grace period: {grace_period}s)")
-
-        # Log to audit before shutdown
-        if self.audit_logger:
-            from ..audit.logger import EventType
-            self.audit_logger.log_event(
-                event_type=EventType.CONTROL_MESSAGE_ACCEPTED,
-                action=f"Shutdown command received: {reason}",
-                result="success",
-                actor=message.issuer,
-                details={"reason": reason, "grace_period": grace_period}
-            )
-
-        # Update health status to unhealthy
-        if self.health_monitor:
-            # Mark as shutting down
-            pass
-
-        # Perform graceful shutdown via callback
-        if self.on_shutdown:
-            # Schedule shutdown after grace period
-            async def _do_shutdown():
-                await asyncio.sleep(grace_period)
-                logger.critical(f"Executing shutdown after {grace_period}s grace period")
-                try:
-                    await self.on_shutdown(reason)
-                except Exception as e:
-                    logger.error(f"Error during shutdown: {e}")
-
-            asyncio.create_task(_do_shutdown())
-
-        return f"Shutdown scheduled in {grace_period}s: {reason}"
-
-    async def start(self, replay_cache_file: Optional[str] = None):
-        """
-        Start control handler and replay protection cleanup.
-
-        Args:
-            replay_cache_file: Path to persist replay cache (optional)
-        """
+    async def start(self, replay_cache_file: Optional[str] = None) -> None:
+        """Start replay-cache persistence and cleanup."""
         if self._running:
             return
 
         self._running = True
         self._replay_cache_file = replay_cache_file
 
-        # Load persisted replay cache if available
         if replay_cache_file:
             await self._load_replay_cache()
 
-        # Start periodic cleanup
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
         logger.info("Control handler started with replay protection")
 
-    async def stop(self):
-        """Stop control handler and cleanup tasks."""
+    async def stop(self) -> None:
+        """Stop replay-cache cleanup and persist current state."""
         self._running = False
 
         if self._cleanup_task:
@@ -357,45 +150,36 @@ class ControlMessageHandler:
             except asyncio.CancelledError:
                 pass
 
-        # Persist replay cache
-        if hasattr(self, '_replay_cache_file') and self._replay_cache_file:
+        if self._replay_cache_file:
             await self._save_replay_cache()
 
         logger.info("Control handler stopped")
 
-    async def _cleanup_loop(self):
-        """Periodically clean up old replay cache entries."""
+    async def _cleanup_loop(self) -> None:
+        """Periodically remove stale replay-cache entries."""
         try:
             while self._running:
                 try:
-                    await asyncio.sleep(300)  # Cleanup every 5 minutes
+                    await asyncio.sleep(300)
                     await self.cleanup_processed_messages(max_age=3600.0)
 
-                    # Cap cache size if it grows too large
                     if len(self._processed_messages) > 10000:
                         await self._trim_replay_cache(max_entries=5000)
-
                 except asyncio.CancelledError:
                     break
-                except Exception as e:
-                    logger.error(f"Error in cleanup loop: {e}")
+                except Exception:
+                    logger.exception("Error in cleanup loop")
                     await asyncio.sleep(300)
-
         except asyncio.CancelledError:
             pass
 
-    async def cleanup_processed_messages(self, max_age: float = 3600.0):
-        """
-        Clean up old processed message IDs.
-
-        Args:
-            max_age: Maximum age in seconds
-        """
-        import time
+    async def cleanup_processed_messages(self, max_age: float = 3600.0) -> None:
+        """Remove processed message IDs older than `max_age` seconds."""
         async with self._replay_lock:
             now = time.time()
             stale_ids = [
-                msg_id for msg_id, timestamp in self._processed_messages.items()
+                msg_id
+                for msg_id, timestamp in self._processed_messages.items()
                 if (now - timestamp) > max_age
             ]
 
@@ -403,112 +187,76 @@ class ControlMessageHandler:
                 del self._processed_messages[msg_id]
 
             if stale_ids:
-                logger.debug(f"Cleaned up {len(stale_ids)} processed message IDs")
+                logger.debug("Cleaned up %s processed message IDs", len(stale_ids))
 
-    async def _trim_replay_cache(self, max_entries: int):
-        """
-        Trim replay cache to max entries by removing oldest.
-
-        Args:
-            max_entries: Maximum number of entries to keep
-        """
+    async def _trim_replay_cache(self, max_entries: int) -> None:
+        """Keep only the newest `max_entries` replay-cache entries."""
         async with self._replay_lock:
             if len(self._processed_messages) <= max_entries:
                 return
 
-            # Sort by timestamp and keep newest
             sorted_items = sorted(
                 self._processed_messages.items(),
-                key=lambda x: x[1],
-                reverse=True
+                key=lambda item: item[1],
+                reverse=True,
             )
-
             self._processed_messages = dict(sorted_items[:max_entries])
-            logger.info(f"Trimmed replay cache to {max_entries} entries")
+            logger.info("Trimmed replay cache to %s entries", max_entries)
 
-    async def _load_replay_cache(self):
-        """Load replay cache from disk."""
+    async def _load_replay_cache(self) -> None:
+        """Load a persisted replay cache from disk."""
         try:
-            import json
-            from pathlib import Path
+            cache_file = Path(self._replay_cache_file or "")
+            if not cache_file.exists():
+                return
 
-            cache_file = Path(self._replay_cache_file)
-            if cache_file.exists():
-                with open(cache_file, 'r') as f:
-                    data = json.load(f)
+            with cache_file.open("r", encoding="utf-8") as f:
+                data = json.load(f)
 
-                raw = data.get("processed_messages", {})
+            raw = data.get("processed_messages", {})
+            if not isinstance(raw, dict):
+                logger.warning("Replay cache has invalid format, ignoring")
+                return
 
-                # Validate structure: must be {str: float/int}
-                if not isinstance(raw, dict):
-                    logger.warning("Replay cache has invalid format, ignoring")
-                    return
+            validated: dict[str, float] = {}
+            for msg_id, timestamp in raw.items():
+                if isinstance(msg_id, str) and isinstance(timestamp, (int, float)):
+                    validated[msg_id] = float(timestamp)
+                else:
+                    logger.warning("Skipping invalid replay cache entry: %r", msg_id)
 
-                validated: Dict[str, float] = {}
-                for msg_id, timestamp in raw.items():
-                    if isinstance(msg_id, str) and isinstance(timestamp, (int, float)):
-                        validated[msg_id] = float(timestamp)
-                    else:
-                        logger.warning(f"Skipping invalid replay cache entry: {msg_id!r}")
+            async with self._replay_lock:
+                self._processed_messages = validated
+            logger.info("Loaded %s replay cache entries", len(validated))
+        except (json.JSONDecodeError, TypeError, KeyError) as exc:
+            logger.error("Corrupt replay cache file, starting fresh: %s", exc)
+        except Exception:
+            logger.exception("Error loading replay cache")
 
-                async with self._replay_lock:
-                    self._processed_messages = validated
-                logger.info(f"Loaded {len(validated)} replay cache entries")
-        except (json.JSONDecodeError, TypeError, KeyError) as e:
-            logger.error(f"Corrupt replay cache file, starting fresh: {e}")
-        except Exception as e:
-            logger.error(f"Error loading replay cache: {e}")
-
-    async def _save_replay_cache(self):
-        """Save replay cache to disk."""
+    async def _save_replay_cache(self) -> None:
+        """Persist the replay cache to disk."""
         try:
-            import json
-            from pathlib import Path
-
-            cache_file = Path(self._replay_cache_file)
+            cache_file = Path(self._replay_cache_file or "")
             cache_file.parent.mkdir(parents=True, exist_ok=True)
 
             async with self._replay_lock:
                 snapshot = dict(self._processed_messages)
 
-            with open(cache_file, 'w') as f:
-                json.dump({
-                    "processed_messages": snapshot
-                }, f, indent=2)
+            with cache_file.open("w", encoding="utf-8") as f:
+                json.dump({"processed_messages": snapshot}, f, indent=2)
 
-            logger.info(f"Saved {len(snapshot)} replay cache entries")
-        except Exception as e:
-            logger.error(f"Error saving replay cache: {e}")
+            logger.info("Saved %s replay cache entries", len(snapshot))
+        except Exception:
+            logger.exception("Error saving replay cache")
 
     def is_certificate_revoked(self, cert_id: str) -> bool:
-        """
-        Check if a certificate is revoked.
-
-        Args:
-            cert_id: Certificate ID to check
-
-        Returns:
-            True if revoked, False otherwise
-        """
+        """Return whether a certificate ID is in the local revocation cache."""
         return cert_id in self._revoked_certs
 
     def is_node_revoked(self, node_id: str) -> bool:
-        """
-        Check if a node is revoked.
-
-        Args:
-            node_id: Node ID to check
-
-        Returns:
-            True if revoked, False otherwise
-        """
+        """Return whether a node ID is in the local revocation cache."""
         return node_id in self._revoked_nodes
 
-    def get_bootstrap_anchors(self) -> List[str]:
-        """
-        Get current bootstrap anchor list.
-
-        Returns:
-            List of bootstrap anchor addresses
-        """
+    def get_bootstrap_anchors(self) -> list[str]:
+        """Return the current bootstrap anchor list."""
         return self._bootstrap_anchors.copy()

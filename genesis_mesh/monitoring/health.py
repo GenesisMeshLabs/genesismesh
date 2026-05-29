@@ -76,7 +76,7 @@ class HealthChecker:
         self.probe_peer = probe_peer
 
         self.checks: Dict[str, HealthCheck] = {}
-        self._last_full_check = 0
+        self._last_full_check = 0.0
 
     async def check_health(self, deep: bool = False) -> HealthStatus:
         """
@@ -298,7 +298,8 @@ class HealthChecker:
         - DEGRADED: success ratio below DEGRADED_SUCCESS_RATIO
         - HEALTHY: otherwise
         """
-        if not self.probe_peer:
+        probe_peer = self.probe_peer
+        if not probe_peer:
             # No probe callback available — skip rather than lie
             logger.debug("Connectivity check skipped: no probe_peer callback")
             return
@@ -323,9 +324,10 @@ class HealthChecker:
 
             # Probe concurrently with timeout
             async def _probe_with_timeout(pid: str):
+                """Probe one peer and normalize timeout or error as failure."""
                 try:
                     rtt = await asyncio.wait_for(
-                        self.probe_peer(pid),
+                        probe_peer(pid),
                         timeout=self.PROBE_TIMEOUT
                     )
                     return pid, rtt
