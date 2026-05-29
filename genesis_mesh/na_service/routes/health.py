@@ -1,5 +1,6 @@
 """Health and node-observability routes for the Network Authority."""
 
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -42,17 +43,26 @@ def create_health_blueprint(service) -> Blueprint:
 
     @bp.route("/nodes", methods=["GET"])
     def list_nodes():
-        """Return recently heartbeating nodes from the compatibility mirror."""
+        """Return recently heartbeating nodes from persisted certificate state."""
         now = datetime.utcnow()
         stale_threshold = timedelta(minutes=5)
         active_nodes = {}
 
-        for cert_id, info in service.connected_nodes.items():
-            last_hb = datetime.fromisoformat(info["last_heartbeat"])
-            if now - last_hb < stale_threshold:
-                active_nodes[cert_id] = info
+        for row in service.db.list_issued_certs():
+            if row.get("status") == "revoked" or not row.get("last_heartbeat"):
+                continue
 
-        service.connected_nodes = active_nodes
+            last_hb = datetime.fromisoformat(row["last_heartbeat"])
+            if now - last_hb < stale_threshold:
+                active_nodes[row["cert_id"]] = {
+                    "node_public_key": row["node_public_key"],
+                    "roles": json.loads(row.get("roles_json") or "[]"),
+                    "status": row.get("heartbeat_status") or row.get("status"),
+                    "last_heartbeat": row["last_heartbeat"],
+                    "remote_addr": row.get("remote_addr"),
+                    "expires_at": row.get("expires_at"),
+                }
+
         return jsonify({"count": len(active_nodes), "nodes": active_nodes})
 
     return bp
