@@ -5,12 +5,12 @@ and health.
 
 ```{mermaid}
 flowchart TB
-    home["Browser console\n/"]
-    health["Health and metrics\n/healthz /readyz /metrics"]
-    public["Public network data\n/genesis /policy /crl"]
-    enrollment["Enrollment\n/join"]
-    node_ops["Node operations\n/heartbeat /renew"]
-    admin["Admin operations\n/admin/invite /admin/revoke /admin/policy"]
+    home["Browser console<br/>/"]
+    health["Health and metrics<br/>/healthz /readyz /metrics"]
+    public["Public network data<br/>/genesis /policy /crl"]
+    enrollment["Enrollment<br/>/join"]
+    node_ops["Node operations<br/>/heartbeat /renew"]
+    admin["Admin operations<br/>/admin/invite /admin/revoke /admin/policy"]
     auth["Operator signature headers"]
     node_sig["Node proof-of-possession signature"]
 

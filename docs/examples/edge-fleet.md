@@ -8,9 +8,9 @@ after trust is established.
 flowchart LR
     na["Network Authority"]
     ops["Operations Team"]
-    factory_a["Factory A\nEdge Node"]
-    factory_b["Factory B\nEdge Node"]
-    factory_c["Factory C\nEdge Node"]
+    factory_a["Factory A<br/>Edge Node"]
+    factory_b["Factory B<br/>Edge Node"]
+    factory_c["Factory C<br/>Edge Node"]
 
     ops -->|signed admin actions| na
     na -->|cert, policy, CRL| factory_a

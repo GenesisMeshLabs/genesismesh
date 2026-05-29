@@ -10,16 +10,16 @@ The Network Authority uses a Flask application factory and domain blueprints.
 
 ```{mermaid}
 flowchart TB
-    app["na_service/server.py\ncreate_app + service orchestration"]
-    auth["na_service/auth.py\noperator + node request verification"]
-    limiter["na_service/rate_limit.py\nsliding-window limiter"]
-    db["na_service/db.py\nSQLite persistence"]
-    routes["na_service/routes/*\nFlask blueprints"]
-    enrollment["routes/enrollment.py\njoin heartbeat renew"]
-    admin["routes/admin.py\ninvite revoke policy"]
-    public["routes/public.py\ngenesis policy"]
-    crl["routes/crl.py\nCRL publication"]
-    health["routes/health.py\nhealth readiness nodes"]
+    app["na_service/server.py<br/>create_app + service orchestration"]
+    auth["na_service/auth.py<br/>operator + node request verification"]
+    limiter["na_service/rate_limit.py<br/>sliding-window limiter"]
+    db["na_service/db.py<br/>SQLite persistence"]
+    routes["na_service/routes/*<br/>Flask blueprints"]
+    enrollment["routes/enrollment.py<br/>join heartbeat renew"]
+    admin["routes/admin.py<br/>invite revoke policy"]
+    public["routes/public.py<br/>genesis policy"]
+    crl["routes/crl.py<br/>CRL publication"]
+    health["routes/health.py<br/>health readiness nodes"]
 
     app --> auth
     app --> limiter
@@ -48,9 +48,9 @@ The node control plane separates stable dispatch from command behavior.
 ```{mermaid}
 flowchart LR
     msg["ControlMessageModel"]
-    dispatcher["node/control_handler.py\nreplay check RBAC dispatch"]
-    commands["node/control_commands.py\npolicy revoke bootstrap shutdown"]
-    callbacks["runtime callbacks\naudit health state"]
+    dispatcher["node/control_handler.py<br/>replay check RBAC dispatch"]
+    commands["node/control_commands.py<br/>policy revoke bootstrap shutdown"]
+    callbacks["runtime callbacks<br/>audit health state"]
 
     msg --> dispatcher
     dispatcher --> commands
@@ -74,9 +74,9 @@ inside the runtime orchestration class.
 
 ```{mermaid}
 flowchart TB
-    runtime["node/runtime.py\nlifecycle wiring peer registration"]
-    dispatcher["node/dispatcher.py\ninbound message dispatch"]
-    identity["node/peer_identity.py\ncert validation peer announcements"]
+    runtime["node/runtime.py<br/>lifecycle wiring peer registration"]
+    dispatcher["node/dispatcher.py<br/>inbound message dispatch"]
+    identity["node/peer_identity.py<br/>cert validation peer announcements"]
     discovery["PeerDiscovery"]
     routing["RoutingProtocol"]
     router["MeshRouter"]
@@ -108,10 +108,10 @@ responsibility.
 
 ```{mermaid}
 flowchart LR
-    connection["transport/connection.py\nstate send receive pool"]
-    heartbeat["transport/heartbeat.py\nping pong latency"]
-    protocol["transport/protocol.py\nmessage models factories"]
-    transport["transport/*_transport.py\nwire transport"]
+    connection["transport/connection.py<br/>state send receive pool"]
+    heartbeat["transport/heartbeat.py<br/>ping pong latency"]
+    protocol["transport/protocol.py<br/>message models factories"]
+    transport["transport/*_transport.py<br/>wire transport"]
 
     connection --> heartbeat
     heartbeat --> protocol

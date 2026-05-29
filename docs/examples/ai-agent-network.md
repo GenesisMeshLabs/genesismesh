@@ -6,10 +6,10 @@ must prove identity before exchanging tasks or data.
 ```{mermaid}
 flowchart TB
     na["Network Authority"]
-    supervisor["Supervisor Agent\nrole:supervisor"]
-    finance["Finance Agent\nrole:finance"]
-    crm["CRM Agent\nrole:crm"]
-    support["Support Agent\nrole:support"]
+    supervisor["Supervisor Agent<br/>role:supervisor"]
+    finance["Finance Agent<br/>role:finance"]
+    crm["CRM Agent<br/>role:crm"]
+    support["Support Agent<br/>role:support"]
 
     na -->|invite + cert| supervisor
     na -->|invite + cert| finance
