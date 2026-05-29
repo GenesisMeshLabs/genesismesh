@@ -29,7 +29,9 @@ master_doc = "index"
 
 html_theme = "furo"
 html_title = "Genesis Mesh"
+html_show_sphinx = False
 html_static_path: list[str] = []
+templates_path = ["_templates"]
 html_theme_options = {
     "source_repository": "https://github.com/thaersaidi/genesismesh/",
     "source_branch": "main",
