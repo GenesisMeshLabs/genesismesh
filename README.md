@@ -1,7 +1,7 @@
 # Genesis Mesh
 
-Genesis Mesh is the sovereign infrastructure layer for AI agents, edge systems,
-and distributed intelligence.
+Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
+agents, edge systems, and distributed infrastructure.
 
 It answers the operational questions that basic mesh networking leaves open:
 who is allowed to be a node, how peers prove identity, what each node is allowed
@@ -51,6 +51,25 @@ Use Genesis Mesh when your system needs:
 
 Do not use it when you only need public peer discovery, anonymous networking, a
 general service mesh for Kubernetes ingress, or a permissionless blockchain.
+
+## Trust Can Be Revoked
+
+Genesis Mesh treats revocation as a first-class control-plane action. When an
+operator revokes a certificate, the Network Authority publishes a new signed CRL,
+removes the node from the active set, and rejects further heartbeat and renewal
+attempts from that identity. Runtime enforcement also rejects revoked peer
+handshakes and route announcements.
+
+![Genesis Mesh revocation demo](docs/examples/assets/revocation-demo.svg)
+
+Proven by the revocation demo:
+
+- signed CRL published
+- revoked node removed from the active set
+- heartbeat rejected with `403`
+- renewal rejected with `403`
+- local certificate reuse rejected
+- runtime revocation tests passed
 
 ## Architecture
 

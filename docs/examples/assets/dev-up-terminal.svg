@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="688" viewBox="0 0 1060 688">
+  <rect width="100%" height="100%" rx="18" fill="#0b1020"/>
+  <circle cx="28" cy="28" r="7" fill="#ff5f57"/>
+  <circle cx="50" cy="28" r="7" fill="#ffbd2e"/>
+  <circle cx="72" cy="28" r="7" fill="#28c840"/>
+  <text x="96" y="34" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">Genesis Mesh dev up</text>
+  <style>
+    .cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#7dd3fc;white-space:pre}
+    .out{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#d1e7ff;white-space:pre}
+    .muted{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#94a3b8;white-space:pre}
+    .ok{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#86efac;white-space:pre}
+  </style>
+  <text x="24" y="64" class="cmd">$ python -m genesis_mesh.cli dev up</text>
+  <text x="24" y="104" class="out">=== Genesis Mesh End-to-End Test ===</text>
+  <text x="24" y="126" class="out">Step 1: Generating keys...</text>
+  <text x="24" y="148" class="ok">  Root Sovereign key generated</text>
+  <text x="24" y="170" class="ok">  Network Authority key generated</text>
+  <text x="24" y="192" class="ok">  Operator key generated</text>
+  <text x="24" y="226" class="out">Step 2: Creating genesis block...</text>
+  <text x="24" y="248" class="out">Step 3: Signing genesis block with Root Sovereign...</text>
+  <text x="24" y="270" class="ok">  Genesis block signed</text>
+  <text x="24" y="304" class="out">Step 4: Starting Network Authority service...</text>
+  <text x="24" y="326" class="ok">  Network Authority running on port 8444</text>
+  <text x="24" y="360" class="out">Step 5: Creating mesh nodes...</text>
+  <text x="24" y="382" class="out">  Creating anchor node...</text>
+  <text x="24" y="404" class="ok">    Anchor node created</text>
+  <text x="24" y="426" class="out">  Requesting anchor invite and join certificate...</text>
+  <text x="24" y="448" class="ok">    Join certificate received: 22a98852-cd11-4017-87f7-d6ed466ac359</text>
+  <text x="24" y="470" class="out">  Fetching policy manifest...</text>
+  <text x="24" y="492" class="ok">    Policy manifest received: policy-TEST-v0.1</text>
+  <text x="24" y="526" class="out">  Creating client node...</text>
+  <text x="24" y="548" class="ok">    Client node created</text>
+  <text x="24" y="570" class="out">  Requesting client invite and join certificate...</text>
+  <text x="24" y="592" class="ok">    Join certificate received: ca186efc-6235-41b6-81f4-8754d3bd7fb2</text>
+  <text x="24" y="626" class="out">Step 6: Verifying node status...</text>
+  <text x="24" y="648" class="ok">=== Test Complete! ===  All smoke-test components completed.</text>
+</svg>

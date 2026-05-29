@@ -170,7 +170,7 @@ development/roadmap
 :maxdepth: 2
 :caption: Examples
 
-examples/demo
+examples/demos
 examples/ai-agent-network
 examples/edge-fleet
 examples/sovereign-organization
