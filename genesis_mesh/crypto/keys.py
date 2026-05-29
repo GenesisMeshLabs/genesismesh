@@ -70,8 +70,13 @@ def save_keypair(keypair: KeyPair, base_path: str, key_id: Optional[str] = None)
             f.write(f"# Key ID: {key_id}\n")
         f.write(f"{keypair.public_key_b64}\n")
 
-    # Restrict private key permissions
-    private_path.chmod(0o600)
+    # Restrict private key permissions where the filesystem supports chmod.
+    # Some mounted filesystems (for example WSL working trees on Windows drives)
+    # reject chmod even though the key file was written successfully.
+    try:
+        private_path.chmod(0o600)
+    except PermissionError:
+        pass
 
     return private_path, public_path
 
