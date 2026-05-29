@@ -1,5 +1,9 @@
 # Genesis Mesh
 
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://genesismesh.connectorzzz.com)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
+
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
 
 **Trust can be revoked.**
