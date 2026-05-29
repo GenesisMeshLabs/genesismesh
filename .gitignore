@@ -20,7 +20,7 @@ wheels/
 *.egg
 .pytest_cache/
 docs_buildhtml/
-docs/pages/.doctrees/
+docs/pages/
 examples/genesis/demo/
 
 # Genesis Mesh local CLI/runtime artifacts
