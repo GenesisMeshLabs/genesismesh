@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import nacl.encoding
 import nacl.signing
@@ -22,7 +22,7 @@ def na_service():
         encoder=nacl.encoding.Base64Encoder,
     ).decode("utf-8")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     genesis = GenesisBlock(
         network_name="TEST",
         network_version="v0.1",

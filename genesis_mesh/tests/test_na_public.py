@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import generate_keypair
 
@@ -49,7 +49,7 @@ def test_homepage_counts_recent_joined_nodes_as_active(na_service):
     na_service.db.conn.execute(
         "UPDATE issued_certs SET last_heartbeat = ? WHERE cert_id = ?",
         (
-            (datetime.utcnow() - timedelta(minutes=10)).isoformat(),
+            (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(),
             stale_cert.cert_id,
         ),
     )

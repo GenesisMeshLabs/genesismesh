@@ -1,6 +1,6 @@
 """Tests for CRL gossip propagation behavior."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -29,7 +29,7 @@ async def test_newer_signed_crl_is_accepted_and_announced():
     current.signatures.append(sign_model(current, na_keypair.private_key, "na-test"))
     gossip.set_crl(current)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     newer = CertificateRevocationList(
         crl_id="crl-1",
         sequence=1,

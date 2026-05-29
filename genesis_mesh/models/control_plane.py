@@ -1,7 +1,7 @@
 """Control-plane message models."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -56,7 +56,7 @@ class ControlMessageModel(BaseModel):
         """Check if message is expired."""
         if not self.expires_at:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     @staticmethod
     def create_policy_update(
@@ -73,8 +73,8 @@ class ControlMessageModel(BaseModel):
             scope=ControlScope.NETWORK,
             issuer=issuer,
             issuer_roles=issuer_roles,
-            issued_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(hours=validity_hours),
+            issued_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=validity_hours),
             data={"policy": policy_data}
         )
 
@@ -93,7 +93,7 @@ class ControlMessageModel(BaseModel):
             scope=ControlScope.NETWORK,
             issuer=issuer,
             issuer_roles=issuer_roles,
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(timezone.utc),
             data={
                 "certificate_id": cert_id,
                 "reason": reason
@@ -115,7 +115,7 @@ class ControlMessageModel(BaseModel):
             scope=ControlScope.NODE,
             issuer=issuer,
             issuer_roles=issuer_roles,
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(timezone.utc),
             target=target_node,
             data={"reason": reason}
         )

@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid as _uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
 
 import requests
@@ -259,7 +259,7 @@ class MeshNode:
         Returns:
             Payload with timestamp, nonce, and signature added
         """
-        payload["timestamp"] = datetime.utcnow().isoformat()
+        payload["timestamp"] = datetime.now(timezone.utc).isoformat()
         payload["nonce"] = str(_uuid.uuid4())
 
         # Build canonical form (everything except 'signature', sorted)
@@ -372,7 +372,7 @@ class MeshNode:
         if not self.join_certificate:
             return False
 
-        time_until_expiry = self.join_certificate.expires_at - datetime.utcnow()
+        time_until_expiry = self.join_certificate.expires_at - datetime.now(timezone.utc)
         return time_until_expiry < timedelta(hours=threshold_hours)
 
     def run(

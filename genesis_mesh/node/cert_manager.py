@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Callable
 import time
 
@@ -114,7 +114,7 @@ class CertificateManager:
             return True
 
         # Calculate remaining validity percentage
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         total_validity = (cert.expires_at - cert.issued_at).total_seconds()
         remaining = (cert.expires_at - now).total_seconds()
         percent_remaining = remaining / total_validity
@@ -189,7 +189,7 @@ class CertificateManager:
         if not cert:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         total_validity = (cert.expires_at - cert.issued_at).total_seconds()
         remaining = (cert.expires_at - now).total_seconds()
         renewal_time = total_validity * self._renewal_threshold
@@ -207,7 +207,7 @@ class CertificateManager:
                 "error": "No certificate"
             }
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         total_validity = (cert.expires_at - cert.issued_at).total_seconds()
         remaining = (cert.expires_at - now).total_seconds()
         percent_remaining = (remaining / total_validity) * 100

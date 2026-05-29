@@ -9,7 +9,7 @@ from genesis_mesh.crypto import (
     verify_model_signature
 )
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def test_keypair_generation():
@@ -44,7 +44,7 @@ def test_sign_and_verify():
 def test_model_signing():
     """Test signing and verification of Pydantic models."""
     keypair = generate_keypair()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Create a genesis block
     genesis = GenesisBlock(
@@ -77,7 +77,7 @@ def test_model_signing():
 
 def test_canonical_json():
     """Test canonical JSON generation for consistent signing."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     keypair = generate_keypair()
 
     genesis1 = GenesisBlock(

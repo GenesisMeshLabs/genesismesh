@@ -1,6 +1,6 @@
 """Public read-only Network Authority routes."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import escape
 
 from flask import Blueprint, Response, jsonify
@@ -10,7 +10,7 @@ ACTIVE_NODE_WINDOW = timedelta(minutes=5)
 
 def _node_counts(service) -> tuple[int, int]:
     """Return counts for recently seen and tracked non-revoked nodes."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     active = 0
     tracked = 0
 

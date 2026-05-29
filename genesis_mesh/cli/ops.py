@@ -7,7 +7,7 @@ import json
 import runpy
 import shutil
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -105,7 +105,7 @@ def init(
     if anchor:
         anchor_id, anchor_endpoint = _parse_anchor(anchor)
         bootstrap_anchors.append(BootstrapAnchor(id=anchor_id, endpoint=anchor_endpoint))
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     genesis_block = GenesisBlock(
         network_name=network_name,
         network_version=network_version,
@@ -126,6 +126,11 @@ def init(
     signed_genesis_path.write_text(
         json.dumps(genesis_block.model_dump(mode="json"), indent=2, default=str),
         encoding="utf-8",
+    )
+    click.echo(
+        "Note: genesis block contains a placeholder policy hash. "
+        "Replace PolicyManifestRef.hash with the SHA-256 of your policy document before production use.",
+        err=True,
     )
 
     config = {
@@ -185,6 +190,11 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
         operator_public_keys=load_operator_public_keys([f"{operator_key_id}={operator_public_key_path}"]),
     )
     click.echo(f"Starting Network Authority on http://{bind_host}:{bind_port}")
+    click.echo(
+        "WARNING: Starting Flask development server. "
+        "For production deployments use start.sh and Gunicorn.",
+        err=True,
+    )
     app.run(host=bind_host, port=bind_port)
 
 
@@ -471,7 +481,7 @@ def _admin_headers(config: dict[str, Any], body: dict[str, Any]) -> dict[str, st
     """Create signed admin request headers from CLI config."""
     key_id = get_config_value(config, "operator", "key_id", "operator-local")
     key_path = _required_config_path(config, "paths", "operator_private_key")
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     nonce = str(uuid.uuid4())
     canonical = json.dumps(
         {

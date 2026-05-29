@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ from genesis_mesh.node import MeshNode
 
 def _admin_headers(body: dict, operator_keypair, key_id: str = "operator-test") -> dict:
     """Create operator authentication headers for an admin request body."""
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     nonce = str(uuid.uuid4())
     canonical = json.dumps(
         {
@@ -88,7 +88,7 @@ def main():
     print("  Operator key generated")
 
     print("\nStep 2: Creating genesis block...")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     genesis_block = GenesisBlock(
         network_name="TEST",

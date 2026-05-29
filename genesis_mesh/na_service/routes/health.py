@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify
 
@@ -44,7 +44,7 @@ def create_health_blueprint(service) -> Blueprint:
     @bp.route("/nodes", methods=["GET"])
     def list_nodes():
         """Return recently heartbeating nodes from persisted certificate state."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         stale_threshold = timedelta(minutes=5)
         active_nodes = {}
 

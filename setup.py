@@ -15,7 +15,7 @@ setup(
     description="Secure decentralized mesh networking with cryptographic trust chains",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/genesis-mesh",
+    url="https://github.com/thaersaidi/genesismesh",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",

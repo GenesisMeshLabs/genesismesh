@@ -1,7 +1,7 @@
 """Integration tests for multi-node runtime behavior."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -13,7 +13,7 @@ from genesis_mesh.node.runtime import MeshNodeRuntime
 
 def _make_signed_genesis(root_keypair, na_keypair) -> GenesisBlock:
     """Create a root-signed genesis block for integration tests."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     genesis = GenesisBlock(
         network_name="integration",
         network_version="v0.1",
@@ -33,7 +33,7 @@ def _make_signed_genesis(root_keypair, na_keypair) -> GenesisBlock:
 
 def _make_join_certificate(node_keypair, genesis: GenesisBlock, na_keypair) -> JoinCertificate:
     """Create an NA-signed join certificate for a node."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cert = JoinCertificate(
         cert_id=f"cert-{node_keypair.public_key_b64[:8]}",
         node_public_key=node_keypair.public_key_b64,

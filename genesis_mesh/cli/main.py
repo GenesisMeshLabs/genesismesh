@@ -2,11 +2,10 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import click
-import nacl.encoding
 
 from ..crypto import generate_keypair, save_keypair, load_private_key, sign_model
 from ..models import GenesisBlock, NetworkAuthority, BootstrapAnchor, PolicyManifestRef
@@ -114,7 +113,7 @@ def genesis_create(network_name, network_version, root_key, na_key, na_valid_day
         bootstrap_anchors.append(BootstrapAnchor(id=anchor_id, endpoint=endpoint))
 
     # Create NA validity window
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     na_valid_to = now + timedelta(days=na_valid_days)
 
     # Create genesis block
@@ -139,6 +138,11 @@ def genesis_create(network_name, network_version, root_key, na_key, na_valid_day
         json.dump(genesis_block.model_dump(mode='json'), f, indent=2, default=str)
 
     click.echo(f"\nOK Genesis block created: {output}")
+    click.echo(
+        "Note: genesis block contains a placeholder policy hash. "
+        "Replace PolicyManifestRef.hash with the SHA-256 of your policy document before production use.",
+        err=True,
+    )
     click.echo(f"  Network: {network_name} ({network_version})")
     click.echo(f"  NA validity: {na_valid_days} days")
     click.echo(f"  Bootstrap anchors: {len(bootstrap_anchors)}")
