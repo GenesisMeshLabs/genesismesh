@@ -78,4 +78,4 @@ The repository ignores these by default:
 - `*.db-shm`
 - `*.db-wal`
 - `examples/genesis/demo/`
-- `docs/pages/` is generated HTML output and is intentionally available for tracking.
+- `docs/pages/` is generated HTML output. It is ignored locally because GitHub Actions rebuilds it for Pages deployment.

@@ -70,3 +70,7 @@ Container startup and health behavior should be verified before release:
 - the image builds successfully
 - startup fails closed without mounted genesis and NA key files
 - `/healthz` and `/readyz` return healthy responses with required secrets mounted
+
+The CI workflow builds the Docker image and verifies the fail-closed missing
+secret path. Full mounted-secret Gunicorn smoke testing is still useful before
+release because it exercises the target deployment host and volume mounts.

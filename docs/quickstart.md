@@ -127,6 +127,12 @@ Check local status:
 genesis-mesh status
 ```
 
+If `/nodes` or the Network Authority home page shows zero active nodes, check
+that the node completed `join`, sent at least one heartbeat, and is using the
+same NA endpoint that `status` is querying. A node started only as a peer
+runtime, a node using a stale config, or a local cert whose NA database was
+deleted will not appear as an active node.
+
 `status` uses the config to show Network Authority health and local node
 certificate information.
 

@@ -91,6 +91,7 @@ operations/deployment
 operations/infrastructure
 operations/monitoring
 operations/revocation
+operations/backup-restore
 ```
 
 ```{toctree}
