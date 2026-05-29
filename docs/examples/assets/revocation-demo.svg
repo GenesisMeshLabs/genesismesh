@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="790" viewBox="0 0 1080 790">
+  <rect width="100%" height="100%" rx="18" fill="#0b1020"/>
+  <circle cx="28" cy="28" r="7" fill="#ff5f57"/>
+  <circle cx="50" cy="28" r="7" fill="#ffbd2e"/>
+  <circle cx="72" cy="28" r="7" fill="#28c840"/>
+  <text x="96" y="34" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">Genesis Mesh revocation demo</text>
+  <style>
+    .cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#7dd3fc;white-space:pre}
+    .out{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#d1e7ff;white-space:pre}
+    .muted{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#94a3b8;white-space:pre}
+    .ok{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#86efac;white-space:pre}
+    .warn{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#fca5a5;white-space:pre}
+  </style>
+  <text x="24" y="64" class="cmd">$ genesis-mesh admin invite --role anchor</text>
+  <text x="24" y="86" class="ok">Invite created: &lt;redacted single-use token&gt;</text>
+
+  <text x="24" y="124" class="cmd">$ genesis-mesh join --token &lt;invite&gt;</text>
+  <text x="24" y="146" class="out">Joined USG as role:anchor</text>
+  <text x="24" y="168" class="out">Certificate: b7d9001d-c66b-4be3-867c-e2a0b3e31c78</text>
+  <text x="24" y="190" class="ok">Active nodes before revoke: 1</text>
+
+  <text x="24" y="228" class="cmd">$ genesis-mesh admin revoke b7d9001d-c66b-4be3-867c-e2a0b3e31c78 --reason key_compromise</text>
+  <text x="24" y="250" class="out">{</text>
+  <text x="44" y="272" class="out">"crl_sequence": 1,</text>
+  <text x="44" y="294" class="out">"revoked_count": 1</text>
+  <text x="24" y="316" class="out">}</text>
+
+  <text x="24" y="354" class="cmd">$ curl /crl</text>
+  <text x="24" y="376" class="ok">CRL sequence: 1</text>
+  <text x="24" y="398" class="ok">Revoked certificates in CRL: 1</text>
+  <text x="24" y="420" class="ok">CRL contains revoked cert: True</text>
+  <text x="24" y="442" class="ok">Revocation reason: key_compromise</text>
+
+  <text x="24" y="480" class="cmd">$ curl /nodes after revocation</text>
+  <text x="24" y="502" class="ok">Active nodes after revoke: 0</text>
+
+  <text x="24" y="540" class="cmd">$ genesis-mesh join --config &lt;tmp&gt;/genesis-mesh.toml --na &lt;endpoint&gt;</text>
+  <text x="24" y="562" class="out">Using existing certificate: b7d9001d-c66b-4be3-867c-e2a0b3e31c78</text>
+  <text x="24" y="584" class="warn">Heartbeat failed: 403 Client Error: FORBIDDEN for url: /heartbeat</text>
+  <text x="24" y="606" class="warn">Error: Existing local certificate was rejected by the Network Authority.</text>
+
+  <text x="24" y="644" class="cmd">$ python revoked_probe.py</text>
+  <text x="24" y="666" class="warn">Certificate renewal failed: 403 Client Error: FORBIDDEN for url: /renew</text>
+  <text x="24" y="688" class="ok">renewal accepted: False</text>
+  <text x="24" y="710" class="ok">heartbeat accepted: False</text>
+  <text x="24" y="732" class="ok">peer handshake rejected after revocation</text>
+  <text x="24" y="754" class="ok">route announcements from revoked node rejected</text>
+  <text x="24" y="776" class="ok">targeted runtime revocation tests: 5 passed</text>
+</svg>

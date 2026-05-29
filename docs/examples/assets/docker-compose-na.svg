@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="424" viewBox="0 0 1060 424">
+  <rect width="100%" height="100%" rx="18" fill="#0b1020"/>
+  <circle cx="28" cy="28" r="7" fill="#ff5f57"/><circle cx="50" cy="28" r="7" fill="#ffbd2e"/><circle cx="72" cy="28" r="7" fill="#28c840"/>
+  <text x="96" y="34" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">Genesis Mesh Docker Compose NA demo</text>
+  <style>.t{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#d1e7ff;white-space:pre}</style>
+  <text x="24" y="58" class="t">$ docker compose -f docs/examples/compose/docker-compose.na.yml up --build</text>
+<text x="24" y="80" class="t">Starting Network Authority...</text>
+<text x="24" y="102" class="t">[INFO] Listening at: http://0.0.0.0:8443</text>
+<text x="24" y="124" class="t">[INFO] Booting worker with pid: 7</text>
+<text x="24" y="146" class="t">[INFO] Booting worker with pid: 8</text>
+<text x="24" y="168" class="t"></text>
+<text x="24" y="190" class="t">$ curl http://127.0.0.1:8443/healthz</text>
+<text x="24" y="212" class="t">{"status":"ok"}</text>
+<text x="24" y="234" class="t"></text>
+<text x="24" y="256" class="t">$ curl http://127.0.0.1:8443/readyz</text>
+<text x="24" y="278" class="t">{"db_path":"/tmp/genesis_mesh_na.db","status":"ready"}</text>
+<text x="24" y="300" class="t"></text>
+<text x="24" y="322" class="t">$ curl http://127.0.0.1:8443/metrics | head</text>
+<text x="24" y="344" class="t"># HELP genesis_mesh_na_issued_certs_total Total certificates issued by the Network Authority.</text>
+<text x="24" y="366" class="t">genesis_mesh_na_issued_certs_total 0</text>
+<text x="24" y="388" class="t">genesis_mesh_na_active_nodes 0</text>
+</svg>

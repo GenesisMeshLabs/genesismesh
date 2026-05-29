@@ -1,0 +1,25 @@
+services:
+  network-authority:
+    build:
+      context: ../../..
+    image: genesis-mesh:demo-compose
+    container_name: genesis-mesh-demo-na
+    environment:
+      SERVICE_ROLE: na
+      GENESIS_FILE: /run/genesis/genesis.signed.json
+      NA_PRIVATE_KEY_FILE: /run/secrets/na.key
+      DB_PATH: /tmp/genesis_mesh_na.db
+      PORT: "8443"
+      WEB_CONCURRENCY: "2"
+    ports:
+      - "8443:8443"
+    volumes:
+      - ../../../.genesis-mesh/genesis.signed.json:/run/genesis/genesis.signed.json:ro
+      - ../../../.genesis-mesh/keys/na.key:/run/secrets/na.key:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8443/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
