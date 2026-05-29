@@ -27,9 +27,3 @@ cryptographic foundation and runtime path, but some hardening work remains.
 - Dependency audit automation.
 - Production backup and restore runbooks.
 - Client-side policy signature verification.
-
-## Temporary Implementation Plan
-
-The detailed implementation checklist currently lives in `docs/plan.md`, but it
-is intentionally excluded from the published documentation site. Treat it as a
-working implementation artifact, not as user-facing documentation.
