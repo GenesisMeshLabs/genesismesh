@@ -122,8 +122,10 @@ installation
 :caption: Concepts
 
 concepts/overview
+concepts/design-goals
 concepts/use-cases
 concepts/comparison
+concepts/deployment-scenarios
 concepts/architecture
 concepts/trust-model
 concepts/security-model
@@ -146,6 +148,8 @@ reference/configuration
 
 operations/deployment
 operations/infrastructure
+operations/terraform-deployment
+operations/kubernetes-deployment
 operations/monitoring
 operations/revocation
 operations/backup-restore
@@ -160,6 +164,16 @@ development/module-structure
 development/security-policy
 development/testing
 development/roadmap
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Examples
+
+examples/ai-agent-network
+examples/edge-fleet
+examples/sovereign-organization
+examples/compute-cluster
 ```
 
 ## Documentation Build

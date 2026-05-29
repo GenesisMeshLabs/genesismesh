@@ -48,6 +48,44 @@ Data messages are delivered locally when the destination matches the current
 node. Otherwise, the router selects a next hop from the routing table and
 forwards the message subject to TTL and loop-prevention rules.
 
+## End-to-End Message Flow
+
+Trust establishment and message delivery are separate steps. A peer connection
+must be authenticated before it can contribute routes or carry application
+payloads.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B
+    participant C as Node C
+    participant App as Application
+
+    A->>B: Noise XX handshake
+    B->>A: Join certificate payload
+    A->>A: Verify NA signature, expiry, CRL, and key binding
+    A-->>B: Encrypted authenticated session
+
+    C->>B: Route announce: C reachable
+    B->>A: Route announce: C via B
+    A->>A: Store route to C through B
+
+    App->>A: Send payload to C
+    A->>A: Route lookup for C
+    A->>B: DATA frame for C
+    B->>B: Forwarding decision and TTL check
+    B->>C: DATA frame for C
+    C->>App: Deliver application payload
+```
+
+The flow is:
+
+1. **Trust**: peers validate certificates and revocation state.
+2. **Authentication**: Noise XX establishes an encrypted session.
+3. **Authorization**: roles and policy determine what identities may do.
+4. **Routing**: peers advertise reachability through authenticated neighbors.
+5. **Communication**: application payloads move through selected next hops.
+
 ## Production Notes
 
 Production deployments should verify route convergence and failure recovery
