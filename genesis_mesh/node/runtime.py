@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import requests
 import websockets
@@ -34,6 +35,33 @@ from .rbac import RBACEnforcer
 
 
 logger = logging.getLogger(__name__)
+
+
+class _ExpectedWebSocketProbeFilter(logging.Filter):
+    """Suppress noisy logs from browsers probing a peer WebSocket port."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return False for expected non-WebSocket HTTP probes."""
+        message = record.getMessage()
+        if "connection rejected (426 Upgrade Required)" in message:
+            return False
+        if "opening handshake failed" not in message:
+            return True
+        exc_info = record.exc_info
+        if not exc_info:
+            return True
+        exc_type = exc_info[0]
+        if exc_type is None:
+            return True
+        return not issubclass(exc_type, websockets.exceptions.InvalidUpgrade)
+
+
+def _peer_websocket_logger() -> logging.Logger:
+    """Return the logger used by the peer WebSocket server."""
+    ws_logger = logging.getLogger("genesis_mesh.peer_websocket")
+    if not any(isinstance(f, _ExpectedWebSocketProbeFilter) for f in ws_logger.filters):
+        ws_logger.addFilter(_ExpectedWebSocketProbeFilter())
+    return ws_logger
 
 
 class MeshNodeRuntime:
@@ -136,6 +164,7 @@ class MeshNodeRuntime:
             self._accept_peer,
             self.listen_host,
             self.listen_port,
+            logger=_peer_websocket_logger(),
         )
         self._running = True
 
@@ -206,6 +235,12 @@ class MeshNodeRuntime:
     async def _bootstrap_anchors(self):
         """Connect to bootstrap anchors listed in the genesis block."""
         for anchor in self.node.genesis_block.bootstrap_anchors:
+            if self._is_na_endpoint(anchor.endpoint):
+                logger.info(
+                    "Skipping bootstrap anchor %s because it matches the Network Authority endpoint",
+                    anchor.endpoint,
+                )
+                continue
             try:
                 await self._connect_endpoint(anchor.endpoint)
             except Exception as exc:
@@ -377,6 +412,9 @@ class MeshNodeRuntime:
 
     def _get_public_key(self, key_id: str) -> Optional[str]:
         """Resolve known key IDs to public keys for signature verification."""
+        local_cert = self.node.join_certificate
+        if local_cert and key_id == local_cert.issued_by:
+            return self.node.genesis_block.network_authority.public_key
         if key_id == self.node.genesis_block.network_authority.public_key:
             return self.node.genesis_block.network_authority.public_key
         if key_id == "na-2025-q1":
@@ -384,6 +422,14 @@ class MeshNodeRuntime:
         if key_id == self.node_id:
             return self.node.node_keypair.public_key_b64
         return None
+
+    def _is_na_endpoint(self, endpoint: str) -> bool:
+        """Return whether a bootstrap endpoint points at the NA HTTP API."""
+        parsed = urlparse(self.na_endpoint)
+        if not parsed.hostname:
+            return False
+        na_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        return endpoint == f"{parsed.hostname}:{na_port}"
 
     def _renew_certificate(self):
         """Renew the node certificate through the existing NA client."""

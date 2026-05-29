@@ -1,12 +1,15 @@
 """Runtime-level tests for authenticated peer connection setup."""
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 
 import pytest
+import websockets
 
 from genesis_mesh.crypto import generate_keypair, sign_model
 from genesis_mesh.models import (
+    BootstrapAnchor,
     CertificateRevocationList,
     GenesisBlock,
     JoinCertificate,
@@ -16,6 +19,7 @@ from genesis_mesh.models import (
 )
 from genesis_mesh.node.node import MeshNode
 from genesis_mesh.node.runtime import MeshNodeRuntime
+from genesis_mesh.node.runtime import _ExpectedWebSocketProbeFilter
 
 
 def _make_signed_genesis(root_keypair, na_keypair) -> GenesisBlock:
@@ -52,6 +56,19 @@ def _make_join_certificate(node_keypair, genesis: GenesisBlock, na_keypair) -> J
         signatures=[],
     )
     cert.signatures.append(sign_model(cert, na_keypair.private_key, "na-2025-q1"))
+    return cert
+
+
+def _make_join_certificate_with_issuer(
+    node_keypair,
+    genesis: GenesisBlock,
+    na_keypair,
+    issuer: str,
+) -> JoinCertificate:
+    """Create an NA-signed join certificate with a custom issuer key ID."""
+    cert = _make_join_certificate(node_keypair, genesis, na_keypair)
+    cert.issued_by = issuer
+    cert.signatures = [sign_model(cert, na_keypair.private_key, issuer)]
     return cert
 
 
@@ -165,3 +182,63 @@ async def test_runtime_rejects_revoked_peer_certificate():
     finally:
         await runtime_a.stop()
         await runtime_b.stop()
+
+
+def test_runtime_bootstraps_crl_signed_by_local_na_key_id():
+    """Runtime CRL bootstrap accepts the NA key ID from the local certificate."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+
+    node = _make_joined_node(genesis, na_keypair)
+    node.join_certificate = _make_join_certificate_with_issuer(
+        node.node_keypair,
+        genesis,
+        na_keypair,
+        "na-local",
+    )
+
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:9",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    assert runtime._get_public_key("na-local") == genesis.network_authority.public_key
+
+
+def test_runtime_skips_bootstrap_anchor_matching_na_endpoint():
+    """Runtime treats the NA HTTP API as control plane, not a peer anchor."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    genesis.bootstrap_anchors = [BootstrapAnchor(id="na-http", endpoint="127.0.0.1:8443")]
+    genesis.signatures = [sign_model(genesis, root_keypair.private_key, "root-test")]
+
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:8443",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    assert runtime._is_na_endpoint("127.0.0.1:8443")
+    assert not runtime._is_na_endpoint("127.0.0.1:9443")
+
+
+def test_expected_websocket_probe_filter_suppresses_browser_http_probe():
+    """Browser HTTP probes of the peer WebSocket port should not log tracebacks."""
+    log_filter = _ExpectedWebSocketProbeFilter()
+    record = logging.LogRecord(
+        name="genesis_mesh.peer_websocket",
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=1,
+        msg="opening handshake failed",
+        args=(),
+        exc_info=(websockets.exceptions.InvalidUpgrade, None, None),
+    )
+
+    assert not log_filter.filter(record)

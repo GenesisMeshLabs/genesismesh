@@ -8,6 +8,7 @@ import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import requests
 from werkzeug.serving import make_server
@@ -59,7 +60,7 @@ def _create_invite(
     validity_hours: int,
 ) -> str:
     """Create a single-use invite token through the admin API."""
-    body = {
+    body: dict[str, Any] = {
         "roles": roles,
         "max_validity_hours": validity_hours,
         "token_expiry_hours": 1,
