@@ -67,6 +67,38 @@ Before production use, verify:
 - operator public keys are reviewed and rotated through policy
 - logs do not expose private key material
 
+## Container Smoke Checks
+
+Build the image before release:
+
+```bash
+docker build -t genesis-mesh:local .
+```
+
+The container must fail closed when required Network Authority secrets are not
+mounted:
+
+```bash
+docker run --rm genesis-mesh:local
+```
+
+Expected result: non-zero exit and a message containing `Refusing to start`.
+With secrets mounted, the same image should serve `/healthz` and `/readyz`
+through Gunicorn on port `8443`.
+
+```bash
+docker run --rm \
+  -e SERVICE_ROLE=na \
+  -e GENESIS_FILE=/run/secrets/genesis.signed.json \
+  -e NA_PRIVATE_KEY_FILE=/run/secrets/na.key \
+  -e DB_PATH=/data/genesis_mesh_na.db \
+  -p 8443:8443 \
+  genesis-mesh:local
+```
+
+Do not run two Network Authority processes against the same SQLite database
+file. Genesis Mesh treats SQLite as a single-writer deployment store.
+
 ## Azure Helpers
 
 Azure Container Apps helper scripts live under `infrastructure/azure/`. They are

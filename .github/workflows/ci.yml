@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests and smoke checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning
+
+      - name: Audit dependencies
+        run: python -m pip_audit -r requirements.txt
+
+      - name: Type check
+        run: python -m mypy genesis_mesh --ignore-missing-imports
+
+      - name: Compile package
+        run: python -m compileall genesis_mesh -q
+
+      - name: Build container image
+        run: docker build -t genesis-mesh:ci .
+
+      - name: Verify container fails closed without secrets
+        run: |
+          set +e
+          output=$(docker run --rm genesis-mesh:ci 2>&1)
+          status=$?
+          echo "$output"
+          test "$status" -ne 0
+          echo "$output" | grep -q "Refusing to start"
+
+      - name: CLI smoke workflow
+        run: python -m genesis_mesh.cli dev up

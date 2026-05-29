@@ -20,6 +20,7 @@ wheels/
 *.egg
 .pytest_cache/
 docs_buildhtml/
+docs/_build/
 docs/pages/
 examples/genesis/demo/
 
