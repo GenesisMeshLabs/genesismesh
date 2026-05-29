@@ -49,11 +49,13 @@ fi
 echo ""
 echo "==> Setting GitHub Actions secrets"
 gh secret set AZURE_CLIENT_ID       --body "$AZURE_CLIENT_ID"
-gh secret set AZURE_CLIENT_SECRET   --body "$AZURE_CLIENT_SECRET"
 gh secret set AZURE_SUBSCRIPTION_ID --body "$AZURE_SUBSCRIPTION_ID"
 gh secret set AZURE_TENANT_ID       --body "$AZURE_TENANT_ID"
 gh secret set NA_SSH_PUBLIC_KEY     --body "$NA_SSH_PUBLIC_KEY"
 gh secret set NA_ADMIN_CIDR         --body "$NA_ADMIN_CIDR"
+
+# Remove client secret — OIDC is used instead
+gh secret delete AZURE_CLIENT_SECRET 2>/dev/null && echo "INFO: removed AZURE_CLIENT_SECRET" || true
 echo "OK secrets set"
 
 echo ""
