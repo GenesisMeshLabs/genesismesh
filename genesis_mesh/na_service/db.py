@@ -165,6 +165,16 @@ class NADatabase:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_issued_certs(self) -> list[dict]:
+        """Return all persisted certificate rows ordered by latest activity."""
+        rows = self.conn.execute(
+            """
+            SELECT * FROM issued_certs
+            ORDER BY COALESCE(last_heartbeat, issued_at) DESC
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def mark_heartbeat(self, cert_id: str, status: str, remote_addr: str) -> None:
         """Record the latest heartbeat details for an issued certificate."""
         with self.conn:

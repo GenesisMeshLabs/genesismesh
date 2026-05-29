@@ -70,3 +70,22 @@ def test_na_restart_preserves_persisted_state(tmp_path, na_service, node_keypair
     assert second.db.get_active_crl().is_cert_revoked(cert.cert_id)
     assert second.db.get_active_policy().policy_id == "policy-restart"
     assert second.db.has_nonce("node:test", "nonce-1") is True
+
+
+def test_nodes_endpoint_reads_persisted_certificate_state(na_service, node_keypair):
+    """Node observability should survive beyond the in-memory compatibility mirror."""
+    cert = na_service._issue_join_certificate(
+        node_public_key=node_keypair.public_key_b64,
+        roles=["role:anchor"],
+        validity_hours=24,
+    )
+    na_service.db.issue_cert(cert, "127.0.0.1")
+    na_service.connected_nodes.clear()
+
+    resp = na_service.app.test_client().get("/nodes")
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["count"] == 1
+    assert payload["nodes"][cert.cert_id]["status"] == "joined"
+    assert payload["nodes"][cert.cert_id]["roles"] == ["role:anchor"]
