@@ -3,6 +3,8 @@
 import json
 import os
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from genesis_mesh.crypto import load_private_key
 from genesis_mesh.models import GenesisBlock
 from genesis_mesh.na_service.server import create_app
@@ -26,3 +28,6 @@ app = create_app(
     key_id=os.environ.get("NA_KEY_ID", "na-2025-q1"),
     operator_public_keys=_load_operator_public_keys(),
 )
+
+# Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
