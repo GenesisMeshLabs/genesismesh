@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -397,16 +397,22 @@ responsibility.</p>
 blueprint. Shared setup belongs in <code class="docutils literal notranslate"><span class="pre">conftest.py</span></code>; request-building helpers
 belong in <code class="docutils literal notranslate"><span class="pre">na_server_helpers.py</span></code>.</p>
 </section>
-<section id="node-cli">
-<h2>Node CLI<a class="headerlink" href="#node-cli" title="Link to this heading">¶</a></h2>
-<p>The persistent node CLI lives under <code class="docutils literal notranslate"><span class="pre">genesis_mesh/cli/node_cmd.py</span></code>. The
-<code class="docutils literal notranslate"><span class="pre">genesis_mesh/node/node.py</span></code> module contains the <code class="docutils literal notranslate"><span class="pre">MeshNode</span></code> NA-client class.
+<section id="cli">
+<h2>CLI<a class="headerlink" href="#cli" title="Link to this heading">¶</a></h2>
+<p>The primary operational CLI is <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code>. Persona-oriented commands live
+under <code class="docutils literal notranslate"><span class="pre">genesis_mesh/cli/ops.py</span></code>; config discovery and TOML persistence live in
+<code class="docutils literal notranslate"><span class="pre">genesis_mesh/cli/config.py</span></code>. The older node-specific command module remains in
+<code class="docutils literal notranslate"><span class="pre">genesis_mesh/cli/node_cmd.py</span></code> for compatibility.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">genesis_mesh/node/node.py</span></code> module contains the <code class="docutils literal notranslate"><span class="pre">MeshNode</span></code> NA-client class.
 Legacy synchronous heartbeat mode lives in <code class="docutils literal notranslate"><span class="pre">node/persistent_runner.py</span></code>.
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.node</span></code> remains a compatibility entry point that delegates
 to the CLI module.</p>
 <p>Guidelines:</p>
 <ul class="simple">
-<li><p>Keep argument parsing and console output in <code class="docutils literal notranslate"><span class="pre">cli/node_cmd.py</span></code>.</p></li>
+<li><p>Keep high-level operator, node operator, and developer commands in
+<code class="docutils literal notranslate"><span class="pre">cli/ops.py</span></code>.</p></li>
+<li><p>Keep config discovery and persistence in <code class="docutils literal notranslate"><span class="pre">cli/config.py</span></code>.</p></li>
+<li><p>Keep legacy node argument parsing and console output in <code class="docutils literal notranslate"><span class="pre">cli/node_cmd.py</span></code>.</p></li>
 <li><p>Keep join, heartbeat, renewal, and policy-fetch behavior in <code class="docutils literal notranslate"><span class="pre">MeshNode</span></code>.</p></li>
 <li><p>Keep synchronous persistent heartbeat-loop behavior in
 <code class="docutils literal notranslate"><span class="pre">node/persistent_runner.py</span></code>.</p></li>
@@ -476,7 +482,7 @@ to the CLI module.</p>
 <li><a class="reference internal" href="#node-runtime">Node Runtime</a></li>
 <li><a class="reference internal" href="#transport-connections">Transport Connections</a></li>
 <li><a class="reference internal" href="#test-layout">Test Layout</a></li>
-<li><a class="reference internal" href="#node-cli">Node CLI</a></li>
+<li><a class="reference internal" href="#cli">CLI</a></li>
 </ul>
 </li>
 </ul>

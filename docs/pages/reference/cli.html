@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -264,88 +264,26 @@
         <article role="main" id="furo-main-content">
           <section id="cli-reference">
 <h1>CLI Reference<a class="headerlink" href="#cli-reference" title="Link to this heading">¶</a></h1>
-<p>Genesis Mesh exposes three command families:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.cli</span></code> for key and genesis operations.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.na_service</span></code> for local Network Authority development.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.node</span></code> for node enrollment and runtime startup.</p></li>
-</ul>
-<section id="key-generation">
-<h2>Key Generation<a class="headerlink" href="#key-generation" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>root<span class="w"> </span>--output<span class="w"> </span>keys/root<span class="w"> </span>--key-id<span class="w"> </span>rs-2025-q1
-python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>network-authority<span class="w"> </span>--output<span class="w"> </span>keys/na<span class="w"> </span>--key-id<span class="w"> </span>na-2025-q1
-python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>node<span class="w"> </span>--output<span class="w"> </span>keys/node<span class="w"> </span>--key-id<span class="w"> </span>node-1
+<p>Genesis Mesh installs a single primary command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>--help
 </pre></div>
 </div>
-<p>Each command writes a private key file and a public key file. Private key files
-are ignored by Git and must be protected.</p>
-</section>
-<section id="genesis-commands">
-<h2>Genesis Commands<a class="headerlink" href="#genesis-commands" title="Link to this heading">¶</a></h2>
-<p>Create an unsigned genesis block:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--network-name<span class="w"> </span><span class="s2">&quot;USG&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--network-version<span class="w"> </span><span class="s2">&quot;v0.1&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--root-key<span class="w"> </span>keys/root.pub<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-key<span class="w"> </span>keys/na.pub<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-valid-days<span class="w"> </span><span class="m">90</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--anchor<span class="w"> </span>anchor-local:127.0.0.1:8443<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>genesis.json
+<p>The command is intentionally persona-oriented instead of file-oriented. Operator
+commands manage the Network Authority and admin actions, node commands join and
+inspect the mesh, and developer commands run local verification workflows.</p>
+<p>Compatibility entry points such as <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.cli</span></code> and
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.node</span></code> still exist for direct module execution, but
+documentation and day-to-day workflows should prefer <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code>.</p>
+<section id="operator-commands">
+<h2>Operator Commands<a class="headerlink" href="#operator-commands" title="Link to this heading">¶</a></h2>
+<section id="genesis-mesh-init">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code><a class="headerlink" href="#genesis-mesh-init" title="Link to this heading">¶</a></h3>
+<p>Creates local demo keys, an unsigned genesis file, a signed genesis file, and a
+CLI config file.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>init
 </pre></div>
 </div>
-<p>Sign it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>sign<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--root-private-key<span class="w"> </span>keys/root.key<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>rs-2025-q1<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>genesis.signed.json
-</pre></div>
-</div>
-<p>Verify it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>verify<span class="w"> </span>--genesis<span class="w"> </span>genesis.signed.json
-</pre></div>
-</div>
-<p>Inspect it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>info<span class="w"> </span>--genesis<span class="w"> </span>genesis.signed.json
-</pre></div>
-</div>
-</section>
-<section id="network-authority-cli">
-<h2>Network Authority CLI<a class="headerlink" href="#network-authority-cli" title="Link to this heading">¶</a></h2>
-<p>The Network Authority CLI validates configuration and app-factory construction.
-Run the HTTP service through the WSGI app with Flask locally or Gunicorn in
-Linux/container environments.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.na_service<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-private-key<span class="w"> </span>keys/na.key<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>na-2025-q1<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--operator-public-key<span class="w"> </span>operator-local<span class="o">=</span>keys/operator.pub
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">--operator-public-key</span></code> can be repeated. The value can be either a base64 public
-key or a path to a public key file.</p>
-<p>Local WSGI server:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GENESIS_FILE</span><span class="o">=</span>genesis.signed.json
-<span class="nb">export</span><span class="w"> </span><span class="nv">NA_PRIVATE_KEY_FILE</span><span class="o">=</span>keys/na.key
-<span class="nb">export</span><span class="w"> </span><span class="nv">NA_KEY_ID</span><span class="o">=</span>na-2025-q1
-<span class="nb">export</span><span class="w"> </span><span class="nv">OPERATOR_PUBLIC_KEYS_JSON</span><span class="o">=</span><span class="s2">&quot;{\&quot;operator-local\&quot;:\&quot;</span><span class="k">$(</span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">&#39;^#&#39;</span><span class="w"> </span>keys/operator.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\r\n&#39;</span><span class="k">)</span><span class="s2">\&quot;}&quot;</span>
-python<span class="w"> </span>-m<span class="w"> </span>flask<span class="w"> </span>--app<span class="w"> </span>genesis_mesh.na_service.wsgi<span class="w"> </span>run<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8443</span>
-</pre></div>
-</div>
-</section>
-<section id="node-cli">
-<h2>Node CLI<a class="headerlink" href="#node-cli" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.node<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bootstrap<span class="w"> </span>http://localhost:8443<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--role<span class="w"> </span>role:anchor<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--invite-token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INVITE_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--listen-host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--listen-port<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--persistent
-</pre></div>
-</div>
-<p>Important options:</p>
+<p>Useful options:</p>
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
 <thead>
@@ -354,35 +292,225 @@ python<span class="w"> </span>-m<span class="w"> </span>flask<span class="w"> </
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--genesis</span></code></p></td>
-<td><p>Path to signed genesis block.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span></code></p></td>
+<td><p>Config path to write. Defaults to <code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--bootstrap</span></code></p></td>
-<td><p>Network Authority endpoint.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--home</span></code></p></td>
+<td><p>Directory for generated local artifacts. Defaults to <code class="docutils literal notranslate"><span class="pre">.genesis-mesh</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--network-name</span></code></p></td>
+<td><p>Network name embedded in genesis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--network-version</span></code></p></td>
+<td><p>Network version embedded in genesis.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--na-endpoint</span></code></p></td>
+<td><p>Network Authority endpoint written to config.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--anchor</span></code></p></td>
+<td><p>Optional peer bootstrap anchor in <code class="docutils literal notranslate"><span class="pre">id:endpoint</span></code> format. Do not use the NA HTTP endpoint.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--force</span></code></p></td>
+<td><p>Replace an existing config and generated local artifacts.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">init</span></code> is suitable for local development and demos. Production key generation
+should happen through an explicit key-management ceremony.</p>
+</section>
+<section id="genesis-mesh-na-start">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code><a class="headerlink" href="#genesis-mesh-na-start" title="Link to this heading">¶</a></h3>
+<p>Starts a local Network Authority from config.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>na<span class="w"> </span>start
+</pre></div>
+</div>
+<p>Useful options:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span></code></p></td>
+<td><p>Config path to read.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--host</span></code></p></td>
+<td><p>Override configured bind host.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--port</span></code></p></td>
+<td><p>Override configured bind port.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--db-path</span></code></p></td>
+<td><p>Override SQLite database path.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>This command uses Flask’s local server and is intended for development. Use the
+container entry point and Gunicorn for production-style deployments.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">down</span></code> was run earlier, recreate local config first with
+<code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code>; <code class="docutils literal notranslate"><span class="pre">dev</span> <span class="pre">down</span></code> removes <code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code> and <code class="docutils literal notranslate"><span class="pre">.genesis-mesh/</span></code>.</p>
+</section>
+<section id="genesis-mesh-admin-invite">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">admin</span> <span class="pre">invite</span></code><a class="headerlink" href="#genesis-mesh-admin-invite" title="Link to this heading">¶</a></h3>
+<p>Creates a single-use invite token through the operator-authenticated admin API.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>admin<span class="w"> </span>invite<span class="w"> </span>--role<span class="w"> </span>anchor
+</pre></div>
+</div>
+<p>The command prints only the token ID, so shells can capture it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">INVITE_TOKEN</span><span class="o">=</span><span class="k">$(</span>genesis-mesh<span class="w"> </span>admin<span class="w"> </span>invite<span class="w"> </span>--role<span class="w"> </span>anchor<span class="k">)</span>
+</pre></div>
+</div>
+<p>Useful options:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span></code></p></td>
+<td><p>Config path to read.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--na</span></code></p></td>
+<td><p>Network Authority endpoint override.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--role</span></code></p></td>
-<td><p>Requested local role. The NA assigns roles from the invite.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--invite-token</span></code></p></td>
-<td><p>Single-use enrollment token.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--node-key</span></code></p></td>
-<td><p>Existing node private key path.</p></td>
+<td><p>Role to assign. Can be repeated.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--validity-hours</span></code></p></td>
+<td><p>Maximum certificate validity allowed by the invite.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--token-expiry-hours</span></code></p></td>
+<td><p>Invite token lifetime.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="genesis-mesh-admin-revoke">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">admin</span> <span class="pre">revoke</span></code><a class="headerlink" href="#genesis-mesh-admin-revoke" title="Link to this heading">¶</a></h3>
+<p>Revokes a certificate through the operator-authenticated admin API.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>admin<span class="w"> </span>revoke<span class="w"> </span>&lt;cert-id&gt;<span class="w"> </span>--reason<span class="w"> </span>key_compromise
+</pre></div>
+</div>
+<p>Useful reasons are <code class="docutils literal notranslate"><span class="pre">key_compromise</span></code>, <code class="docutils literal notranslate"><span class="pre">cessation_of_operation</span></code>, <code class="docutils literal notranslate"><span class="pre">superseded</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">unspecified</span></code>.</p>
+</section>
+</section>
+<section id="node-operator-commands">
+<h2>Node Operator Commands<a class="headerlink" href="#node-operator-commands" title="Link to this heading">¶</a></h2>
+<section id="genesis-mesh-join">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">join</span></code><a class="headerlink" href="#genesis-mesh-join" title="Link to this heading">¶</a></h3>
+<p>Enrolls this machine as a node and persists local node config.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>join<span class="w"> </span>--na<span class="w"> </span>http://127.0.0.1:8443<span class="w"> </span>--token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INVITE_TOKEN</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Useful options:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span></code></p></td>
+<td><p>Config path to read and update.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--na</span></code></p></td>
+<td><p>Network Authority endpoint.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--token</span></code></p></td>
+<td><p>Single-use invite token. Required only when no valid local certificate exists.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--role</span></code></p></td>
+<td><p>Requested local role. The NA still assigns roles from the invite.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--validity-hours</span></code></p></td>
 <td><p>Requested certificate validity.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--persistent</span></code></p></td>
-<td><p>Start heartbeats and the peer runtime after join.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--persistent</span></code></p></td>
+<td><p>Start the peer runtime after enrollment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--listen-host</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--listen-host</span></code></p></td>
 <td><p>Peer runtime bind host.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--listen-port</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--listen-port</span></code></p></td>
 <td><p>Peer runtime bind port; <code class="docutils literal notranslate"><span class="pre">0</span></code> requests an ephemeral port.</p></td>
 </tr>
 </tbody>
 </table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">join</span></code> fetches the genesis block if needed, generates or reuses the local node
+key, requests a join certificate, fetches policy, saves the certificate and
+policy, and updates the CLI config. If a valid local certificate already exists,
+<code class="docutils literal notranslate"><span class="pre">join</span></code> reuses it instead of spending another invite token. This lets
+<code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">join</span> <span class="pre">--na</span> <span class="pre">&lt;url&gt;</span> <span class="pre">--persistent</span></code> start the runtime after a previous
+enrollment.</p>
+</section>
+<section id="genesis-mesh-status">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">status</span></code><a class="headerlink" href="#genesis-mesh-status" title="Link to this heading">¶</a></h3>
+<p>Shows Network Authority health and local node certificate status from config.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>status
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">status</span></code> is shared by operators and node operators. It detects available config
+and prints the relevant Network Authority and node view.</p>
+</section>
+</section>
+<section id="developer-commands">
+<h2>Developer Commands<a class="headerlink" href="#developer-commands" title="Link to this heading">¶</a></h2>
+<section id="genesis-mesh-dev-up">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">up</span></code><a class="headerlink" href="#genesis-mesh-dev-up" title="Link to this heading">¶</a></h3>
+<p>Runs the local in-process smoke workflow:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>dev<span class="w"> </span>up
+</pre></div>
+</div>
+<p>The smoke workflow starts a local Network Authority in process, creates
+operator-authenticated invite tokens, enrolls nodes, fetches policy, and
+validates node status.</p>
+</section>
+<section id="genesis-mesh-dev-down">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">down</span></code><a class="headerlink" href="#genesis-mesh-dev-down" title="Link to this heading">¶</a></h3>
+<p>Removes local artifacts created by <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code> in the current working
+directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>dev<span class="w"> </span>down
+</pre></div>
+</div>
+<p>Stop <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code> and persistent node runtimes first. On Windows,
+SQLite database files remain locked while the Network Authority process is
+running, and <code class="docutils literal notranslate"><span class="pre">dev</span> <span class="pre">down</span></code> will report that cleanly instead of removing a live DB.</p>
+</section>
+</section>
+<section id="low-level-compatibility-commands">
+<h2>Low-Level Compatibility Commands<a class="headerlink" href="#low-level-compatibility-commands" title="Link to this heading">¶</a></h2>
+<p>The low-level key and genesis subcommands remain available:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>keygen<span class="w"> </span>root<span class="w"> </span>--output<span class="w"> </span>keys/root<span class="w"> </span>--key-id<span class="w"> </span>rs-2025-q1
+genesis-mesh<span class="w"> </span>keygen<span class="w"> </span>network-authority<span class="w"> </span>--output<span class="w"> </span>keys/na<span class="w"> </span>--key-id<span class="w"> </span>na-2025-q1
+genesis-mesh<span class="w"> </span>keygen<span class="w"> </span>node<span class="w"> </span>--output<span class="w"> </span>keys/node<span class="w"> </span>--key-id<span class="w"> </span>node-1
+
+genesis-mesh<span class="w"> </span>genesis<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--network-name<span class="w"> </span><span class="s2">&quot;USG&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--network-version<span class="w"> </span><span class="s2">&quot;v0.1&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--root-key<span class="w"> </span>keys/root.pub<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--na-key<span class="w"> </span>keys/na.pub<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--na-valid-days<span class="w"> </span><span class="m">90</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>genesis.json
+
+genesis-mesh<span class="w"> </span>genesis<span class="w"> </span>sign<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--genesis<span class="w"> </span>genesis.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--root-private-key<span class="w"> </span>keys/root.key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--key-id<span class="w"> </span>rs-2025-q1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>genesis.signed.json
+
+genesis-mesh<span class="w"> </span>genesis<span class="w"> </span>verify<span class="w"> </span>--genesis<span class="w"> </span>genesis.signed.json
+genesis-mesh<span class="w"> </span>info<span class="w"> </span>--genesis<span class="w"> </span>genesis.signed.json
+</pre></div>
 </div>
 </section>
 </section>
@@ -443,10 +571,24 @@ python<span class="w"> </span>-m<span class="w"> </span>flask<span class="w"> </
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">CLI Reference</a><ul>
-<li><a class="reference internal" href="#key-generation">Key Generation</a></li>
-<li><a class="reference internal" href="#genesis-commands">Genesis Commands</a></li>
-<li><a class="reference internal" href="#network-authority-cli">Network Authority CLI</a></li>
-<li><a class="reference internal" href="#node-cli">Node CLI</a></li>
+<li><a class="reference internal" href="#operator-commands">Operator Commands</a><ul>
+<li><a class="reference internal" href="#genesis-mesh-init"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code></a></li>
+<li><a class="reference internal" href="#genesis-mesh-na-start"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code></a></li>
+<li><a class="reference internal" href="#genesis-mesh-admin-invite"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">admin</span> <span class="pre">invite</span></code></a></li>
+<li><a class="reference internal" href="#genesis-mesh-admin-revoke"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">admin</span> <span class="pre">revoke</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#node-operator-commands">Node Operator Commands</a><ul>
+<li><a class="reference internal" href="#genesis-mesh-join"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">join</span></code></a></li>
+<li><a class="reference internal" href="#genesis-mesh-status"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">status</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#developer-commands">Developer Commands</a><ul>
+<li><a class="reference internal" href="#genesis-mesh-dev-up"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">up</span></code></a></li>
+<li><a class="reference internal" href="#genesis-mesh-dev-down"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">down</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#low-level-compatibility-commands">Low-Level Compatibility Commands</a></li>
 </ul>
 </li>
 </ul>

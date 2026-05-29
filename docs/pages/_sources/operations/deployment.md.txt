@@ -26,12 +26,17 @@ flowchart TB
 
 ## Local Development
 
-Use the local CLI while developing or running smoke tests:
+Use the high-level CLI while developing or running smoke tests:
 
-Use `python -m genesis_mesh.na_service` to validate local configuration and
-app-factory construction. Run the HTTP service through the WSGI entry point.
-For local development, `python -m flask --app genesis_mesh.na_service.wsgi run`
-is enough; production/container startup uses Gunicorn through `start.sh`.
+```bash
+genesis-mesh init
+genesis-mesh na start
+genesis-mesh dev up
+```
+
+`genesis-mesh na start` uses the Flask local server and reads
+`genesis-mesh.toml`. Production/container startup uses Gunicorn through
+`start.sh`.
 
 ## Container Startup
 

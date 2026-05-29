@@ -144,17 +144,24 @@ New Network Authority tests should go into the file that matches the owning
 blueprint. Shared setup belongs in `conftest.py`; request-building helpers
 belong in `na_server_helpers.py`.
 
-## Node CLI
+## CLI
 
-The persistent node CLI lives under `genesis_mesh/cli/node_cmd.py`. The
-`genesis_mesh/node/node.py` module contains the `MeshNode` NA-client class.
+The primary operational CLI is `genesis-mesh`. Persona-oriented commands live
+under `genesis_mesh/cli/ops.py`; config discovery and TOML persistence live in
+`genesis_mesh/cli/config.py`. The older node-specific command module remains in
+`genesis_mesh/cli/node_cmd.py` for compatibility.
+
+The `genesis_mesh/node/node.py` module contains the `MeshNode` NA-client class.
 Legacy synchronous heartbeat mode lives in `node/persistent_runner.py`.
 `python -m genesis_mesh.node` remains a compatibility entry point that delegates
 to the CLI module.
 
 Guidelines:
 
-- Keep argument parsing and console output in `cli/node_cmd.py`.
+- Keep high-level operator, node operator, and developer commands in
+  `cli/ops.py`.
+- Keep config discovery and persistence in `cli/config.py`.
+- Keep legacy node argument parsing and console output in `cli/node_cmd.py`.
 - Keep join, heartbeat, renewal, and policy-fetch behavior in `MeshNode`.
 - Keep synchronous persistent heartbeat-loop behavior in
   `node/persistent_runner.py`.

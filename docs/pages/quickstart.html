@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Installation" href="installation.html"><link rel="prev" title="Genesis Mesh" href="index.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>Genesis Mesh - Quick Start Guide - Genesis Mesh</title>
+        <title>Quick Start - Genesis Mesh</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul class="current">
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -262,172 +262,160 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="genesis-mesh-quick-start-guide">
-<h1>Genesis Mesh - Quick Start Guide<a class="headerlink" href="#genesis-mesh-quick-start-guide" title="Link to this heading">¶</a></h1>
-<p>This guide creates a local Genesis Mesh development network. Production
-deployments should use mounted secrets, the container entry point, and the
-infrastructure guidance in <a class="reference internal" href="operations/infrastructure.html"><span class="std std-doc">Infrastructure</span></a>.</p>
+          <section id="quick-start">
+<h1>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">¶</a></h1>
+<p>This guide creates a local Genesis Mesh development network through the
+high-level <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> command. The command is organized around the three
+people who operate the system: an operator who runs the Network Authority, a
+node operator who joins the mesh, and a developer who wants a local smoke test.</p>
 <pre  class="mermaid">
         flowchart TD
-    keys[&quot;Generate root, NA, and operator keys&quot;]
-    genesis[&quot;Create and sign genesis block&quot;]
-    na[&quot;Start Network Authority&quot;]
-    invite[&quot;Create invite token&quot;]
-    node[&quot;Start node with invite&quot;]
-    smoke[&quot;Run smoke workflow&quot;]
+    init[&quot;genesis-mesh init&quot;]
+    na[&quot;genesis-mesh na start&quot;]
+    invite[&quot;genesis-mesh admin invite&quot;]
+    join[&quot;genesis-mesh join&quot;]
+    status[&quot;genesis-mesh status&quot;]
+    dev[&quot;genesis-mesh dev up&quot;]
 
-    keys --&gt; genesis
-    genesis --&gt; na
+    init --&gt; na
     na --&gt; invite
-    invite --&gt; node
-    node --&gt; smoke
+    invite --&gt; join
+    join --&gt; status
+    init --&gt; dev
     </pre><section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">¶</a></h2>
-<p>Install dependencies:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+<p>Install the package in editable mode so the <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> console command is
+available:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>On Windows Git Bash, user-level Python installs commonly put console scripts
+under <code class="docutils literal notranslate"><span class="pre">%APPDATA%\Python\Python314\Scripts</span></code>, which Git Bash may not have on
+<code class="docutils literal notranslate"><span class="pre">PATH</span></code>. Prefer using the project virtual environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>.venv/Scripts/activate
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+genesis-mesh<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>Or add the user script directory to the current Git Bash session:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/AppData/Roaming/Python/Python314/Scripts:</span><span class="nv">$PATH</span><span class="s2">&quot;</span>
+genesis-mesh<span class="w"> </span>--help
 </pre></div>
 </div>
 </section>
-<section id="generate-authority-keys">
-<h2>1. Generate Authority Keys<a class="headerlink" href="#generate-authority-keys" title="Link to this heading">¶</a></h2>
-<p>The Root Sovereign key is the offline constitutional authority. Keep it offline
-and secure.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>root<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>keys/root<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>rs-2025-q1
+<section id="operator-workflow">
+<h2>Operator Workflow<a class="headerlink" href="#operator-workflow" title="Link to this heading">¶</a></h2>
+<p>Initialize local keys, a signed genesis block, and <code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>init
 </pre></div>
 </div>
-<p>The Network Authority key signs certificates, CRLs, and policies.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>network-authority<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>keys/na<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>na-2025-q1
+<p>If you previously ran <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">dev</span> <span class="pre">down</span></code>, run <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code> again
+before <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code>; <code class="docutils literal notranslate"><span class="pre">dev</span> <span class="pre">down</span></code> removes the local config and
+generated artifacts.</p>
+<p>Start the Network Authority from that config:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>na<span class="w"> </span>start
 </pre></div>
 </div>
-<p>Generate a separate operator key for admin API calls:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>keygen<span class="w"> </span>node<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>keys/operator<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>operator-local
+<p>The command is blocking. Open <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8443/</span></code> in a browser to see the
+Network Authority landing page with links to health, policy, CRL, and node
+routes. Keep the server running in one terminal, then create an invite token
+from another terminal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">INVITE_TOKEN</span><span class="o">=</span><span class="k">$(</span>genesis-mesh<span class="w"> </span>admin<span class="w"> </span>invite<span class="w"> </span>--role<span class="w"> </span>anchor<span class="k">)</span>
 </pre></div>
 </div>
+<p>PowerShell equivalent:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nv">$INVITE_TOKEN</span> <span class="p">=</span> <span class="n">genesis-mesh</span> <span class="n">admin</span> <span class="n">invite</span> <span class="p">-</span><span class="n">-role</span> <span class="n">anchor</span>
+</pre></div>
+</div>
+<p>The invite controls the node’s roles and maximum certificate validity. The
+Network Authority assigns roles from the invite and ignores client-supplied
+roles during <code class="docutils literal notranslate"><span class="pre">/join</span></code>.</p>
 </section>
-<section id="create-and-sign-a-genesis-block">
-<h2>2. Create and Sign a Genesis Block<a class="headerlink" href="#create-and-sign-a-genesis-block" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--network-name<span class="w"> </span><span class="s2">&quot;USG&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--network-version<span class="w"> </span><span class="s2">&quot;v0.1&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--root-key<span class="w"> </span>keys/root.pub<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-key<span class="w"> </span>keys/na.pub<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-valid-days<span class="w"> </span><span class="m">90</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--anchor<span class="w"> </span>anchor-local:127.0.0.1:8443<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>genesis.json
+<section id="node-operator-workflow">
+<h2>Node Operator Workflow<a class="headerlink" href="#node-operator-workflow" title="Link to this heading">¶</a></h2>
+<p>Join the mesh with one command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>join<span class="w"> </span>--na<span class="w"> </span>http://127.0.0.1:8443<span class="w"> </span>--token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INVITE_TOKEN</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-<p>Sign the genesis block with the offline root key:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>sign<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--root-private-key<span class="w"> </span>keys/root.key<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>rs-2025-q1<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>genesis.signed.json
+<p>PowerShell:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="n">genesis-mesh</span> <span class="n">join</span> <span class="p">-</span><span class="n">-na</span> <span class="n">http</span><span class="p">://</span><span class="n">127</span><span class="p">.</span><span class="n">0</span><span class="p">.</span><span class="n">0</span><span class="p">.</span><span class="n">1</span><span class="p">:</span><span class="n">8443</span> <span class="p">-</span><span class="n">-token</span> <span class="nv">$INVITE_TOKEN</span>
 </pre></div>
 </div>
-<p>Verify the signed genesis block:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.cli<span class="w"> </span>genesis<span class="w"> </span>verify<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json
+<p><code class="docutils literal notranslate"><span class="pre">join</span></code> enrolls the node, saves the join certificate and active policy, writes
+the config, and keeps future commands from repeating genesis and bootstrap
+paths. Add <code class="docutils literal notranslate"><span class="pre">--persistent</span></code> when you want the peer runtime to stay running after
+enrollment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>join<span class="w"> </span>--na<span class="w"> </span>http://127.0.0.1:8443<span class="w"> </span>--token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INVITE_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span>--persistent
 </pre></div>
 </div>
+<p>Invite tokens are single-use. If you already joined once and only want to start
+the persistent runtime, reuse the saved local certificate and omit the token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>join<span class="w"> </span>--na<span class="w"> </span>http://127.0.0.1:8443<span class="w"> </span>--persistent
+</pre></div>
+</div>
+<p>Running that command in two terminals with the same <code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code> starts
+two runtimes for the same node identity. The Network Authority will still show
+one active node because both processes use the same node key and certificate.
+Use a separate config/home directory for each local node when testing multiple
+identities.</p>
+<p>Check local status:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>status
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">status</span></code> uses the config to show Network Authority health and local node
+certificate information.</p>
+<p>The local <code class="docutils literal notranslate"><span class="pre">init</span></code> workflow intentionally creates no peer bootstrap anchors. The
+Network Authority HTTP API is not a peer WebSocket endpoint. Add a bootstrap
+anchor only when you have another Genesis Mesh node listening on its peer
+runtime port.</p>
 </section>
-<section id="start-the-network-authority">
-<h2>3. Start the Network Authority<a class="headerlink" href="#start-the-network-authority" title="Link to this heading">¶</a></h2>
-<p>Validate the Network Authority configuration:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.na_service<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--na-private-key<span class="w"> </span>keys/na.key<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--key-id<span class="w"> </span>na-2025-q1<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--operator-public-key<span class="w"> </span>operator-local<span class="o">=</span>keys/operator.pub
+<section id="developer-workflow">
+<h2>Developer Workflow<a class="headerlink" href="#developer-workflow" title="Link to this heading">¶</a></h2>
+<p>Run the in-process smoke workflow:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>dev<span class="w"> </span>up
 </pre></div>
 </div>
-<p>Run the local development server through the WSGI app:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GENESIS_FILE</span><span class="o">=</span>genesis.signed.json
-<span class="nb">export</span><span class="w"> </span><span class="nv">NA_PRIVATE_KEY_FILE</span><span class="o">=</span>keys/na.key
-<span class="nb">export</span><span class="w"> </span><span class="nv">NA_KEY_ID</span><span class="o">=</span>na-2025-q1
-<span class="nb">export</span><span class="w"> </span><span class="nv">OPERATOR_PUBLIC_KEYS_JSON</span><span class="o">=</span><span class="s2">&quot;{\&quot;operator-local\&quot;:\&quot;</span><span class="k">$(</span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">&#39;^#&#39;</span><span class="w"> </span>keys/operator.pub<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\r\n&#39;</span><span class="k">)</span><span class="s2">\&quot;}&quot;</span>
-python<span class="w"> </span>-m<span class="w"> </span>flask<span class="w"> </span>--app<span class="w"> </span>genesis_mesh.na_service.wsgi<span class="w"> </span>run<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8443</span>
+<p>This starts a local Network Authority in process, creates operator-authenticated
+invite tokens, enrolls nodes, fetches policy, and validates node status.</p>
+<p>Clean local generated artifacts created by <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">init</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>dev<span class="w"> </span>down
 </pre></div>
 </div>
-<p>For container or production-style startup, use <code class="docutils literal notranslate"><span class="pre">start.sh</span></code> with <code class="docutils literal notranslate"><span class="pre">GENESIS_FILE</span></code>
-and <code class="docutils literal notranslate"><span class="pre">NA_PRIVATE_KEY_FILE</span></code> pointing at mounted secret files. The script runs
-Gunicorn and defaults to port <code class="docutils literal notranslate"><span class="pre">8443</span></code>. Pass operator public keys to the WSGI app
-with <code class="docutils literal notranslate"><span class="pre">OPERATOR_PUBLIC_KEYS_JSON</span></code>, for example
-<code class="docutils literal notranslate"><span class="pre">{&quot;operator-local&quot;:&quot;&lt;base64-public-key&gt;&quot;}</span></code>.</p>
-<p>The Network Authority exposes:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/healthz</span></code> for liveness.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/readyz</span></code> for readiness.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/genesis</span></code> for the active genesis block.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/policy</span></code> for the active policy manifest.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/crl</span></code> for the active signed CRL.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/admin/invite</span></code> for operator-authenticated invite creation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/join</span></code> for invite-token-backed certificate issuance.</p></li>
-</ul>
+<p>Stop <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code> and any persistent node runtime before running
+<code class="docutils literal notranslate"><span class="pre">dev</span> <span class="pre">down</span></code>. On Windows, SQLite keeps <code class="docutils literal notranslate"><span class="pre">.genesis-mesh/na.db</span></code> locked while the
+Network Authority process is running.</p>
 </section>
-<section id="create-an-invite-token">
-<h2>4. Create an Invite Token<a class="headerlink" href="#create-an-invite-token" title="Link to this heading">¶</a></h2>
-<p>Node enrollment requires a single-use invite token. Admin requests are signed by
-an operator key, not by the NA private key. Until a dedicated operator CLI is
-added, use the admin API signing pattern shown in <code class="docutils literal notranslate"><span class="pre">examples/test_workflow.py</span></code>.</p>
-<p>The invite controls the node roles and maximum certificate validity. The NA
-ignores client-supplied roles during <code class="docutils literal notranslate"><span class="pre">/join</span></code> and assigns roles from the invite.</p>
-</section>
-<section id="start-a-node">
-<h2>5. Start a Node<a class="headerlink" href="#start-a-node" title="Link to this heading">¶</a></h2>
-<p>Start an anchor node with the invite token:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.node<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bootstrap<span class="w"> </span>http://localhost:8443<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--role<span class="w"> </span>role:anchor<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--validity-hours<span class="w"> </span><span class="m">168</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--invite-token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INVITE_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--persistent
-</pre></div>
-</div>
-<p>Start a client node with a separate invite token:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>genesis_mesh.node<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--genesis<span class="w"> </span>genesis.signed.json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bootstrap<span class="w"> </span>http://localhost:8443<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--role<span class="w"> </span>role:client<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--validity-hours<span class="w"> </span><span class="m">24</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--invite-token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CLIENT_INVITE_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--persistent
-</pre></div>
-</div>
-<p>The node verifies the genesis block, requests a join certificate with its invite,
-fetches policy, and starts the persistent runtime when <code class="docutils literal notranslate"><span class="pre">--persistent</span></code> is set.</p>
-</section>
-<section id="test-the-workflow">
-<h2>6. Test the Workflow<a class="headerlink" href="#test-the-workflow" title="Link to this heading">¶</a></h2>
-<p>Run the Python smoke workflow:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>examples/test_workflow.py
-</pre></div>
-</div>
-<p>The shell quickstart creates keys and signed genesis artifacts:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash<span class="w"> </span>examples/quickstart.sh
-</pre></div>
-</div>
+<section id="config-files">
+<h2>Config Files<a class="headerlink" href="#config-files" title="Link to this heading">¶</a></h2>
+<p>By default, commands look for config in this order:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--config</span> <span class="pre">&lt;path&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GENESIS_MESH_CONFIG</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">./genesis-mesh.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">~/.genesis-mesh/config.toml</span></code></p></li>
+</ol>
+<p>The config stores the Network Authority endpoint, genesis path, key paths,
+certificate path, and policy path. Private keys and generated databases must not
+be committed. Local CLI output is ignored by default through
+<code class="docutils literal notranslate"><span class="pre">genesis-mesh.toml</span></code>, <code class="docutils literal notranslate"><span class="pre">.genesis-mesh/</span></code>, <code class="docutils literal notranslate"><span class="pre">keys/</span></code>, and SQLite database patterns.</p>
 </section>
 <section id="roles">
 <h2>Roles<a class="headerlink" href="#roles" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">role:anchor</span></code>: Gateway or relay node.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">role:bridge</span></code>: Edge resiliency node.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">role:client</span></code>: Endpoint node.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">role:operator</span></code>: Policy or administrative operator.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">role:service:&lt;name&gt;</span></code>: Service-specific identity.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">role:anchor</span></code>: gateway or relay node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">role:bridge</span></code>: edge resiliency node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">role:client</span></code>: endpoint node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">role:operator</span></code>: policy or administrative operator.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">role:service:&lt;name&gt;</span></code>: service-specific identity.</p></li>
 </ul>
+<p>Role arguments accept either <code class="docutils literal notranslate"><span class="pre">anchor</span></code> or <code class="docutils literal notranslate"><span class="pre">role:anchor</span></code>; the CLI normalizes the
+short form.</p>
 </section>
 <section id="security-notes">
 <h2>Security Notes<a class="headerlink" href="#security-notes" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Keep Root Sovereign private keys offline.</p></li>
+<li><p>Keep Root Sovereign private keys offline outside local demos.</p></li>
 <li><p>Keep NA private keys inside the NA process, a secret manager, or an HSM.</p></li>
 <li><p>Use separate operator keys for admin API calls.</p></li>
 <li><p>Treat invite tokens as secrets; they are single-use enrollment credentials.</p></li>
@@ -437,30 +425,33 @@ time-bound.</p></li>
 </section>
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">¶</a></h2>
-<section id="genesis-block-signature-verification-fails">
-<h3>Genesis block signature verification fails<a class="headerlink" href="#genesis-block-signature-verification-fails" title="Link to this heading">¶</a></h3>
-<ul class="simple">
-<li><p>Confirm <code class="docutils literal notranslate"><span class="pre">keys/root.pub</span></code> matches the private key used for signing.</p></li>
-<li><p>Confirm the genesis block was not edited after signing.</p></li>
-<li><p>Re-run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">genesis_mesh.cli</span> <span class="pre">genesis</span> <span class="pre">verify</span></code>.</p></li>
-</ul>
+<section id="genesis-mesh-is-not-found">
+<h3><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> is not found<a class="headerlink" href="#genesis-mesh-is-not-found" title="Link to this heading">¶</a></h3>
+<p>Install the package in editable mode:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Then reopen the shell or activate the virtual environment that installed it. On
+Windows user installs, Python may place scripts under
+<code class="docutils literal notranslate"><span class="pre">%APPDATA%\Python\Python314\Scripts</span></code>; add that directory to <code class="docutils literal notranslate"><span class="pre">PATH</span></code> if pip warns
+that installed scripts are not available.</p>
 </section>
 <section id="node-cannot-join">
 <h3>Node cannot join<a class="headerlink" href="#node-cannot-join" title="Link to this heading">¶</a></h3>
 <ul class="simple">
-<li><p>Confirm the NA is reachable at the <code class="docutils literal notranslate"><span class="pre">--bootstrap</span></code> URL.</p></li>
+<li><p>Confirm <code class="docutils literal notranslate"><span class="pre">genesis-mesh</span> <span class="pre">na</span> <span class="pre">start</span></code> is still running.</p></li>
+<li><p>Confirm the URL passed to <code class="docutils literal notranslate"><span class="pre">--na</span></code> matches the Network Authority endpoint.</p></li>
 <li><p>Confirm the invite token exists, is unused, and has not expired.</p></li>
-<li><p>Confirm the invite allows the requested certificate validity.</p></li>
-<li><p>Check NA logs for <code class="docutils literal notranslate"><span class="pre">/join</span></code> errors.</p></li>
+<li><p>Check Network Authority logs for <code class="docutils literal notranslate"><span class="pre">/join</span></code> errors.</p></li>
 </ul>
 </section>
-<section id="certificate-validation-fails">
-<h3>Certificate validation fails<a class="headerlink" href="#certificate-validation-fails" title="Link to this heading">¶</a></h3>
-<ul class="simple">
-<li><p>Confirm the NA public key in genesis matches the running NA private key.</p></li>
-<li><p>Confirm system clocks are synchronized.</p></li>
-<li><p>Confirm the certificate has not expired or been revoked.</p></li>
-</ul>
+<section id="genesis-block-signature-verification-fails">
+<h3>Genesis block signature verification fails<a class="headerlink" href="#genesis-block-signature-verification-fails" title="Link to this heading">¶</a></h3>
+<p>Run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>genesis-mesh<span class="w"> </span>genesis<span class="w"> </span>verify<span class="w"> </span>--genesis<span class="w"> </span>.genesis-mesh/genesis.signed.json
+</pre></div>
+</div>
+<p>Confirm the genesis block was not edited after signing.</p>
 </section>
 </section>
 </section>
@@ -520,20 +511,18 @@ time-bound.</p></li>
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Genesis Mesh - Quick Start Guide</a><ul>
+<li><a class="reference internal" href="#">Quick Start</a><ul>
 <li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
-<li><a class="reference internal" href="#generate-authority-keys">1. Generate Authority Keys</a></li>
-<li><a class="reference internal" href="#create-and-sign-a-genesis-block">2. Create and Sign a Genesis Block</a></li>
-<li><a class="reference internal" href="#start-the-network-authority">3. Start the Network Authority</a></li>
-<li><a class="reference internal" href="#create-an-invite-token">4. Create an Invite Token</a></li>
-<li><a class="reference internal" href="#start-a-node">5. Start a Node</a></li>
-<li><a class="reference internal" href="#test-the-workflow">6. Test the Workflow</a></li>
+<li><a class="reference internal" href="#operator-workflow">Operator Workflow</a></li>
+<li><a class="reference internal" href="#node-operator-workflow">Node Operator Workflow</a></li>
+<li><a class="reference internal" href="#developer-workflow">Developer Workflow</a></li>
+<li><a class="reference internal" href="#config-files">Config Files</a></li>
 <li><a class="reference internal" href="#roles">Roles</a></li>
 <li><a class="reference internal" href="#security-notes">Security Notes</a></li>
 <li><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
-<li><a class="reference internal" href="#genesis-block-signature-verification-fails">Genesis block signature verification fails</a></li>
+<li><a class="reference internal" href="#genesis-mesh-is-not-found"><code class="docutils literal notranslate"><span class="pre">genesis-mesh</span></code> is not found</a></li>
 <li><a class="reference internal" href="#node-cannot-join">Node cannot join</a></li>
-<li><a class="reference internal" href="#certificate-validation-fails">Certificate validation fails</a></li>
+<li><a class="reference internal" href="#genesis-block-signature-verification-fails">Genesis block signature verification fails</a></li>
 </ul>
 </li>
 </ul>

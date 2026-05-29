@@ -22,6 +22,12 @@ wheels/
 docs_buildhtml/
 docs/pages/.doctrees/
 examples/genesis/demo/
+
+# Genesis Mesh local CLI/runtime artifacts
+genesis-mesh.toml
+.genesis-mesh/
+.node*/
+
 .env
 .venv
 env/

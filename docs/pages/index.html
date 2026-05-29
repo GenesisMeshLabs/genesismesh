@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Genesis Mesh - Quick Start Guide" href="quickstart.html">
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Quick Start" href="quickstart.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Genesis Mesh</title>
@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -302,14 +302,12 @@ routing.</p></li>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Genesis Mesh - Quick Start Guide</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#prerequisites">Prerequisites</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#generate-authority-keys">1. Generate Authority Keys</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#create-and-sign-a-genesis-block">2. Create and Sign a Genesis Block</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#start-the-network-authority">3. Start the Network Authority</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#create-an-invite-token">4. Create an Invite Token</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#start-a-node">5. Start a Node</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#test-the-workflow">6. Test the Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#operator-workflow">Operator Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#node-operator-workflow">Node Operator Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#developer-workflow">Developer Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#config-files">Config Files</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#roles">Roles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#security-notes">Security Notes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#troubleshooting">Troubleshooting</a></li>
@@ -377,13 +375,14 @@ routing.</p></li>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="reference/cli.html">CLI Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#key-generation">Key Generation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#genesis-commands">Genesis Commands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#network-authority-cli">Network Authority CLI</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#node-cli">Node CLI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#operator-commands">Operator Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#node-operator-commands">Node Operator Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#developer-commands">Developer Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli.html#low-level-compatibility-commands">Low-Level Compatibility Commands</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="reference/network-authority-api.html">Network Authority API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/network-authority-api.html#browser-console">Browser Console</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/network-authority-api.html#health">Health</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/network-authority-api.html#public-network-data">Public Network Data</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/network-authority-api.html#enrollment">Enrollment</a></li>
@@ -392,6 +391,7 @@ routing.</p></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="reference/configuration.html">Configuration Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/configuration.html#cli-config-discovery">CLI Config Discovery</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/configuration.html#network-authority-environment">Network Authority Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/configuration.html#node-environment">Node Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/configuration.html#files-and-secrets">Files and Secrets</a></li>
@@ -447,7 +447,7 @@ routing.</p></li>
 <li class="toctree-l2"><a class="reference internal" href="development/module-structure.html#node-runtime">Node Runtime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="development/module-structure.html#transport-connections">Transport Connections</a></li>
 <li class="toctree-l2"><a class="reference internal" href="development/module-structure.html#test-layout">Test Layout</a></li>
-<li class="toctree-l2"><a class="reference internal" href="development/module-structure.html#node-cli">Node CLI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development/module-structure.html#cli">CLI</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="development/security-policy.html">Security Policy</a><ul>
@@ -506,7 +506,7 @@ generated <code class="docutils literal notranslate"><span class="pre">index.htm
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Genesis Mesh - Quick Start Guide</div>
+                <div class="title">Quick Start</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>

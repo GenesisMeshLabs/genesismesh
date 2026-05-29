@@ -51,11 +51,17 @@ put the generated Sphinx `index.html` at `/`.
 ## Smoke Workflow
 
 ```powershell
-python examples\test_workflow.py
+genesis-mesh dev up
 ```
 
 This starts a local Network Authority, creates operator-authenticated invite
 tokens, enrolls nodes, fetches policy, and validates node status.
+
+The underlying script remains available for direct debugging:
+
+```powershell
+python examples\test_workflow.py
+```
 
 ## Container Smoke Checks
 

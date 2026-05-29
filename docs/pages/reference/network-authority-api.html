@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -268,6 +268,7 @@
 and health.</p>
 <pre  class="mermaid">
         flowchart TB
+    home[&quot;Browser console\n/&quot;]
     health[&quot;Health\n/healthz /readyz&quot;]
     public[&quot;Public network data\n/genesis /policy /crl&quot;]
     enrollment[&quot;Enrollment\n/join&quot;]
@@ -278,9 +279,20 @@ and health.</p>
 
     auth --&gt; admin
     node_sig --&gt; node_ops
+    home --&gt; health
+    home --&gt; public
     enrollment --&gt; public
     admin --&gt; public
-    </pre><section id="health">
+    </pre><section id="browser-console">
+<h2>Browser Console<a class="headerlink" href="#browser-console" title="Link to this heading">¶</a></h2>
+<section id="get">
+<h3><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/</span></code><a class="headerlink" href="#get" title="Link to this heading">¶</a></h3>
+<p>Returns a human-readable Network Authority home page with links to public,
+health, node, and operator routes. It is intended for operators opening the NA
+from a browser and does not replace signed API clients for write operations.</p>
+</section>
+</section>
+<section id="health">
 <h2>Health<a class="headerlink" href="#health" title="Link to this heading">¶</a></h2>
 <section id="get-healthz">
 <h3><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/healthz</span></code><a class="headerlink" href="#get-healthz" title="Link to this heading">¶</a></h3>
@@ -289,6 +301,12 @@ and health.</p>
 <section id="get-readyz">
 <h3><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/readyz</span></code><a class="headerlink" href="#get-readyz" title="Link to this heading">¶</a></h3>
 <p>Readiness probe. Verifies database connectivity and migration state.</p>
+</section>
+<section id="get-nodes">
+<h3><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/nodes</span></code><a class="headerlink" href="#get-nodes" title="Link to this heading">¶</a></h3>
+<p>Returns recently active, non-revoked nodes from persisted certificate state.
+Rows are considered active when their latest join or heartbeat timestamp is
+within the Network Authority active-node window.</p>
 </section>
 </section>
 <section id="public-network-data">
@@ -471,9 +489,14 @@ and <code class="docutils literal notranslate"><span class="pre">unspecified</sp
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Network Authority API</a><ul>
+<li><a class="reference internal" href="#browser-console">Browser Console</a><ul>
+<li><a class="reference internal" href="#get"><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#health">Health</a><ul>
 <li><a class="reference internal" href="#get-healthz"><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/healthz</span></code></a></li>
 <li><a class="reference internal" href="#get-readyz"><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/readyz</span></code></a></li>
+<li><a class="reference internal" href="#get-nodes"><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/nodes</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#public-network-data">Public Network Data</a><ul>
