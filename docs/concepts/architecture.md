@@ -1,7 +1,12 @@
 # Architecture
 
-Genesis Mesh separates admission, identity, transport, routing, and operations
-into explicit subsystems.
+Genesis Mesh separates admission, identity, transport, routing, authorization,
+and operations into explicit subsystems.
+
+The architecture is designed for sovereign agent and edge networks. The Network
+Authority controls admission and trust state; nodes use that trust state to
+communicate directly, route messages, and reject identities that no longer
+belong in the network.
 
 ## Components
 
@@ -13,7 +18,7 @@ Genesis Block
 Network Authority
   issues certificates, policies, CRLs
 Mesh Nodes
-  authenticate peers, discover routes, exchange messages
+  authenticate peers, enforce trust state, discover routes, exchange messages
 ```
 
 ```{mermaid}
@@ -84,6 +89,11 @@ health endpoints.
 A node owns an Ed25519 keypair and a short-lived join certificate. In persistent
 mode, it starts a peer runtime that can accept inbound Noise handshakes, connect
 to bootstrap anchors, dispatch control messages, and route data messages.
+
+For agent and edge deployments, a node can represent a host, a service, a local
+gateway, a distributed compute worker, or an autonomous software agent. Genesis
+Mesh does not prescribe the application running on top. It gives that
+application an authenticated and revocation-aware peer substrate.
 
 The node package keeps these concerns separated: `node.py` is the Network
 Authority client, `runtime.py` is the peer-to-peer lifecycle and wiring

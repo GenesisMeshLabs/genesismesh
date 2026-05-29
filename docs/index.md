@@ -1,7 +1,18 @@
 # Genesis Mesh
 
-Genesis Mesh is a permissioned peer-to-peer networking system for environments
-where every node must be known, enrolled, authenticated, and revocable.
+Genesis Mesh is a sovereign infrastructure layer for AI agents, edge systems,
+and distributed intelligence.
+
+It is built for networks where every participant must be known, enrolled,
+authenticated, authorized, reachable, and revocable. The project is not only a
+message transport. It combines identity, trust, routing, authorization, and
+network ownership into one control model so operators can answer:
+
+- Who is allowed to be a node?
+- How do peers prove they are who they claim to be?
+- What is each node allowed to do?
+- How do messages reach the right peer?
+- How do I remove a compromised or retired identity?
 
 The system has two planes. The Network Authority is the online control plane: it
 issues invite tokens, signs join certificates, publishes policy, and distributes
@@ -10,15 +21,27 @@ they authenticate each other with certificates, establish encrypted Noise XX
 peer sessions, exchange routing information, and forward messages across the
 mesh.
 
-Use Genesis Mesh when you need decentralized node communication without
-anonymous membership: private infrastructure, edge networks, lab environments,
-sovereign or organizational networks, and other deployments where operators
-must be able to admit, audit, and remove nodes.
+Use Genesis Mesh when you need decentralized communication without anonymous
+membership: private AI-agent networks, edge-service fabrics, lab environments,
+sovereign organizational networks, distributed compute clusters, and other
+deployments where operators must be able to admit, audit, route, authorize, and
+remove nodes.
 
 It is not a public blockchain, anonymous overlay, or permissionless discovery
 network. Trust begins with a signed genesis block, flows through the Network
 Authority, and is enforced by short-lived certificates, operator-signed admin
 actions, and revocation checks.
+
+## Four Operating Pillars
+
+- **Identity**: every node has a cryptographic identity and a signed join
+  certificate.
+- **Trust**: a signed genesis block, Network Authority, operator keys, CRLs, and
+  policy manifests define the trust chain.
+- **Routing**: authenticated peers exchange routing state and forward messages
+  without sending all traffic through the Network Authority.
+- **Authorization**: enrollment roles, RBAC, signed admin actions, and policy
+  updates define what identities can do.
 
 ```{mermaid}
 flowchart LR
@@ -67,6 +90,7 @@ installation
 :caption: Concepts
 
 concepts/overview
+concepts/use-cases
 concepts/architecture
 concepts/trust-model
 concepts/security-model
