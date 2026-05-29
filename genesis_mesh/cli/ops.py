@@ -306,21 +306,29 @@ def join(
         roles=[_normalize_role(role) for role in roles],
     )
 
+    reused_existing_cert = False
     cert = _load_existing_certificate(cert_path, node)
     if cert is not None:
+        reused_existing_cert = True
         node.join_certificate = cert
         node.roles = cert.roles
         policy = _load_existing_policy(policy_path, node) or node.fetch_policy(endpoint)
         click.echo(f"Using existing certificate: {cert.cert_id}")
     else:
         if not token:
-            raise click.ClickException(
-                "No valid local certificate found. Run with --token for first enrollment."
-            )
+            cert_error = _describe_unusable_certificate(cert_path, node)
+            if cert_error:
+                raise click.ClickException(f"{cert_error} Run with --token to re-enroll.")
+            raise click.ClickException("No local certificate found. Run with --token for first enrollment.")
         cert = node.join_network(endpoint, validity_hours=validity_hours, invite_token=token)
         policy = node.fetch_policy(endpoint)
 
     if not node.send_heartbeat(endpoint):
+        if reused_existing_cert:
+            raise click.ClickException(
+                "Existing local certificate was rejected by the Network Authority. "
+                "Run with --token to re-enroll if this node is still authorized."
+            )
         click.echo(
             "Warning: heartbeat failed; Network Authority node status may not update.",
             err=True,
@@ -455,6 +463,28 @@ def _load_existing_certificate(cert_path: Path, node: MeshNode) -> JoinCertifica
     if not node._verify_join_certificate(cert):
         return None
     return cert
+
+
+def _describe_unusable_certificate(cert_path: Path, node: MeshNode) -> str | None:
+    """Return a user-facing reason that a local certificate cannot be reused."""
+    if not cert_path.exists():
+        return None
+
+    try:
+        cert = JoinCertificate.model_validate_json(cert_path.read_text(encoding="utf-8"))
+    except Exception:
+        return f"Local certificate {cert_path} is malformed."
+
+    if cert.node_public_key != node.node_keypair.public_key_b64:
+        return f"Local certificate {cert_path} does not match the configured node key."
+
+    now = datetime.now(timezone.utc)
+    if cert.expires_at < now:
+        return f"Local certificate {cert.cert_id} expired at {cert.expires_at.isoformat()}."
+    if cert.issued_at > now:
+        return f"Local certificate {cert.cert_id} is not valid until {cert.issued_at.isoformat()}."
+
+    return f"Local certificate {cert.cert_id} could not be verified."
 
 
 def _load_existing_policy(policy_path: Path, node: MeshNode) -> PolicyManifest | None:

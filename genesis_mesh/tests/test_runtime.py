@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import requests
 import websockets
 
 from genesis_mesh.crypto import generate_keypair, sign_model
@@ -242,3 +243,136 @@ def test_expected_websocket_probe_filter_suppresses_browser_http_probe():
     )
 
     assert not log_filter.filter(record)
+
+
+@pytest.mark.asyncio
+async def test_browser_probe_peer_websocket_port_is_not_noisy(caplog):
+    """HTTP browser probes receive an upgrade error without noisy traceback logs."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:9",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    caplog.set_level(logging.ERROR)
+    await runtime.start()
+    try:
+        response = await asyncio.to_thread(
+            requests.get,
+            f"http://127.0.0.1:{runtime.bound_port}",
+            timeout=5,
+        )
+        assert response.status_code == 426
+        assert "opening handshake failed" not in caplog.text
+        assert "Traceback" not in caplog.text
+    finally:
+        await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_optional_bootstrap_404_logs_endpoint_misconfiguration(monkeypatch, caplog):
+    """A 404 bootstrap anchor is classified as a likely non-peer endpoint."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    genesis.bootstrap_anchors = [BootstrapAnchor(id="bad-http", endpoint="127.0.0.1:9444")]
+    genesis.signatures = [sign_model(genesis, root_keypair.private_key, "root-test")]
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:8443",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    async def fail_with_404(endpoint):
+        raise ConnectionError("server rejected WebSocket connection: HTTP 404")
+
+    monkeypatch.setattr(runtime, "_connect_endpoint", fail_with_404)
+    caplog.set_level(logging.WARNING)
+
+    await runtime._bootstrap_anchors()
+
+    assert "returned HTTP 404" in caplog.text
+    assert "Runtime will continue" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_optional_bootstrap_timeout_logs_reason(monkeypatch, caplog):
+    """A bootstrap timeout is logged with endpoint context and does not raise."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    genesis.bootstrap_anchors = [BootstrapAnchor(id="slow-peer", endpoint="127.0.0.1:9445")]
+    genesis.signatures = [sign_model(genesis, root_keypair.private_key, "root-test")]
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:8443",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    async def fail_with_timeout(endpoint):
+        raise ConnectionError("Connection to ws://127.0.0.1:9445 timed out")
+
+    monkeypatch.setattr(runtime, "_connect_endpoint", fail_with_timeout)
+    caplog.set_level(logging.WARNING)
+
+    await runtime._bootstrap_anchors()
+
+    assert "timed out during peer handshake" in caplog.text
+    assert "Runtime will continue" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_runtime_stop_stops_all_subsystems():
+    """Runtime shutdown clears subsystem running flags and closes cleanly."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:9",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+
+    await runtime.start()
+    await runtime.stop()
+
+    assert runtime._running is False
+    assert runtime.cert_manager._running is False
+    assert runtime.crl_gossip._running is False
+    assert runtime.peer_discovery._running is False
+    assert runtime.routing_protocol._running is False
+    assert runtime.routing_table._running is False
+    assert runtime._server is None
+
+
+def test_invalid_noise_certificate_binding_error_is_sanitized():
+    """Noise key binding failures do not include the encoded certificate payload."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    genesis = _make_signed_genesis(root_keypair, na_keypair)
+    node = _make_joined_node(genesis, na_keypair)
+    runtime = MeshNodeRuntime(
+        node,
+        na_endpoint="http://127.0.0.1:9",
+        listen_host="127.0.0.1",
+        listen_port=0,
+    )
+    remote = _make_joined_node(genesis, na_keypair)
+    wrong_static = b"\x00" * 32
+
+    with pytest.raises(ValueError, match="Noise static key"):
+        runtime.peer_identity.validate_peer_cert(
+            runtime.peer_identity.certificate_b64(remote.join_certificate),
+            wrong_static,
+        )

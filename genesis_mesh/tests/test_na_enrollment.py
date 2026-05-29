@@ -46,6 +46,45 @@ def test_join_requires_invite_token(client, node_keypair):
     assert "invite_token" in resp.get_json()["error"]
 
 
+def test_join_unknown_invite_token_rejected_cleanly(client, node_keypair):
+    """Join with an unknown invite token returns a controlled 403."""
+    resp = client.post("/join", json={
+        "node_public_key": node_keypair.public_key_b64,
+        "invite_token": "unknown-token",
+    })
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "Invalid, expired, or used invite token"
+
+
+def test_join_expired_invite_token_rejected_cleanly(na_service, client, node_keypair):
+    """Join with an expired invite token returns the same safe 403 response."""
+    token = na_service.db.create_invite_token(
+        assigned_roles=["role:client"],
+        max_validity_hours=168,
+        token_expiry_hours=-1,
+    )
+
+    resp = client.post("/join", json={
+        "node_public_key": node_keypair.public_key_b64,
+        "invite_token": token.token_id,
+    })
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "Invalid, expired, or used invite token"
+
+
+def test_join_rate_limit_returns_429(client):
+    """Join endpoint returns 429 after the configured request burst."""
+    last_resp = None
+    for _ in range(11):
+        last_resp = client.post("/join", json={})
+
+    assert last_resp is not None
+    assert last_resp.status_code == 429
+    assert last_resp.get_json()["error"] == "Rate limit exceeded"
+
+
 def test_key_compromise_blocks_rejoin_with_same_public_key(client, node_keypair):
     """A key-compromise revocation blocks re-enrollment with that public key."""
     _, join_data, kp = join_node(client, keypair=node_keypair, roles=["role:client"])
@@ -316,3 +355,51 @@ def test_renew_with_wrong_signature_rejected(client, node_keypair):
     signed = sign_payload(payload, imposter.private_key)
     resp = client.post("/renew", json=signed)
     assert resp.status_code == 401
+
+
+def test_revoked_heartbeat_logs_audit_reason(na_service, client, node_keypair):
+    """Heartbeat with a revoked cert records cert ID and revocation reason."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    revoke_cert(client, join_data["cert_id"], reason="key_compromise")
+
+    resp = signed_heartbeat(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "heartbeat_rejected"
+    assert event["details"]["cert_id"] == join_data["cert_id"]
+    assert event["details"]["reason"] == "key_compromise"
+
+
+def test_revoked_renewal_logs_audit_reason(na_service, client, node_keypair):
+    """Renewal with a revoked cert records cert ID and revocation reason."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    revoke_cert(client, join_data["cert_id"], reason="cessation_of_operation")
+
+    resp = signed_renew(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "renewal_rejected"
+    assert event["details"]["cert_id"] == join_data["cert_id"]
+    assert event["details"]["reason"] == "cessation_of_operation"
+
+
+def test_node_auth_failure_is_audited_without_body(na_service, client, node_keypair):
+    """Invalid node signatures create sanitized audit events."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    imposter = generate_keypair()
+    payload = {
+        "cert_id": join_data["cert_id"],
+        "node_public_key": kp.public_key_b64,
+        "status": "healthy",
+    }
+    signed = sign_payload(payload, imposter.private_key)
+
+    resp = client.post("/heartbeat", json=signed)
+
+    assert resp.status_code == 401
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "node_auth_failed"
+    assert event["details"]["reason"] == "invalid_signature"
+    assert "body" not in event["details"]

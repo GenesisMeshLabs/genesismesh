@@ -62,3 +62,60 @@ async def test_newer_signed_crl_is_accepted_and_announced():
     assert len(broadcasts) == 1
     assert broadcasts[0].payload["action"] == "announce_sequence"
     assert broadcasts[0].payload["sequence"] == 1
+
+
+@pytest.mark.asyncio
+async def test_crl_announcement_requests_newer_crl_from_peer():
+    """A peer announcing a newer CRL sequence triggers a targeted CRL request."""
+    sent = []
+
+    class Connection:
+        """Minimal connection stub recording messages."""
+
+        async def send_message(self, message):
+            """Record a sent message."""
+            sent.append(message)
+
+    gossip = CRLGossip("node-a", lambda key_id: None, lambda message: None)
+    current = CertificateRevocationList.create_empty("na-test", sequence=1)
+    gossip.set_crl(current)
+    announce = MeshMessage(
+        message_type=MessageType.REVOCATION,
+        sender_id="node-b",
+        payload={"action": "announce_sequence", "sequence": 2, "crl_id": "crl-2"},
+    )
+
+    await gossip.handle_crl_announce(announce, Connection())
+
+    assert len(sent) == 1
+    assert sent[0].recipient_id == "node-b"
+    assert sent[0].payload["action"] == "request_crl"
+
+
+@pytest.mark.asyncio
+async def test_crl_announcement_sends_newer_local_crl_to_peer():
+    """A peer with an older CRL sequence receives the current local CRL."""
+    sent = []
+
+    class Connection:
+        """Minimal connection stub recording messages."""
+
+        async def send_message(self, message):
+            """Record a sent message."""
+            sent.append(message)
+
+    gossip = CRLGossip("node-a", lambda key_id: None, lambda message: None)
+    current = CertificateRevocationList.create_empty("na-test", sequence=3)
+    gossip.set_crl(current)
+    announce = MeshMessage(
+        message_type=MessageType.REVOCATION,
+        sender_id="node-b",
+        payload={"action": "announce_sequence", "sequence": 1, "crl_id": "crl-1"},
+    )
+
+    await gossip.handle_crl_announce(announce, Connection())
+
+    assert len(sent) == 1
+    assert sent[0].recipient_id == "node-b"
+    assert sent[0].payload["action"] == "crl_data"
+    assert sent[0].payload["crl"]["sequence"] == 3

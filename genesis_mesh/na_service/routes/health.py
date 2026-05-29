@@ -36,10 +36,14 @@ def create_health_blueprint(service) -> Blueprint:
             service.db.conn.execute("SELECT 1").fetchone()
             if not service.genesis_block or not service.na_private_key:
                 return jsonify({"status": "not_ready"}), 503
-            return jsonify({"status": "ready"})
+            return jsonify({"status": "ready", "db_path": service.db.db_path})
         except Exception as exc:
             logger.error("Readiness check failed: %s", exc)
-            return jsonify({"status": "not_ready", "error": str(exc)}), 503
+            return jsonify({
+                "status": "not_ready",
+                "db_path": service.db.db_path,
+                "error": str(exc),
+            }), 503
 
     @bp.route("/nodes", methods=["GET"])
     def list_nodes():

@@ -59,7 +59,7 @@ class MeshNode:
 
         logger.info(f"Node initialized for network: {genesis_block.network_name}")
         logger.info(f"Node public key: {self.node_keypair.public_key_b64}")
-        logger.info(f"Roles: {self.roles}")
+        logger.info(f"Requested roles before enrollment: {self.roles}")
 
     def _verify_genesis_block(self) -> bool:
         """
