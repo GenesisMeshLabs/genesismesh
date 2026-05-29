@@ -58,7 +58,7 @@ genesis-mesh --help
 
 ## Runtime Requirements
 
-- Python 3.14 for the current tested environment.
+- Python 3.11 or newer. The current local verification environment is Python 3.14.
 - The editable package install for the `genesis-mesh` console command.
 - Network access between the Network Authority and nodes.
 - A signed genesis block.
