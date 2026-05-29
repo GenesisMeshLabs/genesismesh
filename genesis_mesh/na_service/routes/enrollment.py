@@ -1,5 +1,6 @@
 """Node enrollment, heartbeat, and renewal routes."""
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -7,6 +8,11 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
+
+
+def _token_fingerprint(token_id: str) -> str:
+    """Return a non-secret token fingerprint for audit correlation."""
+    return hashlib.sha256(token_id.encode("utf-8")).hexdigest()[:16]
 
 
 def create_enrollment_blueprint(service) -> Blueprint:
@@ -70,7 +76,7 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 {
                     "cert_id": cert.cert_id,
                     "node_public_key": node_public_key,
-                    "invite_token": invite_token,
+                    "invite_token_fingerprint": _token_fingerprint(invite_token),
                     "roles": roles,
                     "remote_addr": remote_addr,
                 },
@@ -107,11 +113,16 @@ def create_enrollment_blueprint(service) -> Blueprint:
             if existing.get("node_public_key") != node_public_key:
                 return jsonify({"error": "Public key does not match certificate"}), 403
             if existing.get("status") == "revoked":
+                logger.warning(
+                    "Rejected heartbeat for revoked certificate %s: %s",
+                    cert_id,
+                    existing.get("revocation_reason") or "revoked",
+                )
                 service.db.add_audit_event(
                     "heartbeat_rejected",
                     {
                         "cert_id": cert_id,
-                        "reason": "revoked",
+                        "reason": existing.get("revocation_reason") or "revoked",
                         "remote_addr": request.remote_addr or "unknown",
                     },
                 )
@@ -171,11 +182,16 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 return jsonify({"error": "Public key does not match certificate"}), 403
 
             if existing_node.get("status") == "revoked":
+                logger.warning(
+                    "Rejected renewal for revoked certificate %s: %s",
+                    cert_id,
+                    existing_node.get("revocation_reason") or "revoked",
+                )
                 service.db.add_audit_event(
                     "renewal_rejected",
                     {
                         "cert_id": cert_id,
-                        "reason": "revoked",
+                        "reason": existing_node.get("revocation_reason") or "revoked",
                         "remote_addr": request.remote_addr or "unknown",
                     },
                 )

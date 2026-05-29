@@ -10,6 +10,21 @@ from flask import request
 from ..crypto import verify_signature
 
 
+def _audit_auth_failure(service, event_type: str, details: dict) -> None:
+    """Persist an auth failure without exposing signed request bodies."""
+    try:
+        service.db.add_audit_event(
+            event_type,
+            {
+                **details,
+                "remote_addr": request.remote_addr or "unknown",
+            },
+        )
+    except Exception:
+        # Authentication must fail closed even if audit persistence is unavailable.
+        pass
+
+
 def load_operator_public_keys(specs: Optional[list[str]]) -> dict[str, str]:
     """Load operator public keys from ``key_id=value`` CLI specifications."""
     operator_keys: dict[str, str] = {}
@@ -51,20 +66,40 @@ def verify_node_request_signature(
     nonce = data.get("nonce")
 
     if not signature_b64 or not timestamp_str or not nonce:
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": scope or f"node:{node_public_key}", "reason": "missing_fields"},
+        )
         return False, "Missing authentication fields: signature, timestamp, and nonce required"
 
     try:
         request_time = datetime.fromisoformat(timestamp_str)
     except (ValueError, TypeError):
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": scope or f"node:{node_public_key}", "reason": "invalid_timestamp"},
+        )
         return False, "Invalid timestamp format"
 
     now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": scope or f"node:{node_public_key}", "reason": "stale_timestamp"},
+        )
         return False, f"Request timestamp too old ({age:.0f}s > {service._nonce_max_age:.0f}s)"
 
     nonce_scope = scope or f"node:{node_public_key}"
     if service.db.has_nonce(nonce_scope, nonce):
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": nonce_scope, "nonce": nonce, "reason": "nonce_replay"},
+        )
         return False, "Nonce already used (replay detected)"
 
     payload = {k: v for k, v in sorted(data.items()) if k != "signature"}
@@ -72,13 +107,28 @@ def verify_node_request_signature(
 
     try:
         if not verify_signature(canonical.encode("utf-8"), signature_b64, node_public_key):
+            _audit_auth_failure(
+                service,
+                "node_auth_failed",
+                {"scope": nonce_scope, "reason": "invalid_signature"},
+            )
             return False, "Invalid signature"
     except Exception as exc:
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": nonce_scope, "reason": "signature_error"},
+        )
         return False, f"Signature verification error: {exc}"
 
     try:
         service.db.add_nonce(nonce_scope, nonce, now)
     except Exception:
+        _audit_auth_failure(
+            service,
+            "node_auth_failed",
+            {"scope": nonce_scope, "nonce": nonce, "reason": "nonce_replay"},
+        )
         return False, "Nonce already used (replay detected)"
 
     service.db.cleanup_expired_nonces(int(service._nonce_max_age * 2))
@@ -93,24 +143,49 @@ def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
     nonce = request.headers.get("X-Admin-Nonce")
 
     if not key_id or not signature_b64 or not timestamp_str or not nonce:
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id or "missing", "reason": "missing_headers"},
+        )
         return False, "Missing admin authentication headers"
 
     public_key = service.operator_public_keys.get(key_id)
     if not public_key:
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "reason": "unknown_key"},
+        )
         return False, "Unknown admin key"
 
     try:
         request_time = datetime.fromisoformat(timestamp_str)
     except (ValueError, TypeError):
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "reason": "invalid_timestamp"},
+        )
         return False, "Invalid admin timestamp"
 
     now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "reason": "stale_timestamp"},
+        )
         return False, "Admin request timestamp too old"
 
     scope = f"admin:{key_id}"
     if service.db.has_nonce(scope, nonce):
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
+        )
         return False, "Admin nonce already used"
 
     canonical = json.dumps(
@@ -124,7 +199,20 @@ def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
         separators=(",", ":"),
     )
     if not verify_signature(canonical.encode("utf-8"), signature_b64, public_key):
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "scope": scope, "reason": "invalid_signature"},
+        )
         return False, "Invalid admin signature"
 
-    service.db.add_nonce(scope, nonce, now)
+    try:
+        service.db.add_nonce(scope, nonce, now)
+    except Exception:
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
+        )
+        return False, "Admin nonce already used"
     return True, None

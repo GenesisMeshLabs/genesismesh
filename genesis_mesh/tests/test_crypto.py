@@ -8,7 +8,8 @@ from genesis_mesh.crypto import (
     sign_model,
     verify_model_signature
 )
-from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
+from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifest, PolicyManifestRef
+from genesis_mesh.node.node import MeshNode
 from datetime import datetime, timedelta, timezone
 
 
@@ -119,3 +120,36 @@ def test_canonical_json():
 
     # Signatures should be identical for identical data
     assert sig1.sig == sig2.sig
+
+
+def test_node_rejects_policy_signed_by_wrong_key():
+    """Client-side policy verification rejects policies not signed by the NA key."""
+    root_keypair = generate_keypair()
+    na_keypair = generate_keypair()
+    wrong_keypair = generate_keypair()
+    node_keypair = generate_keypair()
+    now = datetime.now(timezone.utc)
+    genesis = GenesisBlock(
+        network_name="TEST",
+        network_version="v0.1",
+        root_public_key=root_keypair.public_key_b64,
+        network_authority=NetworkAuthority(
+            public_key=na_keypair.public_key_b64,
+            valid_from=now,
+            valid_to=now + timedelta(days=90),
+        ),
+        policy_manifest=PolicyManifestRef(hash="sha256:test", url=None),
+    )
+    genesis.signatures.append(sign_model(genesis, root_keypair.private_key, "root-test"))
+    policy = PolicyManifest(
+        policy_id="policy-test",
+        issued_at=now,
+        issued_by="wrong-key",
+        min_client_version="0.1.0",
+        allowed_ports=[443],
+        allowed_services=["svc"],
+    )
+    policy.signatures.append(sign_model(policy, wrong_keypair.private_key, "wrong-key"))
+    node = MeshNode(genesis, node_keypair)
+
+    assert node._verify_policy_manifest(policy) is False

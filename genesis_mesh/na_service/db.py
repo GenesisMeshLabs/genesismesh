@@ -3,6 +3,7 @@
 import json
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,7 @@ class NADatabase:
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._lock = threading.RLock()
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.execute("PRAGMA busy_timeout = 30000")
         try:
@@ -93,28 +95,29 @@ class NADatabase:
     def use_invite_token(self, token_id: str, node_key: str) -> Optional[InviteToken]:
         """Atomically mark an unused, unexpired token as used."""
         now = datetime.now(timezone.utc)
-        with self.conn:
-            row = self.conn.execute(
-                "SELECT * FROM invite_tokens WHERE token_id = ?",
-                (token_id,),
-            ).fetchone()
-            if not row:
-                return None
+        with self._lock:
+            with self.conn:
+                row = self.conn.execute(
+                    "SELECT * FROM invite_tokens WHERE token_id = ?",
+                    (token_id,),
+                ).fetchone()
+                if not row:
+                    return None
 
-            token = self._invite_from_row(row)
-            if token.used_at or token.expires_at < now:
-                return None
+                token = self._invite_from_row(row)
+                if token.used_at or token.expires_at < now:
+                    return None
 
-            updated = self.conn.execute(
-                """
-                UPDATE invite_tokens
-                SET used_at = ?, used_by_key = ?
-                WHERE token_id = ? AND used_at IS NULL
-                """,
-                (now.isoformat(), node_key, token_id),
-            ).rowcount
-            if updated != 1:
-                return None
+                updated = self.conn.execute(
+                    """
+                    UPDATE invite_tokens
+                    SET used_at = ?, used_by_key = ?
+                    WHERE token_id = ? AND used_at IS NULL
+                    """,
+                    (now.isoformat(), node_key, token_id),
+                ).rowcount
+                if updated != 1:
+                    return None
 
         return token.model_copy(update={"used_at": now, "used_by_key": node_key})
 
@@ -361,6 +364,13 @@ class NADatabase:
                 (event_id, json.dumps(payload, sort_keys=True), payload["created_at"]),
             )
         return event_id
+
+    def list_audit_events(self) -> list[dict]:
+        """Return persisted Network Authority audit events in insertion order."""
+        rows = self.conn.execute(
+            "SELECT event_json FROM audit_events ORDER BY created_at ASC"
+        ).fetchall()
+        return [json.loads(row["event_json"]) for row in rows]
 
     def _invite_from_row(self, row: sqlite3.Row) -> InviteToken:
         """Convert an `invite_tokens` row into an `InviteToken` model."""

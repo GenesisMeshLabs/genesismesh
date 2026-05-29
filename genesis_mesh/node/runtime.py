@@ -244,7 +244,25 @@ class MeshNodeRuntime:
             try:
                 await self._connect_endpoint(anchor.endpoint)
             except Exception as exc:
-                logger.warning("Failed to connect bootstrap anchor %s: %s", anchor.endpoint, exc)
+                message = str(exc)
+                if "HTTP 404" in message:
+                    logger.warning(
+                        "Bootstrap anchor %s returned HTTP 404; endpoint is likely not a peer "
+                        "WebSocket endpoint. Runtime will continue without this optional anchor.",
+                        anchor.endpoint,
+                    )
+                elif "timed out" in message.lower():
+                    logger.warning(
+                        "Bootstrap anchor %s timed out during peer handshake. Runtime will "
+                        "continue without this optional anchor.",
+                        anchor.endpoint,
+                    )
+                else:
+                    logger.warning(
+                        "Failed to connect optional bootstrap anchor %s: %s. Runtime will continue.",
+                        anchor.endpoint,
+                        exc,
+                    )
 
     async def _connect_discovered_peer(self, peer_info: PeerInfo):
         """Connect to a peer learned from discovery gossip."""

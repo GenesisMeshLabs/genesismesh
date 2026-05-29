@@ -1,5 +1,6 @@
 """Administrative Network Authority routes."""
 
+import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -10,6 +11,11 @@ from ...crypto import sign_model
 from ...models import PolicyManifest
 
 logger = logging.getLogger(__name__)
+
+
+def _token_fingerprint(token_id: str) -> str:
+    """Return a non-secret token fingerprint for audit correlation."""
+    return hashlib.sha256(token_id.encode("utf-8")).hexdigest()[:16]
 
 
 def create_admin_blueprint(service) -> Blueprint:
@@ -49,7 +55,7 @@ def create_admin_blueprint(service) -> Blueprint:
             service.db.add_audit_event(
                 "invite_created",
                 {
-                    "token_id": token.token_id,
+                    "token_fingerprint": _token_fingerprint(token.token_id),
                     "roles": roles,
                     "remote_addr": remote_addr,
                 },
