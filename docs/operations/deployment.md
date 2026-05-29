@@ -1,5 +1,21 @@
 # Deployment
 
+## Live Deployment
+
+A public Network Authority runs on Azure (Sweden Central):
+
+**https://na.genesismesh.connectorzzz.com**
+
+Two nodes are enrolled from separate IP addresses with active heartbeats. The
+deployment uses a `Standard_B2ts_v2` VM, Gunicorn behind Nginx with TLS, and
+a systemd-managed NA service with SQLite persistence.
+
+![NA dashboard showing 2 active nodes](../examples/assets/na-dashboard.png)
+
+![/nodes endpoint showing two enrolled nodes with different remote addresses](../examples/assets/na-nodes.png)
+
+---
+
 Genesis Mesh supports local development startup and container-oriented Network
 Authority startup.
 
