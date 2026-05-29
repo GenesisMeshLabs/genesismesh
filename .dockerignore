@@ -30,3 +30,10 @@ venv.bak/
 .gitignore
 .azure/
 infrastructure/terraform.tfstate*
+docs/_build/
+docs_buildhtml/
+examples/genesis/demo/
+*.db
+*.sqlite
+*.key
+keys/

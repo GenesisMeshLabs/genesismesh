@@ -1,25 +1,22 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
-# Install system dependencies if any (e.g., for pynacl build)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Environment setup
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+RUN chmod +x start.sh examples/quickstart.sh \
+    && addgroup --system genesis \
+    && adduser --system --ingroup genesis genesis
 
-# Make scripts executable
-RUN chmod +x start.sh examples/quickstart.sh
+USER genesis
 
-# Expose the standard port for NA service
-EXPOSE 5000
+EXPOSE 8443
 
 ENTRYPOINT ["./start.sh"]
