@@ -1,12 +1,16 @@
 # Genesis Mesh
 
-Genesis Mesh is a sovereign infrastructure layer for AI agents, edge systems,
-and distributed intelligence.
+Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
+agents, edge systems, and distributed infrastructure.
 
 It is built for networks where every participant must be known, enrolled,
 authenticated, authorized, reachable, and revocable. The project is not only a
-message transport. It combines identity, trust, routing, authorization, and
-network ownership into one control model so operators can answer:
+message transport. Unlike traditional mesh networks that focus mainly on
+connectivity, Genesis Mesh focuses on controlled participation, cryptographic
+identity, policy enforcement, and operator-owned trust.
+
+It combines identity, trust, routing, authorization, and network ownership into
+one control model so operators can answer:
 
 - Who is allowed to be a node?
 - How do peers prove they are who they claim to be?
@@ -32,7 +36,32 @@ network. Trust begins with a signed genesis block, flows through the Network
 Authority, and is enforced by short-lived certificates, operator-signed admin
 actions, and revocation checks.
 
-## Four Operating Pillars
+## Why Genesis Mesh?
+
+Most mesh networks answer one question: can nodes communicate?
+
+Genesis Mesh answers the harder operational questions: can nodes communicate
+securely, prove their identity, follow policy, be audited, and be removed when
+trust is lost?
+
+**Genesis Mesh is closest to a sovereign zero-trust control plane combined with
+decentralized peer routing.** It is not just a connectivity overlay; it is a
+trust fabric for permissioned node and agent networks.
+
+Genesis Mesh is designed for environments where connectivity alone is
+insufficient and trust must be continuously established, enforced, and
+revocable.
+
+## Typical Use Cases
+
+- AI agent networks that require identity, authorization, and revocation.
+- Edge computing platforms operating across multiple locations.
+- Sovereign organizational networks that cannot rely on third-party control
+  planes.
+- Distributed compute clusters with operator-controlled membership.
+- Research and laboratory environments requiring strong enrollment controls.
+
+## Five Operating Pillars
 
 - **Identity**: every node has a cryptographic identity and a signed join
   certificate.
@@ -42,6 +71,9 @@ actions, and revocation checks.
   without sending all traffic through the Network Authority.
 - **Authorization**: enrollment roles, RBAC, signed admin actions, and policy
   updates define what identities can do.
+- **Sovereignty**: the operator owns the genesis block, trust anchors, policy,
+  enrollment process, and revocation authority instead of delegating network
+  membership to a third-party control plane.
 
 ```{mermaid}
 flowchart LR
@@ -91,6 +123,7 @@ installation
 
 concepts/overview
 concepts/use-cases
+concepts/comparison
 concepts/architecture
 concepts/trust-model
 concepts/security-model

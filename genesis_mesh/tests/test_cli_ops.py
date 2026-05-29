@@ -506,14 +506,18 @@ def test_dev_down_removes_runtime_artifacts(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         Path(".genesis-mesh").mkdir()
         Path(".genesis-mesh", "na.db").write_text("placeholder", encoding="utf-8")
+        Path(".node2").mkdir()
+        Path(".node2", "node.json").write_text("placeholder", encoding="utf-8")
         Path("genesis-mesh.toml").write_text("[network]\n", encoding="utf-8")
 
         result = runner.invoke(cli, ["dev", "down"])
 
         assert result.exit_code == 0, result.output
         assert "Removed .genesis-mesh" in result.output
+        assert "Removed .node2" in result.output
         assert "Removed genesis-mesh.toml" in result.output
         assert not Path(".genesis-mesh").exists()
+        assert not Path(".node2").exists()
         assert not Path("genesis-mesh.toml").exists()
 
 

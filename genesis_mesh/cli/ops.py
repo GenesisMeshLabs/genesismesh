@@ -412,17 +412,26 @@ def dev_up() -> None:
 def dev_down() -> None:
     """Remove local development artifacts created by `genesis-mesh init`."""
     locked_paths: list[str] = []
-    for path in (Path(".genesis-mesh"), Path(PROJECT_CONFIG)):
+    generated_paths = [Path(".genesis-mesh"), Path(PROJECT_CONFIG)]
+    generated_paths.extend(Path.cwd().glob(".node*"))
+
+    for path in generated_paths:
         if path.exists():
+            display_path = path
+            if path.is_absolute():
+                try:
+                    display_path = path.relative_to(Path.cwd())
+                except ValueError:
+                    display_path = path
             try:
                 if path.is_dir():
                     shutil.rmtree(path)
                 else:
                     path.unlink()
-                click.echo(f"Removed {path}")
+                click.echo(f"Removed {display_path}")
             except PermissionError as exc:
-                locked_paths.append(str(path))
-                click.echo(f"Could not remove {path}: {exc}", err=True)
+                locked_paths.append(str(display_path))
+                click.echo(f"Could not remove {display_path}: {exc}", err=True)
 
     if locked_paths:
         raise click.ClickException(
