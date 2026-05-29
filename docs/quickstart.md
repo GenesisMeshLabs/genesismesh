@@ -21,7 +21,7 @@ flowchart TD
     init --> dev
 ```
 
-![Genesis Mesh enrollment demo](../examples/assets/genesis-mesh-enrollment.gif)
+![Genesis Mesh enrollment demo](examples/assets/genesis-mesh-enrollment.gif)
 
 ## Prerequisites
 
