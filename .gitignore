@@ -1,8 +1,11 @@
+# Python bytecode and native build outputs
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Python package/build artifacts
 build/
 develop-eggs/
 dist/
@@ -18,10 +21,16 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Test and tooling caches
 .pytest_cache/
+
+# Documentation build outputs
 docs_buildhtml/
 docs/_build/
 docs/pages/
+
+# Example/demo generated files
 examples/genesis/demo/
 
 # Genesis Mesh local CLI/runtime artifacts
@@ -29,17 +38,32 @@ genesis-mesh.toml
 .genesis-mesh/
 .node*/
 
+# Local Python environments and environment files
 .env
 .venv
 env/
 venv/
 ENV/
+
+# Local keys, certificates, and secrets
 *.key
 *.pem
 *.crt
 keys/
+
+# Local SQLite databases
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
+
+# OS/editor noise
 .DS_Store
+
+# Terraform local working directories and state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+
+# Local verification reports
+ops/verdict.md

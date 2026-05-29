@@ -16,7 +16,7 @@ ensure_genesis_file() {
   fi
 
   if [ -n "$GENESIS_URI" ]; then
-    log "Attempting to fetch genesis from ${GENESIS_URI}"
+    log "Attempting to fetch genesis from $GENESIS_URI"
     if command -v curl >/dev/null 2>&1; then
       curl -fsSL "$GENESIS_URI" -o /etc/genesis/genesis.signed.json || true
     elif command -v wget >/dev/null 2>&1; then
@@ -99,7 +99,7 @@ main() {
   ensure_genesis_file
   create_waiting_state_service
   log "Universal boot sequence complete"
-  log "Bootstrap endpoint: ${BOOTSTRAP_ENDPOINT}"
+  log "Bootstrap endpoint: $BOOTSTRAP_ENDPOINT"
 }
 
 main "$@"
