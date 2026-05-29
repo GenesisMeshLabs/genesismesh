@@ -1,13 +1,56 @@
 # Genesis Mesh
 
-Genesis Mesh is a permissioned mesh network with cryptographic trust chains, a
-Network Authority, Noise XX peer transport, distance-vector routing, CRL
-revocation, RBAC, Prometheus metrics, and tamper-evident audit logging.
+Genesis Mesh is the sovereign infrastructure layer for AI agents, edge systems,
+and distributed intelligence.
 
-Every node holds a signed join certificate issued by the Network Authority. Peer
-sessions are encrypted with the Noise XX protocol, deriving X25519 keys directly
-from each node's Ed25519 identity -- no separate TLS certificate lifecycle
-required.
+It answers the operational questions that basic mesh networking leaves open:
+who is allowed to be a node, how peers prove identity, what each node is allowed
+to do, how messages reach the right peer, and how a compromised or retired
+identity is removed.
+
+Genesis Mesh combines five capabilities in one trust fabric:
+
+- **Identity**: every node has an Ed25519 identity and a signed join
+  certificate.
+- **Trust**: a signed genesis block, Network Authority, operator keys, and CRLs
+  define who the network trusts.
+- **Routing**: authenticated peers can discover routes and forward messages
+  without depending on the Network Authority for every data exchange.
+- **Authorization**: enrollment roles, policy manifests, RBAC, and signed admin
+  actions define what identities may do.
+- **Sovereignty**: the operator owns the trust chain, membership process,
+  revocation process, and policy distribution path.
+
+The immediate use case is controlled infrastructure: private agent networks,
+edge services, lab environments, sovereign organizational networks, and
+distributed systems where anonymous membership is unacceptable. The longer-term
+direction is an agent infrastructure layer for autonomous software, device
+agents, enterprise agents, and services that need cryptographic identity,
+permissioned communication, and revocation-aware trust.
+
+Every enrolled node holds a signed join certificate issued by the Network
+Authority. Peer sessions are encrypted with the Noise XX protocol, deriving
+X25519 keys directly from each node's Ed25519 identity. No separate TLS
+certificate lifecycle is required for peer transport.
+
+## Why It Exists
+
+Most overlay networks focus on connectivity: can this machine reach that
+machine? Genesis Mesh focuses on controlled participation: should this machine
+be here, what identity is it using, what is it authorized to do, and can the
+network remove it quickly?
+
+Use Genesis Mesh when your system needs:
+
+- a private trust domain for agents, devices, or edge services
+- operator-controlled enrollment instead of open peer discovery
+- certificate-backed peer authentication
+- signed policy distribution
+- revocation that affects heartbeats, renewal, peer handshakes, and routing
+- audit trails for security-relevant control-plane actions
+
+Do not use it when you only need public peer discovery, anonymous networking, a
+general service mesh for Kubernetes ingress, or a permissionless blockchain.
 
 ## Architecture
 
@@ -32,6 +75,10 @@ flowchart TD
     A -.->|"CRL gossip"| B
     B -.->|"CRL gossip"| C
 ```
+
+At a high level, the Network Authority admits identities and publishes trust
+state. Nodes use that state to communicate directly, route messages, and reject
+revoked peers.
 
 ## Requirements
 
