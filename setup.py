@@ -35,7 +35,7 @@ setup(
         "console_scripts": [
             "genesis-mesh=genesis_mesh.cli.main:main",
             "genesis-mesh-na=genesis_mesh.na_service.server:main",
-            "genesis-mesh-node=genesis_mesh.node.node:main",
+            "genesis-mesh-node=genesis_mesh.cli.node_cmd:main",
         ],
     },
 )

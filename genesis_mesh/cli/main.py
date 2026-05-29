@@ -10,6 +10,7 @@ import nacl.encoding
 
 from ..crypto import generate_keypair, save_keypair, load_private_key, sign_model
 from ..models import GenesisBlock, NetworkAuthority, BootstrapAnchor, PolicyManifestRef
+from .ops import register_operational_commands
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def keygen_root(output, key_id):
     keypair = generate_keypair()
     private_path, public_path = save_keypair(keypair, output, key_id)
 
-    click.echo(f"\n✓ Root Sovereign keys generated:")
+    click.echo("\nOK Root Sovereign keys generated:")
     click.echo(f"  Private key: {private_path} (KEEP OFFLINE AND SECURE)")
     click.echo(f"  Public key:  {public_path}")
     click.echo(f"\nPublic key (base64): {keypair.public_key_b64}")
@@ -57,7 +58,7 @@ def keygen_na(output, key_id):
     keypair = generate_keypair()
     private_path, public_path = save_keypair(keypair, output, key_id)
 
-    click.echo(f"\n✓ Network Authority keys generated:")
+    click.echo("\nOK Network Authority keys generated:")
     click.echo(f"  Private key: {private_path} (KEEP SECURE - HSM recommended)")
     click.echo(f"  Public key:  {public_path}")
     click.echo(f"\nPublic key (base64): {keypair.public_key_b64}")
@@ -73,7 +74,7 @@ def keygen_node(output, key_id):
     keypair = generate_keypair()
     private_path, public_path = save_keypair(keypair, output, key_id)
 
-    click.echo(f"\n✓ Node identity keys generated:")
+    click.echo("\nOK Node identity keys generated:")
     click.echo(f"  Private key: {private_path}")
     click.echo(f"  Public key:  {public_path}")
     click.echo(f"\nPublic key (base64): {keypair.public_key_b64}")
@@ -137,7 +138,7 @@ def genesis_create(network_name, network_version, root_key, na_key, na_valid_day
     with open(output, 'w') as f:
         json.dump(genesis_block.model_dump(mode='json'), f, indent=2, default=str)
 
-    click.echo(f"\n✓ Genesis block created: {output}")
+    click.echo(f"\nOK Genesis block created: {output}")
     click.echo(f"  Network: {network_name} ({network_version})")
     click.echo(f"  NA validity: {na_valid_days} days")
     click.echo(f"  Bootstrap anchors: {len(bootstrap_anchors)}")
@@ -170,7 +171,7 @@ def genesis_sign(genesis, root_private_key, key_id, output):
     with open(output, 'w') as f:
         json.dump(genesis_block.model_dump(mode='json'), f, indent=2, default=str)
 
-    click.echo(f"\n✓ Genesis block signed: {output}")
+    click.echo(f"\nOK Genesis block signed: {output}")
     click.echo(f"  Signature key: {key_id}")
     click.echo(f"  Network: {genesis_block.network_name}")
 
@@ -189,7 +190,7 @@ def genesis_verify(genesis):
         genesis_block = GenesisBlock(**genesis_data)
 
     if not genesis_block.signatures:
-        click.echo("✗ No signatures found!", err=True)
+        click.echo("ERROR No signatures found!", err=True)
         return 1
 
     root_public_key = public_key_from_b64(genesis_block.root_public_key)
@@ -197,16 +198,16 @@ def genesis_verify(genesis):
     all_valid = True
     for sig in genesis_block.signatures:
         valid = verify_model_signature(genesis_block, sig, root_public_key)
-        status = "✓" if valid else "✗"
+        status = "OK" if valid else "ERROR"
         click.echo(f"{status} Signature from {sig.key_id}: {'VALID' if valid else 'INVALID'}")
         all_valid = all_valid and valid
 
     if all_valid:
-        click.echo(f"\n✓ All signatures verified successfully")
+        click.echo("\nOK All signatures verified successfully")
         click.echo(f"  Network: {genesis_block.network_name} ({genesis_block.network_version})")
         return 0
     else:
-        click.echo(f"\n✗ Signature verification failed!", err=True)
+        click.echo("\nERROR Signature verification failed!", err=True)
         return 1
 
 
@@ -235,6 +236,9 @@ def info(genesis):
     click.echo(f"\nSignatures ({len(genesis_block.signatures)}):")
     for sig in genesis_block.signatures:
         click.echo(f"  - {sig.key_id}")
+
+
+register_operational_commands(cli)
 
 
 def main():
