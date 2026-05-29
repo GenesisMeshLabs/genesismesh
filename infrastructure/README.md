@@ -10,6 +10,13 @@ one switch variable: `target_provider`.
 - `variables.tf`: Input variables including `target_provider`.
 - `outputs.tf`: Output values for instance IPs, IDs, and connection information.
 - `universal_boot.sh`: OS-agnostic bootstrap script for user_data/remote-exec.
+- `azure/`: Azure Container Apps helper scripts.
+- `scripts/`: Local operational smoke-test scripts.
+
+Container-focused files remain at the repository root:
+
+- `Dockerfile`: requires the repository root as build context.
+- `start.sh`: Docker entry point used by the container image.
 
 ## Usage (conceptual)
 
@@ -106,6 +113,35 @@ Access outputs after deployment:
 terraform output aws_public_ip
 terraform output -json  # All outputs as JSON
 ```
+
+## Azure Container Apps Helpers
+
+Azure helper scripts are grouped under `infrastructure/azure/`:
+
+```powershell
+.\infrastructure\azure\deploy_to_azure.ps1
+```
+
+```bash
+bash infrastructure/azure/deploy_to_azure.sh
+```
+
+The scripts build from the repository root and target port `8443`. Production
+deployments must provide mounted `GENESIS_FILE` and `NA_PRIVATE_KEY_FILE`
+secrets; the container startup path refuses to start without them. Operator
+admin public keys should be provided with `OPERATOR_PUBLIC_KEYS_JSON`, formatted
+as a JSON object from key ID to base64 public key.
+
+## Local Verification Script
+
+The local CLI flow smoke script is grouped under `infrastructure/scripts/`:
+
+```powershell
+.\infrastructure\scripts\verify_flow.ps1
+```
+
+It generates local keys and writes generated genesis artifacts under
+`examples/genesis/`.
 
 ## Required Variables by Provider
 

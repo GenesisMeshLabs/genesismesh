@@ -17,6 +17,13 @@ ENV_NAME="env-${APP_NAME}"
 ALB_NAME="ca-${APP_NAME}-na"
 WORKER_NAME="ca-${APP_NAME}-node"
 IMAGE_TAG="latest"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+GENESIS_FILE="${GENESIS_FILE:-genesis.signed.json}"
+NA_PRIVATE_KEY_FILE="${NA_PRIVATE_KEY_FILE:-keys/na.key}"
+DB_PATH="${DB_PATH:-genesis_mesh_na.db}"
+PORT="${PORT:-8443}"
+OPERATOR_PUBLIC_KEYS_JSON="${OPERATOR_PUBLIC_KEYS_JSON:-{}}"
 
 echo "=== Starting Deployment for $APP_NAME ==="
 echo "Location: $LOCATION"
@@ -37,7 +44,7 @@ az acr create \
 # 3. Build and Push Docker Image
 echo "Building and Pushing Docker Image..."
 # Using az acr build to build in the cloud (avoids local docker issues)
-az acr build --registry "$ACR_NAME" --image "${APP_NAME}:${IMAGE_TAG}" .
+az acr build --registry "$ACR_NAME" --image "${APP_NAME}:${IMAGE_TAG}" "$REPO_ROOT"
 
 # 4. Create Container Apps Environment
 echo "Creating Container Apps Environment..."
@@ -54,9 +61,9 @@ az containerapp create \
   --resource-group "$RESOURCE_GROUP" \
   --environment "$ENV_NAME" \
   --image "$ACR_NAME.azurecr.io/${APP_NAME}:${IMAGE_TAG}" \
-  --target-port 5000 \
+  --target-port "$PORT" \
   --ingress external \
-  --env-vars SERVICE_ROLE=na \
+  --env-vars SERVICE_ROLE=na GENESIS_FILE="$GENESIS_FILE" NA_PRIVATE_KEY_FILE="$NA_PRIVATE_KEY_FILE" DB_PATH="$DB_PATH" PORT="$PORT" OPERATOR_PUBLIC_KEYS_JSON="$OPERATOR_PUBLIC_KEYS_JSON" \
   --registry-server "$ACR_NAME.azurecr.io" \
   --min-replicas 1 \
   --max-replicas 1
@@ -69,12 +76,7 @@ echo "Network Authority URL: $NA_URL"
 
 # 6. Deploy Mesh Node (Worker)
 # The worker needs to know where the NA is to bootstrap.
-# We pass the NA URL as a bootstrap argument.
-# Note: start.sh handles 'exec python -m genesis_mesh.node', we might need to adjust args via env vars if supported or just args
-# Looking at start.sh, it just runs `exec python -m genesis_mesh.node`.
-# node.py needs --bootstrap <url> --persistent.
-# Let's override the command for the node, or updated start.sh.
-# Updating start.sh to look for ENV var for bootstrap is cleaner, but for now we can pass command args.
+# Node startup uses environment variables through start.sh.
 
 echo "Deploying Mesh Node..."
 az containerapp create \
@@ -85,9 +87,8 @@ az containerapp create \
   --env-vars SERVICE_ROLE=node BOOTSTRAP_URL="$NA_URL" \
   --registry-server "$ACR_NAME.azurecr.io" \
   --min-replicas 1 \
-  --max-replicas 1 \
-  --args "--bootstrap" "$NA_URL" "--persistent" "--role" "anchor"
+  --max-replicas 1
 
 echo "=== Deployment Complete ==="
 echo "NA Service: $NA_URL"
-echo "You may need to verify functionality. The demo keys are generated automatically inside the container on first run."
+echo "Mount production genesis and NA key files before using this in production."
