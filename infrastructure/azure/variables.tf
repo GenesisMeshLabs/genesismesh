@@ -19,7 +19,7 @@ variable "location" {
 variable "vm_size" {
   description = "Azure VM size. Standard_B1ms (1 vCPU, 2 GB) is the minimum for Gunicorn."
   type        = string
-  default     = "Standard_B1ms"
+  default     = "Standard_B2s"
 }
 
 variable "ssh_public_key" {
