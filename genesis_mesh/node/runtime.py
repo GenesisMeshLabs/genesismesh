@@ -450,6 +450,24 @@ class MeshNodeRuntime:
             return self.node.node_keypair.public_key_b64
         return None
 
+    async def _heartbeat_loop(self) -> None:
+        """Send a periodic HTTP heartbeat to the NA so active-node count stays current."""
+        try:
+            while self._running:
+                await asyncio.sleep(120)
+                if not self._running:
+                    break
+                try:
+                    ok = await asyncio.get_event_loop().run_in_executor(
+                        None, self.node.send_heartbeat, self.na_endpoint
+                    )
+                    if not ok:
+                        logger.warning("Heartbeat to NA failed")
+                except Exception:
+                    logger.exception("Error sending heartbeat to NA")
+        except asyncio.CancelledError:
+            pass
+
     def _is_na_endpoint(self, endpoint: str) -> bool:
         """Return whether a bootstrap endpoint points at the NA HTTP API."""
         parsed = urlparse(self.na_endpoint)
