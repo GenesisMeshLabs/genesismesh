@@ -19,6 +19,9 @@ wheels/
 .installed.cfg
 *.egg
 .pytest_cache/
+docs_buildhtml/
+docs/pages/.doctrees/
+examples/genesis/demo/
 .env
 .venv
 env/
