@@ -263,6 +263,7 @@ def admin_revoke(config_path: str | None, na_endpoint: str | None, cert_id: str,
 @click.option("--persistent", is_flag=True, help="Start the peer runtime after enrollment.")
 @click.option("--listen-host", default="0.0.0.0", help="Peer runtime bind host.")
 @click.option("--listen-port", default=0, type=int, help="Peer runtime bind port.")
+@click.option("--peer", "peers", multiple=True, help="Bootstrap peer endpoint (host:port or ws://host:port). Repeatable.")
 def join(
     config_path: str | None,
     na_endpoint: str,
@@ -272,6 +273,7 @@ def join(
     persistent: bool,
     listen_host: str,
     listen_port: int,
+    peers: tuple[str, ...],
 ) -> None:
     """Enroll this machine as a node and persist node config."""
     config = _load_cli_config(config_path, required=False)
@@ -353,7 +355,7 @@ def join(
     click.echo(f"Config: {resolve_config_path(config_path)}")
 
     if persistent:
-        runtime = MeshNodeRuntime(node, endpoint, listen_host=listen_host, listen_port=listen_port)
+        runtime = MeshNodeRuntime(node, endpoint, listen_host=listen_host, listen_port=listen_port, bootstrap_peers=list(peers))
         click.echo("Starting persistent peer runtime. Press Ctrl+C to stop.")
         try:
             asyncio.run(_run_runtime_forever(runtime))
