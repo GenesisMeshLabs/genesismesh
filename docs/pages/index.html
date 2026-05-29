@@ -264,9 +264,22 @@
         <article role="main" id="furo-main-content">
           <section id="genesis-mesh">
 <h1>Genesis Mesh<a class="headerlink" href="#genesis-mesh" title="Link to this heading">¶</a></h1>
-<p>Genesis Mesh is a permissioned mesh-network project for authenticated peer
-membership, signed policy distribution, certificate revocation, and encrypted
-node-to-node communication.</p>
+<p>Genesis Mesh is a permissioned peer-to-peer networking system for environments
+where every node must be known, enrolled, authenticated, and revocable.</p>
+<p>The system has two planes. The Network Authority is the online control plane: it
+issues invite tokens, signs join certificates, publishes policy, and distributes
+certificate revocation lists. Mesh nodes are the data plane: after enrollment,
+they authenticate each other with certificates, establish encrypted Noise XX
+peer sessions, exchange routing information, and forward messages across the
+mesh.</p>
+<p>Use Genesis Mesh when you need decentralized node communication without
+anonymous membership: private infrastructure, edge networks, lab environments,
+sovereign or organizational networks, and other deployments where operators
+must be able to admit, audit, and remove nodes.</p>
+<p>It is not a public blockchain, anonymous overlay, or permissionless discovery
+network. Trust begins with a signed genesis block, flows through the Network
+Authority, and is enforced by short-lived certificates, operator-signed admin
+actions, and revocation checks.</p>
 <pre  class="mermaid">
         flowchart LR
     operator[&quot;Operator&quot;]
@@ -290,9 +303,9 @@ node-to-node communication.</p>
     node_b --&gt;|validates| crl
     node_a --&gt;|applies| policy
     node_b --&gt;|applies| policy
-    </pre><p>The documentation is organized by reader intent:</p>
+    </pre><p>The documentation is organized by what you are trying to do:</p>
 <ul class="simple">
-<li><p><strong>Start here</strong> for setup and first-run workflows.</p></li>
+<li><p><strong>Start here</strong> for setup, local startup, and installation.</p></li>
 <li><p><strong>Concepts</strong> for architecture, trust, certificate lifecycle, security, and
 routing.</p></li>
 <li><p><strong>Reference</strong> for CLI, HTTP API, and configuration details.</p></li>

@@ -192,7 +192,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Start Here</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Genesis Mesh - Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Concepts</span></p>
@@ -264,9 +264,10 @@
         <article role="main" id="furo-main-content">
           <section id="overview">
 <h1>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h1>
-<p>Genesis Mesh is a permissioned mesh network. Nodes join through a Network
-Authority, receive short-lived certificates, and use those certificates to
-authenticate peer relationships and control-plane actions.</p>
+<p>Genesis Mesh gives operators a controlled way to build a peer-to-peer network.
+Nodes do not discover and trust each other anonymously. They join through a
+Network Authority, receive short-lived certificates, and use those certificates
+to authenticate peer sessions, routing claims, and control-plane actions.</p>
 <p>The project is designed around four constraints:</p>
 <ul class="simple">
 <li><p><strong>Explicit membership</strong>: nodes need an invite token before the Network
@@ -281,15 +282,24 @@ routing/discovery components to communicate beyond the Network Authority.</p></l
 <section id="what-genesis-mesh-is">
 <h2>What Genesis Mesh Is<a class="headerlink" href="#what-genesis-mesh-is" title="Link to this heading">¶</a></h2>
 <p>Genesis Mesh is infrastructure for private, authenticated node networks. It is
-appropriate for experiments and systems where operators need to control which
-nodes may join, what roles they receive, and how compromised identities are
-removed.</p>
+appropriate when operators need to:</p>
+<ul class="simple">
+<li><p>pre-approve which machines may join</p></li>
+<li><p>assign roles during enrollment</p></li>
+<li><p>encrypt node-to-node communication</p></li>
+<li><p>publish signed policy</p></li>
+<li><p>revoke compromised or retired node identities</p></li>
+<li><p>route messages across authenticated peers</p></li>
+</ul>
 </section>
 <section id="what-genesis-mesh-is-not">
 <h2>What Genesis Mesh Is Not<a class="headerlink" href="#what-genesis-mesh-is-not" title="Link to this heading">¶</a></h2>
 <p>Genesis Mesh is not a public blockchain, anonymous overlay network, or
 permissionless peer-discovery system. It intentionally depends on a trusted
-genesis document and a Network Authority for admission, policy, and revocation.</p>
+genesis document and a Network Authority for admission, policy, and revocation.
+It also is not a general-purpose service mesh replacement; application-level
+traffic policy, load balancing, and ingress management remain deployment
+concerns outside the core mesh runtime.</p>
 </section>
 <section id="current-maturity">
 <h2>Current Maturity<a class="headerlink" href="#current-maturity" title="Link to this heading">¶</a></h2>

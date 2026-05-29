@@ -12,7 +12,7 @@ Authority exposes HTTP health endpoints.
 
 ## Node Health
 
-Node health should include:
+For a node, monitor:
 
 - certificate validity
 - peer connectivity
@@ -23,7 +23,8 @@ Node health should include:
 
 ## Operational Signals
 
-Track these signals in production-like deployments:
+Track these signals in production-like deployments because they identify
+membership, trust, and routing failures before users see message loss:
 
 - join success and failure rates
 - invite-token rejection rates
