@@ -6,7 +6,7 @@ revocation, RBAC, Prometheus metrics, and tamper-evident audit logging.
 
 Every node holds a signed join certificate issued by the Network Authority. Peer
 sessions are encrypted with the Noise XX protocol, deriving X25519 keys directly
-from each node's Ed25519 identity — no separate TLS certificate lifecycle
+from each node's Ed25519 identity -- no separate TLS certificate lifecycle
 required.
 
 ## Architecture
@@ -14,7 +14,7 @@ required.
 ```mermaid
 flowchart TD
     RS["Root Sovereign<br/>offline trust anchor"]
-    NA["Network Authority<br/>invite enrollment · certs · CRLs · policy"]
+    NA["Network Authority<br/>invite enrollment, certs, CRLs, policy"]
     A["Node A"]
     B["Node B"]
     C["Node C"]
@@ -42,14 +42,14 @@ flowchart TD
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # PowerShell: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ## Quick Start
 
-Three commands get a local network running.
+The local workflow runs the NA in one terminal and joins a node in a second.
 
 ```bash
 # Create keys, genesis block, and CLI config (one time).
@@ -81,20 +81,21 @@ genesis-mesh dev up
 
 ## Production Deployment
 
-Container startup uses `start.sh` and Gunicorn. The NA role requires two mounted
-secrets and fails closed if either is absent:
+Container startup uses `start.sh` and Gunicorn. Set `SERVICE_ROLE=na` for the
+Network Authority or `SERVICE_ROLE=node` for a peer node. The NA role requires
+two mounted secrets and fails closed if either is absent:
 
-| Environment variable    | Description                          |
-|-------------------------|--------------------------------------|
-| `GENESIS_FILE`          | Path to the signed genesis block     |
-| `NA_PRIVATE_KEY_FILE`   | Path to the NA Ed25519 signing key   |
-| `DB_PATH`               | SQLite database path (default: `genesis_mesh_na.db`) |
-| `PORT`                  | Bind port (default: `8443`)          |
-| `WEB_CONCURRENCY`       | Gunicorn worker count (default: `4`) |
+| Environment variable      | Description                                      |
+|---------------------------|--------------------------------------------------|
+| `SERVICE_ROLE`            | `na` or `node`                                   |
+| `GENESIS_FILE`            | Path to the signed genesis block                 |
+| `NA_PRIVATE_KEY_FILE`     | Path to the NA Ed25519 signing key (NA role)     |
+| `OPERATOR_PUBLIC_KEYS_JSON` | JSON map of operator key IDs to public keys   |
+| `DB_PATH`                 | SQLite database path (default: `genesis_mesh_na.db`) |
+| `PORT`                    | Bind port (default: `8443`)                      |
+| `WEB_CONCURRENCY`         | Gunicorn worker count (default: `4`)             |
 
-Operator public keys are mounted via `--operator-public-key` flags in
-`start.sh` or injected at runtime. The NA private key never leaves the NA
-process.
+The NA private key never leaves the NA process.
 
 Health and readiness probes are available at `/healthz` and `/readyz`.
 
@@ -104,31 +105,31 @@ https://genesismesh.connectorzzz.com
 
 ## Repository Layout
 
-```text
+```
 .
-├── Dockerfile              Container image definition
-├── start.sh                Container entry point (NA and node roles)
-├── requirements.txt        Pinned runtime dependencies
-├── setup.py                Package metadata and entry points
-├── docs/                   Sphinx documentation source
-├── examples/               Demo workflows and sample genesis blocks
-├── genesis_mesh/           Python package
-└── infrastructure/         Terraform, Azure scripts, and operational tools
+  Dockerfile              Container image definition
+  start.sh                Container entry point (NA and node roles)
+  requirements.txt        Pinned runtime dependencies
+  setup.py                Package metadata and entry points
+  docs/                   Sphinx documentation source
+  examples/               Demo workflows and sample genesis blocks
+  genesis_mesh/           Python package
+  infrastructure/         Terraform, Azure scripts, and operational tools
 ```
 
-```text
+```
 genesis_mesh/
-├── audit/                  Tamper-evident security audit logging
-├── cli/                    High-level and low-level CLI commands
-├── crypto/                 Ed25519 signing and key management
-├── gossip/                 CRL gossip protocol
-├── models/                 Genesis, certificate, policy, CRL, and enrollment models
-├── monitoring/             Prometheus metrics and health checks
-├── na_service/             Network Authority REST API and WSGI entry point
-├── node/                   Node client, runtime, discovery, RBAC, and control plane
-├── routing/                Routing table, protocol, and message forwarding
-├── tests/                  Unit and integration tests
-└── transport/              WebSocket transport, Noise XX, protocol framing, and connections
+  audit/                  Tamper-evident security audit logging
+  cli/                    High-level and low-level CLI commands
+  crypto/                 Ed25519 signing and key management
+  gossip/                 CRL gossip protocol
+  models/                 Genesis, certificate, policy, CRL, and enrollment models
+  monitoring/             Prometheus metrics and health checks
+  na_service/             Network Authority REST API and WSGI entry point
+  node/                   Node client, runtime, discovery, RBAC, and control plane
+  routing/                Routing table, protocol, and message forwarding
+  tests/                  Unit and integration tests
+  transport/              WebSocket transport, Noise XX, protocol framing, and connections
 ```
 
 ## Testing
