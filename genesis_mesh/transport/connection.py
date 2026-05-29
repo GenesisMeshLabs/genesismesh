@@ -3,10 +3,11 @@
 import asyncio
 import logging
 import time
-from typing import Dict, Optional, Callable, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
+from .heartbeat import ConnectionHeartbeat
 from .protocol import MeshMessage, MessageType
 
 
@@ -51,7 +52,8 @@ class Connection:
         on_message: Optional[Callable] = None,
         on_close: Optional[Callable] = None,
         max_queue_size: int = 1000,
-        drop_on_full: bool = True
+        drop_on_full: bool = True,
+        local_node_id: str = "local",
     ):
         """
         Initialize connection.
@@ -63,8 +65,10 @@ class Connection:
             on_close: Callback when connection closes
             max_queue_size: Maximum size of send queue (default: 1000)
             drop_on_full: Drop messages when queue is full (default: True)
+            local_node_id: Local node ID used in protocol messages
         """
         self.peer_id = peer_id
+        self.local_node_id = local_node_id
         self.transport = transport
         self.on_message = on_message
         self.on_close = on_close
@@ -77,8 +81,9 @@ class Connection:
         self._send_queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
         self._receive_task: Optional[asyncio.Task] = None
         self._send_task: Optional[asyncio.Task] = None
+        self._heartbeat = ConnectionHeartbeat(self)
         self._ping_task: Optional[asyncio.Task] = None
-        self._pending_pings: Dict[str, float] = {}
+        self._pending_pings = self._heartbeat.pending_pings
         self._dropped_messages = 0
 
     async def start(self):
@@ -135,15 +140,13 @@ class Connection:
         if self.state == ConnectionState.ESTABLISHED:
             return
 
-        old_state = self.state
         self.state = ConnectionState.ESTABLISHED
         self.connected_at = time.time()
         logger.info(f"Connection to {self.peer_id} marked as established")
 
         # Start ping loop
         if not self._ping_task:
-            self._ping_task = asyncio.create_task(self._ping_loop())
-            logger.debug(f"Started ping loop for {self.peer_id}")
+            self._ping_task = self._heartbeat.start()
 
     async def close(self):
         """Close the connection gracefully."""
@@ -159,7 +162,7 @@ class Connection:
         if self._send_task:
             self._send_task.cancel()
         if self._ping_task:
-            self._ping_task.cancel()
+            self._heartbeat.stop()
 
         # Close transport
         try:
@@ -233,36 +236,13 @@ class Connection:
         except asyncio.CancelledError:
             pass
 
-    async def _ping_loop(self):
-        """Periodically ping peer to measure latency."""
-        try:
-            while self.state == ConnectionState.ESTABLISHED:
-                try:
-                    from .protocol import create_ping
-                    ping_msg = create_ping("local", self.peer_id)
-                    self._pending_pings[ping_msg.message_id] = time.time()
-                    await self.send_message(ping_msg)
-
-                    await asyncio.sleep(30)  # Ping every 30 seconds
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in ping loop: {e}")
-                    await asyncio.sleep(30)
-
-        except asyncio.CancelledError:
-            pass
-
     async def _handle_message(self, message: MeshMessage):
         """Handle received message."""
         # Handle protocol messages
         if message.message_type == MessageType.PING:
-            await self._handle_ping(message)
+            await self._heartbeat.handle_ping(message)
         elif message.message_type == MessageType.PONG:
-            await self._handle_pong(message)
-        elif message.message_type == MessageType.HANDSHAKE_ACK:
-            # Transition to ESTABLISHED state via the single code path
-            self.set_established()
+            await self._heartbeat.handle_pong(message)
 
         # Forward to application callback
         if self.on_message:
@@ -273,21 +253,11 @@ class Connection:
 
     async def _handle_ping(self, message: MeshMessage):
         """Respond to ping."""
-        from .protocol import create_pong
-        pong = create_pong(
-            "local",
-            message.sender_id,
-            message.payload.get("timestamp", time.time())
-        )
-        await self.send_message(pong)
+        await self._heartbeat.handle_ping(message)
 
     async def _handle_pong(self, message: MeshMessage):
         """Process pong response."""
-        ping_timestamp = message.payload.get("ping_timestamp")
-        if ping_timestamp:
-            latency = (time.time() - ping_timestamp) * 1000  # Convert to ms
-            self.stats.latency_ms = latency
-            logger.debug(f"Latency to {self.peer_id}: {latency:.2f}ms")
+        await self._heartbeat.handle_pong(message)
 
     def get_stats_snapshot(self) -> ConnectionStats:
         """

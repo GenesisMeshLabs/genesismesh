@@ -11,8 +11,6 @@ from pydantic import BaseModel, Field
 class MessageType(str, Enum):
     """Types of messages in the mesh network."""
     # Connection management
-    HANDSHAKE = "handshake"
-    HANDSHAKE_ACK = "handshake_ack"
     PING = "ping"
     PONG = "pong"
     DISCONNECT = "disconnect"
@@ -101,29 +99,55 @@ class MeshMessage(BaseModel):
         return self.ttl > 0
 
 
-class HandshakePayload(BaseModel):
-    """Payload for handshake messages."""
-    protocol_version: str = Field(default="1.0", description="Protocol version")
-    node_id: str = Field(..., description="Node identity")
-    certificate: str = Field(..., description="Join certificate (base64)")
-    capabilities: list[str] = Field(
-        default_factory=list,
-        description="Node capabilities"
-    )
-    roles: list[str] = Field(..., description="Node roles")
-
-
 class PeerInfo(BaseModel):
     """Information about a peer node."""
     node_id: str = Field(..., description="Node identifier")
     endpoint: str = Field(..., description="Connection endpoint (host:port)")
     roles: list[str] = Field(..., description="Node roles")
+    cert_id: Optional[str] = Field(
+        None,
+        description="Join certificate ID backing this announcement",
+    )
+    certificate_b64: Optional[str] = Field(
+        None,
+        description="Base64-encoded join certificate for announcement verification",
+    )
+    announcement_issued_at: Optional[float] = Field(
+        None,
+        description="Unix timestamp when this peer announcement was signed",
+    )
+    announcement_nonce: Optional[str] = Field(
+        None,
+        description="Per-announcement nonce for replay detection",
+    )
+    announcement_signature: Optional[str] = Field(
+        None,
+        description="Ed25519 signature over the canonical announcement payload",
+    )
     last_seen: float = Field(
         default_factory=time.time,
         description="Last contact timestamp"
     )
     reputation: float = Field(default=1.0, description="Peer reputation score")
     latency_ms: Optional[float] = Field(None, description="RTT latency")
+
+    def announcement_payload(self) -> dict[str, Any]:
+        """Return the canonical payload fields covered by the announcement signature."""
+        return {
+            "node_id": self.node_id,
+            "endpoint": self.endpoint,
+            "cert_id": self.cert_id,
+            "announcement_issued_at": self.announcement_issued_at,
+            "announcement_nonce": self.announcement_nonce,
+        }
+
+    def announcement_canonical_json(self) -> str:
+        """Return canonical JSON for signing or verifying this announcement."""
+        return json.dumps(
+            self.announcement_payload(),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
 
 class RouteInfo(BaseModel):
@@ -150,24 +174,6 @@ class ControlMessage(BaseModel):
     expires_at: Optional[float] = Field(None, description="Expiration timestamp")
     data: Dict[str, Any] = Field(default_factory=dict, description="Command data")
     signature: str = Field(..., description="Ed25519 signature")
-
-
-def create_handshake(
-    node_id: str,
-    certificate: str,
-    roles: list[str]
-) -> MeshMessage:
-    """Create a handshake message."""
-    payload = HandshakePayload(
-        node_id=node_id,
-        certificate=certificate,
-        roles=roles
-    )
-    return MeshMessage(
-        message_type=MessageType.HANDSHAKE,
-        sender_id=node_id,
-        payload=payload.model_dump()
-    )
 
 
 def create_ping(node_id: str, recipient_id: str) -> MeshMessage:

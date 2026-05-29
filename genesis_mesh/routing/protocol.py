@@ -30,7 +30,8 @@ class RoutingProtocol:
         self,
         node_id: str,
         routing_table: RoutingTable,
-        broadcast_func: Callable
+        broadcast_func: Callable,
+        is_revoked_sender: Optional[Callable[[str], bool]] = None,
     ):
         """
         Initialize routing protocol.
@@ -39,10 +40,12 @@ class RoutingProtocol:
             node_id: Local node ID
             routing_table: Routing table instance
             broadcast_func: Function to broadcast messages
+            is_revoked_sender: Optional callback for sender revocation checks
         """
         self.node_id = node_id
         self.routing_table = routing_table
         self.broadcast_func = broadcast_func
+        self.is_revoked_sender = is_revoked_sender or (lambda sender_id: False)
 
         self._announce_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
@@ -154,6 +157,10 @@ class RoutingProtocol:
         routes_data = message.payload.get("routes", [])
         logger.debug(f"Received {len(routes_data)} routes from {message.sender_id}")
 
+        if self.is_revoked_sender(message.sender_id):
+            logger.warning("Ignoring routes from revoked sender %s", message.sender_id)
+            return
+
         updated_count = 0
 
         for route_data in routes_data:
@@ -166,6 +173,15 @@ class RoutingProtocol:
 
                 # Ignore routes through ourselves (would create loop)
                 if route_info.next_hop == self.node_id:
+                    continue
+
+                if route_info.metric <= 0:
+                    logger.warning(
+                        "Ignoring invalid route to %s from %s: metric=%s",
+                        route_info.destination,
+                        message.sender_id,
+                        route_info.metric,
+                    )
                     continue
 
                 # Update routing table
@@ -205,9 +221,10 @@ class RoutingProtocol:
         for destination in destinations:
             route = self.routing_table.get_route(destination)
             if route and route.learned_from == message.sender_id:
-                # In a full implementation, we'd mark route as invalid
-                # For now, just let it expire naturally
+                await self.routing_table.remove_route(destination)
                 logger.debug(f"Route to {destination} via {message.sender_id} withdrawn")
+
+        await self.trigger_update()
 
     async def trigger_update(self):
         """Trigger an immediate route announcement."""

@@ -195,6 +195,24 @@ class RoutingTable:
         """
         return self.routes.get(destination)
 
+    async def remove_route(self, destination: str) -> bool:
+        """
+        Remove a route by destination.
+
+        Args:
+            destination: Destination node ID
+
+        Returns:
+            True if a route was removed, False if it was absent
+        """
+        async with self._lock:
+            if destination not in self.routes:
+                return False
+            del self.routes[destination]
+            self._sequences.pop(destination, None)
+            logger.debug(f"Removed route to {destination}")
+            return True
+
     def get_next_hop(self, destination: str) -> Optional[str]:
         """
         Get next hop for destination.
@@ -216,12 +234,10 @@ class RoutingTable:
         """
         Get routes suitable for announcement to peers.
 
-        Excludes direct neighbor routes (they'll learn those themselves).
+        Includes direct neighbor routes so non-neighbor peers can learn
+        reachability through this node. Recipients ignore routes to themselves.
         """
-        return [
-            route for route in self.routes.values()
-            if route.destination not in self.neighbors
-        ]
+        return list(self.routes.values())
 
     async def cleanup_stale_routes(self):
         """Remove expired routes."""

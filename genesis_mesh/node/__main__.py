@@ -1,6 +1,6 @@
 """Mesh node entry point."""
 
-from .node import main
+from ..cli.node_cmd import main
 
 if __name__ == '__main__':
     import sys
