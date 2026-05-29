@@ -23,6 +23,10 @@ terraform {
   }
 }
 
+provider "azurerm" {
+  features {}
+}
+
 locals {
   user_data = templatefile("${path.module}/universal_boot.sh", {
     bootstrap_endpoint = var.bootstrap_endpoint
@@ -34,6 +38,10 @@ locals {
   is_gcp         = var.target_provider == "gcp"
   is_alibaba     = var.target_provider == "alibaba"
   is_generic_ssh = var.target_provider == "generic_ssh"
+
+  azure_network_interface_id = (
+    var.azure_network_interface_id != "" ? var.azure_network_interface_id : var.azure_subnet_id
+  )
 }
 
 resource "aws_instance" "sovereign" {
@@ -65,7 +73,7 @@ resource "azurerm_linux_virtual_machine" "sovereign" {
     public_key = var.azure_ssh_public_key
   }
 
-  network_interface_ids = [var.azure_subnet_id]
+  network_interface_ids = [local.azure_network_interface_id]
   custom_data           = base64encode(local.user_data)
 
   source_image_reference {

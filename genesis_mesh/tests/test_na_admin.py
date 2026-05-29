@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
-from .na_server_helpers import admin_headers, create_invite, publish_policy
+from genesis_mesh.crypto import generate_keypair
+
+from .na_server_helpers import admin_headers, create_invite, publish_policy, sign_payload
 
 
 def test_invite_token_is_single_use(client, node_keypair):
@@ -13,13 +15,15 @@ def test_invite_token_is_single_use(client, node_keypair):
     assert invite_resp.status_code == 201
     token_id = invite_resp.get_json()["token_id"]
 
-    first = client.post("/join", json={
-        "node_public_key": node_keypair.public_key_b64,
-        "invite_token": token_id,
-    })
+    first_payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": token_id,
+        },
+        node_keypair.private_key,
+    )
+    first = client.post("/join", json=first_payload)
     assert first.status_code == 201
-
-    from genesis_mesh.crypto import generate_keypair
 
     second_keypair = generate_keypair()
     second = client.post("/join", json={
@@ -117,10 +121,16 @@ def test_invite_token_secret_is_not_persisted_in_audit_details(na_service, clien
     assert invite_resp.status_code == 201
     token_id = invite_resp.get_json()["token_id"]
 
-    join_resp = client.post("/join", json={
-        "node_public_key": node_keypair.public_key_b64,
-        "invite_token": token_id,
-    })
+    join_resp = client.post(
+        "/join",
+        json=sign_payload(
+            {
+                "node_public_key": node_keypair.public_key_b64,
+                "invite_token": token_id,
+            },
+            node_keypair.private_key,
+        ),
+    )
     assert join_resp.status_code == 201
 
     events = na_service.db.list_audit_events()

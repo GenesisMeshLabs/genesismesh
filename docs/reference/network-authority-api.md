@@ -15,6 +15,7 @@ flowchart TB
     node_sig["Node proof-of-possession signature"]
 
     auth --> admin
+    node_sig --> enrollment
     node_sig --> node_ops
     home --> health
     home --> public
@@ -74,12 +75,16 @@ Request:
 {
   "node_public_key": "<base64-ed25519-public-key>",
   "invite_token": "<single-use-token>",
-  "validity_hours": 168
+  "validity_hours": 168,
+  "timestamp": "<iso8601>",
+  "nonce": "<unique-nonce>",
+  "signature": "<base64-ed25519-signature>"
 }
 ```
 
 The Network Authority assigns roles from the invite token and ignores
-client-supplied role claims.
+client-supplied role claims. The signature proves possession of the node private
+key before the invite token is consumed.
 
 Response: a signed `JoinCertificate`.
 
@@ -88,12 +93,14 @@ Response: a signed `JoinCertificate`.
 ### `POST /heartbeat`
 
 Updates node liveness. The request must prove possession of the node private key
-and is rejected if the certificate is revoked.
+and is rejected if the certificate is expired, not yet valid, or revoked.
 
 ### `POST /renew`
 
 Requests certificate renewal. The request must prove possession of the node
-private key, and roles are preserved from server-side state.
+private key. Roles are preserved from server-side state, expired or revoked
+certificates cannot renew, and requested validity is capped by the original
+invite validity policy stored with the issued certificate.
 
 ## Admin Endpoints
 

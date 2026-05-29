@@ -57,6 +57,13 @@ variable "azure_vm_size" {
 variable "azure_subnet_id" {
   type        = string
   default     = ""
+  description = "Deprecated compatibility alias for azure_network_interface_id. Must be an Azure network interface ID, not a subnet ID."
+}
+
+variable "azure_network_interface_id" {
+  type        = string
+  default     = ""
+  description = "Azure network interface ID to attach to the VM."
 }
 
 variable "azure_ssh_public_key" {

@@ -106,9 +106,9 @@ announcements, `dispatcher.py` routes inbound mesh messages to subsystems,
 ## Runtime Flow
 
 1. An operator creates an invite token through the Network Authority.
-2. A node submits its public key and invite token to `/join`.
-3. The Network Authority validates the invite and issues a signed join
-   certificate.
+2. A node submits its public key, invite token, and node signature to `/join`.
+3. The Network Authority validates the invite and proof-of-possession, then
+   issues a signed join certificate.
 4. The node starts its persistent runtime.
 5. Peers exchange certificates inside a Noise XX handshake.
 6. Each side verifies certificate signature, expiry, network name, revocation

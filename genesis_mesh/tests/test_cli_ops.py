@@ -15,7 +15,7 @@ from werkzeug.serving import make_server
 
 from genesis_mesh.cli.config import load_config
 from genesis_mesh.cli.main import cli
-from genesis_mesh.crypto import generate_keypair, load_private_key
+from genesis_mesh.crypto import generate_keypair, load_private_key, sign_data
 from genesis_mesh.models import GenesisBlock
 from genesis_mesh.na_service.auth import load_operator_public_keys
 from genesis_mesh.na_service.server import create_app
@@ -341,12 +341,24 @@ def test_join_persistent_existing_cert_does_not_consume_new_token(tmp_path, monk
         assert "Using existing certificate" in persistent_reuse.output
 
         fresh_node = generate_keypair()
+        token_check_payload = {
+            "node_public_key": fresh_node.public_key_b64,
+            "invite_token": spare_token,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "nonce": "token-check",
+        }
+        canonical = json.dumps(
+            token_check_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        token_check_payload["signature"] = sign_data(
+            canonical.encode("utf-8"),
+            fresh_node.private_key,
+        )
         token_check = requests.post(
             f"{endpoint}/join",
-            json={
-                "node_public_key": fresh_node.public_key_b64,
-                "invite_token": spare_token,
-            },
+            json=token_check_payload,
             timeout=10,
         )
         assert token_check.status_code == 201

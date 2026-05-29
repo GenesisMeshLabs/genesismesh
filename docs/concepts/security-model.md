@@ -9,8 +9,8 @@ sequenceDiagram
     participant NA as Network Authority
     participant P as Peer
 
-    N->>NA: POST /join with public key and invite token
-    NA->>NA: Validate invite, role policy, and key status
+    N->>NA: POST /join with invite token and node signature
+    NA->>NA: Validate invite, proof-of-possession, role policy, and key status
     NA-->>N: Signed join certificate
     N->>P: Noise XX handshake with join certificate payload
     P->>P: Verify NA signature, expiry, network, CRL, key binding
@@ -20,8 +20,10 @@ sequenceDiagram
 ## Admission
 
 Nodes cannot join by sending only a public key. A node must present a valid
-single-use invite token. The Network Authority assigns roles from the invite and
-ignores client-supplied role claims.
+single-use invite token and a request signature from the corresponding node
+private key. The Network Authority verifies proof-of-possession before consuming
+the invite token, assigns roles from the invite, and ignores client-supplied
+role claims.
 
 ## Peer Authentication
 
@@ -54,6 +56,10 @@ keeps the NA private key isolated inside the service.
 The Network Authority publishes a signed CRL. Nodes reject revoked certificates
 during handshakes, and the NA rejects heartbeat and renewal requests for revoked
 certificates.
+
+The NA also enforces certificate validity windows server-side. Expired
+certificates cannot heartbeat or renew, and renewal validity cannot exceed the
+maximum validity associated with the original invite policy.
 
 ## Deployment Boundary
 

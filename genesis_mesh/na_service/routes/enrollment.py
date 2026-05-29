@@ -3,11 +3,32 @@
 import hashlib
 import json
 import logging
+import math
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_db_datetime(value: str) -> datetime:
+    """Parse a persisted ISO datetime and normalize it to UTC."""
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _certificate_time_rejection(existing: dict) -> tuple[str, str] | None:
+    """Return an error/reason pair when a persisted certificate is not currently valid."""
+    now = datetime.now(timezone.utc)
+    issued_at = _parse_db_datetime(existing["issued_at"])
+    expires_at = _parse_db_datetime(existing["expires_at"])
+    if issued_at > now:
+        return "Certificate is not yet valid", "certificate_not_yet_valid"
+    if expires_at <= now:
+        return "Certificate expired; re-enrollment required", "certificate_expired"
+    return None
 
 
 def _token_fingerprint(token_id: str) -> str:
@@ -30,12 +51,17 @@ def create_enrollment_blueprint(service) -> Blueprint:
 
             node_public_key = data.get("node_public_key")
             invite_token = data.get("invite_token")
-            requested_validity_hours = int(data.get("validity_hours", 168))
+            try:
+                requested_validity_hours = int(data.get("validity_hours", 168))
+            except (TypeError, ValueError):
+                return jsonify({"error": "validity_hours must be a positive integer"}), 400
 
             if not node_public_key:
                 return jsonify({"error": "node_public_key required"}), 400
             if not invite_token:
                 return jsonify({"error": "invite_token required"}), 403
+            if requested_validity_hours <= 0:
+                return jsonify({"error": "validity_hours must be a positive integer"}), 400
 
             for prior in service.db.get_certs_by_node_key(node_public_key):
                 if (
@@ -52,6 +78,21 @@ def create_enrollment_blueprint(service) -> Blueprint:
                         },
                     )
                     return jsonify({"error": "Node public key has been compromised"}), 403
+
+            available_token = service.db.get_available_invite_token(invite_token)
+            if available_token is None:
+                if not service.rate_limiter.allow(f"join-token-fail:{remote_addr}", 3, 60):
+                    return jsonify({"error": "Rate limit exceeded"}), 429
+                return jsonify({"error": "Invalid, expired, or used invite token"}), 403
+
+            auth_ok, auth_err = service._verify_request_signature(
+                data,
+                node_public_key,
+                scope=f"join:{node_public_key}",
+            )
+            if not auth_ok:
+                logger.warning("Join proof-of-possession failed for node key %s...: %s", node_public_key[:8], auth_err)
+                return jsonify({"error": auth_err}), 401
 
             token = service.db.use_invite_token(invite_token, node_public_key)
             if token is None:
@@ -70,7 +111,11 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 roles=roles,
                 validity_hours=validity_hours,
             )
-            service.db.issue_cert(cert=cert, remote_addr=remote_addr)
+            service.db.issue_cert(
+                cert=cert,
+                remote_addr=remote_addr,
+                max_validity_hours=token.max_validity_hours,
+            )
             service.db.add_audit_event(
                 "certificate_issued",
                 {
@@ -127,11 +172,24 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     },
                 )
                 return jsonify({"error": "Certificate revoked"}), 403
-
             auth_ok, auth_err = service._verify_request_signature(data, node_public_key)
             if not auth_ok:
                 logger.warning("Heartbeat auth failed for %s...: %s", cert_id[:8], auth_err)
                 return jsonify({"error": auth_err}), 401
+
+            time_rejection = _certificate_time_rejection(existing)
+            if time_rejection is not None:
+                error, reason = time_rejection
+                logger.warning("Rejected heartbeat for %s: %s", cert_id, reason)
+                service.db.add_audit_event(
+                    "heartbeat_rejected",
+                    {
+                        "cert_id": cert_id,
+                        "reason": reason,
+                        "remote_addr": request.remote_addr or "unknown",
+                    },
+                )
+                return jsonify({"error": error}), 403
 
             now = datetime.now(timezone.utc)
             service.db.mark_heartbeat(
@@ -162,10 +220,15 @@ def create_enrollment_blueprint(service) -> Blueprint:
             data = request.get_json(silent=True) or {}
             cert_id = data.get("cert_id")
             node_public_key = data.get("node_public_key")
-            validity_hours = data.get("validity_hours", 168)
+            try:
+                validity_hours = int(data.get("validity_hours", 168))
+            except (TypeError, ValueError):
+                return jsonify({"error": "validity_hours must be a positive integer"}), 400
 
             if not cert_id or not node_public_key:
                 return jsonify({"error": "cert_id and node_public_key required"}), 400
+            if validity_hours <= 0:
+                return jsonify({"error": "validity_hours must be a positive integer"}), 400
 
             existing_node = service.db.get_cert(cert_id)
             if not existing_node:
@@ -196,11 +259,24 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     },
                 )
                 return jsonify({"error": "Certificate revoked"}), 403
-
             auth_ok, auth_err = service._verify_request_signature(data, node_public_key)
             if not auth_ok:
                 logger.warning("Renewal auth failed for %s...: %s", cert_id[:8], auth_err)
                 return jsonify({"error": auth_err}), 401
+
+            time_rejection = _certificate_time_rejection(existing_node)
+            if time_rejection is not None:
+                error, reason = time_rejection
+                logger.warning("Rejected renewal for %s: %s", cert_id, reason)
+                service.db.add_audit_event(
+                    "renewal_rejected",
+                    {
+                        "cert_id": cert_id,
+                        "reason": reason,
+                        "remote_addr": request.remote_addr or "unknown",
+                    },
+                )
+                return jsonify({"error": error}), 403
 
             roles = json.loads(existing_node.get("roles_json", '["role:client"]'))
             if "roles" in data and sorted(data["roles"]) != sorted(roles):
@@ -211,16 +287,35 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     roles,
                 )
                 return jsonify({"error": "Role changes are not permitted during renewal"}), 403
+            max_validity_hours = existing_node.get("max_validity_hours")
+            if max_validity_hours is None:
+                issued_at = _parse_db_datetime(existing_node["issued_at"])
+                expires_at = _parse_db_datetime(existing_node["expires_at"])
+                max_validity_hours = max(
+                    1,
+                    math.ceil((expires_at - issued_at).total_seconds() / 3600),
+                )
+
+            requested_validity_hours = validity_hours
+            capped_validity_hours = min(requested_validity_hours, int(max_validity_hours))
+            if requested_validity_hours > capped_validity_hours:
+                logger.info(
+                    "Capped renewal validity for cert %s from %s to %s hours",
+                    cert_id,
+                    requested_validity_hours,
+                    capped_validity_hours,
+                )
 
             new_cert = service._issue_join_certificate(
                 node_public_key=node_public_key,
                 roles=roles,
-                validity_hours=validity_hours,
+                validity_hours=capped_validity_hours,
             )
             service.db.issue_cert(
                 cert=new_cert,
                 remote_addr=request.remote_addr or "unknown",
                 renewed_from=cert_id,
+                max_validity_hours=int(max_validity_hours),
             )
             service.db.add_audit_event(
                 "certificate_renewed",
