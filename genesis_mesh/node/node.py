@@ -111,6 +111,7 @@ class MeshNode:
         }
         if invite_token:
             request_data["invite_token"] = invite_token
+        request_data = self._sign_request(request_data)
 
         # Send join request
         try:

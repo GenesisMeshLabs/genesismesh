@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
@@ -121,21 +122,40 @@ class NADatabase:
 
         return token.model_copy(update={"used_at": now, "used_by_key": node_key})
 
+    def get_available_invite_token(self, token_id: str) -> Optional[InviteToken]:
+        """Return an unused, unexpired invite token without consuming it."""
+        now = datetime.now(timezone.utc)
+        row = self.conn.execute(
+            "SELECT * FROM invite_tokens WHERE token_id = ?",
+            (token_id,),
+        ).fetchone()
+        if not row:
+            return None
+        token = self._invite_from_row(row)
+        if token.used_at or token.expires_at < now:
+            return None
+        return token
+
     def issue_cert(
         self,
         cert: JoinCertificate,
         remote_addr: str,
         renewed_from: Optional[str] = None,
+        max_validity_hours: Optional[int] = None,
     ) -> None:
         """Persist an issued certificate and its initial node state."""
+        if max_validity_hours is None:
+            validity_seconds = (cert.expires_at - cert.issued_at).total_seconds()
+            max_validity_hours = max(1, math.ceil(validity_seconds / 3600))
+
         with self.conn:
             self.conn.execute(
                 """
                 INSERT INTO issued_certs (
                     cert_id, node_public_key, cert_json, roles_json,
-                    issued_at, expires_at, remote_addr, status, last_heartbeat,
-                    heartbeat_status, renewed_from
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    issued_at, expires_at, max_validity_hours, remote_addr, status,
+                    last_heartbeat, heartbeat_status, renewed_from
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cert.cert_id,
@@ -144,6 +164,7 @@ class NADatabase:
                     json.dumps(cert.roles),
                     cert.issued_at.isoformat(),
                     cert.expires_at.isoformat(),
+                    max_validity_hours,
                     remote_addr,
                     "issued",
                     datetime.now(timezone.utc).isoformat(),

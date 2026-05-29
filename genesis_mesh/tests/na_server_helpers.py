@@ -76,6 +76,7 @@ def join_node(client, node_public_key=None, roles=None, keypair=None, validity_h
     }
     if validity_hours is not None:
         payload["validity_hours"] = validity_hours
+    payload = sign_payload(payload, keypair.private_key)
     resp = client.post("/join", json=payload)
     return resp, resp.get_json(), keypair
 

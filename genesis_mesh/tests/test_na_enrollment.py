@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import generate_keypair, sign_data
 from .na_server_helpers import (
+    create_invite,
     join_node,
     revoke_cert,
     signed_heartbeat,
@@ -44,6 +45,67 @@ def test_join_requires_invite_token(client, node_keypair):
     })
     assert resp.status_code == 403
     assert "invite_token" in resp.get_json()["error"]
+
+
+def test_join_rejects_non_positive_validity(client, node_keypair):
+    """Join refuses zero or negative requested certificate validity."""
+    invite_resp = create_invite(client, roles=["role:client"])
+    payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": invite_resp.get_json()["token_id"],
+            "validity_hours": 0,
+        },
+        node_keypair.private_key,
+    )
+
+    resp = client.post("/join", json=payload)
+
+    assert resp.status_code == 400
+    assert "positive integer" in resp.get_json()["error"]
+
+
+def test_join_requires_node_proof_of_possession(client, node_keypair):
+    """Join with a valid invite requires a signature from the node key."""
+    invite_resp = create_invite(client, roles=["role:client"])
+    assert invite_resp.status_code == 201
+
+    resp = client.post("/join", json={
+        "node_public_key": node_keypair.public_key_b64,
+        "invite_token": invite_resp.get_json()["token_id"],
+    })
+
+    assert resp.status_code == 401
+    assert "authentication" in resp.get_json()["error"].lower()
+
+
+def test_failed_join_proof_does_not_consume_invite(client, node_keypair):
+    """A bad join signature must not burn a single-use invite token."""
+    invite_resp = create_invite(client, roles=["role:client"])
+    assert invite_resp.status_code == 201
+    invite_token = invite_resp.get_json()["token_id"]
+    imposter = generate_keypair()
+    bad_payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": invite_token,
+        },
+        imposter.private_key,
+    )
+
+    bad_resp = client.post("/join", json=bad_payload)
+    assert bad_resp.status_code == 401
+
+    good_payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": invite_token,
+        },
+        node_keypair.private_key,
+    )
+    good_resp = client.post("/join", json=good_payload)
+
+    assert good_resp.status_code == 201
 
 
 def test_join_unknown_invite_token_rejected_cleanly(client, node_keypair):
@@ -194,6 +256,16 @@ def test_renew_missing_public_key(client):
     assert resp.status_code == 400
 
 
+def test_renew_rejects_non_positive_validity(client, node_keypair):
+    """Renewal refuses zero or negative requested certificate validity."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+
+    resp = signed_renew(client, join_data["cert_id"], kp, validity_hours=0)
+
+    assert resp.status_code == 400
+    assert "positive integer" in resp.get_json()["error"]
+
+
 def test_chained_renewal(client, node_keypair):
     """A renewed certificate can itself be renewed."""
     _, join_data, kp = join_node(client, keypair=node_keypair, roles=["role:bridge"])
@@ -333,6 +405,25 @@ def test_heartbeat_nonce_replay_rejected(client, node_keypair):
     assert "replay" in resp2.get_json()["error"].lower()
 
 
+def test_heartbeat_rejects_expired_persisted_certificate(na_service, client, node_keypair):
+    """Heartbeat must enforce server-side certificate expiry from persisted state."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    expired_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with na_service.db.conn:
+        na_service.db.conn.execute(
+            "UPDATE issued_certs SET expires_at = ? WHERE cert_id = ?",
+            (expired_at.isoformat(), join_data["cert_id"]),
+        )
+
+    resp = signed_heartbeat(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    assert "expired" in resp.get_json()["error"].lower()
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "heartbeat_rejected"
+    assert event["details"]["reason"] == "certificate_expired"
+
+
 def test_renew_without_signature_rejected(client, node_keypair):
     """Renewal without auth fields is rejected with 401."""
     _, join_data, kp = join_node(client, keypair=node_keypair)
@@ -355,6 +446,59 @@ def test_renew_with_wrong_signature_rejected(client, node_keypair):
     signed = sign_payload(payload, imposter.private_key)
     resp = client.post("/renew", json=signed)
     assert resp.status_code == 401
+
+
+def test_renew_rejects_expired_persisted_certificate(na_service, client, node_keypair):
+    """Renewal must enforce server-side certificate expiry from persisted state."""
+    _, join_data, kp = join_node(client, keypair=node_keypair)
+    expired_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with na_service.db.conn:
+        na_service.db.conn.execute(
+            "UPDATE issued_certs SET expires_at = ? WHERE cert_id = ?",
+            (expired_at.isoformat(), join_data["cert_id"]),
+        )
+
+    resp = signed_renew(client, join_data["cert_id"], kp)
+
+    assert resp.status_code == 403
+    assert "expired" in resp.get_json()["error"].lower()
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "renewal_rejected"
+    assert event["details"]["reason"] == "certificate_expired"
+
+
+def test_renewal_validity_is_capped_by_original_invite(client, node_keypair):
+    """A short invite cannot be renewed into a longer-lived certificate."""
+    invite_resp = create_invite(
+        client,
+        roles=["role:client"],
+        max_validity_hours=1,
+        token_expiry_hours=24,
+    )
+    assert invite_resp.status_code == 201
+
+    join_resp = client.post(
+        "/join",
+        json=sign_payload({
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": invite_resp.get_json()["token_id"],
+            "validity_hours": 1,
+        }, node_keypair.private_key),
+    )
+    assert join_resp.status_code == 201
+
+    renew_resp = signed_renew(
+        client,
+        join_resp.get_json()["cert_id"],
+        node_keypair,
+        validity_hours=24 * 365,
+    )
+
+    assert renew_resp.status_code == 201
+    renewed = renew_resp.get_json()
+    issued_at = datetime.fromisoformat(renewed["issued_at"])
+    expires_at = datetime.fromisoformat(renewed["expires_at"])
+    assert expires_at - issued_at <= timedelta(hours=1, seconds=5)
 
 
 def test_revoked_heartbeat_logs_audit_reason(na_service, client, node_keypair):
