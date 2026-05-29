@@ -21,6 +21,8 @@ flowchart TD
     init --> dev
 ```
 
+![Genesis Mesh enrollment demo](../examples/assets/genesis-mesh-enrollment.gif)
+
 ## Prerequisites
 
 Install the package in editable mode so the `genesis-mesh` console command is
