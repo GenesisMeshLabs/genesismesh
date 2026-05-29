@@ -1,8 +1,24 @@
 # Genesis Mesh
 
-Genesis Mesh is a permissioned mesh-network project for authenticated peer
-membership, signed policy distribution, certificate revocation, and encrypted
-node-to-node communication.
+Genesis Mesh is a permissioned peer-to-peer networking system for environments
+where every node must be known, enrolled, authenticated, and revocable.
+
+The system has two planes. The Network Authority is the online control plane: it
+issues invite tokens, signs join certificates, publishes policy, and distributes
+certificate revocation lists. Mesh nodes are the data plane: after enrollment,
+they authenticate each other with certificates, establish encrypted Noise XX
+peer sessions, exchange routing information, and forward messages across the
+mesh.
+
+Use Genesis Mesh when you need decentralized node communication without
+anonymous membership: private infrastructure, edge networks, lab environments,
+sovereign or organizational networks, and other deployments where operators
+must be able to admit, audit, and remove nodes.
+
+It is not a public blockchain, anonymous overlay, or permissionless discovery
+network. Trust begins with a signed genesis block, flows through the Network
+Authority, and is enforced by short-lived certificates, operator-signed admin
+actions, and revocation checks.
 
 ```{mermaid}
 flowchart LR
@@ -29,9 +45,9 @@ flowchart LR
     node_b -->|applies| policy
 ```
 
-The documentation is organized by reader intent:
+The documentation is organized by what you are trying to do:
 
-- **Start here** for setup and first-run workflows.
+- **Start here** for setup, local startup, and installation.
 - **Concepts** for architecture, trust, certificate lifecycle, security, and
   routing.
 - **Reference** for CLI, HTTP API, and configuration details.
