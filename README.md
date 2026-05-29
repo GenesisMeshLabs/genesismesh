@@ -83,6 +83,8 @@ secret file is missing.
 
 ## Documentation
 
+Published documentation: https://genesismesh.connectorzzz.com
+
 The documentation site is built with Sphinx, Furo, and MyST:
 
 ```powershell
