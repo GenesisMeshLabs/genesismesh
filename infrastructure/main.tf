@@ -111,11 +111,12 @@ resource "google_compute_instance" "sovereign" {
 }
 
 resource "alicloud_instance" "sovereign" {
-  count         = local.is_alibaba ? 1 : 0
-  instance_name = var.node_name
-  instance_type = var.alibaba_instance_type
-  image_id      = var.alibaba_image_id
-  vswitch_id    = var.alibaba_vswitch_id
+  count           = local.is_alibaba ? 1 : 0
+  instance_name   = var.node_name
+  instance_type   = var.alibaba_instance_type
+  image_id        = var.alibaba_image_id
+  vswitch_id      = var.alibaba_vswitch_id
+  security_groups = var.alibaba_security_group_ids
 
   user_data = base64encode(local.user_data)
 }

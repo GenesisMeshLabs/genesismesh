@@ -46,7 +46,7 @@ module "sovereign_node" {
 
   azure_resource_group_name = "my-resource-group"
   azure_location            = "eastus"
-  azure_subnet_id           = "/subscriptions/.../networkInterfaces/..."
+  azure_network_interface_id = "/subscriptions/.../networkInterfaces/..."
   azure_ssh_public_key      = file("~/.ssh/id_rsa.pub")
 }
 ```
@@ -80,6 +80,7 @@ module "sovereign_node" {
   alibaba_instance_type = "ecs.c7.large"
   alibaba_image_id      = "ubuntu_22_04_x64_20G_alibase_xxxx"
   alibaba_vswitch_id    = "vsw-xxxxxxxx"
+  alibaba_security_group_ids = ["sg-xxxxxxxx"]
 }
 ```
 
@@ -153,7 +154,8 @@ It generates local keys and writes generated genesis artifacts under
 ### Azure
 - `azure_resource_group_name` - Resource group name
 - `azure_location` - Azure region (e.g., "eastus")
-- `azure_subnet_id` - Network interface ID
+- `azure_network_interface_id` - Azure network interface ID
+- `azure_subnet_id` - Deprecated compatibility alias for `azure_network_interface_id`
 - `azure_ssh_public_key` - SSH public key content (required)
 
 ### GCP
@@ -164,6 +166,7 @@ It generates local keys and writes generated genesis artifacts under
 - `alibaba_instance_type` - Instance type (e.g., "ecs.c7.large")
 - `alibaba_image_id` - Image ID
 - `alibaba_vswitch_id` - VSwitch ID
+- `alibaba_security_group_ids` - Security group IDs attached to the instance
 
 ### Generic SSH
 - `generic_ssh_host` - Target host IP/hostname

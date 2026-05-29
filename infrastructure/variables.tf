@@ -20,38 +20,38 @@ variable "genesis_uri" {
 }
 
 variable "aws_ami" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "aws_instance_type" {
-  type        = string
-  default     = "t3.large"
+  type    = string
+  default = "t3.large"
 }
 
 variable "aws_subnet_id" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "aws_security_group_ids" {
-  type        = list(string)
-  default     = []
+  type    = list(string)
+  default = []
 }
 
 variable "azure_resource_group_name" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "azure_location" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "azure_vm_size" {
-  type        = string
-  default     = "Standard_D4s_v5"
+  type    = string
+  default = "Standard_D4s_v5"
 }
 
 variable "azure_subnet_id" {
@@ -73,51 +73,57 @@ variable "azure_ssh_public_key" {
 }
 
 variable "gcp_project" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "gcp_zone" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "gcp_machine_type" {
-  type        = string
-  default     = "e2-standard-4"
+  type    = string
+  default = "e2-standard-4"
 }
 
 variable "gcp_network" {
-  type        = string
-  default     = "default"
+  type    = string
+  default = "default"
 }
 
 variable "alibaba_instance_type" {
-  type        = string
-  default     = "ecs.c7.large"
+  type    = string
+  default = "ecs.c7.large"
 }
 
 variable "alibaba_image_id" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "alibaba_vswitch_id" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
+}
+
+variable "alibaba_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "Alibaba Cloud security group IDs attached to the instance."
 }
 
 variable "generic_ssh_host" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "generic_ssh_user" {
-  type        = string
-  default     = "root"
+  type    = string
+  default = "root"
 }
 
 variable "generic_ssh_private_key" {
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
