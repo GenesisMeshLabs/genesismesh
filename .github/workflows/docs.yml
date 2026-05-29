@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -46,6 +47,10 @@ jobs:
         run: |
           python -m sphinx -b html -W docs docs/pages
           touch docs/pages/.nojekyll
+
+      - name: Configure GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
