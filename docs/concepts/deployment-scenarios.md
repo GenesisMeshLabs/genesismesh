@@ -38,9 +38,9 @@ and lets the operator revoke a compromised or retired agent identity.
 ```{mermaid}
 flowchart LR
     na["Network Authority"]
-    factory_a["Factory A\nEdge Node"]
-    factory_b["Factory B\nEdge Node"]
-    factory_c["Factory C\nEdge Node"]
+    factory_a["Factory A<br/>Edge Node"]
+    factory_b["Factory B<br/>Edge Node"]
+    factory_c["Factory C<br/>Edge Node"]
     control["Operations Control"]
 
     na -->|certs, policy, CRL| factory_a

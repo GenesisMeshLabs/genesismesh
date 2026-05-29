@@ -19,9 +19,9 @@ flowchart TD
     edge["Need managed global execution without owning the trust root?"]
     sovereign["Need sovereign identity, enrollment, authorization, routing, and revocation?"]
 
-    tailscale["Use a VPN or overlay network\nsuch as Tailscale or ZeroTier"]
-    consul["Use service-discovery infrastructure\nsuch as Consul"]
-    istio["Use a Kubernetes service mesh\nsuch as Istio, Linkerd, or similar"]
+    tailscale["Use a VPN or overlay network<br/>such as Tailscale or ZeroTier"]
+    consul["Use service-discovery infrastructure<br/>such as Consul"]
+    istio["Use a Kubernetes service mesh<br/>such as Istio, Linkerd, or similar"]
     managed["Use a managed edge platform"]
     genesis["Use Genesis Mesh"]
 

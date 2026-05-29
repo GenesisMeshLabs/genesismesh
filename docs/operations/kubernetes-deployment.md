@@ -13,8 +13,8 @@ flowchart TB
     ingress["Ingress / Load Balancer"]
     svc["Service :8443"]
     deploy["Network Authority Deployment"]
-    secret["Kubernetes Secret\nGenesis + NA key"]
-    pvc["PersistentVolumeClaim\nSQLite DB"]
+    secret["Kubernetes Secret<br/>Genesis + NA key"]
+    pvc["PersistentVolumeClaim<br/>SQLite DB"]
     nodes["External Mesh Nodes"]
 
     ingress --> svc

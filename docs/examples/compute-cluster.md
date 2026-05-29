@@ -7,10 +7,10 @@ are known, authorized, routeable, and revocable.
 ```{mermaid}
 flowchart LR
     na["Network Authority"]
-    scheduler["Scheduler\nrole:scheduler"]
-    worker_a["Worker A\nrole:worker"]
-    worker_b["Worker B\nrole:worker"]
-    worker_c["Worker C\nrole:worker"]
+    scheduler["Scheduler<br/>role:scheduler"]
+    worker_a["Worker A<br/>role:worker"]
+    worker_b["Worker B<br/>role:worker"]
+    worker_c["Worker C<br/>role:worker"]
 
     na -->|cert| scheduler
     na -->|cert| worker_a

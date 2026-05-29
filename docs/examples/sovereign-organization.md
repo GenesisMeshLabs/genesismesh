@@ -5,13 +5,13 @@ of trust for its internal node network.
 
 ```{mermaid}
 flowchart TB
-    root["Root Sovereign\nOffline"]
+    root["Root Sovereign<br/>Offline"]
     genesis["Signed Genesis Block"]
     na["Network Authority"]
-    hq["HQ Node\nrole:anchor"]
-    branch_a["Branch A\nrole:branch"]
-    branch_b["Branch B\nrole:branch"]
-    branch_c["Branch C\nrole:branch"]
+    hq["HQ Node<br/>role:anchor"]
+    branch_a["Branch A<br/>role:branch"]
+    branch_b["Branch B<br/>role:branch"]
+    branch_c["Branch C<br/>role:branch"]
 
     root -->|signs| genesis
     genesis -->|authorizes| na
