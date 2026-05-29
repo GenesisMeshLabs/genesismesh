@@ -4,6 +4,12 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
 
+## Live Demo
+
+**Network Authority** — https://na.genesismesh.connectorzzz.com
+
+Public Azure deployment online since 2026-05-30.
+
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
 
 **Trust can be revoked.**
