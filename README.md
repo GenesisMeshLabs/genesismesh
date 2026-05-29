@@ -1,32 +1,38 @@
 # Genesis Mesh
 
+![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
+
+**Trust can be revoked.**
+
+A revoked node is removed from the active set, added to a signed CRL, and
+immediately rejected by heartbeat, renewal, handshake, and routing checks.
+
+Genesis Mesh treats revocation as a first-class control-plane action. When an
+operator revokes a certificate, the Network Authority publishes a new signed
+CRL, removes the node from the active set, and rejects further heartbeat,
+renewal, peer handshake, and routing activity from that identity.
+
+---
+
 Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
 agents, edge systems, and distributed infrastructure.
 
 It answers the operational questions that basic mesh networking leaves open:
-who is allowed to be a node, how peers prove identity, what each node is allowed
-to do, how messages reach the right peer, and how a compromised or retired
-identity is removed.
+who is allowed to be a node, how peers prove identity, what each node is
+allowed to do, how messages reach the right peer, and how a compromised or
+retired identity is removed.
 
 Genesis Mesh combines five capabilities in one trust fabric:
 
-- **Identity**: every node has an Ed25519 identity and a signed join
-  certificate.
+- **Identity**: every node has an Ed25519 identity and a signed join certificate.
 - **Trust**: a signed genesis block, Network Authority, operator keys, and CRLs
   define who the network trusts.
-- **Routing**: authenticated peers can discover routes and forward messages
-  without depending on the Network Authority for every data exchange.
+- **Routing**: authenticated peers discover routes and forward messages without
+  depending on the Network Authority for every data exchange.
 - **Authorization**: enrollment roles, policy manifests, RBAC, and signed admin
   actions define what identities may do.
 - **Sovereignty**: the operator owns the trust chain, membership process,
   revocation process, and policy distribution path.
-
-The immediate use case is controlled infrastructure: private agent networks,
-edge services, lab environments, sovereign organizational networks, and
-distributed systems where anonymous membership is unacceptable. The longer-term
-direction is an agent infrastructure layer for autonomous software, device
-agents, enterprise agents, and services that need cryptographic identity,
-permissioned communication, and revocation-aware trust.
 
 Every enrolled node holds a signed join certificate issued by the Network
 Authority. Peer sessions are encrypted with the Noise XX protocol, deriving
@@ -51,25 +57,6 @@ Use Genesis Mesh when your system needs:
 
 Do not use it when you only need public peer discovery, anonymous networking, a
 general service mesh for Kubernetes ingress, or a permissionless blockchain.
-
-## Trust Can Be Revoked
-
-Genesis Mesh treats revocation as a first-class control-plane action. When an
-operator revokes a certificate, the Network Authority publishes a new signed CRL,
-removes the node from the active set, and rejects further heartbeat and renewal
-attempts from that identity. Runtime enforcement also rejects revoked peer
-handshakes and route announcements.
-
-![Genesis Mesh revocation demo](docs/examples/assets/revocation-demo.svg)
-
-Proven by the revocation demo:
-
-- signed CRL published
-- revoked node removed from the active set
-- heartbeat rejected with `403`
-- renewal rejected with `403`
-- local certificate reuse rejected
-- runtime revocation tests passed
 
 ## Architecture
 
@@ -98,6 +85,10 @@ flowchart TD
 At a high level, the Network Authority admits identities and publishes trust
 state. Nodes use that state to communicate directly, route messages, and reject
 revoked peers.
+
+## Documentation
+
+[Documentation Website](https://genesismesh.connectorzzz.com)
 
 ## Requirements
 
@@ -164,10 +155,6 @@ two mounted secrets and fails closed if either is absent:
 The NA private key never leaves the NA process.
 
 Health and readiness probes are available at `/healthz` and `/readyz`.
-
-## Documentation
-
-https://genesismesh.connectorzzz.com
 
 ## Repository Layout
 

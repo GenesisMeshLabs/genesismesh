@@ -44,6 +44,7 @@ genesis-mesh.toml
 env/
 venv/
 ENV/
+.venv-linux
 
 # Local keys, certificates, and secrets
 *.key
