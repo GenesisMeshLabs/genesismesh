@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
@@ -80,7 +80,7 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 "node_public_key": node_public_key,
                 "roles": roles,
                 "status": "joined",
-                "last_heartbeat": datetime.utcnow().isoformat(),
+                "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                 "remote_addr": remote_addr,
             }
             logger.info("Issued join certificate %s for roles %s", cert.cert_id, roles)
@@ -122,7 +122,7 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 logger.warning("Heartbeat auth failed for %s...: %s", cert_id[:8], auth_err)
                 return jsonify({"error": auth_err}), 401
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             service.db.mark_heartbeat(
                 cert_id=cert_id,
                 status=status,

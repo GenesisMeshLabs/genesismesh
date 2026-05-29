@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -338,7 +338,7 @@ class MeshNodeRuntime:
             cert = self.node.join_certificate
             if cert:
                 self.metrics.update_certificate_expiry(
-                    max((cert.expires_at - datetime.utcnow()).total_seconds(), 0.0)
+                    max((cert.expires_at - datetime.now(timezone.utc)).total_seconds(), 0.0)
                 )
 
             crl = self.crl_gossip.get_current_crl()
@@ -447,7 +447,7 @@ class MeshNodeRuntime:
         if not cert:
             return {"has_certificate": False, "error": "No certificate"}
         lifetime = max((cert.expires_at - cert.issued_at).total_seconds(), 1.0)
-        remaining = max((cert.expires_at - datetime.utcnow()).total_seconds(), 0.0)
+        remaining = max((cert.expires_at - datetime.now(timezone.utc)).total_seconds(), 0.0)
         return {
             "has_certificate": True,
             "certificate_id": cert.cert_id,

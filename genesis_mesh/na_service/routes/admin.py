@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
@@ -81,7 +81,7 @@ def create_admin_blueprint(service) -> Blueprint:
 
             policy = PolicyManifest(
                 policy_id=data.get("policy_id") or f"policy-{uuid.uuid4()}",
-                issued_at=datetime.utcnow(),
+                issued_at=datetime.now(timezone.utc),
                 issued_by=service.key_id,
                 min_client_version=data.get("min_client_version", "0.1.0"),
                 allowed_ports=data.get("allowed_ports", [443, 8443]),

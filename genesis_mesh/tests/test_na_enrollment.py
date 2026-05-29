@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import generate_keypair, sign_data
 from .na_server_helpers import (
@@ -260,7 +260,7 @@ def test_heartbeat_stale_timestamp_rejected(client, node_keypair):
         "cert_id": join_data["cert_id"],
         "node_public_key": kp.public_key_b64,
         "status": "healthy",
-        "timestamp": (datetime.utcnow() - timedelta(minutes=10)).isoformat(),
+        "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(),
         "nonce": str(uuid.uuid4()),
     }
     canonical = json.dumps(

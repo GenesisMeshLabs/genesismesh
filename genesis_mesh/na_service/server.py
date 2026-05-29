@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from flask import Flask
@@ -144,7 +144,7 @@ class NetworkAuthorityService:
         Returns:
             Signed join certificate.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cert = JoinCertificate(
             cert_id=str(uuid.uuid4()),
             node_public_key=node_public_key,
@@ -160,7 +160,7 @@ class NetworkAuthorityService:
 
     def _get_default_policy(self) -> PolicyManifest:
         """Return the default signed policy manifest."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         policy = PolicyManifest(
             policy_id=(
                 f"policy-{self.genesis_block.network_name}-"

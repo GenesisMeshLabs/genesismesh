@@ -1,7 +1,7 @@
 """Certificate Revocation List (CRL) models."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -51,7 +51,7 @@ class CertificateRevocationList(BaseModel):
 
     def is_expired(self) -> bool:
         """Check if CRL should be updated."""
-        return datetime.utcnow() > self.next_update
+        return datetime.now(timezone.utc) > self.next_update
 
     @staticmethod
     def create_empty(
@@ -61,7 +61,7 @@ class CertificateRevocationList(BaseModel):
     ) -> "CertificateRevocationList":
         """Create an empty CRL."""
         import uuid
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return CertificateRevocationList(
             crl_id=str(uuid.uuid4()),
             sequence=sequence,
@@ -82,7 +82,7 @@ class CertificateRevocationList(BaseModel):
         import uuid
         revoked = RevokedCertificate(
             certificate_id=cert_id,
-            revoked_at=datetime.utcnow(),
+            revoked_at=datetime.now(timezone.utc),
             reason=reason,
             issuer=issuer
         )
@@ -91,7 +91,7 @@ class CertificateRevocationList(BaseModel):
         new_crl = CertificateRevocationList(
             crl_id=str(uuid.uuid4()),
             sequence=crl.sequence + 1,
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(timezone.utc),
             next_update=crl.next_update,
             issuer=crl.issuer,
             revoked_certificates=crl.revoked_certificates + [revoked],

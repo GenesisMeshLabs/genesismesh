@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from genesis_mesh.crypto import generate_keypair, sign_data
 
 
 def sign_payload(payload: dict, private_key) -> dict:
     """Add timestamp, nonce, and Ed25519 signature to a request payload."""
-    payload["timestamp"] = datetime.utcnow().isoformat()
+    payload["timestamp"] = datetime.now(timezone.utc).isoformat()
     payload["nonce"] = str(uuid.uuid4())
     canonical = json.dumps(
         {k: v for k, v in sorted(payload.items()) if k != "signature"},
@@ -24,7 +24,7 @@ def sign_payload(payload: dict, private_key) -> dict:
 
 def admin_headers(client, body: dict, key_id: str = "operator-test") -> dict:
     """Create operator-auth headers for an admin request body."""
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     nonce = str(uuid.uuid4())
     canonical = json.dumps(
         {

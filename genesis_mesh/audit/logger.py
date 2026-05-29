@@ -3,7 +3,7 @@
 import json
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
@@ -159,7 +159,7 @@ class AuditLogger:
         event = AuditEvent(
             event_id=str(uuid.uuid4()),
             event_type=event_type,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             node_id=self.node_id,
             actor=actor,
             target=target,

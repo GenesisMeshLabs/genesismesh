@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import websockets
@@ -24,7 +24,7 @@ from genesis_mesh.node.runtime import _ExpectedWebSocketProbeFilter
 
 def _make_signed_genesis(root_keypair, na_keypair) -> GenesisBlock:
     """Create a root-signed genesis block for runtime tests."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     genesis = GenesisBlock(
         network_name="testnet",
         network_version="v0.1",
@@ -44,7 +44,7 @@ def _make_signed_genesis(root_keypair, na_keypair) -> GenesisBlock:
 
 def _make_join_certificate(node_keypair, genesis: GenesisBlock, na_keypair) -> JoinCertificate:
     """Create an NA-signed join certificate for a test node."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cert = JoinCertificate(
         cert_id=f"cert-{node_keypair.public_key_b64[:8]}",
         node_public_key=node_keypair.public_key_b64,
@@ -151,7 +151,7 @@ async def test_runtime_rejects_revoked_peer_certificate():
         listen_port=0,
     )
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     crl = CertificateRevocationList(
         crl_id="crl-revoked-a",
         sequence=1,

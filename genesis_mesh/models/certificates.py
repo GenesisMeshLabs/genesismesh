@@ -1,6 +1,6 @@
 """Certificate models for node and service identities."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -39,7 +39,7 @@ class JoinCertificate(BaseModel):
     def is_valid(self, current_time: Optional[datetime] = None) -> bool:
         """Check if certificate is currently valid."""
         if current_time is None:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
         # Allow 5 minutes of clock skew
         max_skew = timedelta(minutes=5)
         return (self.issued_at - max_skew) <= current_time <= (self.expires_at + max_skew)
@@ -71,5 +71,5 @@ class ServiceManifest(BaseModel):
     def is_valid(self, current_time: Optional[datetime] = None) -> bool:
         """Check if manifest is currently valid."""
         if current_time is None:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
         return self.issued_at <= current_time <= self.valid_to

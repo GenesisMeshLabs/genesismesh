@@ -1,7 +1,7 @@
 """Authentication helpers for Network Authority HTTP requests."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -58,7 +58,7 @@ def verify_node_request_signature(
     except (ValueError, TypeError):
         return False, "Invalid timestamp format"
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
         return False, f"Request timestamp too old ({age:.0f}s > {service._nonce_max_age:.0f}s)"
@@ -104,7 +104,7 @@ def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
     except (ValueError, TypeError):
         return False, "Invalid admin timestamp"
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
         return False, "Admin request timestamp too old"

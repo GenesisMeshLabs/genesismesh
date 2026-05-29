@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from genesis_mesh.crypto import sign_model
 from genesis_mesh.na_service.server import NetworkAuthorityService
@@ -43,7 +43,7 @@ def test_na_restart_preserves_persisted_state(tmp_path, na_service, node_keypair
         validity_hours=24,
     )
     first.db.issue_cert(cert, "127.0.0.1")
-    first.db.add_nonce("node:test", "nonce-1", datetime.utcnow())
+    first.db.add_nonce("node:test", "nonce-1", datetime.now(timezone.utc))
 
     crl = first.db.revoke_cert(cert.cert_id, "key_compromise", first.key_id)
     crl.signatures.append(sign_model(crl, first.na_private_key, first.key_id))

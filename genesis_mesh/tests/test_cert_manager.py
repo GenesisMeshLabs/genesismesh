@@ -1,7 +1,7 @@
 """Tests for CertificateManager attribute name fixes."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,7 +12,7 @@ from genesis_mesh.node.cert_manager import CertificateManager
 
 def _make_cert(hours_remaining: float = 100, total_hours: float = 168) -> JoinCertificate:
     """Create a JoinCertificate with controllable validity window."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return JoinCertificate(
         cert_id="cert-abc-123",
         node_public_key="dGVzdC1rZXk=",
@@ -26,7 +26,7 @@ def _make_cert(hours_remaining: float = 100, total_hours: float = 168) -> JoinCe
 
 def _make_expired_cert() -> JoinCertificate:
     """Create an expired JoinCertificate."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return JoinCertificate(
         cert_id="cert-expired-456",
         node_public_key="dGVzdC1rZXk=",

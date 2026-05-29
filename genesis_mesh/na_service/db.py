@@ -3,7 +3,7 @@
 import json
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 import uuid
@@ -52,7 +52,7 @@ class NADatabase:
                 self.conn.executescript(sql)
                 self.conn.execute(
                     "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, ?)",
-                    (version, datetime.utcnow().isoformat()),
+                    (version, datetime.now(timezone.utc).isoformat()),
                 )
 
     def create_invite_token(
@@ -62,7 +62,7 @@ class NADatabase:
         token_expiry_hours: int,
     ) -> InviteToken:
         """Create and persist a single-use invite token."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         token = InviteToken(
             token_id=str(uuid.uuid4()),
             assigned_roles=assigned_roles,
@@ -92,7 +92,7 @@ class NADatabase:
 
     def use_invite_token(self, token_id: str, node_key: str) -> Optional[InviteToken]:
         """Atomically mark an unused, unexpired token as used."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         with self.conn:
             row = self.conn.execute(
                 "SELECT * FROM invite_tokens WHERE token_id = ?",
@@ -143,7 +143,7 @@ class NADatabase:
                     cert.expires_at.isoformat(),
                     remote_addr,
                     "issued",
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     "joined",
                     renewed_from,
                 ),
@@ -184,7 +184,7 @@ class NADatabase:
                 SET last_heartbeat = ?, heartbeat_status = ?, remote_addr = ?
                 WHERE cert_id = ?
                 """,
-                (datetime.utcnow().isoformat(), status, remote_addr, cert_id),
+                (datetime.now(timezone.utc).isoformat(), status, remote_addr, cert_id),
             )
 
     def add_nonce(self, scope: str, nonce: str, created_at: datetime) -> None:
@@ -205,7 +205,7 @@ class NADatabase:
 
     def cleanup_expired_nonces(self, max_age_secs: int) -> None:
         """Delete nonce records older than the configured replay window."""
-        cutoff = datetime.utcnow() - timedelta(seconds=max_age_secs)
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_secs)
         with self.conn:
             self.conn.execute(
                 "DELETE FROM nonces WHERE created_at < ?",
@@ -226,7 +226,7 @@ class NADatabase:
                     crl.sequence,
                     crl.model_dump_json(),
                     1 if active else 0,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                 ),
             )
 
@@ -258,15 +258,15 @@ class NADatabase:
 
         revoked = RevokedCertificate(
             certificate_id=cert_id,
-            revoked_at=datetime.utcnow(),
+            revoked_at=datetime.now(timezone.utc),
             reason=reason,
             issuer=issuer,
         )
         crl = CertificateRevocationList(
             crl_id=str(uuid.uuid4()),
             sequence=current.sequence + 1,
-            issued_at=datetime.utcnow(),
-            next_update=datetime.utcnow() + timedelta(hours=24),
+            issued_at=datetime.now(timezone.utc),
+            next_update=datetime.now(timezone.utc) + timedelta(hours=24),
             issuer=current.issuer,
             revoked_certificates=current.revoked_certificates + [revoked],
             signatures=[],
@@ -297,7 +297,7 @@ class NADatabase:
                     policy.policy_id,
                     policy.model_dump_json(),
                     1 if active else 0,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                 ),
             )
 
@@ -350,7 +350,7 @@ class NADatabase:
             "event_id": event_id,
             "event_type": event_type,
             "details": details,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         with self.conn:
             self.conn.execute(

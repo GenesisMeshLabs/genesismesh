@@ -36,15 +36,15 @@ def _make_control_message(
     target: str | None = None,
 ) -> ControlMessageModel:
     """Create a signed control message."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     msg = ControlMessageModel(
         message_id=message_id,
         command=command,
         scope=ControlScope.NETWORK,
         issuer="test-issuer",
         issuer_roles=roles or ["role:operator"],
-        issued_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         target=target,
         data={"policy": {"policy_id": "test"}},
     )

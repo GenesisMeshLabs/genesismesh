@@ -1,7 +1,7 @@
 """Tests for data models."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from genesis_mesh.models import (
     GenesisBlock,
     NetworkAuthority,
@@ -13,7 +13,7 @@ from genesis_mesh.models import (
 
 def test_genesis_block_creation():
     """Test genesis block model creation."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     genesis = GenesisBlock(
         network_name="USG",
@@ -38,7 +38,7 @@ def test_genesis_block_creation():
 
 def test_join_certificate_validity():
     """Test join certificate validity checking."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Valid certificate
     cert = JoinCertificate(
@@ -82,7 +82,7 @@ def test_join_certificate_validity():
 
 def test_policy_manifest_creation():
     """Test policy manifest model creation."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     policy = PolicyManifest(
         policy_id="policy-usg-v0.1",
@@ -100,7 +100,7 @@ def test_policy_manifest_creation():
 
 def test_canonical_json_excludes_signatures():
     """Test that canonical JSON excludes signatures."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     cert = JoinCertificate(
         cert_id="test-123",
