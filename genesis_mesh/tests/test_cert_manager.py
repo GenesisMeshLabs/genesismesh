@@ -179,6 +179,7 @@ async def test_attempt_renewal_accepts_valid_cert():
     callback_called = []
 
     async def on_renewed(cert):
+        """Record the renewed certificate passed to the callback."""
         callback_called.append(cert)
 
     cm = CertificateManager(

@@ -37,6 +37,7 @@ def _make_checker(
 async def test_connectivity_healthy_all_reachable():
     """All probed peers respond → HEALTHY."""
     async def mock_probe(pid):
+        """Return a healthy round-trip time for every peer."""
         return 0.025  # 25ms
 
     checker = _make_checker(
@@ -62,6 +63,7 @@ async def test_connectivity_degraded_partial_failure():
     call_count = 0
 
     async def mock_probe(pid):
+        """Return one success followed by failed probes."""
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -87,6 +89,7 @@ async def test_connectivity_degraded_partial_failure():
 async def test_connectivity_unhealthy_all_fail():
     """All probed peers fail → UNHEALTHY."""
     async def mock_probe(pid):
+        """Return no round-trip time for every peer."""
         return None
 
     checker = _make_checker(
@@ -105,6 +108,7 @@ async def test_connectivity_unhealthy_all_fail():
 async def test_connectivity_unhealthy_no_peers():
     """No peers available to probe → UNHEALTHY."""
     async def mock_probe(pid):
+        """Return a round-trip time if a peer is ever probed."""
         return 0.001
 
     checker = _make_checker(
@@ -126,6 +130,7 @@ async def test_connectivity_unhealthy_no_peers():
 async def test_connectivity_timeout_counts_as_failure():
     """Probes that time out count as failures."""
     async def mock_probe(pid):
+        """Sleep long enough for the health checker timeout to fire."""
         await asyncio.sleep(999)  # will be cancelled by timeout
 
     checker = _make_checker(
@@ -165,6 +170,7 @@ async def test_connectivity_skipped_without_probe_callback():
 async def test_connectivity_probe_exception_counts_as_failure():
     """Probes that raise exceptions count as failures."""
     async def mock_probe(pid):
+        """Raise a connection error for the probed peer."""
         raise ConnectionError("peer unreachable")
 
     checker = _make_checker(
@@ -186,6 +192,7 @@ async def test_connectivity_probe_exception_counts_as_failure():
 async def test_deep_check_includes_connectivity():
     """Deep health check runs connectivity probing."""
     async def mock_probe(pid):
+        """Return a healthy round-trip time during deep checks."""
         return 0.015
 
     checker = _make_checker(
@@ -203,6 +210,7 @@ async def test_deep_check_includes_connectivity():
 async def test_shallow_check_skips_connectivity():
     """Shallow (non-deep) health check does NOT run connectivity probing."""
     async def mock_probe(pid):
+        """Return a healthy round-trip time if shallow checks probe."""
         return 0.015
 
     checker = _make_checker(
