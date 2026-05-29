@@ -4,11 +4,27 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
 
-## Live Demo
+## Live Deployment
 
-**Network Authority** — https://na.genesismesh.connectorzzz.com
+A public Network Authority is running on Azure (Sweden Central) at:
 
-Public Azure deployment online since 2026-05-30.
+**https://na.genesismesh.connectorzzz.com**
+
+| Endpoint | What it shows |
+|----------|--------------|
+| [`/healthz`](https://na.genesismesh.connectorzzz.com/healthz) | Process liveness |
+| [`/readyz`](https://na.genesismesh.connectorzzz.com/readyz) | DB and key readiness |
+| [`/nodes`](https://na.genesismesh.connectorzzz.com/nodes) | Active enrolled nodes |
+| [`/crl`](https://na.genesismesh.connectorzzz.com/crl) | Signed certificate revocation list |
+| [`/genesis`](https://na.genesismesh.connectorzzz.com/genesis) | Signed network trust root |
+
+Two nodes are currently enrolled from separate IPs — one co-located on the Azure VM, one remote. Both show `status: healthy` with active heartbeats.
+
+![NA dashboard showing 2 active nodes](docs/examples/assets/na-dashboard.png)
+
+![/nodes endpoint showing two enrolled nodes with different remote addresses](docs/examples/assets/na-nodes.png)
+
+Online since 2026-05-30.
 
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
 
