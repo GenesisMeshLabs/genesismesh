@@ -150,6 +150,7 @@ class MeshNodeRuntime:
         self._server = None
         self._running = False
         self._monitor_task: Optional[asyncio.Task] = None
+        self._heartbeat_task: Optional[asyncio.Task] = None
 
     async def start(self):
         """Start the runtime and all P2P subsystems."""
@@ -177,11 +178,19 @@ class MeshNodeRuntime:
         self._monitor_task = asyncio.create_task(self._monitor_loop())
 
         await self._bootstrap_anchors()
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         logger.info("Mesh node runtime started")
 
     async def stop(self):
         """Stop the runtime and close all peer connections."""
         self._running = False
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            self._heartbeat_task = None
         if self._monitor_task:
             self._monitor_task.cancel()
             try:
