@@ -17,7 +17,6 @@ jobs:
   terraform:
     name: "${{ github.event.inputs.action }}"
     runs-on: ubuntu-latest
-    environment: azure-production
 
     permissions:
       id-token: write   # required for OIDC
