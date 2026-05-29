@@ -99,8 +99,90 @@ docker run --rm \
 Do not run two Network Authority processes against the same SQLite database
 file. Genesis Mesh treats SQLite as a single-writer deployment store.
 
-## Azure Helpers
+## Azure VM Deployment
 
-Azure Container Apps helper scripts live under `infrastructure/azure/`. They are
-deployment helpers, not a substitute for production secret mounting and policy
-review.
+The `infrastructure/azure/` directory contains a self-contained Terraform
+configuration that provisions a complete Network Authority environment on Azure:
+a resource group, virtual network, subnet, public IP, NSG, network interface,
+and a Linux VM running Ubuntu 22.04.
+
+The smallest supported VM size is **Standard_B1ms** (1 vCPU, 2 GB RAM). Run
+Gunicorn with `WEB_CONCURRENCY=1` on that size.
+
+### One-time setup
+
+**Create a service principal:**
+
+```bash
+az ad sp create-for-rbac --name genesis-mesh-deploy \
+  --role Contributor \
+  --scopes /subscriptions/<SUBSCRIPTION_ID>
+```
+
+Save the output — you need `clientId`, `clientSecret`, `subscriptionId`, and
+`tenantId`.
+
+**Create Terraform remote state storage:**
+
+```bash
+az group create -n terraform-state-rg -l swedencentral
+az storage account create \
+  -n tfstategenesismesh -g terraform-state-rg -l swedencentral --sku Standard_LRS
+az storage container create -n tfstate --account-name tfstategenesismesh
+```
+
+### GitHub Actions deployment
+
+The workflow lives at `.github/workflows/deploy-azure.yml`. It is triggered
+manually from the Actions tab with a choice of `plan`, `apply`, or `destroy`.
+
+**GitHub Secrets** (Settings → Secrets and variables → Actions → Secrets):
+
+| Secret | Value |
+|--------|-------|
+| `AZURE_CLIENT_ID` | `clientId` from service principal |
+| `AZURE_CLIENT_SECRET` | `clientSecret` from service principal |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `AZURE_TENANT_ID` | `tenantId` from service principal |
+| `NA_SSH_PUBLIC_KEY` | Contents of `~/.ssh/id_rsa.pub` |
+| `NA_ADMIN_CIDR` | Your IP as `x.x.x.x/32` for SSH access |
+
+**GitHub Variables** (Settings → Secrets and variables → Actions → Variables):
+
+| Variable | Value |
+|----------|-------|
+| `AZURE_LOCATION` | Azure region, e.g. `swedencentral` |
+| `TF_STATE_RESOURCE_GROUP` | `terraform-state-rg` |
+| `TF_STATE_STORAGE_ACCOUNT` | `tfstategenesismesh` |
+
+**Running the workflow:**
+
+1. Go to Actions → Deploy Network Authority to Azure → Run workflow.
+2. Select `plan` and confirm the resources look correct.
+3. Run again with `apply` to provision.
+4. The workflow prints the public IP, SSH command, and NA endpoint on completion.
+
+To tear down: run the workflow with `destroy`.
+
+### Local Terraform run
+
+If you prefer to run Terraform directly without the GitHub Action:
+
+```bash
+cd infrastructure/azure
+
+terraform init \
+  -backend-config="resource_group_name=terraform-state-rg" \
+  -backend-config="storage_account_name=tfstategenesismesh" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=genesis-mesh-na.tfstate"
+
+terraform plan \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)" \
+  -var="admin_cidr=YOUR_IP/32"
+
+terraform apply -auto-approve
+```
+
+Do not commit `terraform.tfvars` or `.terraform/` — they contain credentials
+and provider binaries.

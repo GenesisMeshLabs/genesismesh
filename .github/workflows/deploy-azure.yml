@@ -1,0 +1,64 @@
+name: Deploy Network Authority to Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+  terraform:
+    name: "${{ github.event.inputs.action }}"
+    runs-on: ubuntu-latest
+    environment: azure-production
+
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+      TF_VAR_ssh_public_key: ${{ secrets.NA_SSH_PUBLIC_KEY }}
+      TF_VAR_admin_cidr:     ${{ secrets.NA_ADMIN_CIDR }}
+      TF_VAR_location:       ${{ vars.AZURE_LOCATION }}
+
+    defaults:
+      run:
+        working-directory: infrastructure/azure
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=genesis-mesh-na.tfstate"
+
+      - name: Terraform plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform apply
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+
+      - name: Show outputs
+        if: github.event.inputs.action == 'apply'
+        run: terraform output
