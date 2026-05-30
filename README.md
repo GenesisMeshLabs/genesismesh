@@ -21,6 +21,20 @@
 
 ![/nodes endpoint showing two enrolled nodes with different remote addresses](docs/examples/assets/na-nodes.png)
 
+## Multi-Hop Routing
+
+Node A and Node C connect only to Node B. A message from A to C is forwarded by B — proving distance-vector routing and DATA frame forwarding across three hops.
+
+![Genesis Mesh multi-hop routing demo](docs/examples/assets/genesis-mesh-multi-hop.gif)
+
+| | |
+|---|---|
+| Node A | Sender — local machine, fresh identity |
+| Node B | Router — Azure VM, forwards traffic |
+| Node C | Receiver — separate identity, same machine as A |
+| Route | A → B → C (A and C not directly connected) |
+| Proof | `DATA message delivered \| from=FPqZUoiDnat0S3sy \| content='hello from A via B to C'` |
+
 ## Live Message Delivery
 
 A remote local node sends a DATA message to an Azure-hosted node over a Noise XX encrypted peer session.

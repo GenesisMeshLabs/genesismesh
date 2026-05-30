@@ -117,9 +117,11 @@ class MeshRouter:
         # Forward message
         try:
             await connection.send_message(message)
-            logger.debug(
-                f"Forwarded message {message.message_id} to {route.next_hop} "
-                f"(dest={message.recipient_id}, ttl={message.ttl})"
+            logger.info(
+                "DATA forwarded | dest=%s | next_hop=%s | ttl=%s",
+                message.recipient_id[:16],
+                route.next_hop[:16],
+                message.ttl,
             )
             return True
         except Exception as e:
