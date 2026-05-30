@@ -22,6 +22,18 @@
 
 ![/nodes endpoint showing two enrolled nodes with different remote addresses](docs/examples/assets/na-nodes.png)
 
+## Live Message Delivery
+
+A remote local node sends a DATA message to an Azure-hosted node over a Noise XX encrypted peer session.
+
+![Genesis Mesh live message delivery](docs/examples/assets/genesis-mesh-message-delivery.gif)
+
+Evidence:
+- Noise XX handshake completed
+- Connection established
+- Neighbor added
+- DATA message delivered
+
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
 
 **Trust can be revoked.**
