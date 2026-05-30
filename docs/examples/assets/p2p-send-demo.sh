@@ -37,11 +37,12 @@ echo "    via: ws://$PEER_HOST:$PEER_PORT"
 sleep 1
 
 echo ""
-genesis-mesh send \
+# cd to the repo so relative config paths resolve correctly
+( cd /mnt/c/Source/genesismesh && genesis-mesh send \
   --config "$GENESIS_CONFIG" \
   --to "$PEER_KEY" \
   --via "ws://$PEER_HOST:$PEER_PORT" \
-  --message "hello from local"
+  --message "hello from local" )
 sleep 2
 
 echo ""
