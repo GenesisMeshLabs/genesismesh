@@ -53,8 +53,8 @@ fi
 
 cleanup() {
     kill "$SENDER_PID" "$RECEIVER_PID" 2>/dev/null || true
-    # Restore Node B on the VM
-    ssh $SSH_OPTS "$VM" "sudo systemctl start genesis-mesh-node 2>/dev/null || true" &
+    # Restore Node B on the VM (synchronous — don't background)
+    ssh $SSH_OPTS "$VM" "sudo systemctl start genesis-mesh-node 2>/dev/null || true" || true
     rm -rf "$HOME/.gm-failover-sender" "$HOME/.gm-failover-receiver"
 }
 trap cleanup EXIT
