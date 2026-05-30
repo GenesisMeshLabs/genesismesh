@@ -462,9 +462,14 @@ Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
 - Route management on connect and disconnect
 - Audit trail for every authenticated session
 
-### GIF demo
+### Live recording
 
-Record a sender-side GIF:
+```{image} assets/genesis-mesh-message-delivery.gif
+:alt: Live P2P message delivery over Noise XX encrypted peer session
+:class: screenshot
+```
+
+### Record your own GIF
 
 ```bash
 # In WSL2 from the repo root
