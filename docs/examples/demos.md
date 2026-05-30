@@ -18,11 +18,13 @@ flowchart TD
     B --> C[Revocation smoke]
     C --> D[Docker image smoke]
     D --> F[Docker Compose NA example]
+    F --> G[Peer-to-peer messaging]
     A --> E[Docs and screenshots]
     B --> E
     C --> E
     D --> E
     F --> E
+    G --> E
 ```
 
 ## 1. Fast In-Process Smoke Demo
@@ -388,7 +390,91 @@ curl http://127.0.0.1:8443/metrics
 The Compose service uses the same `start.sh` entrypoint as the production image
 and starts Gunicorn instead of the Flask development server.
 
-## 6. What These Demos Prove
+## 6. Peer-to-Peer Messaging Demo
+
+This demo proves the mesh transport layer: two enrolled nodes authenticate to
+each other over Noise XX and exchange an encrypted message without the Network
+Authority being involved in the data path.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Local Node
+    participant B as Remote Node (Azure VM)
+
+    A->>B: Noise XX message 1 — ephemeral key
+    B-->>A: Noise XX message 2 — ephemeral + static + cert
+    A->>B: Noise XX message 3 — static + cert
+    note over A,B: Session keys derived, identity verified
+    A->>B: DATA frame (encrypted): 'hello from local'
+    note over B: DATA message delivered
+    A->>B: Connection close
+    note over B: Route invalidated
+```
+
+### Prerequisites
+
+Two nodes must be enrolled against the same Network Authority. The receiving
+node must be running `join --persistent --listen-port 7443` so it has a stable
+WebSocket peer port.
+
+### Sending a message
+
+```bash
+genesis-mesh send \
+  --to <RECIPIENT_NODE_PUBLIC_KEY> \
+  --via ws://<PEER_HOST>:7443 \
+  --message "hello from local"
+```
+
+Expected sender output:
+
+```text
+Sent: 'hello from local'
+  to:  Qcnkr82Fj9qacbUjScYcsOMx...
+  via: ws://4.223.130.190:7443
+```
+
+### Receiving node logs
+
+Watch the receiving node:
+
+```bash
+sudo journalctl -u genesis-mesh-node -f
+```
+
+Expected log lines:
+
+```text
+ReadMessage(message, payload_buffer)
+Added connection to iwNqAdixbqKP/jWZ0RGlCEnthBl+AVk8AvnOhs2hVp4= (total: 1)
+Connection to iwNqAdixbqKP... marked as established
+AUDIT: connection_established | success | actor=None target=iwNqAdixbqKP...
+DATA message delivered | from=iwNqAdixbqKP/jWZ | content='hello from local'
+Closing connection to iwNqAdixbqKP...
+Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
+```
+
+### What this proves
+
+- Noise XX mutual authentication using Ed25519 join certificate keys
+- Encrypted data transport without Network Authority involvement
+- Certificate validation on every inbound connection
+- Route management on connect and disconnect
+- Audit trail for every authenticated session
+
+### GIF demo
+
+Record a sender-side GIF:
+
+```bash
+# In WSL2 from the repo root
+asciinema rec p2p-send.cast \
+  --command "bash docs/examples/assets/p2p-send-demo.sh" \
+  --overwrite
+agg p2p-send.cast docs/examples/assets/genesis-mesh-p2p-send.gif
+```
+
+## 7. What These Demos Prove
 
 Together these walkthroughs verify the core control-plane path:
 
@@ -412,7 +498,7 @@ They do not claim provider-specific cloud deployment readiness. AWS, Azure, GCP,
 and Alibaba Cloud plans still require real provider credentials and deployment
 inputs.
 
-## 7. Clean Up
+## 8. Clean Up
 
 The in-process demo does not require persistent local state, but other local CLI
 workflows can create `.genesis-mesh/`, `genesis-mesh.toml`, and `.node*/`
@@ -432,7 +518,7 @@ Stop any running Network Authority or persistent node runtime before cleanup. On
 Windows, SQLite database files can remain locked while a process is still using
 them.
 
-## Walkthrough Links
+## 9. Walkthrough Links
 
 - Quickstart: [](../quickstart.md)
 - CLI reference: [](../reference/cli.md)
