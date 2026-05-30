@@ -6,16 +6,15 @@
 
 ## Live Deployment
 
-**Network Authority:** https://na.genesismesh.connectorzzz.com
-
 | | |
 |---|---|
-| Status | Online |
-| Version | v0.1 |
-| Active Nodes | 2 |
-| Tracked Nodes | 2 |
+| Network Authority | Online |
+| Public Endpoint | https://na.genesismesh.connectorzzz.com |
 | Deployment | Azure VM, Sweden Central |
 | TLS | Enabled |
+| Active Nodes | 2 |
+| Tracked Nodes | 2 |
+| Remote Nodes | 1 |
 | Online since | 2026-05-30 |
 
 ![NA dashboard showing 2 active nodes](docs/examples/assets/na-dashboard.png)
