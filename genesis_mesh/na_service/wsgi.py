@@ -30,4 +30,5 @@ app = create_app(
 )
 
 # Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+# Flask's documented ProxyFix idiom — mypy flags the wsgi_app reassignment.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # type: ignore[method-assign]

@@ -57,8 +57,8 @@ genesis-mesh na start
 `genesis-mesh na start` uses the Flask development server. For production
 container or VM startup, use Gunicorn through `start.sh`.
 
-See: [In-process smoke demo](../examples/demos.md#6-in-process-smoke-demo) ·
-[Live CLI process smoke demo](../examples/demos.md#7-live-cli-process-smoke-demo)
+See: [In-process smoke demo](../examples/demos.md#in-process-smoke-demo) ·
+[Live CLI process smoke demo](../examples/demos.md#live-cli-process-smoke-demo)
 
 ## 2. Docker
 
@@ -79,8 +79,8 @@ docker run --rm \
 For multi-container orchestration with a writable database volume, use the
 included Docker Compose example.
 
-See: [Docker image smoke demo](../examples/demos.md#8-docker-image-smoke-demo) ·
-[Docker Compose example](../examples/demos.md#9-docker-compose-network-authority-example)
+See: [Docker image smoke demo](../examples/demos.md#docker-image-smoke-demo) ·
+[Docker Compose example](../examples/demos.md#docker-compose-network-authority-example)
 
 ## 3. Kubernetes
 

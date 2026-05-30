@@ -1,0 +1,61 @@
+# Genesis Mesh pre-commit configuration.
+#
+# Install once per clone:
+#   pip install -r requirements-dev.txt
+#   pre-commit install --hook-type pre-commit --hook-type pre-push
+#
+# Run manually against the whole tree:
+#   pre-commit run --all-files
+#   pre-commit run --all-files --hook-stage pre-push
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # ── Cheap, universally-useful sanity checks ─────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.svg$
+      - id: end-of-file-fixer
+        exclude: \.svg$
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=4096]
+
+  # ── Local hooks that mirror the CI workflow ─────────────────────────────────
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (genesis_mesh)
+        entry: python -m mypy genesis_mesh --ignore-missing-imports
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^genesis_mesh/.*\.py$
+
+      - id: compileall
+        name: compileall (genesis_mesh)
+        entry: python -m compileall genesis_mesh -q
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^genesis_mesh/.*\.py$
+
+      - id: sphinx-build
+        name: sphinx-build (docs)
+        entry: python -m sphinx -b html -W docs docs/pages
+        language: system
+        pass_filenames: false
+        files: ^docs/.*\.(md|rst|py)$
+
+      # Slow check — runs on `git push`, not every `git commit`.
+      - id: pytest
+        name: pytest
+        entry: python -m pytest genesis_mesh/tests -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
