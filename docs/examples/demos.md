@@ -1,33 +1,499 @@
 # Demos
 
-This page is a runnable walkthrough for Genesis Mesh. It starts with the fastest
-in-process smoke demo, then expands into a real CLI-driven Network Authority
-process, Docker image smoke checks, and a Docker Compose example that you can use
-as a deployment starting point.
+This page is a runnable walkthrough for Genesis Mesh. The demos are organized
+into two parts:
 
-The demos were run from the repository root on WSL. Replace `uv run --python
-/usr/bin/python3.12 --with-requirements requirements.txt` with your activated
-virtual environment or installed `genesis-mesh` command if you are running from
-PowerShell.
+- **Part A — Capability demos** prove the architecture. Each demo exercises one
+  control-plane or data-plane property end to end.
+- **Part B — Local smoke tests** prove the package builds, installs, and ships
+  in expected shapes (in-process, CLI process, Docker image, Docker Compose).
+
+Most demos can run against the live deployment at
+[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
+or against a local Network Authority started by Part B.
+
+The demos were run from the repository root on WSL2. Replace
+`uv run --python /usr/bin/python3.12 --with-requirements requirements.txt` with
+your activated virtual environment or installed `genesis-mesh` command if you
+are running from PowerShell.
 
 ## Demo Map
 
 ```{mermaid}
 flowchart TD
-    A[In-process smoke: genesis-mesh dev up] --> B[CLI live process smoke]
-    B --> C[Revocation smoke]
-    C --> D[Docker image smoke]
-    D --> F[Docker Compose NA example]
-    F --> G[Peer-to-peer messaging]
-    A --> E[Docs and screenshots]
-    B --> E
-    C --> E
-    D --> E
-    F --> E
-    G --> E
+    subgraph A[Part A — Capability Demos]
+        A1[Enrollment]
+        A2[Revocation]
+        A3[Message Delivery]
+        A4[Multi-Hop Routing]
+        A5[Route Failure Recovery]
+    end
+
+    subgraph B[Part B — Local Smoke Tests]
+        B1[In-Process Smoke]
+        B2[Live CLI Process Smoke]
+        B3[Docker Image Smoke]
+        B4[Docker Compose NA]
+    end
+
+    A1 --> A2 --> A3 --> A4 --> A5
+    B1 --> B2 --> B3 --> B4
 ```
 
-## 1. Fast In-Process Smoke Demo
+---
+
+# Part A — Capability Demos
+
+## 1. Enrollment Demo
+
+This demo proves the trust-on-first-use enrollment flow: an operator creates a
+single-use invite token, a node presents it with proof of possession of its own
+key, and the Network Authority returns a signed join certificate. The token
+cannot be reused.
+
+```{mermaid}
+sequenceDiagram
+    participant OP as Operator
+    participant NA as Network Authority
+    participant N as Node
+
+    OP->>NA: POST /admin/invite (signed with operator key)
+    NA-->>OP: token_id, expires_at, max_validity_hours
+
+    N->>NA: POST /join (invite_token + node signature)
+    NA->>NA: Verify token, mark consumed
+    NA->>NA: Issue cert signed by NA private key
+    NA-->>N: JoinCertificate (cert_id, expires_at, roles)
+
+    N->>NA: POST /heartbeat (signed)
+    NA-->>N: 200
+
+    N->>NA: GET /nodes
+    NA-->>N: count=1, node listed as healthy
+```
+
+### Run against the live deployment
+
+```bash
+INVITE=$(genesis-mesh admin invite \
+  --role anchor \
+  --na https://na.genesismesh.connectorzzz.com)
+
+genesis-mesh join \
+  --na https://na.genesismesh.connectorzzz.com \
+  --token "$INVITE"
+
+curl -s https://na.genesismesh.connectorzzz.com/nodes | python3 -m json.tool
+```
+
+### Expected proof
+
+```text
+Joined USG as role:anchor
+Certificate: 689499ad-2cb7-4c8f-bb87-ffbf30ffd2b0
+Config: ~/.genesis-mesh/config.toml
+
+{
+  "count": 1,
+  "nodes": {
+    "689499ad-...": {
+      "node_public_key": "FPqZUoiDnat0S3sy...",
+      "roles": ["role:anchor"],
+      "status": "healthy",
+      "last_heartbeat": "2026-05-30T00:28:25..."
+    }
+  }
+}
+```
+
+### What this proves
+
+- Operator-authenticated invite creation through signed admin headers
+- Token consumption is atomic and single-use
+- NA-signed join certificate issued with operator-defined role and validity
+- Heartbeat path active immediately after enrollment
+- `/nodes` reflects the new identity within one heartbeat cycle
+
+### Reusing the same token fails
+
+```bash
+genesis-mesh join --na https://... --token "$INVITE"
+# Error: 403 invite token already consumed
+```
+
+---
+
+## 2. Revocation Demo
+
+Revocation is one of the core Genesis Mesh control-plane promises. This
+walkthrough starts from a valid enrolled node, revokes its certificate, verifies
+that the signed CRL contains the revoked identity, and proves that the revoked
+certificate can no longer heartbeat, renew, or be silently reused by the local
+CLI.
+
+```{mermaid}
+sequenceDiagram
+    participant OP as Operator
+    participant NA as Network Authority
+    participant N as Enrolled Node
+    participant CRL as Signed CRL
+    participant RT as Runtime Checks
+
+    OP->>NA: Revoke certificate with reason
+    NA->>CRL: Publish CRL sequence 1
+    NA-->>OP: revoked_count = 1
+    N->>NA: Heartbeat with revoked cert
+    NA-->>N: 403 Certificate revoked
+    N->>NA: Renewal with revoked cert
+    NA-->>N: 403 Certificate revoked
+    RT->>RT: Reject revoked peer handshake
+    RT->>RT: Ignore revoked route sender
+```
+
+### Live recording
+
+```{image} assets/genesis-mesh-revocation.gif
+:alt: Revocation flow — CRL published, node removed, 403 enforcement
+:class: screenshot
+```
+
+Screenshot from a control-plane run:
+
+```{image} assets/revocation-demo.svg
+:alt: Terminal screenshot of Genesis Mesh revocation demo
+:class: screenshot
+```
+
+### Run the control-plane flow
+
+```bash
+INVITE=$(python -m genesis_mesh.cli admin invite \
+  --config "$CONFIG" \
+  --na "$ENDPOINT" \
+  --role anchor)
+
+python -m genesis_mesh.cli join \
+  --config "$CONFIG" \
+  --na "$ENDPOINT" \
+  --token "$INVITE"
+
+CERT_ID=$(python - <<'PY'
+import json, os
+from pathlib import Path
+home = Path(os.environ["HOME_DIR"])
+print(json.loads((home / "node.cert.json").read_text())["cert_id"])
+PY
+)
+
+python -m genesis_mesh.cli admin revoke \
+  --config "$CONFIG" \
+  --na "$ENDPOINT" \
+  --reason key_compromise \
+  "$CERT_ID"
+
+curl "$ENDPOINT/crl"
+curl "$ENDPOINT/nodes"
+```
+
+### Expected proof
+
+```text
+Active nodes before revoke: 1
+
+{
+  "crl_sequence": 1,
+  "revoked_count": 1
+}
+
+CRL sequence: 1
+Revoked certificates in CRL: 1
+CRL contains revoked cert: True
+Active nodes after revoke: 0
+```
+
+After revocation, trying to reuse the same local certificate fails cleanly:
+
+```text
+Using existing certificate: b7d9001d-c66b-4be3-867c-e2a0b3e31c78
+Heartbeat failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/heartbeat
+Error: Existing local certificate was rejected by the Network Authority.
+Run with --token to re-enroll if this node is still authorized.
+```
+
+Signed renewal and heartbeat attempts are also rejected:
+
+```text
+Certificate renewal failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/renew
+Heartbeat failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/heartbeat
+renewal accepted: False
+heartbeat accepted: False
+```
+
+The peer-side runtime path is covered by targeted tests for revoked handshake
+rejection, route rejection from revoked senders, and CRL gossip propagation:
+
+```powershell
+python -m pytest `
+  genesis_mesh\tests\test_runtime.py::test_runtime_rejects_revoked_peer_certificate `
+  genesis_mesh\tests\test_routing_protocol.py::test_route_announce_rejects_revoked_sender `
+  genesis_mesh\tests\test_crl_gossip.py `
+  -q
+```
+
+Observed result:
+
+```text
+5 passed
+```
+
+---
+
+## 3. Message Delivery Demo
+
+This demo proves the mesh transport layer: two enrolled nodes authenticate to
+each other over Noise XX and exchange an encrypted message without the Network
+Authority being involved in the data path.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Local Node
+    participant B as Remote Node (Azure VM)
+
+    A->>B: Noise XX message 1 — ephemeral key
+    B-->>A: Noise XX message 2 — ephemeral + static + cert
+    A->>B: Noise XX message 3 — static + cert
+    note over A,B: Session keys derived, identity verified
+    A->>B: DATA frame (encrypted): 'hello from local'
+    note over B: DATA message delivered
+    A->>B: Connection close
+    note over B: Route invalidated
+```
+
+### Prerequisites
+
+Two nodes must be enrolled against the same Network Authority. The receiving
+node must be running `join --persistent --listen-port 7443` so it has a stable
+WebSocket peer port.
+
+### Live recording
+
+```{image} assets/genesis-mesh-message-delivery.gif
+:alt: Live P2P message delivery over Noise XX encrypted peer session
+:class: screenshot
+```
+
+### Sending a message
+
+```bash
+genesis-mesh send \
+  --to <RECIPIENT_NODE_PUBLIC_KEY> \
+  --via ws://<PEER_HOST>:7443 \
+  --message "hello from local"
+```
+
+Expected sender output:
+
+```text
+Sent: 'hello from local'
+  to:  Qcnkr82Fj9qacbUjScYcsOMx...
+  via: ws://4.223.130.190:7443
+```
+
+### Receiving node logs
+
+```bash
+sudo journalctl -u genesis-mesh-node -f
+```
+
+Expected log lines:
+
+```text
+ReadMessage(message, payload_buffer)
+Added connection to iwNqAdixbqKP/jWZ0RGlCEnthBl+AVk8AvnOhs2hVp4= (total: 1)
+Connection to iwNqAdixbqKP... marked as established
+AUDIT: connection_established | success | actor=None target=iwNqAdixbqKP...
+DATA message delivered | from=iwNqAdixbqKP/jWZ | content='hello from local'
+Closing connection to iwNqAdixbqKP...
+Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
+```
+
+### What this proves
+
+- Noise XX mutual authentication using Ed25519 join certificate keys
+- Encrypted data transport without Network Authority involvement
+- Certificate validation on every inbound connection
+- Route management on connect and disconnect
+- Audit trail for every authenticated session
+
+### Record your own GIF
+
+```bash
+asciinema rec p2p-send.cast \
+  --command "bash docs/examples/assets/p2p-send-demo.sh" \
+  --overwrite
+agg p2p-send.cast docs/examples/assets/genesis-mesh-p2p-send.gif
+```
+
+---
+
+## 4. Multi-Hop Routing Demo
+
+This demo proves the routing layer: a sender connects to one peer only, but
+reaches a destination it has never directly contacted because the intermediate
+router forwards the DATA frame on its behalf.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Node A (sender)
+    participant B as Node B (router, Azure VM)
+    participant C as Node C (receiver)
+
+    A->>B: Noise XX peer session
+    C->>B: Noise XX peer session
+    note over A,C: A and C never connect directly
+    B->>A: Route announce — C reachable via B (metric=2)
+    B->>C: Route announce — A reachable via B (metric=2)
+    A->>B: DATA frame addressed to C
+    B->>C: DATA forwarded (next_hop=C, ttl=9)
+    note over C: DATA message delivered
+```
+
+### Topology
+
+| Node | Role | Location | Port |
+|---|---|---|---|
+| A | Sender | Local (this machine) | ephemeral |
+| B | Router | Azure VM | 7443 |
+| C | Receiver | Local (separate identity) | ephemeral |
+
+A and C both connect only to B. Neither has a direct peer connection to the
+other.
+
+### Live recording
+
+```{image} assets/genesis-mesh-multi-hop.gif
+:alt: A → B → C multi-hop routing demo
+:class: screenshot
+```
+
+### Run
+
+```bash
+bash docs/examples/assets/multi-hop-demo.sh
+```
+
+The script enrolls two fresh identities (A and C), starts both peer runtimes
+with `--peer ws://<vm>:7443`, waits for B to propagate routes via
+distance-vector gossip, sends a DATA message from A to C, and reads delivery
+confirmation from C's logs.
+
+### Expected proof
+
+```text
+Updated route to <C> via <B> (metric=2, seq=1)
+Updated 1 routes from <B>
+
+Sent: 'hello from A via B to C'
+
+DATA forwarded | dest=<C-prefix> | next_hop=<C-prefix> | ttl=9     (on B)
+DATA message delivered | from=<A-prefix> | content='hello from A via B to C'   (on C)
+```
+
+The `metric=2` route on A means C is two hops away via B — exactly the
+distance-vector signature for indirect reachability.
+
+---
+
+## 5. Route Failure Recovery Demo
+
+This demo proves automatic failover: a sender has two redundant paths to the
+receiver. The primary router is killed mid-demo; the next send goes through the
+backup router without retry, reconfiguration, or operator action.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B (primary, port 7443)
+    participant D as Node D (backup, port 7444)
+    participant C as Node C
+
+    A->>B: peer session
+    A->>D: peer session
+    C->>B: peer session
+    C->>D: peer session
+    note over A,C: A learns two routes to C — via B and via D
+
+    A->>B: Send 1 — DATA to C
+    B->>C: Forward
+    note over C: 'hello via B (primary)' delivered
+
+    note over B: systemctl stop genesis-mesh-node
+    B-->>A: connection closed
+    note over A: Removed neighbor B, invalidated routes via B
+
+    A->>D: Send 2 — DATA to C
+    D->>C: Forward
+    note over C: 'hello via D (backup)' delivered
+```
+
+### Topology
+
+| Node | Role | Location | Port |
+|---|---|---|---|
+| A | Sender | Local | ephemeral |
+| B | Primary router | Azure VM | 7443 |
+| D | Backup router | Azure VM | 7444 |
+| C | Receiver | Local | ephemeral |
+
+Both routers run on the same Azure VM but as independent systemd services
+(`genesis-mesh-node` and `genesis-mesh-node-d`). Stopping one does not affect
+the other.
+
+### Live recording
+
+```{image} assets/genesis-mesh-failover.gif
+:alt: Route failure recovery — primary router B killed, traffic re-routed through D
+:class: screenshot
+```
+
+### Run
+
+```bash
+bash docs/examples/assets/failover-demo.sh
+```
+
+The script enrolls A and C, connects both to B and D, sends through B,
+SSHes to the VM and stops `genesis-mesh-node`, then sends through D and
+shows delivery on C.
+
+### Expected proof
+
+```text
+Updated route to <C> via <B> (metric=2)
+
+Sent: 'hello via B (primary)'
+DATA message delivered | content='hello via B (primary)'
+
+==> Killing Node B
+Removed neighbor <B>, invalidated 1 routes
+
+Sent: 'hello via D (backup)'
+DATA forwarded | dest=<C-prefix> | next_hop=<C-prefix> | ttl=9     (on D)
+DATA message delivered | content='hello via D (backup)'
+```
+
+### What this proves
+
+- Neighbor failure detection via WebSocket disconnect
+- Automatic route withdrawal when a neighbor goes offline
+- Multi-path routing tolerates router loss without retransmit
+- No operator intervention required between path A→B→C and path A→D→C
+
+---
+
+# Part B — Local Smoke Tests
+
+## 6. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -58,7 +524,7 @@ sequenceDiagram
     CLI->>C: Verify certificate status
 ```
 
-Run it:
+### Run
 
 ```powershell
 python -m genesis_mesh.cli dev up
@@ -99,7 +565,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 2. Live CLI Process Smoke Demo
+## 7. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -160,123 +626,7 @@ Node:
   valid: True
 ```
 
-## 3. Revocation Demo
-
-Revocation is one of the core Genesis Mesh control-plane promises. This
-walkthrough starts from a valid enrolled node, revokes its certificate, verifies
-that the signed CRL contains the revoked identity, and proves that the revoked
-certificate can no longer heartbeat, renew, or be silently reused by the local
-CLI.
-
-```{mermaid}
-sequenceDiagram
-    participant OP as Operator
-    participant NA as Network Authority
-    participant N as Enrolled Node
-    participant CRL as Signed CRL
-    participant RT as Runtime Checks
-
-    OP->>NA: Revoke certificate with reason
-    NA->>CRL: Publish CRL sequence 1
-    NA-->>OP: revoked_count = 1
-    N->>NA: Heartbeat with revoked cert
-    NA-->>N: 403 Certificate revoked
-    N->>NA: Renewal with revoked cert
-    NA-->>N: 403 Certificate revoked
-    RT->>RT: Reject revoked peer handshake
-    RT->>RT: Ignore revoked route sender
-```
-
-Screenshot from the revocation run:
-
-```{image} assets/revocation-demo.svg
-:alt: Terminal screenshot of Genesis Mesh revocation demo
-:class: screenshot
-```
-
-Run the control-plane flow:
-
-```bash
-INVITE=$(python -m genesis_mesh.cli admin invite \
-  --config "$CONFIG" \
-  --na "$ENDPOINT" \
-  --role anchor)
-
-python -m genesis_mesh.cli join \
-  --config "$CONFIG" \
-  --na "$ENDPOINT" \
-  --token "$INVITE"
-
-CERT_ID=$(python - <<'PY'
-import json, os
-from pathlib import Path
-home = Path(os.environ["HOME_DIR"])
-print(json.loads((home / "node.cert.json").read_text())["cert_id"])
-PY
-)
-
-python -m genesis_mesh.cli admin revoke \
-  --config "$CONFIG" \
-  --na "$ENDPOINT" \
-  --reason key_compromise \
-  "$CERT_ID"
-
-curl "$ENDPOINT/crl"
-curl "$ENDPOINT/nodes"
-```
-
-Observed revocation evidence:
-
-```text
-Active nodes before revoke: 1
-
-{
-  "crl_sequence": 1,
-  "revoked_count": 1
-}
-
-CRL sequence: 1
-Revoked certificates in CRL: 1
-CRL contains revoked cert: True
-Active nodes after revoke: 0
-```
-
-After revocation, trying to reuse the same local certificate fails cleanly:
-
-```text
-Using existing certificate: b7d9001d-c66b-4be3-867c-e2a0b3e31c78
-Heartbeat failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/heartbeat
-Error: Existing local certificate was rejected by the Network Authority.
-Run with --token to re-enroll if this node is still authorized.
-```
-
-Signed renewal and heartbeat attempts are also rejected:
-
-```text
-Certificate renewal failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/renew
-Heartbeat failed: 403 Client Error: FORBIDDEN for url: http://127.0.0.1:41065/heartbeat
-renewal accepted: False
-heartbeat accepted: False
-```
-
-The peer-side runtime path is covered by targeted tests for revoked handshake
-rejection, route rejection from revoked senders, and CRL gossip propagation:
-
-```powershell
-python -m pytest `
-  genesis_mesh\tests\test_runtime.py::test_runtime_rejects_revoked_peer_certificate `
-  genesis_mesh\tests\test_routing_protocol.py::test_route_announce_rejects_revoked_sender `
-  genesis_mesh\tests\test_crl_gossip.py `
-  -q
-```
-
-Observed result:
-
-```text
-5 passed
-```
-
-## 4. Docker Image Smoke Demo
+## 8. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -334,7 +684,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 5. Docker Compose Network Authority Example
+## 9. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and
@@ -390,120 +740,44 @@ curl http://127.0.0.1:8443/metrics
 The Compose service uses the same `start.sh` entrypoint as the production image
 and starts Gunicorn instead of the Flask development server.
 
-## 6. Peer-to-Peer Messaging Demo
+---
 
-This demo proves the mesh transport layer: two enrolled nodes authenticate to
-each other over Noise XX and exchange an encrypted message without the Network
-Authority being involved in the data path.
+## What These Demos Prove
 
-```{mermaid}
-sequenceDiagram
-    participant A as Local Node
-    participant B as Remote Node (Azure VM)
+Together these walkthroughs verify the core control-plane and data-plane paths:
 
-    A->>B: Noise XX message 1 — ephemeral key
-    B-->>A: Noise XX message 2 — ephemeral + static + cert
-    A->>B: Noise XX message 3 — static + cert
-    note over A,B: Session keys derived, identity verified
-    A->>B: DATA frame (encrypted): 'hello from local'
-    note over B: DATA message delivered
-    A->>B: Connection close
-    note over B: Route invalidated
-```
+**Trust and identity**
+- Root Sovereign key generation and signed genesis block creation
+- Network Authority startup and signing chain
+- Operator-authenticated invite creation through signed admin headers
+- Node proof-of-possession during join
+- NA-signed join certificate issuance and policy retrieval
 
-### Prerequisites
+**Operational endpoints**
+- Health, readiness, node-list, and metrics endpoints
 
-Two nodes must be enrolled against the same Network Authority. The receiving
-node must be running `join --persistent --listen-port 7443` so it has a stable
-WebSocket peer port.
+**Revocation**
+- Certificate revocation through operator-authenticated admin actions
+- Signed CRL publication and revocation sequence increments
+- Heartbeat, renewal, and local certificate reuse rejection after revocation
+- Runtime rejection of revoked peer handshakes and route announcements
 
-### Sending a message
+**Transport and routing**
+- Noise XX mutual authentication and encrypted DATA frame delivery
+- Distance-vector route announcement and learning across an intermediate router
+- Multi-hop DATA forwarding with TTL decrement
+- Automatic route withdrawal on neighbor disconnect and failover to a backup path
 
-```bash
-genesis-mesh send \
-  --to <RECIPIENT_NODE_PUBLIC_KEY> \
-  --via ws://<PEER_HOST>:7443 \
-  --message "hello from local"
-```
+**Packaging**
+- Docker image importability and fail-closed startup behavior
+- Terraform-independent local container startup path
 
-Expected sender output:
+These do not claim provider-specific cloud deployment readiness. AWS, GCP, and
+Alibaba Cloud plans still require real provider credentials and deployment
+inputs. Azure deployment is demonstrated by the live deployment referenced
+throughout this page.
 
-```text
-Sent: 'hello from local'
-  to:  Qcnkr82Fj9qacbUjScYcsOMx...
-  via: ws://4.223.130.190:7443
-```
-
-### Receiving node logs
-
-Watch the receiving node:
-
-```bash
-sudo journalctl -u genesis-mesh-node -f
-```
-
-Expected log lines:
-
-```text
-ReadMessage(message, payload_buffer)
-Added connection to iwNqAdixbqKP/jWZ0RGlCEnthBl+AVk8AvnOhs2hVp4= (total: 1)
-Connection to iwNqAdixbqKP... marked as established
-AUDIT: connection_established | success | actor=None target=iwNqAdixbqKP...
-DATA message delivered | from=iwNqAdixbqKP/jWZ | content='hello from local'
-Closing connection to iwNqAdixbqKP...
-Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
-```
-
-### What this proves
-
-- Noise XX mutual authentication using Ed25519 join certificate keys
-- Encrypted data transport without Network Authority involvement
-- Certificate validation on every inbound connection
-- Route management on connect and disconnect
-- Audit trail for every authenticated session
-
-### Live recording
-
-```{image} assets/genesis-mesh-message-delivery.gif
-:alt: Live P2P message delivery over Noise XX encrypted peer session
-:class: screenshot
-```
-
-### Record your own GIF
-
-```bash
-# In WSL2 from the repo root
-asciinema rec p2p-send.cast \
-  --command "bash docs/examples/assets/p2p-send-demo.sh" \
-  --overwrite
-agg p2p-send.cast docs/examples/assets/genesis-mesh-p2p-send.gif
-```
-
-## 7. What These Demos Prove
-
-Together these walkthroughs verify the core control-plane path:
-
-- Root Sovereign key generation.
-- Signed genesis block creation.
-- Network Authority startup.
-- Operator-authenticated invite creation.
-- Node proof-of-possession during join.
-- Join certificate issuance.
-- Policy retrieval.
-- Local node certificate validation.
-- Health, readiness, node-list, and metrics endpoints.
-- Certificate revocation through operator-authenticated admin actions.
-- Signed CRL publication and revocation sequence increments.
-- Heartbeat, renewal, and local certificate reuse rejection after revocation.
-- Runtime rejection of revoked peer handshakes and route announcements.
-- Docker image importability and fail-closed startup behavior.
-- Terraform-independent local container startup path.
-
-They do not claim provider-specific cloud deployment readiness. AWS, Azure, GCP,
-and Alibaba Cloud plans still require real provider credentials and deployment
-inputs.
-
-## 8. Clean Up
+## Clean Up
 
 The in-process demo does not require persistent local state, but other local CLI
 workflows can create `.genesis-mesh/`, `genesis-mesh.toml`, and `.node*/`
@@ -523,7 +797,7 @@ Stop any running Network Authority or persistent node runtime before cleanup. On
 Windows, SQLite database files can remain locked while a process is still using
 them.
 
-## 9. Walkthrough Links
+## Walkthrough Links
 
 - Quickstart: [](../quickstart.md)
 - CLI reference: [](../reference/cli.md)

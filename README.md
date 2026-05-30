@@ -24,6 +24,7 @@ Current deployment demonstrates:
 - Noise XX encrypted peer sessions
 - Direct message delivery
 - Multi-hop routing and packet forwarding
+- Route failure recovery
 - Certificate revocation and CRL enforcement
 
 ![NA dashboard showing 2 active nodes](docs/examples/assets/na-dashboard.png)
@@ -56,6 +57,19 @@ Node B learns routes, forwards packets, and decrements TTL values during transit
 - Route learned via intermediate node
 - DATA forwarded by router
 - DATA delivered to destination
+
+## Route Failure Recovery
+
+When a router goes offline, neighboring nodes withdraw its routes and traffic re-routes through a surviving path — no operator intervention.
+
+**Topology:** A reaches C through two routers — B (primary) and D (backup). B is killed mid-demo.
+
+![Genesis Mesh route failure recovery demo](docs/examples/assets/genesis-mesh-failover.gif)
+
+- Primary path A → B → C delivers
+- B goes offline
+- A detects the disconnect and invalidates B's routes
+- A → D → C delivers without retry or operator action
 
 
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
