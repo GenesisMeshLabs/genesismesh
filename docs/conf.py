@@ -62,6 +62,7 @@ myst_enable_extensions = [
     "fieldlist",
     "tasklist",
 ]
+myst_heading_anchors = 3
 
 autodoc_typehints = "description"
 napoleon_google_docstring = True
