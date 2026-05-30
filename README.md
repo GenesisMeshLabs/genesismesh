@@ -17,23 +17,18 @@
 | Remote Nodes | 1 |
 | Online since | 2026-05-30 |
 
+Current deployment demonstrates:
+
+- Identity and certificate-based enrollment
+- Remote nodes across separate networks
+- Noise XX encrypted peer sessions
+- Direct message delivery
+- Multi-hop routing and packet forwarding
+- Certificate revocation and CRL enforcement
+
 ![NA dashboard showing 2 active nodes](docs/examples/assets/na-dashboard.png)
 
 ![/nodes endpoint showing two enrolled nodes with different remote addresses](docs/examples/assets/na-nodes.png)
-
-## Multi-Hop Routing
-
-Node A and Node C connect only to Node B. A message from A to C is forwarded by B — proving distance-vector routing and DATA frame forwarding across three hops.
-
-![Genesis Mesh multi-hop routing demo](docs/examples/assets/genesis-mesh-multi-hop.gif)
-
-| | |
-|---|---|
-| Node A | Sender — local machine, fresh identity |
-| Node B | Router — Azure VM, forwards traffic |
-| Node C | Receiver — separate identity, same machine as A |
-| Route | A → B → C (A and C not directly connected) |
-| Proof | `DATA message delivered \| from=FPqZUoiDnat0S3sy \| content='hello from A via B to C'` |
 
 ## Live Message Delivery
 
@@ -41,11 +36,27 @@ A remote local node sends a DATA message to an Azure-hosted node over a Noise XX
 
 ![Genesis Mesh live message delivery](docs/examples/assets/genesis-mesh-message-delivery.gif)
 
-Evidence:
 - Noise XX handshake completed
 - Connection established
 - Neighbor added
 - DATA message delivered
+
+## Multi-Hop Routing
+
+Genesis Mesh supports decentralized route propagation and packet forwarding.
+
+Node A and Node C do not connect directly. Instead:
+
+**Node A → Node B → Node C**
+
+Node B learns routes, forwards packets, and decrements TTL values during transit.
+
+![Genesis Mesh multi-hop routing demo](docs/examples/assets/genesis-mesh-multi-hop.gif)
+
+- Route learned via intermediate node
+- DATA forwarded by router
+- DATA delivered to destination
+
 
 ![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
 
