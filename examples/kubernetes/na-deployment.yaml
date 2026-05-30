@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genesis-mesh-na
+  namespace: genesis-mesh
+  labels:
+    app.kubernetes.io/name: genesis-mesh
+    app.kubernetes.io/component: network-authority
+spec:
+  # SQLite is single-writer. Do not raise this without replacing the backing store.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: genesis-mesh
+      app.kubernetes.io/component: network-authority
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: genesis-mesh
+        app.kubernetes.io/component: network-authority
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: na
+          image: ghcr.io/thaersaidi/genesismesh:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8443
+          env:
+            - name: SERVICE_ROLE
+              value: na
+            - name: GENESIS_FILE
+              value: /run/secrets/genesis-mesh/genesis.signed.json
+            - name: NA_PRIVATE_KEY_FILE
+              value: /run/secrets/genesis-mesh/na.key
+            - name: DB_PATH
+              value: /var/lib/genesis-mesh/na.db
+            - name: PORT
+              value: "8443"
+            - name: WEB_CONCURRENCY
+              value: "4"
+            - name: OPERATOR_PUBLIC_KEYS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: genesis-mesh-operators
+                  key: operator-public-keys.json
+          volumeMounts:
+            - name: na-secret
+              mountPath: /run/secrets/genesis-mesh
+              readOnly: true
+            - name: na-data
+              mountPath: /var/lib/genesis-mesh
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: na-secret
+          secret:
+            secretName: genesis-mesh-na
+        - name: na-data
+          persistentVolumeClaim:
+            claimName: genesis-mesh-na-data

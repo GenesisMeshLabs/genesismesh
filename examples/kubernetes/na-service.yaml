@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: genesis-mesh-na
+  namespace: genesis-mesh
+  labels:
+    app.kubernetes.io/name: genesis-mesh
+    app.kubernetes.io/component: network-authority
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: genesis-mesh
+    app.kubernetes.io/component: network-authority
+  ports:
+    - name: http
+      port: 8443
+      targetPort: http
+      protocol: TCP
