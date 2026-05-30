@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import runpy
 import shutil
@@ -45,6 +46,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(na)
     cli.add_command(admin)
     cli.add_command(join)
+    cli.add_command(send)
     cli.add_command(status)
     cli.add_command(dev)
 
@@ -361,6 +363,53 @@ def join(
             asyncio.run(_run_runtime_forever(runtime))
         except KeyboardInterrupt:
             click.echo("Runtime stopped")
+
+
+@click.command()
+@click.option("--to", "target_key", required=True, help="Recipient node public key.")
+@click.option("--via", "peer_endpoint", required=True, help="Peer WebSocket endpoint (ws://host:port).")
+@click.option("--message", "message", required=True, help="Message text to send.")
+@click.option("--config", "config_path", default=None, help="Config path.")
+def send(
+    target_key: str,
+    peer_endpoint: str,
+    message: str,
+    config_path: str | None,
+) -> None:
+    """Send a message to a node through a peer WebSocket connection."""
+    import base64
+
+    from ..crypto import KeyPair
+    from ..transport import connect_websocket_with_noise
+    from ..transport.noise_handshake import NoiseHandshake
+    from ..transport.protocol import create_data_message
+
+    config = _load_cli_config(config_path, required=True)
+    genesis_path = _required_config_path(config, "paths", "genesis")
+    node_key_path = _required_config_path(config, "paths", "node_private_key")
+    cert_path = _required_config_path(config, "paths", "node_certificate")
+
+    private_key = load_private_key(str(node_key_path))
+    node_keypair = KeyPair(private_key=private_key, public_key=private_key.verify_key)
+    cert = JoinCertificate.model_validate_json(cert_path.read_text(encoding="utf-8"))
+    local_cert_b64 = base64.b64encode(cert.model_dump_json().encode()).decode()
+    noise_keypair = NoiseHandshake.keypair_from_join_cert_key(private_key)
+    uri = peer_endpoint if peer_endpoint.startswith("ws") else f"ws://{peer_endpoint}"
+
+    async def _send() -> None:
+        transport, _, _ = await connect_websocket_with_noise(uri, noise_keypair, local_cert_b64)
+        msg = create_data_message(
+            sender_id=node_keypair.public_key_b64,
+            recipient_id=target_key,
+            data=message.encode(),
+        )
+        await transport.send(msg.to_bytes())
+        click.echo(f"Sent: {message!r}")
+        click.echo(f"  to:  {target_key[:24]}...")
+        click.echo(f"  via: {uri}")
+        await transport.close()
+
+    asyncio.run(_send())
 
 
 @click.command()
