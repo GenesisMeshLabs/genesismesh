@@ -72,7 +72,17 @@ class MeshRouter:
         """
         # Check if message is for us
         if message.recipient_id == self.node_id:
-            return True  # Message delivered locally
+            import base64
+            try:
+                content = base64.b64decode(message.payload.get("data", "")).decode("utf-8", errors="replace")
+            except Exception:
+                content = repr(message.payload)
+            logger.info(
+                "DATA message delivered | from=%s | content=%r",
+                message.sender_id[:16],
+                content,
+            )
+            return True
 
         # Broadcast messages
         if message.recipient_id is None:
