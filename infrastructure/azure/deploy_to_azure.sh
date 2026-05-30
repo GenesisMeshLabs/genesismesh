@@ -3,7 +3,7 @@ set -e
 
 # ==================================================================================
 # Genesis Mesh - Azure Deployment Script
-# 
+#
 # This script uses the Azure CLI to provision resources and deploy the application.
 # It assumes you are logged in (az login) and have a subscription selected.
 # ==================================================================================
