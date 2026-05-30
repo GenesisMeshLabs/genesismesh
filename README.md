@@ -228,6 +228,17 @@ The NA private key never leaves the NA process.
 
 Health and readiness probes are available at `/healthz` and `/readyz`.
 
+## Deployment Examples
+
+Genesis Mesh includes deployment examples for:
+
+- **Local process** — `genesis-mesh init && genesis-mesh na start`
+- **Docker** — `docker run` and Docker Compose (`docs/examples/compose/`)
+- **Kubernetes** — manifests under `examples/kubernetes/`
+- **Terraform on Azure** — `infrastructure/azure/`, the same module used by the live deployment
+
+See the [deployment guide](https://genesismesh.connectorzzz.com/operations/deployment.html) for the full walkthrough.
+
 ## Repository Layout
 
 ```
@@ -237,7 +248,7 @@ Health and readiness probes are available at `/healthz` and `/readyz`.
   requirements.txt        Pinned runtime dependencies
   setup.py                Package metadata and entry points
   docs/                   Sphinx documentation source
-  examples/               Demo workflows and sample genesis blocks
+  examples/               Demo workflows, sample genesis blocks, Kubernetes manifests
   genesis_mesh/           Python package
   infrastructure/         Terraform, Azure scripts, and operational tools
 ```

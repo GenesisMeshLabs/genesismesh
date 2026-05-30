@@ -44,6 +44,9 @@ flowchart TD
 
 # Part A — Capability Demos
 
+Part A demonstrates the core Genesis Mesh architecture running end to end:
+identity, trust, transport, routing, and resilience.
+
 ## 1. Enrollment Demo
 
 This demo proves the trust-on-first-use enrollment flow: an operator creates a
@@ -325,15 +328,6 @@ Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
 - Route management on connect and disconnect
 - Audit trail for every authenticated session
 
-### Record your own GIF
-
-```bash
-asciinema rec p2p-send.cast \
-  --command "bash docs/examples/assets/p2p-send-demo.sh" \
-  --overwrite
-agg p2p-send.cast docs/examples/assets/genesis-mesh-p2p-send.gif
-```
-
 ---
 
 ## 4. Multi-Hop Routing Demo
@@ -387,16 +381,26 @@ with `--peer ws://<vm>:7443`, waits for B to propagate routes via
 distance-vector gossip, sends a DATA message from A to C, and reads delivery
 confirmation from C's logs.
 
-### Expected proof
+### Captured proof from the live Azure deployment
+
+On Node A — distance-vector route to C learned via B:
 
 ```text
-Updated route to <C> via <B> (metric=2, seq=1)
-Updated 1 routes from <B>
-
+Updated route to SyS04TMQ7tR5qKzT97RADCtHN/p4Be95QiwHeHXGv3M= via Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8= (metric=2, seq=1)
+Updated 1 routes from Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=
 Sent: 'hello from A via B to C'
+```
 
-DATA forwarded | dest=<C-prefix> | next_hop=<C-prefix> | ttl=9     (on B)
-DATA message delivered | from=<A-prefix> | content='hello from A via B to C'   (on C)
+On Node B (Azure VM) — DATA forwarded to next hop:
+
+```text
+DATA forwarded | dest=SyS04TMQ7tR5qKzT | next_hop=SyS04TMQ7tR5qKzT | ttl=9
+```
+
+On Node C — message delivered, sender identified by A's key prefix:
+
+```text
+DATA message delivered | from=vqSz9BASkw9dj5tz | content='hello from A via B to C'
 ```
 
 The `metric=2` route on A means C is two hops away via B — exactly the
@@ -466,20 +470,39 @@ The script enrolls A and C, connects both to B and D, sends through B,
 SSHes to the VM and stops `genesis-mesh-node`, then sends through D and
 shows delivery on C.
 
-### Expected proof
+### Captured proof from the live Azure deployment
+
+Initial state — Node A learns C is reachable via B:
 
 ```text
-Updated route to <C> via <B> (metric=2)
+Updated route to XtWVKWy30xIyASzRXSxtiFEbUqG8QnEaeOdqZfpcoAk= via xop1h3bm1SXMo8xZp/Umwp2l4bxUSgFF6aZvYXSezdo= (metric=2, seq=6)
+```
 
+Send 1 through B (primary) — delivered:
+
+```text
 Sent: 'hello via B (primary)'
-DATA message delivered | content='hello via B (primary)'
+DATA message delivered | from=7y2r604wQlI6NtaE | content='hello via B (primary)'
+```
 
-==> Killing Node B
-Removed neighbor <B>, invalidated 1 routes
+B is stopped on the VM. Node A detects the disconnect and withdraws B's routes:
 
+```text
+==> Killing Node B (stopping genesis-mesh-node on Azure VM)
+Removed neighbor Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=, invalidated 1 routes
+```
+
+Send 2 through D (backup) — delivered without retry or reconfiguration:
+
+```text
 Sent: 'hello via D (backup)'
-DATA forwarded | dest=<C-prefix> | next_hop=<C-prefix> | ttl=9     (on D)
-DATA message delivered | content='hello via D (backup)'
+DATA message delivered | from=7y2r604wQlI6NtaE | content='hello via D (backup)'
+```
+
+On Node D (Azure VM) — DATA forwarded to C:
+
+```text
+DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
 ```
 
 ### What this proves
@@ -492,6 +515,8 @@ DATA message delivered | content='hello via D (backup)'
 ---
 
 # Part B — Local Smoke Tests
+
+Part B demonstrates local packaging, installation, and operational startup paths.
 
 ## 6. In-Process Smoke Demo
 
@@ -742,40 +767,16 @@ and starts Gunicorn instead of the Flask development server.
 
 ---
 
-## What These Demos Prove
+## Demonstrated Capabilities
 
-Together these walkthroughs verify the core control-plane and data-plane paths:
-
-**Trust and identity**
-- Root Sovereign key generation and signed genesis block creation
-- Network Authority startup and signing chain
-- Operator-authenticated invite creation through signed admin headers
-- Node proof-of-possession during join
-- NA-signed join certificate issuance and policy retrieval
-
-**Operational endpoints**
-- Health, readiness, node-list, and metrics endpoints
-
-**Revocation**
-- Certificate revocation through operator-authenticated admin actions
-- Signed CRL publication and revocation sequence increments
-- Heartbeat, renewal, and local certificate reuse rejection after revocation
-- Runtime rejection of revoked peer handshakes and route announcements
-
-**Transport and routing**
-- Noise XX mutual authentication and encrypted DATA frame delivery
-- Distance-vector route announcement and learning across an intermediate router
-- Multi-hop DATA forwarding with TTL decrement
-- Automatic route withdrawal on neighbor disconnect and failover to a backup path
-
-**Packaging**
-- Docker image importability and fail-closed startup behavior
-- Terraform-independent local container startup path
-
-These do not claim provider-specific cloud deployment readiness. AWS, GCP, and
-Alibaba Cloud plans still require real provider credentials and deployment
-inputs. Azure deployment is demonstrated by the live deployment referenced
-throughout this page.
+- Identity and enrollment
+- Certificate issuance and policy distribution
+- Certificate revocation and CRL enforcement
+- Noise XX encrypted transport
+- Direct peer-to-peer messaging
+- Multi-hop routing and packet forwarding
+- Automatic route failover and recovery
+- Docker packaging and local deployment
 
 ## Clean Up
 
