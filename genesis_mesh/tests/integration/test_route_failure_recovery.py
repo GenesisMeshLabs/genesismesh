@@ -149,9 +149,10 @@ async def test_route_failure_recovery_via_backup_router():
         # === Simulate primary router failure ===
         await runtime_b.stop()
 
-        # A and C should both detect B's disconnect and withdraw B's routes.
-        await _wait_for(lambda: runtime_a.peer_manager.get_peer(b_key) is None)
-        await _wait_for(lambda: runtime_c.peer_manager.get_peer(b_key) is None)
+        # A and C should detect B's disconnect at the routing layer.
+        # The runtime invalidates routes via the lost neighbor in remove_neighbor().
+        await _wait_for(lambda: b_key not in runtime_a.routing_table.neighbors)
+        await _wait_for(lambda: b_key not in runtime_c.routing_table.neighbors)
 
         # Re-advertise from D so A's route to C is via D (metric=2).
         await runtime_d.routing_protocol.trigger_update()
