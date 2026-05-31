@@ -1,5 +1,7 @@
 # Genesis Mesh
 
+[![PyPI](https://img.shields.io/pypi/v/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
+[![Python](https://img.shields.io/pypi/pyversions/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://genesismesh.connectorzzz.com)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
@@ -170,10 +172,17 @@ revoked peers.
 ## Installation
 
 ```bash
+pip install genesis-mesh
+```
+
+For development from a clone:
+
+```bash
+git clone https://github.com/thaersaidi/genesismesh.git
+cd genesismesh
 python -m venv .venv
 source .venv/bin/activate   # PowerShell: .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[dev,docs]"
 ```
 
 ## Quick Start

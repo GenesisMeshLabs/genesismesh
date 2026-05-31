@@ -1,37 +1,63 @@
 # Installation
 
-Genesis Mesh is a Python project. Use a virtual environment for local
-development.
+Genesis Mesh is published on PyPI. Python 3.12 or later required.
 
-## Windows PowerShell
-
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -r docs/requirements.txt
-python -m pip install -e .
-```
-
-## Linux, macOS, or WSL
+## Quick Install (Most Users)
 
 ```bash
+pip install genesis-mesh
+```
+
+That installs the package and exposes three CLI commands:
+
+```bash
+genesis-mesh --help        # High-level operator + node + dev workflows
+genesis-mesh-na --help     # Network Authority server (legacy entry point)
+genesis-mesh-node --help   # Node runtime (legacy entry point)
+```
+
+## Development Install (Contributors)
+
+For working on the code or building docs locally, clone the repository and
+install in editable mode with the dev and docs extras:
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/thaersaidi/genesismesh.git
+cd genesismesh
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev,docs]"
+```
+
+### Linux, macOS, or WSL
+
+```bash
+git clone https://github.com/thaersaidi/genesismesh.git
+cd genesismesh
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -r docs/requirements.txt
-python -m pip install -e .
+python -m pip install -e ".[dev,docs]"
 ```
 
 ## Verify the Install
+
+For a quick sanity check after `pip install genesis-mesh`:
+
+```bash
+genesis-mesh --help
+```
+
+For a development install, the full local pre-flight suite:
 
 ```powershell
 python -m pytest genesis_mesh/tests -v
 genesis-mesh --help
 python -m mypy genesis_mesh --ignore-missing-imports
-python -m pip_audit -r requirements.txt
+python -m pip_audit
 python -m sphinx -b html -W docs docs/pages
 ```
 
