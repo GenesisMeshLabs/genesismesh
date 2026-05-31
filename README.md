@@ -29,15 +29,15 @@ Current deployment demonstrates:
 - Route failure recovery
 - Certificate revocation and CRL enforcement
 
-![NA dashboard showing 2 active nodes](docs/examples/assets/na-dashboard.png)
+![NA dashboard showing 2 active nodes](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/na-dashboard.png)
 
-![/nodes endpoint showing two enrolled nodes with different remote addresses](docs/examples/assets/na-nodes.png)
+![/nodes endpoint showing two enrolled nodes with different remote addresses](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/na-nodes.png)
 
 ## Live Message Delivery
 
 A remote local node sends a DATA message to an Azure-hosted node over a Noise XX encrypted peer session.
 
-![Genesis Mesh live message delivery](docs/examples/assets/genesis-mesh-message-delivery.gif)
+![Genesis Mesh live message delivery](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/genesis-mesh-message-delivery.gif)
 
 - Noise XX handshake completed
 - Connection established
@@ -54,7 +54,7 @@ Node A and Node C do not connect directly. Instead:
 
 Node B learns routes, forwards packets, and decrements TTL values during transit.
 
-![Genesis Mesh multi-hop routing demo](docs/examples/assets/genesis-mesh-multi-hop.gif)
+![Genesis Mesh multi-hop routing demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/genesis-mesh-multi-hop.gif)
 
 - Route learned via intermediate node
 - DATA forwarded by router
@@ -66,7 +66,7 @@ When a router goes offline, neighboring nodes withdraw its routes and traffic re
 
 **Topology:** A reaches C through two routers — B (primary) and D (backup). B is killed mid-demo.
 
-![Genesis Mesh route failure recovery demo](docs/examples/assets/genesis-mesh-failover.gif)
+![Genesis Mesh route failure recovery demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/genesis-mesh-failover.gif)
 
 - Primary path A → B → C delivers
 - B goes offline
@@ -74,7 +74,7 @@ When a router goes offline, neighboring nodes withdraw its routes and traffic re
 - A → D → C delivers without retry or operator action
 
 
-![Genesis Mesh revocation demo](docs/examples/assets/genesis-mesh-revocation.gif)
+![Genesis Mesh revocation demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/genesis-mesh-revocation.gif)
 
 **Trust can be revoked.**
 
