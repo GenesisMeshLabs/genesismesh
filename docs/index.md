@@ -147,6 +147,7 @@ reference/configuration
 :caption: Operations
 
 operations/deployment
+operations/vm-bootstrap
 operations/infrastructure
 operations/terraform-deployment
 operations/kubernetes-deployment

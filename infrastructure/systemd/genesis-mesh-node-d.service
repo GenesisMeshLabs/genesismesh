@@ -1,0 +1,15 @@
+[Unit]
+Description=Genesis Mesh Node D (backup router)
+After=genesis-mesh-na.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+User=azureuser
+WorkingDirectory=/opt/genesis-mesh
+ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --na https://na.genesismesh.connectorzzz.com --config /home/azureuser/.genesis-mesh-node-d/config.toml --persistent --listen-port 7444
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
