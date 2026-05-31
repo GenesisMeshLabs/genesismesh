@@ -67,4 +67,4 @@ keys/
 *.tfstate.*
 
 # Local verification reports
-ops/verdict.md
+ops/*

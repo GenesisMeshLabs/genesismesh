@@ -1,0 +1,15 @@
+[Unit]
+Description=Genesis Mesh Demo Node
+After=network.target genesis-mesh-na.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+User=azureuser
+WorkingDirectory=/opt/genesis-mesh
+ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --listen-port 7443 --na https://na.genesismesh.connectorzzz.com --config /home/azureuser/.genesis-mesh-demo-node/config.toml --persistent
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

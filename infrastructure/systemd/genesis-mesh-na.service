@@ -1,0 +1,21 @@
+[Unit]
+Description=Genesis Mesh Network Authority
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+
+[Service]
+User=azureuser
+WorkingDirectory=/opt/genesis-mesh
+Environment=SERVICE_ROLE=na
+Environment=GENESIS_FILE=/etc/genesis/genesis.signed.json
+Environment=NA_PRIVATE_KEY_FILE=/etc/genesis-mesh/keys/na.key
+Environment=DB_PATH=/var/lib/genesis-mesh/na.db
+Environment=PORT=8443
+ExecStart=/opt/genesis-mesh/.venv/bin/gunicorn --workers 4 --worker-class sync --timeout 30 --max-requests 1000 --bind 0.0.0.0:8443 genesis_mesh.na_service.wsgi:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
