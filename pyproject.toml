@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genesis-mesh"
-version = "0.5.1"
+version = "0.5.2"
 description = "Sovereign trust, identity, and communication fabric for AI agents, edge systems, and distributed infrastructure."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -88,3 +88,9 @@ genesis-mesh-node = "genesis_mesh.cli.node_cmd:main"
 [tool.setuptools.packages.find]
 include = ["genesis_mesh*"]
 exclude = ["genesis_mesh.tests*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "integration: end-to-end multi-runtime tests (slower, isolated from unit tests)",
+]

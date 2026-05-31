@@ -27,8 +27,11 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning
+      - name: Run unit tests
+        run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
+
+      - name: Run integration tests (capability demos)
+        run: python -m pytest genesis_mesh/tests/integration -v -W error::DeprecationWarning -m integration
 
       - name: Audit dependencies
         run: python -m pip_audit -r requirements.txt -r requirements-dev.txt
