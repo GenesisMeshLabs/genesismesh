@@ -1,11 +1,29 @@
 # Security Policy
 
-Genesis Mesh is security-sensitive infrastructure. Report vulnerabilities
-privately before opening public issues.
+The canonical security policy lives at
+[`SECURITY.md`](https://github.com/thaersaidi/genesismesh/blob/main/SECURITY.md)
+in the repo root. It documents:
 
-## Supported Scope
+- What Genesis Mesh defends against (in scope)
+- What Genesis Mesh does **not** defend against (out of scope)
+- How to report a vulnerability privately
+- Supported versions
 
-Security review should focus on:
+This page covers only the **development-side** expectations for writing and
+reviewing security-sensitive changes.
+
+## Reviewing a Security Change
+
+A security change should:
+
+- include a test that fails without the fix and passes with it
+- avoid unrelated refactors
+- update the relevant docs in the same change if it touches a trust boundary
+  or operational procedure
+
+## Areas Requiring Careful Review
+
+Pay extra attention to changes that touch:
 
 - private key handling
 - signature verification
@@ -18,18 +36,8 @@ Security review should focus on:
 
 ## Reporting
 
-Until a dedicated security contact is published, do not include exploit details
-in public issues. Share a minimal private report with:
-
-- affected component
-- expected behavior
-- observed behavior
-- reproduction steps
-- impact assessment
-- suggested fix, if known
-
-## Disclosure Expectations
-
-Security fixes should include tests where practical and should avoid unrelated
-refactors. If a fix changes trust boundaries or operational procedures, update
-the relevant docs in the same change.
+Open a draft advisory at
+[github.com/thaersaidi/genesismesh/security/advisories/new](https://github.com/thaersaidi/genesismesh/security/advisories/new).
+See [SECURITY.md](https://github.com/thaersaidi/genesismesh/blob/main/SECURITY.md)
+for the full reporting process, acknowledgement timeline, and remediation
+expectations.

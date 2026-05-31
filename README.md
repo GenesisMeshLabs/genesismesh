@@ -3,6 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Python](https://img.shields.io/pypi/pyversions/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://genesismesh.connectorzzz.com)
+[![Security](https://img.shields.io/badge/security-policy-orange)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
 
@@ -285,8 +286,14 @@ python -m pytest genesis_mesh/tests -v
 
 ## Security
 
-To report a vulnerability, open a GitHub Security Advisory on this repository.
-Do not file a public issue for security-sensitive findings.
+See [SECURITY.md](SECURITY.md) for:
+
+- What Genesis Mesh defends against (enrollment, identity, transport, revocation)
+- What it explicitly does **not** defend against (DoS, traffic analysis, key compromise, supply chain)
+- How to report a vulnerability privately
+
+Quick reporting link:
+[github.com/thaersaidi/genesismesh/security/advisories/new](https://github.com/thaersaidi/genesismesh/security/advisories/new)
 
 ## License
 
