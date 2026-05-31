@@ -74,8 +74,15 @@ class MeshNodeRuntime:
         listen_host: str = "0.0.0.0",
         listen_port: int = 0,
         bootstrap_peers: list[str] | None = None,
+        on_data_received=None,
     ):
-        """Create a runtime around a joined `MeshNode`."""
+        """Create a runtime around a joined `MeshNode`.
+
+        Args:
+            on_data_received: Optional async callback ``f(message: MeshMessage) -> None``
+                invoked when a DATA frame is delivered locally. Applications use this
+                to receive messages addressed to this node.
+        """
         self.node = node
         self.na_endpoint = na_endpoint.rstrip("/")
         self.listen_host = listen_host
@@ -90,6 +97,7 @@ class MeshNodeRuntime:
             self.node_id,
             self.routing_table,
             self.connection_pool.get_connection,
+            data_handler=on_data_received,
         )
         self._peer_certs_by_id: dict[str, JoinCertificate] = {}
         self._peer_certs_by_node_id: dict[str, JoinCertificate] = {}

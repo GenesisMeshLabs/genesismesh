@@ -1,0 +1,8 @@
+{
+  "what is genesis mesh": "A permissioned mesh network with cryptographic identity, signed trust, encrypted Noise XX peer sessions, and revocation enforcement.",
+  "who issues join certificates": "The Network Authority signs join certificates with its Ed25519 private key after a valid invite token is presented.",
+  "how does revocation work": "An operator calls /admin/revoke. The Network Authority publishes a new signed CRL. Heartbeat, renewal, peer handshake, and routing checks all reject the revoked identity.",
+  "what protocol secures peer sessions": "Noise XX, deriving X25519 keys directly from each node's Ed25519 identity. No separate TLS certificate lifecycle is required.",
+  "how do messages route": "Distance-vector announcements over authenticated peer sessions. Nodes forward DATA frames toward the destination using learned routes and decrement the TTL on each hop.",
+  "default answer": "I don't have a specific answer for that question yet. Knowledge can be extended by editing knowledge.json or pointing the responder at a different backend."
+}

@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Optional, Callable, Dict
+from typing import Awaitable, Optional, Callable, Dict
 
 from ..transport.protocol import MeshMessage, MessageType
 from ..transport.connection import Connection
@@ -10,6 +10,9 @@ from .table import RoutingTable, Route
 
 
 logger = logging.getLogger(__name__)
+
+
+DataHandler = Callable[[MeshMessage], Awaitable[None]]
 
 
 class MeshRouter:
@@ -21,13 +24,15 @@ class MeshRouter:
     - Handle routing protocol messages
     - Update routing table based on received routes
     - Prevent routing loops
+    - Hand locally-addressed DATA to the application via ``data_handler``
     """
 
     def __init__(
         self,
         node_id: str,
         routing_table: RoutingTable,
-        get_connection: Callable[[str], Optional[Connection]]
+        get_connection: Callable[[str], Optional[Connection]],
+        data_handler: Optional[DataHandler] = None,
     ):
         """
         Initialize mesh router.
@@ -36,10 +41,12 @@ class MeshRouter:
             node_id: Local node ID
             routing_table: Routing table instance
             get_connection: Function to get connection by peer ID
+            data_handler: Optional async callback invoked on local DATA delivery
         """
         self.node_id = node_id
         self.routing_table = routing_table
         self.get_connection = get_connection
+        self.data_handler = data_handler
 
         # Track message IDs to prevent loops
         self._seen_messages: Dict[str, float] = {}
@@ -82,6 +89,11 @@ class MeshRouter:
                 message.sender_id[:16],
                 content,
             )
+            if self.data_handler is not None:
+                try:
+                    await self.data_handler(message)
+                except Exception:
+                    logger.exception("Application data_handler raised on local delivery")
             return True
 
         # Broadcast messages

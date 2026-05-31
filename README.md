@@ -238,6 +238,10 @@ The NA private key never leaves the NA process.
 
 Health and readiness probes are available at `/healthz` and `/readyz`.
 
+## Application Examples
+
+- **Agent network** — two agents (a researcher and a knowledge base) hold a structured conversation over the mesh. The responder's identity is unforgeable, the conversation is private, and revoking the responder blocks further answers. See [`examples/agent-network/`](examples/agent-network/README.md). Easy to extend to an LLM, database, or MCP backend without changing the mesh code.
+
 ## Deployment Examples
 
 Genesis Mesh includes deployment examples for:
