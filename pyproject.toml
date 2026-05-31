@@ -89,8 +89,4 @@ genesis-mesh-node = "genesis_mesh.cli.node_cmd:main"
 include = ["genesis_mesh*"]
 exclude = ["genesis_mesh.tests*"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-markers = [
-    "integration: end-to-end multi-runtime tests (slower, isolated from unit tests)",
-]
+# Pytest configuration lives in pytest.ini (predates this file).
