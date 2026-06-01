@@ -1,12 +1,14 @@
 # Demos
 
 This page is a runnable walkthrough for Genesis Mesh. The demos are organized
-into two parts:
+into three parts:
 
 - **Part A — Capability demos** prove the architecture. Each demo exercises one
   control-plane or data-plane property end to end.
 - **Part B — Local smoke tests** prove the package builds, installs, and ships
   in expected shapes (in-process, CLI process, Docker image, Docker Compose).
+- **Part C - Capacity baselines** measure how cooperative agent workflows behave
+  as the local network grows.
 
 Most demos can run against the live deployment at
 [https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
@@ -37,8 +39,13 @@ flowchart TD
         B4[Docker Compose NA]
     end
 
+    subgraph C[Part C - Capacity Baselines]
+        C1[Cooperative Agent Capacity]
+    end
+
     A1 --> A2 --> A3 --> A4 --> A5 --> A6
     B1 --> B2 --> B3 --> B4
+    A6 --> C1
 ```
 
 ---
@@ -573,11 +580,94 @@ A: Revocation starts with an operator-signed admin action. The Network Authority
 
 ---
 
+# Part C - Capacity Baselines
+
+Part C turns the cooperative-agent example into measured local operating data.
+
+## 7. Cooperative Agent Capacity Baseline
+
+This benchmark measures how the multi-agent workflow behaves as the number of
+knowledge agents increases on one host.
+
+```{mermaid}
+flowchart LR
+    researcher["Researcher"]
+    router["Router"]
+    kb0["kb-0"]
+    kb1["kb-1"]
+    kb2["kb-2"]
+    kbn["kb-N"]
+
+    researcher --> router
+    router --> kb0
+    router --> kb1
+    router --> kb2
+    router --> kbn
+    kb0 --> router
+    kb1 --> router
+    kb2 --> router
+    kbn --> router
+    router --> researcher
+```
+
+The runnable benchmark starts a temporary local Network Authority, enrolls
+multiple knowledge agents, starts one router, sends real researcher requests,
+and writes a JSON report with latency, success count, provenance correctness,
+and optional process resource samples.
+
+Run:
+
+```powershell
+python docs\examples\assets\scripts\capacity-baseline.py `
+  --agent-counts 2,4 `
+  --requests-per-agent 2 `
+  --output docs\examples\assets\reports\capacity-baseline.json
+```
+
+Latest local report:
+
+- [assets/reports/capacity-baseline.json](assets/reports/capacity-baseline.json)
+
+Summary from the checked-in baseline:
+
+| Knowledge agents | Requests | Successful | Provenance valid | p50 latency | p95 latency | RSS sample |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 4 | 4 | 4 | 697.08 ms | 909.96 ms | 223.15 MB |
+| 4 | 8 | 8 | 8 | 688.47 ms | 749.43 ms | 330.72 MB |
+
+Capacity baseline: 50-agent routed workflow.
+
+Genesis Mesh was tested with 50 knowledge agents on a single host. The router
+processed 50 routed requests with 50 successful responses and 50 valid
+provenance chains.
+
+- [assets/reports/capacity-baseline-local-50.json](assets/reports/capacity-baseline-local-50.json)
+
+| Knowledge agents | Requests | Successful | Provenance valid | p50 latency | p95 latency | RSS sample |
+|---:|---:|---:|---:|---:|---:|---:|
+| 50 | 50 | 50 | 50 | 773.14 ms | 868.81 ms | 2792.57 MB |
+
+This baseline does not claim unlimited scale. It establishes a measured
+operating point for cooperative agent workflows and identifies the first tuning
+needs: paced enrollment, non-overlapping routing tokens, and router peer-limit
+sizing.
+
+The benchmark measures steady-state workflow capacity after enrollment. Agent
+enrollment was intentionally paced to respect the Network Authority's `/join`
+rate limiter, which is a security control on identity issuance, not a runtime
+routing limitation.
+
+Full walkthrough:
+
+- [](capacity-baseline.md)
+
+---
+
 # Part B — Local Smoke Tests
 
 Part B demonstrates local packaging, installation, and operational startup paths.
 
-## 6. In-Process Smoke Demo
+## 8. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -649,7 +739,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 7. Live CLI Process Smoke Demo
+## 9. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -710,7 +800,7 @@ Node:
   valid: True
 ```
 
-## 8. Docker Image Smoke Demo
+## 10. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -768,7 +858,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 9. Docker Compose Network Authority Example
+## 11. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and
@@ -836,6 +926,7 @@ and starts Gunicorn instead of the Flask development server.
 - Multi-hop routing and packet forwarding
 - Automatic route failover and recovery
 - Multi-agent workflow routing with provenance
+- Cooperative-agent capacity baseline reporting
 - Docker packaging and local deployment
 
 ## Clean Up

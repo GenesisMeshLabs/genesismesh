@@ -154,6 +154,7 @@ async def run_router_agent(
     targets: dict[str, KnowledgeTarget],
     rules: dict[str, str],
     bootstrap_peers: list[str] | None = None,
+    max_peer_connections: int = 50,
 ):
     """Enroll if needed, start the runtime, and route agent requests."""
     home = config_path.parent
@@ -248,6 +249,7 @@ async def run_router_agent(
         listen_port=listen_port,
         bootstrap_peers=bootstrap_peers,
         on_data_received=on_data_received,
+        max_peer_connections=max_peer_connections,
     )
 
     await runtime.start()
@@ -316,6 +318,12 @@ def main():
         help="Peer endpoint to connect during startup. Repeat for each knowledge agent.",
     )
     parser.add_argument("--invite-token", default=None, help="Invite token (only for first enrollment)")
+    parser.add_argument(
+        "--max-peer-connections",
+        type=int,
+        default=50,
+        help="Maximum simultaneous peer connections for this router runtime",
+    )
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -334,6 +342,7 @@ def main():
             targets=parse_knowledge_targets(args.knowledge_agent),
             rules=parse_keyword_rules(args.rule),
             bootstrap_peers=args.peer,
+            max_peer_connections=args.max_peer_connections,
         )
     )
 
