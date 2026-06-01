@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Optional
 import uuid
 
-from ..models import AgentDescriptor, AgentEndpoint, InviteToken, JoinCertificate, PolicyManifest
+from ..models import (
+    AgentDescriptor,
+    AgentEndpoint,
+    InviteToken,
+    JoinCertificate,
+    MembershipAttestation,
+    PolicyManifest,
+    RecognitionPolicy,
+)
 from ..models.revocation import CertificateRevocationList, RevokedCertificate
 
 
@@ -392,6 +400,145 @@ class NADatabase:
             "SELECT event_json FROM audit_events ORDER BY created_at ASC"
         ).fetchall()
         return [json.loads(row["event_json"]) for row in rows]
+
+    # -- Sovereign trust / attestations --------------------------------------
+
+    def save_membership_attestation(
+        self,
+        attestation: MembershipAttestation,
+        status: str = "active",
+    ) -> None:
+        """Persist a signed membership attestation."""
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO membership_attestations(
+                    attestation_id, issuer_sovereign_id, subject_id,
+                    subject_public_key, roles_json, status, attestation_json,
+                    issued_at, valid_from, expires_at, revoked_at,
+                    revocation_reason
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                """,
+                (
+                    attestation.attestation_id,
+                    attestation.issuer_sovereign_id,
+                    attestation.subject_id,
+                    attestation.subject_public_key,
+                    json.dumps(attestation.roles, sort_keys=True),
+                    status,
+                    attestation.model_dump_json(),
+                    attestation.issued_at.isoformat(),
+                    attestation.valid_from.isoformat(),
+                    attestation.expires_at.isoformat(),
+                ),
+            )
+
+    def get_membership_attestation(self, attestation_id: str) -> dict | None:
+        """Return a persisted attestation row and signed model, if present."""
+        row = self.conn.execute(
+            """
+            SELECT attestation_json, status, revoked_at, revocation_reason
+            FROM membership_attestations
+            WHERE attestation_id = ?
+            """,
+            (attestation_id,),
+        ).fetchone()
+        if not row:
+            return None
+        attestation = MembershipAttestation.model_validate_json(row["attestation_json"])
+        return {
+            "attestation": attestation,
+            "status": row["status"],
+            "revoked_at": row["revoked_at"],
+            "revocation_reason": row["revocation_reason"],
+        }
+
+    def list_membership_attestations(
+        self,
+        issuer_sovereign_id: str | None = None,
+        subject_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict]:
+        """Return persisted attestation rows filtered by issuer, subject, or status."""
+        clauses: list[str] = []
+        params: list[str] = []
+        if issuer_sovereign_id:
+            clauses.append("issuer_sovereign_id = ?")
+            params.append(issuer_sovereign_id)
+        if subject_id:
+            clauses.append("subject_id = ?")
+            params.append(subject_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self.conn.execute(
+            f"""
+            SELECT attestation_json, status, revoked_at, revocation_reason
+            FROM membership_attestations
+            {where}
+            ORDER BY issued_at ASC
+            """,
+            params,
+        ).fetchall()
+        return [
+            {
+                "attestation": MembershipAttestation.model_validate_json(row["attestation_json"]),
+                "status": row["status"],
+                "revoked_at": row["revoked_at"],
+                "revocation_reason": row["revocation_reason"],
+            }
+            for row in rows
+        ]
+
+    def revoke_membership_attestation(
+        self,
+        attestation_id: str,
+        reason: str = "unspecified",
+    ) -> bool:
+        """Mark a persisted attestation revoked without modifying signed JSON."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self.conn:
+            cursor = self.conn.execute(
+                """
+                UPDATE membership_attestations
+                SET status = 'revoked', revoked_at = ?, revocation_reason = ?
+                WHERE attestation_id = ?
+                """,
+                (now, reason, attestation_id),
+            )
+        return cursor.rowcount > 0
+
+    def save_recognition_policy(
+        self,
+        policy_id: str,
+        policy: RecognitionPolicy,
+        active: bool = True,
+    ) -> None:
+        """Persist a local recognition policy and optionally activate it."""
+        with self.conn:
+            if active:
+                self.conn.execute("UPDATE recognition_policies SET active = 0")
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO recognition_policies(
+                    policy_id, policy_json, active, created_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    policy_id,
+                    policy.model_dump_json(),
+                    1 if active else 0,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def get_active_recognition_policy(self) -> RecognitionPolicy | None:
+        """Return the active recognition policy, if one is configured."""
+        row = self.conn.execute(
+            "SELECT policy_json FROM recognition_policies WHERE active = 1 LIMIT 1"
+        ).fetchone()
+        return RecognitionPolicy.model_validate_json(row["policy_json"]) if row else None
 
     # -- Agent discovery / service registry ---------------------------------
 

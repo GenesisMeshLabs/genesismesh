@@ -22,6 +22,7 @@ from .db import NADatabase
 from .rate_limit import RateLimiter
 from .routes import (
     create_admin_blueprint,
+    create_attestation_blueprint,
     create_crl_blueprint,
     create_discovery_blueprint,
     create_enrollment_blueprint,
@@ -99,6 +100,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_admin_blueprint(self))
         self.app.register_blueprint(create_enrollment_blueprint(self))
         self.app.register_blueprint(create_discovery_blueprint(self))
+        self.app.register_blueprint(create_attestation_blueprint(self))
 
     def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
         """

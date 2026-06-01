@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.9.0 - Sovereign Trust and Membership Attestations
+
+### Added
+
+- Added sovereign trust-domain models for portable trust:
+  `SovereignIdentity`, `MembershipAttestation`, `RecognizedIssuer`, and
+  `RecognitionPolicy`.
+- Added a local attestation verifier with structured reason codes for accepted,
+  unknown issuer, local revocation, invalid status, invalid validity window,
+  disallowed role, missing signature, and invalid signature outcomes.
+- Added durable Network Authority storage for signed membership attestations and
+  local recognition policies.
+- Added Network Authority endpoints to issue, list, revoke, persist recognition
+  policy, and verify membership attestations.
+- Added a two-sovereign attestation demo proving that one sovereign can evaluate
+  and later reject a membership claim issued by another sovereign under local
+  policy.
+
+### Changed
+
+- Extended the documentation index with the sovereign attestation walkthrough.
+- Exported the new sovereign trust models from `genesis_mesh.models`.
+
+### Verified
+
+- Ran focused sovereign trust and Network Authority attestation tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, and `git diff --check`.
+- Ran the sovereign attestation demo:
+  Sovereign A issued a signed membership attestation, Sovereign B accepted it
+  after local issuer recognition, Sovereign A revoked it, and Sovereign B
+  rejected the same claim after revocation input.
+
 ## v0.8.0 - Capability Orchestration with Trust-Aware Failover
 
 ### Added
