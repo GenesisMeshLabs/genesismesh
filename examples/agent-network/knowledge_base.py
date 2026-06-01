@@ -34,6 +34,7 @@ from agent_protocol import AgentRequest, AgentResponse, append_trace, parse_enve
 
 from genesis_mesh.crypto import KeyPair, generate_keypair, load_private_key, save_keypair  # noqa: E402
 from genesis_mesh.models import GenesisBlock, JoinCertificate  # noqa: E402
+from genesis_mesh.node.discovery_client import run_registration_loop  # noqa: E402
 from genesis_mesh.node.node import MeshNode  # noqa: E402
 from genesis_mesh.node.runtime import MeshNodeRuntime  # noqa: E402
 
@@ -63,6 +64,8 @@ async def run_knowledge_base(
     agent_id: str,
     knowledge_path: Path,
     invite_token: str | None,
+    announce_host: str = "127.0.0.1",
+    capabilities: list[str] | None = None,
 ):
     """Enroll if needed, start the peer runtime, and answer AgentRequest messages."""
     knowledge = json.loads(knowledge_path.read_text(encoding="utf-8"))
@@ -157,6 +160,23 @@ async def run_knowledge_base(
         runtime.node_id[:16],
     )
 
+    effective_capabilities = list(
+        capabilities or [f"kb:{knowledge_path.stem}", "knowledge-base"]
+    )
+    registration_task = asyncio.create_task(
+        run_registration_loop(
+            na_endpoint=na_endpoint,
+            agent_id=agent_id,
+            node_public_key=runtime.node_id,
+            network_name=genesis.network_name,
+            capabilities=effective_capabilities,
+            host=announce_host,
+            port=runtime.bound_port or listen_port,
+            private_key=node_keypair.private_key,
+            metadata={"knowledge_file": knowledge_path.name},
+        )
+    )
+
     try:
         while True:
             while pending_responses:
@@ -174,6 +194,11 @@ async def run_knowledge_base(
     except KeyboardInterrupt:
         logger.info("Shutting down")
     finally:
+        registration_task.cancel()
+        try:
+            await registration_task
+        except asyncio.CancelledError:
+            pass
         await runtime.stop()
 
 
@@ -202,6 +227,17 @@ def main():
         help="Path to the JSON knowledge file",
     )
     parser.add_argument("--invite-token", default=None, help="Invite token (only for first enrollment)")
+    parser.add_argument(
+        "--announce-host",
+        default="127.0.0.1",
+        help="Host other peers should connect to when discovering this agent",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=None,
+        help="Capability tag to advertise (repeatable). Default: kb:<file-stem> + knowledge-base",
+    )
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -218,6 +254,8 @@ def main():
             agent_id=args.agent_id,
             knowledge_path=args.knowledge,
             invite_token=args.invite_token,
+            announce_host=args.announce_host,
+            capabilities=args.capability,
         )
     )
 

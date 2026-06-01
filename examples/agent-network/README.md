@@ -284,38 +284,180 @@ sufficient for most use cases. If your threat model needs non-repudiation
 across the whole chain (cross-agent forwarding, audit logs presented to a
 third party), add signing at the application layer.
 
-## Extending: swap the responder for an LLM
+## LLM-backed responder agent
 
-The default responder is a literal keyword lookup against `knowledge.json`.
-Replace `answer_question` in `knowledge_base.py` with any callable that
-takes a string and returns `(answer, source)`. The source string is
-recorded in the response envelope, so the researcher learns whether the
-answer came from a knowledge file, an LLM, a database, etc.
+`llm_agent.py` is the same shape as `knowledge_base.py` but the answer
+function calls an LLM via [LiteLLM](https://docs.litellm.ai/) instead of
+looking up a JSON file. LiteLLM exposes one async interface across ~100
+providers, so changing brain is a one-line env var change.
 
-A minimal Anthropic example:
+Install the optional dependency:
 
-```python
-from anthropic import Anthropic
-
-client = Anthropic()
-
-def answer_question(question: str, knowledge: dict) -> tuple[str, str]:
-    msg = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": question}],
-    )
-    return msg.content[0].text, "llm:claude-sonnet-4-6"
+```bash
+pip install -r examples/agent-network/requirements.txt
 ```
 
-Nothing about the mesh layer changes. Identity, authentication, routing,
-and revocation continue to work.
+Configure a provider through environment variables:
+
+```bash
+export LLM_MODEL=openai/gpt-4o-mini       # provider-prefixed model name
+export LLM_API_KEY=sk-...                  # required for cloud providers
+export LLM_BASE_URL=                       # optional, for non-default endpoints
+export LLM_MAX_TOKENS=512
+export LLM_TEMPERATURE=0.7
+export LLM_SYSTEM_PROMPT="You are an agent on a Genesis Mesh network. Be concise and factual."
+```
+
+Then run the agent like any other responder:
+
+```bash
+LLM_INVITE=$(genesis-mesh admin invite --role anchor)
+
+python examples/agent-network/llm_agent.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/llm/config.toml \
+  --listen-port 7448 \
+  --agent-id llm-1 \
+  --invite-token "$LLM_INVITE"
+```
+
+Ask it a question through the existing researcher:
+
+```bash
+LLM_KEY=$(cat ~/.gm-agents/llm/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])")
+
+python examples/agent-network/researcher.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/researcher/config.toml \
+  --to-agent llm-1 \
+  --destination-key "$LLM_KEY" \
+  --via ws://localhost:7448 \
+  "Explain in one paragraph what perfect forward secrecy means and why it matters for peer-to-peer communication."
+```
+
+Output, captured from a live run against
+[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
+with Azure OpenAI (`gpt-4o-mini` deployment):
+
+```text
+Q: Explain in one paragraph what perfect forward secrecy means and why it matters for peer-to-peer communication.
+A: Perfect forward secrecy (PFS) is a cryptographic property that ensures session keys used for encrypting data are not compromised even if the private key of a server is compromised in the future. This is achieved by generating unique session keys for each session that cannot be derived from the server's long-term key or from previous sessions. PFS matters for peer-to-peer communication because it enhances security by protecting past communications from being decrypted if a key is exposed later, thus maintaining user privacy and data integrity over time, even in the face of potential future vulnerabilities.
+  from:    llm-1
+  source:  llm:openai/gpt-4o-mini
+  request: 6cd695fd-4388-495f-9324-fc48410776b5
+  provenance:
+    - llm-1: answered (llm:openai/gpt-4o-mini)
+```
+
+The mesh-side logs:
+
+```text
+[deae70a1-...] received question from researcher-1: 'in three sentences, what makes Genesis Mesh different from a generic service mesh like Istio?'
+[deae70a1-...] sent answer to fP7HbAUnyGzUt6l0 (source=llm:openai/gpt-4o-mini)
+```
+
+### Provider swap matrix
+
+Change `LLM_MODEL` (and optionally `LLM_BASE_URL`/`LLM_API_KEY`). No code
+change.
+
+| Provider | `LLM_MODEL` | `LLM_BASE_URL` | Notes |
+|---|---|---|---|
+| OpenAI | `openai/gpt-4o-mini` | unset | Default OpenAI endpoint |
+| Azure OpenAI (v1 endpoint) | `openai/<deployment>` | `https://<resource>.services.ai.azure.com/openai/v1` | OpenAI-compatible; use `openai/` prefix, not `azure/` |
+| Azure OpenAI (legacy) | `azure/<deployment>` | `https://<resource>.openai.azure.com` | Older API shape |
+| Anthropic | `anthropic/claude-sonnet-4-6` | unset | Different request shape, LiteLLM handles it |
+| Ollama (local, no key) | `ollama/llama3.1` | `http://localhost:11434` | Unset `LLM_API_KEY` |
+| Mistral | `mistral/mistral-small-latest` | unset | |
+| Groq | `groq/llama-3.1-70b-versatile` | unset | Very fast inference |
+| Together | `together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo` | unset | |
+| vLLM / LM Studio | `openai/<model>` | `http://your-host:port/v1` | OpenAI-compatible local servers |
+| Bedrock, Vertex, Cohere, … | see [LiteLLM provider docs](https://docs.litellm.ai/docs/providers) | | LiteLLM covers ~100 providers |
+
+Mesh layer is unchanged for every entry above. The `source` field in the
+`AgentResponse` records which provider answered, so receivers can log
+provenance without inspecting the network.
+
+## Discovery — find agents by capability, not by public key
+
+The bare-bones examples above require the researcher to know each responder's
+44-character base64 node public key. That is fine for a demo but does not
+scale.
+
+Genesis Mesh v0.7 adds an **agent registry** on the Network Authority:
+
+- Every long-running agent (`knowledge_base.py`, `llm_agent.py`, `router_agent.py`) signs an `AgentDescriptor` at startup and POSTs it to the NA at `/agents`.
+- The descriptor carries `agent_id`, `capabilities`, the reachable peer endpoint, and a TTL. The agent refreshes the registration on a periodic timer.
+- Peers query `GET /agents?capability=…` to find an agent. The NA evicts entries whose certificates are revoked or whose TTL has expired.
+- All writes are signed by the agent's join-certificate key, so a third party cannot forge or hijack registrations.
+
+### Announcing capabilities
+
+Both `knowledge_base.py` and `llm_agent.py` register automatically. Defaults:
+
+| Agent | Default capabilities |
+|---|---|
+| `knowledge_base.py` | `kb:<knowledge-file-stem>`, `knowledge-base` |
+| `llm_agent.py` | `llm:chat`, `llm:<model>` (e.g. `llm:openai/gpt-4o-mini`) |
+
+Override or extend with `--capability` (repeatable). The `--announce-host`
+flag controls the hostname other peers will use to connect; default is
+`127.0.0.1` for local demos. Set it to a reachable LAN or public address
+when running on a real server.
+
+```bash
+python examples/agent-network/llm_agent.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/llm/config.toml \
+  --listen-port 7448 \
+  --agent-id llm-1 \
+  --announce-host 127.0.0.1 \
+  --capability "llm:chat" \
+  --capability "answer:security-questions"
+```
+
+### Discovering from the CLI
+
+```bash
+genesis-mesh discover --capability "llm:chat" --na https://na.genesismesh.connectorzzz.com
+```
+
+Output:
+
+```text
+1 agent(s) matching capability=llm:chat:
+
+  agent_id     : llm-1
+  node_key     : to71hnetUlfkcuth/OxPYNoW3nDM01OJGIFhyZsWuBM=
+  capabilities : llm:chat, llm:openai/gpt-4o-mini
+  endpoint     : ws://127.0.0.1:7448
+  expires_at   : 2026-06-01T15:42:18.391+00:00
+  metadata     : {'model': 'openai/gpt-4o-mini'}
+```
+
+Add `--format json` for machine-parseable output. Omit `--capability` to list
+every live registration.
+
+### Researcher: query by capability instead of pasting a key
+
+```bash
+python examples/agent-network/researcher.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/researcher/config.toml \
+  --capability "llm:chat" \
+  --invite-token "$RES_INVITE" \
+  "Explain in one paragraph what perfect forward secrecy means."
+```
+
+No `--destination-key`, no `--via`, no pasted base64 string. The researcher
+resolves the responder through the NA's discovery API.
 
 ## Extending: add more agents
 
 `knowledge.json` is per-agent. Run several knowledge bases with different
-`--agent-id` and different knowledge files; the researcher picks who to
-ask by setting `--to-agent` and `--kb-key`.
+`--agent-id` and different knowledge files. Each one auto-registers a
+`kb:<file-stem>` capability; researchers find them by capability without
+needing to know the keys.
 
 For a richer demo, build a small router agent that knows which kb-N owns
 which subject and forwards requests accordingly. That is real agent-mesh
@@ -327,8 +469,10 @@ behavior and uses the same `on_data_received` API.
 |---|---|
 | `agent_protocol.py` | `AgentRequest` and `AgentResponse` JSON envelopes |
 | `knowledge_base.py` | Long-running responder using `MeshNodeRuntime(on_data_received=...)` |
+| `llm_agent.py` | LLM-backed responder using LiteLLM; one env var picks the provider |
 | `router_agent.py` | Router agent that forwards requests to knowledge agents and preserves provenance |
 | `researcher.py` | One-shot asker that opens a direct Noise XX session |
 | `knowledge.json` | Tiny default knowledge file the responder reads |
 | `knowledge-security.json` | Security-focused knowledge file for the multi-agent workflow |
 | `knowledge-transport.json` | Transport-focused knowledge file for the multi-agent workflow |
+| `requirements.txt` | Optional dependency (`litellm`) for the LLM agent only |

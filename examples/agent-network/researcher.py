@@ -41,6 +41,32 @@ from genesis_mesh.transport.protocol import MeshMessage, MessageType, create_dat
 logger = logging.getLogger("agent.researcher")
 
 
+def _resolve_via_discovery(na_endpoint: str, capability: str) -> dict:
+    """Query the NA discovery API for a live agent advertising ``capability``.
+
+    Returns a flat dict with ``agent_id``, ``node_public_key``, ``endpoint_uri``,
+    and ``capabilities``. Picks the most recently registered match.
+    """
+    import requests
+
+    url = f"{na_endpoint.rstrip('/')}/agents"
+    resp = requests.get(url, params={"capability": capability}, timeout=10)
+    resp.raise_for_status()
+    payload = resp.json()
+    agents = payload.get("agents") or []
+    if not agents:
+        raise RuntimeError(f"no agent advertises capability {capability!r}")
+    entry = agents[0]  # most-recently-registered first
+    ep = entry.get("endpoint", {})
+    scheme = ep.get("scheme", "ws")
+    return {
+        "agent_id": entry.get("agent_id"),
+        "node_public_key": entry.get("node_public_key"),
+        "endpoint_uri": f"{scheme}://{ep.get('host')}:{ep.get('port')}",
+        "capabilities": entry.get("capabilities", []),
+    }
+
+
 async def ask_one_question(
     na_endpoint: str,
     config_path: Path,
@@ -166,7 +192,14 @@ def main():
     parser = argparse.ArgumentParser(description="Researcher agent for Genesis Mesh")
     parser.add_argument("--na", required=True, help="Network Authority URL")
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--to-agent", required=True, help="Logical id of the responder, e.g. kb-1")
+    parser.add_argument(
+        "--to-agent",
+        default=None,
+        help=(
+            "Logical id of the responder, e.g. kb-1. Optional when --capability is set "
+            "(the discovered agent's id is used)."
+        ),
+    )
     parser.add_argument(
         "--destination-key",
         default=None,
@@ -179,8 +212,19 @@ def main():
     )
     parser.add_argument(
         "--via",
-        required=True,
-        help="Peer WebSocket endpoint of any reachable router, e.g. ws://4.223.130.190:7443",
+        default=None,
+        help=(
+            "Peer WebSocket endpoint of any reachable router (e.g. ws://host:port). "
+            "Optional when --capability is set — the NA discovery API will resolve it."
+        ),
+    )
+    parser.add_argument(
+        "--capability",
+        default=None,
+        help=(
+            "Discover a responder advertising this capability. "
+            "When provided, --to-agent / --destination-key / --via become optional."
+        ),
     )
     parser.add_argument("--agent-id", default="researcher-1")
     parser.add_argument("--invite-token", default=None)
@@ -195,16 +239,42 @@ def main():
     )
 
     destination_key = args.destination_key or args.kb_key
+    via_endpoint = args.via
+    to_agent = args.to_agent
+
+    if args.capability:
+        try:
+            resolved = _resolve_via_discovery(args.na, args.capability)
+        except Exception as exc:
+            parser.error(f"discovery for capability {args.capability!r} failed: {exc}")
+        logger.info(
+            "Discovered %s at %s (capabilities=%s)",
+            resolved["agent_id"],
+            resolved["endpoint_uri"],
+            resolved["capabilities"],
+        )
+        destination_key = destination_key or resolved["node_public_key"]
+        via_endpoint = via_endpoint or resolved["endpoint_uri"]
+        to_agent = to_agent or resolved["agent_id"]
+
     if not destination_key:
-        parser.error("one of --destination-key or --kb-key is required")
+        parser.error(
+            "one of --destination-key / --kb-key / --capability is required"
+        )
+    if not via_endpoint:
+        parser.error(
+            "--via is required when --capability is not set (or did not return an endpoint)"
+        )
+    if not to_agent:
+        parser.error("--to-agent is required when --capability is not set")
 
     response = asyncio.run(
         ask_one_question(
             na_endpoint=args.na,
             config_path=args.config,
-            to_agent=args.to_agent,
+            to_agent=to_agent,
             destination_node_public_key=destination_key,
-            via_peer_endpoint=args.via,
+            via_peer_endpoint=via_endpoint,
             question=args.question,
             agent_id=args.agent_id,
             invite_token=args.invite_token,
