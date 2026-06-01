@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.1 - Discovery & LLM Demo Polish
+
+### Changed
+
+- Added a static PNG walkthrough and refreshed GIF for the LLM-backed agent
+  demo.
+- Updated demo docs to show capability discovery before the researcher request,
+  making clear that the requester does not paste a destination key or peer
+  endpoint.
+- Improved the LLM demo recorder to poll `llm:chat` discovery and redact
+  provider secrets from rendered assets.
+- Reordered the demo walkthrough sections so Part A, Part B, and Part C match
+  the physical document order.
+
+### Verified
+
+- Regenerated the LLM demo assets with real `LLM_*` provider settings loaded
+  from `.env`.
+- Verified the rendered output shows discovery, response provenance, and no API
+  key material.
+- Ran focused agent-network tests and the Sphinx documentation build with
+  warnings treated as errors.
+
 ## v0.6.0 - Cooperative Agent Workflows and Capacity Baselines
 
 ### Added

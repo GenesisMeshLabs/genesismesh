@@ -291,6 +291,27 @@ function calls an LLM via [LiteLLM](https://docs.litellm.ai/) instead of
 looking up a JSON file. LiteLLM exposes one async interface across ~100
 providers, so changing brain is a one-line env var change.
 
+The documentation includes a real-provider recorder for this flow. It loads
+`LLM_*` settings from `.env`, starts a temporary Network Authority, enrolls the
+LLM responder and researcher, verifies the response provenance, and renders
+PNG/GIF assets without printing the API key:
+
+```bash
+python docs/examples/assets/scripts/llm-agent-demo.py --real-llm
+```
+
+Static walkthrough:
+
+![Genesis Mesh LLM agent capability discovery](../../docs/examples/assets/images/genesis-mesh-llm-agent.png)
+
+Animated execution:
+
+![Genesis Mesh LLM agent execution](../../docs/examples/assets/images/genesis-mesh-llm-agent.gif)
+
+The recorder uses capability discovery (`llm:chat`) so the researcher does not
+need a pasted destination key or peer endpoint. The API key is never written to
+the rendered assets.
+
 Install the optional dependency:
 
 ```bash
@@ -301,7 +322,7 @@ Configure a provider through environment variables:
 
 ```bash
 export LLM_MODEL=openai/gpt-4o-mini       # provider-prefixed model name
-export LLM_API_KEY=sk-...                  # required for cloud providers
+export LLM_API_KEY=<provider-api-key>      # required for cloud providers
 export LLM_BASE_URL=                       # optional, for non-default endpoints
 export LLM_MAX_TOKENS=512
 export LLM_TEMPERATURE=0.7
@@ -332,7 +353,7 @@ python examples/agent-network/researcher.py \
   --to-agent llm-1 \
   --destination-key "$LLM_KEY" \
   --via ws://localhost:7448 \
-  "Explain in one paragraph what perfect forward secrecy means and why it matters for peer-to-peer communication."
+  "In one sentence, explain what this Genesis Mesh LLM-agent demo proves about identity, encrypted transport, and provenance."
 ```
 
 Output, captured from a live run against
@@ -340,11 +361,11 @@ Output, captured from a live run against
 with Azure OpenAI (`gpt-4o-mini` deployment):
 
 ```text
-Q: Explain in one paragraph what perfect forward secrecy means and why it matters for peer-to-peer communication.
-A: Perfect forward secrecy (PFS) is a cryptographic property that ensures session keys used for encrypting data are not compromised even if the private key of a server is compromised in the future. This is achieved by generating unique session keys for each session that cannot be derived from the server's long-term key or from previous sessions. PFS matters for peer-to-peer communication because it enhances security by protecting past communications from being decrypted if a key is exposed later, thus maintaining user privacy and data integrity over time, even in the face of potential future vulnerabilities.
+Q: In one sentence, explain what this Genesis Mesh LLM-agent demo proves about identity, encrypted transport, and provenance.
+A: The Genesis Mesh LLM-agent demo demonstrates that secure identity verification, encrypted transport, and provenance are essential for maintaining trust and integrity in decentralized communication networks.
   from:    llm-1
   source:  llm:openai/gpt-4o-mini
-  request: 6cd695fd-4388-495f-9324-fc48410776b5
+  request: 29ddf782-9bf0-423c-9fa8-96090520b18a
   provenance:
     - llm-1: answered (llm:openai/gpt-4o-mini)
 ```
