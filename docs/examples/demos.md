@@ -30,6 +30,7 @@ flowchart TD
         A4[Multi-Hop Routing]
         A5[Route Failure Recovery]
         A6[Multi-Agent Workflow]
+        A7[Agent Discovery + LLM]
     end
 
     subgraph B[Part B — Local Smoke Tests]
@@ -580,11 +581,135 @@ A: Revocation starts with an operator-signed admin action. The Network Authority
 
 ---
 
+## 7. Agent Discovery + LLM Demo (v0.7)
+
+This demo proves the discovery layer added in v0.7: agents announce their
+capabilities to the Network Authority, peers find each other by capability
+tag, and the LLM-backed responder agent answers a research question — all
+without anyone pasting a 44-character node public key.
+
+```{mermaid}
+flowchart LR
+    agent["LLM agent<br/>(LiteLLM → OpenAI / Anthropic / Ollama / ...)"]
+    na["Network Authority<br/>/agents registry"]
+    researcher["Researcher"]
+    llm["LLM provider"]
+
+    agent -->|signed AgentDescriptor<br/>POST /agents| na
+    researcher -->|GET /agents?capability=llm:chat| na
+    na -->|node_public_key + endpoint| researcher
+    researcher -->|Noise XX peer session + AgentRequest| agent
+    agent -->|HTTPS| llm
+    llm -->|completion| agent
+    agent -->|AgentResponse + provenance| researcher
+```
+
+### Prerequisites
+
+```bash
+pip install -r examples/agent-network/requirements.txt   # adds litellm
+```
+
+Set the LLM provider in your environment (see
+[`examples/agent-network/README.md`](https://github.com/thaersaidi/genesismesh/blob/main/examples/agent-network/README.md)
+for the full provider matrix). For Azure OpenAI's v1 endpoint:
+
+```bash
+export LLM_MODEL=openai/gpt-4o-mini
+export LLM_API_KEY=<azure-openai-key>
+export LLM_BASE_URL=https://<resource>.services.ai.azure.com/openai/v1
+```
+
+### Start a responder; let it auto-register
+
+```bash
+LLM_INVITE=$(genesis-mesh admin invite --role anchor \
+  --na https://na.genesismesh.connectorzzz.com)
+
+python examples/agent-network/llm_agent.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/llm/config.toml \
+  --listen-port 7448 \
+  --agent-id llm-1 \
+  --announce-host 127.0.0.1 \
+  --capability llm:chat \
+  --invite-token "$LLM_INVITE"
+```
+
+The agent enrolls, opens its peer WebSocket port, signs an `AgentDescriptor`
+with its node key, and POSTs it to `/agents`. A background task refreshes
+the registration on a timer.
+
+### Discover via the CLI
+
+```bash
+genesis-mesh discover --capability llm:chat \
+  --na https://na.genesismesh.connectorzzz.com
+```
+
+Captured output from the v0.7 live-deployment gate run:
+
+```text
+1 agent(s) matching capability=llm:v0.7-gate:
+
+  agent_id     : llm-live-1
+  node_key     : EGk5lruaR7fveWfEyQsIuo7S2oevUOtKyrHR5sKKXqA=
+  capabilities : llm:chat, llm:v0.7-gate
+  endpoint     : ws://127.0.0.1:17450
+  expires_at   : 2026-06-01T14:12:03.713487Z
+  metadata     : {'model': 'openai/gpt-4o-mini'}
+```
+
+### Ask through discovery — no key, no peer URI pasted
+
+```bash
+RES_INVITE=$(genesis-mesh admin invite --role client \
+  --na https://na.genesismesh.connectorzzz.com)
+
+python examples/agent-network/researcher.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/researcher/config.toml \
+  --capability llm:chat \
+  --invite-token "$RES_INVITE" \
+  "In one paragraph, why does a permissioned mesh network benefit from a capability-based discovery layer rather than hardcoded peer addresses?"
+```
+
+Captured response from the live deployment + Azure OpenAI gpt-4o-mini:
+
+```text
+Q: In one paragraph, why does a permissioned mesh network benefit from a capability-based discovery layer rather than hardcoded peer addresses?
+A: A permissioned mesh network benefits from a capability-based discovery layer because it enhances flexibility and security by allowing dynamic peer interactions without relying on hardcoded addresses. This approach enables nodes to discover and connect with authorized peers based on capabilities and roles, rather than fixed identifiers, making it easier to adapt to network changes or scale. …
+  from:    llm-live-1
+  source:  llm:openai/gpt-4o-mini
+  request: 021826fd-12ec-4d98-932f-6d0f401edc81
+  provenance:
+    - llm-live-1: answered (llm:openai/gpt-4o-mini)
+```
+
+### What this proves
+
+- An agent can announce its capabilities to the NA without operator action.
+- Peers can find agents by capability without prior knowledge of their keys.
+- The same mesh identity + Noise XX session that v0.5/v0.6 demos used still
+  carries the actual request/response — discovery only changes how peers
+  rendezvous.
+- The LLM provider is swappable through an env var; no provider-specific
+  code touches the mesh layer.
+
+### Provider swap matrix
+
+See the [agent-network example README](https://github.com/thaersaidi/genesismesh/blob/main/examples/agent-network/README.md#llm-backed-responder-agent)
+for the full LiteLLM provider matrix (OpenAI, Azure OpenAI v1, Anthropic,
+Ollama, Mistral, Groq, Together, vLLM, LM Studio, and OpenAI-compatible
+servers).
+
+---
+
 # Part C - Capacity Baselines
 
 Part C turns the cooperative-agent example into measured local operating data.
 
-## 7. Cooperative Agent Capacity Baseline
+## 8. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -683,7 +808,7 @@ Full walkthrough:
 
 Part B demonstrates local packaging, installation, and operational startup paths.
 
-## 8. In-Process Smoke Demo
+## 9. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -755,7 +880,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 9. Live CLI Process Smoke Demo
+## 10. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -816,7 +941,7 @@ Node:
   valid: True
 ```
 
-## 10. Docker Image Smoke Demo
+## 11. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -874,7 +999,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 11. Docker Compose Network Authority Example
+## 12. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and
