@@ -57,8 +57,8 @@ genesis-mesh na start
 `genesis-mesh na start` uses the Flask development server. For production
 container or VM startup, use Gunicorn through `start.sh`.
 
-See: [In-process smoke demo](../examples/demos.md#6-in-process-smoke-demo) ·
-[Live CLI process smoke demo](../examples/demos.md#7-live-cli-process-smoke-demo)
+See: [In-process smoke demo](../examples/demos.md#8-in-process-smoke-demo) and
+[Live CLI process smoke demo](../examples/demos.md#9-live-cli-process-smoke-demo)
 
 ## 2. Docker
 
@@ -79,8 +79,8 @@ docker run --rm \
 For multi-container orchestration with a writable database volume, use the
 included Docker Compose example.
 
-See: [Docker image smoke demo](../examples/demos.md#8-docker-image-smoke-demo) ·
-[Docker Compose example](../examples/demos.md#9-docker-compose-network-authority-example)
+See: [Docker image smoke demo](../examples/demos.md#10-docker-image-smoke-demo)
+and [Docker Compose example](../examples/demos.md#11-docker-compose-network-authority-example)
 
 ## 3. Kubernetes
 
@@ -97,7 +97,7 @@ kubectl apply -f examples/kubernetes/na-service.yaml
 The Deployment runs a single non-root replica, mounts the genesis block and NA
 key as a `Secret`, and persists the SQLite database to a `PersistentVolumeClaim`.
 
-See: [Kubernetes deployment guide](kubernetes-deployment.md) ·
+See: [Kubernetes deployment guide](kubernetes-deployment.md) and
 [examples/kubernetes/README.md](https://github.com/thaersaidi/genesismesh/tree/main/examples/kubernetes)
 
 ## 4. Terraform on Azure
