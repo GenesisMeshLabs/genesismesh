@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.10.0 - Recognition Treaties and Graph Export
+
+### Added
+
+- Added signed `RecognitionTreaty` models and treaty scopes for direct
+  sovereign-to-sovereign recognition.
+- Added treaty verification helpers that validate issuer identity, treaty
+  signature, subject sovereign keys, validity windows, status, scope, and local
+  revocation state.
+- Added Network Authority persistence and API endpoints for issuing, listing,
+  reading, verifying, revoking, and graph-exporting recognition treaties.
+- Added `/recognition-graph` export data for sovereign nodes, direct
+  recognition edges, active treaty counts, and revoked trust material.
+- Added a v0.10 recognition treaty walkthrough with generated PNG/GIF proof.
+
+### Changed
+
+- Extended the existing sovereign attestation demo with generated PNG/GIF proof.
+- Updated the demo documentation to show treaty-backed acceptance, treaty
+  revocation, and minimal graph export alongside the earlier local-policy
+  attestation flow.
+
+### Verified
+
+- Ran focused recognition treaty and Network Authority treaty route tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, and `git diff --check`.
+- Ran the sovereign attestation and recognition treaty smoke demos.
+
 ## v0.9.0 - Sovereign Trust and Membership Attestations
 
 ### Added

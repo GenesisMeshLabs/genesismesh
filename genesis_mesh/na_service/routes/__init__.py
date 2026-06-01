@@ -7,6 +7,7 @@ from .discovery import create_discovery_blueprint
 from .enrollment import create_enrollment_blueprint
 from .health import create_health_blueprint
 from .public import create_public_blueprint
+from .treaties import create_treaty_blueprint
 
 __all__ = [
     "create_admin_blueprint",
@@ -16,4 +17,5 @@ __all__ = [
     "create_enrollment_blueprint",
     "create_health_blueprint",
     "create_public_blueprint",
+    "create_treaty_blueprint",
 ]

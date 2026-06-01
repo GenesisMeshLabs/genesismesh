@@ -33,6 +33,7 @@ flowchart TD
         A6[Multi-Agent Workflow]
         A7[Agent Discovery + LLM]
         A8[Capability Orchestration]
+        A9[Recognition Treaties]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -46,8 +47,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8
-    A8 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9
+    A9 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -825,11 +826,83 @@ Full walkthrough:
 
 ---
 
+## 9. Recognition Treaty Demo (v0.10)
+
+This demo proves direct sovereign-to-sovereign recognition. Sovereign B issues a
+membership attestation, Sovereign A signs a scoped treaty recognizing Sovereign
+B, and Sovereign A accepts the attestation through that treaty. When Sovereign A
+revokes the treaty, the same attestation is rejected.
+
+```{mermaid}
+sequenceDiagram
+    participant B as Sovereign B
+    participant A as Sovereign A
+    participant G as Recognition Graph
+
+    B->>B: Issue MembershipAttestation
+    A->>A: Sign RecognitionTreaty for Sovereign B
+    B-->>A: Present attestation
+    A-->>B: accepted through treaty
+    A->>A: Revoke treaty
+    B-->>A: Present same attestation
+    A-->>B: rejected: treaty_locally_revoked
+    A->>G: Export recognition graph
+```
+
+### Live recording
+
+```{image} assets/images/genesis-mesh-recognition-treaty.gif
+:alt: Recognition treaty flow - signed recognition, revocation, and graph export
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-recognition-treaty.png
+:alt: Static screenshot of the Genesis Mesh recognition treaty demo
+:class: screenshot
+```
+
+Run:
+
+```powershell
+python docs\examples\assets\scripts\recognition-treaty-demo.py
+```
+
+Observed proof from the local smoke test:
+
+```text
+==> Sovereign A issued recognition treaty for Sovereign B
+    scope:  role:service:maintainer
+
+==> Sovereign A accepted B's attestation through the treaty
+    accepted: True
+    reason:   accepted
+
+==> Sovereign A revoked the recognition treaty
+    reason: trust_boundary_removed
+
+==> Sovereign A rejected the same attestation after treaty revocation
+    accepted: False
+    reason:   treaty_locally_revoked
+
+==> Sovereign A exported minimal recognition graph
+    sovereigns:              2
+    recognition_edges:       1
+    revoked_trust_material:  1
+```
+
+Full walkthrough:
+
+- [](recognition-treaties.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 9. Cooperative Agent Capacity Baseline
+## 10. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -928,7 +1001,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 10. In-Process Smoke Demo
+## 11. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -1000,7 +1073,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 11. Live CLI Process Smoke Demo
+## 12. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -1061,7 +1134,7 @@ Node:
   valid: True
 ```
 
-## 12. Docker Image Smoke Demo
+## 13. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1119,7 +1192,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 13. Docker Compose Network Authority Example
+## 14. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and

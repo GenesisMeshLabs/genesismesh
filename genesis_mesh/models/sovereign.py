@@ -12,6 +12,7 @@ from .genesis import Signature
 
 
 AttestationStatus = Literal["active", "suspended", "revoked"]
+TreatyStatus = Literal["active", "suspended", "revoked"]
 
 
 def _default_accepted_statuses() -> list[AttestationStatus]:
@@ -142,3 +143,84 @@ class RecognitionPolicy(BaseModel):
             if issuer.sovereign_id == sovereign_id:
                 return issuer
         return None
+
+
+class RecognitionTreatyScope(BaseModel):
+    """Scoped permissions granted by one sovereign to another."""
+
+    allowed_roles: list[str] = Field(
+        default_factory=list,
+        description="Allowed roles from the subject sovereign; empty means any role",
+    )
+    accepted_statuses: list[AttestationStatus] = Field(
+        default_factory=_default_accepted_statuses,
+        description="Accepted attestation statuses under this treaty",
+    )
+    claims: dict = Field(
+        default_factory=dict,
+        description="Optional local treaty claims for operators and demos",
+    )
+
+    def allows_roles(self, roles: list[str]) -> bool:
+        """Return whether all attestation roles are allowed by this treaty."""
+        return not self.allowed_roles or all(role in self.allowed_roles for role in roles)
+
+
+class RecognitionTreaty(BaseModel):
+    """Signed direct-recognition agreement from one sovereign to another."""
+
+    treaty_id: str = Field(..., description="Unique treaty identifier")
+    issuer_sovereign_id: str = Field(
+        ...,
+        description="Sovereign publishing and enforcing this treaty",
+    )
+    subject_sovereign_id: str = Field(
+        ...,
+        description="Sovereign recognized by the issuer",
+    )
+    subject_public_keys: list[str] = Field(
+        ...,
+        min_length=1,
+        description="Accepted subject sovereign signing public keys",
+    )
+    scope: RecognitionTreatyScope = Field(
+        default_factory=RecognitionTreatyScope,
+        description="Recognition scope granted to the subject sovereign",
+    )
+    status: TreatyStatus = Field("active", description="Issuer-side treaty status")
+    issued_at: datetime = Field(..., description="UTC issue timestamp")
+    valid_from: datetime = Field(..., description="UTC validity start")
+    expires_at: datetime = Field(..., description="UTC expiry timestamp")
+    issued_by: str = Field(..., description="Issuer signing key identifier")
+    metadata: dict = Field(
+        default_factory=dict,
+        description="Optional operator metadata carried with the treaty",
+    )
+    signatures: list[Signature] = Field(
+        default_factory=list,
+        description="Issuer signatures over the canonical treaty",
+    )
+
+    @model_validator(mode="after")
+    def _check_window(self) -> "RecognitionTreaty":
+        """Reject invalid treaty validity windows."""
+        if self.expires_at <= self.valid_from:
+            raise ValueError("expires_at must be after valid_from")
+        if self.issued_at > self.expires_at:
+            raise ValueError("issued_at must not be after expires_at")
+        return self
+
+    def to_canonical_json(self) -> str:
+        """Return canonical JSON used for signing and verification."""
+        data = self.model_dump(exclude={"signatures"}, mode="json")
+        return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    def is_valid(self, current_time: datetime | None = None) -> bool:
+        """Return whether the treaty is active and within its time window."""
+        if current_time is None:
+            current_time = datetime.now(timezone.utc)
+        max_skew = timedelta(minutes=5)
+        return (
+            self.status == "active"
+            and (self.valid_from - max_skew) <= current_time <= (self.expires_at + max_skew)
+        )
