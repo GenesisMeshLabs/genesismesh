@@ -29,6 +29,7 @@ wheels/
 docs_buildhtml/
 docs/_build/
 docs/pages/
+pages/
 
 # Example/demo generated files
 examples/genesis/demo/

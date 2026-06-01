@@ -59,3 +59,35 @@ If the CRM agent is compromised:
 4. Existing routes from the revoked identity are withdrawn or ignored.
 5. Re-enroll only after issuing a new invite and reviewing the key-compromise
    reason.
+
+## LLM-Backed Agent Flow
+
+The same trust fabric can carry a real LLM-backed responder. The example
+under `examples/agent-network/llm_agent.py` uses LiteLLM behind the agent
+boundary: Genesis Mesh handles enrollment, peer identity, encrypted transport,
+and provenance; LiteLLM handles the provider call.
+
+Static walkthrough:
+
+```{image} assets/images/genesis-mesh-llm-agent.png
+:alt: LLM-backed agent capability discovery and provenance over Genesis Mesh
+:class: screenshot
+```
+
+Animated execution:
+
+```{image} assets/images/genesis-mesh-llm-agent.gif
+:alt: LLM-backed agent response over Genesis Mesh
+:class: screenshot
+```
+
+The docs recording was generated with real `LLM_*` provider settings loaded
+from `.env`:
+
+```powershell
+python docs\examples\assets\scripts\llm-agent-demo.py --real-llm
+```
+
+The recorder discovers the agent by `llm:chat` capability, sends the researcher
+request without a pasted destination key or peer endpoint, and never writes the
+API key to the rendered assets.
