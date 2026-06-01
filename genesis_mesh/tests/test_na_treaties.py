@@ -138,6 +138,88 @@ def test_recognition_graph_exports_edges_and_revoked_material(client, na_service
     assert graph["revoked_trust_material"][0]["id"] == treaty["treaty_id"]
 
 
+def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_service):
+    """A propagated issuer revocation stops treaty-backed attestation acceptance."""
+    treaty = _issue_treaty(client, na_service).get_json()
+    attestation = _issue_attestation(client).get_json()
+
+    accepted = client.post(
+        "/attestations/verify-with-treaty",
+        json={"attestation": attestation, "treaty": treaty},
+    )
+    assert accepted.status_code == 200
+    assert accepted.get_json()["accepted"] is True
+
+    revoke_body = {"reason": "key_compromise"}
+    revoke = client.post(
+        f"/admin/attestations/{attestation['attestation_id']}/revoke",
+        json=revoke_body,
+        headers=admin_headers(client, revoke_body),
+    )
+    assert revoke.status_code == 200
+
+    feed_resp = client.get("/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b")
+    assert feed_resp.status_code == 200
+    feed = feed_resp.get_json()
+    assert feed["revoked_attestation_ids"] == [attestation["attestation_id"]]
+
+    import_body = {"feed": feed}
+    imported = client.post(
+        "/admin/sovereign-revocation-feeds/import",
+        json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+    assert imported.status_code == 200
+    assert imported.get_json()["accepted"] is True
+
+    rejected = client.post(
+        "/attestations/verify-with-treaty",
+        json={"attestation": attestation, "treaty": treaty},
+    )
+    assert rejected.status_code == 200
+    assert rejected.get_json()["accepted"] is False
+    assert rejected.get_json()["reason"] == "attestation_locally_revoked"
+
+    graph = client.get("/recognition-graph").get_json()
+    assert any(
+        item["type"] == "membership_attestation"
+        and item["id"] == attestation["attestation_id"]
+        and item["issuer_sovereign_id"] == "sovereign-b"
+        for item in graph["revoked_trust_material"]
+    )
+
+
+def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service):
+    """The same issuer sequence cannot be imported twice."""
+    _issue_treaty(client, na_service)
+    attestation = _issue_attestation(client).get_json()
+    revoke_body = {"reason": "superseded"}
+    client.post(
+        f"/admin/attestations/{attestation['attestation_id']}/revoke",
+        json=revoke_body,
+        headers=admin_headers(client, revoke_body),
+    )
+    feed = client.get(
+        "/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b"
+    ).get_json()
+    import_body = {"feed": feed}
+
+    first = client.post(
+        "/admin/sovereign-revocation-feeds/import",
+        json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+    second = client.post(
+        "/admin/sovereign-revocation-feeds/import",
+        json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.get_json()["reason"] == "stale_sequence"
+
+
 def test_treaty_issue_requires_operator_signature(client, na_service):
     """Treaty issuance rejects missing operator authentication."""
     resp = client.post(

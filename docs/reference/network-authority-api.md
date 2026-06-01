@@ -11,6 +11,7 @@ flowchart TB
     enrollment["Enrollment<br/>/join"]
     node_ops["Node operations<br/>/heartbeat /renew"]
     admin["Admin operations<br/>/admin/invite /admin/revoke /admin/policy"]
+    sovereign["Sovereign trust<br/>/sovereign-revocation-feed"]
     auth["Operator signature headers"]
     node_sig["Node proof-of-possession signature"]
 
@@ -21,6 +22,8 @@ flowchart TB
     home --> public
     enrollment --> public
     admin --> public
+    admin --> sovereign
+    sovereign --> public
 ```
 
 ## Browser Console
@@ -272,3 +275,79 @@ Voluntary deregistration. Requires a signed delete envelope in the body:
 
 Returns `200` on success, `401` if the signature does not verify under the
 node key, `404` if the agent is not currently registered.
+
+## Sovereign Trust Revocation (v0.11+)
+
+Cross-sovereign revocation uses signed revocation feeds. The issuer sovereign
+publishes revoked membership-attestation IDs. An accepting sovereign verifies
+the feed under a recognized issuer key, imports it, and rejects matching
+attestations during treaty-backed verification.
+
+### `GET /sovereign-revocation-feed`
+
+Returns the current signed `SovereignRevocationFeed` for the local sovereign.
+The feed contains membership attestations revoked by this Network Authority.
+
+Response:
+
+```json
+{
+  "feed_id": "<uuid>",
+  "issuer_sovereign_id": "sovereign-b",
+  "sequence": 1,
+  "issued_at": "<iso8601>",
+  "revoked_attestation_ids": ["<attestation-id>"],
+  "revocation_reasons": {
+    "<attestation-id>": "key_compromise"
+  },
+  "issued_by": "<na-public-key>",
+  "signatures": [
+    {
+      "key_id": "<na-public-key>",
+      "sig": "<base64-signature>"
+    }
+  ]
+}
+```
+
+### `POST /admin/sovereign-revocation-feeds/import`
+
+Imports a signed revocation feed from another sovereign. The endpoint requires
+operator-key authentication.
+
+Request:
+
+```json
+{
+  "feed": {
+    "feed_id": "<uuid>",
+    "issuer_sovereign_id": "sovereign-b",
+    "sequence": 1,
+    "issued_at": "<iso8601>",
+    "revoked_attestation_ids": ["<attestation-id>"],
+    "revocation_reasons": {
+      "<attestation-id>": "key_compromise"
+    },
+    "issued_by": "<issuer-key-id>",
+    "signatures": [
+      {
+        "key_id": "<issuer-key-id>",
+        "sig": "<base64-signature>"
+      }
+    ]
+  },
+  "issuer_public_keys": {
+    "<issuer-key-id>": "<base64-ed25519-public-key>"
+  }
+}
+```
+
+If `issuer_public_keys` is omitted, the Network Authority attempts to verify
+the feed using subject public keys from active recognition treaties for the
+feed issuer.
+
+Responses:
+
+- `200` when the feed is verified and imported
+- `400` for malformed feeds or invalid signatures
+- `409` for stale feed sequences

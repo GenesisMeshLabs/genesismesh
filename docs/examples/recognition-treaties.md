@@ -63,6 +63,18 @@ Animated execution:
   sovereign.
 - Minimal recognition graph export exists before a full Connectome UI.
 
+## Next Step: Cross-Sovereign Revocation
+
+Treaty revocation removes a whole recognition relationship. v0.11 adds a
+narrower path: the issuer sovereign can revoke a specific membership
+attestation and publish a signed revocation feed. The accepting sovereign
+imports that feed and rejects the revoked attestation while keeping the treaty
+active for future trust material.
+
+See the v0.11 walkthrough:
+
+- [](cross-sovereign-revocation.md)
+
 ## Run Locally
 
 The demo is in-process and does not require Docker, DNS, or external services.

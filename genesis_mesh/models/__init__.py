@@ -13,6 +13,7 @@ from .sovereign import (
     RecognitionTreatyScope,
     RecognizedIssuer,
     SovereignIdentity,
+    SovereignRevocationFeed,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "RecognitionTreatyScope",
     "RecognizedIssuer",
     "SovereignIdentity",
+    "SovereignRevocationFeed",
 ]

@@ -12,6 +12,7 @@ from genesis_mesh.models import (
     RecognitionPolicy,
     RecognitionTreaty,
     RecognizedIssuer,
+    SovereignRevocationFeed,
 )
 
 from .attestation import verify_membership_attestation
@@ -46,6 +47,14 @@ TreatyAttestationReason = Literal[
     "attestation_invalid_signature",
 ]
 
+RevocationFeedReason = Literal[
+    "accepted",
+    "wrong_issuer",
+    "stale_sequence",
+    "missing_signature",
+    "invalid_signature",
+]
+
 
 @dataclass(frozen=True)
 class TreatyVerificationResult:
@@ -68,6 +77,18 @@ class TreatyAttestationVerificationResult:
     attestation_id: str
     issuer_sovereign_id: str
     subject_sovereign_id: str
+
+
+@dataclass(frozen=True)
+class RevocationFeedVerificationResult:
+    """Structured result for a sovereign revocation feed decision."""
+
+    accepted: bool
+    reason: RevocationFeedReason
+    feed_id: str
+    issuer_sovereign_id: str
+    sequence: int
+    revoked_count: int
 
 
 def verify_recognition_treaty(
@@ -125,6 +146,7 @@ def verify_attestation_with_treaty(
     treaty_issuer_public_keys: list[str],
     *,
     revoked_treaty_ids: set[str] | None = None,
+    revoked_attestation_ids: set[str] | None = None,
     current_time: datetime | None = None,
 ) -> TreatyAttestationVerificationResult:
     """Verify an attestation using a signed recognition treaty as policy input."""
@@ -152,6 +174,7 @@ def verify_attestation_with_treaty(
                 accepted_statuses=treaty.scope.accepted_statuses,
             )
         ],
+        revoked_attestation_ids=revoked_attestation_ids or set(),
     )
     attestation_result = verify_membership_attestation(
         attestation,
@@ -173,6 +196,38 @@ def verify_attestation_with_treaty(
         issuer_sovereign_id=treaty.issuer_sovereign_id,
         subject_sovereign_id=treaty.subject_sovereign_id,
     )
+
+
+def verify_sovereign_revocation_feed(
+    feed: SovereignRevocationFeed,
+    issuer_public_keys: list[str],
+    *,
+    expected_issuer_sovereign_id: str | None = None,
+    min_sequence: int | None = None,
+) -> RevocationFeedVerificationResult:
+    """Verify a signed revocation feed from a recognized sovereign."""
+    if expected_issuer_sovereign_id and feed.issuer_sovereign_id != expected_issuer_sovereign_id:
+        return _reject_feed(feed, "wrong_issuer")
+
+    if min_sequence is not None and feed.sequence <= min_sequence:
+        return _reject_feed(feed, "stale_sequence")
+
+    if not feed.signatures:
+        return _reject_feed(feed, "missing_signature")
+
+    for signature in feed.signatures:
+        for public_key in issuer_public_keys:
+            if verify_model_signature(feed, signature, public_key):
+                return RevocationFeedVerificationResult(
+                    accepted=True,
+                    reason="accepted",
+                    feed_id=feed.feed_id,
+                    issuer_sovereign_id=feed.issuer_sovereign_id,
+                    sequence=feed.sequence,
+                    revoked_count=len(feed.revoked_attestation_ids),
+                )
+
+    return _reject_feed(feed, "invalid_signature")
 
 
 def _reject_treaty(
@@ -202,4 +257,19 @@ def _reject_attestation_with_treaty(
         attestation_id=attestation.attestation_id,
         issuer_sovereign_id=treaty.issuer_sovereign_id,
         subject_sovereign_id=treaty.subject_sovereign_id,
+    )
+
+
+def _reject_feed(
+    feed: SovereignRevocationFeed,
+    reason: RevocationFeedReason,
+) -> RevocationFeedVerificationResult:
+    """Build a revocation feed rejection without exposing feed payload details."""
+    return RevocationFeedVerificationResult(
+        accepted=False,
+        reason=reason,
+        feed_id=feed.feed_id,
+        issuer_sovereign_id=feed.issuer_sovereign_id,
+        sequence=feed.sequence,
+        revoked_count=len(feed.revoked_attestation_ids),
     )
