@@ -30,9 +30,9 @@
 #        sudo systemctl daemon-reload && sudo systemctl enable --now genesis-mesh-node-d
 #
 # Record with:
-#   asciinema rec failover.cast --command "bash docs/examples/assets/failover-demo.sh"
+#   asciinema rec failover.cast --command "bash docs/examples/assets/scripts/failover-demo.sh"
 # Convert with:
-#   agg failover.cast docs/examples/assets/genesis-mesh-failover.gif
+#   agg failover.cast docs/examples/assets/images/genesis-mesh-failover.gif
 
 set -e
 
