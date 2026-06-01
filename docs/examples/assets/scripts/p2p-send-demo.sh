@@ -1,7 +1,7 @@
 #!/bin/bash
 # Genesis Mesh P2P messaging demo
-# Record with: asciinema rec p2p-send.cast --command "bash docs/examples/assets/p2p-send-demo.sh"
-# Convert with: agg p2p-send.cast docs/examples/assets/genesis-mesh-p2p-send.gif
+# Record with: asciinema rec p2p-send.cast --command "bash docs/examples/assets/scripts/p2p-send-demo.sh"
+# Convert with: agg p2p-send.cast docs/examples/assets/images/genesis-mesh-p2p-send.gif
 #
 # Prerequisites:
 #   - genesis-mesh installed and configured (genesis-mesh.toml present)

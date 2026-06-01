@@ -5,9 +5,9 @@
 # This proves distance-vector routing and DATA frame forwarding.
 #
 # Record with:
-#   asciinema rec multi-hop.cast --command "bash docs/examples/assets/multi-hop-demo.sh"
+#   asciinema rec multi-hop.cast --command "bash docs/examples/assets/scripts/multi-hop-demo.sh"
 # Convert with:
-#   agg multi-hop.cast docs/examples/assets/genesis-mesh-multi-hop.gif
+#   agg multi-hop.cast docs/examples/assets/images/genesis-mesh-multi-hop.gif
 
 set -e
 

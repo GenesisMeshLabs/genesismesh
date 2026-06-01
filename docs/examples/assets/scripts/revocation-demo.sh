@@ -1,7 +1,7 @@
 #!/bin/bash
 # Genesis Mesh revocation demo
-# Record with: asciinema rec revocation.cast --command "bash docs/examples/assets/revocation-demo.sh"
-# Convert with: agg revocation.cast docs/examples/assets/genesis-mesh-revocation.gif
+# Record with: asciinema rec revocation.cast --command "bash docs/examples/assets/scripts/revocation-demo.sh"
+# Convert with: agg revocation.cast docs/examples/assets/images/genesis-mesh-revocation.gif
 
 REPO=$(pwd)
 
@@ -22,7 +22,7 @@ genesis-mesh na start >na.log 2>&1 &
 until curl -sf http://127.0.0.1:8443/healthz >/dev/null; do sleep 0.3; done
 INVITE=$(genesis-mesh admin invite --role anchor 2>/dev/null)
 genesis-mesh join --na http://127.0.0.1:8443 --token $INVITE >/dev/null 2>&1
-CERT=$(python3 "$REPO/docs/examples/assets/get-cert-id.py")
+CERT=$(python3 "$REPO/docs/examples/assets/scripts/get-cert-id.py")
 
 # ── Story starts here ─────────────────────────────────────────────────────────
 clear

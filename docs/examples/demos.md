@@ -156,14 +156,14 @@ sequenceDiagram
 
 ### Live recording
 
-```{image} assets/genesis-mesh-revocation.gif
+```{image} assets/images/genesis-mesh-revocation.gif
 :alt: Revocation flow — CRL published, node removed, 403 enforcement
 :class: screenshot
 ```
 
 Screenshot from a control-plane run:
 
-```{image} assets/revocation-demo.svg
+```{image} assets/images/revocation-demo.svg
 :alt: Terminal screenshot of Genesis Mesh revocation demo
 :class: screenshot
 ```
@@ -281,7 +281,7 @@ WebSocket peer port.
 
 ### Live recording
 
-```{image} assets/genesis-mesh-message-delivery.gif
+```{image} assets/images/genesis-mesh-message-delivery.gif
 :alt: Live P2P message delivery over Noise XX encrypted peer session
 :class: screenshot
 ```
@@ -366,7 +366,7 @@ other.
 
 ### Live recording
 
-```{image} assets/genesis-mesh-multi-hop.gif
+```{image} assets/images/genesis-mesh-multi-hop.gif
 :alt: A → B → C multi-hop routing demo
 :class: screenshot
 ```
@@ -374,7 +374,7 @@ other.
 ### Run
 
 ```bash
-bash docs/examples/assets/multi-hop-demo.sh
+bash docs/examples/assets/scripts/multi-hop-demo.sh
 ```
 
 The script enrolls two fresh identities (A and C), starts both peer runtimes
@@ -456,7 +456,7 @@ the other.
 
 ### Live recording
 
-```{image} assets/genesis-mesh-failover.gif
+```{image} assets/images/genesis-mesh-failover.gif
 :alt: Route failure recovery — primary router B killed, traffic re-routed through D
 :class: screenshot
 ```
@@ -464,7 +464,7 @@ the other.
 ### Run
 
 ```bash
-bash docs/examples/assets/failover-demo.sh
+bash docs/examples/assets/scripts/failover-demo.sh
 ```
 
 The script enrolls A and C, connects both to B and D, sends through B,
@@ -625,7 +625,7 @@ genesis-mesh dev up
 
 Screenshot of a real run:
 
-```{image} assets/dev-up-terminal.svg
+```{image} assets/images/dev-up-terminal.svg
 :alt: Terminal screenshot of Genesis Mesh dev up
 :class: screenshot
 ```
@@ -713,7 +713,7 @@ secrets or roles are missing.
 
 Screenshot from the Docker smoke run:
 
-```{image} assets/docker-image-smoke.svg
+```{image} assets/images/docker-image-smoke.svg
 :alt: Terminal screenshot of Genesis Mesh Docker image smoke checks
 :class: screenshot
 ```
@@ -771,7 +771,7 @@ entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, an
 
 Screenshot from a real Compose run:
 
-```{image} assets/docker-compose-na.svg
+```{image} assets/images/docker-compose-na.svg
 :alt: Terminal screenshot of Genesis Mesh Docker Compose Network Authority demo
 :class: screenshot
 ```

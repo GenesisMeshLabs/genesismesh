@@ -1,7 +1,7 @@
 #!/bin/bash
 # Genesis Mesh enrollment demo
-# Record with: asciinema rec enrollment.cast --command "bash docs/examples/assets/enrollment-demo.sh"
-# Convert with: agg enrollment.cast docs/examples/assets/genesis-mesh-enrollment.gif
+# Record with: asciinema rec enrollment.cast --command "bash docs/examples/assets/scripts/enrollment-demo.sh"
+# Convert with: agg enrollment.cast docs/examples/assets/images/genesis-mesh-enrollment.gif
 
 set -e
 
@@ -48,7 +48,7 @@ sleep 1
 
 echo ""
 echo "==> revoking certificate"
-CERT=$(python3 "$REPO/docs/examples/assets/get-cert-id.py")
+CERT=$(python3 "$REPO/docs/examples/assets/scripts/get-cert-id.py")
 echo "Certificate: $CERT"
 genesis-mesh admin revoke $CERT --reason key_compromise
 sleep 1
