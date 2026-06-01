@@ -49,6 +49,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(send)
     cli.add_command(status)
     cli.add_command(dev)
+    cli.add_command(discover)
 
 
 def _load_cli_config(config_path: str | None = None, required: bool = False) -> dict[str, Any]:
@@ -442,6 +443,64 @@ def status(config_path: str | None) -> None:
         click.echo(f"  roles: {', '.join(cert.roles)}")
         click.echo(f"  expires: {cert.expires_at.isoformat()}")
         click.echo(f"  valid: {cert.is_valid()}")
+
+
+@click.command()
+@click.option("--config", "config_path", default=None, help="Config path.")
+@click.option("--na", "na_endpoint", default=None, help="Network Authority URL (overrides config).")
+@click.option("--capability", default=None, help="Filter to agents advertising this capability.")
+@click.option(
+    "--format", "output_format",
+    type=click.Choice(["table", "json"]), default="table",
+    help="Output format.",
+)
+def discover(
+    config_path: str | None,
+    na_endpoint: str | None,
+    capability: str | None,
+    output_format: str,
+) -> None:
+    """Discover registered agents on the Network Authority by capability."""
+    config = _load_cli_config(config_path, required=False)
+    endpoint = na_endpoint or get_config_value(config, "network", "na_endpoint")
+    if not endpoint:
+        raise click.ClickException(
+            "No NA endpoint. Pass --na or run `genesis-mesh init` to create a config."
+        )
+
+    url = f"{endpoint.rstrip('/')}/agents"
+    params = {"capability": capability} if capability else {}
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise click.ClickException(f"Discovery query failed: {exc}") from exc
+
+    payload = response.json()
+    agents = payload.get("agents", [])
+
+    if output_format == "json":
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    if not agents:
+        click.echo("No matching agents." if capability else "No registered agents.")
+        return
+
+    click.echo(f"{len(agents)} agent(s) matching capability={capability or '<any>'}:")
+    for entry in agents:
+        endpoint_info = entry.get("endpoint", {})
+        click.echo("")
+        click.echo(f"  agent_id     : {entry.get('agent_id')}")
+        click.echo(f"  node_key     : {entry.get('node_public_key')}")
+        click.echo(f"  capabilities : {', '.join(entry.get('capabilities', []))}")
+        click.echo(
+            f"  endpoint     : {endpoint_info.get('scheme', 'ws')}://"
+            f"{endpoint_info.get('host')}:{endpoint_info.get('port')}"
+        )
+        click.echo(f"  expires_at   : {entry.get('expires_at')}")
+        if entry.get("metadata"):
+            click.echo(f"  metadata     : {entry.get('metadata')}")
 
 
 @click.group()
