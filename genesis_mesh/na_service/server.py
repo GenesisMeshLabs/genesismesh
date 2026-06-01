@@ -28,6 +28,7 @@ from .routes import (
     create_enrollment_blueprint,
     create_health_blueprint,
     create_public_blueprint,
+    create_treaty_blueprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_enrollment_blueprint(self))
         self.app.register_blueprint(create_discovery_blueprint(self))
         self.app.register_blueprint(create_attestation_blueprint(self))
+        self.app.register_blueprint(create_treaty_blueprint(self))
 
     def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
         """

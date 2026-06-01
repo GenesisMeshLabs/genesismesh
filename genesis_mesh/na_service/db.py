@@ -18,6 +18,7 @@ from ..models import (
     MembershipAttestation,
     PolicyManifest,
     RecognitionPolicy,
+    RecognitionTreaty,
 )
 from ..models.revocation import CertificateRevocationList, RevokedCertificate
 
@@ -539,6 +540,158 @@ class NADatabase:
             "SELECT policy_json FROM recognition_policies WHERE active = 1 LIMIT 1"
         ).fetchone()
         return RecognitionPolicy.model_validate_json(row["policy_json"]) if row else None
+
+    def save_recognition_treaty(
+        self,
+        treaty: RecognitionTreaty,
+        status: str = "active",
+    ) -> None:
+        """Persist a signed recognition treaty."""
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO recognition_treaties(
+                    treaty_id, issuer_sovereign_id, subject_sovereign_id,
+                    status, treaty_json, issued_at, valid_from, expires_at,
+                    revoked_at, revocation_reason
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                """,
+                (
+                    treaty.treaty_id,
+                    treaty.issuer_sovereign_id,
+                    treaty.subject_sovereign_id,
+                    status,
+                    treaty.model_dump_json(),
+                    treaty.issued_at.isoformat(),
+                    treaty.valid_from.isoformat(),
+                    treaty.expires_at.isoformat(),
+                ),
+            )
+
+    def get_recognition_treaty(self, treaty_id: str) -> dict | None:
+        """Return a persisted recognition treaty row and signed model, if present."""
+        row = self.conn.execute(
+            """
+            SELECT treaty_json, status, revoked_at, revocation_reason
+            FROM recognition_treaties
+            WHERE treaty_id = ?
+            """,
+            (treaty_id,),
+        ).fetchone()
+        if not row:
+            return None
+        treaty = RecognitionTreaty.model_validate_json(row["treaty_json"])
+        return {
+            "treaty": treaty,
+            "status": row["status"],
+            "revoked_at": row["revoked_at"],
+            "revocation_reason": row["revocation_reason"],
+        }
+
+    def list_recognition_treaties(
+        self,
+        issuer_sovereign_id: str | None = None,
+        subject_sovereign_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict]:
+        """Return persisted treaty rows filtered by issuer, subject, or status."""
+        clauses: list[str] = []
+        params: list[str] = []
+        if issuer_sovereign_id:
+            clauses.append("issuer_sovereign_id = ?")
+            params.append(issuer_sovereign_id)
+        if subject_sovereign_id:
+            clauses.append("subject_sovereign_id = ?")
+            params.append(subject_sovereign_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self.conn.execute(
+            f"""
+            SELECT treaty_json, status, revoked_at, revocation_reason
+            FROM recognition_treaties
+            {where}
+            ORDER BY issued_at ASC
+            """,
+            params,
+        ).fetchall()
+        return [
+            {
+                "treaty": RecognitionTreaty.model_validate_json(row["treaty_json"]),
+                "status": row["status"],
+                "revoked_at": row["revoked_at"],
+                "revocation_reason": row["revocation_reason"],
+            }
+            for row in rows
+        ]
+
+    def revoke_recognition_treaty(
+        self,
+        treaty_id: str,
+        reason: str = "unspecified",
+    ) -> bool:
+        """Mark a persisted recognition treaty revoked without modifying signed JSON."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self.conn:
+            cursor = self.conn.execute(
+                """
+                UPDATE recognition_treaties
+                SET status = 'revoked', revoked_at = ?, revocation_reason = ?
+                WHERE treaty_id = ?
+                """,
+                (now, reason, treaty_id),
+            )
+        return cursor.rowcount > 0
+
+    def export_recognition_graph(self) -> dict:
+        """Return a minimal recognition graph for external viewers."""
+        treaty_rows = self.list_recognition_treaties()
+        sovereign_ids = {
+            treaty_row["treaty"].issuer_sovereign_id
+            for treaty_row in treaty_rows
+        } | {
+            treaty_row["treaty"].subject_sovereign_id
+            for treaty_row in treaty_rows
+        }
+        sovereigns = [
+            {"sovereign_id": sovereign_id}
+            for sovereign_id in sorted(sovereign_ids)
+        ]
+        edges = [
+            {
+                "from": treaty_row["treaty"].issuer_sovereign_id,
+                "to": treaty_row["treaty"].subject_sovereign_id,
+                "treaty_id": treaty_row["treaty"].treaty_id,
+                "status": treaty_row["status"],
+                "valid_from": treaty_row["treaty"].valid_from.isoformat(),
+                "expires_at": treaty_row["treaty"].expires_at.isoformat(),
+            }
+            for treaty_row in treaty_rows
+        ]
+        active_treaties = [
+            treaty_row["treaty"]
+            for treaty_row in treaty_rows
+            if treaty_row["status"] == "active"
+        ]
+        revoked_trust_material = [
+            {
+                "type": "recognition_treaty",
+                "id": treaty_row["treaty"].treaty_id,
+                "reason": treaty_row["revocation_reason"],
+                "revoked_at": treaty_row["revoked_at"],
+            }
+            for treaty_row in treaty_rows
+            if treaty_row["status"] == "revoked"
+        ]
+        return {
+            "sovereigns": sovereigns,
+            "recognition_edges": edges,
+            "active_treaties": [
+                json.loads(treaty.model_dump_json()) for treaty in active_treaties
+            ],
+            "revoked_trust_material": revoked_trust_material,
+        }
 
     # -- Agent discovery / service registry ---------------------------------
 

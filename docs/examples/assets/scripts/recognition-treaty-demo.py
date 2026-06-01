@@ -1,9 +1,8 @@
-"""Run a local two-sovereign membership attestation smoke demo.
+"""Run a local two-sovereign recognition treaty smoke demo.
 
-The demo intentionally runs both sovereigns in one Python process so it is fast
-and repeatable in CI or from a laptop. Each sovereign still has its own genesis
-block, Network Authority key, operator key, SQLite database, and local
-recognition policy.
+The demo runs both sovereigns in one Python process so it is fast and
+repeatable from a laptop or CI. Each sovereign still has its own genesis block,
+Network Authority key, operator key, SQLite database, and treaty state.
 """
 
 from __future__ import annotations
@@ -20,18 +19,12 @@ import nacl.encoding
 import nacl.signing
 
 from genesis_mesh.crypto import KeyPair, generate_keypair, sign_data
-from genesis_mesh.models import (
-    GenesisBlock,
-    NetworkAuthority,
-    PolicyManifestRef,
-    RecognitionPolicy,
-    RecognizedIssuer,
-)
+from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
 ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_GIF_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-sovereign-attestation.gif"
-DEFAULT_PNG_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-sovereign-attestation.png"
+DEFAULT_GIF_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-recognition-treaty.gif"
+DEFAULT_PNG_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-recognition-treaty.png"
 
 
 def _admin_headers(body: dict, operator_keypair: KeyPair, key_id: str) -> dict:
@@ -69,7 +62,7 @@ def _new_sovereign(name: str, db_path: Path) -> tuple[NetworkAuthorityService, K
     now = datetime.now(timezone.utc)
     genesis = GenesisBlock(
         network_name=name,
-        network_version="v0.9-demo",
+        network_version="v0.10-demo",
         root_public_key=na_public_key,
         network_authority=NetworkAuthority(
             public_key=na_public_key,
@@ -94,15 +87,23 @@ def _post_admin(client, path: str, body: dict, operator: KeyPair, key_id: str):
     return client.post(path, json=body, headers=_admin_headers(body, operator, key_id))
 
 
+def _require_status(response, expected: int, label: str) -> dict:
+    """Return JSON response data or raise a compact demo error."""
+    data = response.get_json()
+    if response.status_code != expected:
+        raise RuntimeError(f"{label} failed: {response.status_code} {data}")
+    return data
+
+
 def run_demo() -> list[str]:
-    """Execute the two-sovereign attestation flow and return transcript lines."""
+    """Execute the recognition treaty flow and return transcript lines."""
     lines: list[str] = []
 
     def emit(line: str = "") -> None:
         lines.append(line)
         print(line)
 
-    with tempfile.TemporaryDirectory(prefix="gm-sovereign-demo-", ignore_cleanup_errors=True) as tmp:
+    with tempfile.TemporaryDirectory(prefix="gm-treaty-demo-", ignore_cleanup_errors=True) as tmp:
         tmp_path = Path(tmp)
         sovereign_a, operator_a = _new_sovereign("sovereign-a", tmp_path / "a.db")
         sovereign_b, operator_b = _new_sovereign("sovereign-b", tmp_path / "b.db")
@@ -111,10 +112,11 @@ def run_demo() -> list[str]:
 
         try:
             emit("==> Sovereigns initialized")
-            emit("    sovereign-a: independent genesis, NA key, operator key, DB")
-            emit("    sovereign-b: independent genesis, NA key, operator key, DB")
+            emit("    sovereign-a: accepting sovereign")
+            emit("    sovereign-b: issuing sovereign")
 
             issue_body = {
+                "issuer_sovereign_id": "sovereign-b",
                 "subject_id": "alice",
                 "subject_public_key": "alice-public-key",
                 "roles": ["role:service:maintainer"],
@@ -122,103 +124,96 @@ def run_demo() -> list[str]:
                 "validity_hours": 24,
             }
             issue = _post_admin(
-                client_a,
+                client_b,
                 "/admin/attestations",
                 issue_body,
-                operator_a,
-                "sovereign-a-operator",
+                operator_b,
+                "sovereign-b-operator",
             )
-            if issue.status_code != 201:
-                raise RuntimeError(f"issue failed: {issue.status_code} {issue.get_data(as_text=True)}")
-            attestation = issue.get_json()
+            attestation = _require_status(issue, 201, "attestation issue")
             emit()
-            emit("==> Sovereign A issued membership attestation")
+            emit("==> Sovereign B issued membership attestation")
             emit(f"    attestation: {attestation['attestation_id']}")
             emit(f"    subject:     {attestation['subject_id']}")
             emit(f"    roles:       {', '.join(attestation['roles'])}")
 
-            policy = RecognitionPolicy(
-                local_sovereign_id="sovereign-b",
-                recognized_issuers=[
-                    RecognizedIssuer(
-                        sovereign_id="sovereign-a",
-                        public_keys=[sovereign_a.genesis_block.network_authority.public_key],
-                        allowed_roles=["role:service:maintainer"],
-                    )
+            treaty_body = {
+                "issuer_sovereign_id": "sovereign-a",
+                "subject_sovereign_id": "sovereign-b",
+                "subject_public_keys": [
+                    sovereign_b.genesis_block.network_authority.public_key,
                 ],
-            )
-            policy_body = {
-                "policy_id": "sovereign-b-recognizes-a",
-                "recognition_policy": json.loads(policy.model_dump_json()),
+                "scope": {
+                    "allowed_roles": ["role:service:maintainer"],
+                    "accepted_statuses": ["active"],
+                    "claims": {"purpose": "portable maintainer trust demo"},
+                },
+                "validity_hours": 24,
+                "metadata": {"demo": "recognition-treaty"},
             }
-            save_policy = _post_admin(
-                client_b,
-                "/admin/recognition-policy",
-                policy_body,
-                operator_b,
-                "sovereign-b-operator",
+            treaty_response = _post_admin(
+                client_a,
+                "/admin/recognition-treaties",
+                treaty_body,
+                operator_a,
+                "sovereign-a-operator",
             )
-            if save_policy.status_code != 200:
-                raise RuntimeError(
-                    f"policy save failed: {save_policy.status_code} {save_policy.get_data(as_text=True)}"
-                )
+            treaty = _require_status(treaty_response, 201, "treaty issue")
             emit()
-            emit("==> Sovereign B recognized Sovereign A locally")
-            emit("    policy: sovereign-b-recognizes-a")
+            emit("==> Sovereign A issued recognition treaty for Sovereign B")
+            emit(f"    treaty: {treaty['treaty_id']}")
+            emit(f"    scope:  {', '.join(treaty['scope']['allowed_roles'])}")
 
-            accepted = client_b.post("/attestations/verify", json={"attestation": attestation})
-            accepted_json = accepted.get_json()
-            if accepted_json["reason"] != "accepted":
-                raise RuntimeError(f"expected acceptance, got {accepted_json}")
+            verify = client_a.post(
+                "/attestations/verify-with-treaty",
+                json={"attestation": attestation, "treaty": treaty},
+            )
+            verify_data = _require_status(verify, 200, "treaty attestation verification")
+            if verify_data["reason"] != "accepted":
+                raise RuntimeError(f"expected treaty acceptance, got {verify_data}")
             emit()
-            emit("==> Sovereign B verified A's attestation")
-            emit(f"    accepted: {accepted_json['accepted']}")
-            emit(f"    reason:   {accepted_json['reason']}")
+            emit("==> Sovereign A accepted B's attestation through the treaty")
+            emit(f"    accepted: {verify_data['accepted']}")
+            emit(f"    reason:   {verify_data['reason']}")
 
-            revoke_body = {"reason": "membership_removed"}
+            revoke_body = {"reason": "trust_boundary_removed"}
             revoke = _post_admin(
                 client_a,
-                f"/admin/attestations/{attestation['attestation_id']}/revoke",
+                f"/admin/recognition-treaties/{treaty['treaty_id']}/revoke",
                 revoke_body,
                 operator_a,
                 "sovereign-a-operator",
             )
-            if revoke.status_code != 200:
-                raise RuntimeError(f"revoke failed: {revoke.status_code} {revoke.get_data(as_text=True)}")
+            _require_status(revoke, 200, "treaty revoke")
             emit()
-            emit("==> Sovereign A revoked the attestation")
+            emit("==> Sovereign A revoked the recognition treaty")
             emit(f"    reason: {revoke_body['reason']}")
 
-            revoked_policy = policy.model_copy(
-                update={"revoked_attestation_ids": {attestation["attestation_id"]}}
+            rejected = client_a.post(
+                "/attestations/verify-with-treaty",
+                json={"attestation": attestation, "treaty": treaty},
             )
-            revoked_policy_body = {
-                "policy_id": "sovereign-b-recognizes-a",
-                "recognition_policy": json.loads(revoked_policy.model_dump_json()),
-            }
-            save_revoked_policy = _post_admin(
-                client_b,
-                "/admin/recognition-policy",
-                revoked_policy_body,
-                operator_b,
-                "sovereign-b-operator",
-            )
-            if save_revoked_policy.status_code != 200:
-                raise RuntimeError(
-                    "revocation input failed: "
-                    f"{save_revoked_policy.status_code} {save_revoked_policy.get_data(as_text=True)}"
-                )
-            rejected = client_b.post("/attestations/verify", json={"attestation": attestation})
-            rejected_json = rejected.get_json()
-            if rejected_json["reason"] != "locally_revoked":
-                raise RuntimeError(f"expected revocation rejection, got {rejected_json}")
+            rejected_data = _require_status(rejected, 200, "post-revocation verification")
+            if rejected_data["reason"] != "treaty_locally_revoked":
+                raise RuntimeError(f"expected treaty revocation rejection, got {rejected_data}")
             emit()
-            emit("==> Sovereign B rejected the same attestation after revocation input")
-            emit(f"    accepted: {rejected_json['accepted']}")
-            emit(f"    reason:   {rejected_json['reason']}")
+            emit("==> Sovereign A rejected the same attestation after treaty revocation")
+            emit(f"    accepted: {rejected_data['accepted']}")
+            emit(f"    reason:   {rejected_data['reason']}")
+
+            graph = client_a.get("/recognition-graph")
+            graph_data = _require_status(graph, 200, "recognition graph export")
+            emit()
+            emit("==> Sovereign A exported minimal recognition graph")
+            emit(f"    sovereigns:              {len(graph_data['sovereigns'])}")
+            emit(f"    recognition_edges:       {len(graph_data['recognition_edges'])}")
+            emit(f"    revoked_trust_material:  {len(graph_data['revoked_trust_material'])}")
 
             emit()
-            emit("Result: cross-sovereign membership trust is portable and revocable.")
+            emit(
+                "Result: direct recognition is signed, scoped, explainable, "
+                "graph-exportable, and revocable."
+            )
             return lines
         finally:
             sovereign_a.db.conn.close()
@@ -258,7 +253,7 @@ def _render_terminal_frame(lines: list[str], width: int, height: int):
     img = Image.new("RGB", (width, height), "#07111f")
     draw = ImageDraw.Draw(img)
     draw.rectangle((0, 0, width, 54), fill="#111827")
-    draw.text((margin, 18), "Genesis Mesh sovereign attestation", fill="#e5e7eb", font=bold)
+    draw.text((margin, 18), "Genesis Mesh recognition treaty", fill="#e5e7eb", font=bold)
     draw.ellipse((width - 88, 20, width - 76, 32), fill="#ef4444")
     draw.ellipse((width - 66, 20, width - 54, 32), fill="#f59e0b")
     draw.ellipse((width - 44, 20, width - 32, 32), fill="#22c55e")
@@ -276,10 +271,10 @@ def _render_terminal_frame(lines: list[str], width: int, height: int):
         elif "accepted: True" in text:
             color = "#86efac"
             selected_font = bold
-        elif "accepted: False" in text or "locally_revoked" in text:
+        elif "accepted: False" in text or "treaty_locally_revoked" in text:
             color = "#fca5a5"
             selected_font = bold
-        elif "sovereign" in text.lower() or "attestation" in text.lower():
+        elif "sovereign" in text.lower() or "treaty" in text.lower():
             color = "#c4b5fd"
         draw.text((margin, y), text, fill=color, font=selected_font)
         y += line_height
@@ -289,8 +284,8 @@ def _render_terminal_frame(lines: list[str], width: int, height: int):
 def render_png(lines: list[str], output: Path) -> None:
     """Render a static PNG from the final transcript state."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    visible = _wrapped_lines(lines)[-32:]
-    _render_terminal_frame(visible, 1120, 880).save(output)
+    visible = _wrapped_lines(lines)[-34:]
+    _render_terminal_frame(visible, 1120, 940).save(output)
 
 
 def render_gif(lines: list[str], output: Path) -> None:
@@ -299,8 +294,8 @@ def render_gif(lines: list[str], output: Path) -> None:
     wrapped = _wrapped_lines(lines)
     frames = []
     for index in range(1, len(wrapped) + 1):
-        visible = wrapped[max(0, index - 32):index]
-        frames.append(_render_terminal_frame(visible, 1120, 880))
+        visible = wrapped[max(0, index - 34):index]
+        frames.append(_render_terminal_frame(visible, 1120, 940))
     frames[0].save(
         output,
         save_all=True,

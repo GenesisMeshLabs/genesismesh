@@ -9,6 +9,8 @@ from .revocation import CertificateRevocationList, RevokedCertificate
 from .sovereign import (
     MembershipAttestation,
     RecognitionPolicy,
+    RecognitionTreaty,
+    RecognitionTreatyScope,
     RecognizedIssuer,
     SovereignIdentity,
 )
@@ -30,6 +32,8 @@ __all__ = [
     "RevokedCertificate",
     "MembershipAttestation",
     "RecognitionPolicy",
+    "RecognitionTreaty",
+    "RecognitionTreatyScope",
     "RecognizedIssuer",
     "SovereignIdentity",
 ]

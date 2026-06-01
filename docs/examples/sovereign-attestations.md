@@ -34,6 +34,20 @@ sequenceDiagram
     B-->>M: rejected locally_revoked
 ```
 
+Static walkthrough:
+
+```{image} assets/images/genesis-mesh-sovereign-attestation.png
+:alt: Sovereign membership attestation flow showing local recognition and revocation
+:class: screenshot
+```
+
+Animated execution:
+
+```{image} assets/images/genesis-mesh-sovereign-attestation.gif
+:alt: Sovereign membership attestation demo animation
+:class: screenshot
+```
+
 ## Run
 
 The demo runs both sovereigns in one Python process for repeatability. Each
