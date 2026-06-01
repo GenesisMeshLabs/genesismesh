@@ -175,6 +175,7 @@ examples/demos
 examples/ai-agent-network
 examples/multi-agent-workflow
 examples/capability-orchestration
+examples/sovereign-attestations
 examples/capacity-baseline
 examples/edge-fleet
 examples/sovereign-organization

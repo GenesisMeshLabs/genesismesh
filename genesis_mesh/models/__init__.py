@@ -6,6 +6,12 @@ from .discovery import AgentDescriptor, AgentEndpoint
 from .enrollment import InviteToken
 from .policy import PolicyManifest, RoutingConfig
 from .revocation import CertificateRevocationList, RevokedCertificate
+from .sovereign import (
+    MembershipAttestation,
+    RecognitionPolicy,
+    RecognizedIssuer,
+    SovereignIdentity,
+)
 
 __all__ = [
     "AgentDescriptor",
@@ -22,4 +28,8 @@ __all__ = [
     "RoutingConfig",
     "CertificateRevocationList",
     "RevokedCertificate",
+    "MembershipAttestation",
+    "RecognitionPolicy",
+    "RecognizedIssuer",
+    "SovereignIdentity",
 ]
