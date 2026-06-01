@@ -1,0 +1,144 @@
+{
+  "benchmark": "genesis-mesh-cooperative-agent-capacity-baseline",
+  "timestamp": "2026-06-01T09:17:48.797241+00:00",
+  "host": {
+    "platform": "win32",
+    "python": "3.14.3"
+  },
+  "method": {
+    "description": "Temporary local Network Authority, one router, N knowledge agents, one researcher issuing sequential end-to-end routed requests.",
+    "requests_per_agent": 2,
+    "settle_seconds": 2.5,
+    "note": "This is a conservative single-host baseline. It measures real CLI, certificate, Noise XX, routing, and provenance behavior; it is not a maximum-throughput claim."
+  },
+  "scenarios": [
+    {
+      "agent_count": 2,
+      "router_count": 1,
+      "researcher_count": 1,
+      "requests_per_agent": 2,
+      "total_requests": 4,
+      "successful_requests": 4,
+      "failed_requests": 0,
+      "provenance_valid": 4,
+      "provenance_invalid": 0,
+      "latency_ms": {
+        "min": 644.34,
+        "mean": 737.11,
+        "p50": 697.08,
+        "p95": 909.96,
+        "max": 909.96
+      },
+      "scenario_seconds": 12.75,
+      "resource_sample": {
+        "available": true,
+        "total_rss_mb": 223.15,
+        "total_cpu_percent": 0.0,
+        "total_cpu_time_seconds": 2.438,
+        "processes": [
+          {
+            "name": "network-authority",
+            "pid": 26620,
+            "rss_mb": 62.68,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.766
+          },
+          {
+            "name": "kb-0",
+            "pid": 28156,
+            "rss_mb": 52.99,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.547
+          },
+          {
+            "name": "kb-1",
+            "pid": 41104,
+            "rss_mb": 52.94,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.516
+          },
+          {
+            "name": "router-1",
+            "pid": 37572,
+            "rss_mb": 54.54,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.609
+          }
+        ]
+      },
+      "failures": [],
+      "logs_kept": false
+    },
+    {
+      "agent_count": 4,
+      "router_count": 1,
+      "researcher_count": 1,
+      "requests_per_agent": 2,
+      "total_requests": 8,
+      "successful_requests": 8,
+      "failed_requests": 0,
+      "provenance_valid": 8,
+      "provenance_invalid": 0,
+      "latency_ms": {
+        "min": 661.83,
+        "mean": 702.84,
+        "p50": 688.47,
+        "p95": 749.43,
+        "max": 749.43
+      },
+      "scenario_seconds": 18.24,
+      "resource_sample": {
+        "available": true,
+        "total_rss_mb": 330.72,
+        "total_cpu_percent": 0.0,
+        "total_cpu_time_seconds": 3.655,
+        "processes": [
+          {
+            "name": "network-authority",
+            "pid": 45516,
+            "rss_mb": 62.82,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.734
+          },
+          {
+            "name": "kb-0",
+            "pid": 9428,
+            "rss_mb": 53.29,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.531
+          },
+          {
+            "name": "kb-1",
+            "pid": 24224,
+            "rss_mb": 52.67,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.562
+          },
+          {
+            "name": "kb-2",
+            "pid": 53860,
+            "rss_mb": 52.95,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.625
+          },
+          {
+            "name": "kb-3",
+            "pid": 14932,
+            "rss_mb": 53.1,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.547
+          },
+          {
+            "name": "router-1",
+            "pid": 42260,
+            "rss_mb": 55.89,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 0.656
+          }
+        ]
+      },
+      "failures": [],
+      "logs_kept": false
+    }
+  ]
+}

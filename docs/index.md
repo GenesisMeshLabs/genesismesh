@@ -174,6 +174,7 @@ development/roadmap
 examples/demos
 examples/ai-agent-network
 examples/multi-agent-workflow
+examples/capacity-baseline
 examples/edge-fleet
 examples/sovereign-organization
 examples/compute-cluster

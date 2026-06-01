@@ -75,6 +75,7 @@ class MeshNodeRuntime:
         listen_port: int = 0,
         bootstrap_peers: list[str] | None = None,
         on_data_received=None,
+        max_peer_connections: int = 50,
     ):
         """Create a runtime around a joined `MeshNode`.
 
@@ -82,6 +83,7 @@ class MeshNodeRuntime:
             on_data_received: Optional async callback ``f(message: MeshMessage) -> None``
                 invoked when a DATA frame is delivered locally. Applications use this
                 to receive messages addressed to this node.
+            max_peer_connections: Maximum number of simultaneous peer connections.
         """
         self.node = node
         self.na_endpoint = na_endpoint.rstrip("/")
@@ -90,8 +92,8 @@ class MeshNodeRuntime:
         self.bootstrap_peers: list[str] = list(bootstrap_peers or [])
         self.node_id = node.node_keypair.public_key_b64
 
-        self.connection_pool = ConnectionPool()
-        self.peer_manager = PeerManager(self.node_id)
+        self.connection_pool = ConnectionPool(max_connections=max_peer_connections)
+        self.peer_manager = PeerManager(self.node_id, max_peers=max_peer_connections)
         self.routing_table = RoutingTable(self.node_id)
         self.router = MeshRouter(
             self.node_id,
