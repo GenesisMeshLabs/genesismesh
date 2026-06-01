@@ -1,0 +1,417 @@
+{
+  "benchmark": "genesis-mesh-cooperative-agent-capacity-baseline",
+  "timestamp": "2026-06-01T10:55:02.582769+00:00",
+  "host": {
+    "platform": "win32",
+    "python": "3.14.3"
+  },
+  "method": {
+    "description": "Temporary local Network Authority, one router, N knowledge agents, and multiple researcher identities issuing concurrent end-to-end routed requests.",
+    "requests_per_agent": 2,
+    "settle_seconds": 10.0,
+    "enrollment_delay_seconds": 7.0,
+    "total_requests": 1000,
+    "concurrent_researchers": 10,
+    "note": "This is a conservative single-host baseline. It measures real CLI, certificate, Noise XX, routing, and provenance behavior; it is not a maximum-throughput claim."
+  },
+  "scenarios": [
+    {
+      "agent_count": 50,
+      "router_count": 1,
+      "researcher_count": 10,
+      "requests_per_agent": 2,
+      "configured_total_requests": 1000,
+      "total_requests": 1000,
+      "successful_requests": 1000,
+      "failed_requests": 0,
+      "provenance_valid": 1000,
+      "provenance_invalid": 0,
+      "latency_ms": {
+        "min": 881.09,
+        "mean": 1211.01,
+        "p50": 1199.27,
+        "p95": 1354.55,
+        "max": 1534.88
+      },
+      "scenario_seconds": 698.27,
+      "measured_request_seconds": 121.54,
+      "throughput_requests_per_second": 8.228,
+      "warmup_requests": 10,
+      "route_warmup_requests": 50,
+      "resource_sample": {
+        "available": true,
+        "total_rss_mb": 2840.62,
+        "total_cpu_percent": 0.0,
+        "total_cpu_time_seconds": 99.453,
+        "processes": [
+          {
+            "name": "network-authority",
+            "pid": 49316,
+            "rss_mb": 63.56,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 3.203
+          },
+          {
+            "name": "kb-0",
+            "pid": 30584,
+            "rss_mb": 53.51,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.062
+          },
+          {
+            "name": "kb-1",
+            "pid": 20788,
+            "rss_mb": 53.13,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.266
+          },
+          {
+            "name": "kb-2",
+            "pid": 59264,
+            "rss_mb": 52.71,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.766
+          },
+          {
+            "name": "kb-3",
+            "pid": 59568,
+            "rss_mb": 52.89,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.859
+          },
+          {
+            "name": "kb-4",
+            "pid": 33060,
+            "rss_mb": 53.31,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.062
+          },
+          {
+            "name": "kb-5",
+            "pid": 15864,
+            "rss_mb": 53.26,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.094
+          },
+          {
+            "name": "kb-6",
+            "pid": 24004,
+            "rss_mb": 53.24,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.094
+          },
+          {
+            "name": "kb-7",
+            "pid": 38308,
+            "rss_mb": 53.09,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.812
+          },
+          {
+            "name": "kb-8",
+            "pid": 12560,
+            "rss_mb": 53.0,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.969
+          },
+          {
+            "name": "kb-9",
+            "pid": 41148,
+            "rss_mb": 53.25,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.797
+          },
+          {
+            "name": "kb-10",
+            "pid": 9436,
+            "rss_mb": 53.3,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 2.0
+          },
+          {
+            "name": "kb-11",
+            "pid": 26920,
+            "rss_mb": 53.0,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.984
+          },
+          {
+            "name": "kb-12",
+            "pid": 21236,
+            "rss_mb": 53.24,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.938
+          },
+          {
+            "name": "kb-13",
+            "pid": 26240,
+            "rss_mb": 53.48,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.844
+          },
+          {
+            "name": "kb-14",
+            "pid": 18556,
+            "rss_mb": 53.06,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.734
+          },
+          {
+            "name": "kb-15",
+            "pid": 27160,
+            "rss_mb": 52.74,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.594
+          },
+          {
+            "name": "kb-16",
+            "pid": 40412,
+            "rss_mb": 52.75,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.781
+          },
+          {
+            "name": "kb-17",
+            "pid": 1884,
+            "rss_mb": 52.97,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.844
+          },
+          {
+            "name": "kb-18",
+            "pid": 4088,
+            "rss_mb": 53.52,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.781
+          },
+          {
+            "name": "kb-19",
+            "pid": 30192,
+            "rss_mb": 52.7,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.828
+          },
+          {
+            "name": "kb-20",
+            "pid": 56496,
+            "rss_mb": 53.21,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.656
+          },
+          {
+            "name": "kb-21",
+            "pid": 45448,
+            "rss_mb": 53.34,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.672
+          },
+          {
+            "name": "kb-22",
+            "pid": 2496,
+            "rss_mb": 52.93,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.781
+          },
+          {
+            "name": "kb-23",
+            "pid": 10728,
+            "rss_mb": 53.48,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.859
+          },
+          {
+            "name": "kb-24",
+            "pid": 46672,
+            "rss_mb": 53.3,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.922
+          },
+          {
+            "name": "kb-25",
+            "pid": 20320,
+            "rss_mb": 53.62,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.719
+          },
+          {
+            "name": "kb-26",
+            "pid": 24084,
+            "rss_mb": 52.86,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.422
+          },
+          {
+            "name": "kb-27",
+            "pid": 58124,
+            "rss_mb": 52.9,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.703
+          },
+          {
+            "name": "kb-28",
+            "pid": 37816,
+            "rss_mb": 53.2,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.281
+          },
+          {
+            "name": "kb-29",
+            "pid": 50276,
+            "rss_mb": 52.76,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.516
+          },
+          {
+            "name": "kb-30",
+            "pid": 53568,
+            "rss_mb": 53.2,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.641
+          },
+          {
+            "name": "kb-31",
+            "pid": 24256,
+            "rss_mb": 53.18,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.672
+          },
+          {
+            "name": "kb-32",
+            "pid": 21664,
+            "rss_mb": 53.14,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.656
+          },
+          {
+            "name": "kb-33",
+            "pid": 55688,
+            "rss_mb": 53.25,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.484
+          },
+          {
+            "name": "kb-34",
+            "pid": 58836,
+            "rss_mb": 53.31,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.484
+          },
+          {
+            "name": "kb-35",
+            "pid": 49312,
+            "rss_mb": 53.41,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.297
+          },
+          {
+            "name": "kb-36",
+            "pid": 41404,
+            "rss_mb": 53.19,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.406
+          },
+          {
+            "name": "kb-37",
+            "pid": 55028,
+            "rss_mb": 53.21,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.531
+          },
+          {
+            "name": "kb-38",
+            "pid": 49720,
+            "rss_mb": 53.32,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.438
+          },
+          {
+            "name": "kb-39",
+            "pid": 10040,
+            "rss_mb": 52.7,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.5
+          },
+          {
+            "name": "kb-40",
+            "pid": 45024,
+            "rss_mb": 53.13,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.578
+          },
+          {
+            "name": "kb-41",
+            "pid": 53252,
+            "rss_mb": 53.55,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.391
+          },
+          {
+            "name": "kb-42",
+            "pid": 38036,
+            "rss_mb": 53.23,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.328
+          },
+          {
+            "name": "kb-43",
+            "pid": 41260,
+            "rss_mb": 52.9,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.297
+          },
+          {
+            "name": "kb-44",
+            "pid": 12220,
+            "rss_mb": 53.48,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.188
+          },
+          {
+            "name": "kb-45",
+            "pid": 6732,
+            "rss_mb": 53.43,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.172
+          },
+          {
+            "name": "kb-46",
+            "pid": 40576,
+            "rss_mb": 53.38,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.219
+          },
+          {
+            "name": "kb-47",
+            "pid": 44188,
+            "rss_mb": 53.24,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.203
+          },
+          {
+            "name": "kb-48",
+            "pid": 22952,
+            "rss_mb": 52.67,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.203
+          },
+          {
+            "name": "kb-49",
+            "pid": 42324,
+            "rss_mb": 52.91,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 1.266
+          },
+          {
+            "name": "router-1",
+            "pid": 35916,
+            "rss_mb": 119.49,
+            "cpu_percent": 0.0,
+            "cpu_time_seconds": 13.656
+          }
+        ]
+      },
+      "failures": [],
+      "logs_kept": false
+    }
+  ]
+}
