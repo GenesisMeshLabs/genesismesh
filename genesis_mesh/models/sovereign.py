@@ -224,3 +224,44 @@ class RecognitionTreaty(BaseModel):
             self.status == "active"
             and (self.valid_from - max_skew) <= current_time <= (self.expires_at + max_skew)
         )
+
+
+class SovereignRevocationFeed(BaseModel):
+    """Signed list of membership attestations revoked by an issuing sovereign."""
+
+    feed_id: str = Field(..., description="Unique revocation feed identifier")
+    issuer_sovereign_id: str = Field(..., description="Sovereign publishing this feed")
+    sequence: int = Field(
+        ...,
+        ge=0,
+        description="Monotonic feed sequence for stale import rejection",
+    )
+    issued_at: datetime = Field(..., description="UTC feed issue timestamp")
+    revoked_attestation_ids: list[str] = Field(
+        default_factory=list,
+        description="Membership attestation IDs revoked by the issuer",
+    )
+    revocation_reasons: dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional revocation reason by attestation ID",
+    )
+    issued_by: str = Field(..., description="Issuer signing key identifier")
+    signatures: list[Signature] = Field(
+        default_factory=list,
+        description="Issuer signatures over the canonical feed",
+    )
+
+    @model_validator(mode="after")
+    def _normalize_revocations(self) -> "SovereignRevocationFeed":
+        """Deduplicate IDs and reject reason entries for unknown revocations."""
+        revoked = sorted(set(self.revoked_attestation_ids))
+        unknown_reasons = set(self.revocation_reasons) - set(revoked)
+        if unknown_reasons:
+            raise ValueError("revocation_reasons contains unknown attestation IDs")
+        self.revoked_attestation_ids = revoked
+        return self
+
+    def to_canonical_json(self) -> str:
+        """Return canonical JSON used for signing and verification."""
+        data = self.model_dump(exclude={"signatures"}, mode="json")
+        return json.dumps(data, sort_keys=True, separators=(",", ":"))

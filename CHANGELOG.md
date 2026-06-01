@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.11.0 - Cross-Sovereign Revocation Propagation
+
+### Added
+
+- Added signed `SovereignRevocationFeed` models for issuer-controlled
+  revocation of membership attestations.
+- Added verification helpers for sovereign revocation feeds, including issuer
+  identity, signature, and sequence checks.
+- Added durable Network Authority storage for imported sovereign revocation
+  feeds and imported revoked attestation IDs.
+- Added `GET /sovereign-revocation-feed` and
+  `POST /admin/sovereign-revocation-feeds/import`.
+- Extended treaty-backed attestation verification so imported revocations from
+  the issuing sovereign reject matching attestations.
+- Extended recognition graph export with imported revoked membership
+  attestations.
+- Added a v0.11 cross-sovereign revocation walkthrough with generated PNG/GIF
+  proof.
+
+### Verified
+
+- Ran focused treaty and Network Authority route tests for feed import,
+  stale-sequence rejection, and imported-revocation enforcement.
+- Ran the cross-sovereign revocation smoke demo:
+  Sovereign A accepted Sovereign B's attestation through a treaty, imported B's
+  signed revocation feed, rejected the same attestation, and exported the
+  propagated revocation in the recognition graph.
+
 ## v0.10.0 - Recognition Treaties and Graph Export
 
 ### Added

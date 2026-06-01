@@ -2,17 +2,21 @@
 
 from .attestation import AttestationVerificationResult, verify_membership_attestation
 from .treaty import (
+    RevocationFeedVerificationResult,
     TreatyAttestationVerificationResult,
     TreatyVerificationResult,
     verify_attestation_with_treaty,
     verify_recognition_treaty,
+    verify_sovereign_revocation_feed,
 )
 
 __all__ = [
     "AttestationVerificationResult",
+    "RevocationFeedVerificationResult",
     "TreatyAttestationVerificationResult",
     "TreatyVerificationResult",
     "verify_attestation_with_treaty",
     "verify_membership_attestation",
     "verify_recognition_treaty",
+    "verify_sovereign_revocation_feed",
 ]

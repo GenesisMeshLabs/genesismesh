@@ -19,6 +19,7 @@ from ..models import (
     PolicyManifest,
     RecognitionPolicy,
     RecognitionTreaty,
+    SovereignRevocationFeed,
 )
 from ..models.revocation import CertificateRevocationList, RevokedCertificate
 
@@ -644,6 +645,120 @@ class NADatabase:
             )
         return cursor.rowcount > 0
 
+    def get_latest_sovereign_revocation_sequence(
+        self,
+        issuer_sovereign_id: str,
+    ) -> int | None:
+        """Return the latest imported revocation feed sequence for an issuer."""
+        row = self.conn.execute(
+            """
+            SELECT MAX(sequence) AS latest_sequence
+            FROM sovereign_revocation_feeds
+            WHERE issuer_sovereign_id = ?
+            """,
+            (issuer_sovereign_id,),
+        ).fetchone()
+        if not row or row["latest_sequence"] is None:
+            return None
+        return int(row["latest_sequence"])
+
+    def save_sovereign_revocation_feed(self, feed: SovereignRevocationFeed) -> None:
+        """Persist an imported sovereign revocation feed and its revoked IDs."""
+        latest = self.get_latest_sovereign_revocation_sequence(feed.issuer_sovereign_id)
+        if latest is not None and feed.sequence <= latest:
+            raise ValueError("stale_sequence")
+
+        imported_at = datetime.now(timezone.utc).isoformat()
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO sovereign_revocation_feeds(
+                    feed_id, issuer_sovereign_id, sequence, feed_json, imported_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    feed.feed_id,
+                    feed.issuer_sovereign_id,
+                    feed.sequence,
+                    feed.model_dump_json(),
+                    imported_at,
+                ),
+            )
+            for attestation_id in feed.revoked_attestation_ids:
+                self.conn.execute(
+                    """
+                    INSERT INTO imported_sovereign_revocations(
+                        issuer_sovereign_id, attestation_id, feed_id,
+                        sequence, reason, imported_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(issuer_sovereign_id, attestation_id) DO UPDATE SET
+                        feed_id = excluded.feed_id,
+                        sequence = excluded.sequence,
+                        reason = excluded.reason,
+                        imported_at = excluded.imported_at
+                    """,
+                    (
+                        feed.issuer_sovereign_id,
+                        attestation_id,
+                        feed.feed_id,
+                        feed.sequence,
+                        feed.revocation_reasons.get(attestation_id),
+                        imported_at,
+                    ),
+                )
+
+    def list_sovereign_revocation_feeds(
+        self,
+        issuer_sovereign_id: str | None = None,
+    ) -> list[dict]:
+        """Return imported sovereign revocation feeds."""
+        clauses: list[str] = []
+        params: list[str] = []
+        if issuer_sovereign_id:
+            clauses.append("issuer_sovereign_id = ?")
+            params.append(issuer_sovereign_id)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self.conn.execute(
+            f"""
+            SELECT feed_json, imported_at
+            FROM sovereign_revocation_feeds
+            {where}
+            ORDER BY issuer_sovereign_id ASC, sequence ASC
+            """,
+            params,
+        ).fetchall()
+        return [
+            {
+                "feed": SovereignRevocationFeed.model_validate_json(row["feed_json"]),
+                "imported_at": row["imported_at"],
+            }
+            for row in rows
+        ]
+
+    def get_imported_revoked_attestation_ids(self, issuer_sovereign_id: str) -> set[str]:
+        """Return attestation IDs revoked by imported feeds for an issuer."""
+        rows = self.conn.execute(
+            """
+            SELECT attestation_id
+            FROM imported_sovereign_revocations
+            WHERE issuer_sovereign_id = ?
+            """,
+            (issuer_sovereign_id,),
+        ).fetchall()
+        return {row["attestation_id"] for row in rows}
+
+    def list_imported_sovereign_revocations(self) -> list[dict]:
+        """Return imported revoked attestation IDs for graph export and diagnostics."""
+        rows = self.conn.execute(
+            """
+            SELECT issuer_sovereign_id, attestation_id, feed_id,
+                   sequence, reason, imported_at
+            FROM imported_sovereign_revocations
+            ORDER BY issuer_sovereign_id ASC, attestation_id ASC
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def export_recognition_graph(self) -> dict:
         """Return a minimal recognition graph for external viewers."""
         treaty_rows = self.list_recognition_treaties()
@@ -684,6 +799,18 @@ class NADatabase:
             for treaty_row in treaty_rows
             if treaty_row["status"] == "revoked"
         ]
+        revoked_trust_material.extend(
+            {
+                "type": "membership_attestation",
+                "id": row["attestation_id"],
+                "issuer_sovereign_id": row["issuer_sovereign_id"],
+                "feed_id": row["feed_id"],
+                "sequence": row["sequence"],
+                "reason": row["reason"],
+                "revoked_at": row["imported_at"],
+            }
+            for row in self.list_imported_sovereign_revocations()
+        )
         return {
             "sovereigns": sovereigns,
             "recognition_edges": edges,

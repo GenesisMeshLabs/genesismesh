@@ -9,8 +9,13 @@ from genesis_mesh.models import (
     MembershipAttestation,
     RecognitionTreaty,
     RecognitionTreatyScope,
+    SovereignRevocationFeed,
 )
-from genesis_mesh.trust import verify_attestation_with_treaty, verify_recognition_treaty
+from genesis_mesh.trust import (
+    verify_attestation_with_treaty,
+    verify_recognition_treaty,
+    verify_sovereign_revocation_feed,
+)
 
 
 def _treaty(
@@ -57,6 +62,23 @@ def _attestation(
         expires_at=now + timedelta(hours=1),
         issued_by="sovereign-b-na",
         claims={"project": "demo"},
+    )
+
+
+def _revocation_feed(
+    issuer_id: str = "sovereign-b",
+    sequence: int = 1,
+    revoked_ids: list[str] | None = None,
+) -> SovereignRevocationFeed:
+    """Build a default sovereign revocation feed for verifier tests."""
+    return SovereignRevocationFeed(
+        feed_id="feed-1",
+        issuer_sovereign_id=issuer_id,
+        sequence=sequence,
+        issued_at=datetime.now(timezone.utc),
+        revoked_attestation_ids=revoked_ids or ["att-1"],
+        revocation_reasons={"att-1": "key_compromise"},
+        issued_by="sovereign-b-na",
     )
 
 
@@ -163,3 +185,56 @@ def test_revoked_treaty_blocks_attestation_verification():
 
     assert result.accepted is False
     assert result.reason == "treaty_locally_revoked"
+
+
+def test_sovereign_revocation_feed_is_accepted_with_valid_signature():
+    """A recognized issuer can publish a signed revocation feed."""
+    issuer_key = generate_keypair()
+    feed = _revocation_feed()
+    feed.signatures.append(sign_model(feed, issuer_key.private_key, "b"))
+
+    result = verify_sovereign_revocation_feed(
+        feed,
+        [issuer_key.public_key_b64],
+        expected_issuer_sovereign_id="sovereign-b",
+    )
+
+    assert result.accepted is True
+    assert result.reason == "accepted"
+    assert result.revoked_count == 1
+
+
+def test_sovereign_revocation_feed_rejects_stale_sequence():
+    """Imported feeds must advance the issuer sequence number."""
+    issuer_key = generate_keypair()
+    feed = _revocation_feed(sequence=1)
+    feed.signatures.append(sign_model(feed, issuer_key.private_key, "b"))
+
+    result = verify_sovereign_revocation_feed(
+        feed,
+        [issuer_key.public_key_b64],
+        min_sequence=1,
+    )
+
+    assert result.accepted is False
+    assert result.reason == "stale_sequence"
+
+
+def test_imported_revocation_blocks_treaty_backed_attestation():
+    """Propagated attestation revocations are honored under active treaties."""
+    treaty_issuer_key = generate_keypair()
+    subject_key = generate_keypair()
+    treaty = _treaty(subject_public_key=subject_key.public_key_b64)
+    treaty.signatures.append(sign_model(treaty, treaty_issuer_key.private_key, "a"))
+    attestation = _attestation()
+    attestation.signatures.append(sign_model(attestation, subject_key.private_key, "b"))
+
+    result = verify_attestation_with_treaty(
+        attestation,
+        treaty,
+        [treaty_issuer_key.public_key_b64],
+        revoked_attestation_ids={"att-1"},
+    )
+
+    assert result.accepted is False
+    assert result.reason == "attestation_locally_revoked"

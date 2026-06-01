@@ -14,8 +14,13 @@ from ...models import (
     MembershipAttestation,
     RecognitionTreaty,
     RecognitionTreatyScope,
+    SovereignRevocationFeed,
 )
-from ...trust import verify_attestation_with_treaty, verify_recognition_treaty
+from ...trust import (
+    verify_attestation_with_treaty,
+    verify_recognition_treaty,
+    verify_sovereign_revocation_feed,
+)
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -42,6 +47,23 @@ def _revoked_treaty_ids(service: "NetworkAuthorityService", treaty_id: str) -> s
     if stored and stored["status"] == "revoked":
         return {treaty_id}
     return set()
+
+
+def _subject_public_keys_for_issuer(
+    service: "NetworkAuthorityService",
+    issuer_sovereign_id: str,
+) -> list[str]:
+    """Return public keys accepted for a treaty subject sovereign."""
+    rows = service.db.list_recognition_treaties(
+        subject_sovereign_id=issuer_sovereign_id,
+        status="active",
+    )
+    keys = {
+        public_key
+        for row in rows
+        for public_key in row["treaty"].subject_public_keys
+    }
+    return sorted(keys)
 
 
 def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
@@ -205,6 +227,9 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             treaty,
             treaty_issuer_public_keys,
             revoked_treaty_ids=_revoked_treaty_ids(service, treaty.treaty_id),
+            revoked_attestation_ids=service.db.get_imported_revoked_attestation_ids(
+                attestation.issuer_sovereign_id,
+            ),
         )
         service.db.add_audit_event("treaty_attestation_verified", {
             "treaty_id": treaty.treaty_id,
@@ -219,6 +244,89 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             "attestation_id": result.attestation_id,
             "issuer_sovereign_id": result.issuer_sovereign_id,
             "subject_sovereign_id": result.subject_sovereign_id,
+        })
+
+    @bp.route("/admin/sovereign-revocation-feeds/import", methods=["POST"])
+    def import_sovereign_revocation_feed():
+        """Import a signed revocation feed from a recognized sovereign."""
+        remote_addr = request.remote_addr or "unknown"
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+        data = request.get_json() or {}
+        ok, error = service._verify_admin_request(data)
+        if not ok:
+            return jsonify({"error": error}), 401
+
+        try:
+            feed = SovereignRevocationFeed.model_validate(data.get("feed"))
+        except Exception:
+            return jsonify({"error": "Invalid sovereign revocation feed"}), 400
+
+        issuer_public_keys = data.get("issuer_public_keys")
+        if issuer_public_keys is None:
+            issuer_public_keys = _subject_public_keys_for_issuer(
+                service,
+                feed.issuer_sovereign_id,
+            )
+        if not isinstance(issuer_public_keys, list) or not issuer_public_keys:
+            return jsonify({
+                "accepted": False,
+                "reason": "missing_issuer_public_keys",
+                "issuer_sovereign_id": feed.issuer_sovereign_id,
+            }), 400
+
+        latest_sequence = service.db.get_latest_sovereign_revocation_sequence(
+            feed.issuer_sovereign_id,
+        )
+        result = verify_sovereign_revocation_feed(
+            feed,
+            issuer_public_keys,
+            expected_issuer_sovereign_id=data.get("expected_issuer_sovereign_id"),
+            min_sequence=latest_sequence,
+        )
+        if not result.accepted:
+            status = 409 if result.reason == "stale_sequence" else 400
+            service.db.add_audit_event("sovereign_revocation_feed_rejected", {
+                "feed_id": feed.feed_id,
+                "issuer_sovereign_id": feed.issuer_sovereign_id,
+                "sequence": feed.sequence,
+                "reason": result.reason,
+            })
+            return jsonify({
+                "accepted": False,
+                "reason": result.reason,
+                "feed_id": feed.feed_id,
+                "issuer_sovereign_id": feed.issuer_sovereign_id,
+                "sequence": feed.sequence,
+            }), status
+
+        try:
+            service.db.save_sovereign_revocation_feed(feed)
+        except ValueError as exc:
+            if str(exc) == "stale_sequence":
+                return jsonify({
+                    "accepted": False,
+                    "reason": "stale_sequence",
+                    "feed_id": feed.feed_id,
+                    "issuer_sovereign_id": feed.issuer_sovereign_id,
+                    "sequence": feed.sequence,
+                }), 409
+            raise
+
+        service.db.add_audit_event("sovereign_revocation_feed_imported", {
+            "feed_id": feed.feed_id,
+            "issuer_sovereign_id": feed.issuer_sovereign_id,
+            "sequence": feed.sequence,
+            "revoked_count": len(feed.revoked_attestation_ids),
+        })
+        return jsonify({
+            "accepted": True,
+            "reason": "accepted",
+            "feed_id": feed.feed_id,
+            "issuer_sovereign_id": feed.issuer_sovereign_id,
+            "sequence": feed.sequence,
+            "revoked_count": len(feed.revoked_attestation_ids),
         })
 
     @bp.route("/recognition-graph", methods=["GET"])

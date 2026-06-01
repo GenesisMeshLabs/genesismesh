@@ -177,6 +177,7 @@ examples/multi-agent-workflow
 examples/capability-orchestration
 examples/sovereign-attestations
 examples/recognition-treaties
+examples/cross-sovereign-revocation
 examples/capacity-baseline
 examples/edge-fleet
 examples/sovereign-organization

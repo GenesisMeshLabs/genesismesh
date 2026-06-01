@@ -34,6 +34,7 @@ flowchart TD
         A7[Agent Discovery + LLM]
         A8[Capability Orchestration]
         A9[Recognition Treaties]
+        A10[Cross-Sovereign Revocation]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -47,8 +48,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9
-    A9 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10
+    A10 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -898,11 +899,87 @@ Full walkthrough:
 
 ---
 
+## 10. Cross-Sovereign Revocation Demo (v0.11)
+
+This demo proves revocation propagation across a recognition boundary.
+Sovereign A accepts a membership attestation from Sovereign B through an active
+treaty. Sovereign B later revokes that specific attestation and publishes a
+signed revocation feed. Sovereign A imports the feed and rejects the same
+attestation without revoking the treaty itself.
+
+```{mermaid}
+sequenceDiagram
+    participant B as Sovereign B
+    participant A as Sovereign A
+    participant F as Signed Revocation Feed
+    participant G as Recognition Graph
+
+    B->>B: Issue MembershipAttestation
+    A->>A: Activate RecognitionTreaty for B
+    B-->>A: Present attestation
+    A-->>B: accepted through treaty
+    B->>F: Publish revocation feed
+    A->>A: Verify and import feed
+    B-->>A: Present same attestation
+    A-->>B: rejected: attestation_locally_revoked
+    A->>G: Export propagated revoked trust material
+```
+
+### Live recording
+
+```{image} assets/images/genesis-mesh-cross-sovereign-revocation.gif
+:alt: Cross-sovereign revocation propagation demo
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-cross-sovereign-revocation.png
+:alt: Static screenshot of the Genesis Mesh cross-sovereign revocation demo
+:class: screenshot
+```
+
+Run:
+
+```powershell
+python docs\examples\assets\scripts\cross-sovereign-revocation-demo.py
+```
+
+Observed proof from the local smoke test:
+
+```text
+==> Sovereign A accepted B's attestation before feed import
+    accepted: True
+    reason:   accepted
+
+==> Sovereign B published signed revocation feed
+    feed sequence: 1
+    revoked IDs:   1
+
+==> Sovereign A imported B's revocation feed
+    accepted: True
+    sequence: 1
+
+==> Sovereign A rejected the same attestation after feed import
+    accepted: False
+    reason:   attestation_locally_revoked
+
+==> Recognition graph includes propagated revoked attestation
+    propagated revocations: 1
+    recognition_edges:      1
+```
+
+Full walkthrough:
+
+- [](cross-sovereign-revocation.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 10. Cooperative Agent Capacity Baseline
+## 11. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -1001,7 +1078,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 11. In-Process Smoke Demo
+## 12. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -1073,7 +1150,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 12. Live CLI Process Smoke Demo
+## 13. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -1134,7 +1211,7 @@ Node:
   valid: True
 ```
 
-## 13. Docker Image Smoke Demo
+## 14. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1192,7 +1269,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 14. Docker Compose Network Authority Example
+## 15. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and

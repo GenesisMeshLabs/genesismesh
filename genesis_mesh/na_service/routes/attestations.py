@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from flask import Blueprint, jsonify, request
 
 from ...crypto import sign_model
-from ...models import MembershipAttestation, RecognitionPolicy
+from ...models import MembershipAttestation, RecognitionPolicy, SovereignRevocationFeed
 from ...trust import verify_membership_attestation
 
 if TYPE_CHECKING:
@@ -187,6 +187,38 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             "count": len(rows),
             "attestations": [_row_payload(row) for row in rows],
         })
+
+    @bp.route("/sovereign-revocation-feed", methods=["GET"])
+    def sovereign_revocation_feed():
+        """Publish a signed feed of revoked membership attestations."""
+        issuer_sovereign_id = request.args.get(
+            "issuer_sovereign_id",
+            service.genesis_block.network_name,
+        )
+        revoked_rows = service.db.list_membership_attestations(
+            issuer_sovereign_id=issuer_sovereign_id,
+            status="revoked",
+        )
+        revoked_ids = [
+            row["attestation"].attestation_id
+            for row in revoked_rows
+        ]
+        reasons = {
+            row["attestation"].attestation_id: row["revocation_reason"] or "unspecified"
+            for row in revoked_rows
+        }
+        feed = SovereignRevocationFeed(
+            feed_id=str(uuid.uuid4()),
+            issuer_sovereign_id=issuer_sovereign_id,
+            sequence=len(revoked_ids),
+            issued_at=datetime.now(timezone.utc),
+            revoked_attestation_ids=revoked_ids,
+            revocation_reasons=reasons,
+            issued_by=service.key_id,
+            signatures=[],
+        )
+        feed.signatures.append(sign_model(feed, service.na_private_key, service.key_id))
+        return jsonify(_json_model(feed))
 
     @bp.route("/attestations/verify", methods=["POST"])
     def verify_attestation():
