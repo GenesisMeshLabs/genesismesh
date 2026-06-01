@@ -520,6 +520,11 @@ DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
 This demo proves that Genesis Mesh can carry a cooperative agent workflow, not
 only direct request/response messages.
 
+```{image} assets/images/genesis-mesh-multi-agent-workflow.gif
+:alt: Multi-agent workflow demo showing routed request and provenance
+:class: screenshot
+```
+
 ```{mermaid}
 flowchart LR
     researcher["Researcher Agent"]
