@@ -657,6 +657,22 @@ enrollment was intentionally paced to respect the Network Authority's `/join`
 rate limiter, which is a security control on identity issuance, not a runtime
 routing limitation.
 
+Concurrent load baseline: 50 agents, 1000 requests, 10 researchers.
+
+Genesis Mesh was also tested with 50 knowledge agents, one router, and 10
+distinct researcher identities issuing 1000 routed requests. The run completed
+with 1000 successful responses and 1000 valid provenance chains.
+
+- [assets/reports/capacity-baseline-local-50x1000-c10.json](assets/reports/capacity-baseline-local-50x1000-c10.json)
+
+| Knowledge agents | Researchers | Requests | Successful | Provenance valid | p50 latency | p95 latency | Throughput | RSS sample |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 50 | 10 | 1000 | 1000 | 1000 | 1199.27 ms | 1354.55 ms | 8.23 req/s | 2840.62 MB |
+
+Researcher enrollment and route warmups are excluded from the measured request
+window. The Network Authority `/join` rate limiter was respected during setup;
+that limiter protects identity issuance and is not a runtime routing limit.
+
 Full walkthrough:
 
 - [](capacity-baseline.md)
