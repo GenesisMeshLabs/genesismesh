@@ -172,6 +172,10 @@ def create_admin_blueprint(service) -> Blueprint:
             if reason not in allowed_reasons:
                 return jsonify({"error": "Invalid revocation reason"}), 400
 
+            cert_row = service.db.get_cert(cert_id)
+            if cert_row is None:
+                return jsonify({"error": "Unknown certificate"}), 404
+
             try:
                 crl = service.db.revoke_cert(
                     cert_id=cert_id,
@@ -197,6 +201,18 @@ def create_admin_blueprint(service) -> Blueprint:
             if cert_id in service.connected_nodes:
                 service.connected_nodes[cert_id]["status"] = "revoked"
                 service.connected_nodes[cert_id]["revocation_reason"] = reason
+
+            revoked_node_key = cert_row.get("node_public_key")
+            if revoked_node_key:
+                evicted = service.db.evict_agent_registrations_for_revoked_keys(
+                    [revoked_node_key]
+                )
+                if evicted:
+                    logger.info(
+                        "Evicted %s agent registration(s) for revoked certificate %s",
+                        evicted,
+                        cert_id,
+                    )
 
             return jsonify(
                 {

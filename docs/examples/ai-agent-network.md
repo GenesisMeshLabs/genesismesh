@@ -88,6 +88,36 @@ from `.env`:
 python docs\examples\assets\scripts\llm-agent-demo.py --real-llm
 ```
 
+Run the real LLM recording with Python 3.12 or 3.13 until fixed LiteLLM
+releases publish Python 3.14-compatible builds. The rest of Genesis Mesh and
+the deterministic mock demos continue to run on Python 3.14.
+
 The recorder discovers the agent by `llm:chat` capability, sends the researcher
 request without a pasted destination key or peer endpoint, and never writes the
 API key to the rendered assets.
+
+## Distributed Capability Orchestration
+
+Discovery becomes more powerful when an agent composes other capabilities. The
+v0.8 orchestration example adds a planner capability:
+
+```text
+Researcher
+  -> planner.answer
+      -> repo.summary
+      -> llm.chat
+  -> answer + provenance
+```
+
+The researcher does not configure provider node keys, peer endpoints, provider
+identities, or provider hosts. It discovers a planner, and the planner
+discovers and invokes the trusted providers.
+
+```{image} assets/images/genesis-mesh-capability-orchestration.png
+:alt: Genesis Mesh distributed capability orchestration walkthrough
+:class: screenshot
+```
+
+Full walkthrough:
+
+- [](capability-orchestration.md)

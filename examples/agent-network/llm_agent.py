@@ -45,7 +45,15 @@ from pathlib import Path
 # Make sibling modules importable when running this script directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from agent_protocol import AgentRequest, AgentResponse, append_trace, parse_envelope  # noqa: E402
+from agent_protocol import (  # noqa: E402
+    AgentRequest,
+    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
+    append_capability_step,
+    append_trace,
+    parse_envelope,
+)
 
 from genesis_mesh.crypto import KeyPair, generate_keypair, load_private_key, save_keypair  # noqa: E402
 from genesis_mesh.models import GenesisBlock, JoinCertificate  # noqa: E402
@@ -167,24 +175,25 @@ async def run_llm_agent(
         logger.info("Enrolled with new certificate %s", cert.cert_id)
 
     # Pending work queued from inbound callbacks, processed in the main loop.
-    pending_work: list[tuple[str, AgentRequest]] = []
+    pending_work: list[tuple[str, AgentRequest | CapabilityRequest]] = []
 
     async def on_data_received(message):
         envelope = parse_envelope(_decoded_payload(message))
-        if envelope is None or not isinstance(envelope, AgentRequest):
+        if envelope is None or not isinstance(envelope, (AgentRequest, CapabilityRequest)):
             return
         if envelope.to_agent != agent_id:
-            logger.info(
-                "Ignored question addressed to %s (we are %s)",
-                envelope.to_agent,
-                agent_id,
-            )
+            logger.info("Ignored request addressed to %s (we are %s)", envelope.to_agent, agent_id)
             return
+        question = (
+            envelope.question
+            if isinstance(envelope, AgentRequest)
+            else str(envelope.arguments.get("question") or envelope.arguments.get("prompt") or "")
+        )
         logger.info(
-            "[%s] received question from %s: %r",
+            "[%s] received request from %s: %r",
             envelope.request_id,
             envelope.from_agent,
-            envelope.question,
+            question,
         )
         pending_work.append((message.sender_id, envelope))
 
@@ -205,7 +214,9 @@ async def run_llm_agent(
     )
 
     # Announce this agent's capabilities to the NA so peers can discover it.
-    effective_capabilities = list(capabilities or [f"llm:chat", f"llm:{llm_config['model']}"])
+    effective_capabilities = list(
+        capabilities or ["llm.chat", "llm:chat", f"llm:{llm_config['model']}"]
+    )
     registration_task = asyncio.create_task(
         run_registration_loop(
             na_endpoint=na_endpoint,
@@ -216,7 +227,10 @@ async def run_llm_agent(
             host=announce_host,
             port=runtime.bound_port or listen_port,
             private_key=node_keypair.private_key,
-            metadata={"model": llm_config["model"]},
+            metadata={
+                "model": llm_config["model"],
+                "capabilities": [{"name": "llm.chat", "version": "1.0"}],
+            },
         )
     )
 
@@ -224,21 +238,43 @@ async def run_llm_agent(
         while True:
             while pending_work:
                 recipient_id, request = pending_work.pop(0)
+                question = (
+                    request.question
+                    if isinstance(request, AgentRequest)
+                    else str(request.arguments.get("question") or request.arguments.get("prompt") or "")
+                )
                 try:
-                    answer, source = await ask_llm(request.question, llm_config)
+                    answer, source = await ask_llm(question, llm_config)
                 except Exception as exc:
                     logger.exception("LLM call failed for %s", request.request_id)
                     answer = f"LLM provider error: {exc.__class__.__name__}"
                     source = f"llm:{llm_config['model']}:error"
 
-                response = AgentResponse(
-                    answer=answer,
-                    from_agent=agent_id,
-                    to_agent=request.from_agent,
-                    request_id=request.request_id,
-                    source=source,
-                    provenance=append_trace(request.trace, agent_id, "answered", source),
-                )
+                if isinstance(request, CapabilityRequest):
+                    response = CapabilityResponse(
+                        capability=request.capability,
+                        provider=agent_id,
+                        result={"answer": answer, "source": source},
+                        from_agent=agent_id,
+                        to_agent=request.from_agent,
+                        request_id=request.request_id,
+                        provenance=append_capability_step(
+                            request.trace,
+                            agent_id,
+                            "executed",
+                            request.capability,
+                            source,
+                        ),
+                    )
+                else:
+                    response = AgentResponse(
+                        answer=answer,
+                        from_agent=agent_id,
+                        to_agent=request.from_agent,
+                        request_id=request.request_id,
+                        source=source,
+                        provenance=append_trace(request.trace, agent_id, "answered", source),
+                    )
                 ok = await runtime.router.send_to(recipient_id, response.to_bytes())
                 if ok:
                     logger.info(

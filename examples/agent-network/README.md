@@ -318,6 +318,9 @@ Install the optional dependency:
 pip install -r examples/agent-network/requirements.txt
 ```
 
+The LLM dependency is optional and currently targets Python 3.12 or 3.13
+because fixed LiteLLM releases have not yet published Python 3.14 wheels.
+
 Configure a provider through environment variables:
 
 ```bash
@@ -484,13 +487,48 @@ For a richer demo, build a small router agent that knows which kb-N owns
 which subject and forwards requests accordingly. That is real agent-mesh
 behavior and uses the same `on_data_received` API.
 
+## Capability orchestration: planner.answer
+
+The v0.8 example moves from discovering one responder to orchestrating multiple
+capabilities. The researcher invokes `planner.answer`; the planner discovers
+`repo.summary` and `llm.chat`, selects providers, invokes them over Genesis
+Mesh, combines the outputs, and returns a provenance-rich answer.
+
+The requester knows only the desired capability. All provider discovery and
+selection occur dynamically at runtime.
+
+Run the full local smoke workflow and docs asset recorder from the repository
+root:
+
+```bash
+python docs/examples/assets/scripts/capability-orchestration-demo.py
+```
+
+For a faster pass without regenerating images:
+
+```bash
+python docs/examples/assets/scripts/capability-orchestration-demo.py --no-gif
+```
+
+The important release proof is that the researcher does not configure node
+keys, peer endpoints, provider identities, or provider hosts:
+
+```text
+Researcher -> planner.answer
+Planner -> repo.summary + llm.chat
+Researcher <- answer + provenance
+```
+
 ## Files
 
 | File | Purpose |
 |---|---|
-| `agent_protocol.py` | `AgentRequest` and `AgentResponse` JSON envelopes |
+| `agent_protocol.py` | Agent and capability request/response JSON envelopes |
+| `capability_providers.py` | Provider interface, registry, and deterministic selection |
 | `knowledge_base.py` | Long-running responder using `MeshNodeRuntime(on_data_received=...)` |
 | `llm_agent.py` | LLM-backed responder using LiteLLM; one env var picks the provider |
+| `repo_agent.py` | Read-only `repo.summary` provider |
+| `planner_agent.py` | `planner.answer` orchestrator |
 | `router_agent.py` | Router agent that forwards requests to knowledge agents and preserves provenance |
 | `researcher.py` | One-shot asker that opens a direct Noise XX session |
 | `knowledge.json` | Tiny default knowledge file the responder reads |

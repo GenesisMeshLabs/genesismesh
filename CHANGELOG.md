@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.8.0 - Capability Orchestration with Trust-Aware Failover
+
+### Added
+
+- Added capability execution envelopes for trusted agent workflows:
+  `CapabilityRequest` and `CapabilityResponse`.
+- Added a provider abstraction, deterministic provider selection, read-only
+  `repo.summary` providers, and a narrow `planner.answer` orchestrator.
+- Added researcher support for invoking a capability through discovery instead
+  of configuring node keys or peer endpoints.
+- Added a reproducible distributed capability orchestration demo with PNG/GIF
+  docs assets, including trust-aware failover after provider revocation.
+
+### Changed
+
+- Extended the LLM-backed agent to answer both legacy `AgentRequest` envelopes
+  and new `CapabilityRequest` envelopes through `llm.chat`.
+- Updated the agent-network example docs to frame Genesis Mesh capabilities as
+  trusted executable resources, not service-catalog entries.
+
+### Verified
+
+- Ran the orchestration smoke workflow with a temporary Network Authority, two
+  `repo.summary` providers, one `llm.chat` provider, one `planner.answer`
+  provider, and a researcher.
+- Verified the researcher used no configured node keys, peer endpoints,
+  provider identities, or provider hosts.
+- Verified the final answer included discovery, execution, and combination
+  provenance.
+- Verified revoking the selected `repo.summary` provider caused the planner to
+  re-discover providers and select the alternate trusted provider.
+
 ## v0.7.1 - Discovery & LLM Demo Polish
 
 ### Changed

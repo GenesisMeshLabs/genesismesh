@@ -1,0 +1,10 @@
+{
+  "repo": "thaersaidi/genesismesh",
+  "summary": "Genesis Mesh is a sovereign trust, identity, and communication fabric for permissioned agent and node networks. It combines Network Authority enrollment, signed join certificates, Noise XX peer transport, routing, policy, CRLs, and provenance-aware examples.",
+  "signals": [
+    "operator-owned trust root",
+    "capability discovery",
+    "revocation-aware peer runtime",
+    "multi-agent provenance"
+  ]
+}

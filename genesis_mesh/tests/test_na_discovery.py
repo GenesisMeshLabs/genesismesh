@@ -10,7 +10,7 @@ import pytest
 from genesis_mesh.crypto import generate_keypair, sign_data, sign_model
 from genesis_mesh.models import AgentDescriptor, AgentEndpoint
 
-from .na_server_helpers import admin_headers, create_invite, sign_payload
+from .na_server_helpers import admin_headers, create_invite, revoke_cert, sign_payload
 
 
 def _enroll(client, node_keypair):
@@ -31,10 +31,17 @@ def _enroll(client, node_keypair):
     return resp.get_json()
 
 
-def _build_signed_descriptor(node_keypair, *, network_name, capabilities, ttl_seconds=600):
+def _build_signed_descriptor(
+    node_keypair,
+    *,
+    network_name,
+    capabilities,
+    ttl_seconds=600,
+    agent_id="llm-1",
+):
     now = datetime.now(timezone.utc)
     descriptor = AgentDescriptor(
-        agent_id="llm-1",
+        agent_id=agent_id,
         node_public_key=node_keypair.public_key_b64,
         network_name=network_name,
         capabilities=list(capabilities),
@@ -136,6 +143,39 @@ def test_get_agents_filters_by_capability(client, na_service):
 
     all_agents = client.get("/agents").get_json()
     assert all_agents["count"] == 2
+
+
+def test_revoke_evicts_agent_registration_for_capability_discovery(client, na_service):
+    """Revoked providers are removed from capability discovery results."""
+    keypair_a = generate_keypair()
+    keypair_b = generate_keypair()
+    cert_a = _enroll(client, keypair_a)
+    _enroll(client, keypair_b)
+
+    desc_a = _build_signed_descriptor(
+        keypair_a,
+        network_name=na_service.genesis_block.network_name,
+        capabilities=["repo.summary"],
+        agent_id="repo-agent-a",
+    )
+    desc_b = _build_signed_descriptor(
+        keypair_b,
+        network_name=na_service.genesis_block.network_name,
+        capabilities=["repo.summary"],
+        agent_id="repo-agent-b",
+    )
+    client.post("/agents", json=desc_a.model_dump(mode="json"))
+    client.post("/agents", json=desc_b.model_dump(mode="json"))
+
+    before = client.get("/agents?capability=repo.summary").get_json()
+    assert before["count"] == 2
+
+    revoke_resp = revoke_cert(client, cert_a["cert_id"], reason="key_compromise")
+    assert revoke_resp.status_code == 200
+
+    after = client.get("/agents?capability=repo.summary").get_json()
+    assert after["count"] == 1
+    assert after["agents"][0]["agent_id"] == "repo-agent-b"
 
 
 def test_delete_agents_requires_valid_signature(client, na_service):
