@@ -1,0 +1,6 @@
+{
+  "noise": "Peer sessions use Noise XX with X25519 keys derived from each node's Ed25519 identity, so nodes get encrypted, authenticated transport without a separate TLS certificate lifecycle.",
+  "routing": "Authenticated peers exchange route information and forward DATA frames without sending every message through the Network Authority.",
+  "transport": "Genesis Mesh carries application payloads in DATA frames after peer authentication and route selection.",
+  "default answer": "Transport knowledge covers Noise XX, encrypted sessions, peer routing, and DATA forwarding."
+}

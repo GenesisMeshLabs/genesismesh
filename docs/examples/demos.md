@@ -27,6 +27,7 @@ flowchart TD
         A3[Message Delivery]
         A4[Multi-Hop Routing]
         A5[Route Failure Recovery]
+        A6[Multi-Agent Workflow]
     end
 
     subgraph B[Part B — Local Smoke Tests]
@@ -36,7 +37,7 @@ flowchart TD
         B4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6
     B1 --> B2 --> B3 --> B4
 ```
 
@@ -514,6 +515,59 @@ DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
 
 ---
 
+## 6. Multi-Agent Workflow Demo
+
+This demo proves that Genesis Mesh can carry a cooperative agent workflow, not
+only direct request/response messages.
+
+```{mermaid}
+flowchart LR
+    researcher["Researcher Agent"]
+    router["Router Agent"]
+    kb_security["Knowledge Agent A<br/>security"]
+    kb_transport["Knowledge Agent B<br/>transport"]
+
+    researcher -->|AgentRequest| router
+    router -->|revocation/crl| kb_security
+    router -->|noise/routing| kb_transport
+    kb_security -->|AgentResponse + provenance| router
+    kb_transport -->|AgentResponse + provenance| router
+    router -->|answer + provenance| researcher
+```
+
+The runnable example lives in `examples/agent-network/` and is documented here:
+
+- [](multi-agent-workflow.md)
+
+The verified path is:
+
+```text
+Researcher -> Router -> kb-security -> Router -> Researcher
+```
+
+Observed proof from the local multi-process smoke test:
+
+```text
+Q: how does revocation work?
+A: Revocation starts with an operator-signed admin action. The Network Authority publishes a signed CRL, and heartbeat, renewal, peer handshake, and routing checks reject the revoked identity.
+  from:    kb-security
+  source:  knowledge-security.json
+  provenance:
+    - router-1: routed (researcher-1 -> kb-security)
+    - kb-security: answered (knowledge-security.json)
+    - router-1: returned (kb-security -> researcher-1)
+```
+
+### What this proves
+
+- One agent can route work to another agent.
+- The requester keeps the same `request_id` across multiple hops.
+- Each agent has its own mesh identity and join certificate.
+- Responses can be traced back to the agent that produced them.
+- Revocation remains a mesh-level safety boundary for the workflow.
+
+---
+
 # Part B — Local Smoke Tests
 
 Part B demonstrates local packaging, installation, and operational startup paths.
@@ -776,6 +830,7 @@ and starts Gunicorn instead of the Flask development server.
 - Direct peer-to-peer messaging
 - Multi-hop routing and packet forwarding
 - Automatic route failover and recovery
+- Multi-agent workflow routing with provenance
 - Docker packaging and local deployment
 
 ## Clean Up

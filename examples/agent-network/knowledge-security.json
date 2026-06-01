@@ -1,0 +1,6 @@
+{
+  "revocation": "Revocation starts with an operator-signed admin action. The Network Authority publishes a signed CRL, and heartbeat, renewal, peer handshake, and routing checks reject the revoked identity.",
+  "crl": "A certificate revocation list is signed by the Network Authority and distributed to nodes so trust can be removed after enrollment.",
+  "policy": "Policies are signed manifests that define what identities and roles are allowed to do in the mesh.",
+  "default answer": "Security knowledge covers revocation, CRLs, policy, and trust-chain behavior."
+}
