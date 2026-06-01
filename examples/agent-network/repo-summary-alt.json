@@ -1,0 +1,10 @@
+{
+  "repo": "thaersaidi/genesismesh",
+  "summary": "Genesis Mesh provides a measured foundation for trusted cooperative agents: discovery finds capable identities, the runtime authenticates peers, and revocation removes identities from both control-plane and peer-runtime paths.",
+  "signals": [
+    "alternate repo.summary provider",
+    "deterministic provider failover",
+    "controlled capability execution",
+    "traceable orchestration"
+  ]
+}

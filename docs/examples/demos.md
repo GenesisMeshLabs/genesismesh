@@ -32,6 +32,7 @@ flowchart TD
         A5[Route Failure Recovery]
         A6[Multi-Agent Workflow]
         A7[Agent Discovery + LLM]
+        A8[Capability Orchestration]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -45,8 +46,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6
-    A6 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8
+    A8 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -640,8 +641,12 @@ output.
 ### Prerequisites
 
 ```bash
-pip install -r examples/agent-network/requirements.txt   # adds litellm
+pip install -r examples/agent-network/requirements.txt   # adds LiteLLM on Python 3.12/3.13
 ```
+
+The LLM provider dependency is optional. Fixed LiteLLM releases currently cap
+support below Python 3.14, so run the real LLM recording with Python 3.12 or
+3.13 until LiteLLM publishes compatible 3.14 builds.
 
 Set the LLM provider in your environment (see
 [`examples/agent-network/README.md`](https://github.com/thaersaidi/genesismesh/blob/main/examples/agent-network/README.md)
@@ -738,11 +743,93 @@ servers).
 
 ---
 
+## 8. Distributed Capability Orchestration Demo (v0.8)
+
+This demo proves the next step after agent discovery: a researcher asks for an
+outcome, a planner discovers trusted capability providers, invokes them over
+the mesh, and returns an answer with complete provenance.
+
+```{image} assets/images/genesis-mesh-capability-orchestration.png
+:alt: Static walkthrough of Genesis Mesh capability orchestration
+:class: screenshot
+```
+
+Animated execution:
+
+```{image} assets/images/genesis-mesh-capability-orchestration.gif
+:alt: Capability orchestration demo showing planner discovery and provenance
+:class: screenshot
+```
+
+```{mermaid}
+flowchart LR
+    researcher["Researcher"]
+    planner["Planner<br/>planner.answer"]
+    repo_a["Repo provider A<br/>repo.summary"]
+    repo_b["Repo provider B<br/>repo.summary"]
+    llm["LLM provider<br/>llm.chat"]
+
+    researcher -->|discover planner.answer| planner
+    planner -->|discover + select repo.summary| repo_a
+    planner -. alternate .-> repo_b
+    planner -->|discover llm.chat| llm
+    repo_a -->|summary + provenance| planner
+    llm -->|synthesis + provenance| planner
+    planner -->|answer + full provenance| researcher
+```
+
+The recorder runs a temporary Network Authority, two `repo.summary` providers,
+one `llm.chat` provider, one `planner.answer` provider, and a researcher. The
+researcher does not configure any node keys, peer endpoints, provider
+identities, or provider hosts.
+
+The requester knows only the desired capability. All provider discovery and
+selection occur dynamically at runtime.
+
+When more than one provider advertises a capability, the planner uses a
+deterministic provider selection rule. In this demo, `repo-agent-a` is selected
+because provider identities are sorted before invocation. Capability is the
+requested behavior; provider is the selected trusted identity that executes it.
+
+Run:
+
+```powershell
+python docs\examples\assets\scripts\capability-orchestration-demo.py
+```
+
+Observed proof from the local smoke test:
+
+```text
+==> Researcher asks for planner.answer
+    no node keys configured
+    no peer endpoints configured
+    no provider identities configured
+    no provider hosts configured
+
+Q: Summarize Genesis Mesh and explain why discovery matters.
+A: Genesis Mesh is a sovereign trust, identity, and communication fabric for permissioned agent and node networks...
+
+  capability: planner.answer
+  provider:   planner-1
+  provenance:
+    - planner-1: discovered repo.summary (selected provider repo-agent-a)
+    - repo-agent-a: executed repo.summary (repo-summary.json)
+    - planner-1: discovered llm.chat (selected provider llm-1)
+    - llm-1: executed llm.chat (llm:openai/gpt-4o-mini)
+    - planner-1: combined planner.answer (repo.summary + llm.chat)
+```
+
+Full walkthrough:
+
+- [](capability-orchestration.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 8. Cooperative Agent Capacity Baseline
+## 9. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -841,7 +928,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 9. In-Process Smoke Demo
+## 10. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -913,7 +1000,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 10. Live CLI Process Smoke Demo
+## 11. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -974,7 +1061,7 @@ Node:
   valid: True
 ```
 
-## 11. Docker Image Smoke Demo
+## 12. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1032,7 +1119,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 12. Docker Compose Network Authority Example
+## 13. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and

@@ -28,7 +28,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from agent_protocol import AgentRequest, AgentResponse, parse_envelope  # noqa: E402
+from agent_protocol import (  # noqa: E402
+    AgentRequest,
+    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
+    parse_envelope,
+)
 
 from genesis_mesh.crypto import KeyPair, generate_keypair, load_private_key, save_keypair  # noqa: E402
 from genesis_mesh.models import GenesisBlock, JoinCertificate  # noqa: E402
@@ -145,6 +151,82 @@ async def ask_one_question(
     return response
 
 
+async def invoke_capability(
+    na_endpoint: str,
+    config_path: Path,
+    capability: str,
+    to_agent: str,
+    destination_node_public_key: str,
+    via_peer_endpoint: str,
+    arguments: dict,
+    agent_id: str,
+    invite_token: str | None,
+    timeout: float,
+) -> CapabilityResponse:
+    """Invoke a discovered capability and return the matching response."""
+    home = config_path.parent
+    home.mkdir(parents=True, exist_ok=True)
+    node_key_path = home / "node.key"
+    cert_path = home / "node.cert.json"
+
+    if node_key_path.exists():
+        private_key = load_private_key(str(node_key_path))
+        node_keypair = KeyPair(private_key=private_key, public_key=private_key.verify_key)
+    else:
+        node_keypair = generate_keypair()
+        save_keypair(node_keypair, str(node_key_path.with_suffix("")), agent_id)
+        private_key = node_keypair.private_key
+
+    genesis_path = home / "genesis.signed.json"
+    if not genesis_path.exists():
+        import requests
+
+        resp = requests.get(f"{na_endpoint.rstrip('/')}/genesis", timeout=10)
+        resp.raise_for_status()
+        genesis_path.write_text(json.dumps(resp.json(), indent=2), encoding="utf-8")
+    genesis = GenesisBlock(**json.loads(genesis_path.read_text(encoding="utf-8")))
+
+    node = MeshNode(genesis_block=genesis, node_keypair=node_keypair, roles=["role:client"])
+
+    if cert_path.exists():
+        cert = JoinCertificate.model_validate_json(cert_path.read_text(encoding="utf-8"))
+        node.join_certificate = cert
+    else:
+        if not invite_token:
+            raise SystemExit(
+                "No local certificate and no --invite-token. "
+                "Get a token from `genesis-mesh admin invite` first."
+            )
+        cert = node.join_network(na_endpoint, validity_hours=24, invite_token=invite_token)
+        cert_path.write_text(cert.model_dump_json(indent=2), encoding="utf-8")
+
+    local_cert_b64 = base64.b64encode(cert.model_dump_json().encode()).decode()
+    noise_keypair = NoiseHandshake.keypair_from_join_cert_key(private_key)
+    uri = via_peer_endpoint if via_peer_endpoint.startswith("ws") else f"ws://{via_peer_endpoint}"
+    transport, _, _ = await connect_websocket_with_noise(uri, noise_keypair, local_cert_b64)
+
+    request = CapabilityRequest(
+        capability=capability,
+        arguments=arguments,
+        from_agent=agent_id,
+        to_agent=to_agent,
+    )
+    outbound = create_data_message(
+        sender_id=node_keypair.public_key_b64,
+        recipient_id=destination_node_public_key,
+        data=request.to_bytes(),
+    )
+    logger.info("[%s] invoking capability %s on %s", request.request_id, capability, to_agent)
+    await transport.send(outbound.to_bytes())
+
+    response = await asyncio.wait_for(
+        _wait_for_capability_response(transport, request.request_id),
+        timeout=timeout,
+    )
+    await transport.close()
+    return response
+
+
 async def _wait_for_response(transport, expected_request_id: str) -> AgentResponse:
     """Read inbound frames until an AgentResponse matches the request id."""
     while True:
@@ -167,6 +249,31 @@ async def _wait_for_response(transport, expected_request_id: str) -> AgentRespon
             return envelope
 
 
+async def _wait_for_capability_response(
+    transport,
+    expected_request_id: str,
+) -> CapabilityResponse:
+    """Read inbound frames until a CapabilityResponse matches the request id."""
+    while True:
+        data = await transport.receive()
+        if data is None:
+            raise RuntimeError("Peer closed the connection before answering")
+        try:
+            mesh_message = MeshMessage.from_bytes(data)
+        except Exception:
+            continue
+        if mesh_message.message_type != MessageType.DATA:
+            continue
+        encoded = mesh_message.payload.get("data", "")
+        try:
+            inner = base64.b64decode(encoded)
+        except Exception:
+            continue
+        envelope = parse_envelope(inner)
+        if isinstance(envelope, CapabilityResponse) and envelope.request_id == expected_request_id:
+            return envelope
+
+
 def _print_response(question: str, response: AgentResponse) -> None:
     """Print a response with the recorded workflow provenance."""
     print()
@@ -183,6 +290,31 @@ def _print_response(question: str, response: AgentResponse) -> None:
                     agent=step.get("agent", "unknown"),
                     action=step.get("action", "step"),
                     detail=step.get("detail", ""),
+                )
+            )
+
+
+def _print_capability_response(question: str, response: CapabilityResponse) -> None:
+    """Print capability execution result and provenance."""
+    result = response.result
+    answer = result.get("answer") or result.get("summary") or result.get("error") or ""
+    print()
+    print(f"Q: {question}")
+    print(f"A: {answer}")
+    print(f"  capability: {response.capability}")
+    print(f"  provider:   {response.provider}")
+    print(f"  request:    {response.request_id}")
+    if response.provenance:
+        print("  provenance:")
+        for step in response.provenance:
+            detail = step.get("detail", "")
+            suffix = f" ({detail})" if detail else ""
+            print(
+                "    - {agent}: {action} {capability}{suffix}".format(
+                    agent=step.get("agent", "unknown"),
+                    action=step.get("action", "step"),
+                    capability=step.get("capability", ""),
+                    suffix=suffix,
                 )
             )
 
@@ -226,6 +358,21 @@ def main():
             "When provided, --to-agent / --destination-key / --via become optional."
         ),
     )
+    parser.add_argument(
+        "--invoke-capability",
+        default=None,
+        help=(
+            "Discover and invoke this executable capability, e.g. planner.answer. "
+            "This mode sends a CapabilityRequest instead of an AgentRequest."
+        ),
+    )
+    parser.add_argument(
+        "--argument",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Capability argument. Repeatable. The positional question is also sent as question.",
+    )
     parser.add_argument("--agent-id", default="researcher-1")
     parser.add_argument("--invite-token", default=None)
     parser.add_argument("--timeout", type=float, default=15.0)
@@ -242,11 +389,13 @@ def main():
     via_endpoint = args.via
     to_agent = args.to_agent
 
-    if args.capability:
+    discovery_capability = args.invoke_capability or args.capability
+
+    if discovery_capability:
         try:
-            resolved = _resolve_via_discovery(args.na, args.capability)
+            resolved = _resolve_via_discovery(args.na, discovery_capability)
         except Exception as exc:
-            parser.error(f"discovery for capability {args.capability!r} failed: {exc}")
+            parser.error(f"discovery for capability {discovery_capability!r} failed: {exc}")
         logger.info(
             "Discovered %s at %s (capabilities=%s)",
             resolved["agent_id"],
@@ -268,21 +417,43 @@ def main():
     if not to_agent:
         parser.error("--to-agent is required when --capability is not set")
 
-    response = asyncio.run(
-        ask_one_question(
-            na_endpoint=args.na,
-            config_path=args.config,
-            to_agent=to_agent,
-            destination_node_public_key=destination_key,
-            via_peer_endpoint=via_endpoint,
-            question=args.question,
-            agent_id=args.agent_id,
-            invite_token=args.invite_token,
-            timeout=args.timeout,
+    if args.invoke_capability:
+        capability_args = {"question": args.question}
+        for value in args.argument:
+            if "=" not in value:
+                parser.error("--argument must use KEY=VALUE")
+            key, raw_value = value.split("=", 1)
+            capability_args[key.strip()] = raw_value.strip()
+        capability_response = asyncio.run(
+            invoke_capability(
+                na_endpoint=args.na,
+                config_path=args.config,
+                capability=args.invoke_capability,
+                to_agent=to_agent,
+                destination_node_public_key=destination_key,
+                via_peer_endpoint=via_endpoint,
+                arguments=capability_args,
+                agent_id=args.agent_id,
+                invite_token=args.invite_token,
+                timeout=args.timeout,
+            )
         )
-    )
-
-    _print_response(args.question, response)
+        _print_capability_response(args.question, capability_response)
+    else:
+        response = asyncio.run(
+            ask_one_question(
+                na_endpoint=args.na,
+                config_path=args.config,
+                to_agent=to_agent,
+                destination_node_public_key=destination_key,
+                via_peer_endpoint=via_endpoint,
+                question=args.question,
+                agent_id=args.agent_id,
+                invite_token=args.invite_token,
+                timeout=args.timeout,
+            )
+        )
+        _print_response(args.question, response)
 
 
 if __name__ == "__main__":

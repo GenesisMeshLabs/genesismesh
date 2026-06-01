@@ -308,7 +308,8 @@ def run_demo(use_real_llm: bool = False) -> list[str]:
     except ImportError as exc:
         raise SystemExit(
             "LiteLLM is not installed. Run: "
-            "python -m pip install -r examples/agent-network/requirements.txt"
+            "python -m pip install -r examples/agent-network/requirements.txt "
+            "(Python 3.12 or 3.13 until LiteLLM supports Python 3.14)"
         ) from exc
 
     tmp = Path(tempfile.mkdtemp(prefix="gm-llm-agent-demo-"))
