@@ -1,4 +1,4 @@
-"""Researcher agent — sends one question over the mesh and prints the answer.
+"""Researcher agent: sends one question over the mesh and prints the answer.
 
 Run:
 
@@ -6,14 +6,14 @@ Run:
         --na https://na.genesismesh.connectorzzz.com \\
         --config ~/.genesis-mesh-researcher/config.toml \\
         --to-agent kb-1 \\
-        --kb-key <KNOWLEDGE_BASE_NODE_PUBLIC_KEY> \\
+        --destination-key <DESTINATION_NODE_PUBLIC_KEY> \\
         --via ws://4.223.130.190:7443 \\
         "what protocol secures peer sessions?"
 
-The researcher enrols once (operator provides --invite-token on first run),
+The researcher enrolls once (operator provides --invite-token on first run),
 opens a Noise XX session through the given peer endpoint, sends an
 ``AgentRequest``, waits for the matching ``AgentResponse`` on the same
-authenticated connection, and prints the answer.
+authenticated connection, and prints the answer and provenance.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ async def ask_one_question(
     na_endpoint: str,
     config_path: Path,
     to_agent: str,
-    kb_node_public_key: str,
+    destination_node_public_key: str,
     via_peer_endpoint: str,
     question: str,
     agent_id: str,
@@ -67,10 +67,10 @@ async def ask_one_question(
         save_keypair(node_keypair, str(node_key_path.with_suffix("")), agent_id)
         private_key = node_keypair.private_key
 
-    # Resolve genesis from the NA if we don't have one yet.
     genesis_path = home / "genesis.signed.json"
     if not genesis_path.exists():
         import requests
+
         resp = requests.get(f"{na_endpoint.rstrip('/')}/genesis", timeout=10)
         resp.raise_for_status()
         genesis_path.write_text(json.dumps(resp.json(), indent=2), encoding="utf-8")
@@ -100,11 +100,15 @@ async def ask_one_question(
     request = AgentRequest(question=question, from_agent=agent_id, to_agent=to_agent)
     outbound = create_data_message(
         sender_id=node_keypair.public_key_b64,
-        recipient_id=kb_node_public_key,
+        recipient_id=destination_node_public_key,
         data=request.to_bytes(),
     )
-    logger.info("[%s] sending question to %s: %r",
-                request.request_id, to_agent, question)
+    logger.info(
+        "[%s] sending question to %s: %r",
+        request.request_id,
+        to_agent,
+        question,
+    )
     await transport.send(outbound.to_bytes())
 
     response = await asyncio.wait_for(
@@ -116,7 +120,7 @@ async def ask_one_question(
 
 
 async def _wait_for_response(transport, expected_request_id: str) -> AgentResponse:
-    """Read inbound frames until we see an AgentResponse matching our request id."""
+    """Read inbound frames until an AgentResponse matches the request id."""
     while True:
         data = await transport.receive()
         if data is None:
@@ -137,17 +141,45 @@ async def _wait_for_response(transport, expected_request_id: str) -> AgentRespon
             return envelope
 
 
+def _print_response(question: str, response: AgentResponse) -> None:
+    """Print a response with the recorded workflow provenance."""
+    print()
+    print(f"Q: {question}")
+    print(f"A: {response.answer}")
+    print(f"  from:    {response.from_agent}")
+    print(f"  source:  {response.source}")
+    print(f"  request: {response.request_id}")
+    if response.provenance:
+        print("  provenance:")
+        for step in response.provenance:
+            print(
+                "    - {agent}: {action} ({detail})".format(
+                    agent=step.get("agent", "unknown"),
+                    action=step.get("action", "step"),
+                    detail=step.get("detail", ""),
+                )
+            )
+
+
 def main():
+    """Run the researcher CLI."""
     parser = argparse.ArgumentParser(description="Researcher agent for Genesis Mesh")
     parser.add_argument("--na", required=True, help="Network Authority URL")
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--to-agent", required=True, help="Logical id of the responder, e.g. kb-1")
     parser.add_argument(
-        "--kb-key", required=True,
-        help="Knowledge-base node's public key (base64, as it appears in /nodes)",
+        "--destination-key",
+        default=None,
+        help="Destination node public key (base64, from the responder certificate)",
     )
     parser.add_argument(
-        "--via", required=True,
+        "--kb-key",
+        default=None,
+        help="Deprecated alias for --destination-key",
+    )
+    parser.add_argument(
+        "--via",
+        required=True,
         help="Peer WebSocket endpoint of any reachable router, e.g. ws://4.223.130.190:7443",
     )
     parser.add_argument("--agent-id", default="researcher-1")
@@ -162,12 +194,16 @@ def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
+    destination_key = args.destination_key or args.kb_key
+    if not destination_key:
+        parser.error("one of --destination-key or --kb-key is required")
+
     response = asyncio.run(
         ask_one_question(
             na_endpoint=args.na,
             config_path=args.config,
             to_agent=args.to_agent,
-            kb_node_public_key=args.kb_key,
+            destination_node_public_key=destination_key,
             via_peer_endpoint=args.via,
             question=args.question,
             agent_id=args.agent_id,
@@ -176,12 +212,7 @@ def main():
         )
     )
 
-    print()
-    print(f"Q: {args.question}")
-    print(f"A: {response.answer}")
-    print(f"  from:    {response.from_agent}")
-    print(f"  source:  {response.source}")
-    print(f"  request: {response.request_id}")
+    _print_response(args.question, response)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Knowledge-base agent — a long-running mesh node that answers questions.
+"""Knowledge-base agent: a long-running mesh node that answers questions.
 
 Run:
 
@@ -11,7 +11,7 @@ Run:
 
 The agent enrolls (or reuses an existing certificate), starts a peer runtime,
 and listens for AgentRequest messages addressed to it. Each request is matched
-against a JSON knowledge file. The response is sent back over the same mesh.
+against a JSON knowledge file. The response is sent back over the mesh.
 
 The default responder is a simple keyword lookup. Swap ``answer_question`` to
 plug in an LLM call, a database query, or an MCP tool invocation. The mesh
@@ -30,31 +30,30 @@ from pathlib import Path
 # Make sibling modules importable when running this script directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from agent_protocol import AgentRequest, AgentResponse, parse_envelope  # noqa: E402
+from agent_protocol import AgentRequest, AgentResponse, append_trace, parse_envelope  # noqa: E402
 
 from genesis_mesh.crypto import KeyPair, generate_keypair, load_private_key, save_keypair  # noqa: E402
 from genesis_mesh.models import GenesisBlock, JoinCertificate  # noqa: E402
 from genesis_mesh.node.node import MeshNode  # noqa: E402
 from genesis_mesh.node.runtime import MeshNodeRuntime  # noqa: E402
-from genesis_mesh.transport.protocol import create_data_message  # noqa: E402
 
 
 logger = logging.getLogger("agent.knowledge_base")
 
 
-def answer_question(question: str, knowledge: dict) -> tuple[str, str]:
-    """Match a question against the loaded knowledge file.
-
-    Returns (answer, source). Replace this function to use an LLM or any other
-    backend. The rest of the agent is backend-agnostic.
-    """
+def answer_question(
+    question: str,
+    knowledge: dict,
+    source_name: str = "knowledge.json",
+) -> tuple[str, str]:
+    """Match a question against the loaded knowledge file."""
     normalized = question.lower().strip().rstrip("?").strip()
     for key, value in knowledge.items():
         if key == "default answer":
             continue
         if key in normalized or normalized in key:
-            return value, "knowledge.json"
-    return knowledge.get("default answer", "No answer available."), "knowledge.json:default"
+            return value, source_name
+    return knowledge.get("default answer", "No answer available."), f"{source_name}:default"
 
 
 async def run_knowledge_base(
@@ -65,11 +64,10 @@ async def run_knowledge_base(
     knowledge_path: Path,
     invite_token: str | None,
 ):
-    """Enrol if needed, start the peer runtime, respond to AgentRequest messages."""
+    """Enroll if needed, start the peer runtime, and answer AgentRequest messages."""
     knowledge = json.loads(knowledge_path.read_text(encoding="utf-8"))
     logger.info("Loaded %d knowledge entries from %s", len(knowledge), knowledge_path)
 
-    # Discover or reuse a node key + certificate.
     home = config_path.parent
     home.mkdir(parents=True, exist_ok=True)
     node_key_path = home / "node.key"
@@ -82,10 +80,10 @@ async def run_knowledge_base(
         node_keypair = generate_keypair()
         save_keypair(node_keypair, str(node_key_path.with_suffix("")), agent_id)
 
-    # Resolve genesis from the NA if we don't have one yet.
     genesis_path = home / "genesis.signed.json"
     if not genesis_path.exists():
         import requests
+
         resp = requests.get(f"{na_endpoint.rstrip('/')}/genesis", timeout=10)
         resp.raise_for_status()
         genesis_path.write_text(json.dumps(resp.json(), indent=2), encoding="utf-8")
@@ -108,7 +106,6 @@ async def run_knowledge_base(
         cert_path.write_text(cert.model_dump_json(indent=2), encoding="utf-8")
         logger.info("Enrolled with new certificate %s", cert.cert_id)
 
-    # The application-side callback that fires on every locally delivered DATA frame.
     pending_responses: list[tuple[str, AgentResponse]] = []
 
     async def on_data_received(message):
@@ -121,20 +118,26 @@ async def run_knowledge_base(
         if envelope.to_agent != agent_id:
             logger.info(
                 "Ignored question addressed to %s (we are %s)",
-                envelope.to_agent, agent_id,
+                envelope.to_agent,
+                agent_id,
             )
             return
 
-        logger.info("[%s] received question from %s: %r",
-                    envelope.request_id, envelope.from_agent, envelope.question)
+        logger.info(
+            "[%s] received question from %s: %r",
+            envelope.request_id,
+            envelope.from_agent,
+            envelope.question,
+        )
 
-        answer, source = answer_question(envelope.question, knowledge)
+        answer, source = answer_question(envelope.question, knowledge, knowledge_path.name)
         response = AgentResponse(
             answer=answer,
             from_agent=agent_id,
             to_agent=envelope.from_agent,
             request_id=envelope.request_id,
             source=source,
+            provenance=append_trace(envelope.trace, agent_id, "answered", source),
         )
         pending_responses.append((message.sender_id, response))
 
@@ -149,25 +152,24 @@ async def run_knowledge_base(
     await runtime.start()
     logger.info(
         "Agent %s online | listening on :%s | identity prefix %s",
-        agent_id, runtime.bound_port, runtime.node_id[:16],
+        agent_id,
+        runtime.bound_port,
+        runtime.node_id[:16],
     )
 
     try:
         while True:
-            # Flush any responses produced by inbound questions.
             while pending_responses:
                 recipient_id, response = pending_responses.pop(0)
-                msg = create_data_message(
-                    sender_id=runtime.node_id,
-                    recipient_id=recipient_id,
-                    data=response.to_bytes(),
-                )
                 ok = await runtime.router.send_to(recipient_id, response.to_bytes())
                 if ok:
                     logger.info("[%s] sent answer to %s", response.request_id, recipient_id[:16])
                 else:
-                    logger.warning("[%s] no route to %s — answer dropped",
-                                   response.request_id, recipient_id[:16])
+                    logger.warning(
+                        "[%s] no route to %s; answer dropped",
+                        response.request_id,
+                        recipient_id[:16],
+                    )
             await asyncio.sleep(0.05)
     except KeyboardInterrupt:
         logger.info("Shutting down")
@@ -178,6 +180,7 @@ async def run_knowledge_base(
 def _decoded_payload(message) -> bytes:
     """Extract raw application bytes from the mesh DATA payload."""
     import base64
+
     encoded = message.payload.get("data", "")
     try:
         return base64.b64decode(encoded)
@@ -186,6 +189,7 @@ def _decoded_payload(message) -> bytes:
 
 
 def main():
+    """Run the knowledge-base agent CLI."""
     parser = argparse.ArgumentParser(description="Knowledge-base agent for Genesis Mesh")
     parser.add_argument("--na", required=True, help="Network Authority URL")
     parser.add_argument("--config", required=True, type=Path, help="Path to per-agent config TOML")

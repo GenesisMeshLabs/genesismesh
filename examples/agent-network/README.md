@@ -44,9 +44,10 @@ This example uses your own NA.
 
 ## What you need before running
 
-1. A live Network Authority (the public one at
-   `https://na.genesismesh.connectorzzz.com` works for trying it out, or
-   spin up a local one with `genesis-mesh init && genesis-mesh na start`)
+1. A live Network Authority. The public one at
+   `https://na.genesismesh.connectorzzz.com` works if you have operator
+   credentials or pre-issued invite tokens. Otherwise, spin up a local one
+   with `genesis-mesh init && genesis-mesh na start`.
 2. An invite token for each agent — get one with:
    ```bash
    genesis-mesh admin invite --role anchor
@@ -72,7 +73,7 @@ python examples/agent-network/knowledge_base.py \
 ```
 
 The agent prints its **identity prefix** on startup. Capture the full
-public key — you need it as `--kb-key` below. The simplest way:
+public key — you need it as `--destination-key` below. The simplest way:
 
 ```bash
 cat ~/.gm-agents/kb/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])"
@@ -87,7 +88,7 @@ python examples/agent-network/researcher.py \
   --na https://na.genesismesh.connectorzzz.com \
   --config ~/.gm-agents/researcher/config.toml \
   --to-agent kb-1 \
-  --kb-key "<paste public key from above>" \
+  --destination-key "<paste public key from above>" \
   --via ws://4.223.130.190:7443 \
   --invite-token "$RES_INVITE" \
   "what protocol secures peer sessions?"
@@ -112,7 +113,7 @@ WriteMessage(payload, message_buffer)
 Q: what protocol secures peer sessions?
 A: Noise XX, deriving X25519 keys directly from each node's Ed25519 identity. No separate TLS certificate lifecycle is required.
   from:    kb-1
-  source:  knowledge.json
+  source:  knowledge-security.json
   request: adfde277-bd07-4d8a-a5c9-e471360b652a
 ```
 
@@ -133,6 +134,124 @@ Q: how does revocation work
 A: An operator calls /admin/revoke. The Network Authority publishes a new signed CRL. Heartbeat, renewal, peer handshake, and routing checks all reject the revoked identity.
   from:    kb-1
   source:  knowledge.json
+```
+
+## Multi-agent workflow: researcher -> router -> knowledge agents
+
+The two-agent example proves direct structured messaging. The router example
+adds one more hop so the mesh carries a cooperative workflow:
+
+```mermaid
+sequenceDiagram
+    participant Researcher as Researcher agent
+    participant Router as Router agent
+    participant Sec as Knowledge agent A (security)
+    participant Tx as Knowledge agent B (transport)
+
+    Researcher->>Router: AgentRequest(question, request_id)
+    Router->>Router: select target from keyword rules
+    Router->>Sec: forwarded AgentRequest(trace += routed)
+    Sec-->>Router: AgentResponse(provenance += answered)
+    Router-->>Researcher: AgentResponse(provenance += returned)
+    Researcher->>Researcher: print answer + provenance
+
+    Researcher->>Router: AgentRequest("what secures peer sessions?")
+    Router->>Tx: forwarded AgentRequest(trace += routed)
+    Tx-->>Router: AgentResponse(provenance += answered)
+    Router-->>Researcher: AgentResponse(provenance += returned)
+```
+
+This demonstrates the agent-network properties Genesis Mesh is meant to carry:
+
+- one agent can route work to another agent;
+- the requester keeps the same `request_id` across multiple hops;
+- every participant has its own mesh identity and join certificate;
+- responses preserve the producing agent in `from_agent`;
+- provenance records routing and answer steps;
+- revocation still breaks the workflow because a revoked router or knowledge
+  agent cannot complete the peer handshake or keep participating in routing.
+
+Start two knowledge agents with different knowledge files:
+
+```bash
+SEC_INVITE=$(genesis-mesh admin invite --role anchor)
+TX_INVITE=$(genesis-mesh admin invite --role anchor)
+
+python examples/agent-network/knowledge_base.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/kb-security/config.toml \
+  --listen-port 7447 \
+  --agent-id kb-security \
+  --knowledge examples/agent-network/knowledge-security.json \
+  --invite-token "$SEC_INVITE"
+
+python examples/agent-network/knowledge_base.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/kb-transport/config.toml \
+  --listen-port 7448 \
+  --agent-id kb-transport \
+  --knowledge examples/agent-network/knowledge-transport.json \
+  --invite-token "$TX_INVITE"
+```
+
+Capture both node public keys from their saved certificates:
+
+```bash
+SEC_KEY=$(cat ~/.gm-agents/kb-security/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])")
+TX_KEY=$(cat ~/.gm-agents/kb-transport/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])")
+```
+
+Start the router and point keyword rules at those knowledge agents:
+
+```bash
+ROUTER_INVITE=$(genesis-mesh admin invite --role anchor)
+
+python examples/agent-network/router_agent.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/router/config.toml \
+  --listen-port 7446 \
+  --agent-id router-1 \
+  --knowledge-agent "kb-security=$SEC_KEY" \
+  --knowledge-agent "kb-transport=$TX_KEY" \
+  --rule revocation=kb-security \
+  --rule crl=kb-security \
+  --rule noise=kb-transport \
+  --rule routing=kb-transport \
+  --peer ws://127.0.0.1:7447 \
+  --peer ws://127.0.0.1:7448 \
+  --invite-token "$ROUTER_INVITE"
+```
+
+Capture the router's node public key, then ask the router instead of a
+knowledge agent:
+
+```bash
+ROUTER_KEY=$(cat ~/.gm-agents/router/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])")
+RES_INVITE=$(genesis-mesh admin invite --role client)
+
+python examples/agent-network/researcher.py \
+  --na https://na.genesismesh.connectorzzz.com \
+  --config ~/.gm-agents/researcher/config.toml \
+  --to-agent router-1 \
+  --destination-key "$ROUTER_KEY" \
+  --via ws://127.0.0.1:7446 \
+  --invite-token "$RES_INVITE" \
+  "how does revocation work?"
+```
+
+The answer still comes from the knowledge agent that produced it, while the
+provenance shows the router hop:
+
+```text
+Q: how does revocation work?
+A: Revocation starts with an operator-signed admin action. The Network Authority publishes a signed CRL, and heartbeat, renewal, peer handshake, and routing checks reject the revoked identity.
+  from:    kb-security
+  source:  knowledge.json
+  request: 3f4f4c8f-8df2-4ef2-95e7-6b60c0d94d01
+  provenance:
+    - router-1: routed (researcher-1 -> kb-security)
+    - kb-security: answered (knowledge-security.json)
+    - router-1: returned (kb-security -> researcher-1)
 ```
 
 The default backend returns a fallback when no entry matches, and the
@@ -207,6 +326,9 @@ behavior and uses the same `on_data_received` API.
 | File | Purpose |
 |---|---|
 | `agent_protocol.py` | `AgentRequest` and `AgentResponse` JSON envelopes |
-| `knowledge_base.py` | Long-running responder using `MeshNodeRuntime(on_data_received=…)` |
+| `knowledge_base.py` | Long-running responder using `MeshNodeRuntime(on_data_received=...)` |
+| `router_agent.py` | Router agent that forwards requests to knowledge agents and preserves provenance |
 | `researcher.py` | One-shot asker that opens a direct Noise XX session |
 | `knowledge.json` | Tiny default knowledge file the responder reads |
+| `knowledge-security.json` | Security-focused knowledge file for the multi-agent workflow |
+| `knowledge-transport.json` | Transport-focused knowledge file for the multi-agent workflow |
