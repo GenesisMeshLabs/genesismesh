@@ -171,3 +171,104 @@ Activates a previously persisted policy version.
   "policy_id": "<policy-id>"
 }
 ```
+
+## Agent Discovery (v0.7+)
+
+Agents announce their capabilities to the Network Authority so peers can find
+them by capability tag rather than by hardcoded node public key. The registry
+is TTL-based; agents refresh on a periodic timer.
+
+### `POST /agents`
+
+Register or refresh a signed `AgentDescriptor`. The descriptor is signed by
+the registering node's join-certificate key; the NA verifies the signature
+against the public key embedded in the descriptor.
+
+```json
+{
+  "agent_id": "llm-1",
+  "node_public_key": "<base64-ed25519-public-key>",
+  "network_name": "USG",
+  "capabilities": ["llm:chat", "llm:openai/gpt-4o-mini"],
+  "endpoint": {
+    "host": "127.0.0.1",
+    "port": 7448,
+    "scheme": "ws"
+  },
+  "registered_at": "<iso8601>",
+  "expires_at": "<iso8601>",
+  "metadata": {"model": "gpt-4o-mini"},
+  "signatures": [
+    {
+      "key_id": "<base64-ed25519-public-key>",
+      "sig": "<base64-ed25519-signature>"
+    }
+  ]
+}
+```
+
+Rejection conditions:
+
+- `400` — malformed descriptor, inverted expiry window, or wrong `network_name`
+- `401` — missing or invalid signature
+- `403` — node has no active join certificate, or the key appears in the CRL
+- `429` — rate-limited
+
+Success response:
+
+```json
+{
+  "status": "registered",
+  "expires_at": "<iso8601>"
+}
+```
+
+### `GET /agents`
+
+Returns all live agent registrations. Supports an optional `capability` query
+parameter for filtering. Expired entries are evicted before the query runs.
+
+```
+GET /agents?capability=llm:chat
+```
+
+Response:
+
+```json
+{
+  "count": 1,
+  "capability": "llm:chat",
+  "agents": [
+    {
+      "agent_id": "llm-1",
+      "node_public_key": "<base64>",
+      "network_name": "USG",
+      "capabilities": ["llm:chat", "llm:openai/gpt-4o-mini"],
+      "endpoint": {"host": "127.0.0.1", "port": 7448, "scheme": "ws"},
+      "registered_at": "<iso8601>",
+      "expires_at": "<iso8601>",
+      "metadata": {"model": "gpt-4o-mini"},
+      "signatures": [{"key_id": "<base64>", "sig": "<base64>"}]
+    }
+  ]
+}
+```
+
+### `GET /agents/<node_public_key>`
+
+Returns the registration for a specific node key, or `404` if not registered.
+
+### `DELETE /agents/<node_public_key>`
+
+Voluntary deregistration. Requires a signed delete envelope in the body:
+
+```json
+{
+  "version": "v1",
+  "signed_at": "<iso8601, within ±5 minutes>",
+  "signature": "<base64 signature of 'delete-agent|v1|<node_public_key>|<signed_at>'>"
+}
+```
+
+Returns `200` on success, `401` if the signature does not verify under the
+node key, `404` if the agent is not currently registered.

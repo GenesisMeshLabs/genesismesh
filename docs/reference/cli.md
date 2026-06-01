@@ -140,6 +140,41 @@ genesis-mesh status
 `status` is shared by operators and node operators. It detects available config
 and prints the relevant Network Authority and node view.
 
+### `genesis-mesh discover`
+
+Lists agents registered in the Network Authority's service registry (v0.7+).
+Supports filtering by capability tag and a JSON output mode for scripting.
+
+```bash
+# Find every agent advertising llm:chat
+genesis-mesh discover --capability llm:chat
+
+# Use a different NA than the one in config
+genesis-mesh discover --capability llm:chat --na https://na.example.com
+
+# JSON output for scripts
+genesis-mesh discover --capability llm:chat --format json
+```
+
+Sample output:
+
+```text
+1 agent(s) matching capability=llm:chat:
+
+  agent_id     : llm-1
+  node_key     : EGk5lruaR7fveWfEyQsIuo7S2oevUOtKyrHR5sKKXqA=
+  capabilities : llm:chat, llm:openai/gpt-4o-mini
+  endpoint     : ws://127.0.0.1:7448
+  expires_at   : 2026-06-01T14:12:03.713487Z
+  metadata     : {'model': 'openai/gpt-4o-mini'}
+```
+
+Agents register themselves at startup using the helpers in
+`genesis_mesh.node.discovery_client`. The bundled
+`examples/agent-network/knowledge_base.py` and `llm_agent.py` auto-register
+with sensible default capability tags; override or extend with their
+`--capability` and `--announce-host` flags.
+
 ## Developer Commands
 
 ### `genesis-mesh dev up`
