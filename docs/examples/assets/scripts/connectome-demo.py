@@ -91,160 +91,196 @@ def _require_status(response, expected: int, label: str) -> dict:
     return data
 
 
-def run_demo() -> list[str]:
-    """Execute the Connectome flow and return transcript lines."""
+def _seed_connectome(
+    tmp_path: Path,
+) -> tuple[NetworkAuthorityService, NetworkAuthorityService, list[str]]:
+    """Create two sovereigns and seed Connectome treaty and revocation data."""
     lines: list[str] = []
 
     def emit(line: str = "") -> None:
         lines.append(line)
         print(line)
 
+    sovereign_a, operator_a = _new_sovereign("sovereign-a", tmp_path / "a.db")
+    sovereign_b, operator_b = _new_sovereign("sovereign-b", tmp_path / "b.db")
+    client_a = sovereign_a.app.test_client()
+    client_b = sovereign_b.app.test_client()
+
+    emit("==> Sovereign Connectome demo")
+    emit("    sovereign-a observes recognition and imported revocation state")
+    emit("    sovereign-b issues and revokes one membership attestation")
+
+    attestation_body = {
+        "issuer_sovereign_id": "sovereign-b",
+        "subject_id": "alice",
+        "subject_public_key": "alice-public-key",
+        "roles": ["role:service:maintainer"],
+        "claims": {"project": "connectome-demo"},
+        "validity_hours": 24,
+    }
+    attestation = _require_status(
+        _post_admin(
+            client_b,
+            "/admin/attestations",
+            attestation_body,
+            operator_b,
+            "sovereign-b-operator",
+        ),
+        201,
+        "attestation issue",
+    )
+    treaty_body = {
+        "issuer_sovereign_id": "sovereign-a",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+            sovereign_b.genesis_block.network_authority.public_key,
+        ],
+        "scope": {
+            "allowed_roles": ["role:service:maintainer"],
+            "accepted_statuses": ["active"],
+            "claims": {"purpose": "connectome demo"},
+        },
+        "validity_hours": 24,
+        "metadata": {"demo": "connectome"},
+    }
+    treaty = _require_status(
+        _post_admin(
+            client_a,
+            "/admin/recognition-treaties",
+            treaty_body,
+            operator_a,
+            "sovereign-a-operator",
+        ),
+        201,
+        "treaty issue",
+    )
+    emit()
+    emit("==> Direct recognition treaty created")
+    emit("    from: sovereign-a")
+    emit("    to:   sovereign-b")
+    emit(f"    id:   {treaty['treaty_id']}")
+
+    revoke_body = {"reason": "key_compromise"}
+    _require_status(
+        _post_admin(
+            client_b,
+            f"/admin/attestations/{attestation['attestation_id']}/revoke",
+            revoke_body,
+            operator_b,
+            "sovereign-b-operator",
+        ),
+        200,
+        "attestation revoke",
+    )
+    feed = _require_status(
+        client_b.get("/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b"),
+        200,
+        "revocation feed",
+    )
+    import_body = {"feed": feed}
+    _require_status(
+        _post_admin(
+            client_a,
+            "/admin/sovereign-revocation-feeds/import",
+            import_body,
+            operator_a,
+            "sovereign-a-operator",
+        ),
+        200,
+        "feed import",
+    )
+    emit()
+    emit("==> Sovereign B revocation feed imported by Sovereign A")
+    emit(f"    feed sequence: {feed['sequence']}")
+    emit(f"    revoked attestations: {len(feed['revoked_attestation_ids'])}")
+
+    connectome = _require_status(
+        client_a.get("/connectome.json"),
+        200,
+        "connectome json",
+    )
+    summary = connectome["summary"]
+    emit()
+    emit("==> Connectome summary")
+    emit(f"    sovereigns:              {summary['sovereign_count']}")
+    emit(f"    recognition edges:       {summary['recognition_edge_count']}")
+    emit(f"    active edges:            {summary['active_edge_count']}")
+    emit(f"    imported revocations:    {summary['imported_revocation_count']}")
+
+    trust_path = _require_status(
+        client_a.get("/connectome/trust-path?from=sovereign-a&to=sovereign-b"),
+        200,
+        "trust path",
+    )
+    emit()
+    emit("==> Direct trust path")
+    emit(f"    from:    {trust_path['from']}")
+    emit(f"    to:      {trust_path['to']}")
+    emit(f"    trusted: {trust_path['trusted']}")
+    emit(f"    reason:  {trust_path['reason']}")
+
+    blast = connectome["revocation_blast_radius"][0]
+    emit()
+    emit("==> Revocation blast radius")
+    emit(f"    revoked attestation: {blast['id']}")
+    emit(f"    issuer:              {blast['issuer_sovereign_id']}")
+    emit(
+        "    affected acceptors:  "
+        + ", ".join(blast["affected_accepting_sovereigns"])
+    )
+    emit(f"    reason:              {blast['reason']}")
+
+    page = client_a.get("/connectome")
+    if page.status_code != 200 or page.mimetype != "text/html":
+        raise RuntimeError("connectome page did not render")
+    emit()
+    emit("==> Operator page rendered")
+    emit("    GET /connectome -> 200 text/html")
+    emit("    GET /connectome.json -> machine-readable graph view")
+    emit()
+    emit(
+        "Result: the Connectome exposes recognition edges, trust paths, "
+        "and cross-sovereign revocation impact without becoming a new "
+        "source of trust."
+    )
+    return sovereign_a, sovereign_b, lines
+
+
+def run_demo() -> list[str]:
+    """Execute the Connectome flow and return transcript lines."""
     with tempfile.TemporaryDirectory(prefix="gm-connectome-", ignore_cleanup_errors=True) as tmp:
-        tmp_path = Path(tmp)
-        sovereign_a, operator_a = _new_sovereign("sovereign-a", tmp_path / "a.db")
-        sovereign_b, operator_b = _new_sovereign("sovereign-b", tmp_path / "b.db")
-        client_a = sovereign_a.app.test_client()
-        client_b = sovereign_b.app.test_client()
-
+        sovereign_a, sovereign_b, lines = _seed_connectome(Path(tmp))
         try:
-            emit("==> Sovereign Connectome demo")
-            emit("    sovereign-a observes recognition and imported revocation state")
-            emit("    sovereign-b issues and revokes one membership attestation")
-
-            attestation_body = {
-                "issuer_sovereign_id": "sovereign-b",
-                "subject_id": "alice",
-                "subject_public_key": "alice-public-key",
-                "roles": ["role:service:maintainer"],
-                "claims": {"project": "connectome-demo"},
-                "validity_hours": 24,
-            }
-            attestation = _require_status(
-                _post_admin(
-                    client_b,
-                    "/admin/attestations",
-                    attestation_body,
-                    operator_b,
-                    "sovereign-b-operator",
-                ),
-                201,
-                "attestation issue",
-            )
-            treaty_body = {
-                "issuer_sovereign_id": "sovereign-a",
-                "subject_sovereign_id": "sovereign-b",
-                "subject_public_keys": [
-                    sovereign_b.genesis_block.network_authority.public_key,
-                ],
-                "scope": {
-                    "allowed_roles": ["role:service:maintainer"],
-                    "accepted_statuses": ["active"],
-                    "claims": {"purpose": "connectome demo"},
-                },
-                "validity_hours": 24,
-                "metadata": {"demo": "connectome"},
-            }
-            treaty = _require_status(
-                _post_admin(
-                    client_a,
-                    "/admin/recognition-treaties",
-                    treaty_body,
-                    operator_a,
-                    "sovereign-a-operator",
-                ),
-                201,
-                "treaty issue",
-            )
-            emit()
-            emit("==> Direct recognition treaty created")
-            emit(f"    from: sovereign-a")
-            emit(f"    to:   sovereign-b")
-            emit(f"    id:   {treaty['treaty_id']}")
-
-            revoke_body = {"reason": "key_compromise"}
-            _require_status(
-                _post_admin(
-                    client_b,
-                    f"/admin/attestations/{attestation['attestation_id']}/revoke",
-                    revoke_body,
-                    operator_b,
-                    "sovereign-b-operator",
-                ),
-                200,
-                "attestation revoke",
-            )
-            feed = _require_status(
-                client_b.get("/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b"),
-                200,
-                "revocation feed",
-            )
-            import_body = {"feed": feed}
-            _require_status(
-                _post_admin(
-                    client_a,
-                    "/admin/sovereign-revocation-feeds/import",
-                    import_body,
-                    operator_a,
-                    "sovereign-a-operator",
-                ),
-                200,
-                "feed import",
-            )
-            emit()
-            emit("==> Sovereign B revocation feed imported by Sovereign A")
-            emit(f"    feed sequence: {feed['sequence']}")
-            emit(f"    revoked attestations: {len(feed['revoked_attestation_ids'])}")
-
-            connectome = _require_status(
-                client_a.get("/connectome.json"),
-                200,
-                "connectome json",
-            )
-            summary = connectome["summary"]
-            emit()
-            emit("==> Connectome summary")
-            emit(f"    sovereigns:              {summary['sovereign_count']}")
-            emit(f"    recognition edges:       {summary['recognition_edge_count']}")
-            emit(f"    active edges:            {summary['active_edge_count']}")
-            emit(f"    imported revocations:    {summary['imported_revocation_count']}")
-
-            trust_path = _require_status(
-                client_a.get("/connectome/trust-path?from=sovereign-a&to=sovereign-b"),
-                200,
-                "trust path",
-            )
-            emit()
-            emit("==> Direct trust path")
-            emit(f"    from:    {trust_path['from']}")
-            emit(f"    to:      {trust_path['to']}")
-            emit(f"    trusted: {trust_path['trusted']}")
-            emit(f"    reason:  {trust_path['reason']}")
-
-            blast = connectome["revocation_blast_radius"][0]
-            emit()
-            emit("==> Revocation blast radius")
-            emit(f"    revoked attestation: {blast['id']}")
-            emit(f"    issuer:              {blast['issuer_sovereign_id']}")
-            emit(
-                "    affected acceptors:  "
-                + ", ".join(blast["affected_accepting_sovereigns"])
-            )
-            emit(f"    reason:              {blast['reason']}")
-
-            page = client_a.get("/connectome")
-            if page.status_code != 200 or page.mimetype != "text/html":
-                raise RuntimeError("connectome page did not render")
-            emit()
-            emit("==> Operator page rendered")
-            emit("    GET /connectome -> 200 text/html")
-            emit("    GET /connectome.json -> machine-readable graph view")
-            emit()
-            emit(
-                "Result: the Connectome exposes recognition edges, trust paths, "
-                "and cross-sovereign revocation impact without becoming a new "
-                "source of trust."
-            )
             return lines
+        finally:
+            sovereign_a.db.conn.close()
+            sovereign_b.db.conn.close()
+
+
+def serve_demo(host: str, port: int) -> None:
+    """Seed a Connectome demo and serve Sovereign A for browser inspection."""
+    with tempfile.TemporaryDirectory(
+        prefix="gm-connectome-server-",
+        ignore_cleanup_errors=True,
+    ) as tmp:
+        sovereign_a, sovereign_b, _lines = _seed_connectome(Path(tmp))
+        try:
+            print()
+            print("Connectome browser demo is ready.")
+            print(f"  page:       http://{host}:{port}/connectome")
+            print(f"  graph JSON: http://{host}:{port}/connectome.json")
+            print(
+                "  trust path: "
+                f"http://{host}:{port}/connectome/trust-path?from=sovereign-a&to=sovereign-b"
+            )
+            print()
+            print("Press Ctrl+C to stop the server.")
+            sovereign_a.app.run(
+                host=host,
+                port=port,
+                debug=False,
+                use_reloader=False,
+            )
         finally:
             sovereign_a.db.conn.close()
             sovereign_b.db.conn.close()
@@ -341,7 +377,18 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_GIF_OUTPUT)
     parser.add_argument("--png-output", type=Path, default=DEFAULT_PNG_OUTPUT)
     parser.add_argument("--no-assets", action="store_true")
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="serve the seeded Connectome page for local browser inspection",
+    )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
+
+    if args.serve:
+        serve_demo(args.host, args.port)
+        return 0
 
     lines = run_demo()
     if not args.no_assets:
