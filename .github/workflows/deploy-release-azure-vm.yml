@@ -25,102 +25,133 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     env:
-      VM_HOST: ${{ secrets.NA_VM_HOST }}
-      VM_SSH_PRIVATE_KEY: ${{ secrets.NA_VM_SSH_PRIVATE_KEY }}
-      VM_USER: ${{ vars.NA_VM_USER }}
-      VM_PORT: ${{ vars.NA_VM_SSH_PORT }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_VM_NAME: ${{ vars.AZURE_VM_NAME }}
       RELEASE_TAG: ${{ github.event.release.tag_name }}
       INPUT_REF: ${{ github.event.inputs.ref }}
       INPUT_SERVICES: ${{ github.event.inputs.services }}
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Validate deployment configuration
         shell: bash
         run: |
           set -euo pipefail
-          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
-          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
-          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
-          if [ -z "${VM_HOST:-}" ]; then
-            echo "NA_VM_HOST secret is required" >&2
-            exit 1
-          fi
-          if [ -z "${VM_SSH_PRIVATE_KEY:-}" ]; then
-            echo "NA_VM_SSH_PRIVATE_KEY secret is required" >&2
-            exit 1
-          fi
-          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
-            echo "NA_VM_SSH_PORT must be numeric" >&2
-            exit 1
-          fi
-          if [ -z "$VM_USER" ]; then
-            echo "NA_VM_USER cannot be empty" >&2
-            exit 1
-          fi
 
-      - name: Configure SSH
-        shell: bash
-        run: |
-          set -euo pipefail
-          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
-          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
-          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
-          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
-            echo "NA_VM_SSH_PORT must be numeric" >&2
+          AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
+          AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
+          DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
+          SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
+
+          if [ -z "${AZURE_CLIENT_ID:-}" ]; then
+            echo "AZURE_CLIENT_ID secret is required" >&2
             exit 1
           fi
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/genesis_mesh_vm
-          chmod 600 ~/.ssh/genesis_mesh_vm
-          if ! ssh-keyscan -T 30 -p "$VM_PORT" "$VM_HOST" >> ~/.ssh/known_hosts 2> ~/.ssh/ssh-keyscan.err; then
-            echo "::warning::ssh-keyscan failed; SSH will use StrictHostKeyChecking=accept-new"
-            cat ~/.ssh/ssh-keyscan.err
+          if [ -z "${AZURE_SUBSCRIPTION_ID:-}" ]; then
+            echo "AZURE_SUBSCRIPTION_ID secret is required" >&2
+            exit 1
           fi
+          if [ -z "${AZURE_TENANT_ID:-}" ]; then
+            echo "AZURE_TENANT_ID secret is required" >&2
+            exit 1
+          fi
+          if [ -z "$AZURE_RESOURCE_GROUP" ]; then
+            echo "AZURE_RESOURCE_GROUP repository variable is required" >&2
+            exit 1
+          fi
+          if [ -z "$AZURE_VM_NAME" ]; then
+            echo "AZURE_VM_NAME repository variable is required" >&2
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then
+            echo "Deployment ref contains unsupported characters: $DEPLOY_REF" >&2
+            exit 1
+          fi
+          for service in $SERVICES; do
+            if ! [[ "$service" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
+              echo "Service name contains unsupported characters: $service" >&2
+              exit 1
+            fi
+          done
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy release and restart services
         shell: bash
         run: |
           set -euo pipefail
-          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
-          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
-          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
-          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
-            echo "NA_VM_SSH_PORT must be numeric" >&2
-            exit 1
-          fi
 
+          AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
+          AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
           DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
           SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
 
-          echo "Deploying ${DEPLOY_REF} to ${VM_USER}@${VM_HOST}:${VM_PORT}"
+          if ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then
+            echo "Deployment ref contains unsupported characters: $DEPLOY_REF" >&2
+            exit 1
+          fi
+          for service in $SERVICES; do
+            if ! [[ "$service" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
+              echo "Service name contains unsupported characters: $service" >&2
+              exit 1
+            fi
+          done
+
+          echo "Deploying ${DEPLOY_REF} to Azure VM ${AZURE_VM_NAME} in ${AZURE_RESOURCE_GROUP}"
           echo "Restarting services: ${SERVICES}"
 
-          ssh \
-            -i ~/.ssh/genesis_mesh_vm \
-            -p "$VM_PORT" \
-            -o StrictHostKeyChecking=accept-new \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "$VM_USER@$VM_HOST" \
-            "DEPLOY_REF='$DEPLOY_REF' SERVICES='$SERVICES' bash -s" <<'REMOTE'
+          {
+            printf 'DEPLOY_REF=%q\n' "$DEPLOY_REF"
+            printf 'SERVICES=%q\n' "$SERVICES"
+            cat <<'SCRIPT'
           set -euo pipefail
 
-          cd /opt/genesis-mesh
+          REPO_DIR=/opt/genesis-mesh
+
+          if [ ! -d "$REPO_DIR/.git" ]; then
+            echo "ERROR: $REPO_DIR is not a Git checkout" >&2
+            exit 1
+          fi
+
+          REPO_USER="$(stat -c '%U' "$REPO_DIR")"
+          echo "==> Repository owner: $REPO_USER"
 
           echo "==> Current revision"
-          git log -1 --oneline || true
+          if [ "$REPO_USER" = "root" ]; then
+            cd "$REPO_DIR"
+            git config --global --add safe.directory "$REPO_DIR" || true
+            git log -1 --oneline || true
+          else
+            sudo -H -u "$REPO_USER" bash -lc "cd '$REPO_DIR' && git log -1 --oneline || true"
+          fi
 
           echo "==> Backing up Network Authority database"
-          sudo mkdir -p /var/lib/genesis-mesh/backups
+          mkdir -p /var/lib/genesis-mesh/backups
           if [ -f /var/lib/genesis-mesh/na.db ]; then
-            sudo cp /var/lib/genesis-mesh/na.db "/var/lib/genesis-mesh/backups/na.db.$(date -u +%Y%m%d-%H%M%S).bak"
+            cp /var/lib/genesis-mesh/na.db "/var/lib/genesis-mesh/backups/na.db.$(date -u +%Y%m%d-%H%M%S).bak"
           else
             echo "No /var/lib/genesis-mesh/na.db found; skipping DB backup"
           fi
 
-          echo "==> Fetching release"
+          echo "==> Fetching release and updating Python environment"
+          if [ "$REPO_USER" = "root" ]; then
+            env DEPLOY_REF="$DEPLOY_REF" bash <<'REPO_SCRIPT'
+          set -euo pipefail
+          cd /opt/genesis-mesh
+          git config --global --add safe.directory /opt/genesis-mesh || true
           git fetch --tags origin
           if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
             git checkout --force "tags/$DEPLOY_REF"
@@ -129,8 +160,6 @@ jobs:
           else
             git checkout --force "$DEPLOY_REF"
           fi
-
-          echo "==> Updating Python environment"
           if [ ! -d .venv ]; then
             python3 -m venv .venv
           fi
@@ -139,26 +168,51 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -e .
           python -m compileall genesis_mesh -q
+          REPO_SCRIPT
+          else
+            sudo -H -u "$REPO_USER" env DEPLOY_REF="$DEPLOY_REF" bash <<'REPO_SCRIPT'
+          set -euo pipefail
+          cd /opt/genesis-mesh
+          git fetch --tags origin
+          if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
+            git checkout --force "tags/$DEPLOY_REF"
+          elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
+            git checkout --force "origin/$DEPLOY_REF"
+          else
+            git checkout --force "$DEPLOY_REF"
+          fi
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+          python -m compileall genesis_mesh -q
+          REPO_SCRIPT
+          fi
+
+          cd "$REPO_DIR"
 
           echo "==> Installing systemd unit files"
-          sudo cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
-          sudo cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
-          sudo cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
-          sudo mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
-          sudo cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
-          sudo systemctl daemon-reload
+          cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
+          cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
+          cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
+          mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
+          cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
+          systemctl daemon-reload
 
           echo "==> Restarting services"
           for service in $SERVICES; do
-            sudo systemctl restart "$service"
+            systemctl restart "$service"
           done
 
           sleep 5
 
           echo "==> Checking service state"
           for service in $SERVICES; do
-            sudo systemctl is-active --quiet "$service"
-            sudo systemctl status "$service" --no-pager --lines=5
+            systemctl is-active --quiet "$service"
+            systemctl status "$service" --no-pager --lines=5
           done
 
           echo "==> Probing Network Authority"
@@ -181,5 +235,18 @@ jobs:
           PY
 
           echo "==> Deployment complete"
-          git log -1 --oneline
-          REMOTE
+          if [ "$REPO_USER" = "root" ]; then
+            git log -1 --oneline
+          else
+            sudo -H -u "$REPO_USER" bash -lc "cd '$REPO_DIR' && git log -1 --oneline"
+          fi
+          SCRIPT
+          } > /tmp/deploy-genesis-mesh.sh
+
+          az vm run-command invoke \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_VM_NAME" \
+            --command-id RunShellScript \
+            --scripts @/tmp/deploy-genesis-mesh.sh \
+            --query "value[].message" \
+            --output tsv
