@@ -12,6 +12,8 @@ one switch variable: `target_provider`.
 - `universal_boot.sh`: OS-agnostic bootstrap script for user_data/remote-exec.
 - `azure/`: Azure Container Apps helper scripts.
 - `scripts/`: Local operational smoke-test scripts.
+  - `bootstrap-ubuntu-vm.sh`: provider-neutral installer for a plain Ubuntu
+    VM/VPS after it already exists.
 
 Container-focused files remain at the repository root:
 
@@ -135,7 +137,25 @@ as a JSON object from key ID to base64 public key.
 
 ## Local Verification Script
 
-The local CLI flow smoke script is grouped under `infrastructure/scripts/`:
+Operational scripts are grouped under `infrastructure/scripts/`.
+
+Use the provider-neutral Ubuntu bootstrap script when you already have a VM or
+VPS from DigitalOcean, Hetzner, Vultr, a local hypervisor, or any other provider:
+
+```bash
+sudo GENESIS_ROLE=na \
+  GENESIS_REF=main \
+  GENESIS_DOMAIN=nb.genesismesh.connectorzzz.com \
+  ENABLE_NGINX=true \
+  LETSENCRYPT_EMAIL=ops@example.com \
+  bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
+```
+
+The script installs Genesis Mesh and writes systemd units, but it does not
+generate or upload production secrets. Upload `genesis.signed.json`, `na.key`,
+and operator public-key configuration separately.
+
+The local CLI flow smoke script is:
 
 ```powershell
 .\infrastructure\scripts\verify_flow.ps1
