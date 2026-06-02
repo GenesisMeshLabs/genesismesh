@@ -123,6 +123,53 @@ The same module is driven from CI via
 
 See: [Terraform deployment guide](terraform-deployment.md)
 
+## Release CD to the Azure VM
+
+Terraform provisions the VM. Code updates for an existing VM are handled by
+`.github/workflows/deploy-release-azure-vm.yml`.
+
+The release deployment workflow runs when a GitHub release is published. It can
+also be triggered manually from the Actions tab. The workflow connects to the
+VM over SSH, backs up `/var/lib/genesis-mesh/na.db`, checks out the release tag,
+updates the virtual environment, installs the current package, refreshes the
+systemd unit files, restarts the NA and router services, then probes:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /connectome.json`
+
+Required GitHub secrets:
+
+| Secret | Value |
+|---|---|
+| `NA_VM_HOST` | Public hostname or IP address of the live VM |
+| `NA_VM_SSH_PRIVATE_KEY` | Private SSH key allowed to log in to the VM |
+
+Optional GitHub variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `NA_VM_USER` | `azureuser` | SSH username |
+| `NA_VM_SSH_PORT` | `22` | SSH port |
+
+These can be loaded from `.env` with:
+
+```bash
+bash infrastructure/scripts/setup-github-secrets.sh
+```
+
+Set `NA_VM_SSH_PRIVATE_KEY_FILE` in `.env` to read the private key from disk, or
+set `NA_VM_SSH_PRIVATE_KEY` directly if your local shell can safely handle
+multi-line values. The script never prints the private key.
+
+The workflow deploys the release tag on `release.published`. For manual runs,
+pass a tag such as `v0.12.0` or a branch such as `main`.
+
+This workflow is intentionally Azure-specific because the next proof levels may
+use a second VM on another cloud or a physical host. Add separate release-CD
+workflows for those targets instead of hiding multiple deployment environments
+behind one generic VM workflow.
+
 ## Production Readiness Checks
 
 Before promoting any of the deployment shapes above to production:

@@ -1,0 +1,156 @@
+name: Deploy Release to Azure VM
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy, usually a release tag such as v0.12.0"
+        required: true
+        default: "main"
+      services:
+        description: "Space-separated systemd services to restart"
+        required: true
+        default: "genesis-mesh-na genesis-mesh-node genesis-mesh-node-d"
+
+concurrency:
+  group: deploy-release-azure-vm
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy code to Azure VM
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    env:
+      VM_HOST: ${{ secrets.NA_VM_HOST }}
+      VM_SSH_PRIVATE_KEY: ${{ secrets.NA_VM_SSH_PRIVATE_KEY }}
+      VM_USER: ${{ vars.NA_VM_USER }}
+      VM_PORT: ${{ vars.NA_VM_SSH_PORT }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      INPUT_REF: ${{ github.event.inputs.ref }}
+      INPUT_SERVICES: ${{ github.event.inputs.services }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VM_HOST:-}" ]; then
+            echo "NA_VM_HOST secret is required" >&2
+            exit 1
+          fi
+          if [ -z "${VM_SSH_PRIVATE_KEY:-}" ]; then
+            echo "NA_VM_SSH_PRIVATE_KEY secret is required" >&2
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${VM_USER:=azureuser}"
+          : "${VM_PORT:=22}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/genesis_mesh_vm
+          chmod 600 ~/.ssh/genesis_mesh_vm
+          ssh-keyscan -p "$VM_PORT" "$VM_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy release and restart services
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${VM_USER:=azureuser}"
+          : "${VM_PORT:=22}"
+
+          DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
+          SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
+
+          echo "Deploying ${DEPLOY_REF} to ${VM_USER}@${VM_HOST}:${VM_PORT}"
+          echo "Restarting services: ${SERVICES}"
+
+          ssh -i ~/.ssh/genesis_mesh_vm -p "$VM_PORT" "$VM_USER@$VM_HOST" \
+            "DEPLOY_REF='$DEPLOY_REF' SERVICES='$SERVICES' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd /opt/genesis-mesh
+
+          echo "==> Current revision"
+          git log -1 --oneline || true
+
+          echo "==> Backing up Network Authority database"
+          sudo mkdir -p /var/lib/genesis-mesh/backups
+          if [ -f /var/lib/genesis-mesh/na.db ]; then
+            sudo cp /var/lib/genesis-mesh/na.db "/var/lib/genesis-mesh/backups/na.db.$(date -u +%Y%m%d-%H%M%S).bak"
+          else
+            echo "No /var/lib/genesis-mesh/na.db found; skipping DB backup"
+          fi
+
+          echo "==> Fetching release"
+          git fetch --tags origin
+          if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
+            git checkout --force "tags/$DEPLOY_REF"
+          elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
+            git checkout --force "origin/$DEPLOY_REF"
+          else
+            git checkout --force "$DEPLOY_REF"
+          fi
+
+          echo "==> Updating Python environment"
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+          python -m compileall genesis_mesh -q
+
+          echo "==> Installing systemd unit files"
+          sudo cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
+          sudo cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
+          sudo cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
+          sudo mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
+          sudo cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
+          sudo systemctl daemon-reload
+
+          echo "==> Restarting services"
+          for service in $SERVICES; do
+            sudo systemctl restart "$service"
+          done
+
+          sleep 5
+
+          echo "==> Checking service state"
+          for service in $SERVICES; do
+            sudo systemctl is-active --quiet "$service"
+            sudo systemctl status "$service" --no-pager --lines=5
+          done
+
+          echo "==> Probing Network Authority"
+          curl -fsS http://127.0.0.1:8443/healthz
+          echo
+          curl -fsS http://127.0.0.1:8443/readyz
+          echo
+          curl -fsS http://127.0.0.1:8443/connectome.json >/tmp/genesis-mesh-connectome.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/genesis-mesh-connectome.json").read_text())
+          print(
+              "connectome-ok",
+              f"sovereigns={len(data.get('sovereigns', []))}",
+              f"edges={len(data.get('recognition_edges', []))}",
+              f"revocations={len(data.get('imported_revocations', []))}",
+          )
+          PY
+
+          echo "==> Deployment complete"
+          git log -1 --oneline
+          REMOTE
