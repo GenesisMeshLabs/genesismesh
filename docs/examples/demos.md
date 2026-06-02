@@ -35,6 +35,7 @@ flowchart TD
         A8[Capability Orchestration]
         A9[Recognition Treaties]
         A10[Cross-Sovereign Revocation]
+        A11[Connectome]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -48,8 +49,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10
-    A10 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11
+    A11 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -975,11 +976,79 @@ Full walkthrough:
 
 ---
 
+## 11. Connectome Demo (v0.12)
+
+This demo turns recognition graph data into an operator Connectome view. It
+shows direct recognition edges, active trust paths, revoked trust material, and
+which accepting sovereigns are affected by imported revocation feeds.
+
+```{mermaid}
+sequenceDiagram
+    participant B as Sovereign B
+    participant A as Sovereign A
+    participant C as Connectome
+
+    A->>A: Active treaty recognizes Sovereign B
+    B->>B: Revoke membership attestation
+    B-->>A: Signed revocation feed
+    A->>A: Import feed and update graph state
+    A->>C: GET /connectome.json
+    C-->>A: summary, edges, blast radius
+    A->>C: GET /connectome/trust-path?from=A&to=B
+    C-->>A: trusted=true, active_treaty_path
+```
+
+### Live recording
+
+```{image} assets/images/genesis-mesh-connectome.gif
+:alt: Connectome operator view showing recognition edges and revocation impact
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-connectome.png
+:alt: Static screenshot of the Genesis Mesh Connectome demo
+:class: screenshot
+```
+
+Run:
+
+```powershell
+python docs\examples\assets\scripts\connectome-demo.py
+```
+
+Observed proof from the local smoke test:
+
+```text
+==> Connectome summary
+    sovereigns:              2
+    recognition edges:       1
+    active edges:            1
+    imported revocations:    1
+
+==> Direct trust path
+    from:    sovereign-a
+    to:      sovereign-b
+    trusted: True
+    reason:  active_treaty_path
+
+==> Revocation blast radius
+    issuer:              sovereign-b
+    affected acceptors:  sovereign-a
+```
+
+Full walkthrough:
+
+- [](connectome.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 11. Cooperative Agent Capacity Baseline
+## 12. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -1078,7 +1147,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 12. In-Process Smoke Demo
+## 13. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -1150,7 +1219,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 13. Live CLI Process Smoke Demo
+## 14. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -1211,7 +1280,7 @@ Node:
   valid: True
 ```
 
-## 14. Docker Image Smoke Demo
+## 15. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1269,7 +1338,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 15. Docker Compose Network Authority Example
+## 16. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and

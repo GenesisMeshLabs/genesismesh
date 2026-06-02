@@ -138,6 +138,62 @@ def test_recognition_graph_exports_edges_and_revoked_material(client, na_service
     assert graph["revoked_trust_material"][0]["id"] == treaty["treaty_id"]
 
 
+def test_connectome_json_summarizes_recognition_graph(client, na_service):
+    """The Connectome JSON endpoint gives operators graph metrics and edges."""
+    treaty = _issue_treaty(client, na_service).get_json()
+
+    resp = client.get("/connectome.json")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["summary"]["sovereign_count"] == 2
+    assert data["summary"]["active_edge_count"] == 1
+    assert data["recognition_edges"][0]["treaty_id"] == treaty["treaty_id"]
+    assert data["recognition_edges"][0]["status"] == "active"
+
+
+def test_connectome_page_renders_html(client, na_service):
+    """The operator Connectome page renders as HTML."""
+    _issue_treaty(client, na_service)
+
+    resp = client.get("/connectome")
+
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    assert b"Genesis Mesh Connectome" in resp.data
+    assert b"Recognition Edges" in resp.data
+
+
+def test_connectome_trust_path_reports_active_and_revoked_edges(client, na_service):
+    """Trust path explanation changes when a treaty is revoked."""
+    treaty = _issue_treaty(client, na_service).get_json()
+
+    active = client.get("/connectome/trust-path?from=TEST&to=sovereign-b")
+    assert active.status_code == 200
+    assert active.get_json()["trusted"] is True
+    assert active.get_json()["reason"] == "active_treaty_path"
+
+    revoke_body = {"reason": "relationship_ended"}
+    client.post(
+        f"/admin/recognition-treaties/{treaty['treaty_id']}/revoke",
+        json=revoke_body,
+        headers=admin_headers(client, revoke_body),
+    )
+    revoked = client.get("/connectome/trust-path?from=TEST&to=sovereign-b")
+
+    assert revoked.status_code == 200
+    assert revoked.get_json()["trusted"] is False
+    assert revoked.get_json()["reason"] == "direct_treaty_revoked"
+
+
+def test_connectome_trust_path_requires_source_and_target(client):
+    """Trust path route returns a controlled error for missing parameters."""
+    resp = client.get("/connectome/trust-path?from=TEST")
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "from/source and to/target are required"
+
+
 def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_service):
     """A propagated issuer revocation stops treaty-backed attestation acceptance."""
     treaty = _issue_treaty(client, na_service).get_json()
@@ -187,6 +243,13 @@ def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_se
         and item["issuer_sovereign_id"] == "sovereign-b"
         for item in graph["revoked_trust_material"]
     )
+
+    connectome = client.get("/connectome.json").get_json()
+    assert connectome["summary"]["imported_revocation_count"] == 1
+    assert connectome["revocation_blast_radius"][0]["id"] == attestation["attestation_id"]
+    assert connectome["revocation_blast_radius"][0]["affected_accepting_sovereigns"] == [
+        "TEST",
+    ]
 
 
 def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service):

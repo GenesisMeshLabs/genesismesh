@@ -178,6 +178,7 @@ examples/capability-orchestration
 examples/sovereign-attestations
 examples/recognition-treaties
 examples/cross-sovereign-revocation
+examples/connectome
 examples/capacity-baseline
 examples/edge-fleet
 examples/sovereign-organization
