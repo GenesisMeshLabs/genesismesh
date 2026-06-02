@@ -120,6 +120,23 @@ The demo creates two in-process Network Authorities:
 5. The Connectome view reports the active recognition edge and the imported
    revocation's affected accepting sovereigns.
 
+To inspect the operator page in a browser, run the same seeded flow in server
+mode:
+
+```powershell
+python docs\examples\assets\scripts\connectome-demo.py --serve --port 8765
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765/connectome
+```
+
+The server exposes the same seeded graph at `/connectome.json` and the direct
+trust-path explanation at
+`/connectome/trust-path?from=sovereign-a&to=sovereign-b`.
+
 Static walkthrough:
 
 ```{image} assets/images/genesis-mesh-connectome.png
