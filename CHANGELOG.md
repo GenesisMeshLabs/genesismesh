@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.12.0 - Connectome Visualization and Operator Workflows
+
+### Added
+
+- Added Connectome trust-graph helpers that summarize sovereign recognition
+  edges, revoked trust material, active trust paths, and imported revocation
+  blast radius from the existing `/recognition-graph` export.
+- Added `GET /connectome.json`, `GET /connectome/trust-path`, and
+  `GET /connectome` operator endpoints.
+- Added a Connectome demo with generated PNG/GIF proof showing active
+  recognition, direct trust-path explanation, and cross-sovereign revocation
+  impact.
+- Added Connectome documentation and Network Authority API reference coverage.
+
+### Verified
+
+- Added focused Connectome unit and route tests.
+- Ran the Connectome smoke demo to generate documentation assets.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, and `git diff --check`.
+
 ## v0.11.0 - Cross-Sovereign Revocation Propagation
 
 ### Added

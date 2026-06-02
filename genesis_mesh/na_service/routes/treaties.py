@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from html import escape
 from typing import TYPE_CHECKING
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from ...crypto import sign_model
 from ...models import (
@@ -17,6 +18,8 @@ from ...models import (
     SovereignRevocationFeed,
 )
 from ...trust import (
+    build_connectome_view,
+    explain_trust_path,
     verify_attestation_with_treaty,
     verify_recognition_treaty,
     verify_sovereign_revocation_feed,
@@ -64,6 +67,87 @@ def _subject_public_keys_for_issuer(
         for public_key in row["treaty"].subject_public_keys
     }
     return sorted(keys)
+
+
+def _connectome_html(view: dict) -> str:
+    """Render a small self-contained operator Connectome page."""
+    summary = view["summary"]
+    edge_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(str(edge.get('from', '')))}</td>"
+        f"<td>{escape(str(edge.get('to', '')))}</td>"
+        f"<td>{escape(str(edge.get('status', '')))}</td>"
+        f"<td><code>{escape(str(edge.get('treaty_id', '')))}</code></td>"
+        "</tr>"
+        for edge in view["recognition_edges"]
+    ) or '<tr><td colspan="4">No recognition edges</td></tr>'
+    revoked_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(str(item.get('type', '')))}</td>"
+        f"<td><code>{escape(str(item.get('id', '')))}</code></td>"
+        f"<td>{escape(str(item.get('reason', '')))}</td>"
+        f"<td>{escape(str(item.get('revoked_at', '')))}</td>"
+        "</tr>"
+        for item in view["revoked_trust_material"]
+    ) or '<tr><td colspan="4">No revoked trust material</td></tr>'
+    blast_rows = "\n".join(
+        "<tr>"
+        f"<td><code>{escape(str(item.get('id', '')))}</code></td>"
+        f"<td>{escape(str(item.get('issuer_sovereign_id', '')))}</td>"
+        f"<td>{escape(', '.join(item.get('affected_accepting_sovereigns', [])))}</td>"
+        f"<td>{escape(str(item.get('reason', '')))}</td>"
+        "</tr>"
+        for item in view["revocation_blast_radius"]
+    ) or '<tr><td colspan="4">No imported revocation blast radius</td></tr>'
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Genesis Mesh Connectome</title>
+  <style>
+    body {{ margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e5e7eb; }}
+    main {{ max-width: 1120px; margin: 0 auto; padding: 40px 24px; }}
+    h1 {{ margin: 0 0 8px; font-size: 34px; }}
+    h2 {{ margin-top: 36px; }}
+    p {{ color: #cbd5e1; max-width: 760px; line-height: 1.55; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0; }}
+    .card {{ background: #111827; border: 1px solid #334155; border-radius: 10px; padding: 16px; }}
+    .label {{ color: #94a3b8; font-size: 13px; }}
+    .value {{ font-size: 28px; font-weight: 700; margin-top: 4px; }}
+    table {{ border-collapse: collapse; width: 100%; background: #111827; border: 1px solid #334155; }}
+    th, td {{ border-bottom: 1px solid #334155; padding: 10px 12px; text-align: left; vertical-align: top; }}
+    th {{ color: #93c5fd; background: #172033; }}
+    code {{ color: #bfdbfe; word-break: break-all; }}
+    a {{ color: #93c5fd; }}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Genesis Mesh Connectome</h1>
+  <p>
+    Operator view of sovereign recognition edges, revoked trust material, and
+    imported revocation blast radius. This page is derived from
+    <a href="/recognition-graph">/recognition-graph</a>; it is not a separate
+    source of trust.
+  </p>
+  <div class="grid">
+    <div class="card"><div class="label">Sovereigns</div><div class="value">{summary["sovereign_count"]}</div></div>
+    <div class="card"><div class="label">Recognition edges</div><div class="value">{summary["recognition_edge_count"]}</div></div>
+    <div class="card"><div class="label">Active edges</div><div class="value">{summary["active_edge_count"]}</div></div>
+    <div class="card"><div class="label">Imported revocations</div><div class="value">{summary["imported_revocation_count"]}</div></div>
+  </div>
+  <p><a href="/connectome.json">Download Connectome JSON</a></p>
+  <h2>Recognition Edges</h2>
+  <table><thead><tr><th>From</th><th>To</th><th>Status</th><th>Treaty</th></tr></thead><tbody>{edge_rows}</tbody></table>
+  <h2>Revoked Trust Material</h2>
+  <table><thead><tr><th>Type</th><th>ID</th><th>Reason</th><th>Revoked at</th></tr></thead><tbody>{revoked_rows}</tbody></table>
+  <h2>Revocation Blast Radius</h2>
+  <table><thead><tr><th>Revoked attestation</th><th>Issuer</th><th>Affected accepting sovereigns</th><th>Reason</th></tr></thead><tbody>{blast_rows}</tbody></table>
+</main>
+</body>
+</html>"""
 
 
 def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
@@ -333,5 +417,29 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def recognition_graph():
         """Export minimal sovereign recognition graph data."""
         return jsonify(service.db.export_recognition_graph())
+
+    @bp.route("/connectome.json", methods=["GET"])
+    def connectome_json():
+        """Return an operator-facing Connectome view as JSON."""
+        return jsonify(build_connectome_view(service.db.export_recognition_graph()))
+
+    @bp.route("/connectome/trust-path", methods=["GET"])
+    def connectome_trust_path():
+        """Explain whether one sovereign currently recognizes another."""
+        source = request.args.get("from") or request.args.get("source")
+        target = request.args.get("to") or request.args.get("target")
+        if not source or not target:
+            return jsonify({"error": "from/source and to/target are required"}), 400
+        return jsonify(explain_trust_path(
+            service.db.export_recognition_graph(),
+            source,
+            target,
+        ))
+
+    @bp.route("/connectome", methods=["GET"])
+    def connectome_page():
+        """Render a self-contained operator Connectome page."""
+        view = build_connectome_view(service.db.export_recognition_graph())
+        return Response(_connectome_html(view), mimetype="text/html")
 
     return bp

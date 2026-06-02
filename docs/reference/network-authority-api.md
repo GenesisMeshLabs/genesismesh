@@ -12,6 +12,7 @@ flowchart TB
     node_ops["Node operations<br/>/heartbeat /renew"]
     admin["Admin operations<br/>/admin/invite /admin/revoke /admin/policy"]
     sovereign["Sovereign trust<br/>/sovereign-revocation-feed"]
+    connectome["Connectome<br/>/recognition-graph /connectome"]
     auth["Operator signature headers"]
     node_sig["Node proof-of-possession signature"]
 
@@ -24,6 +25,7 @@ flowchart TB
     admin --> public
     admin --> sovereign
     sovereign --> public
+    sovereign --> connectome
 ```
 
 ## Browser Console
@@ -351,3 +353,87 @@ Responses:
 - `200` when the feed is verified and imported
 - `400` for malformed feeds or invalid signatures
 - `409` for stale feed sequences
+
+## Connectome Operator View (v0.12+)
+
+The Connectome endpoints derive operator-facing views from `/recognition-graph`.
+They do not create a second trust source.
+
+### `GET /recognition-graph`
+
+Exports the raw sovereign recognition graph:
+
+- `sovereigns`
+- `recognition_edges`
+- `active_treaties`
+- `revoked_trust_material`
+
+### `GET /connectome.json`
+
+Returns a summarized Connectome view for dashboards and automation.
+
+Response excerpt:
+
+```json
+{
+  "summary": {
+    "sovereign_count": 2,
+    "recognition_edge_count": 1,
+    "active_edge_count": 1,
+    "revoked_edge_count": 0,
+    "revoked_trust_material_count": 1,
+    "imported_revocation_count": 1
+  },
+  "recognition_edges": [
+    {
+      "from": "sovereign-a",
+      "to": "sovereign-b",
+      "status": "active",
+      "treaty_id": "<treaty-id>"
+    }
+  ],
+  "revocation_blast_radius": [
+    {
+      "type": "membership_attestation",
+      "issuer_sovereign_id": "sovereign-b",
+      "affected_accepting_sovereigns": ["sovereign-a"],
+      "reason": "key_compromise"
+    }
+  ]
+}
+```
+
+### `GET /connectome/trust-path`
+
+Explains current trust between two sovereigns.
+
+```text
+GET /connectome/trust-path?from=sovereign-a&to=sovereign-b
+```
+
+Response:
+
+```json
+{
+  "from": "sovereign-a",
+  "to": "sovereign-b",
+  "trusted": true,
+  "reason": "active_treaty_path",
+  "hop_count": 1,
+  "path": [
+    {
+      "from": "sovereign-a",
+      "to": "sovereign-b",
+      "status": "active",
+      "treaty_id": "<treaty-id>"
+    }
+  ]
+}
+```
+
+Missing `from` or `to` returns `400` with a controlled error.
+
+### `GET /connectome`
+
+Renders a self-contained HTML operator page with summary cards, recognition
+edges, revoked trust material, and revocation blast-radius rows.
