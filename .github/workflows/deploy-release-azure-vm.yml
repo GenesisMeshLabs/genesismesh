@@ -75,7 +75,10 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/genesis_mesh_vm
           chmod 600 ~/.ssh/genesis_mesh_vm
-          ssh-keyscan -p "$VM_PORT" "$VM_HOST" >> ~/.ssh/known_hosts
+          if ! ssh-keyscan -T 30 -p "$VM_PORT" "$VM_HOST" >> ~/.ssh/known_hosts 2> ~/.ssh/ssh-keyscan.err; then
+            echo "::warning::ssh-keyscan failed; SSH will use StrictHostKeyChecking=accept-new"
+            cat ~/.ssh/ssh-keyscan.err
+          fi
 
       - name: Deploy release and restart services
         shell: bash
@@ -95,7 +98,12 @@ jobs:
           echo "Deploying ${DEPLOY_REF} to ${VM_USER}@${VM_HOST}:${VM_PORT}"
           echo "Restarting services: ${SERVICES}"
 
-          ssh -i ~/.ssh/genesis_mesh_vm -p "$VM_PORT" "$VM_USER@$VM_HOST" \
+          ssh \
+            -i ~/.ssh/genesis_mesh_vm \
+            -p "$VM_PORT" \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$VM_USER@$VM_HOST" \
             "DEPLOY_REF='$DEPLOY_REF' SERVICES='$SERVICES' bash -s" <<'REMOTE'
           set -euo pipefail
 
