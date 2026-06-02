@@ -29,7 +29,7 @@ fi
 # Load .env (skip comments and blank lines).
 set -o allexport
 # shellcheck source=/dev/null
-source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
+source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | tr -d '\r')
 set +o allexport
 
 GH_BIN="$(command -v gh || command -v gh.exe || true)"
@@ -37,6 +37,10 @@ if [ -z "$GH_BIN" ]; then
   echo "ERROR: GitHub CLI is not on PATH. Install gh and run 'gh auth login'." >&2
   exit 1
 fi
+
+trim_crlf() {
+  printf '%s' "$1" | tr -d '\r\n'
+}
 
 # Auto-populate SSH public key from ~/.ssh if not set in .env.
 if [ -z "${NA_SSH_PUBLIC_KEY:-}" ]; then
@@ -65,8 +69,14 @@ if [ -z "${NA_ADMIN_CIDR:-}" ]; then
 fi
 
 # Release CD defaults used by deploy-release-azure-vm.yml.
-NA_VM_USER="${NA_VM_USER:-azureuser}"
-NA_VM_SSH_PORT="${NA_VM_SSH_PORT:-22}"
+NA_VM_HOST="$(trim_crlf "${NA_VM_HOST:-}")"
+NA_VM_USER="$(trim_crlf "${NA_VM_USER:-azureuser}")"
+NA_VM_SSH_PORT="$(trim_crlf "${NA_VM_SSH_PORT:-22}")"
+
+if ! [[ "$NA_VM_SSH_PORT" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: NA_VM_SSH_PORT must be numeric." >&2
+  exit 1
+fi
 
 if [ -z "${NA_VM_SSH_PRIVATE_KEY:-}" ]; then
   if [ -n "${NA_VM_SSH_PRIVATE_KEY_FILE:-}" ]; then

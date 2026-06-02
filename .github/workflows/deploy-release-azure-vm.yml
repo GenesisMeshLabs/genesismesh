@@ -40,6 +40,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
+          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
+          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
           if [ -z "${VM_HOST:-}" ]; then
             echo "NA_VM_HOST secret is required" >&2
             exit 1
@@ -48,13 +51,26 @@ jobs:
             echo "NA_VM_SSH_PRIVATE_KEY secret is required" >&2
             exit 1
           fi
+          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
+            echo "NA_VM_SSH_PORT must be numeric" >&2
+            exit 1
+          fi
+          if [ -z "$VM_USER" ]; then
+            echo "NA_VM_USER cannot be empty" >&2
+            exit 1
+          fi
 
       - name: Configure SSH
         shell: bash
         run: |
           set -euo pipefail
-          : "${VM_USER:=azureuser}"
-          : "${VM_PORT:=22}"
+          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
+          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
+          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
+          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
+            echo "NA_VM_SSH_PORT must be numeric" >&2
+            exit 1
+          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/genesis_mesh_vm
@@ -65,8 +81,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${VM_USER:=azureuser}"
-          : "${VM_PORT:=22}"
+          VM_HOST="$(printf '%s' "${VM_HOST:-}" | tr -d '\r\n')"
+          VM_USER="$(printf '%s' "${VM_USER:-azureuser}" | tr -d '\r\n')"
+          VM_PORT="$(printf '%s' "${VM_PORT:-22}" | tr -d '\r\n')"
+          if ! [[ "$VM_PORT" =~ ^[0-9]+$ ]]; then
+            echo "NA_VM_SSH_PORT must be numeric" >&2
+            exit 1
+          fi
 
           DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
           SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
