@@ -1,4 +1,4 @@
-# Demos
+﻿# Demos
 
 This page is a runnable walkthrough for Genesis Mesh. The demos are organized
 into three parts:
@@ -36,6 +36,7 @@ flowchart TD
         A9[Recognition Treaties]
         A10[Cross-Sovereign Revocation]
         A11[Connectome]
+        A12[Independent Sovereigns]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -49,8 +50,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11
-    A11 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11 --> A12
+    A12 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -170,7 +171,7 @@ sequenceDiagram
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-revocation.gif
-:alt: Revocation flow — CRL published, node removed, 403 enforcement
+:alt: Revocation flow â€” CRL published, node removed, 403 enforcement
 :class: screenshot
 ```
 
@@ -276,9 +277,9 @@ sequenceDiagram
     participant A as Local Node
     participant B as Remote Node (Azure VM)
 
-    A->>B: Noise XX message 1 — ephemeral key
-    B-->>A: Noise XX message 2 — ephemeral + static + cert
-    A->>B: Noise XX message 3 — static + cert
+    A->>B: Noise XX message 1 â€” ephemeral key
+    B-->>A: Noise XX message 2 â€” ephemeral + static + cert
+    A->>B: Noise XX message 3 â€” static + cert
     note over A,B: Session keys derived, identity verified
     A->>B: DATA frame (encrypted): 'hello from local'
     note over B: DATA message delivered
@@ -359,8 +360,8 @@ sequenceDiagram
     A->>B: Noise XX peer session
     C->>B: Noise XX peer session
     note over A,C: A and C never connect directly
-    B->>A: Route announce — C reachable via B (metric=2)
-    B->>C: Route announce — A reachable via B (metric=2)
+    B->>A: Route announce â€” C reachable via B (metric=2)
+    B->>C: Route announce â€” A reachable via B (metric=2)
     A->>B: DATA frame addressed to C
     B->>C: DATA forwarded (next_hop=C, ttl=9)
     note over C: DATA message delivered
@@ -380,7 +381,7 @@ other.
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-multi-hop.gif
-:alt: A → B → C multi-hop routing demo
+:alt: A â†’ B â†’ C multi-hop routing demo
 :class: screenshot
 ```
 
@@ -397,7 +398,7 @@ confirmation from C's logs.
 
 ### Captured proof from the live Azure deployment
 
-On Node A — distance-vector route to C learned via B:
+On Node A â€” distance-vector route to C learned via B:
 
 ```text
 Updated route to SyS04TMQ7tR5qKzT97RADCtHN/p4Be95QiwHeHXGv3M= via Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8= (metric=2, seq=1)
@@ -405,19 +406,19 @@ Updated 1 routes from Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=
 Sent: 'hello from A via B to C'
 ```
 
-On Node B (Azure VM) — DATA forwarded to next hop:
+On Node B (Azure VM) â€” DATA forwarded to next hop:
 
 ```text
 DATA forwarded | dest=SyS04TMQ7tR5qKzT | next_hop=SyS04TMQ7tR5qKzT | ttl=9
 ```
 
-On Node C — message delivered, sender identified by A's key prefix:
+On Node C â€” message delivered, sender identified by A's key prefix:
 
 ```text
 DATA message delivered | from=vqSz9BASkw9dj5tz | content='hello from A via B to C'
 ```
 
-The `metric=2` route on A means C is two hops away via B — exactly the
+The `metric=2` route on A means C is two hops away via B â€” exactly the
 distance-vector signature for indirect reachability.
 
 ---
@@ -439,9 +440,9 @@ sequenceDiagram
     A->>D: peer session
     C->>B: peer session
     C->>D: peer session
-    note over A,C: A learns two routes to C — via B and via D
+    note over A,C: A learns two routes to C â€” via B and via D
 
-    A->>B: Send 1 — DATA to C
+    A->>B: Send 1 â€” DATA to C
     B->>C: Forward
     note over C: 'hello via B (primary)' delivered
 
@@ -449,7 +450,7 @@ sequenceDiagram
     B-->>A: connection closed
     note over A: Removed neighbor B, invalidated routes via B
 
-    A->>D: Send 2 — DATA to C
+    A->>D: Send 2 â€” DATA to C
     D->>C: Forward
     note over C: 'hello via D (backup)' delivered
 ```
@@ -470,7 +471,7 @@ the other.
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-failover.gif
-:alt: Route failure recovery — primary router B killed, traffic re-routed through D
+:alt: Route failure recovery â€” primary router B killed, traffic re-routed through D
 :class: screenshot
 ```
 
@@ -486,13 +487,13 @@ shows delivery on C.
 
 ### Captured proof from the live Azure deployment
 
-Initial state — Node A learns C is reachable via B:
+Initial state â€” Node A learns C is reachable via B:
 
 ```text
 Updated route to XtWVKWy30xIyASzRXSxtiFEbUqG8QnEaeOdqZfpcoAk= via xop1h3bm1SXMo8xZp/Umwp2l4bxUSgFF6aZvYXSezdo= (metric=2, seq=6)
 ```
 
-Send 1 through B (primary) — delivered:
+Send 1 through B (primary) â€” delivered:
 
 ```text
 Sent: 'hello via B (primary)'
@@ -506,14 +507,14 @@ B is stopped on the VM. Node A detects the disconnect and withdraws B's routes:
 Removed neighbor Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=, invalidated 1 routes
 ```
 
-Send 2 through D (backup) — delivered without retry or reconfiguration:
+Send 2 through D (backup) â€” delivered without retry or reconfiguration:
 
 ```text
 Sent: 'hello via D (backup)'
 DATA message delivered | from=7y2r604wQlI6NtaE | content='hello via D (backup)'
 ```
 
-On Node D (Azure VM) — DATA forwarded to C:
+On Node D (Azure VM) â€” DATA forwarded to C:
 
 ```text
 DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
@@ -524,7 +525,7 @@ DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
 - Neighbor failure detection via WebSocket disconnect
 - Automatic route withdrawal when a neighbor goes offline
 - Multi-path routing tolerates router loss without retransmit
-- No operator intervention required between path A→B→C and path A→D→C
+- No operator intervention required between path Aâ†’Bâ†’C and path Aâ†’Dâ†’C
 
 ---
 
@@ -596,12 +597,12 @@ python docs\examples\assets\scripts\multi-agent-workflow-demo.py
 
 This demo proves the discovery layer added in v0.7: agents announce their
 capabilities to the Network Authority, peers find each other by capability
-tag, and the LLM-backed responder agent answers a research question — all
+tag, and the LLM-backed responder agent answers a research question â€” all
 without anyone pasting a 44-character node public key.
 
 ```{mermaid}
 flowchart LR
-    agent["LLM agent<br/>(LiteLLM → OpenAI / Anthropic / Ollama / ...)"]
+    agent["LLM agent<br/>(LiteLLM â†’ OpenAI / Anthropic / Ollama / ...)"]
     na["Network Authority<br/>/agents registry"]
     researcher["Researcher"]
     llm["LLM provider"]
@@ -701,7 +702,7 @@ Captured output from the v0.7 live-deployment gate run:
   metadata     : {'model': 'openai/gpt-4o-mini'}
 ```
 
-### Ask through discovery — no key, no peer URI pasted
+### Ask through discovery â€” no key, no peer URI pasted
 
 ```bash
 RES_INVITE=$(genesis-mesh admin invite --role client \
@@ -719,7 +720,7 @@ Captured response from the live deployment + Azure OpenAI gpt-4o-mini:
 
 ```text
 Q: In one paragraph, why does a permissioned mesh network benefit from a capability-based discovery layer rather than hardcoded peer addresses?
-A: A permissioned mesh network benefits from a capability-based discovery layer because it enhances flexibility and security by allowing dynamic peer interactions without relying on hardcoded addresses. This approach enables nodes to discover and connect with authorized peers based on capabilities and roles, rather than fixed identifiers, making it easier to adapt to network changes or scale. …
+A: A permissioned mesh network benefits from a capability-based discovery layer because it enhances flexibility and security by allowing dynamic peer interactions without relying on hardcoded addresses. This approach enables nodes to discover and connect with authorized peers based on capabilities and roles, rather than fixed identifiers, making it easier to adapt to network changes or scale. â€¦
   from:    llm-live-1
   source:  llm:openai/gpt-4o-mini
   request: 021826fd-12ec-4d98-932f-6d0f401edc81
@@ -732,7 +733,7 @@ A: A permissioned mesh network benefits from a capability-based discovery layer 
 - An agent can announce its capabilities to the NA without operator action.
 - Peers can find agents by capability without prior knowledge of their keys.
 - The same mesh identity + Noise XX session that v0.5/v0.6 demos used still
-  carries the actual request/response — discovery only changes how peers
+  carries the actual request/response â€” discovery only changes how peers
   rendezvous.
 - The LLM provider is swappable through an env var; no provider-specific
   code touches the mesh layer.
@@ -1044,11 +1045,85 @@ Full walkthrough:
 
 ---
 
+## 12. Independent Sovereigns Demo
+
+This demo proves the trust-roadmap flow across two different cloud VMs. Azure
+runs Sovereign A as `USG`; DigitalOcean runs Sovereign B as `USG-NB`. NB issues
+a membership attestation, Azure recognizes NB through a signed treaty, Azure
+accepts the attestation, NB revokes it through a signed feed, and Azure rejects
+the same attestation after importing that feed.
+
+```{mermaid}
+sequenceDiagram
+    participant NB as USG-NB (DigitalOcean)
+    participant AZ as USG (Azure)
+    participant C as Azure Connectome
+
+    NB->>NB: Issue MembershipAttestation
+    AZ->>AZ: Issue RecognitionTreaty for USG-NB
+    NB-->>AZ: Present attestation
+    AZ-->>NB: accepted through treaty
+    NB->>NB: Revoke attestation
+    NB-->>AZ: Signed revocation feed
+    AZ->>AZ: Import feed
+    NB-->>AZ: Present same attestation
+    AZ-->>NB: rejected: attestation_locally_revoked
+    AZ->>C: Export trust path and blast radius
+```
+
+### Live recording
+
+```{image} assets/images/genesis-mesh-independent-sovereigns.gif
+:alt: Independent sovereigns proof across Azure and DigitalOcean
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-independent-sovereigns.png
+:alt: Static screenshot of the Genesis Mesh independent sovereigns demo
+:class: screenshot
+```
+
+Run the non-mutating asset renderer:
+
+```powershell
+python docs\examples\assets\scripts\independent-sovereigns-demo.py
+```
+
+Observed proof from the clean Azure + DigitalOcean run:
+
+```text
+==> Azure accepted NB attestation before revocation
+    accepted: True
+    reason:   accepted
+
+==> Azure imported NB revocation feed
+    accepted: True
+    sequence: 1
+
+==> Azure rejected the same attestation after feed import
+    accepted: False
+    reason:   attestation_locally_revoked
+
+==> Azure Connectome summary
+    sovereigns:           2
+    recognition edges:    1
+    active edges:         1
+    imported revocations: 1
+```
+
+Full walkthrough:
+
+- [](independent-sovereigns.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 12. Cooperative Agent Capacity Baseline
+## 13. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -1147,7 +1222,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 13. In-Process Smoke Demo
+## 14. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -1219,7 +1294,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 14. Live CLI Process Smoke Demo
+## 15. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -1280,7 +1355,7 @@ Node:
   valid: True
 ```
 
-## 15. Docker Image Smoke Demo
+## 16. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1338,7 +1413,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 16. Docker Compose Network Authority Example
+## 17. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and

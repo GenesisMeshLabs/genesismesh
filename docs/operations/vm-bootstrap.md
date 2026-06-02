@@ -7,6 +7,58 @@ itself; everything below runs on the VM after it boots.
 This runbook reflects the actual commands that built the live deployment at
 [https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com).
 
+## Provider-neutral bootstrap script
+
+Use the Azure release deployment workflow when updating the existing Azure VM.
+Use the provider-neutral bootstrap script when you already have a fresh Ubuntu
+VM or VPS from another provider, such as DigitalOcean, Hetzner, Vultr, a local
+hypervisor, or a second cloud used for independent-sovereign testing.
+
+The script lives at:
+
+```text
+infrastructure/scripts/bootstrap-ubuntu-vm.sh
+```
+
+It installs Python, clones the repository, creates the virtual environment,
+writes systemd units, and optionally configures Nginx and Let's Encrypt. It does
+not create production secrets. Upload `genesis.signed.json`, `na.key`, and
+operator public-key configuration separately.
+
+For a Network Authority on a generic Ubuntu VM:
+
+```bash
+sudo GENESIS_ROLE=na \
+  GENESIS_REF=main \
+  GENESIS_USER=ubuntu \
+  ENABLE_NGINX=true \
+  GENESIS_DOMAIN=nb.genesismesh.connectorzzz.com \
+  LETSENCRYPT_EMAIL=ops@example.com \
+  OPERATOR_PUBLIC_KEYS_JSON='{"operator-local":"<BASE64_OPERATOR_PUBLIC_KEY>"}' \
+  bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
+```
+
+If the NA secrets are not present yet, the script stops with the exact `scp`,
+`mv`, ownership, and `systemctl` commands needed to finish the setup.
+
+For a router-only VM that connects to an existing NA, enrol the node configs
+first, then run:
+
+```bash
+sudo GENESIS_ROLE=router \
+  GENESIS_REF=main \
+  GENESIS_USER=ubuntu \
+  NA_ENDPOINT=https://na.genesismesh.connectorzzz.com \
+  ROUTER_B_CONFIG=/home/ubuntu/.genesis-mesh-demo-node/config.toml \
+  ROUTER_B_PORT=7443 \
+  bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
+```
+
+For a combined NA plus router demo host, set `GENESIS_ROLE=all`.
+
+The rest of this page documents the manual live Azure setup for the current
+`na.genesismesh.connectorzzz.com` deployment.
+
 ## Prerequisites
 
 - Ubuntu 22.04 VM provisioned (Terraform: `infrastructure/azure/`)

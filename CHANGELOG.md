@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.12.1 - Independent Sovereigns Operational Proof
+
+### Added
+
+- Added an independent-sovereigns example documenting the Azure `USG` and
+  DigitalOcean `USG-NB` proof.
+- Added generated PNG/GIF assets for the independent-sovereigns proof.
+- Added a transcript renderer with explicit live mode for rerunning the proof
+  against live Network Authority endpoints.
+- Added a provider-neutral Ubuntu VM bootstrap script and documented the
+  generic VM/VPS setup path.
+
+### Verified
+
+- Verified the clean Azure + DigitalOcean proof from empty Connectome state:
+  NB issued an attestation, Azure recognized NB through a signed treaty, Azure
+  accepted the attestation, NB revoked it, Azure imported NB's signed feed, and
+  Azure rejected the same attestation.
+- Ran compileall for the new proof script.
+- Ran the Sphinx documentation build with warnings treated as errors.
+- Ran `git diff --check`.
+
 ## v0.12.0 - Connectome Visualization and Operator Workflows
 
 ### Added
