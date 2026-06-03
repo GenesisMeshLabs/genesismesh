@@ -68,4 +68,4 @@ keys/
 *.tfstate.*
 
 # Local verification reports
-ops/*
+ops/drafts/*
