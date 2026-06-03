@@ -155,6 +155,26 @@ The script installs Genesis Mesh and writes systemd units, but it does not
 generate or upload production secrets. Upload `genesis.signed.json`, `na.key`,
 and operator public-key configuration separately.
 
+For a fresh named sovereign, generate those artifacts with explicit paths:
+
+```bash
+genesis-mesh init \
+  --network-name USG-NB \
+  --na-endpoint http://164.92.250.135:8443 \
+  --genesis-file /etc/genesis/genesis.signed.json \
+  --na-private-key-file /etc/genesis-mesh/keys/na.key \
+  --operator-private-key-file /etc/genesis-mesh/keys/operator.key \
+  --operator-public-key-file /etc/genesis-mesh/operator.pub \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --na-host 0.0.0.0 \
+  --na-port 8443 \
+  --force
+```
+
+After startup, `GET /sovereign.json` and `genesis-mesh sovereign inspect --na
+<endpoint>` expose the public trust material another operator needs before
+forming a recognition treaty.
+
 The local CLI flow smoke script is:
 
 ```powershell

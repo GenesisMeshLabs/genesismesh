@@ -146,6 +146,7 @@ reference/configuration
 :maxdepth: 2
 :caption: Operations
 
+operators/quickstart
 operations/deployment
 operations/vm-bootstrap
 operations/infrastructure

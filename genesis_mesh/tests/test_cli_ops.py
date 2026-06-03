@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import threading
 import asyncio
 from contextlib import contextmanager
@@ -49,6 +50,84 @@ def test_init_creates_config_and_local_artifacts(tmp_path):
     assert Path(config["paths"]["genesis"]).exists()
     assert Path(config["paths"]["na_private_key"]).exists()
     assert Path(config["paths"]["operator_private_key"]).exists()
+
+
+def test_init_accepts_explicit_operator_paths(tmp_path):
+    """Operators can initialize a sovereign using production-style paths."""
+    config_path = tmp_path / "config.toml"
+    home = tmp_path / "home"
+    genesis_path = tmp_path / "etc" / "genesis" / "genesis.signed.json"
+    na_key_path = tmp_path / "etc" / "genesis-mesh" / "keys" / "na.key"
+    operator_key_path = tmp_path / "etc" / "genesis-mesh" / "keys" / "operator.key"
+    operator_pub_path = tmp_path / "etc" / "genesis-mesh" / "operator.pub"
+    db_path = tmp_path / "var" / "lib" / "genesis-mesh" / "na.db"
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(config_path),
+            "--home",
+            str(home),
+            "--network-name",
+            "USG-NB",
+            "--na-endpoint",
+            "http://164.92.250.135:8443",
+            "--genesis-file",
+            str(genesis_path),
+            "--na-private-key-file",
+            str(na_key_path),
+            "--operator-private-key-file",
+            str(operator_key_path),
+            "--operator-public-key-file",
+            str(operator_pub_path),
+            "--db-path",
+            str(db_path),
+            "--na-host",
+            "0.0.0.0",
+            "--na-port",
+            "8443",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    config = load_config(str(config_path), required=True)
+    assert config["network"]["name"] == "USG-NB"
+    assert config["network"]["na_endpoint"] == "http://164.92.250.135:8443"
+    assert config["paths"]["genesis"] == genesis_path.as_posix()
+    assert config["paths"]["na_private_key"] == na_key_path.as_posix()
+    assert config["paths"]["operator_private_key"] == operator_key_path.as_posix()
+    assert config["paths"]["operator_public_key"] == operator_pub_path.as_posix()
+    assert config["paths"]["db"] == db_path.as_posix()
+    assert config["na"]["host"] == "0.0.0.0"
+    assert config["na"]["port"] == 8443
+    assert genesis_path.exists()
+    assert na_key_path.exists()
+    assert operator_key_path.exists()
+    assert operator_pub_path.exists()
+
+
+def test_init_requires_explicit_network_name_for_operator_paths(tmp_path):
+    """Production-style paths should not silently reuse the default sovereign name."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(tmp_path / "config.toml"),
+            "--home",
+            str(tmp_path / "home"),
+            "--genesis-file",
+            str(tmp_path / "etc" / "genesis.signed.json"),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires an explicit --network-name" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_admin_invite_and_join_use_single_configured_workflow(tmp_path):
@@ -135,6 +214,151 @@ def test_admin_invite_and_join_use_single_configured_workflow(tmp_path):
         reuse_status = runner.invoke(cli, ["status", "--config", str(config_path)])
         assert reuse_status.exit_code == 0, reuse_status.output
         assert "active nodes: 1" in reuse_status.output
+
+
+def test_sovereign_inspect_reads_public_metadata(tmp_path):
+    """The CLI can fetch public operator-safe sovereign metadata."""
+    config_path = tmp_path / "genesis-mesh.toml"
+    home = tmp_path / ".genesis-mesh"
+    runner = CliRunner()
+
+    init_result = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(config_path),
+            "--home",
+            str(home),
+            "--network-name",
+            "USG-NB",
+            "--force",
+        ],
+    )
+    assert init_result.exit_code == 0, init_result.output
+
+    with _running_na_from_config(config_path, tmp_path / "na.db") as endpoint:
+        result = runner.invoke(cli, ["sovereign", "inspect", "--na", endpoint])
+
+    assert result.exit_code == 0, result.output
+    assert "Sovereign: USG-NB" in result.output
+    assert "public surfaces:" in result.output
+    assert "/sovereign.json" not in result.output
+
+
+def test_proof_cleanup_backs_up_and_removes_only_proof_tables(tmp_path):
+    """Proof cleanup uses Python SQLite and keeps non-proof state untouched."""
+    db_path = tmp_path / "na.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        for table in [
+            "imported_sovereign_revocations",
+            "sovereign_revocation_feeds",
+            "recognition_treaties",
+            "membership_attestations",
+            "issued_certs",
+        ]:
+            conn.execute(f"CREATE TABLE {table}(id TEXT)")
+            conn.execute(f"INSERT INTO {table}(id) VALUES ('row')")
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "proof",
+            "cleanup",
+            "--db-path",
+            str(db_path),
+            "--backup-dir",
+            str(tmp_path / "backups"),
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    conn = sqlite3.connect(db_path)
+    try:
+        for table in [
+            "imported_sovereign_revocations",
+            "sovereign_revocation_feeds",
+            "recognition_treaties",
+            "membership_attestations",
+        ]:
+            assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM issued_certs").fetchone()[0] == 1
+    finally:
+        conn.close()
+    assert list((tmp_path / "backups").glob("na.db.backup-before-proof-cleanup-*"))
+
+
+def test_remote_proof_runs_against_two_configured_endpoints(tmp_path):
+    """A single CLI command can run the direct cross-sovereign proof."""
+    runner = CliRunner()
+    acceptor_config = tmp_path / "acceptor.toml"
+    issuer_config = tmp_path / "issuer.toml"
+    bundle_path = tmp_path / "proof-bundle.json"
+
+    acceptor_init = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(acceptor_config),
+            "--home",
+            str(tmp_path / "acceptor"),
+            "--network-name",
+            "USG",
+            "--force",
+        ],
+    )
+    assert acceptor_init.exit_code == 0, acceptor_init.output
+    issuer_init = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(issuer_config),
+            "--home",
+            str(tmp_path / "issuer"),
+            "--network-name",
+            "USG-NB",
+            "--force",
+        ],
+    )
+    assert issuer_init.exit_code == 0, issuer_init.output
+
+    with _running_na_from_config(acceptor_config, tmp_path / "acceptor.db") as acceptor:
+        with _running_na_from_config(issuer_config, tmp_path / "issuer.db") as issuer:
+            result = runner.invoke(
+                cli,
+                [
+                    "proof",
+                    "remote",
+                    "--acceptor",
+                    acceptor,
+                    "--issuer",
+                    issuer,
+                    "--acceptor-config",
+                    str(acceptor_config),
+                    "--issuer-config",
+                    str(issuer_config),
+                    "--claim",
+                    "proof=pytest",
+                    "--proof-bundle",
+                    str(bundle_path),
+                ],
+            )
+
+    assert result.exit_code == 0, result.output
+    assert "Remote sovereign proof passed" in result.output
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    assert bundle["acceptor"]["network_name"] == "USG"
+    assert bundle["issuer"]["network_name"] == "USG-NB"
+    assert bundle["pre_revocation"]["accepted"] is True
+    assert bundle["post_revocation"]["accepted"] is False
+    assert bundle["post_revocation"]["reason"] == "attestation_locally_revoked"
 
 
 def test_na_start_reports_missing_config_without_traceback(tmp_path):

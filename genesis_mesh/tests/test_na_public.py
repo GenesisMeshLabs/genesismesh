@@ -19,6 +19,7 @@ def test_homepage_links_to_operational_routes(client):
     assert "TEST" in body
     assert "/healthz" in body
     assert "/readyz" in body
+    assert "/sovereign.json" in body
     assert "/genesis" in body
     assert "/policy" in body
     assert "/crl" in body
@@ -64,3 +65,40 @@ def test_homepage_counts_recent_joined_nodes_as_active(na_service):
     body = resp.get_data(as_text=True)
     assert "<span>Active Nodes</span><strong>1</strong>" in body
     assert "<span>Tracked Nodes</span><strong>2</strong>" in body
+
+
+def test_sovereign_metadata_exposes_public_trust_material(client):
+    """Public sovereign metadata should identify the operator trust domain."""
+    resp = client.get("/sovereign.json", base_url="https://na.example.test")
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["sovereign_id"] == "TEST"
+    assert payload["network_name"] == "TEST"
+    assert payload["network_version"] == "v0.1"
+    assert payload["endpoint"] == "https://na.example.test"
+    assert payload["network_authority"]["public_key"]
+    assert payload["root_public_key"]
+    assert payload["supported_surfaces"]["genesis"] == "https://na.example.test/genesis"
+    assert payload["supported_surfaces"]["connectome"] == "https://na.example.test/connectome.json"
+    assert "private" not in str(payload).lower()
+
+
+def test_sovereign_metadata_honors_proxy_headers(client):
+    """Public metadata should advertise the proxy-visible URL."""
+    resp = client.get(
+        "/sovereign.json",
+        base_url="http://127.0.0.1:8443",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "na.genesismesh.connectorzzz.com",
+        },
+    )
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["endpoint"] == "https://na.genesismesh.connectorzzz.com"
+    assert (
+        payload["supported_surfaces"]["sovereign_revocation_feed"]
+        == "https://na.genesismesh.connectorzzz.com/sovereign-revocation-feed"
+    )

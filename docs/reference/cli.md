@@ -34,11 +34,34 @@ Useful options:
 | `--network-name` | Network name embedded in genesis. |
 | `--network-version` | Network version embedded in genesis. |
 | `--na-endpoint` | Network Authority endpoint written to config. |
+| `--genesis-file` | Signed genesis output path. Useful for `/etc/genesis/genesis.signed.json`. |
+| `--na-private-key-file` | Network Authority private key output path. |
+| `--operator-private-key-file` | Operator private key output path. |
+| `--operator-public-key-file` | Operator public key output path. |
+| `--db-path` | Network Authority SQLite DB path to store in config. |
+| `--na-host` | Network Authority bind host to store in config. |
+| `--na-port` | Network Authority bind port to store in config. |
 | `--anchor` | Optional peer bootstrap anchor in `id:endpoint` format. Do not use the NA HTTP endpoint. |
 | `--force` | Replace an existing config and generated local artifacts. |
 
 `init` is suitable for local development and demos. Production key generation
 should happen through an explicit key-management ceremony.
+
+For a named sovereign on a VM, keep the paths explicit:
+
+```bash
+genesis-mesh init \
+  --network-name USG-NB \
+  --na-endpoint http://164.92.250.135:8443 \
+  --genesis-file /etc/genesis/genesis.signed.json \
+  --na-private-key-file /etc/genesis-mesh/keys/na.key \
+  --operator-private-key-file /etc/genesis-mesh/keys/operator.key \
+  --operator-public-key-file /etc/genesis-mesh/operator.pub \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --na-host 0.0.0.0 \
+  --na-port 8443 \
+  --force
+```
 
 ### `genesis-mesh na start`
 
@@ -98,6 +121,55 @@ genesis-mesh admin revoke <cert-id> --reason key_compromise
 
 Useful reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
+
+### `genesis-mesh sovereign inspect`
+
+Fetches operator-safe public metadata from a Network Authority.
+
+```bash
+genesis-mesh sovereign inspect --na https://na.genesismesh.connectorzzz.com
+genesis-mesh sovereign inspect --na http://164.92.250.135:8443 --format json
+```
+
+The command reads `/sovereign.json`, not private files. It prints the network
+name, endpoint, NA public key prefix, validity window, and public trust
+surfaces useful for recognition.
+
+### `genesis-mesh proof remote`
+
+Runs the direct-recognition proof against two live Network Authority endpoints:
+issue attestation, issue treaty, verify acceptance, revoke attestation, import
+revocation feed, verify rejection, and optionally write a redacted proof bundle.
+
+```bash
+genesis-mesh proof remote \
+  --acceptor https://na.genesismesh.connectorzzz.com \
+  --issuer http://164.92.250.135:8443 \
+  --acceptor-config ./sovereign-a.toml \
+  --issuer-config ./sovereign-b.toml \
+  --claim proof=operator-ready \
+  --proof-bundle ./proof-bundle.json
+```
+
+Use `--operator-key` when both endpoints trust the same operator key. Use the
+endpoint-specific `--acceptor-operator-key` and `--issuer-operator-key` options
+when each sovereign has its own operator key.
+
+### `genesis-mesh proof cleanup`
+
+Backs up a Network Authority SQLite database and removes only proof artifacts:
+membership attestations, recognition treaties, sovereign revocation feeds, and
+imported sovereign revocations.
+
+```bash
+genesis-mesh proof cleanup \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --backup-dir /var/lib/genesis-mesh \
+  --yes
+```
+
+The command uses Python's SQLite library, so minimal Ubuntu VMs do not need the
+`sqlite3` command-line tool.
 
 ## Node Operator Commands
 

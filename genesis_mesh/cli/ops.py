@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import sqlite3
 import json
 import runpy
 import shutil
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+from click.core import ParameterSource
 import requests
 
 from ..crypto import (
@@ -50,6 +52,8 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(status)
     cli.add_command(dev)
     cli.add_command(discover)
+    cli.add_command(sovereign)
+    cli.add_command(proof)
 
 
 def _load_cli_config(config_path: str | None = None, required: bool = False) -> dict[str, Any]:
@@ -66,18 +70,34 @@ def _load_cli_config(config_path: str | None = None, required: bool = False) -> 
 @click.option("--network-name", default="USG", help="Network name.")
 @click.option("--network-version", default="v0.1", help="Network version.")
 @click.option("--na-endpoint", default="http://127.0.0.1:8443", help="Network Authority URL.")
+@click.option("--genesis-file", default=None, help="Signed genesis output path.")
+@click.option("--na-private-key-file", default=None, help="Network Authority private key output path.")
+@click.option("--operator-private-key-file", default=None, help="Operator private key output path.")
+@click.option("--operator-public-key-file", default=None, help="Operator public key output path.")
+@click.option("--db-path", default=None, help="Network Authority SQLite DB path to store in config.")
+@click.option("--na-host", default="127.0.0.1", help="Network Authority bind host to store in config.")
+@click.option("--na-port", default=8443, type=int, help="Network Authority bind port to store in config.")
 @click.option(
     "--anchor",
     default="",
     help="Optional peer bootstrap anchor id:endpoint. Do not use the NA HTTP endpoint.",
 )
 @click.option("--force", is_flag=True, help="Overwrite existing config and artifacts.")
+@click.pass_context
 def init(
+    ctx: click.Context,
     config_path: str,
     home: str,
     network_name: str,
     network_version: str,
     na_endpoint: str,
+    genesis_file: str | None,
+    na_private_key_file: str | None,
+    operator_private_key_file: str | None,
+    operator_public_key_file: str | None,
+    db_path: str | None,
+    na_host: str,
+    na_port: int,
     anchor: str,
     force: bool,
 ) -> None:
@@ -85,8 +105,35 @@ def init(
     root = Path(home)
     keys_dir = root / "keys"
     genesis_path = root / "genesis.json"
-    signed_genesis_path = root / "genesis.signed.json"
+    signed_genesis_path = Path(genesis_file) if genesis_file else root / "genesis.signed.json"
+    na_private_key_path = Path(na_private_key_file) if na_private_key_file else keys_dir / "na.key"
+    operator_private_path = (
+        Path(operator_private_key_file) if operator_private_key_file else keys_dir / "operator.key"
+    )
+    operator_public_path = (
+        Path(operator_public_key_file) if operator_public_key_file else keys_dir / "operator.pub"
+    )
+    database_path = Path(db_path) if db_path else root / "na.db"
     target_config = Path(config_path)
+    explicit_operator_paths = any(
+        value is not None
+        for value in (
+            genesis_file,
+            na_private_key_file,
+            operator_private_key_file,
+            operator_public_key_file,
+            db_path,
+        )
+    )
+    if (
+        explicit_operator_paths
+        and network_name == "USG"
+        and ctx.get_parameter_source("network_name") != ParameterSource.COMMANDLINE
+    ):
+        raise click.ClickException(
+            "Production-style sovereign initialization requires an explicit "
+            "--network-name. Refusing to reuse the default 'USG'."
+        )
 
     if target_config.exists() and not force:
         raise click.ClickException(f"{target_config} already exists. Use --force to replace it.")
@@ -96,13 +143,23 @@ def init(
     if force and root.exists():
         shutil.rmtree(root)
     keys_dir.mkdir(parents=True, exist_ok=True)
+    signed_genesis_path.parent.mkdir(parents=True, exist_ok=True)
+    na_private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    operator_private_path.parent.mkdir(parents=True, exist_ok=True)
+    operator_public_path.parent.mkdir(parents=True, exist_ok=True)
+    database_path.parent.mkdir(parents=True, exist_ok=True)
 
     root_keypair = generate_keypair()
     na_keypair = generate_keypair()
     operator_keypair = generate_keypair()
     save_keypair(root_keypair, str(keys_dir / "root"), "rs-local")
-    save_keypair(na_keypair, str(keys_dir / "na"), "na-local")
-    save_keypair(operator_keypair, str(keys_dir / "operator"), "operator-local")
+    save_keypair(na_keypair, str(na_private_key_path.with_suffix("")), "na-local")
+    save_keypair(operator_keypair, str(operator_private_path.with_suffix("")), "operator-local")
+    if operator_public_path != operator_private_path.with_suffix(".pub"):
+        operator_public_path.write_text(
+            f"# key-id: operator-local\n{operator_keypair.public_key_b64}\n",
+            encoding="utf-8",
+        )
 
     bootstrap_anchors: list[BootstrapAnchor] = []
     if anchor:
@@ -145,14 +202,15 @@ def init(
         "paths": {
             "home": config_path_value(root),
             "genesis": config_path_value(signed_genesis_path),
-            "na_private_key": config_path_value(keys_dir / "na.key"),
-            "operator_private_key": config_path_value(keys_dir / "operator.key"),
-            "operator_public_key": config_path_value(keys_dir / "operator.pub"),
+            "na_private_key": config_path_value(na_private_key_path),
+            "operator_private_key": config_path_value(operator_private_path),
+            "operator_public_key": config_path_value(operator_public_path),
             "node_private_key": config_path_value(keys_dir / "node.key"),
             "node_certificate": config_path_value(root / "node.cert.json"),
             "policy": config_path_value(root / "policy.json"),
+            "db": config_path_value(database_path),
         },
-        "na": {"key_id": "na-local", "host": "127.0.0.1", "port": 8443},
+        "na": {"key_id": "na-local", "host": na_host, "port": na_port},
         "operator": {"key_id": "operator-local"},
     }
     written_config = save_config(config, config_path)
@@ -181,7 +239,12 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
     key_id = get_config_value(config, "na", "key_id", "na-local")
     bind_host = host or get_config_value(config, "na", "host", "127.0.0.1")
     bind_port = port or int(get_config_value(config, "na", "port", 8443))
-    database_path = db_path or str(Path(get_config_value(config, "paths", "home", ".")) / "na.db")
+    database_path = db_path or get_config_value(
+        config,
+        "paths",
+        "db",
+        str(Path(get_config_value(config, "paths", "home", ".")) / "na.db"),
+    )
     operator_key_id = get_config_value(config, "operator", "key_id", "operator-local")
 
     genesis_block = _load_genesis(genesis_path)
@@ -504,6 +567,160 @@ def discover(
 
 
 @click.group()
+def sovereign() -> None:
+    """Inspect public sovereign metadata."""
+
+
+@sovereign.command("inspect")
+@click.option("--na", "na_endpoint", required=True, help="Network Authority URL.")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def sovereign_inspect(na_endpoint: str, output_format: str) -> None:
+    """Fetch operator-safe public trust material for a sovereign."""
+    endpoint = na_endpoint.rstrip("/")
+    try:
+        response = requests.get(f"{endpoint}/sovereign.json", timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise click.ClickException(f"Sovereign metadata query failed: {exc}") from exc
+
+    payload = response.json()
+    if output_format == "json":
+        click.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+
+    na = payload.get("network_authority", {})
+    surfaces = payload.get("supported_surfaces", {})
+    click.echo(f"Sovereign: {payload.get('sovereign_id')}")
+    click.echo(f"  network_version: {payload.get('network_version')}")
+    click.echo(f"  endpoint:        {payload.get('endpoint')}")
+    click.echo(f"  na_public_key:   {str(na.get('public_key', ''))[:32]}...")
+    click.echo(f"  valid_to:        {na.get('valid_to')}")
+    click.echo("  public surfaces:")
+    for name, url in surfaces.items():
+        click.echo(f"    {name}: {url}")
+
+
+@click.group()
+def proof() -> None:
+    """Run and clean sovereign proof workflows."""
+
+
+@proof.command("cleanup")
+@click.option("--db-path", required=True, help="Network Authority SQLite database path.")
+@click.option("--backup-path", default=None, help="Explicit backup destination path.")
+@click.option("--backup-dir", default=None, help="Directory for timestamped DB backup.")
+@click.option("--yes", is_flag=True, help="Confirm cleanup without an interactive prompt.")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def proof_cleanup(
+    db_path: str,
+    backup_path: str | None,
+    backup_dir: str | None,
+    yes: bool,
+    output_format: str,
+) -> None:
+    """Remove only proof artifacts from a Network Authority database."""
+    if not yes:
+        click.confirm(
+            "Delete proof tables from this NA database after creating a backup?",
+            abort=True,
+        )
+
+    result = _cleanup_proof_state(Path(db_path), backup_path, backup_dir)
+    if output_format == "json":
+        click.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    click.echo(f"Backup: {result['backup_path']}")
+    click.echo("Deleted proof rows:")
+    for table, count in result["deleted_rows"].items():
+        click.echo(f"  {table}: {count}")
+
+
+@proof.command("remote")
+@click.option("--acceptor", required=True, help="Recognizing sovereign NA endpoint.")
+@click.option("--issuer", required=True, help="Subject/issuing sovereign NA endpoint.")
+@click.option("--acceptor-config", default=None, help="Config for acceptor admin signing.")
+@click.option("--issuer-config", default=None, help="Config for issuer admin signing.")
+@click.option("--operator-key", default=None, help="Shared operator private key for both NAs.")
+@click.option("--operator-key-id", default="operator-local", help="Shared operator key ID.")
+@click.option("--acceptor-operator-key", default=None, help="Acceptor operator private key.")
+@click.option("--acceptor-operator-key-id", default=None, help="Acceptor operator key ID.")
+@click.option("--issuer-operator-key", default=None, help="Issuer operator private key.")
+@click.option("--issuer-operator-key-id", default=None, help="Issuer operator key ID.")
+@click.option("--role", default="role:service:maintainer", help="Attested role to prove.")
+@click.option("--subject-id", default=None, help="Subject ID for the proof attestation.")
+@click.option("--subject-public-key", default="proof-subject-public-key", help="Subject public key.")
+@click.option("--claim", multiple=True, help="Extra proof claim as key=value. Repeatable.")
+@click.option("--validity-hours", default=24, type=int, help="Proof artifact validity window.")
+@click.option("--proof-bundle", default=None, help="Optional JSON proof bundle output path.")
+def proof_remote(
+    acceptor: str,
+    issuer: str,
+    acceptor_config: str | None,
+    issuer_config: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+    acceptor_operator_key: str | None,
+    acceptor_operator_key_id: str | None,
+    issuer_operator_key: str | None,
+    issuer_operator_key_id: str | None,
+    role: str,
+    subject_id: str | None,
+    subject_public_key: str,
+    claim: tuple[str, ...],
+    validity_hours: int,
+    proof_bundle: str | None,
+) -> None:
+    """Run the attestation -> treaty -> revocation proof against two endpoints."""
+    bundle = _run_remote_proof(
+        acceptor_endpoint=acceptor,
+        issuer_endpoint=issuer,
+        acceptor_signer=_admin_signer_from_inputs(
+            acceptor_config,
+            acceptor_operator_key or operator_key,
+            acceptor_operator_key_id or operator_key_id,
+        ),
+        issuer_signer=_admin_signer_from_inputs(
+            issuer_config,
+            issuer_operator_key or operator_key,
+            issuer_operator_key_id or operator_key_id,
+        ),
+        role=_normalize_role(role),
+        subject_id=subject_id or f"proof-subject-{uuid.uuid4()}",
+        subject_public_key=subject_public_key,
+        claims=_parse_claims(claim),
+        validity_hours=validity_hours,
+    )
+
+    if proof_bundle:
+        output = Path(proof_bundle)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+
+    click.echo("Remote sovereign proof passed")
+    click.echo(f"  acceptor:    {bundle['acceptor']['network_name']}")
+    click.echo(f"  issuer:      {bundle['issuer']['network_name']}")
+    click.echo(f"  attestation: {bundle['attestation_id']}")
+    click.echo(f"  treaty:      {bundle['treaty_id']}")
+    click.echo(f"  feed:        {bundle['feed_id']}")
+    click.echo(f"  sequence:    {bundle['feed_sequence']}")
+    click.echo(f"  pre:         {bundle['pre_revocation']['reason']}")
+    click.echo(f"  post:        {bundle['post_revocation']['reason']}")
+
+
+@click.group()
 def dev() -> None:
     """Run local developer workflows."""
 
@@ -630,6 +847,11 @@ def _admin_headers(config: dict[str, Any], body: dict[str, Any]) -> dict[str, st
     """Create signed admin request headers from CLI config."""
     key_id = get_config_value(config, "operator", "key_id", "operator-local")
     key_path = _required_config_path(config, "paths", "operator_private_key")
+    return _signed_admin_headers(key_id, key_path, body)
+
+
+def _signed_admin_headers(key_id: str, key_path: Path, body: dict[str, Any]) -> dict[str, str]:
+    """Create signed admin request headers from a key ID and private key path."""
     timestamp = datetime.now(timezone.utc).isoformat()
     nonce = str(uuid.uuid4())
     canonical = json.dumps(
@@ -646,7 +868,291 @@ def _admin_headers(config: dict[str, Any], body: dict[str, Any]) -> dict[str, st
         "X-Admin-Key-Id": key_id,
         "X-Admin-Timestamp": timestamp,
         "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(canonical.encode("utf-8"), load_private_key(str(key_path))),
+        "X-Admin-Signature": sign_data(
+            canonical.encode("utf-8"),
+            load_private_key(str(key_path)),
+        ),
+    }
+
+
+def _admin_signer_from_inputs(
+    config_path: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+) -> tuple[str, Path]:
+    """Resolve an admin signing key from explicit options or a CLI config."""
+    if operator_key:
+        return operator_key_id, Path(operator_key)
+    if not config_path:
+        raise click.ClickException(
+            "Missing admin signing key. Pass --operator-key, endpoint-specific "
+            "operator key options, or endpoint-specific config."
+        )
+    config = _load_cli_config(config_path, required=True)
+    key_id = get_config_value(config, "operator", "key_id", operator_key_id)
+    return key_id, _required_config_path(config, "paths", "operator_private_key")
+
+
+def _request_json(
+    session: requests.Session,
+    method: str,
+    url: str,
+    *,
+    expected_status: int = 200,
+    label: str,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Run an HTTP request and raise compact Click errors on failure."""
+    try:
+        response = session.request(method, url, timeout=20, **kwargs)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"{label} failed: {exc}") from exc
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {"raw": response.text[:500]}
+
+    if response.status_code != expected_status:
+        raise click.ClickException(f"{label} failed: {response.status_code} {payload}")
+    return payload
+
+
+def _parse_claims(claims: tuple[str, ...]) -> dict[str, str]:
+    """Parse repeated key=value claim options."""
+    parsed: dict[str, str] = {}
+    for item in claims:
+        if "=" not in item:
+            raise click.ClickException("--claim values must use key=value format")
+        key, value = item.split("=", 1)
+        if not key:
+            raise click.ClickException("--claim keys must not be empty")
+        parsed[key] = value
+    return parsed
+
+
+def _run_remote_proof(
+    *,
+    acceptor_endpoint: str,
+    issuer_endpoint: str,
+    acceptor_signer: tuple[str, Path],
+    issuer_signer: tuple[str, Path],
+    role: str,
+    subject_id: str,
+    subject_public_key: str,
+    claims: dict[str, str],
+    validity_hours: int,
+) -> dict[str, Any]:
+    """Run the direct-recognition proof and return a redacted proof bundle."""
+    acceptor = acceptor_endpoint.rstrip("/")
+    issuer = issuer_endpoint.rstrip("/")
+    session = requests.Session()
+
+    acceptor_genesis = _request_json(
+        session,
+        "GET",
+        f"{acceptor}/genesis",
+        label="acceptor genesis",
+    )
+    issuer_genesis = _request_json(
+        session,
+        "GET",
+        f"{issuer}/genesis",
+        label="issuer genesis",
+    )
+    acceptor_id = acceptor_genesis["network_name"]
+    issuer_id = issuer_genesis["network_name"]
+    issuer_public_key = issuer_genesis["network_authority"]["public_key"]
+
+    attestation_body = {
+        "subject_id": subject_id,
+        "subject_public_key": subject_public_key,
+        "roles": [role],
+        "claims": claims,
+        "validity_hours": validity_hours,
+    }
+    issuer_key_id, issuer_key_path = issuer_signer
+    attestation = _request_json(
+        session,
+        "POST",
+        f"{issuer}/admin/attestations",
+        expected_status=201,
+        label="issuer attestation issue",
+        json=attestation_body,
+        headers=_signed_admin_headers(issuer_key_id, issuer_key_path, attestation_body),
+    )
+
+    treaty_body = {
+        "subject_sovereign_id": issuer_id,
+        "subject_public_keys": [issuer_public_key],
+        "scope": {
+            "allowed_roles": [role],
+            "accepted_statuses": ["active"],
+            "claims": claims,
+        },
+        "validity_hours": validity_hours,
+        "metadata": {
+            "proof": "remote-sovereign-proof",
+            "subject_endpoint": issuer,
+        },
+    }
+    acceptor_key_id, acceptor_key_path = acceptor_signer
+    treaty = _request_json(
+        session,
+        "POST",
+        f"{acceptor}/admin/recognition-treaties",
+        expected_status=201,
+        label="acceptor treaty issue",
+        json=treaty_body,
+        headers=_signed_admin_headers(acceptor_key_id, acceptor_key_path, treaty_body),
+    )
+
+    pre_revocation = _request_json(
+        session,
+        "POST",
+        f"{acceptor}/attestations/verify-with-treaty",
+        label="pre-revocation verification",
+        json={"attestation": attestation, "treaty": treaty},
+    )
+    if not pre_revocation.get("accepted"):
+        raise click.ClickException(f"Pre-revocation proof was rejected: {pre_revocation}")
+
+    revoke_body = {"reason": "remote_sovereign_proof_revocation"}
+    _request_json(
+        session,
+        "POST",
+        f"{issuer}/admin/attestations/{attestation['attestation_id']}/revoke",
+        label="issuer attestation revoke",
+        json=revoke_body,
+        headers=_signed_admin_headers(issuer_key_id, issuer_key_path, revoke_body),
+    )
+
+    feed = _request_json(
+        session,
+        "GET",
+        f"{issuer}/sovereign-revocation-feed?issuer_sovereign_id={issuer_id}",
+        label="issuer revocation feed",
+    )
+    import_body = {
+        "feed": feed,
+        "issuer_public_keys": [issuer_public_key],
+        "expected_issuer_sovereign_id": issuer_id,
+    }
+    imported = _request_json(
+        session,
+        "POST",
+        f"{acceptor}/admin/sovereign-revocation-feeds/import",
+        label="acceptor feed import",
+        json=import_body,
+        headers=_signed_admin_headers(acceptor_key_id, acceptor_key_path, import_body),
+    )
+    if not imported.get("accepted"):
+        raise click.ClickException(f"Revocation feed import was rejected: {imported}")
+
+    post_revocation = _request_json(
+        session,
+        "POST",
+        f"{acceptor}/attestations/verify-with-treaty",
+        label="post-revocation verification",
+        json={"attestation": attestation, "treaty": treaty},
+    )
+    if post_revocation.get("accepted"):
+        raise click.ClickException("Post-revocation proof was still accepted")
+
+    connectome = _request_json(
+        session,
+        "GET",
+        f"{acceptor}/connectome.json",
+        label="acceptor Connectome",
+    )
+    trust_path = _request_json(
+        session,
+        "GET",
+        f"{acceptor}/connectome/trust-path?from={acceptor_id}&to={issuer_id}",
+        label="acceptor trust path",
+    )
+
+    return {
+        "proof": "remote-sovereign-recognition-revocation",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "acceptor": {
+            "network_name": acceptor_id,
+            "endpoint": acceptor,
+            "na_public_key_prefix": acceptor_genesis["network_authority"]["public_key"][:24],
+        },
+        "issuer": {
+            "network_name": issuer_id,
+            "endpoint": issuer,
+            "na_public_key_prefix": issuer_public_key[:24],
+        },
+        "attestation_id": attestation["attestation_id"],
+        "treaty_id": treaty["treaty_id"],
+        "feed_id": feed["feed_id"],
+        "feed_sequence": feed["sequence"],
+        "pre_revocation": {
+            "accepted": pre_revocation["accepted"],
+            "reason": pre_revocation["reason"],
+        },
+        "post_revocation": {
+            "accepted": post_revocation["accepted"],
+            "reason": post_revocation["reason"],
+        },
+        "trust_path": trust_path,
+        "connectome_summary": connectome["summary"],
+    }
+
+
+def _cleanup_proof_state(
+    db_path: Path,
+    backup_path: str | None,
+    backup_dir: str | None,
+) -> dict[str, Any]:
+    """Back up a SQLite database and delete only cross-sovereign proof rows."""
+    if not db_path.exists():
+        raise click.ClickException(f"Database not found: {db_path}")
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    if backup_path:
+        backup = Path(backup_path)
+    else:
+        directory = Path(backup_dir) if backup_dir else db_path.parent
+        backup = directory / f"{db_path.name}.backup-before-proof-cleanup-{timestamp}"
+    backup.parent.mkdir(parents=True, exist_ok=True)
+
+    tables = [
+        "imported_sovereign_revocations",
+        "sovereign_revocation_feeds",
+        "recognition_treaties",
+        "membership_attestations",
+    ]
+    deleted: dict[str, int] = {}
+    conn = sqlite3.connect(str(db_path))
+    try:
+        dest = sqlite3.connect(str(backup))
+        try:
+            conn.backup(dest)
+        finally:
+            dest.close()
+
+        with conn:
+            for table in tables:
+                exists = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                    (table,),
+                ).fetchone()
+                if not exists:
+                    deleted[table] = 0
+                    continue
+                before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                conn.execute(f"DELETE FROM {table}")
+                deleted[table] = int(before)
+    finally:
+        conn.close()
+
+    return {
+        "db_path": str(db_path),
+        "backup_path": str(backup),
+        "deleted_rows": deleted,
     }
 
 

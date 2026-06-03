@@ -112,35 +112,37 @@ Live mode creates a new NB attestation, a new Azure recognition treaty, imports
 a new NB revocation feed, and leaves those proof artifacts in Azure's
 Connectome until cleaned.
 
+For operator workflows, the supported CLI proof runner performs the same live
+flow and writes a redacted proof bundle:
+
+```powershell
+genesis-mesh proof remote `
+  --acceptor https://na.genesismesh.connectorzzz.com `
+  --issuer http://164.92.250.135:8443 `
+  --operator-key .genesis-mesh\keys\operator.key `
+  --operator-key-id operator-local `
+  --claim proof=independent-sovereigns `
+  --proof-bundle .\independent-sovereigns-proof.json
+```
+
 ## Clean State
 
 Before capturing a clean proof, the proof tables should be empty on both
-authorities. Use a database backup first, then remove only the proof artifacts:
+authorities. Use the cleanup command while the NA service is stopped; it backs
+up the database first and removes only proof artifacts:
 
 ```bash
 sudo systemctl stop genesis-mesh-na
-sudo cp /var/lib/genesis-mesh/na.db \
-  /var/lib/genesis-mesh/na.db.backup-before-independent-sovereigns-cleanup-$(date +%Y%m%d%H%M%S)
-sudo python3 - <<'PY'
-import sqlite3
-
-conn = sqlite3.connect("/var/lib/genesis-mesh/na.db")
-try:
-    conn.executescript("""
-DELETE FROM imported_sovereign_revocations;
-DELETE FROM sovereign_revocation_feeds;
-DELETE FROM recognition_treaties;
-DELETE FROM membership_attestations;
-""")
-    conn.commit()
-finally:
-    conn.close()
-PY
+genesis-mesh proof cleanup \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --backup-dir /var/lib/genesis-mesh \
+  --yes
 sudo systemctl start genesis-mesh-na
 ```
 
-The Python cleanup is used instead of the `sqlite3` CLI because minimal Ubuntu
-VMs do not always have the SQLite command-line tool installed.
+The cleanup command uses Python's SQLite library instead of the `sqlite3` CLI
+because minimal Ubuntu VMs do not always have the SQLite command-line tool
+installed.
 
 Expected clean Connectome:
 
