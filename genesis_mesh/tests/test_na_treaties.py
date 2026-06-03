@@ -162,6 +162,12 @@ def test_connectome_page_renders_html(client, na_service):
     assert resp.mimetype == "text/html"
     assert b"Genesis Mesh Connectome" in resp.data
     assert b"Recognition Edges" in resp.data
+    body = resp.get_data(as_text=True)
+    assert 'class="shell operator-console"' in body
+    assert "Connectome derived view" in body
+    assert "data-table" in body
+    assert "Download Connectome JSON" in body
+    assert "The Connectome explains current trust state" in body
 
 
 def test_connectome_trust_path_reports_active_and_revoked_edges(client, na_service):

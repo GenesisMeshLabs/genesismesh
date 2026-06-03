@@ -60,6 +60,24 @@ real model or service lands in them.
 
 ---
 
+## Operator UI Surfaces
+
+The Network Authority home page, Connectome page, and any future
+human-readable operator pages are product surfaces, not incidental debug HTML.
+
+When adding a new public route, operator route, CLI-managed operation, or trust
+workflow, update the relevant human-facing operator surface unless there is a
+clear reason not to expose it.
+
+Operator UI pages must share one visual language: shell width, color tokens,
+card styling, table styling, empty states, typography, and footer/help copy.
+Do not create visually separate one-off HTML pages for new operator views.
+
+Keep HTTP routes, CLI operations, and documentation links distinct. Do not make
+CLI-only operations look like browser-callable endpoints.
+
+---
+
 ## Architectural Principles
 
 ### 1. Protocol First

@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.16.1 - Operator Console Surface Alignment
+
+### Added
+
+- Added shared operator-console styling for human-readable Network Authority
+  pages.
+- Added `AGENT.md` guidance requiring the home page, Connectome, and future
+  operator pages to share one visual language and keep HTTP routes distinct
+  from CLI-only workflows.
+- Added a v0.16.1 release plan for operator console surface alignment.
+
+### Changed
+
+- Expanded the Network Authority home page to show current health, public
+  trust, sovereign recognition, attestation, revocation, agent discovery,
+  operator, and managed-operation surfaces.
+- Updated the Connectome page to use the same visual standard as the Network
+  Authority home page.
+- Bumped the package version to `0.16.1`.
+
+### Verified
+
+- Added focused assertions for current homepage surfaces, CLI-only managed
+  operations, and Connectome UI consistency.
+- Ran focused Network Authority route tests, mypy, compileall, Sphinx
+  documentation build with warnings treated as errors, and `git diff --check`.
+
 ## v0.16.0 - Managed Sovereign Enterprise Readiness
 
 ### Added

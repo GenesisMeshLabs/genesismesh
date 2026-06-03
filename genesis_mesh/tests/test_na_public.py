@@ -24,7 +24,25 @@ def test_homepage_links_to_operational_routes(client):
     assert "/policy" in body
     assert "/crl" in body
     assert "/nodes" in body
+    assert "/metrics" in body
+    assert "Sovereign Trust Routes" in body
+    assert "/recognition-graph" in body
+    assert "/connectome" in body
+    assert "/connectome.json" in body
+    assert "/recognition-treaties" in body
+    assert "/sovereign-revocation-feed" in body
+    assert "/attestations" in body
+    assert "Agent Discovery Routes" in body
+    assert "/agents" in body
     assert "/admin/invite" in body
+    assert "/admin/recognition-treaties" in body
+    assert "/admin/sovereign-revocation-feeds/import" in body
+    assert "Managed Operations" in body
+    assert "genesis-mesh managed backup" in body
+    assert "genesis-mesh managed restore" in body
+    assert "genesis-mesh managed audit-export" in body
+    assert 'href="genesis-mesh managed backup"' not in body
+    assert 'class="shell operator-console"' in body
 
 
 def test_homepage_counts_recent_joined_nodes_as_active(na_service):

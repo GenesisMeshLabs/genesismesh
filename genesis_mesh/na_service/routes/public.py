@@ -5,6 +5,8 @@ from html import escape
 
 from flask import Blueprint, Response, jsonify, request
 
+from .operator_ui import OPERATOR_CONSOLE_CSS
+
 ACTIVE_NODE_WINDOW = timedelta(minutes=5)
 
 
@@ -83,8 +85,10 @@ def _homepage_html(service) -> str:
 
     public_routes = "\n".join(
         [
+            _route_card("GET", "/health", "Health Summary", "Expanded service health summary.", clickable=True),
             _route_card("GET", "/healthz", "Liveness", "Process-level health probe.", clickable=True),
             _route_card("GET", "/readyz", "Readiness", "Database and migration readiness.", clickable=True),
+            _route_card("GET", "/metrics", "Metrics", "Prometheus-compatible runtime metrics.", clickable=True),
             _route_card(
                 "GET",
                 "/sovereign.json",
@@ -105,11 +109,80 @@ def _homepage_html(service) -> str:
         ],
     )
 
+    sovereign_routes = "\n".join(
+        [
+            _route_card(
+                "GET",
+                "/recognition-graph",
+                "Recognition Graph",
+                "Source graph for sovereign trust explanations.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/connectome",
+                "Connectome",
+                "Human-readable sovereign recognition and revocation view.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/connectome.json",
+                "Connectome JSON",
+                "Machine-readable Connectome summary.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/connectome/trust-path",
+                "Trust Path",
+                "Explain recognition between two sovereigns by query string.",
+            ),
+            _route_card(
+                "GET",
+                "/recognition-treaties",
+                "Recognition Treaties",
+                "List persisted sovereign recognition treaties.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/sovereign-revocation-feed",
+                "Sovereign Revocation Feed",
+                "Export revocations issued by a sovereign.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/recognition-policy",
+                "Recognition Policy",
+                "Current policy for portable trust acceptance.",
+                clickable=True,
+            ),
+            _route_card(
+                "GET",
+                "/attestations",
+                "Membership Attestations",
+                "List issued portable membership attestations.",
+                clickable=True,
+            ),
+        ],
+    )
+
     node_routes = "\n".join(
         [
             _route_card("POST", "/join", "Join", "Issue a certificate from a single-use invite."),
             _route_card("POST", "/heartbeat", "Heartbeat", "Update authenticated node liveness."),
             _route_card("POST", "/renew", "Renew", "Renew a non-revoked node certificate."),
+        ],
+    )
+
+    discovery_routes = "\n".join(
+        [
+            _route_card("GET", "/agents", "Agent Discovery", "List registered agent descriptors.", clickable=True),
+            _route_card("POST", "/agents", "Register Agent", "Publish an authenticated agent descriptor."),
+            _route_card("GET", "/agents/{node_public_key}", "Agent Lookup", "Read one agent descriptor."),
+            _route_card("DELETE", "/agents/{node_public_key}", "Remove Agent", "Delete an authenticated descriptor."),
         ],
     )
 
@@ -120,6 +193,45 @@ def _homepage_html(service) -> str:
             _route_card("POST", "/admin/policy", "Policy Publish", "Activate a signed policy version."),
             _route_card("GET", "/admin/policy/history", "Policy History", "Inspect persisted policy versions."),
             _route_card("POST", "/admin/policy/rollback", "Policy Rollback", "Reactivate a previous policy."),
+            _route_card("POST", "/admin/attestations", "Issue Attestation", "Issue portable membership evidence."),
+            _route_card(
+                "POST",
+                "/admin/attestations/{attestation_id}/revoke",
+                "Revoke Attestation",
+                "Publish sovereign-level attestation revocation.",
+            ),
+            _route_card(
+                "POST",
+                "/admin/recognition-policy",
+                "Recognition Policy",
+                "Set portable trust acceptance policy.",
+            ),
+            _route_card(
+                "POST",
+                "/admin/recognition-treaties",
+                "Issue Treaty",
+                "Create a direct-recognition treaty for another sovereign.",
+            ),
+            _route_card(
+                "POST",
+                "/admin/recognition-treaties/{treaty_id}/revoke",
+                "Revoke Treaty",
+                "End a persisted recognition treaty.",
+            ),
+            _route_card(
+                "POST",
+                "/admin/sovereign-revocation-feeds/import",
+                "Import Revocation Feed",
+                "Import revoked trust material from a recognized sovereign.",
+            ),
+        ],
+    )
+
+    managed_ops = "\n".join(
+        [
+            _route_card("CLI", "genesis-mesh managed backup", "Backup", "Create a consistent online NA DB backup."),
+            _route_card("CLI", "genesis-mesh managed restore", "Restore", "Restore a validated backup while the NA is stopped."),
+            _route_card("CLI", "genesis-mesh managed audit-export", "Audit Export", "Export redacted audit events."),
         ],
     )
 
@@ -130,174 +242,11 @@ def _homepage_html(service) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Genesis Mesh Network Authority</title>
     <style>
-        :root {{
-            color-scheme: dark;
-            --bg: #0b0f14;
-            --panel: #121922;
-            --panel-strong: #17212d;
-            --line: #2a3646;
-            --text: #e7edf5;
-            --muted: #9fb0c3;
-            --accent: #6ee7b7;
-            --accent-2: #7dd3fc;
-            --warn: #facc15;
-        }}
-        * {{ box-sizing: border-box; }}
-        body {{
-            margin: 0;
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-        }}
-        a {{ color: inherit; }}
-        .shell {{
-            width: min(1160px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 44px 0 56px;
-        }}
-        .hero {{
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            background: linear-gradient(135deg, #111923 0%, #0e151d 58%, #13211d 100%);
-            padding: clamp(24px, 5vw, 44px);
-        }}
-        .kicker {{
-            display: inline-flex;
-            gap: 8px;
-            align-items: center;
-            color: var(--accent);
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0;
-            text-transform: uppercase;
-        }}
-        .status-dot {{
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent);
-            box-shadow: 0 0 18px rgba(110, 231, 183, 0.85);
-        }}
-        h1 {{
-            margin: 16px 0 12px;
-            max-width: 780px;
-            font-size: clamp(2.1rem, 6vw, 4.3rem);
-            line-height: 1.04;
-            letter-spacing: 0;
-        }}
-        .lead {{
-            max-width: 760px;
-            margin: 0;
-            color: var(--muted);
-            font-size: 1.05rem;
-        }}
-        .stats {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-            margin-top: 28px;
-        }}
-        .stat {{
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            background: rgba(18, 25, 34, 0.72);
-            padding: 16px;
-        }}
-        .stat span {{
-            display: block;
-            color: var(--muted);
-            font-size: 0.82rem;
-        }}
-        .stat strong {{
-            display: block;
-            margin-top: 4px;
-            font-size: 1.2rem;
-        }}
-        section {{ margin-top: 28px; }}
-        .section-head {{
-            display: flex;
-            justify-content: space-between;
-            gap: 18px;
-            align-items: end;
-            margin-bottom: 12px;
-        }}
-        .section-head h2 {{
-            margin: 0;
-            font-size: 1.05rem;
-            letter-spacing: 0;
-        }}
-        .section-head p {{
-            margin: 0;
-            color: var(--muted);
-            font-size: 0.92rem;
-        }}
-        .route-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
-            gap: 12px;
-        }}
-        .route-card {{
-            min-height: 150px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 17px;
-            text-decoration: none;
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            background: var(--panel);
-            transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
-        }}
-        a.route-card:hover {{
-            border-color: var(--accent-2);
-            background: var(--panel-strong);
-            transform: translateY(-1px);
-        }}
-        .route-card-static {{
-            cursor: default;
-        }}
-        .method {{
-            width: fit-content;
-            border: 1px solid rgba(125, 211, 252, 0.35);
-            border-radius: 999px;
-            padding: 2px 8px;
-            color: var(--accent-2);
-            font-size: 0.72rem;
-            font-weight: 800;
-        }}
-        .path {{
-            color: var(--text);
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-            font-size: 0.92rem;
-        }}
-        .route-card strong {{ font-size: 1rem; }}
-        .route-card span:last-child {{
-            color: var(--muted);
-            font-size: 0.9rem;
-        }}
-        .notice {{
-            margin-top: 28px;
-            border: 1px solid rgba(250, 204, 21, 0.36);
-            border-radius: 8px;
-            background: rgba(250, 204, 21, 0.08);
-            padding: 16px;
-            color: #f8eaa3;
-        }}
-        .footer {{
-            margin-top: 28px;
-            color: var(--muted);
-            font-size: 0.9rem;
-        }}
-        @media (max-width: 720px) {{
-            .shell {{ width: min(100% - 24px, 1160px); padding-top: 24px; }}
-            .section-head {{ display: block; }}
-            .section-head p {{ margin-top: 4px; }}
-        }}
+{OPERATOR_CONSOLE_CSS}
     </style>
 </head>
 <body>
-    <main class="shell">
+    <main class="shell operator-console">
         <div class="hero">
             <div class="kicker"><span class="status-dot"></span> Network Authority online</div>
             <h1>Genesis Mesh Network Authority</h1>
@@ -323,10 +272,26 @@ def _homepage_html(service) -> str:
 
         <section>
             <div class="section-head">
+                <h2>Sovereign Trust Routes</h2>
+                <p>Recognition, attestation, and revocation surfaces.</p>
+            </div>
+            <div class="route-grid">{sovereign_routes}</div>
+        </section>
+
+        <section>
+            <div class="section-head">
                 <h2>Node Routes</h2>
                 <p>Used by enrolled nodes and protected by node proof-of-possession.</p>
             </div>
             <div class="route-grid">{node_routes}</div>
+        </section>
+
+        <section>
+            <div class="section-head">
+                <h2>Agent Discovery Routes</h2>
+                <p>Advertise and inspect node-bound agent descriptors.</p>
+            </div>
+            <div class="route-grid">{discovery_routes}</div>
         </section>
 
         <section id="operator-endpoints">
@@ -335,6 +300,14 @@ def _homepage_html(service) -> str:
                 <p>Require operator signature headers and replay-protected nonces.</p>
             </div>
             <div class="route-grid">{admin_routes}</div>
+        </section>
+
+        <section>
+            <div class="section-head">
+                <h2>Managed Operations</h2>
+                <p>CLI-only service operations; not browser-callable endpoints.</p>
+            </div>
+            <div class="route-grid">{managed_ops}</div>
         </section>
 
         <div class="notice">

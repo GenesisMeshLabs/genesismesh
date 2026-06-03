@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import pytest
 
@@ -192,16 +193,17 @@ def test_delete_agents_requires_valid_signature(client, na_service):
     signed_at = datetime.now(timezone.utc).isoformat()
     envelope = f"delete-agent|v1|{keypair.public_key_b64}|{signed_at}".encode("utf-8")
     signature = sign_data(envelope, keypair.private_key)
+    encoded_node_key = quote(keypair.public_key_b64, safe="")
 
     resp = client.delete(
-        f"/agents/{keypair.public_key_b64}",
+        f"/agents/{encoded_node_key}",
         json={"version": "v1", "signed_at": signed_at, "signature": signature},
     )
     assert resp.status_code == 200
 
     # Second delete is now a 404.
     resp2 = client.delete(
-        f"/agents/{keypair.public_key_b64}",
+        f"/agents/{encoded_node_key}",
         json={"version": "v1", "signed_at": signed_at, "signature": signature},
     )
     assert resp2.status_code in (401, 404)
