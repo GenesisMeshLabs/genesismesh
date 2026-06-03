@@ -184,6 +184,9 @@ examples/recognition-treaties
 examples/cross-sovereign-revocation
 examples/connectome
 examples/independent-sovereigns
+examples/supply-chain-trust-gate
+examples/maintainer-sovereign-pitch
+examples/sigstore-comparison
 examples/capacity-baseline
 examples/edge-fleet
 examples/sovereign-organization

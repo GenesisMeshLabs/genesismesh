@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.15.0 - Supply-Chain Trust Gate
+
+### Added
+
+- Added a supply-chain maintainer attestation profile using the existing
+  `MembershipAttestation` primitive with project ID, repository, delegated
+  role, validity window, and release-maintainer role scope.
+- Added `genesis-mesh supply-chain verify` for CI/release gates. The command
+  verifies an attestation against a signed recognition treaty and optional
+  sovereign revocation feeds.
+- Added stable verifier exit codes: `0` for allow, `10` for deny, and `2` for
+  verifier errors.
+- Added compact redacted audit output and optional proof-bundle writing for CI
+  artifacts.
+- Added a sample GitHub Actions workflow for the supply-chain trust gate.
+- Added supply-chain trust gate documentation, maintainer recruitment context,
+  and a Sigstore/SLSA comparison.
+- Added generated supply-chain trust gate JSON artifacts, PNG, and GIF assets.
+
+### Changed
+
+- Bumped the package version to `0.15.0`.
+- Linked the supply-chain trust gate example from the documentation index,
+  examples demo map, and CLI reference.
+
+### Verified
+
+- Added focused tests for accepted maintainer attestations, unknown issuers,
+  disallowed roles, revoked attestations, stale revocation feeds, and CLI exit
+  codes.
+- Verified the checked-in demo artifacts with `genesis-mesh supply-chain
+  verify`: allow before revocation and deny after revocation feed import.
+- Ran the full test suite: `242 passed`.
+- Ran mypy, compileall, Sphinx documentation build with warnings treated as
+  errors, and `git diff --check`.
+
+### Note
+
+- This release implements the supply-chain wedge. It does not replace package
+  registries, transparency logs, Sigstore, SLSA, npm provenance, PyPI
+  attestations, or GitHub artifact attestations.
+- The v0.17 external-operator adoption proof remains separate and still
+  requires a named non-maintainer operator.
+
 ## v0.14.0 - External Operator Adoption Readiness
 
 ### Added

@@ -1,0 +1,27 @@
+name: Supply-chain trust gate example
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify-maintainer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Genesis Mesh
+        run: python -m pip install genesis-mesh==0.15.0
+
+      - name: Verify portable maintainer trust
+        run: |
+          genesis-mesh supply-chain verify \
+            --attestation docs/examples/assets/supply-chain-trust-gate/maintainer-attestation.json \
+            --treaty docs/examples/assets/supply-chain-trust-gate/recognition-treaty.json \
+            --treaty-issuer-public-key "$(cat docs/examples/assets/supply-chain-trust-gate/treaty-issuer-public-key.txt)" \
+            --project-id pypi:demo-package \
+            --repository https://github.com/example/demo-package \
+            --proof-bundle supply-chain-trust-gate-proof.json

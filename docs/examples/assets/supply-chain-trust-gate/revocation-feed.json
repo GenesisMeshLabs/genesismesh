@@ -1,0 +1,19 @@
+{
+  "feed_id": "demo-revocation-feed",
+  "issued_at": "2026-06-03T12:10:00Z",
+  "issued_by": "project-a-na",
+  "issuer_sovereign_id": "project-a",
+  "revocation_reasons": {
+    "demo-maintainer-attestation": "maintainer_key_rotated"
+  },
+  "revoked_attestation_ids": [
+    "demo-maintainer-attestation"
+  ],
+  "sequence": 2,
+  "signatures": [
+    {
+      "key_id": "project-a-na",
+      "sig": "dDsrJmxJPWBBfGRNCpbz1ffAYINH8sk1gbHlaQZGTNKSBJTgKkorAYevvzUoR2xxXgJ4g9Me6AHnQfF8aC8LAA=="
+    }
+  ]
+}

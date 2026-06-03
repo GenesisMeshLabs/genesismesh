@@ -37,6 +37,7 @@ flowchart TD
         A10[Cross-Sovereign Revocation]
         A11[Connectome]
         A12[Independent Sovereigns]
+        A13[Supply-Chain Trust Gate]
     end
 
     subgraph B[Part B - Capacity Baselines]
@@ -50,8 +51,8 @@ flowchart TD
         C4[Docker Compose NA]
     end
 
-    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11 --> A12
-    A12 --> B1
+    A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11 --> A12 --> A13
+    A13 --> B1
     C1 --> C2 --> C3 --> C4
 ```
 
@@ -1119,11 +1120,72 @@ Full walkthrough:
 
 ---
 
+## 13. Supply-Chain Trust Gate Demo
+
+This demo applies cross-sovereign trust to a release gate. Project A issues a
+portable maintainer attestation for Alice. Project B recognizes Project A for a
+narrow release-maintainer role. CI accepts Alice before revocation and rejects
+the same attestation after importing Project A's signed revocation feed.
+
+```{mermaid}
+sequenceDiagram
+    participant A as Project A Sovereign
+    participant B as Project B Sovereign
+    participant CI as CI / Release Gate
+
+    A->>A: Issue maintainer attestation
+    B->>B: Sign recognition treaty
+    CI->>CI: Verify attestation + treaty
+    CI-->>B: allow release action
+    A->>A: Revoke attestation
+    A-->>CI: Signed revocation feed
+    CI->>CI: Verify same attestation + feed
+    CI-->>B: deny release action
+```
+
+```{image} assets/images/genesis-mesh-supply-chain-trust-gate.gif
+:alt: Supply-chain trust gate proof showing allow before revocation and deny after revocation
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-supply-chain-trust-gate.png
+:alt: Static screenshot of the Genesis Mesh supply-chain trust gate demo
+:class: screenshot
+```
+
+Run the asset and artifact generator:
+
+```powershell
+python docs\examples\assets\scripts\supply-chain-trust-gate-demo.py
+```
+
+Expected proof:
+
+```text
+==> CI verifies Alice before revocation
+    accepted:     True
+    reason:       accepted
+    exit code:    0
+
+==> CI verifies the same attestation after feed import
+    accepted:     False
+    reason:       attestation_locally_revoked
+    exit code:    10
+```
+
+Full walkthrough:
+
+- [](supply-chain-trust-gate.md)
+
+---
+
 # Part B - Capacity Baselines
 
 Part B turns the cooperative-agent example into measured local operating data.
 
-## 13. Cooperative Agent Capacity Baseline
+## 14. Cooperative Agent Capacity Baseline
 
 This benchmark measures how the multi-agent workflow behaves as the number of
 knowledge agents increases on one host.
@@ -1222,7 +1284,7 @@ Full walkthrough:
 
 Part C demonstrates local packaging, installation, and operational startup paths.
 
-## 14. In-Process Smoke Demo
+## 15. In-Process Smoke Demo
 
 The fastest way to see Genesis Mesh behavior end to end is the local smoke
 workflow. It runs a Network Authority in process, creates operator-authorized
@@ -1294,7 +1356,7 @@ Policy manifest received: policy-TEST-v0.1
 All smoke-test components completed.
 ```
 
-## 15. Live CLI Process Smoke Demo
+## 16. Live CLI Process Smoke Demo
 
 The in-process demo is intentionally quick. The next walkthrough runs a real
 Network Authority process, creates an invite through the admin CLI, joins a node,
@@ -1355,7 +1417,7 @@ Node:
   valid: True
 ```
 
-## 16. Docker Image Smoke Demo
+## 17. Docker Image Smoke Demo
 
 The image demo checks that the container builds, runs as the non-root `genesis`
 user, imports the application modules, and fails closed when required runtime
@@ -1413,7 +1475,7 @@ docker run --rm -e SERVICE_ROLE=node genesis-mesh:demo
 # exits 1: genesis block not mounted
 ```
 
-## 17. Docker Compose Network Authority Example
+## 18. Docker Compose Network Authority Example
 
 The Compose demo starts the Network Authority through the same container
 entrypoint used by the image smoke checks, then probes `/healthz`, `/readyz`, and
@@ -1481,6 +1543,7 @@ and starts Gunicorn instead of the Flask development server.
 - Multi-hop routing and packet forwarding
 - Automatic route failover and recovery
 - Multi-agent workflow routing with provenance
+- Supply-chain release gate enforcement with portable maintainer trust
 - Cooperative-agent capacity baseline reporting
 - Docker packaging and local deployment
 

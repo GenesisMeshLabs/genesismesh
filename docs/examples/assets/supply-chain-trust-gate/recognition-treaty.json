@@ -1,0 +1,34 @@
+{
+  "expires_at": "2036-01-01T00:00:00Z",
+  "issued_at": "2026-06-03T12:00:00Z",
+  "issued_by": "project-b-na",
+  "issuer_sovereign_id": "project-b",
+  "metadata": {
+    "demo": "supply-chain-trust-gate"
+  },
+  "scope": {
+    "accepted_statuses": [
+      "active"
+    ],
+    "allowed_roles": [
+      "role:supply-chain:release-maintainer"
+    ],
+    "claims": {
+      "profile": "genesis-mesh/supply-chain-maintainer/v1",
+      "project_id": "pypi:demo-package"
+    }
+  },
+  "signatures": [
+    {
+      "key_id": "project-b-na",
+      "sig": "2tC+6UDf3anV86chuuyJsEnX0ZDlIr77OGK1KzatwtV/2TwgjQtCGyGYH30tJ0pQw84vOlhW3DXoLG/SQhumDg=="
+    }
+  ],
+  "status": "active",
+  "subject_public_keys": [
+    "Zr5+Myx6RTMyvZ0Kf32wVfXF7xoGraZtmLOftoEMRzo="
+  ],
+  "subject_sovereign_id": "project-a",
+  "treaty_id": "demo-recognition-treaty",
+  "valid_from": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,26 @@
+{
+  "attestation_id": "demo-maintainer-attestation",
+  "claims": {
+    "delegated_role": "release-maintainer",
+    "profile": "genesis-mesh/supply-chain-maintainer/v1",
+    "project_id": "pypi:demo-package",
+    "repository": "https://github.com/example/demo-package"
+  },
+  "expires_at": "2036-01-01T00:00:00Z",
+  "issued_at": "2026-06-03T12:00:00Z",
+  "issued_by": "project-a-na",
+  "issuer_sovereign_id": "project-a",
+  "roles": [
+    "role:supply-chain:release-maintainer"
+  ],
+  "signatures": [
+    {
+      "key_id": "project-a-na",
+      "sig": "uibo0opxg1TyUtYoxmQr7uB6RAJbcu9qOcxet7IYqvLb0VelTznp6kOXTh6qmuL3rlw5n/0QnZ6ruWSdvVgnBg=="
+    }
+  ],
+  "status": "active",
+  "subject_id": "alice@example.dev",
+  "subject_public_key": "YWxpY2UtZGVtby1wdWJsaWMta2V5",
+  "valid_from": "2026-01-01T00:00:00Z"
+}
