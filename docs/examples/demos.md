@@ -9,7 +9,7 @@ into three parts:
   as the local network grows.
 - **Part C - Packaging and operations smoke tests** prove the package builds,
   installs, and ships in expected shapes (in-process, CLI process, Docker image,
-  Docker Compose).
+  Docker Compose, managed-sovereign restore drills).
 
 Most demos can run against the live deployment at
 [https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
@@ -49,11 +49,12 @@ flowchart TD
         C2[Live CLI Process Smoke]
         C3[Docker Image Smoke]
         C4[Docker Compose NA]
+        C5[Managed Sovereign Drill]
     end
 
     A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11 --> A12 --> A13
     A13 --> B1
-    C1 --> C2 --> C3 --> C4
+    C1 --> C2 --> C3 --> C4 --> C5
 ```
 
 ---
@@ -1533,6 +1534,67 @@ and starts Gunicorn instead of the Flask development server.
 
 ---
 
+## 19. Managed Sovereign Readiness Drill
+
+This demo proves the v0.16 managed-sovereign operations path: create an online
+backup, mutate trust state, export redacted audit events, restore the database,
+and reopen a Network Authority that still passes `/healthz`, `/readyz`, and
+`/connectome.json`.
+
+```{mermaid}
+sequenceDiagram
+    participant NA as Managed NA
+    participant DB as SQLite DB
+    participant CLI as genesis-mesh managed
+    participant C as Connectome
+
+    NA->>DB: Persist treaty + audit event
+    CLI->>DB: managed backup
+    NA->>DB: Mutate state
+    CLI->>DB: managed audit-export
+    CLI->>DB: managed restore
+    NA->>C: GET /connectome.json
+    C-->>NA: restored treaty state
+```
+
+```{image} assets/images/genesis-mesh-managed-sovereign.gif
+:alt: Managed sovereign backup, audit export, restore, and endpoint drill
+:class: screenshot
+```
+
+Static screenshot:
+
+```{image} assets/images/genesis-mesh-managed-sovereign.png
+:alt: Static screenshot of the Genesis Mesh managed sovereign readiness drill
+:class: screenshot
+```
+
+Run the local drill and asset generator:
+
+```powershell
+python docs\examples\assets\scripts\managed-sovereign-demo.py
+```
+
+Expected proof:
+
+```text
+==> Redacted audit export written
+    events:      2
+    redacted:    True
+
+==> Restored NA reopened cleanly
+    healthz:     ok
+    readyz:      ready
+    treaties:    1
+    active edges: 1
+```
+
+Full walkthrough:
+
+- [](managed-sovereign-readiness.md)
+
+---
+
 ## Demonstrated Capabilities
 
 - Identity and enrollment
@@ -1544,6 +1606,7 @@ and starts Gunicorn instead of the Flask development server.
 - Automatic route failover and recovery
 - Multi-agent workflow routing with provenance
 - Supply-chain release gate enforcement with portable maintainer trust
+- Managed sovereign backup, audit export, restore, and endpoint drill
 - Cooperative-agent capacity baseline reporting
 - Docker packaging and local deployment
 

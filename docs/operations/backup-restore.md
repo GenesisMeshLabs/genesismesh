@@ -19,7 +19,18 @@ Also keep offline backups of:
 
 ## Online Backup
 
-Use the database backup API from operational tooling or a maintenance shell:
+Use the managed backup command:
+
+```bash
+genesis-mesh managed backup \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --output /backups/genesis-mesh-na-YYYYMMDDHHMMSS.db
+```
+
+The command uses SQLite's online backup API, so it can copy a consistent
+snapshot while the service is running.
+
+The same API is available from a maintenance shell:
 
 ```python
 from genesis_mesh.na_service.db import NADatabase
@@ -28,13 +39,19 @@ db = NADatabase("/data/genesis_mesh_na.db")
 db.backup("/backups/genesis_mesh_na-YYYYMMDD.db")
 ```
 
-The implementation uses SQLite's online backup API, so it can copy a consistent
-snapshot while the service is running.
-
 ## Restore
 
 1. Stop the Network Authority process.
-2. Copy the backup database to the configured `DB_PATH`.
+2. Restore the backup database to the configured `DB_PATH`:
+
+   ```bash
+   genesis-mesh managed restore \
+     --db-path /var/lib/genesis-mesh/na.db \
+     --backup /backups/genesis-mesh-na-YYYYMMDDHHMMSS.db \
+     --pre-restore-backup /backups/na-before-restore.db \
+     --yes
+   ```
+
 3. Start the Network Authority.
 4. Check readiness:
 
@@ -49,6 +66,24 @@ snapshot while the service is running.
    curl http://localhost:8443/crl
    curl http://localhost:8443/policy
    ```
+
+6. Confirm Connectome state when the sovereign uses cross-sovereign trust:
+
+   ```bash
+   curl http://localhost:8443/connectome.json
+   ```
+
+## Restore Drill Checklist
+
+- [ ] Create a backup from a non-production NA database.
+- [ ] Mutate non-production state after the backup.
+- [ ] Stop the test NA process.
+- [ ] Restore the backup with `genesis-mesh managed restore --yes`.
+- [ ] Start the test NA process.
+- [ ] Confirm `/healthz` returns `{"status":"ok"}`.
+- [ ] Confirm `/readyz` returns `{"status":"ready"}`.
+- [ ] Confirm `/connectome.json` matches the expected restored trust state.
+- [ ] Export audit events after the drill and store the drill result.
 
 ## Operational Notes
 

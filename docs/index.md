@@ -156,6 +156,9 @@ operations/infrastructure
 operations/terraform-deployment
 operations/kubernetes-deployment
 operations/monitoring
+operations/audit-export
+operations/incident-response
+operations/managed-sovereign
 operations/revocation
 operations/backup-restore
 ```
@@ -185,6 +188,7 @@ examples/cross-sovereign-revocation
 examples/connectome
 examples/independent-sovereigns
 examples/supply-chain-trust-gate
+examples/managed-sovereign-readiness
 examples/maintainer-sovereign-pitch
 examples/sigstore-comparison
 examples/capacity-baseline
