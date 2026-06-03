@@ -24,6 +24,7 @@ from ...trust import (
     verify_recognition_treaty,
     verify_sovereign_revocation_feed,
 )
+from .operator_ui import OPERATOR_CONSOLE_CSS
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -70,7 +71,7 @@ def _subject_public_keys_for_issuer(
 
 
 def _connectome_html(view: dict) -> str:
-    """Render a small self-contained operator Connectome page."""
+    """Render the operator Connectome page."""
     summary = view["summary"]
     edge_rows = "\n".join(
         "<tr>"
@@ -80,7 +81,7 @@ def _connectome_html(view: dict) -> str:
         f"<td><code>{escape(str(edge.get('treaty_id', '')))}</code></td>"
         "</tr>"
         for edge in view["recognition_edges"]
-    ) or '<tr><td colspan="4">No recognition edges</td></tr>'
+    ) or '<tr class="empty-row"><td colspan="4">No recognition edges</td></tr>'
     revoked_rows = "\n".join(
         "<tr>"
         f"<td>{escape(str(item.get('type', '')))}</td>"
@@ -89,7 +90,7 @@ def _connectome_html(view: dict) -> str:
         f"<td>{escape(str(item.get('revoked_at', '')))}</td>"
         "</tr>"
         for item in view["revoked_trust_material"]
-    ) or '<tr><td colspan="4">No revoked trust material</td></tr>'
+    ) or '<tr class="empty-row"><td colspan="4">No revoked trust material</td></tr>'
     blast_rows = "\n".join(
         "<tr>"
         f"<td><code>{escape(str(item.get('id', '')))}</code></td>"
@@ -98,7 +99,7 @@ def _connectome_html(view: dict) -> str:
         f"<td>{escape(str(item.get('reason', '')))}</td>"
         "</tr>"
         for item in view["revocation_blast_radius"]
-    ) or '<tr><td colspan="4">No imported revocation blast radius</td></tr>'
+    ) or '<tr class="empty-row"><td colspan="4">No imported revocation blast radius</td></tr>'
 
     return f"""<!doctype html>
 <html lang="en">
@@ -107,44 +108,66 @@ def _connectome_html(view: dict) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Genesis Mesh Connectome</title>
   <style>
-    body {{ margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e5e7eb; }}
-    main {{ max-width: 1120px; margin: 0 auto; padding: 40px 24px; }}
-    h1 {{ margin: 0 0 8px; font-size: 34px; }}
-    h2 {{ margin-top: 36px; }}
-    p {{ color: #cbd5e1; max-width: 760px; line-height: 1.55; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0; }}
-    .card {{ background: #111827; border: 1px solid #334155; border-radius: 10px; padding: 16px; }}
-    .label {{ color: #94a3b8; font-size: 13px; }}
-    .value {{ font-size: 28px; font-weight: 700; margin-top: 4px; }}
-    table {{ border-collapse: collapse; width: 100%; background: #111827; border: 1px solid #334155; }}
-    th, td {{ border-bottom: 1px solid #334155; padding: 10px 12px; text-align: left; vertical-align: top; }}
-    th {{ color: #93c5fd; background: #172033; }}
-    code {{ color: #bfdbfe; word-break: break-all; }}
-    a {{ color: #93c5fd; }}
+{OPERATOR_CONSOLE_CSS}
   </style>
 </head>
 <body>
-<main>
-  <h1>Genesis Mesh Connectome</h1>
-  <p>
-    Operator view of sovereign recognition edges, revoked trust material, and
-    imported revocation blast radius. This page is derived from
-    <a href="/recognition-graph">/recognition-graph</a>; it is not a separate
-    source of trust.
-  </p>
-  <div class="grid">
-    <div class="card"><div class="label">Sovereigns</div><div class="value">{summary["sovereign_count"]}</div></div>
-    <div class="card"><div class="label">Recognition edges</div><div class="value">{summary["recognition_edge_count"]}</div></div>
-    <div class="card"><div class="label">Active edges</div><div class="value">{summary["active_edge_count"]}</div></div>
-    <div class="card"><div class="label">Imported revocations</div><div class="value">{summary["imported_revocation_count"]}</div></div>
+<main class="shell operator-console">
+  <div class="hero">
+    <div class="kicker"><span class="status-dot"></span> Connectome derived view</div>
+    <h1>Genesis Mesh Connectome</h1>
+    <p class="lead">
+      Operator view of sovereign recognition edges, revoked trust material, and
+      imported revocation blast radius. This page is derived from
+      <a href="/recognition-graph">/recognition-graph</a>; it is not a separate
+      source of trust.
+    </p>
+    <div class="stats" aria-label="Connectome summary">
+      <div class="stat"><span>Sovereigns</span><strong>{summary["sovereign_count"]}</strong></div>
+      <div class="stat"><span>Recognition Edges</span><strong>{summary["recognition_edge_count"]}</strong></div>
+      <div class="stat"><span>Active Edges</span><strong>{summary["active_edge_count"]}</strong></div>
+      <div class="stat"><span>Imported Revocations</span><strong>{summary["imported_revocation_count"]}</strong></div>
+    </div>
   </div>
-  <p><a href="/connectome.json">Download Connectome JSON</a></p>
-  <h2>Recognition Edges</h2>
-  <table><thead><tr><th>From</th><th>To</th><th>Status</th><th>Treaty</th></tr></thead><tbody>{edge_rows}</tbody></table>
-  <h2>Revoked Trust Material</h2>
-  <table><thead><tr><th>Type</th><th>ID</th><th>Reason</th><th>Revoked at</th></tr></thead><tbody>{revoked_rows}</tbody></table>
-  <h2>Revocation Blast Radius</h2>
-  <table><thead><tr><th>Revoked attestation</th><th>Issuer</th><th>Affected accepting sovereigns</th><th>Reason</th></tr></thead><tbody>{blast_rows}</tbody></table>
+
+  <section>
+    <div class="section-head">
+      <h2>Recognition Edges</h2>
+      <p><a class="action-link" href="/connectome.json">Download Connectome JSON</a></p>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>From</th><th>To</th><th>Status</th><th>Treaty</th></tr></thead>
+      <tbody>{edge_rows}</tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Revoked Trust Material</h2>
+      <p>Trust material imported or revoked by sovereign feeds.</p>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Type</th><th>ID</th><th>Reason</th><th>Revoked at</th></tr></thead>
+      <tbody>{revoked_rows}</tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Revocation Blast Radius</h2>
+      <p>Accepting sovereigns affected by imported revocations.</p>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Revoked attestation</th><th>Issuer</th><th>Affected accepting sovereigns</th><th>Reason</th></tr></thead>
+      <tbody>{blast_rows}</tbody>
+    </table>
+  </section>
+
+  <div class="notice">
+    The Connectome explains current trust state. It does not create, mutate, or
+    authorize recognition; signed treaties and revocation feeds remain the
+    source of trust.
+  </div>
 </main>
 </body>
 </html>"""
