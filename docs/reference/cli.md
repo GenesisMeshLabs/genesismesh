@@ -177,6 +177,31 @@ genesis-mesh proof remote \
 In adoption-proof mode, the CLI refuses to write a passing proof unless the
 issuer is marked external and confirms control of keys and infrastructure.
 
+### `genesis-mesh supply-chain verify`
+
+Verifies whether a portable maintainer attestation authorizes a CI or release
+gate under a signed recognition treaty.
+
+```bash
+genesis-mesh supply-chain verify \
+  --attestation docs/examples/assets/supply-chain-trust-gate/maintainer-attestation.json \
+  --treaty docs/examples/assets/supply-chain-trust-gate/recognition-treaty.json \
+  --treaty-issuer-public-key "$(cat docs/examples/assets/supply-chain-trust-gate/treaty-issuer-public-key.txt)" \
+  --project-id pypi:demo-package \
+  --repository https://github.com/example/demo-package \
+  --proof-bundle supply-chain-trust-gate-proof.json
+```
+
+Stable exit codes:
+
+- `0`: allow.
+- `10`: deny.
+- `2`: verifier error.
+
+The command emits compact audit output and does not print private keys,
+signatures, or full signed payload bodies. Add `--revocation-feed` to deny the
+same attestation after an issuer publishes a signed revocation feed.
+
 ### `genesis-mesh proof cleanup`
 
 Backs up a Network Authority SQLite database and removes only proof artifacts:

@@ -138,33 +138,33 @@ Project B / CI
 
 ### Phase 1 - Maintainer Attestation Profile
 
-- [ ] Define a documented claim profile for project maintainers.
-- [ ] Include project ID, subject key, delegated role, validity window, and
+- [x] Define a documented claim profile for project maintainers.
+- [x] Include project ID, subject key, delegated role, validity window, and
       optional repository metadata.
-- [ ] Reuse existing membership attestation primitives where possible.
-- [ ] Add validation helpers if the generic model is too permissive for CI.
+- [x] Reuse existing membership attestation primitives where possible.
+- [x] Add validation helpers if the generic model is too permissive for CI.
 
 ### Phase 2 - CI Verifier
 
-- [ ] Add a CLI command that verifies an attestation against a treaty and
+- [x] Add a CLI command that verifies an attestation against a treaty and
       optional imported revocation state.
-- [ ] Return stable exit codes for allow/deny/error.
-- [ ] Print compact audit output suitable for CI logs.
-- [ ] Avoid printing private keys, signatures, or full request bodies.
+- [x] Return stable exit codes for allow/deny/error.
+- [x] Print compact audit output suitable for CI logs.
+- [x] Avoid printing private keys, signatures, or full request bodies.
 
 ### Phase 3 - GitHub Actions Example
 
-- [ ] Add a sample workflow that runs the verifier before a release action.
-- [ ] Use checked-in demo artifacts or ephemeral local proof setup.
-- [ ] Demonstrate accepted before revocation.
-- [ ] Demonstrate rejected after revocation import.
+- [x] Add a sample workflow that runs the verifier before a release action.
+- [x] Use checked-in demo artifacts or ephemeral local proof setup.
+- [x] Demonstrate accepted before revocation.
+- [x] Demonstrate rejected after revocation import.
 
 ### Phase 4 - Docs and Assets
 
-- [ ] Add `docs/examples/supply-chain-trust-gate.md`.
-- [ ] Add an asset script under `docs/examples/assets/scripts/`.
-- [ ] Generate PNG/GIF proof assets.
-- [ ] Link the example from `docs/examples/demos.md` and `docs/index.md`.
+- [x] Add `docs/examples/supply-chain-trust-gate.md`.
+- [x] Add an asset script under `docs/examples/assets/scripts/`.
+- [x] Generate PNG/GIF proof assets.
+- [x] Link the example from `docs/examples/demos.md` and `docs/index.md`.
 
 ## Verification
 
@@ -183,9 +183,9 @@ possible and with focused tests for the verifier command.
 
 Do not tag v0.15.0 until:
 
-- [ ] A maintainer attestation can authorize a CI/release gate.
-- [ ] Revocation blocks the same maintainer after feed import.
-- [ ] The gate provides stable exit codes and human-readable reasons.
-- [ ] Docs clearly state that registry integration is future work.
+- [x] A maintainer attestation can authorize a CI/release gate.
+- [x] Revocation blocks the same maintainer after feed import.
+- [x] The gate provides stable exit codes and human-readable reasons.
+- [x] Docs clearly state that registry integration is future work.
 - [ ] Adoption checkpoint has been updated with real conversation counts.
-- [ ] Full verification passes.
+- [x] Full verification passes.

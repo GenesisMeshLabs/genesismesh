@@ -10,10 +10,21 @@ from .treaty import (
     verify_recognition_treaty,
     verify_sovereign_revocation_feed,
 )
+from .supply_chain import (
+    DEFAULT_DELEGATED_ROLE,
+    DEFAULT_MAINTAINER_ROLE,
+    SUPPLY_CHAIN_MAINTAINER_PROFILE,
+    SupplyChainGateResult,
+    verify_supply_chain_maintainer_gate,
+)
 
 __all__ = [
     "AttestationVerificationResult",
+    "DEFAULT_DELEGATED_ROLE",
+    "DEFAULT_MAINTAINER_ROLE",
     "RevocationFeedVerificationResult",
+    "SUPPLY_CHAIN_MAINTAINER_PROFILE",
+    "SupplyChainGateResult",
     "TreatyAttestationVerificationResult",
     "TreatyVerificationResult",
     "build_connectome_view",
@@ -22,4 +33,5 @@ __all__ = [
     "verify_membership_attestation",
     "verify_recognition_treaty",
     "verify_sovereign_revocation_feed",
+    "verify_supply_chain_maintainer_gate",
 ]
