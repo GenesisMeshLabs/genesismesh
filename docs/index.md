@@ -144,12 +144,15 @@ reference/configuration
 
 ```{toctree}
 :maxdepth: 2
+:caption: Operators
+
+operators/index
+```
+
+```{toctree}
+:maxdepth: 2
 :caption: Operations
 
-operators/quickstart
-operators/security-checklist
-operators/recognition-playbook
-operators/proof-bundle-schema
 operations/deployment
 operations/vm-bootstrap
 operations/infrastructure

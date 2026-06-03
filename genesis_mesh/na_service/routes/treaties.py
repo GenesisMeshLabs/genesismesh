@@ -6,6 +6,7 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from html import escape
+from math import cos, pi, sin
 from typing import TYPE_CHECKING
 
 from flask import Blueprint, Response, jsonify, request
@@ -24,7 +25,7 @@ from ...trust import (
     verify_recognition_treaty,
     verify_sovereign_revocation_feed,
 )
-from .operator_ui import OPERATOR_CONSOLE_CSS
+from ..operator_console.rendering import page_document
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -70,9 +71,92 @@ def _subject_public_keys_for_issuer(
     return sorted(keys)
 
 
+def _connectome_graph(view: dict) -> str:
+    """Render a compact SVG recognition graph for the Connectome page."""
+    sovereign_ids = {
+        str(item.get("sovereign_id", ""))
+        for item in view.get("sovereigns", [])
+        if item.get("sovereign_id")
+    }
+    for edge in view.get("recognition_edges", []):
+        sovereign_ids.add(str(edge.get("from", "")))
+        sovereign_ids.add(str(edge.get("to", "")))
+    sovereigns = sorted(item for item in sovereign_ids if item)
+
+    if not sovereigns:
+        return """
+            <div class="connectome-graph graph-empty">
+                <div>
+                    <strong>No sovereign recognition graph yet.</strong><br>
+                    Issue or import a recognition treaty to create the first edge.
+                </div>
+            </div>
+        """
+
+    width = 900
+    height = 360
+    radius = 118 if len(sovereigns) > 2 else 150
+    center_x = width / 2
+    center_y = height / 2
+    positions: dict[str, tuple[float, float]] = {}
+    if len(sovereigns) == 1:
+        positions[sovereigns[0]] = (center_x, center_y)
+    elif len(sovereigns) == 2:
+        positions[sovereigns[0]] = (center_x - 210, center_y)
+        positions[sovereigns[1]] = (center_x + 210, center_y)
+    else:
+        for index, sovereign in enumerate(sovereigns):
+            angle = (2 * pi * index / len(sovereigns)) - (pi / 2)
+            positions[sovereign] = (
+                center_x + radius * cos(angle),
+                center_y + radius * sin(angle),
+            )
+
+    edge_markup = []
+    for edge in view.get("recognition_edges", []):
+        source = str(edge.get("from", ""))
+        target = str(edge.get("to", ""))
+        if source not in positions or target not in positions:
+            continue
+        x1, y1 = positions[source]
+        x2, y2 = positions[target]
+        status = str(edge.get("status", ""))
+        treaty_id = str(edge.get("treaty_id", ""))
+        css_class = "graph-edge graph-edge-revoked" if status == "revoked" else "graph-edge"
+        edge_markup.append(
+            f'<line class="{css_class}" x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"></line>'
+        )
+        edge_markup.append(
+            f'<text class="graph-edge-label" x="{((x1 + x2) / 2):.1f}" y="{((y1 + y2) / 2 - 10):.1f}">'
+            f'{escape(status or "edge")} {escape(treaty_id[:8])}</text>'
+        )
+
+    node_markup = []
+    for sovereign, (x, y) in positions.items():
+        node_markup.append(f'<circle class="graph-node" cx="{x:.1f}" cy="{y:.1f}" r="46"></circle>')
+        node_markup.append(
+            f'<text class="graph-node-label" x="{x:.1f}" y="{(y + 5):.1f}">{escape(sovereign)}</text>'
+        )
+
+    return f"""
+        <div class="connectome-graph" role="img" aria-label="Sovereign recognition graph">
+            <svg viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">
+                {"".join(edge_markup)}
+                {"".join(node_markup)}
+            </svg>
+        </div>
+    """
+
+
 def _connectome_html(view: dict) -> str:
     """Render the operator Connectome page."""
     summary = view["summary"]
+    graph = _connectome_graph(view)
+    has_trust_state = bool(
+        view["recognition_edges"]
+        or view["revoked_trust_material"]
+        or view["revocation_blast_radius"]
+    )
     edge_rows = "\n".join(
         "<tr>"
         f"<td>{escape(str(edge.get('from', '')))}</td>"
@@ -101,35 +185,7 @@ def _connectome_html(view: dict) -> str:
         for item in view["revocation_blast_radius"]
     ) or '<tr class="empty-row"><td colspan="4">No imported revocation blast radius</td></tr>'
 
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Genesis Mesh Connectome</title>
-  <style>
-{OPERATOR_CONSOLE_CSS}
-  </style>
-</head>
-<body>
-<main class="shell operator-console">
-  <div class="hero">
-    <div class="kicker"><span class="status-dot"></span> Connectome derived view</div>
-    <h1>Genesis Mesh Connectome</h1>
-    <p class="lead">
-      Operator view of sovereign recognition edges, revoked trust material, and
-      imported revocation blast radius. This page is derived from
-      <a href="/recognition-graph">/recognition-graph</a>; it is not a separate
-      source of trust.
-    </p>
-    <div class="stats" aria-label="Connectome summary">
-      <div class="stat"><span>Sovereigns</span><strong>{summary["sovereign_count"]}</strong></div>
-      <div class="stat"><span>Recognition Edges</span><strong>{summary["recognition_edge_count"]}</strong></div>
-      <div class="stat"><span>Active Edges</span><strong>{summary["active_edge_count"]}</strong></div>
-      <div class="stat"><span>Imported Revocations</span><strong>{summary["imported_revocation_count"]}</strong></div>
-    </div>
-  </div>
-
+    trust_sections = f"""
   <section>
     <div class="section-head">
       <h2>Recognition Edges</h2>
@@ -162,15 +218,59 @@ def _connectome_html(view: dict) -> str:
       <tbody>{blast_rows}</tbody>
     </table>
   </section>
+"""
+    if not has_trust_state:
+        trust_sections = """
+  <section>
+    <div class="section-head">
+      <h2>Trust State</h2>
+      <p><a class="action-link" href="/connectome.json">Download Connectome JSON</a></p>
+    </div>
+    <div class="empty-state">
+      <strong>No recognition or revocation state yet.</strong>
+      <span>
+        This sovereign has not imported treaties, recognized another sovereign,
+        or imported revocation material. Once trust state exists, recognition
+        edges, revoked material, and blast radius tables appear here.
+      </span>
+    </div>
+  </section>
+"""
+
+    body = f"""
+  <div class="hero">
+    <h1>Genesis Mesh Connectome</h1>
+    <p class="lead">
+      Operator view of sovereign recognition edges, revoked trust material, and
+      imported revocation blast radius. This page is derived from
+      <a href="/recognition-graph">/recognition-graph</a>; it is not a separate
+      source of trust.
+    </p>
+    <div class="stats" aria-label="Connectome summary">
+      <div class="stat"><span>Sovereigns</span><strong>{summary["sovereign_count"]}</strong></div>
+      <div class="stat"><span>Recognition Edges</span><strong>{summary["recognition_edge_count"]}</strong></div>
+      <div class="stat"><span>Active Edges</span><strong>{summary["active_edge_count"]}</strong></div>
+      <div class="stat"><span>Imported Revocations</span><strong>{summary["imported_revocation_count"]}</strong></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>Sovereign Graph</h2>
+      <p>Direct recognition edges derived from the recognition graph.</p>
+    </div>
+    {graph}
+  </section>
+
+  {trust_sections}
 
   <div class="notice">
     The Connectome explains current trust state. It does not create, mutate, or
     authorize recognition; signed treaties and revocation feeds remain the
     source of trust.
   </div>
-</main>
-</body>
-</html>"""
+"""
+    return page_document("Genesis Mesh Connectome", "Connectome", body)
 
 
 def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
