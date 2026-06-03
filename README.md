@@ -1,9 +1,7 @@
-<div align="left">
-  <h1>
-    <img src="genesis_mesh/na_service/operator_console/static/logo.svg" alt="Genesis Mesh logo" width="80" style="vertical-align: middle; transform: translateY(4px);">
-    <span style="vertical-align: middle;">Genesis Mesh</span>
-  </h1>
-</div>
+<h1>
+  <img src="genesis_mesh/na_service/operator_console/static/logo.svg" alt="Genesis Mesh logo" width="80" align="absmiddle">
+  Genesis Mesh
+</h1>
 
 [![PyPI](https://img.shields.io/pypi/v/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Python](https://img.shields.io/pypi/pyversions/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
