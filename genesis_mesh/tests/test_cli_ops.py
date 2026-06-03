@@ -348,6 +348,19 @@ def test_remote_proof_runs_against_two_configured_endpoints(tmp_path):
                     "proof=pytest",
                     "--proof-bundle",
                     str(bundle_path),
+                    "--adoption-proof",
+                    "--acceptor-operator-label",
+                    "Genesis Core",
+                    "--acceptor-operator-type",
+                    "maintainer",
+                    "--issuer-operator-label",
+                    "External Operator",
+                    "--issuer-operator-type",
+                    "external",
+                    "--issuer-controls-keys",
+                    "--issuer-controls-infrastructure",
+                    "--operator-assistance-note",
+                    "No protocol changes required.",
                 ],
             )
 
@@ -359,6 +372,34 @@ def test_remote_proof_runs_against_two_configured_endpoints(tmp_path):
     assert bundle["pre_revocation"]["accepted"] is True
     assert bundle["post_revocation"]["accepted"] is False
     assert bundle["post_revocation"]["reason"] == "attestation_locally_revoked"
+    assert bundle["operators"]["adoption_proof"] is True
+    assert bundle["operators"]["issuer"]["operator_type"] == "external"
+    assert bundle["operators"]["issuer"]["controls_keys"] is True
+    assert bundle["operators"]["issuer"]["controls_infrastructure"] is True
+    assert bundle["operators"]["assistance_notes"] == ["No protocol changes required."]
+    assert "operator.key" not in json.dumps(bundle)
+
+
+def test_remote_adoption_proof_requires_external_operator_confirmation(tmp_path):
+    """Adoption-proof mode must not produce weak evidence by accident."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "proof",
+            "remote",
+            "--acceptor",
+            "http://acceptor.example",
+            "--issuer",
+            "http://issuer.example",
+            "--operator-key",
+            str(tmp_path / "operator.key"),
+            "--adoption-proof",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--issuer-operator-type external" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_na_start_reports_missing_config_without_traceback(tmp_path):

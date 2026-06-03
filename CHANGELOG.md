@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.14.0 - External Operator Adoption Readiness
+
+### Added
+
+- Added adoption-proof metadata options to `genesis-mesh proof remote` so a
+  proof bundle can distinguish maintainer-operated infrastructure from an
+  external issuer operator.
+- Added `--adoption-proof` validation requiring the issuer to be marked
+  external and to confirm control of keys and infrastructure before a bundle is
+  accepted as adoption evidence.
+- Added operator packet documentation for external sovereign onboarding:
+  security checklist, recognition playbook, and proof-bundle schema.
+- Linked the operator packet from the documentation index and CLI reference.
+
+### Verified
+
+- Added focused tests for adoption-proof bundle metadata and weak-evidence
+  rejection.
+- Ran the full test suite: `236 passed`.
+- Ran mypy, compileall, Sphinx documentation build with warnings treated as
+  errors, and `git diff --check`.
+
+### Note
+
+- This release ships the implementation and documentation needed for v0.14
+  multi-cloud operation evidence. The external adoption milestone still
+  requires a future external operator to run a sovereign with their own keys and
+  infrastructure.
+
 ## v0.13.0 - Operator-Ready Sovereign Workflows
 
 ### Added
