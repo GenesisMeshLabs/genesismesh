@@ -12,9 +12,11 @@ This file is the operational rulebook for working in the codebase. It does
 **not** restate the product strategy or roadmap. Public project direction lives
 in the documentation site, especially `docs/development/roadmap.md`.
 
-Local maintainer planning files may exist under `ops/`, but those files are
-private working notes and are not required for contributors. Use this file for
-repository conventions and use the public docs for project-facing guidance.
+Maintainer planning files live under `ops/`. They explain release intent,
+strategy, and roadmap context for maintainers, but `CHANGELOG.md`, GitHub
+Releases, and the public docs remain the source of truth for shipped behavior.
+Use this file for repository conventions and use the public docs for
+project-facing guidance.
 
 ---
 
