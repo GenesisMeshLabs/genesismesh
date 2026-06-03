@@ -1,12 +1,10 @@
 name: Deploy Release to Azure VM
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to deploy, usually a release tag such as v0.12.0"
+        description: "Git ref to deploy. Run this workflow from main; use a release tag such as v0.16.1 here."
         required: true
         default: "main"
       services:
@@ -33,7 +31,6 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_VM_NAME: ${{ vars.AZURE_VM_NAME }}
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
       INPUT_REF: ${{ github.event.inputs.ref }}
       INPUT_SERVICES: ${{ github.event.inputs.services }}
 
@@ -46,9 +43,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [ "${GITHUB_REF:-}" != "refs/heads/main" ]; then
+            echo "This workflow must be run from main so Azure OIDC matches the configured federated credential." >&2
+            echo "Current GitHub ref: ${GITHUB_REF:-unknown}" >&2
+            exit 1
+          fi
+
           AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
           AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
-          DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
+          DEPLOY_REF="${INPUT_REF:-main}"
           SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
 
           if [ -z "${AZURE_CLIENT_ID:-}" ]; then
@@ -96,7 +99,7 @@ jobs:
 
           AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
           AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
-          DEPLOY_REF="${RELEASE_TAG:-${INPUT_REF:-main}}"
+          DEPLOY_REF="${INPUT_REF:-main}"
           SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
 
           if ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then

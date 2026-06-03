@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.16.2 - Operator Adoption Console
+
+### Added
+
+- Added a modular operator-console package with shared chrome, generated API
+  metadata, generated CLI reference rendering, and a single protocol surface
+  registry.
+- Added `/swagger.json`, `/api-reference`, and `/cli-reference` to expose
+  read-only operator and developer reference surfaces.
+- Added package-owned console assets, including logo, favicon, shared
+  `styles.css`, and shared `console.js`.
+- Added dark/light mode support, client-side API/CLI search, home-page surface
+  filters, and a scroll-to-top control.
+- Added an operator-facing Connectome graph and a single useful empty state for
+  fresh sovereigns.
+- Added an Operators documentation landing page and made the docs theme use the
+  Genesis Mesh logo.
+- Added a v0.16.2 release plan for the operator adoption console.
+
+### Changed
+
+- Redesigned the Network Authority home page as a compact operator surface map
+  instead of a flat route-card wall.
+- Updated the Connectome page to share the same console chrome and to avoid
+  rendering multiple empty diagnostic tables on fresh deployments.
+- Updated generated API and CLI reference pages to use searchable, read-only
+  reference tables without browser request execution.
+- Updated the Azure VM deployment workflow to run from `main` with an explicit
+  deploy ref, matching the existing Azure federated identity subject.
+- Bumped the package version to `0.16.2`.
+
+### Verified
+
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, pre-commit, pre-push, and `git diff --check`.
+
 ## v0.16.1 - Operator Console Surface Alignment
 
 ### Added

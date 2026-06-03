@@ -164,10 +164,33 @@ def test_connectome_page_renders_html(client, na_service):
     assert b"Recognition Edges" in resp.data
     body = resp.get_data(as_text=True)
     assert 'class="shell operator-console"' in body
-    assert "Connectome derived view" in body
+    assert "Connectome derived view" not in body
+    assert "Sovereign Graph" in body
+    assert "connectome-graph" in body
+    assert "graph-node" in body
     assert "data-table" in body
     assert "Download Connectome JSON" in body
     assert "The Connectome explains current trust state" in body
+    assert "Console" in body
+    assert "API Docs" in body
+    assert "CLI Docs" in body
+    assert "nav-link-active" in body
+    assert 'href="/operator-console-static/styles.css"' in body
+    assert 'src="/operator-console-static/console.js"' in body
+
+
+def test_connectome_page_uses_single_empty_state_when_fresh(client):
+    """A fresh Connectome should not render multiple empty diagnostic tables."""
+    resp = client.get("/connectome")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "No recognition or revocation state yet." in body
+    assert "No recognition edges" not in body
+    assert "No revoked trust material" not in body
+    assert "No imported revocation blast radius" not in body
+    assert "<h2>Trust State</h2>" in body
+    assert "Download Connectome JSON" in body
 
 
 def test_connectome_trust_path_reports_active_and_revoked_edges(client, na_service):
