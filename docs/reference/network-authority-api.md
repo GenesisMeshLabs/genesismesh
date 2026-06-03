@@ -7,7 +7,7 @@ and health.
 flowchart TB
     home["Browser console<br/>/"]
     health["Health and metrics<br/>/healthz /readyz /metrics"]
-    public["Public network data<br/>/genesis /policy /crl"]
+    public["Public network data<br/>/sovereign.json /genesis /policy /crl"]
     enrollment["Enrollment<br/>/join"]
     node_ops["Node operations<br/>/heartbeat /renew"]
     admin["Admin operations<br/>/admin/invite /admin/revoke /admin/policy"]
@@ -63,6 +63,37 @@ revoked certificates, active CRL sequence, and persisted policy versions.
 ### `GET /genesis`
 
 Returns the active genesis block.
+
+### `GET /sovereign.json`
+
+Returns operator-safe public metadata for a sovereign. This is the preferred
+discovery surface for another operator before forming a recognition treaty.
+
+Response excerpt:
+
+```json
+{
+  "sovereign_id": "USG-NB",
+  "network_name": "USG-NB",
+  "network_version": "v0.1",
+  "endpoint": "http://164.92.250.135:8443",
+  "network_authority": {
+    "public_key": "<base64-ed25519-public-key>",
+    "valid_from": "<iso8601>",
+    "valid_to": "<iso8601>"
+  },
+  "root_public_key": "<base64-ed25519-public-key>",
+  "supported_surfaces": {
+    "genesis": "http://164.92.250.135:8443/genesis",
+    "recognition_treaties": "http://164.92.250.135:8443/recognition-treaties",
+    "sovereign_revocation_feed": "http://164.92.250.135:8443/sovereign-revocation-feed",
+    "connectome": "http://164.92.250.135:8443/connectome.json"
+  }
+}
+```
+
+The response intentionally excludes private keys, operator signatures, local
+filesystem paths, and database paths.
 
 ### `GET /policy`
 

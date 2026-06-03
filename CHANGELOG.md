@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.13.0 - Operator-Ready Sovereign Workflows
+
+### Added
+
+- Added explicit operator path options to `genesis-mesh init` for named
+  sovereign setup on VMs: genesis path, NA key path, operator key paths,
+  database path, bind host, and bind port.
+- Added `GET /sovereign.json` as an operator-safe public metadata endpoint for
+  network name, NA public key, validity window, and trust surfaces.
+- Added `genesis-mesh sovereign inspect` for fetching public sovereign metadata
+  from a live Network Authority.
+- Added `genesis-mesh proof remote` to run the attestation -> treaty ->
+  revocation proof against two live endpoints and optionally write a redacted
+  proof bundle.
+- Added `genesis-mesh proof cleanup` to back up a Network Authority SQLite DB
+  and remove only proof artifacts without requiring the `sqlite3` CLI.
+- Added an operator quickstart for standing up a named sovereign on an Ubuntu
+  VM.
+- Updated operator, VM bootstrap, API, and independent-sovereigns docs to use
+  the supported v0.13 workflow.
+
+### Changed
+
+- `genesis-mesh na start` now honors the configured NA database path written by
+  `genesis-mesh init --db-path`.
+- `genesis-mesh init` now refuses production-style artifact paths with the
+  default `USG` network name unless the operator explicitly passes
+  `--network-name`.
+- Agent discovery key routes now accept slash-ended base64 node keys without a
+  Flask redirect.
+
+### Verified
+
+- Added focused tests for explicit init paths, sovereign metadata, proof
+  cleanup, and the two-endpoint remote proof runner.
+- Ran the full test suite: `234 passed`.
+- Ran mypy, compileall, Sphinx documentation build with warnings treated as
+  errors, and `git diff --check`.
+
 ## v0.12.1 - Independent Sovereigns Operational Proof
 
 ### Added

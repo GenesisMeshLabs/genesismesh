@@ -137,7 +137,7 @@ def create_discovery_blueprint(service) -> Blueprint:
             }
         )
 
-    @bp.route("/agents/<path:node_public_key>", methods=["GET"])
+    @bp.route("/agents/<path:node_public_key>", methods=["GET"], strict_slashes=False)
     def get_agent(node_public_key: str):
         """Return one registration."""
         descriptor = service.db.get_agent_registration(node_public_key)
@@ -145,7 +145,7 @@ def create_discovery_blueprint(service) -> Blueprint:
             return jsonify({"error": "agent not registered"}), 404
         return jsonify(descriptor.model_dump(mode="json"))
 
-    @bp.route("/agents/<path:node_public_key>", methods=["DELETE"])
+    @bp.route("/agents/<path:node_public_key>", methods=["DELETE"], strict_slashes=False)
     def delete_agent(node_public_key: str):
         """Voluntary deregistration. Requires a signed envelope."""
         try:

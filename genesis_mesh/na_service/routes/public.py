@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from html import escape
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 
 ACTIVE_NODE_WINDOW = timedelta(minutes=5)
 
@@ -32,6 +32,13 @@ def _node_counts(service) -> tuple[int, int]:
             active += 1
 
     return active, tracked
+
+
+def _public_base_url() -> str:
+    """Return the externally visible base URL, honoring common proxy headers."""
+    scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",", 1)[0].strip()
+    host = request.headers.get("X-Forwarded-Host", request.host).split(",", 1)[0].strip()
+    return f"{scheme}://{host}".rstrip("/")
 
 
 def _route_card(
@@ -78,6 +85,13 @@ def _homepage_html(service) -> str:
         [
             _route_card("GET", "/healthz", "Liveness", "Process-level health probe.", clickable=True),
             _route_card("GET", "/readyz", "Readiness", "Database and migration readiness.", clickable=True),
+            _route_card(
+                "GET",
+                "/sovereign.json",
+                "Sovereign Metadata",
+                "Operator-safe public trust material.",
+                clickable=True,
+            ),
             _route_card("GET", "/genesis", "Genesis", "Signed network trust root.", clickable=True),
             _route_card("GET", "/policy", "Policy", "Active DB-backed policy manifest.", clickable=True),
             _route_card(
@@ -350,6 +364,32 @@ def create_public_blueprint(service) -> Blueprint:
     def get_genesis():
         """Return the genesis block."""
         return jsonify(service.genesis_block.model_dump(mode="json"))
+
+    @bp.route("/sovereign.json", methods=["GET"])
+    def sovereign_metadata():
+        """Return operator-safe public metadata for this sovereign."""
+        genesis = service.genesis_block
+        base_url = _public_base_url()
+        return jsonify({
+            "sovereign_id": genesis.network_name,
+            "network_name": genesis.network_name,
+            "network_version": genesis.network_version,
+            "endpoint": base_url,
+            "network_authority": {
+                "public_key": genesis.network_authority.public_key,
+                "valid_from": genesis.network_authority.valid_from.isoformat(),
+                "valid_to": genesis.network_authority.valid_to.isoformat(),
+            },
+            "root_public_key": genesis.root_public_key,
+            "policy_manifest": genesis.policy_manifest.model_dump(mode="json"),
+            "bootstrap_anchor_count": len(genesis.bootstrap_anchors),
+            "supported_surfaces": {
+                "genesis": f"{base_url}/genesis",
+                "recognition_treaties": f"{base_url}/recognition-treaties",
+                "sovereign_revocation_feed": f"{base_url}/sovereign-revocation-feed",
+                "connectome": f"{base_url}/connectome.json",
+            },
+        })
 
     @bp.route("/policy", methods=["GET"])
     def get_policy():

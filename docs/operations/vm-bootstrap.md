@@ -41,6 +41,41 @@ sudo GENESIS_ROLE=na \
 If the NA secrets are not present yet, the script stops with the exact `scp`,
 `mv`, ownership, and `systemctl` commands needed to finish the setup.
 
+For a fresh named sovereign, generate the VM artifacts with explicit paths so
+the systemd unit and operator runbook agree on identity, keys, and database
+location:
+
+```bash
+cd /opt/genesis-mesh
+source .venv/bin/activate
+
+sudo mkdir -p /etc/genesis /etc/genesis-mesh/keys /var/lib/genesis-mesh
+sudo chown -R "$USER":"$USER" /etc/genesis /etc/genesis-mesh /var/lib/genesis-mesh
+
+genesis-mesh init \
+  --home /tmp/genesis-mesh-nb \
+  --network-name USG-NB \
+  --na-endpoint http://164.92.250.135:8443 \
+  --genesis-file /etc/genesis/genesis.signed.json \
+  --na-private-key-file /etc/genesis-mesh/keys/na.key \
+  --operator-private-key-file /etc/genesis-mesh/keys/operator.key \
+  --operator-public-key-file /etc/genesis-mesh/operator.pub \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --na-host 0.0.0.0 \
+  --na-port 8443 \
+  --force
+
+chmod 0644 /etc/genesis/genesis.signed.json
+chmod 0600 /etc/genesis-mesh/keys/na.key /etc/genesis-mesh/keys/operator.key
+```
+
+After the service starts, verify the public sovereign metadata:
+
+```bash
+curl -fsS http://127.0.0.1:8443/sovereign.json | python3 -m json.tool
+genesis-mesh sovereign inspect --na http://127.0.0.1:8443
+```
+
 For a router-only VM that connects to an existing NA, enrol the node configs
 first, then run:
 
