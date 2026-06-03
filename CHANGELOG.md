@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.16.0 - Managed Sovereign Enterprise Readiness
+
+### Added
+
+- Added `genesis-mesh managed backup` for consistent SQLite online backups of
+  Network Authority databases.
+- Added `genesis-mesh managed restore` for offline restore drills with backup
+  validation, explicit `--yes` confirmation, and optional pre-restore copy.
+- Added `genesis-mesh managed audit-export` for redacted JSONL/JSON export of
+  Network Authority audit events.
+- Added managed sovereign operations documentation covering backup/restore,
+  audit export, monitoring thresholds, incident response, key custody models,
+  and pilot-readiness checks.
+- Added incident response runbooks for operator key compromise, NA key
+  compromise, bad treaty issuance, bad feed import, database restore, and
+  revocation blast-radius review.
+- Added focused tests for backup/restore drill behavior, restore confirmation,
+  backup validation, audit export filtering, and audit redaction.
+
+### Changed
+
+- Bumped the package version to `0.16.0`.
+- Expanded CLI reference and operations documentation for managed-sovereign
+  workflows.
+
+### Verified
+
+- Ran a non-production backup/restore drill through the managed CLI test path.
+- Ran focused managed operations tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, and `git diff --check`.
+
+### Note
+
+- This release makes a managed sovereign operationally credible for a pilot. It
+  does not add billing, multi-tenancy, active-active HA, a governance UI, or an
+  enterprise IdP bridge.
+- The v0.17 external-operator multi-cloud operation proof remains separate and still
+  requires a named future external operator.
+
 ## v0.15.0 - Supply-Chain Trust Gate
 
 ### Added

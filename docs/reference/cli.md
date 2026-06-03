@@ -218,6 +218,45 @@ genesis-mesh proof cleanup \
 The command uses Python's SQLite library, so minimal Ubuntu VMs do not need the
 `sqlite3` command-line tool.
 
+### `genesis-mesh managed backup`
+
+Creates a consistent online backup of a Network Authority SQLite database.
+
+```bash
+genesis-mesh managed backup \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --output /backups/genesis-mesh-na-YYYYMMDDHHMMSS.db
+```
+
+### `genesis-mesh managed restore`
+
+Restores a Network Authority database from a backup. Stop the Network Authority
+before running it.
+
+```bash
+genesis-mesh managed restore \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --backup /backups/genesis-mesh-na-known-good.db \
+  --pre-restore-backup /backups/na-before-restore.db \
+  --yes
+```
+
+The command validates that the backup looks like a Genesis Mesh NA database and
+requires `--yes` before replacing the DB file.
+
+### `genesis-mesh managed audit-export`
+
+Exports redacted Network Authority audit events as JSON Lines or JSON.
+
+```bash
+genesis-mesh managed audit-export \
+  --db-path /var/lib/genesis-mesh/na.db \
+  --output /var/log/genesis-mesh/audit-events.jsonl
+```
+
+Use `--event-type recognition_treaty_issued` to export one event class and
+`--format json` when a JSON array is easier to ingest.
+
 ## Node Operator Commands
 
 ### `genesis-mesh join`

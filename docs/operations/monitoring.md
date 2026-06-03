@@ -39,6 +39,36 @@ membership, trust, and routing failures before users see message loss:
 - database migration state
 - database backup freshness
 
+## Example Alert Thresholds
+
+Use these as starting points for a managed sovereign pilot:
+
+| Signal | Suggested alert |
+|---|---|
+| `/healthz` | Critical after 2 consecutive failures. |
+| `/readyz` | Critical after 1 failure on a serving endpoint. |
+| `/metrics` | Warning if scrape fails for 5 minutes. |
+| Active cert count | Warning on unexpected drop to zero. |
+| CRL sequence | Warning if unchanged after an expected revocation. |
+| DB disk free | Warning below 20%, critical below 10%. |
+| Backup freshness | Warning after 24 hours, critical after 48 hours. |
+| Certificate expiry | Warning if operational certs expire within 7 days. |
+| Treaty verification failures | Warning on sustained increase over baseline. |
+
+## Managed Smoke Commands
+
+Run these after deploys, restores, and incident remediation:
+
+```bash
+curl -fsS http://127.0.0.1:8443/healthz
+curl -fsS http://127.0.0.1:8443/readyz
+curl -fsS http://127.0.0.1:8443/metrics | head
+curl -fsS http://127.0.0.1:8443/connectome.json
+```
+
+For public endpoints, run the same probes from outside the VM or cluster so
+ingress, TLS, DNS, and firewall state are included in the check.
+
 ## Logging
 
 Avoid logging private key paths as proof of secret presence. Log certificate IDs,

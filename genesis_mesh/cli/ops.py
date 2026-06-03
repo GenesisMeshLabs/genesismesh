@@ -17,6 +17,7 @@ import click
 from click.core import ParameterSource
 import requests
 
+from .managed import managed
 from .supply_chain import supply_chain
 from ..crypto import (
     KeyPair,
@@ -55,6 +56,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(discover)
     cli.add_command(sovereign)
     cli.add_command(proof)
+    cli.add_command(managed)
     cli.add_command(supply_chain)
 
 

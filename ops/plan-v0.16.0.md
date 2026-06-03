@@ -99,44 +99,51 @@ At v0.16.0 tag time, record whether readiness is converting into adoption:
 
 ### Phase 1 - Backup and Restore
 
-- [ ] Document database backup procedure.
-- [ ] Document restore procedure and service restart order.
-- [ ] Add a restore drill checklist.
-- [ ] Add optional helper scripts if manual steps are too error-prone.
-- [ ] Verify restored Connectome and health endpoints.
+- [x] Document database backup procedure.
+- [x] Document restore procedure and service restart order.
+- [x] Add a restore drill checklist.
+- [x] Add optional helper scripts if manual steps are too error-prone.
+- [x] Verify restored Connectome and health endpoints.
 
 ### Phase 2 - Audit Export
 
-- [ ] Define trust-decision audit fields for attestations, treaties, feed
+- [x] Define trust-decision audit fields for attestations, treaties, feed
       imports, revocations, and verification results.
-- [ ] Add or document an export path for audit events.
-- [ ] Ensure logs do not include private keys, invite tokens, admin signatures,
+- [x] Add or document an export path for audit events.
+- [x] Ensure logs do not include private keys, invite tokens, admin signatures,
       or full sensitive request bodies.
-- [ ] Add tests for redaction if code changes are made.
+- [x] Add tests for redaction if code changes are made.
 
 ### Phase 3 - Monitoring and Operations
 
-- [ ] Document healthz, readyz, metrics, and external uptime checks.
-- [ ] Add example alert thresholds.
-- [ ] Document service restart, DB lock, disk pressure, and certificate renewal
+- [x] Document healthz, readyz, metrics, and external uptime checks.
+- [x] Add example alert thresholds.
+- [x] Document service restart, DB lock, disk pressure, and certificate renewal
       troubleshooting.
-- [ ] Add smoke commands for live managed deployments.
+- [x] Add smoke commands for live managed deployments.
 
 ### Phase 4 - Incident Runbooks
 
-- [ ] Operator key compromise.
-- [ ] NA key compromise.
-- [ ] Bad treaty issued.
-- [ ] Bad feed imported.
-- [ ] Database restore.
-- [ ] Revocation blast-radius review.
+- [x] Operator key compromise.
+- [x] NA key compromise.
+- [x] Bad treaty issued.
+- [x] Bad feed imported.
+- [x] Database restore.
+- [x] Revocation blast-radius review.
 
 ### Phase 5 - Managed Responsibility Matrix
 
-- [ ] Define what Genesis Mesh operates in a managed sovereign.
-- [ ] Define what the customer/operator still owns.
-- [ ] Explicitly document key custody models.
-- [ ] Add pilot-readiness checklist.
+- [x] Define what Genesis Mesh operates in a managed sovereign.
+- [x] Define what the customer/operator still owns.
+- [x] Explicitly document key custody models.
+- [x] Add pilot-readiness checklist.
+
+### Phase 6 - Docs and Assets
+
+- [x] Add `docs/examples/managed-sovereign-readiness.md`.
+- [x] Add a managed-sovereign asset script under `docs/examples/assets/scripts/`.
+- [x] Generate PNG/GIF proof assets.
+- [x] Link the example from `docs/examples/demos.md` and `docs/index.md`.
 
 ## Verification
 
@@ -155,14 +162,14 @@ against a non-production NA database.
 
 Do not tag v0.16.0 until:
 
-- [ ] Backup and restore are documented and tested in a drill.
-- [ ] Audit export or audit inspection is documented.
-- [ ] Monitoring expectations are explicit.
-- [ ] Incident runbooks cover key and trust-state failures.
-- [ ] Managed responsibility boundaries are documented.
+- [x] Backup and restore are documented and tested in a drill.
+- [x] Audit export or audit inspection is documented.
+- [x] Monitoring expectations are explicit.
+- [x] Incident runbooks cover key and trust-state failures.
+- [x] Managed responsibility boundaries are documented.
 - [ ] Adoption checkpoint has been updated with candidate operator and pilot
       status.
-- [ ] Full verification passes.
+- [x] Full verification passes.
 
 ## What v0.16 Does Not Do
 
