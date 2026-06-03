@@ -155,6 +155,28 @@ Use `--operator-key` when both endpoints trust the same operator key. Use the
 endpoint-specific `--acceptor-operator-key` and `--issuer-operator-key` options
 when each sovereign has its own operator key.
 
+For adoption evidence, add `--adoption-proof` and operator-control metadata:
+
+```bash
+genesis-mesh proof remote \
+  --acceptor https://acceptor.example.org \
+  --issuer https://issuer.example.org \
+  --acceptor-config ./acceptor.toml \
+  --issuer-config ./issuer.toml \
+  --proof-bundle ./external-operator-proof.json \
+  --adoption-proof \
+  --acceptor-operator-label "Genesis Core" \
+  --acceptor-operator-type maintainer \
+  --issuer-operator-label "Example Maintainer" \
+  --issuer-operator-type external \
+  --issuer-controls-keys \
+  --issuer-controls-infrastructure \
+  --operator-assistance-note "Maintainer observed but did not handle issuer private keys."
+```
+
+In adoption-proof mode, the CLI refuses to write a passing proof unless the
+issuer is marked external and confirms control of keys and infrastructure.
+
 ### `genesis-mesh proof cleanup`
 
 Backs up a Network Authority SQLite database and removes only proof artifacts:

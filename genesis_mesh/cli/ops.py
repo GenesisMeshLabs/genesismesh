@@ -665,6 +665,32 @@ def proof_cleanup(
 @click.option("--claim", multiple=True, help="Extra proof claim as key=value. Repeatable.")
 @click.option("--validity-hours", default=24, type=int, help="Proof artifact validity window.")
 @click.option("--proof-bundle", default=None, help="Optional JSON proof bundle output path.")
+@click.option("--adoption-proof", is_flag=True, help="Require external-operator evidence fields.")
+@click.option("--acceptor-operator-label", default="unspecified", help="Human label for the acceptor operator.")
+@click.option("--issuer-operator-label", default="unspecified", help="Human label for the issuer operator.")
+@click.option(
+    "--acceptor-operator-type",
+    type=click.Choice(["maintainer", "external", "unknown"]),
+    default="unknown",
+    help="Relationship of the acceptor operator to Genesis Core.",
+)
+@click.option(
+    "--issuer-operator-type",
+    type=click.Choice(["maintainer", "external", "unknown"]),
+    default="unknown",
+    help="Relationship of the issuer operator to Genesis Core.",
+)
+@click.option("--issuer-controls-keys", is_flag=True, help="Issuer operator confirms they control their keys.")
+@click.option(
+    "--issuer-controls-infrastructure",
+    is_flag=True,
+    help="Issuer operator confirms they control their infrastructure.",
+)
+@click.option(
+    "--operator-assistance-note",
+    multiple=True,
+    help="Onboarding assistance note for the proof bundle. Repeatable.",
+)
 def proof_remote(
     acceptor: str,
     issuer: str,
@@ -682,8 +708,26 @@ def proof_remote(
     claim: tuple[str, ...],
     validity_hours: int,
     proof_bundle: str | None,
+    adoption_proof: bool,
+    acceptor_operator_label: str,
+    issuer_operator_label: str,
+    acceptor_operator_type: str,
+    issuer_operator_type: str,
+    issuer_controls_keys: bool,
+    issuer_controls_infrastructure: bool,
+    operator_assistance_note: tuple[str, ...],
 ) -> None:
     """Run the attestation -> treaty -> revocation proof against two endpoints."""
+    if adoption_proof and (
+        issuer_operator_type != "external"
+        or not issuer_controls_keys
+        or not issuer_controls_infrastructure
+    ):
+        raise click.ClickException(
+            "--adoption-proof requires --issuer-operator-type external, "
+            "--issuer-controls-keys, and --issuer-controls-infrastructure."
+        )
+
     bundle = _run_remote_proof(
         acceptor_endpoint=acceptor,
         issuer_endpoint=issuer,
@@ -702,6 +746,20 @@ def proof_remote(
         subject_public_key=subject_public_key,
         claims=_parse_claims(claim),
         validity_hours=validity_hours,
+        operator_evidence={
+            "acceptor": {
+                "operator_label": acceptor_operator_label,
+                "operator_type": acceptor_operator_type,
+            },
+            "issuer": {
+                "operator_label": issuer_operator_label,
+                "operator_type": issuer_operator_type,
+                "controls_keys": issuer_controls_keys,
+                "controls_infrastructure": issuer_controls_infrastructure,
+            },
+            "assistance_notes": list(operator_assistance_note),
+            "adoption_proof": adoption_proof,
+        },
     )
 
     if proof_bundle:
@@ -718,6 +776,8 @@ def proof_remote(
     click.echo(f"  sequence:    {bundle['feed_sequence']}")
     click.echo(f"  pre:         {bundle['pre_revocation']['reason']}")
     click.echo(f"  post:        {bundle['post_revocation']['reason']}")
+    if adoption_proof:
+        click.echo("  adoption:    external operator evidence captured")
 
 
 @click.group()
@@ -942,6 +1002,7 @@ def _run_remote_proof(
     subject_public_key: str,
     claims: dict[str, str],
     validity_hours: int,
+    operator_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run the direct-recognition proof and return a redacted proof bundle."""
     acceptor = acceptor_endpoint.rstrip("/")
@@ -1075,6 +1136,17 @@ def _run_remote_proof(
     return {
         "proof": "remote-sovereign-recognition-revocation",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "operators": operator_evidence or {
+            "acceptor": {"operator_label": "unspecified", "operator_type": "unknown"},
+            "issuer": {
+                "operator_label": "unspecified",
+                "operator_type": "unknown",
+                "controls_keys": False,
+                "controls_infrastructure": False,
+            },
+            "assistance_notes": [],
+            "adoption_proof": False,
+        },
         "acceptor": {
             "network_name": acceptor_id,
             "endpoint": acceptor,

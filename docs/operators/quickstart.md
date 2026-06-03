@@ -117,6 +117,10 @@ genesis-mesh proof remote \
 The proof command creates live proof artifacts: one membership attestation, one
 recognition treaty, one issuer revocation, and one imported revocation feed.
 
+For v0.14 adoption evidence, use the
+[Recognition Playbook](recognition-playbook.md) and include `--adoption-proof`
+operator-control metadata in the proof bundle.
+
 ## 6. Clean Proof Artifacts
 
 Stop the NA before editing its database. The cleanup command creates a backup
@@ -150,3 +154,6 @@ imported revocations.
 
 Sovereignty means the operator owns the genesis identity, Network Authority
 signing key, policy, database, and revocation decisions.
+
+For a full checklist, see the
+[Operator Security Checklist](security-checklist.md).

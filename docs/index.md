@@ -147,6 +147,9 @@ reference/configuration
 :caption: Operations
 
 operators/quickstart
+operators/security-checklist
+operators/recognition-playbook
+operators/proof-bundle-schema
 operations/deployment
 operations/vm-bootstrap
 operations/infrastructure
