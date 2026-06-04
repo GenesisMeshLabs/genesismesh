@@ -157,6 +157,73 @@ issuing a treaty. Without `--dry-run`, the command previews the treaty scope,
 requires confirmation unless `--yes` is supplied, issues the treaty with the
 acceptor operator key, and verifies the resulting trust path.
 
+Use `--issuer-bundle` when the issuer has shared a trust bundle:
+
+```bash
+genesis-mesh federation bootstrap \
+  --acceptor https://acceptor.example.org \
+  --issuer-bundle ./issuer-trust-bundle.json \
+  --acceptor-config ./acceptor.toml \
+  --role service:maintainer \
+  --yes
+```
+
+The command still compares the bundle with the live issuer endpoint and still
+requires explicit operator authorization before issuing trust.
+
+### `genesis-mesh trust-bundle export`
+
+Exports public sovereign trust material into a reviewable JSON bundle.
+
+```bash
+genesis-mesh trust-bundle export \
+  --na https://issuer.example.org \
+  --output ./issuer-trust-bundle.json
+```
+
+The bundle packages existing public surfaces such as `/sovereign.json`,
+`/genesis`, `/connectome.json`, `/recognition-policy`, and
+`/sovereign-revocation-feed`. It does not include private keys, invite tokens,
+database paths, or operator credentials.
+
+### `genesis-mesh trust-bundle inspect`
+
+Inspects a bundle offline:
+
+```bash
+genesis-mesh trust-bundle inspect \
+  --bundle ./issuer-trust-bundle.json
+```
+
+The output shows identity, endpoint, public-key fingerprints, validity, policy,
+revocation feed status, and Connectome counts.
+
+### `genesis-mesh trust-bundle validate`
+
+Validates bundle structure and optionally compares it with a live endpoint:
+
+```bash
+genesis-mesh trust-bundle validate \
+  --bundle ./issuer-trust-bundle.json \
+  --na https://issuer.example.org
+```
+
+Use live validation before feeding a bundle into federation bootstrap.
+
+### `genesis-mesh trust-bundle import`
+
+Imports a bundle into local review evidence without granting trust:
+
+```bash
+genesis-mesh trust-bundle import \
+  --bundle ./issuer-trust-bundle.json \
+  --na https://issuer.example.org \
+  --output ./issuer-trust-bundle-receipt.json
+```
+
+The receipt records `trust_granted: false`. Trust is created only by an explicit
+operator-signed federation bootstrap or treaty issue.
+
 ### `genesis-mesh proof remote`
 
 Runs the direct-recognition proof against two live Network Authority endpoints:

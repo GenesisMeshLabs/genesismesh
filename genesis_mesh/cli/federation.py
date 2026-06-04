@@ -18,6 +18,11 @@ from .support import (
     _request_json,
     _signed_admin_headers,
 )
+from .trust_bundle import (
+    bundle_endpoint,
+    load_trust_bundle,
+    validate_bundle_against_review,
+)
 
 
 @click.group()
@@ -27,7 +32,13 @@ def federation() -> None:
 
 @federation.command("bootstrap")
 @click.option("--acceptor", required=True, help="Recognizing sovereign NA endpoint.")
-@click.option("--issuer", required=True, help="Sovereign being recognized.")
+@click.option("--issuer", default=None, help="Sovereign being recognized.")
+@click.option(
+    "--issuer-bundle",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Trust bundle for the sovereign being recognized.",
+)
 @click.option("--acceptor-config", default=None, help="Config for acceptor admin signing.")
 @click.option("--operator-key", default=None, help="Acceptor operator private key.")
 @click.option("--operator-key-id", default="operator-local", help="Acceptor operator key ID.")
@@ -47,7 +58,8 @@ def federation() -> None:
 )
 def federation_bootstrap(
     acceptor: str,
-    issuer: str,
+    issuer: str | None,
+    issuer_bundle: str | None,
     acceptor_config: str | None,
     operator_key: str | None,
     operator_key_id: str,
@@ -64,6 +76,7 @@ def federation_bootstrap(
     result = run_federation_bootstrap(
         acceptor_endpoint=acceptor,
         issuer_endpoint=issuer,
+        issuer_bundle_path=Path(issuer_bundle) if issuer_bundle else None,
         acceptor_signer=None
         if dry_run
         else _admin_signer_from_inputs(acceptor_config, operator_key, operator_key_id),
@@ -90,7 +103,7 @@ def federation_bootstrap(
 def run_federation_bootstrap(
     *,
     acceptor_endpoint: str,
-    issuer_endpoint: str,
+    issuer_endpoint: str | None,
     acceptor_signer: tuple[str, Path] | None,
     roles: list[str],
     accepted_statuses: list[str],
@@ -98,6 +111,7 @@ def run_federation_bootstrap(
     validity_hours: int,
     issue_treaty: bool,
     confirmed: bool,
+    issuer_bundle_path: Path | None = None,
 ) -> dict[str, Any]:
     """Review a remote sovereign and optionally issue a direct treaty."""
     if validity_hours <= 0:
@@ -106,11 +120,26 @@ def run_federation_bootstrap(
         raise click.ClickException("Missing acceptor admin signer")
 
     acceptor = acceptor_endpoint.rstrip("/")
-    issuer = issuer_endpoint.rstrip("/")
+    issuer_bundle = load_trust_bundle(issuer_bundle_path) if issuer_bundle_path else None
+    bundled_endpoint = bundle_endpoint(issuer_bundle) if issuer_bundle else None
+    if issuer_endpoint is None and bundled_endpoint is None:
+        raise click.ClickException("Missing issuer. Pass --issuer or --issuer-bundle.")
+    issuer = (issuer_endpoint or bundled_endpoint or "").rstrip("/")
+    if issuer_bundle and bundled_endpoint and issuer_endpoint and issuer != bundled_endpoint:
+        raise click.ClickException(
+            f"--issuer {issuer!r} does not match --issuer-bundle endpoint {bundled_endpoint!r}"
+        )
     session = requests.Session()
 
     acceptor_review = _review_sovereign(session, acceptor, "acceptor")
     issuer_review = _review_sovereign(session, issuer, "issuer")
+    issuer_bundle_report = None
+    if issuer_bundle:
+        issuer_bundle_report = validate_bundle_against_review(
+            issuer_bundle,
+            issuer_review,
+            label="issuer",
+        )
     issuer_id = issuer_review["sovereign_id"]
     acceptor_id = acceptor_review["sovereign_id"]
     issuer_public_key = issuer_review["network_authority"]["public_key"]
@@ -133,6 +162,13 @@ def run_federation_bootstrap(
         "issuer": _public_review_summary(issuer_review),
         "treaty_preview": _redacted_treaty_preview(treaty_body),
     }
+    if issuer_bundle:
+        result["issuer_bundle"] = {
+            "path": str(issuer_bundle_path),
+            "bundle_version": issuer_bundle.get("bundle_version"),
+            "created_at": issuer_bundle.get("created_at"),
+            "validation": issuer_bundle_report,
+        }
 
     if not issue_treaty:
         return result

@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.17.3 - Trust Bundle Exchange
+
+### Added
+
+- Added `genesis-mesh trust-bundle export` to package existing public sovereign
+  trust material into a reviewable JSON bundle.
+- Added `genesis-mesh trust-bundle inspect`, `validate`, and safe `import`
+  workflows for offline review, live endpoint comparison, and local review
+  receipts.
+- Added `federation bootstrap --issuer-bundle` so a validated issuer bundle can
+  seed federation review without granting trust automatically.
+- Added operator documentation and a docs example with generated PNG/GIF assets
+  for the trust-bundle and federation-bootstrap onboarding path.
+- Added focused CLI tests covering export, inspect, validate, review import,
+  live mismatch detection, unsupported versions, redaction, and bundle-backed
+  federation review.
+
+### Changed
+
+- Registered trust-bundle commands in the generated CLI reference and operator
+  console surface metadata.
+- Kept trust bundles as a packaging layer over existing public endpoints; no
+  new API endpoints, treaty semantics, or signed protocol artifact semantics
+  were introduced.
+- Updated the v0.17.3 plan checklist to reflect completed implementation work.
+- Bumped the package version to `0.17.3`.
+
+### Verified
+
+- Ran focused trust-bundle and federation tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, and `git diff --check`.
+- Ran a live non-mutating smoke from the local checkout against Azure USG and
+  DigitalOcean USG-NB.
+
 ## v0.17.2 - Federation Bootstrap Readiness
 
 ### Added
