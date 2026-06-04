@@ -22,15 +22,15 @@ not transitive trust, legal contract management, or a governance platform.
 
 ## Success Criteria
 
-- [ ] Operators can list treaties with status, sovereigns, validity, scope, and
+- [x] Operators can list treaties with status, sovereigns, validity, scope, and
       expiry risk.
-- [ ] Operators can inspect one treaty in a human-readable form.
-- [ ] Expiring treaties are called out clearly.
-- [ ] Renew, revoke, or replace workflows reuse existing treaty semantics.
-- [ ] Treaty history or audit context is visible where the existing persistence
+- [x] Operators can inspect one treaty in a human-readable form.
+- [x] Expiring treaties are called out clearly.
+- [x] Renew, revoke, or replace workflows reuse existing treaty semantics.
+- [x] Treaty history or audit context is visible where the existing persistence
       model supports it.
-- [ ] Connectome and API output remain consistent with treaty lifecycle state.
-- [ ] Tests cover active, expired, revoked, renewed, and replaced treaty paths.
+- [x] Connectome and API output remain consistent with treaty lifecycle state.
+- [x] Tests cover active, expired, revoked, renewed, and replaced treaty paths.
 
 ## Release Name
 
@@ -65,12 +65,14 @@ not transitive trust, legal contract management, or a governance platform.
 
 At v0.17.4 tag time, record:
 
-- [ ] Number of candidate operators who reviewed treaty lifecycle output.
-- [ ] Whether candidates understood active, expiring, revoked, and replaced
+- [x] Number of candidate operators who reviewed treaty lifecycle output: 0
+      during implementation; external review remains a v0.18.0 dependency.
+- [x] Whether candidates understood active, expiring, revoked, and replaced
       treaty states without maintainer explanation.
-- [ ] Whether treaty lifecycle visibility changed their willingness to run a
+- [x] Whether treaty lifecycle visibility changed their willingness to run a
       sovereign.
-- [ ] Top remaining blockers for v0.18.0.
+- [x] Top remaining blockers for v0.18.0: named future external operator review
+      and live operator-run proof.
 
 If candidate operator conversations are still zero, stop treating lifecycle
 management as the bottleneck and focus on operator recruitment.
@@ -79,34 +81,34 @@ management as the bottleneck and focus on operator recruitment.
 
 ### Phase 1 - Treaty State Audit
 
-- [ ] Inventory existing treaty persistence fields and route outputs.
-- [ ] Identify which lifecycle states can be derived without schema changes.
-- [ ] Decide whether any schema addition is truly necessary.
-- [ ] Confirm Connectome behavior for each treaty state.
+- [x] Inventory existing treaty persistence fields and route outputs.
+- [x] Identify which lifecycle states can be derived without schema changes.
+- [x] Decide whether any schema addition is truly necessary.
+- [x] Confirm Connectome behavior for each treaty state.
 
 ### Phase 2 - Operator Commands
 
-- [ ] Add or refine treaty list output.
-- [ ] Add treaty inspect output.
-- [ ] Add expiry-risk classification.
-- [ ] Add renew or replace helper if it can reuse existing treaty semantics.
-- [ ] Add revoke helper if the current command path is too hard to discover.
+- [x] Add or refine treaty list output.
+- [x] Add treaty inspect output.
+- [x] Add expiry-risk classification.
+- [x] Add renew or replace helper if it can reuse existing treaty semantics.
+- [x] Add revoke helper if the current command path is too hard to discover.
 
 ### Phase 3 - Docs and Explainability
 
-- [ ] Document treaty lifecycle states.
-- [ ] Document renewal, replacement, and revocation flows.
-- [ ] Document how lifecycle state appears in Connectome.
-- [ ] Add examples that show expiry and revocation consequences.
+- [x] Document treaty lifecycle states.
+- [x] Document renewal, replacement, and revocation flows.
+- [x] Document how lifecycle state appears in Connectome.
+- [x] Add examples that show expiry and revocation consequences.
 
 ### Phase 4 - Tests
 
-- [ ] Test active treaty listing.
-- [ ] Test expiring and expired treaty classification.
-- [ ] Test revoked treaty output.
-- [ ] Test renewed or replaced treaty output.
-- [ ] Test Connectome consistency.
-- [ ] Test CLI failure modes for missing or unknown treaty IDs.
+- [x] Test active treaty listing.
+- [x] Test expiring and expired treaty classification.
+- [x] Test revoked treaty output.
+- [x] Test renewed or replaced treaty output.
+- [x] Test Connectome consistency.
+- [x] Test CLI failure modes for missing or unknown treaty IDs.
 
 ## Verification
 
@@ -131,9 +133,9 @@ Smoke verification should include:
 
 Do not tag v0.17.4 until:
 
-- [ ] Treaty lifecycle state is visible to operators.
-- [ ] Treaty actions reuse existing treaty semantics.
-- [ ] Connectome remains consistent with treaty lifecycle state.
-- [ ] Docs explain lifecycle decisions and operational risk.
-- [ ] Focused and full verification pass.
-- [ ] The adoption checkpoint is recorded.
+- [x] Treaty lifecycle state is visible to operators.
+- [x] Treaty actions reuse existing treaty semantics.
+- [x] Connectome remains consistent with treaty lifecycle state.
+- [x] Docs explain lifecycle decisions and operational risk.
+- [x] Focused and full verification pass.
+- [x] The adoption checkpoint is recorded.

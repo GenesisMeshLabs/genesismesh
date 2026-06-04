@@ -224,6 +224,71 @@ genesis-mesh trust-bundle import \
 The receipt records `trust_granted: false`. Trust is created only by an explicit
 operator-signed federation bootstrap or treaty issue.
 
+### `genesis-mesh treaty list`
+
+Lists direct-recognition treaties with persisted status, derived lifecycle
+state, and expiry risk:
+
+```bash
+genesis-mesh treaty list \
+  --na https://na.genesismesh.connectorzzz.com
+```
+
+### `genesis-mesh treaty inspect`
+
+Inspects one treaty's scope, lifecycle state, validity window, metadata, and
+revocation context:
+
+```bash
+genesis-mesh treaty inspect \
+  --na https://na.genesismesh.connectorzzz.com \
+  <treaty-id>
+```
+
+### `genesis-mesh treaty renew`
+
+Issues a successor treaty with the same scope, then retires the old treaty with
+a `renewed_by:<new-id>` revocation reason:
+
+```bash
+genesis-mesh treaty renew \
+  --na https://na.genesismesh.connectorzzz.com \
+  <treaty-id> \
+  --operator-key .genesis-mesh/keys/operator.key \
+  --operator-key-id operator-local \
+  --yes
+```
+
+### `genesis-mesh treaty replace`
+
+Issues a successor treaty with updated scope, then retires the old treaty with
+a `replaced_by:<new-id>` revocation reason:
+
+```bash
+genesis-mesh treaty replace \
+  --na https://na.genesismesh.connectorzzz.com \
+  <treaty-id> \
+  --operator-key .genesis-mesh/keys/operator.key \
+  --operator-key-id operator-local \
+  --role service:observer \
+  --claim reason=scope-tightening \
+  --yes
+```
+
+### `genesis-mesh treaty revoke`
+
+Revokes a treaty through the existing operator-signed admin endpoint:
+
+```bash
+genesis-mesh treaty revoke \
+  --na https://na.genesismesh.connectorzzz.com \
+  <treaty-id> \
+  --operator-key .genesis-mesh/keys/operator.key \
+  --operator-key-id operator-local \
+  --reason relationship_ended \
+  --yes
+```
+
 ### `genesis-mesh proof remote`
 
 Runs the direct-recognition proof against two live Network Authority endpoints:

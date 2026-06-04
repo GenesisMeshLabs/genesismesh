@@ -295,6 +295,13 @@ live endpoint, import it as local review evidence with `trust_granted: false`,
 and feed it into federation bootstrap. Trust still requires explicit treaty
 issuance and operator signing.
 
+**v0.17.4 - Treaty Lifecycle Management.** Operators can list, inspect, renew,
+replace, and revoke direct-recognition treaties through a dedicated CLI surface.
+The Connectome now shows derived lifecycle state and expiry risk, while
+operator-facing dates are rendered in a readable UTC format. The release keeps
+renewal and replacement as helpers over existing issue and revoke semantics, not
+as new treaty primitives.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated

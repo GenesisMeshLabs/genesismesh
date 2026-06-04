@@ -168,6 +168,11 @@ def test_connectome_page_renders_html(client, na_service):
     assert "Sovereign Graph" in body
     assert "Valid from" in body
     assert "Expires at" in body
+    assert "Lifecycle" in body
+    assert "Expiry risk" in body
+    edge_table = body.split("<thead><tr><th>From</th>", 1)[1].split("</table>", 1)[0]
+    assert "+00:00" not in edge_table
+    assert "UTC" in edge_table
     assert "connectome-graph" in body
     assert "graph-node" in body
     assert "data-table" in body

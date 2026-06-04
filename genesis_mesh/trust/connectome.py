@@ -20,6 +20,7 @@ def _active_edges(graph: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         edge for edge in graph.get("recognition_edges", [])
         if edge.get("status") == "active"
+        and edge.get("lifecycle_state", "active") in {"active", "expiring_soon"}
     ]
 
 
@@ -28,6 +29,7 @@ def _revoked_edges(graph: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         edge for edge in graph.get("recognition_edges", [])
         if edge.get("status") == "revoked"
+        or edge.get("lifecycle_state") in {"revoked", "replaced"}
     ]
 
 
@@ -112,8 +114,8 @@ def build_connectome_view(graph: dict[str, Any]) -> dict[str, Any]:
         key=lambda row: str(row.get("sovereign_id", "")),
     )
     recognition_edges = sorted(graph.get("recognition_edges", []), key=_edge_key)
-    active_edges = [edge for edge in recognition_edges if edge.get("status") == "active"]
-    revoked_edges = [edge for edge in recognition_edges if edge.get("status") == "revoked"]
+    active_edges = _active_edges({"recognition_edges": recognition_edges})
+    revoked_edges = _revoked_edges({"recognition_edges": recognition_edges})
     revoked_material = sorted(
         graph.get("revoked_trust_material", []),
         key=lambda row: (str(row.get("type", "")), str(row.get("id", ""))),

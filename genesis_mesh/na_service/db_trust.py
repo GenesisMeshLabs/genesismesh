@@ -12,6 +12,7 @@ from ..models import (
     RecognitionTreaty,
     SovereignRevocationFeed,
 )
+from ..trust.treaty_lifecycle import is_lifecycle_active, treaty_lifecycle
 
 
 class TrustStoreMixin:
@@ -372,31 +373,34 @@ class TrustStoreMixin:
             {"sovereign_id": sovereign_id}
             for sovereign_id in sorted(sovereign_ids)
         ]
-        edges = [
-            {
+        edges = []
+        for treaty_row in treaty_rows:
+            lifecycle = treaty_lifecycle(treaty_row)
+            edges.append({
                 "from": treaty_row["treaty"].issuer_sovereign_id,
                 "to": treaty_row["treaty"].subject_sovereign_id,
                 "treaty_id": treaty_row["treaty"].treaty_id,
                 "status": treaty_row["status"],
+                "lifecycle_state": lifecycle["state"],
+                "expiry_risk": lifecycle["expiry_risk"],
                 "valid_from": treaty_row["treaty"].valid_from.isoformat(),
                 "expires_at": treaty_row["treaty"].expires_at.isoformat(),
-            }
-            for treaty_row in treaty_rows
-        ]
+            })
         active_treaties = [
             treaty_row["treaty"]
             for treaty_row in treaty_rows
-            if treaty_row["status"] == "active"
+            if is_lifecycle_active(treaty_lifecycle(treaty_row))
         ]
         revoked_trust_material = [
             {
                 "type": "recognition_treaty",
                 "id": treaty_row["treaty"].treaty_id,
+                "lifecycle_state": treaty_lifecycle(treaty_row)["state"],
                 "reason": treaty_row["revocation_reason"],
                 "revoked_at": treaty_row["revoked_at"],
             }
             for treaty_row in treaty_rows
-            if treaty_row["status"] == "revoked"
+            if treaty_lifecycle(treaty_row)["state"] in {"revoked", "replaced"}
         ]
         revoked_trust_material.extend(
             {

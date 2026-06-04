@@ -16,6 +16,7 @@ from .init_ops import init
 from .managed import managed
 from .proof_ops import proof
 from .supply_chain import supply_chain
+from .treaty_ops import treaty
 from .trust_bundle import trust_bundle
 from ..crypto import (
     KeyPair,
@@ -64,6 +65,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(managed)
     cli.add_command(supply_chain)
     cli.add_command(trust_bundle)
+    cli.add_command(treaty)
 
 
 

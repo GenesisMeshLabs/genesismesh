@@ -17,6 +17,8 @@ workflow.
   issue the first direct-recognition treaty.
 - [Trust Bundle Exchange](trust-bundle-exchange.md): export, inspect, and
   validate public trust material before federation review.
+- [Treaty Lifecycle](treaty-lifecycle.md): list, inspect, renew, replace, and
+  revoke direct-recognition treaties.
 - [Recognition Playbook](recognition-playbook.md): run direct recognition and
   revocation between sovereigns.
 - [Proof Bundle Schema](proof-bundle-schema.md): understand the redacted JSON
