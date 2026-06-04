@@ -21,6 +21,30 @@ The release should prove this statement:
 > recognition relationship, and complete the revocation proof without handing
 > control of their keys, policy, or infrastructure to Genesis Core.
 
+## v0.17.x Readiness Patches
+
+The v0.17.x patch series can ship before v0.18.0, but it must not dilute what
+v0.18.0 means.
+
+- v0.17.2 - Federation Bootstrap Readiness: reduce the friction of the first
+  recognition relationship.
+- v0.17.3 - Trust Bundle Exchange: package existing public trust material into
+  a coherent reviewable bundle.
+- v0.17.4 - Treaty Lifecycle Management: make direct recognition treaties
+  easier to inspect, renew, replace, revoke, and audit.
+- v0.17.5 - Sovereign Health and Trust Dashboard: make sovereign health and
+  trust state legible without creating a central control plane.
+
+These releases are readiness patches. They are allowed to make operator
+onboarding easier, but they do not count as multi-cloud operation proof. The v0.18.0
+gate remains unchanged: a named future external operator must run a sovereign
+with their own keys, policy, database, endpoint, and infrastructure.
+
+At each v0.17.x patch tag, record the adoption checkpoint from that plan. If
+candidate operator conversations are still zero across the patch series, pause
+feature work before v0.18.0 and focus on recruitment. More readiness code does
+not solve a zero-demand signal.
+
 ## Operator Quality Test
 
 The realness of the first external operator is the whole game. An investor will
@@ -53,6 +77,8 @@ sovereign down after the demo is not adoption; it is theater.
       sovereign.
 - [ ] The proof bundle clearly distinguishes maintainer-operated infrastructure
       from externally operated infrastructure.
+- [ ] Any shipped v0.17.x readiness patches were reviewed during the operator
+      run, and remaining onboarding gaps are recorded.
 - [ ] Documentation records what the operator did self-service and where
       maintainer assistance was still required.
 
@@ -119,6 +145,7 @@ friendly operator running a demo with no reason to continue.
 ### Phase 1 - Recruit Operator
 
 - [ ] Identify candidate operators from v0.15 and commercial-track outreach.
+- [ ] Review the shipped v0.17.x readiness artifacts with candidate operators.
 - [ ] Apply the Operator Quality Test.
 - [ ] Confirm the operator has a concrete reason to run a sovereign.
 - [ ] Confirm what can be named publicly.
@@ -174,5 +201,7 @@ Do not tag v0.18.0 until:
 - [ ] The proof bundle is captured and redacted.
 - [ ] The onboarding gaps are documented.
 - [ ] Any critical onboarding blockers found during the run are fixed.
+- [ ] v0.17.x readiness work has not been substituted for external-operator
+      evidence.
 - [ ] Public release notes distinguish this from the v0.14 readiness release.
 - [ ] Full verification passes.
