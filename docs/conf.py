@@ -19,6 +19,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinxcontrib.mermaid",
+    "sphinx_design",
 ]
 
 source_suffix = {
@@ -34,6 +35,7 @@ html_logo = "../genesis_mesh/na_service/operator_console/static/logo.svg"
 html_favicon = "../genesis_mesh/na_service/operator_console/static/favicon.svg"
 html_static_path = ["theme"]
 html_css_files = ["docs.css"]
+html_js_files = ["sidebar-persist.js"]
 html_extra_path = ["CNAME"]
 templates_path = ["_templates"]
 html_theme_options = {

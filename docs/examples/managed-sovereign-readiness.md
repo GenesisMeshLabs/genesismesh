@@ -1,4 +1,4 @@
-# Managed Sovereign Readiness
+# Managed Sovereign Readiness Example
 
 This example demonstrates the operational claim behind v0.16: a managed
 Network Authority can be backed up, audited, restored, and reopened with

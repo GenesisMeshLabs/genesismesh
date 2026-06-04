@@ -1,3 +1,187 @@
+/* ===========================================================================
+ * Genesis Mesh documentation theme overrides
+ *
+ * These values mirror the operator console palette in
+ * genesis_mesh/na_service/operator_console/static/styles.css. Docs and
+ * console must look like the same product; if the console palette changes,
+ * update this file in the same commit.
+ *
+ * Operator console palette (verbatim):
+ *
+ *   Dark (default)              Light
+ *   ------------------          ------------------
+ *   --bg            #0a0d12     --bg            #f6f8fb
+ *   --panel         #10161d     --panel         #ffffff
+ *   --panel-strong  #151d26     --panel-strong  #eef3f8
+ *   --line          #273241     --line          #d5dee8
+ *   --text          #e8edf4     --text          #111827
+ *   --muted         #a6b2c0     --muted         #5f6b7a
+ *   --accent        #22c55e     --accent        #15803d   (identity green)
+ *   --accent-2      #60a5fa     --accent-2      #2563eb   (interactive blue)
+ *   --warn          #eab308     --warn          #a16207
+ *   --danger        #f87171     --danger        #b42318
+ *   --shadow        rgba(0,0,0,.18)   --shadow  rgba(16,24,32,.08)
+ *
+ * `--accent` (green) is reserved for identity surfaces only: the logo box,
+ * section captions, the recognition graph. `--accent-2` (blue) carries
+ * every interactive cue: links, code, hover, active state.
+ * ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+ * 1. Genesis Mesh palette as CSS custom properties
+ * ------------------------------------------------------------------------- */
+
+:root,
+body:not([data-theme="dark"]) {
+    --gm-bg: #f6f8fb;
+    --gm-panel: #ffffff;
+    --gm-panel-strong: #eef3f8;
+    --gm-line: #d5dee8;
+    --gm-text: #111827;
+    --gm-muted: #5f6b7a;
+    --gm-accent: #15803d;
+    --gm-accent-2: #2563eb;
+    --gm-accent-2-hover: #1d4ed8;
+    --gm-warn: #a16207;
+    --gm-danger: #b42318;
+    --gm-shadow: rgba(16, 24, 32, 0.08);
+    --gm-brand-emerald-border: rgba(110, 231, 183, 0.45);
+    --gm-brand-emerald-bg: rgba(110, 231, 183, 0.08);
+}
+
+body[data-theme="dark"] {
+    --gm-bg: #0a0d12;
+    --gm-panel: #10161d;
+    --gm-panel-strong: #151d26;
+    --gm-line: #273241;
+    --gm-text: #e8edf4;
+    --gm-muted: #a6b2c0;
+    --gm-accent: #22c55e;
+    --gm-accent-2: #60a5fa;
+    --gm-accent-2-hover: #93c5fd;
+    --gm-warn: #eab308;
+    --gm-danger: #f87171;
+    --gm-shadow: rgba(0, 0, 0, 0.18);
+    --gm-brand-emerald-border: rgba(110, 231, 183, 0.45);
+    --gm-brand-emerald-bg: rgba(110, 231, 183, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+        --gm-bg: #0a0d12;
+        --gm-panel: #10161d;
+        --gm-panel-strong: #151d26;
+        --gm-line: #273241;
+        --gm-text: #e8edf4;
+        --gm-muted: #a6b2c0;
+        --gm-accent: #22c55e;
+        --gm-accent-2: #60a5fa;
+        --gm-accent-2-hover: #93c5fd;
+        --gm-warn: #eab308;
+        --gm-danger: #f87171;
+        --gm-shadow: rgba(0, 0, 0, 0.18);
+    }
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. Map the Genesis Mesh palette onto Furo's CSS variables
+ *
+ * Furo derives every colour from a small set of variables. Overriding them
+ * here makes the entire theme inherit the operator console palette without
+ * needing per-selector rules.
+ * ------------------------------------------------------------------------- */
+
+:root,
+body:not([data-theme="dark"]),
+body[data-theme="dark"] {
+    /* Page surfaces */
+    --color-background-primary: var(--gm-bg);
+    --color-background-secondary: var(--gm-panel-strong);
+    --color-background-hover: var(--gm-panel);
+    --color-background-hover--transparent: var(--gm-panel);
+    --color-background-border: var(--gm-line);
+    --color-background-item: var(--gm-panel);
+
+    /* Foreground / text */
+    --color-foreground-primary: var(--gm-text);
+    --color-foreground-secondary: var(--gm-muted);
+    --color-foreground-muted: var(--gm-muted);
+    --color-foreground-border: var(--gm-line);
+
+    /* Brand / interactive (blue) */
+    --color-brand-primary: var(--gm-accent-2);
+    --color-brand-content: var(--gm-accent-2);
+    --color-link: var(--gm-accent-2);
+    --color-link--hover: var(--gm-accent-2-hover);
+    --color-link-underline: var(--gm-line);
+    --color-link-underline--hover: var(--gm-accent-2);
+
+    /* Code surfaces */
+    --color-code-background: var(--gm-panel-strong);
+    --color-code-foreground: var(--gm-accent-2);
+    --color-inline-code-background: var(--gm-panel-strong);
+
+    /* Highlight (search hits, etc.) */
+    --color-highlight-on-target: color-mix(in srgb, var(--gm-accent-2) 12%, transparent);
+
+    /* Sidebar */
+    --color-sidebar-background: var(--gm-panel);
+    --color-sidebar-background-border: var(--gm-line);
+    --color-sidebar-brand-text: var(--gm-text);
+    --color-sidebar-link-text: var(--gm-muted);
+    --color-sidebar-link-text--top-level: var(--gm-text);
+    --color-sidebar-item-background--hover: var(--gm-panel-strong);
+    --color-sidebar-item-background--current: var(--gm-panel-strong);
+    --color-sidebar-search-background: var(--gm-panel);
+    --color-sidebar-search-border: var(--gm-line);
+    --color-sidebar-search-icon: var(--gm-muted);
+
+    /* Table of contents (right column) */
+    --color-toc-background: var(--gm-panel);
+    --color-toc-title-text: var(--gm-muted);
+    --color-toc-item-text: var(--gm-muted);
+    --color-toc-item-text--hover: var(--gm-text);
+    --color-toc-item-text--active: var(--gm-accent-2);
+
+    /* Header / mobile */
+    --color-header-background: var(--gm-bg);
+    --color-header-border: var(--gm-line);
+    --color-header-text: var(--gm-text);
+
+    /* Card (sphinx-design uses the secondary background by default) */
+    --color-card-background: var(--gm-panel);
+    --color-card-border: var(--gm-line);
+    --color-card-marginals-background: var(--gm-panel-strong);
+}
+
+/* ---------------------------------------------------------------------------
+ * 2b. Defensive structural backgrounds
+ *
+ * Furo uses transparent / inherited backgrounds on `article`, `.content`,
+ * and several structural containers. When custom CSS overrides bubble up
+ * via inheritance, some screen sizes leave gaps where the html background
+ * shows through. Paint the page background explicitly on every structural
+ * container so the surface is solid.
+ * ------------------------------------------------------------------------- */
+
+html,
+body,
+.page,
+.main,
+article,
+.content,
+main {
+    background-color: var(--gm-bg) !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. Sidebar branding
+ *
+ * Logo container mirrors the operator console's `.brand-mark`: a pale
+ * emerald border and very faint emerald background. Logo image is black
+ * in light mode (native) and inverted to white in dark mode.
+ * ------------------------------------------------------------------------- */
+
 .sidebar-brand {
     align-items: center !important;
     flex-direction: row !important;
@@ -11,17 +195,161 @@
     flex: 0 0 64px !important;
     margin: 0 !important;
     width: 64px !important;
+    height: 56px !important;
+    border: 1px solid var(--gm-brand-emerald-border);
+    border-radius: 8px;
+    background: var(--gm-brand-emerald-bg);
+    display: grid !important;
+    place-items: center !important;
+    overflow: hidden;
 }
 
 .sidebar-logo {
     margin: 0 !important;
-    width: 64px !important;
-    max-width: 64px !important;
-    max-height: 44px !important;
+    width: 48px !important;
+    max-width: 48px !important;
+    max-height: 40px !important;
+}
+
+body[data-theme="dark"] .sidebar-logo {
+    filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) .sidebar-logo {
+        filter: invert(1);
+    }
 }
 
 .sidebar-brand-text {
     margin: 0 !important;
     font-size: 1.05rem !important;
     line-height: 1.2 !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. Sidebar section captions
+ *
+ * "OPERATORS", "OPERATIONS", "EXAMPLES" carry the identity green so the
+ * navigation reads as branded rather than generic Furo.
+ * ------------------------------------------------------------------------- */
+
+.sidebar-tree .caption,
+.sidebar-tree p.caption {
+    color: var(--gm-accent) !important;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. Code blocks and inline code
+ *
+ * Code blocks use the operator console's panel-strong surface plus a 3px
+ * accent-2 left border so they read as Genesis Mesh code rather than a
+ * generic Pygments dump. Inline code text picks up accent-2 (matches
+ * `code { color: var(--accent-2) }` in the operator console).
+ * ------------------------------------------------------------------------- */
+
+.highlight,
+.highlight pre,
+div[class*="highlight-"] pre {
+    background: var(--gm-panel-strong) !important;
+}
+
+div[class*="highlight-"] {
+    border-left: 3px solid var(--gm-accent-2);
+    border-radius: 0.25rem;
+}
+
+div[class*="highlight-"] pre {
+    border-radius: 0 0.2rem 0.2rem 0;
+}
+
+code.literal,
+.docutils.literal,
+code:not(.sd-card *):not(pre *) {
+    color: var(--gm-accent-2);
+    background: var(--gm-panel-strong);
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. sphinx-design cards
+ *
+ * Cards mirror the operator console's `--panel` surface (pure white in
+ * light, dark navy in dark). Border picks up brand-blue on hover, with a
+ * subtle lift and operator console shadow.
+ * ------------------------------------------------------------------------- */
+
+.sd-card {
+    background-color: var(--gm-panel) !important;
+    border-color: var(--gm-line) !important;
+    transition: border-color 120ms ease, transform 120ms ease,
+        box-shadow 120ms ease;
+}
+
+.sd-card:hover {
+    border-color: var(--gm-accent-2) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px var(--gm-shadow);
+}
+
+.sd-card .sd-card-title {
+    color: var(--gm-accent-2);
+    font-weight: 600;
+}
+
+.sd-card-body {
+    font-size: 0.95rem;
+    color: var(--gm-text);
+}
+
+/* ---------------------------------------------------------------------------
+ * 7. Task lists (MyST `tasklist` extension)
+ *
+ * Drop the bullet for `[ ]`-prefixed list items and brand the checkbox so
+ * the security checklist and recognition playbook read cleanly.
+ * ------------------------------------------------------------------------- */
+
+.task-list,
+ul.contains-task-list {
+    list-style: none;
+    padding-left: 0.25rem;
+}
+
+li.task-list-item {
+    list-style: none;
+    margin-left: -0.5rem;
+    padding-left: 0.25rem;
+}
+
+li.task-list-item > input[type="checkbox"],
+.task-list-item-checkbox {
+    accent-color: var(--gm-accent-2);
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.55rem;
+    vertical-align: -0.18em;
+    cursor: default;
+}
+
+/* ---------------------------------------------------------------------------
+ * 8. Tables
+ *
+ * Operator console tables: panel background, panel-strong header, accent-2
+ * header text colour, line-coloured cell borders.
+ * ------------------------------------------------------------------------- */
+
+table.docutils {
+    background: var(--gm-panel);
+    border: 1px solid var(--gm-line);
+}
+
+table.docutils th {
+    background: var(--gm-panel-strong) !important;
+    color: var(--gm-accent-2) !important;
+}
+
+table.docutils td,
+table.docutils th {
+    border-bottom: 1px solid var(--gm-line) !important;
 }

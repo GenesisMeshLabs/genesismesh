@@ -100,14 +100,58 @@ flowchart LR
     node_b -->|applies| policy
 ```
 
-The documentation is organized by what you are trying to do:
+The documentation is organized by what you are trying to do.
 
-- **Start here** for setup, local startup, and installation.
-- **Concepts** for architecture, trust, certificate lifecycle, security, and
-  routing.
-- **Reference** for CLI, HTTP API, and configuration details.
-- **Operations** for deployment, infrastructure, monitoring, and revocation.
-- **Development** for contributing, testing, and roadmap context.
+::::{grid} 1 2 2 3
+:gutter: 3
+
+:::{grid-item-card} Quick Start
+:link: quickstart
+:link-type: doc
+
+Get a local mesh running and exercise its first commands.
+:::
+
+:::{grid-item-card} Concepts
+:link: concepts/overview
+:link-type: doc
+
+Architecture, trust model, security model, and how the pieces fit together.
+:::
+
+:::{grid-item-card} Operators
+:link: operators/index
+:link-type: doc
+
+Stand up a sovereign, verify independent operator control, and run
+recognition proofs.
+:::
+
+:::{grid-item-card} Operations
+:link: operations/deployment-index
+:link-type: doc
+
+Deployment and day-to-day operations: VM bootstrap, Terraform,
+Kubernetes, monitoring, audit, incident response, backup.
+:::
+
+:::{grid-item-card} Examples
+:link: examples/overview-and-demos-index
+:link-type: doc
+
+Working demonstrations: trust thesis, agent capability orchestration,
+adoption walkthroughs, and use-case scenarios.
+:::
+
+:::{grid-item-card} Development
+:link: development/history
+:link-type: doc
+
+Project history, roadmap, contributing, module structure, and security
+policy.
+:::
+
+::::
 
 ```{toctree}
 :maxdepth: 2
@@ -143,61 +187,45 @@ reference/configuration
 ```
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 :caption: Operators
 
 operators/index
+operators/quickstart
+operators/security-checklist
+operators/recognition-playbook
+operators/proof-bundle-schema
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Operations
 
-operations/deployment
-operations/vm-bootstrap
-operations/infrastructure
-operations/terraform-deployment
-operations/kubernetes-deployment
-operations/monitoring
-operations/audit-export
-operations/incident-response
-operations/managed-sovereign
-operations/revocation
-operations/backup-restore
+operations/deployment-index
+operations/runbooks-index
 ```
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 :caption: Development
 
+development/history
+development/roadmap
 development/contributing
 development/module-structure
-development/security-policy
 development/testing
-development/roadmap
+development/security-policy
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Examples
 
-examples/demos
-examples/ai-agent-network
-examples/multi-agent-workflow
-examples/capability-orchestration
-examples/sovereign-attestations
-examples/recognition-treaties
-examples/cross-sovereign-revocation
-examples/connectome
-examples/independent-sovereigns
-examples/supply-chain-trust-gate
-examples/managed-sovereign-readiness
-examples/maintainer-sovereign-pitch
-examples/sigstore-comparison
-examples/capacity-baseline
-examples/edge-fleet
-examples/sovereign-organization
-examples/compute-cluster
+examples/overview-and-demos-index
+examples/agent-and-capability-index
+examples/trust-and-sovereignty-index
+examples/adoption-index
+examples/use-case-walkthroughs-index
 ```
 
 ## Documentation Build

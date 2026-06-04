@@ -8,15 +8,6 @@ Use this section when you need to stand up a Network Authority, verify that an
 operator controls their own trust domain, or run a cross-sovereign recognition
 workflow.
 
-```{toctree}
-:maxdepth: 1
-
-quickstart
-security-checklist
-recognition-playbook
-proof-bundle-schema
-```
-
 ## Start Here
 
 - [Operator Quickstart](quickstart.md): stand up a named sovereign on a VM.

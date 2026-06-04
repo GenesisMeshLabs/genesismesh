@@ -1,4 +1,4 @@
-# Managed Sovereign Readiness
+# Managed Sovereign Operations
 
 A managed sovereign is a Genesis Mesh Network Authority operated on behalf of a
 customer or design partner. The customer may delegate day-to-day hosting, but the
