@@ -1,0 +1,27 @@
+.sidebar-brand {
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 0.7rem !important;
+    justify-content: flex-start !important;
+    padding: 0.9rem 1rem 0.85rem !important;
+    text-align: left !important;
+}
+
+.sidebar-logo-container {
+    flex: 0 0 64px !important;
+    margin: 0 !important;
+    width: 64px !important;
+}
+
+.sidebar-logo {
+    margin: 0 !important;
+    width: 64px !important;
+    max-width: 64px !important;
+    max-height: 44px !important;
+}
+
+.sidebar-brand-text {
+    margin: 0 !important;
+    font-size: 1.05rem !important;
+    line-height: 1.2 !important;
+}
