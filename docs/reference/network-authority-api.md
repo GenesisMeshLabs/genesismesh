@@ -36,6 +36,18 @@ Returns a human-readable Network Authority home page with links to public,
 health, node, and operator routes. It is intended for operators opening the NA
 from a browser and does not replace signed API clients for write operations.
 
+### `GET /dashboard`
+
+Returns the read-only sovereign health and trust dashboard. The page summarizes
+readiness, Connectome counts, treaty lifecycle risk, revocation-feed freshness,
+recent trust-state changes, and links to raw JSON/reference surfaces.
+
+### `GET /dashboard.json`
+
+Returns the same dashboard model in machine-readable form for automation and
+independent verification. This endpoint does not create, mutate, authorize, or
+revoke trust.
+
 ## Health
 
 ### `GET /healthz`

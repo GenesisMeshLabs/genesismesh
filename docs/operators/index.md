@@ -19,6 +19,8 @@ workflow.
   validate public trust material before federation review.
 - [Treaty Lifecycle](treaty-lifecycle.md): list, inspect, renew, replace, and
   revoke direct-recognition treaties.
+- [Sovereign Dashboard](sovereign-dashboard.md): read local health, treaty
+  risk, revocation freshness, and recent trust changes from one read-only page.
 - [Recognition Playbook](recognition-playbook.md): run direct recognition and
   revocation between sovereigns.
 - [Proof Bundle Schema](proof-bundle-schema.md): understand the redacted JSON

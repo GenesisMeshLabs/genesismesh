@@ -9,6 +9,7 @@ def render_topbar(active: str) -> str:
     """Render shared operator-console top navigation."""
     items = [
         ("Console", "/"),
+        ("Dashboard", "/dashboard"),
         ("Connectome", "/connectome"),
         ("API Docs", "/api-reference"),
         ("CLI Docs", "/cli-reference"),

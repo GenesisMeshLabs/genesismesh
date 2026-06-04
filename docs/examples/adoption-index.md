@@ -16,6 +16,7 @@ supply-chain-trust-gate
 managed-sovereign-readiness
 operator-onboarding-exchange
 treaty-lifecycle-management
+sovereign-health-dashboard
 maintainer-sovereign-pitch
 sigstore-comparison
 ```
@@ -57,6 +58,14 @@ automatically.
 
 The operator lifecycle view for recognition treaties: active, expiring,
 expired, revoked, replaced, and visible in Connectome.
+:::
+
+:::{grid-item-card} Sovereign Health and Trust Dashboard
+:link: sovereign-health-dashboard
+:link-type: doc
+
+One read-only page for local sovereign readiness, treaty risk, revocation-feed
+freshness, recent trust changes, and raw verification links.
 :::
 
 :::{grid-item-card} Why A Maintainer Would Run A Sovereign

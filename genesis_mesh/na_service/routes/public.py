@@ -6,6 +6,7 @@ from importlib.resources import files
 
 from flask import Blueprint, Response, abort, jsonify, request
 
+from ..operator_console.dashboard import build_dashboard_model, render_dashboard
 from ..operator_console.openapi import build_swagger_spec
 from ..operator_console.rendering import (
     render_api_reference,
@@ -64,6 +65,16 @@ def create_public_blueprint(service) -> Blueprint:
     def home():
         """Return the human-facing Network Authority landing page."""
         return Response(render_homepage(service), mimetype="text/html")
+
+    @bp.route("/dashboard", methods=["GET"])
+    def dashboard():
+        """Return the read-only sovereign health and trust dashboard."""
+        return Response(render_dashboard(service), mimetype="text/html")
+
+    @bp.route("/dashboard.json", methods=["GET"])
+    def dashboard_json():
+        """Return machine-readable dashboard state."""
+        return jsonify(build_dashboard_model(service))
 
     @bp.route("/swagger.json", methods=["GET"])
     def swagger_json():

@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.17.5 - Sovereign Health and Trust Dashboard
+
+### Added
+
+- Added a read-only `/dashboard` operator page for local sovereign health and
+  trust visibility.
+- Added `/dashboard.json` with the same dashboard model for automation and
+  independent verification.
+- Added dashboard summary cards for readiness, Connectome counts, treaty
+  warnings, revocation-feed freshness, and active nodes.
+- Added treaty lifecycle, revocation-feed freshness, and recent sanitized
+  trust-change sections to the operator dashboard.
+- Added operator documentation plus a docs example with generated PNG/GIF
+  assets for the sovereign health and trust dashboard.
+- Added tests covering fresh dashboard empty state, JSON output, treaty state,
+  audit visibility, and imported revocation feed rendering.
+
+### Changed
+
+- Added Dashboard to the operator console top navigation and generated HTTP
+  surface metadata.
+- Kept the dashboard read-only; it links to raw JSON and references but does not
+  expose browser admin actions.
+- Updated the v0.17.5 plan checklist to reflect completed implementation work.
+- Bumped the package version to `0.17.5`.
+
+### Verified
+
+- Ran focused dashboard/treaty tests and the full test suite.
+- Ran mypy, compileall, Sphinx documentation build with warnings treated as
+  errors, and local HTTP smoke against a temporary Network Authority.
+
 ## v0.17.4 - Treaty Lifecycle Management
 
 ### Added

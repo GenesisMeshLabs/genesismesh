@@ -287,6 +287,13 @@ def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_se
         "TEST",
     ]
 
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    dashboard_body = dashboard.get_data(as_text=True)
+    assert "Revocation Feed Freshness" in dashboard_body
+    assert feed["feed_id"] in dashboard_body
+    assert "fresh" in dashboard_body
+
 
 def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service):
     """The same issuer sequence cannot be imported twice."""
