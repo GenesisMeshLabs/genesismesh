@@ -196,6 +196,7 @@ operators/security-checklist
 operators/federation-bootstrap
 operators/trust-bundle-exchange
 operators/treaty-lifecycle
+operators/sovereign-dashboard
 operators/recognition-playbook
 operators/proof-bundle-schema
 ```

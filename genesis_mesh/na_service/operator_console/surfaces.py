@@ -41,6 +41,8 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("GET", "/policy", "Policy", "Active DB-backed policy manifest.", "safe", "browser_safe", "None", True),
     Surface("GET", "/crl", "Revocation list", "Current signed certificate revocation list.", "safe", "browser_safe", "None", True),
     Surface("GET", "/nodes", "Nodes", "Recently active node inventory.", "safe", "browser_safe", "None", True),
+    Surface("GET", "/dashboard", "Sovereign dashboard", "Read-only sovereign health and trust view.", "safe", "browser_safe", "None", True, True),
+    Surface("GET", "/dashboard.json", "Dashboard JSON", "Machine-readable sovereign health and trust summary.", "safe", "browser_safe", "None", True),
     Surface("GET", "/connectome", "Connectome", "Human-readable recognition and revocation view.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/connectome.json", "Connectome JSON", "Machine-readable Connectome summary.", "safe", "browser_safe", "None", True),
     Surface(

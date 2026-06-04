@@ -593,6 +593,64 @@ section {
     color: var(--text);
 }
 
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.signal-card {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 16px;
+}
+
+.signal-card-wide {
+    grid-column: span 1;
+}
+
+.signal-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted);
+}
+
+.signal-list li + li {
+    margin-top: 6px;
+}
+
+.status-badge {
+    width: fit-content;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+
+.status-ok {
+    border-color: rgba(34, 197, 94, 0.42);
+    color: var(--accent);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.status-watch {
+    border-color: rgba(250, 204, 21, 0.42);
+    color: var(--warn);
+    background: rgba(250, 204, 21, 0.08);
+}
+
+.status-risk {
+    border-color: rgba(248, 113, 113, 0.42);
+    color: var(--danger);
+    background: rgba(248, 113, 113, 0.08);
+}
+
 @media (max-width: 720px) {
     .shell {
         width: min(100% - 24px, 1160px);
@@ -610,6 +668,10 @@ section {
 
     .stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .filter-bar,

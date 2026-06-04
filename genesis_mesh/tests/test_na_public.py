@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import generate_keypair
 
+from .na_server_helpers import admin_headers
+
 
 def test_homepage_links_to_operational_routes(client):
     """The Network Authority root should be useful in a browser."""
@@ -18,6 +20,7 @@ def test_homepage_links_to_operational_routes(client):
     assert "Genesis Mesh Network Authority" in body
     assert "TEST" in body
     assert "Console" in body
+    assert "Dashboard" in body
     assert "API Docs" in body
     assert "CLI Docs" in body
     assert "Operator Docs" in body
@@ -27,6 +30,7 @@ def test_homepage_links_to_operational_routes(client):
     assert "/sovereign.json" in body
     assert "/api-reference" in body
     assert "/cli-reference" in body
+    assert "/dashboard" in body
     assert "All surfaces" in body
     assert "Safe GET" in body
     assert "Signed" in body
@@ -56,6 +60,62 @@ def test_homepage_links_to_operational_routes(client):
     assert "theme-icon-light" in body
     assert 'href="genesis-mesh managed backup"' not in body
     assert 'class="shell operator-console"' in body
+
+
+def test_dashboard_empty_state_is_read_only(client):
+    """A fresh sovereign dashboard should explain empty trust state."""
+    resp = client.get("/dashboard")
+
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    body = resp.get_data(as_text=True)
+    assert "Sovereign Health and Trust" in body
+    assert "No recognition treaties yet." in body
+    assert "No imported sovereign revocation feeds." in body
+    assert "No recent trust-state changes." in body
+    assert "Dashboard JSON" in body
+    assert "Connectome JSON" in body
+    assert "This dashboard is read-only" in body
+    assert "/admin/recognition-treaties" not in body
+
+
+def test_dashboard_json_summarizes_empty_state(client):
+    """Dashboard JSON should expose machine-readable read-only state."""
+    resp = client.get("/dashboard.json")
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["sovereign"]["id"] == "TEST"
+    assert payload["readiness"]["status"] == "ready"
+    assert payload["treaty_summary"]["total"] == 0
+    assert payload["revocation_feed_summary"]["count"] == 0
+    assert payload["links"]["connectome_json"] == "/connectome.json"
+
+
+def test_dashboard_renders_treaty_and_audit_state(client, na_service):
+    """Dashboard should show treaty lifecycle and sanitized trust changes."""
+    body = {
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [na_service.genesis_block.network_authority.public_key],
+        "scope": {"allowed_roles": ["role:client"]},
+        "validity_hours": 1,
+    }
+    issued = client.post(
+        "/admin/recognition-treaties",
+        json=body,
+        headers=admin_headers(client, body),
+    )
+    assert issued.status_code == 201
+
+    resp = client.get("/dashboard")
+
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert issued.get_json()["treaty_id"] in html
+    assert "expiring soon" in html
+    assert "recognition_treaty_issued" in html
+    assert "Private" not in html
+    assert "Operator signature" not in html
 
 
 def test_operator_console_static_assets_are_served(client):

@@ -19,15 +19,15 @@ Connectome, treaty, and revocation state.
 
 ## Success Criteria
 
-- [ ] A read-only dashboard summarizes sovereign health and trust state.
-- [ ] Active, expiring, expired, revoked, or risky treaties are visible.
-- [ ] Revocation feed status and freshness are visible where data supports it.
-- [ ] Recent trust-relevant changes are visible without exposing secrets.
-- [ ] Empty states explain what has not happened yet and what the operator can
+- [x] A read-only dashboard summarizes sovereign health and trust state.
+- [x] Active, expiring, expired, revoked, or risky treaties are visible.
+- [x] Revocation feed status and freshness are visible where data supports it.
+- [x] Recent trust-relevant changes are visible without exposing secrets.
+- [x] Empty states explain what has not happened yet and what the operator can
       do next.
-- [ ] The dashboard links to raw JSON or CLI workflows for automation and
+- [x] The dashboard links to raw JSON or CLI workflows for automation and
       verification.
-- [ ] The dashboard does not create, mutate, authorize, or revoke trust.
+- [x] The dashboard does not create, mutate, authorize, or revoke trust.
 
 ## Release Name
 
@@ -66,12 +66,14 @@ Connectome, treaty, and revocation state.
 
 At v0.17.5 tag time, record:
 
-- [ ] Number of candidate operators who reviewed the dashboard.
-- [ ] Whether the dashboard helped them explain sovereign state without
-      maintainer narration.
-- [ ] Whether dashboard gaps block v0.18.0.
-- [ ] Whether at least one candidate operator is ready to attempt the external
-      proof.
+- [x] Number of candidate operators who reviewed the dashboard: 0 during
+      implementation; external review remains a v0.18.0 dependency.
+- [x] Whether the dashboard helped them explain sovereign state without
+      maintainer narration: not externally measured yet.
+- [x] Whether dashboard gaps block v0.18.0: no known implementation blocker;
+      external operator review is still required.
+- [x] Whether at least one candidate operator is ready to attempt the external
+      proof: not yet recorded in this release.
 
 If no candidate operator is ready after this patch, pause feature work before
 v0.18.0 and concentrate on recruitment and direct operator support.
@@ -80,34 +82,34 @@ v0.18.0 and concentrate on recruitment and direct operator support.
 
 ### Phase 1 - State Model
 
-- [ ] Inventory which health, treaty, revocation, audit, and Connectome data is
+- [x] Inventory which health, treaty, revocation, audit, and Connectome data is
       safe to expose.
-- [ ] Decide which signals are first-class dashboard cards.
-- [ ] Define empty-state copy for new sovereigns.
-- [ ] Define warning thresholds for expiring treaties and stale feeds.
+- [x] Decide which signals are first-class dashboard cards.
+- [x] Define empty-state copy for new sovereigns.
+- [x] Define warning thresholds for expiring treaties and stale feeds.
 
 ### Phase 2 - Dashboard Surface
 
-- [ ] Add the read-only dashboard route or refine an existing operator surface.
-- [ ] Render health, sovereign identity, treaty status, and revocation status.
-- [ ] Add recent trust-state changes where safe.
-- [ ] Add links to raw JSON and CLI workflows.
-- [ ] Ensure dark and light modes match the operator console.
+- [x] Add the read-only dashboard route or refine an existing operator surface.
+- [x] Render health, sovereign identity, treaty status, and revocation status.
+- [x] Add recent trust-state changes where safe.
+- [x] Add links to raw JSON and CLI workflows.
+- [x] Ensure dark and light modes match the operator console.
 
 ### Phase 3 - Explainability
 
-- [ ] Link dashboard warnings to the relevant source of truth.
-- [ ] Explain why empty trust graph states are valid for fresh sovereigns.
-- [ ] Explain why the dashboard cannot mutate trust.
-- [ ] Make the dashboard useful in screenshots without becoming marketing-only.
+- [x] Link dashboard warnings to the relevant source of truth.
+- [x] Explain why empty trust graph states are valid for fresh sovereigns.
+- [x] Explain why the dashboard cannot mutate trust.
+- [x] Make the dashboard useful in screenshots without becoming marketing-only.
 
 ### Phase 4 - Tests and Docs
 
-- [ ] Test empty dashboard rendering.
-- [ ] Test dashboard rendering with treaties.
-- [ ] Test dashboard rendering with imported revocations.
-- [ ] Test warning states for expiring treaties or stale feeds.
-- [ ] Update operator docs or examples if needed.
+- [x] Test empty dashboard rendering.
+- [x] Test dashboard rendering with treaties.
+- [x] Test dashboard rendering with imported revocations.
+- [x] Test warning states for expiring treaties or stale feeds.
+- [x] Update operator docs or examples if needed.
 
 ## Verification
 
@@ -131,9 +133,9 @@ Smoke verification should include:
 
 Do not tag v0.17.5 until:
 
-- [ ] The dashboard is read-only.
-- [ ] Empty, healthy, warning, and trust-connected states are legible.
-- [ ] Raw JSON and CLI reference links remain available.
-- [ ] No secrets are displayed.
-- [ ] Focused and full verification pass.
-- [ ] The adoption checkpoint is recorded.
+- [x] The dashboard is read-only.
+- [x] Empty, healthy, warning, and trust-connected states are legible.
+- [x] Raw JSON and CLI reference links remain available.
+- [x] No secrets are displayed.
+- [x] Focused and full verification pass.
+- [x] The adoption checkpoint is recorded.

@@ -302,14 +302,21 @@ operator-facing dates are rendered in a readable UTC format. The release keeps
 renewal and replacement as helpers over existing issue and revoke semantics, not
 as new treaty primitives.
 
+**v0.17.5 - Sovereign Health and Trust Dashboard.** Each sovereign gains a
+read-only dashboard over local state: readiness, Connectome counts, treaty
+lifecycle risk, revocation-feed freshness, recent sanitized trust changes, and
+links to raw JSON/reference surfaces. The page improves operator confidence
+without becoming a browser-admin product or a new source of trust.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
 infrastructure, operational credibility for managed deployment, a
-coherent public documentation surface, and smaller internal modules
-for auditing the CLI and trust-state persistence paths. The first
-federation step is now easier to run and package for review, but a
-non-maintainer operator is still required for adoption proof.
+coherent public documentation surface, smaller internal modules for auditing
+the CLI and trust-state persistence paths, and a local read-only dashboard for
+health and trust visibility. The first federation step is now easier to run,
+package for review, and explain visually, but a non-maintainer operator is still
+required for adoption proof.
 
 ### Phase F - Adoption (planned)
 
