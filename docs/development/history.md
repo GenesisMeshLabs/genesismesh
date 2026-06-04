@@ -233,7 +233,7 @@ Proof" and gated the tag on a real external operator having run the
 proof. When that gate was not yet met but the engineering work was
 done, the release was renamed to "Readiness" and a CHANGELOG note
 explicitly stated the adoption milestone was still open. The actual
-adoption-proof work moved to v0.17.
+adoption-proof work moved to v0.18.0.
 
 **v0.15.0 - Supply-Chain Trust Gate.** A narrow CI/release gate that
 demonstrates how Genesis Mesh sits in a publishing or release path. A
@@ -254,12 +254,41 @@ response runbooks for operator key compromise, NA key compromise,
 bad treaty, bad feed, database restore, and revocation blast-radius
 review.
 
+**v0.16.1 - Operator Console Surface Alignment.** The Network
+Authority home page and Connectome are brought into the same visual
+standard. The browser surface remains read-only and explanatory, but
+it now reflects the shipped managed-sovereign and cross-sovereign
+trust surfaces rather than an older enrollment-only view.
+
+**v0.16.2 - Operator Adoption Console.** The operator console becomes
+a compact adoption surface: generated API and CLI references,
+dark/light mode, shared navigation, curated route groups, search,
+surface filters, and a Connectome graph. The goal is not a browser
+control plane. The goal is that a reviewer or future operator can
+open a running authority and understand what exists without reading
+raw JSON first.
+
+**v0.17.0 - Documentation Retheme and Navigation.** The Sphinx docs
+are reorganized around reader intent, gain grouped landing pages, and
+adopt the same visual language as the operator console. This release
+also adds the public project history page so the build sequence is
+legible to maintainers.
+
+**v0.17.1 - Large Module Refactor.** The largest security-sensitive
+implementation files are split without changing behavior:
+`genesis_mesh/cli/ops.py` becomes a smaller registration and remaining
+command surface, `genesis_mesh/na_service/db.py` remains the stable
+`NADatabase` facade while delegating persistence domains to smaller
+mixins, and the monolithic CLI ops tests are split by command family.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
-infrastructure, and operational credibility for managed deployment.
+infrastructure, operational credibility for managed deployment, a
+coherent public documentation surface, and smaller internal modules
+for auditing the CLI and trust-state persistence paths.
 
-### Phase F - Adoption (v0.17.0, planned)
+### Phase F - Adoption (planned)
 
 **Question:** Has someone else run this?
 
@@ -267,7 +296,7 @@ This phase has not shipped yet. It is described here so the trajectory
 of the project is legible, but it is forward-looking work, not a claim
 about current state.
 
-**v0.17.0 - Multi-Cloud Sovereign Operation Proof (planned).** A named
+**v0.18.0 - Multi-Cloud Sovereign Operation Proof (planned).** A named
 future external operator runs a sovereign with their own genesis, NA
 key, operator key, database, endpoint, and policy. Forms a recognition
 treaty with another sovereign. Issues and revokes an attestation.
@@ -378,7 +407,7 @@ are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.17.0): `ops/plan-v0.*.md`
+- Per-release plans (v0.1.0 through v0.18.0): `ops/plan-v0.*.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 

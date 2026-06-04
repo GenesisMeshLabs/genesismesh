@@ -1,178 +1,143 @@
-# v0.17.0 Plan - Multi-Cloud Sovereign Operation Proof
+# v0.17.0 Plan - Documentation Retheme and Navigation
 
 ## Positioning
 
-v0.17.0 is the multi-cloud operation milestone. v0.14.0 made the operator packet
-ready; v0.17.0 proves that a maintainer-operated multi-cloud fleet can run it.
+v0.16.2 made the browser-facing Network Authority console feel like a real
+operator surface. The public documentation still needed the same product
+coherence: clearer navigation, better grouping, a visible project history, and
+a theme that looked like Genesis Mesh rather than stock Sphinx.
 
-This is the release that changes the public story:
+This release should prove this statement:
 
-- Before v0.17: Genesis Mesh has maintainer-operated proof and operator
-  readiness.
-- After v0.17: Genesis Mesh has evidence of an early network.
+> A maintainer, operator, or reviewer can land in the documentation, understand
+> where to start, navigate by reader intent, and see the same visual language
+> used by the operator console.
 
-Every other release in v0.13-v0.16 is mostly code, docs, or operations that the
-maintainer can ship alone. v0.17 cannot be completed alone, and that is exactly
-why it matters.
-
-The release should prove this statement:
-
-> A named future external operator can run a sovereign trust domain, form a
-> recognition relationship, and complete the revocation proof without handing
-> control of their keys, policy, or infrastructure to Genesis Core.
-
-## Operator Quality Test
-
-The realness of the first external operator is the whole game. An investor will
-smell the difference between "real adopter" and "friend doing a favor" in one
-question. Use this test before counting the proof as complete:
-
-- Did they ask to run a sovereign, or did the maintainer ask them?
-- Do they have a concrete reason to run it that exists with or without Genesis
-  Mesh's success?
-- Would they keep operating it after the proof, or shut it down?
-- Are they willing to be named publicly as Sovereign B?
-- Would they answer "why are you running this?" without coaching?
-
-If two or more answers are no, the proof is technically valid but narratively
-weak. Recruit harder rather than ship faster. A second operator who shuts the
-sovereign down after the demo is not adoption; it is theater.
+This is a documentation and presentation release. It does not change protocol
+semantics, Network Authority behavior, CLI behavior, or database schema.
 
 ## Success Criteria
 
-- [ ] A future external operator is named and willing to be referenced in release
-      notes or a public case artifact.
-- [ ] The operator runs a sovereign using their own genesis, NA key, operator
-      key, DB, endpoint, and policy.
-- [ ] The operator publishes or shares public trust material for recognition.
-- [ ] The operator issues and revokes a membership, maintainer, or agent
-      attestation.
-- [ ] Another sovereign recognizes that operator's sovereign through a signed
-      treaty.
-- [ ] Revocation propagates and changes acceptance on the recognizing
-      sovereign.
-- [ ] The proof bundle clearly distinguishes maintainer-operated infrastructure
-      from externally operated infrastructure.
-- [ ] Documentation records what the operator did self-service and where
-      maintainer assistance was still required.
+- The docs home page gives clear entry points instead of only a long table of
+  contents.
+- Operations and Examples are grouped by reader intent.
+- Operators stays flat because it has one real guide cluster, not multiple
+  subgroups.
+- A public project history page explains the release journey without investor
+  framing.
+- The Sphinx theme mirrors the operator-console palette in light and dark mode.
+- Sidebar logo, section captions, cards, code blocks, tables, and task lists
+  feel aligned with the operator console.
+- Long sidebar navigation preserves scroll position.
+- Sphinx builds cleanly with warnings treated as errors.
 
 ## Release Name
 
-`v0.17.0 - Multi-Cloud Sovereign Operation Proof`
-
-## Core Flow
-
-```text
-External Operator
-  -> runs Sovereign B
-  -> owns genesis, keys, policy, database, endpoint
-  -> issues member, maintainer, or agent attestation
-  -> revokes that attestation
-  -> publishes signed feed
-
-Recognizing Sovereign
-  -> fetches B public material
-  -> signs treaty for B
-  -> accepts B attestation
-  -> imports B feed
-  -> rejects revoked attestation
-  -> explains trust state in Connectome
-```
-
-The v0.15 supply-chain gate is the preferred recruitment wedge. A maintainer who
-has a real reason to protect release authority is a stronger Sovereign B than a
-friendly operator running a demo with no reason to continue.
-
-## Design Principles
-
-- Be honest about independence. "External operator" means a real second human
-  controls at least one sovereign's keys and infrastructure.
-- Do not tag without a named future external operator.
-- Do not hide operational friction. Record every manual step that blocked the
-  operator.
-- Prefer one strong multi-cloud operation proof over several maintainer-operated demos.
-- If recruitment slips repeatedly, treat that as a demand signal. Do not answer
-  it by shipping unrelated code.
+`v0.17.0 - Documentation Retheme and Navigation`
 
 ## Scope
 
 ### In Scope
 
-- Recruiting one credible external operator.
-- Running the v0.14 operator packet with that operator.
-- Capturing the proof bundle from their run.
-- Patching small onboarding blockers discovered during the run.
-- Updating docs and examples from the operator's actual experience.
-- Publishing a short public artifact if the operator agrees.
+- Add grouped documentation landing pages for Operations.
+- Add grouped documentation landing pages for Examples.
+- Flatten Operators so it mirrors its actual information architecture.
+- Add a public `docs/development/history.md` page.
+- Add Sphinx Design cards to the docs home page.
+- Add `sphinx-design` to the docs requirements.
+- Retheme Furo using the Genesis Mesh operator-console palette.
+- Add package/logo treatment to the docs sidebar.
+- Add sidebar scroll persistence for long navigation.
+- Rename ambiguous managed-sovereign page headings so operations and examples
+  are distinct.
+- Update docs navigation to expose the new structure.
 
 ### Out of Scope
 
-- Marketplace or registry launch.
-- Paid billing integration.
-- Transitive trust.
-- General global discovery of all sovereigns.
-- Enterprise IdP bridge unless the external operator specifically needs it.
-- Counting a maintainer-controlled second VM as multi-cloud operation proof.
+- Protocol changes.
+- CLI command changes.
+- Network Authority route changes.
+- Operator-console feature changes.
+- New screenshots, GIFs, or demo scripts.
+- External operator multi-cloud operation proof.
+- Commercial-track or private sales-playbook publication.
 
 ## Implementation Phases
 
-### Phase 1 - Recruit Operator
+### Phase 1 - Navigation Restructure
 
-- [ ] Identify candidate operators from v0.15 and commercial-track outreach.
-- [ ] Apply the Operator Quality Test.
-- [ ] Confirm the operator has a concrete reason to run a sovereign.
-- [ ] Confirm what can be named publicly.
-- [ ] Agree on proof scope, timeline, and support boundaries.
+- [x] Keep Start Here, Concepts, Reference, Operators, and Development concise.
+- [x] Flatten Operators because it has one guide family.
+- [x] Group Operations into Deployment and Runbooks.
+- [x] Group Examples into reader-intent clusters.
+- [x] Add landing pages for every new nested group.
+- [x] Keep Concepts linear because it is a deliberate reading sequence.
 
-### Phase 2 - Operator-Owned Sovereign
+### Phase 2 - Public Project History
 
-- [ ] Have the operator generate their own genesis.
-- [ ] Have the operator generate or own their NA key and operator key.
-- [ ] Have the operator run their own DB and endpoint.
-- [ ] Confirm private keys are never shared with Genesis Core.
-- [ ] Capture health, readiness, Genesis, and Connectome evidence.
+- [x] Create a public project history page under Development.
+- [x] Remove investor-oriented framing from the public version.
+- [x] Mark planned adoption work as planned, not shipped.
+- [x] Add the page to the Development navigation.
 
-### Phase 3 - Recognition and Revocation Proof
+### Phase 3 - Docs Home Page
 
-- [ ] Import or fetch the operator's public trust material.
-- [ ] Form a signed treaty with the recognizing sovereign.
-- [ ] Issue an attestation from the operator sovereign.
-- [ ] Verify the recognizing sovereign accepts it before revocation.
-- [ ] Revoke the attestation on the operator sovereign.
-- [ ] Import the revocation feed.
-- [ ] Verify the recognizing sovereign rejects the same attestation after
-      revocation.
+- [x] Replace the plain organization list with Sphinx Design cards.
+- [x] Link cards to Quick Start, Concepts, Operators, Operations, Examples,
+      and Development.
+- [x] Keep card copy short and task-oriented.
 
-### Phase 4 - Evidence and Hardening
+### Phase 4 - Theme Alignment
 
-- [ ] Capture the proof bundle.
-- [ ] Redact secrets and sensitive endpoints if needed.
-- [ ] Record what was self-service versus assisted.
-- [ ] Patch the top friction points found during onboarding.
-- [ ] Add tests for any code fixes.
-- [ ] Update docs from the operator's actual run.
+- [x] Mirror the operator-console palette in `docs/theme/docs.css`.
+- [x] Style light and dark mode consistently.
+- [x] Align logo treatment with the operator console.
+- [x] Style sidebar captions with the identity green.
+- [x] Style code blocks, inline code, cards, task lists, and tables.
+- [x] Avoid treating the duplicated CSS values as the literal source of truth;
+      document them as mirrored values.
+
+### Phase 5 - Sidebar Runtime Polish
+
+- [x] Add `docs/theme/sidebar-persist.js`.
+- [x] Preserve sidebar scroll position across navigation.
+- [x] Register the script through Sphinx config.
+
+### Phase 6 - Verification
+
+- [x] Build docs with warnings treated as errors.
+- [x] Run pre-commit hooks.
+- [x] Run pre-push hooks.
+- [x] Confirm generated pages include the new cards, logo treatment, theme CSS,
+      and sidebar script.
 
 ## Verification
 
 ```powershell
-python -m pytest genesis_mesh\tests -q
-python -m mypy genesis_mesh --ignore-missing-imports
-python -m compileall genesis_mesh docs\examples\assets\scripts -q
-python -m sphinx -b html -W docs docs\pages
+python -m sphinx -E -b html -W docs docs/pages
+python -m pre_commit run --all-files
+python -m pre_commit run --all-files --hook-stage pre-push
 git diff --check
 ```
 
-External proof verification must include the operator's confirmation that they
-used separate keys and infrastructure.
+Visual verification should include:
+
+- docs home page in light mode;
+- docs home page in dark mode;
+- a long Operations page with sidebar scroll;
+- a grouped Examples landing page;
+- a Runbooks page;
+- the public Project History page.
 
 ## Release Gate
 
 Do not tag v0.17.0 until:
 
-- [ ] A named future external operator has run one sovereign.
-- [ ] The proof completed without Genesis Core controlling the operator's keys.
-- [ ] The proof bundle is captured and redacted.
-- [ ] The onboarding gaps are documented.
-- [ ] Any critical onboarding blockers found during the run are fixed.
-- [ ] Public release notes distinguish this from the v0.14 readiness release.
-- [ ] Full verification passes.
+- [x] Operations and Examples are grouped behind real landing pages.
+- [x] Operators is flattened.
+- [x] Project History is public and discoverable.
+- [x] The docs theme visually aligns with the operator console.
+- [x] Sidebar logo and captions are polished.
+- [x] Sidebar scroll persistence is available.
+- [x] Sphinx builds cleanly with warnings as errors.
+- [x] Pre-commit and pre-push checks pass.
