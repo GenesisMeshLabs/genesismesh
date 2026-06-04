@@ -193,6 +193,7 @@ reference/configuration
 operators/index
 operators/quickstart
 operators/security-checklist
+operators/federation-bootstrap
 operators/recognition-playbook
 operators/proof-bundle-schema
 ```

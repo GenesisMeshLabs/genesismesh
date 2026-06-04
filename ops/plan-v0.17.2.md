@@ -22,18 +22,18 @@ named non-maintainer operator running their own sovereign.
 
 ## Success Criteria
 
-- [ ] A guided command path or documented flow exists for reviewing another
+- [x] A guided command path or documented flow exists for reviewing another
       sovereign before trust is granted.
-- [ ] The bootstrap flow checks health, readiness, genesis, public metadata,
+- [x] The bootstrap flow checks health, readiness, genesis, public metadata,
       recognition policy, and Connectome availability where applicable.
-- [ ] Treaty scope is previewed before issue, including subject sovereign,
+- [x] Treaty scope is previewed before issue, including subject sovereign,
       public key material, validity, allowed roles, accepted statuses, and
       claims.
-- [ ] The operator must explicitly confirm the trust decision before a treaty is
+- [x] The operator must explicitly confirm the trust decision before a treaty is
       created.
-- [ ] The flow verifies the resulting trust path after treaty creation.
-- [ ] Evidence output is useful for an operator packet or proof bundle.
-- [ ] The release does not introduce automatic trust, transitive trust, or
+- [x] The flow verifies the resulting trust path after treaty creation.
+- [x] Evidence output is useful for an operator packet or proof bundle.
+- [x] The release does not introduce automatic trust, transitive trust, or
       global discovery.
 
 ## Release Name
@@ -87,35 +87,35 @@ and concentrate on recruitment before continuing the v0.17.x series.
 
 ### Phase 1 - Current Surface Review
 
-- [ ] Inventory the existing sovereign metadata, treaty, proof, and Connectome
+- [x] Inventory the existing sovereign metadata, treaty, proof, and Connectome
       surfaces used during bootstrap.
-- [ ] Identify which checks are browser-safe and which require signed operator
+- [x] Identify which checks are browser-safe and which require signed operator
       calls.
-- [ ] Confirm no new trust semantics are needed.
+- [x] Confirm no new trust semantics are needed.
 
 ### Phase 2 - Guided Bootstrap Flow
 
-- [ ] Add or refine the CLI command path for reviewing another sovereign.
-- [ ] Display endpoint, sovereign ID, network name, NA public key fingerprint,
+- [x] Add or refine the CLI command path for reviewing another sovereign.
+- [x] Display endpoint, sovereign ID, network name, NA public key fingerprint,
       genesis validity, and policy information.
-- [ ] Fail clearly when public metadata is unavailable or internally
+- [x] Fail clearly when public metadata is unavailable or internally
       inconsistent.
-- [ ] Require explicit confirmation before treaty issue.
+- [x] Require explicit confirmation before treaty issue.
 
 ### Phase 3 - Treaty Preview and Issue
 
-- [ ] Preview treaty scope and validity before signing.
-- [ ] Reuse existing treaty issue semantics.
-- [ ] Emit a stable evidence summary for the issued treaty.
-- [ ] Verify the resulting recognition edge in Connectome.
+- [x] Preview treaty scope and validity before signing.
+- [x] Reuse existing treaty issue semantics.
+- [x] Emit a stable evidence summary for the issued treaty.
+- [x] Verify the resulting recognition edge in Connectome.
 
 ### Phase 4 - Docs and Tests
 
-- [ ] Add operator documentation for the bootstrap workflow.
-- [ ] Add focused CLI tests for successful bootstrap.
-- [ ] Add tests for failed preflight checks.
-- [ ] Add tests that confirm no treaty is issued without explicit approval.
-- [ ] Add tests for trust-path verification output.
+- [x] Add operator documentation for the bootstrap workflow.
+- [x] Add focused CLI tests for successful bootstrap.
+- [x] Add tests for failed preflight checks.
+- [x] Add tests that confirm no treaty is issued without explicit approval.
+- [x] Add tests for trust-path verification output.
 
 ## Verification
 
@@ -139,9 +139,9 @@ Smoke verification should include:
 
 Do not tag v0.17.2 until:
 
-- [ ] The bootstrap flow reviews another sovereign before trust is granted.
-- [ ] Treaty issue remains explicit and signed.
-- [ ] Trust-path verification works after treaty creation.
-- [ ] Docs explain the first federation workflow.
-- [ ] Focused and full verification pass.
+- [x] The bootstrap flow reviews another sovereign before trust is granted.
+- [x] Treaty issue remains explicit and signed.
+- [x] Trust-path verification works after treaty creation.
+- [x] Docs explain the first federation workflow.
+- [x] Focused and full verification pass.
 - [ ] The adoption checkpoint is recorded.

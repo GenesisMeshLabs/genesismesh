@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.17.2 - Federation Bootstrap Readiness
+
+### Added
+
+- Added `genesis-mesh federation bootstrap` to review another sovereign,
+  preview treaty scope, optionally issue a direct-recognition treaty, and
+  verify the resulting trust path.
+- Added redacted federation bootstrap evidence output for operator packets and
+  proof bundles.
+- Added operator documentation for federation bootstrap.
+- Added focused CLI tests covering successful bootstrap, dry-run behavior,
+  declined confirmation, failed preflight checks, and evidence redaction.
+
+### Changed
+
+- Registered federation bootstrap in the generated CLI reference and operator
+  console surface metadata.
+- Kept federation bootstrap as a CLI workflow over existing public and signed
+  admin endpoints; no new API endpoints or treaty semantics were introduced.
+- Ignored generated local sovereign homes and configs under `examples/genesis`.
+- Updated the v0.17.2 plan checklist to reflect completed implementation work.
+- Bumped the package version to `0.17.2`.
+
+### Verified
+
+- Ran focused federation and CLI workflow tests.
+- Ran adjacent Network Authority public/treaty tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, pre-commit, and `git diff --check`.
+
 ## v0.17.1 - Large Module Refactor
 
 ### Added

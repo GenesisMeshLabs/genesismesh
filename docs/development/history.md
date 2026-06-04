@@ -281,12 +281,21 @@ command surface, `genesis_mesh/na_service/db.py` remains the stable
 `NADatabase` facade while delegating persistence domains to smaller
 mixins, and the monolithic CLI ops tests are split by command family.
 
+**v0.17.2 - Federation Bootstrap Readiness.** The first-recognition
+operator journey becomes a guided CLI workflow. An operator can review
+another sovereign's public material, preview treaty scope, explicitly
+confirm the trust decision, issue a direct-recognition treaty using
+existing signed admin semantics, and verify the resulting trust path.
+This is readiness work, not external adoption proof.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
 infrastructure, operational credibility for managed deployment, a
 coherent public documentation surface, and smaller internal modules
-for auditing the CLI and trust-state persistence paths.
+for auditing the CLI and trust-state persistence paths. The first
+federation step is now easier to run, but a non-maintainer operator is
+still required for adoption proof.
 
 ### Phase F - Adoption (planned)
 

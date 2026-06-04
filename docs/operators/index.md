@@ -13,6 +13,8 @@ workflow.
 - [Operator Quickstart](quickstart.md): stand up a named sovereign on a VM.
 - [Security Checklist](security-checklist.md): confirm independent operator
   control before counting adoption evidence.
+- [Federation Bootstrap](federation-bootstrap.md): review another sovereign and
+  issue the first direct-recognition treaty.
 - [Recognition Playbook](recognition-playbook.md): run direct recognition and
   revocation between sovereigns.
 - [Proof Bundle Schema](proof-bundle-schema.md): understand the redacted JSON

@@ -375,7 +375,7 @@ def render_cli_reference() -> str:
                     <h2>Managed Operations</h2>
                     <p>Common managed sovereign commands.</p>
                 </div>
-                {render_cli_workflow_table(list(CLI_SURFACES))}
+                {render_cli_workflow_table(surfaces_by_group("managed", curated_only=True))}
             </section>
             <section>
                 <div class="section-head">

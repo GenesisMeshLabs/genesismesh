@@ -88,6 +88,7 @@ HTTP_SURFACES: tuple[Surface, ...] = (
 
 
 CLI_SURFACES: tuple[Surface, ...] = (
+    Surface("CLI", "genesis-mesh federation bootstrap", "Federation bootstrap", "Review a sovereign and issue a direct-recognition treaty.", "operator", "cli", "Operator signature", curated=True),
     Surface("CLI", "genesis-mesh managed backup", "Backup", "Create a consistent online NA DB backup.", "managed", "cli", "Local shell", curated=True),
     Surface("CLI", "genesis-mesh managed restore", "Restore", "Restore a validated backup while the NA is stopped.", "managed", "cli", "Local shell", curated=True),
     Surface("CLI", "genesis-mesh managed audit-export", "Audit export", "Export redacted audit events.", "managed", "cli", "Local shell", curated=True),

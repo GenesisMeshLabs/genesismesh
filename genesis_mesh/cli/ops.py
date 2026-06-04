@@ -11,6 +11,7 @@ import click
 import requests
 
 from .dev_ops import dev
+from .federation import federation
 from .init_ops import init
 from .managed import managed
 from .proof_ops import proof
@@ -57,6 +58,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(dev)
     cli.add_command(discover)
     cli.add_command(sovereign)
+    cli.add_command(federation)
     cli.add_command(proof)
     cli.add_command(managed)
     cli.add_command(supply_chain)
