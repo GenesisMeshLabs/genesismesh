@@ -69,3 +69,7 @@ keys/
 
 # Local verification reports
 ops/drafts/*
+
+# Local generated sovereign homes and configs
+examples/genesis/usg-local/*
+examples/genesis/genesis-mesh-usg-local.toml

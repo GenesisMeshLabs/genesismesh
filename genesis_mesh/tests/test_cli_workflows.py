@@ -126,3 +126,12 @@ def test_sovereign_inspect_reads_public_metadata(tmp_path):
     assert "Sovereign: USG-NB" in result.output
     assert "public surfaces:" in result.output
     assert "/sovereign.json" not in result.output
+
+
+def test_federation_command_is_registered():
+    """The root CLI exposes the federation bootstrap command family."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["federation", "bootstrap", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "Review another sovereign" in result.output

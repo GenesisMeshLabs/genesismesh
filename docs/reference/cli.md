@@ -135,6 +135,28 @@ The command reads `/sovereign.json`, not private files. It prints the network
 name, endpoint, NA public key prefix, validity window, and public trust
 surfaces useful for recognition.
 
+### `genesis-mesh federation bootstrap`
+
+Reviews another sovereign's public trust material and optionally issues a
+direct-recognition treaty from the accepting sovereign.
+
+```bash
+genesis-mesh federation bootstrap \
+  --acceptor https://acceptor.example.org \
+  --issuer https://issuer.example.org \
+  --acceptor-config ./acceptor.toml \
+  --role service:maintainer \
+  --claim proof=federation-bootstrap \
+  --evidence ./federation-bootstrap-evidence.json \
+  --yes
+```
+
+Use `--dry-run` to fetch `/healthz`, `/readyz`, `/genesis`,
+`/sovereign.json`, `/recognition-policy`, and `/connectome.json` without
+issuing a treaty. Without `--dry-run`, the command previews the treaty scope,
+requires confirmation unless `--yes` is supplied, issues the treaty with the
+acceptor operator key, and verifies the resulting trust path.
+
 ### `genesis-mesh proof remote`
 
 Runs the direct-recognition proof against two live Network Authority endpoints:
