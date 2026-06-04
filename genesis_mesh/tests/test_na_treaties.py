@@ -166,6 +166,8 @@ def test_connectome_page_renders_html(client, na_service):
     assert 'class="shell operator-console"' in body
     assert "Connectome derived view" not in body
     assert "Sovereign Graph" in body
+    assert "Valid from" in body
+    assert "Expires at" in body
     assert "connectome-graph" in body
     assert "graph-node" in body
     assert "data-table" in body

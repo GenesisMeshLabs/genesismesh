@@ -162,10 +162,12 @@ def _connectome_html(view: dict) -> str:
         f"<td>{escape(str(edge.get('from', '')))}</td>"
         f"<td>{escape(str(edge.get('to', '')))}</td>"
         f"<td>{escape(str(edge.get('status', '')))}</td>"
+        f"<td>{escape(str(edge.get('valid_from', '')))}</td>"
+        f"<td>{escape(str(edge.get('expires_at', '')))}</td>"
         f"<td><code>{escape(str(edge.get('treaty_id', '')))}</code></td>"
         "</tr>"
         for edge in view["recognition_edges"]
-    ) or '<tr class="empty-row"><td colspan="4">No recognition edges</td></tr>'
+    ) or '<tr class="empty-row"><td colspan="6">No recognition edges</td></tr>'
     revoked_rows = "\n".join(
         "<tr>"
         f"<td>{escape(str(item.get('type', '')))}</td>"
@@ -192,7 +194,7 @@ def _connectome_html(view: dict) -> str:
       <p><a class="action-link" href="/connectome.json">Download Connectome JSON</a></p>
     </div>
     <table class="data-table">
-      <thead><tr><th>From</th><th>To</th><th>Status</th><th>Treaty</th></tr></thead>
+      <thead><tr><th>From</th><th>To</th><th>Status</th><th>Valid from</th><th>Expires at</th><th>Treaty</th></tr></thead>
       <tbody>{edge_rows}</tbody>
     </table>
   </section>
