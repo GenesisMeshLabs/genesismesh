@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.17.0 - Documentation Retheme and Navigation
+
+### Added
+
+- Added grouped documentation landing pages for deployment, runbooks, examples,
+  adoption positioning, trust and sovereignty, and use-case walkthroughs.
+- Added a public project history page under the Development documentation.
+- Added Sphinx Design cards to the documentation home page for clearer entry
+  points.
+- Added sidebar scroll persistence for long documentation navigation.
+
+### Changed
+
+- Rethemed the Sphinx documentation to mirror the Network Authority operator
+  console palette in light and dark modes.
+- Flattened the Operators section and grouped Operations and Examples by reader
+  intent.
+- Updated the documentation logo treatment, sidebar captions, cards, code
+  blocks, tables, and task lists to align with the operator console visual
+  system.
+- Renamed managed-sovereign documentation headings so operations and example
+  pages are distinct.
+- Bumped the package version to `0.17.0`.
+
+### Verified
+
+- Ran a clean Sphinx documentation build with warnings treated as errors.
+
 ## v0.16.2 - Operator Adoption Console
 
 ### Added
