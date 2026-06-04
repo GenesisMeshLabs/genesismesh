@@ -15,6 +15,8 @@ workflow.
   control before counting adoption evidence.
 - [Federation Bootstrap](federation-bootstrap.md): review another sovereign and
   issue the first direct-recognition treaty.
+- [Trust Bundle Exchange](trust-bundle-exchange.md): export, inspect, and
+  validate public trust material before federation review.
 - [Recognition Playbook](recognition-playbook.md): run direct recognition and
   revocation between sovereigns.
 - [Proof Bundle Schema](proof-bundle-schema.md): understand the redacted JSON

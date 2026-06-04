@@ -288,14 +288,21 @@ confirm the trust decision, issue a direct-recognition treaty using
 existing signed admin semantics, and verify the resulting trust path.
 This is readiness work, not multi-cloud operation proof.
 
+**v0.17.3 - Trust Bundle Exchange.** The first-recognition journey gains a
+portable review artifact. An operator can export another sovereign's public
+trust material into a JSON bundle, inspect it offline, validate it against the
+live endpoint, import it as local review evidence with `trust_granted: false`,
+and feed it into federation bootstrap. Trust still requires explicit treaty
+issuance and operator signing.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
 infrastructure, operational credibility for managed deployment, a
 coherent public documentation surface, and smaller internal modules
 for auditing the CLI and trust-state persistence paths. The first
-federation step is now easier to run, but a future external operator is
-still required for multi-cloud operation proof.
+federation step is now easier to run and package for review, but a
+future external operator is still required for multi-cloud operation proof.
 
 ### Phase F - Adoption (planned)
 

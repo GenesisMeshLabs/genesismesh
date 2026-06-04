@@ -14,6 +14,7 @@ problem, or if you are explaining the project to someone who is.
 
 supply-chain-trust-gate
 managed-sovereign-readiness
+operator-onboarding-exchange
 maintainer-sovereign-pitch
 sigstore-comparison
 ```
@@ -38,6 +39,15 @@ with revocation blocking the same maintainer after import.
 
 The operational claim behind a managed Network Authority - backup, restore,
 audit, and incident workflows are demonstrable end to end.
+:::
+
+:::{grid-item-card} Federation Bootstrap And Trust Bundle Exchange
+:link: operator-onboarding-exchange
+:link-type: doc
+
+The operator-onboarding path: export public trust material, validate it, record
+a review receipt, and feed it into federation bootstrap without granting trust
+automatically.
 :::
 
 :::{grid-item-card} Why A Maintainer Would Run A Sovereign

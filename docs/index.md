@@ -194,6 +194,7 @@ operators/index
 operators/quickstart
 operators/security-checklist
 operators/federation-bootstrap
+operators/trust-bundle-exchange
 operators/recognition-playbook
 operators/proof-bundle-schema
 ```

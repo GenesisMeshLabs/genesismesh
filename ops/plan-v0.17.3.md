@@ -23,19 +23,19 @@ a v0.17.x patch.
 
 ## Success Criteria
 
-- [ ] A trust bundle format is documented and versioned.
-- [ ] A CLI export path creates a bundle from existing public sovereign
+- [x] A trust bundle format is documented and versioned.
+- [x] A CLI export path creates a bundle from existing public sovereign
       material.
-- [ ] A CLI inspect path displays sovereign identity, endpoints, public key
+- [x] A CLI inspect path displays sovereign identity, endpoints, public key
       fingerprints, validity, policy, revocation feed references, and treaty
       context.
-- [ ] A CLI validate path detects malformed, stale, inconsistent, or incomplete
+- [x] A CLI validate path detects malformed, stale, inconsistent, or incomplete
       bundles.
-- [ ] Import or use of a bundle feeds review/bootstrap workflows but does not
+- [x] Import or use of a bundle feeds review/bootstrap workflows but does not
       grant trust automatically.
-- [ ] Bundles never include private keys, operator secrets, invite tokens, or
+- [x] Bundles never include private keys, operator secrets, invite tokens, or
       bearer credentials.
-- [ ] Tests cover export, inspect, validate, redaction, and failure modes.
+- [x] Tests cover export, inspect, validate, redaction, and failure modes.
 
 ## Release Name
 
@@ -85,35 +85,35 @@ adoption. Pause and recruit before continuing unrelated readiness work.
 
 ### Phase 1 - Bundle Boundary
 
-- [ ] Decide the minimum bundle contents.
-- [ ] Document what is allowed and forbidden in a bundle.
-- [ ] Decide whether the bundle is JSON, directory, archive, or both.
-- [ ] Confirm the design remains a packaging layer over existing trust
+- [x] Decide the minimum bundle contents.
+- [x] Document what is allowed and forbidden in a bundle.
+- [x] Decide whether the bundle is JSON, directory, archive, or both.
+- [x] Confirm the design remains a packaging layer over existing trust
       material.
 
 ### Phase 2 - Export and Inspect
 
-- [ ] Add the export command or command path.
-- [ ] Add human-readable inspect output.
-- [ ] Include stable fingerprints rather than raw key-heavy output where
+- [x] Add the export command or command path.
+- [x] Add human-readable inspect output.
+- [x] Include stable fingerprints rather than raw key-heavy output where
       appropriate.
-- [ ] Ensure exports are deterministic enough to diff or archive.
+- [x] Ensure exports are deterministic enough to diff or archive.
 
 ### Phase 3 - Validate and Use
 
-- [ ] Validate required fields and version support.
-- [ ] Validate sovereign identity consistency across included material.
-- [ ] Validate endpoint reachability when requested.
-- [ ] Allow a valid bundle to seed federation bootstrap review.
-- [ ] Ensure bundle use still requires explicit operator trust decisions.
+- [x] Validate required fields and version support.
+- [x] Validate sovereign identity consistency across included material.
+- [x] Validate endpoint reachability when requested.
+- [x] Allow a valid bundle to seed federation bootstrap review.
+- [x] Ensure bundle use still requires explicit operator trust decisions.
 
 ### Phase 4 - Docs and Tests
 
-- [ ] Add operator docs for exchanging trust bundles.
-- [ ] Add schema or format reference.
-- [ ] Add tests for export, inspect, validate, and unsupported versions.
-- [ ] Add tests that bundles never contain private material.
-- [ ] Add tests for using a bundle in federation review.
+- [x] Add operator docs for exchanging trust bundles.
+- [x] Add schema or format reference.
+- [x] Add tests for export, inspect, validate, and unsupported versions.
+- [x] Add tests that bundles never contain private material.
+- [x] Add tests for using a bundle in federation review.
 
 ## Verification
 
@@ -133,14 +133,30 @@ Smoke verification should include:
 - reject a malformed or mismatched bundle;
 - confirm no private keys, invite tokens, or credentials are present.
 
+Implementation verification completed locally:
+
+- `python -m pytest genesis_mesh/tests -q` - 263 passed
+- `python -m mypy genesis_mesh --ignore-missing-imports` - passed
+- `python -m compileall genesis_mesh docs/examples/assets/scripts -q` - passed
+- `python -m sphinx -b html -W docs docs/pages` - passed
+- `git diff --check` - passed
+
+Live endpoint smoke completed from the local checkout:
+
+- exported a USG-NB bundle from `http://164.92.250.135:8443`;
+- inspected and validated the bundle against the live DigitalOcean endpoint;
+- imported the bundle into a local review receipt with `trust_granted: false`;
+- ran `federation bootstrap --dry-run` from Azure USG to the USG-NB issuer
+  bundle.
+
 ## Release Gate
 
 Do not tag v0.17.3 until:
 
-- [ ] The bundle format is documented.
-- [ ] Export, inspect, and validate flows work.
-- [ ] Bundle use cannot grant trust automatically.
-- [ ] No secrets are included in exported bundles.
-- [ ] The protocol-primitive escape valve has been explicitly reviewed.
-- [ ] Focused and full verification pass.
+- [x] The bundle format is documented.
+- [x] Export, inspect, and validate flows work.
+- [x] Bundle use cannot grant trust automatically.
+- [x] No secrets are included in exported bundles.
+- [x] The protocol-primitive escape valve has been explicitly reviewed.
+- [x] Focused and full verification pass.
 - [ ] The adoption checkpoint is recorded.
