@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.17.1 - Large Module Refactor
+
+### Added
+
+- Added command-family CLI modules for initialization, proof operations,
+  local development workflows, and shared CLI helpers.
+- Added persistence-domain modules for Network Authority enrollment,
+  CRL/policy state, audit/backup operations, sovereign trust state, and
+  agent registrations.
+- Added focused CLI operation test files plus shared CLI test helpers.
+- Added a v0.17.1 release plan for the large-module refactor.
+- Added a v0.18.0 plan preserving the external operator adoption proof
+  milestone.
+
+### Changed
+
+- Reduced `genesis_mesh/cli/ops.py` to a smaller command registration and
+  remaining operational command surface.
+- Kept `genesis_mesh.na_service.db.NADatabase` as the stable public database
+  facade while delegating persistence behavior to smaller mixins.
+- Replaced the monolithic CLI ops test file with command-family test files.
+- Updated the project history to reflect v0.17.0 as the documentation retheme
+  and v0.17.1 as the maintainability refactor.
+- Updated the v0.17.0 plan to describe the already-shipped documentation
+  retheme release.
+- Bumped the package version to `0.17.1`.
+
+### Verified
+
+- Ran focused CLI, Network Authority, treaty, attestation, discovery, CRL,
+  health, managed-operation, and database tests.
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, pre-commit, pre-push, `git diff --check`, and
+  smoke tests across the changed CLI and database surfaces.
+
 ## v0.17.0 - Documentation Retheme and Navigation
 
 ### Added
