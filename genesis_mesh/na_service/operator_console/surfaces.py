@@ -89,6 +89,9 @@ HTTP_SURFACES: tuple[Surface, ...] = (
 
 CLI_SURFACES: tuple[Surface, ...] = (
     Surface("CLI", "genesis-mesh federation bootstrap", "Federation bootstrap", "Review a sovereign and issue a direct-recognition treaty.", "operator", "cli", "Operator signature", curated=True),
+    Surface("CLI", "genesis-mesh treaty list", "Treaty list", "Review treaty lifecycle state and expiry risk.", "operator", "cli", "Public GET"),
+    Surface("CLI", "genesis-mesh treaty inspect", "Treaty inspect", "Inspect one treaty lifecycle and scope.", "operator", "cli", "Public GET"),
+    Surface("CLI", "genesis-mesh treaty renew", "Treaty renew", "Issue a successor treaty and retire the old one.", "operator", "cli", "Operator signature"),
     Surface("CLI", "genesis-mesh trust-bundle export", "Trust bundle export", "Package public sovereign trust material for review.", "operator", "cli", "Public GET"),
     Surface("CLI", "genesis-mesh trust-bundle import", "Trust bundle import", "Record a reviewed bundle without granting trust.", "operator", "cli", "Local shell"),
     Surface("CLI", "genesis-mesh trust-bundle validate", "Trust bundle validate", "Validate shared trust material before federation review.", "operator", "cli", "Public GET"),

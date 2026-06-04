@@ -15,6 +15,7 @@ problem, or if you are explaining the project to someone who is.
 supply-chain-trust-gate
 managed-sovereign-readiness
 operator-onboarding-exchange
+treaty-lifecycle-management
 maintainer-sovereign-pitch
 sigstore-comparison
 ```
@@ -48,6 +49,14 @@ audit, and incident workflows are demonstrable end to end.
 The operator-onboarding path: export public trust material, validate it, record
 a review receipt, and feed it into federation bootstrap without granting trust
 automatically.
+:::
+
+:::{grid-item-card} Treaty Lifecycle Management
+:link: treaty-lifecycle-management
+:link-type: doc
+
+The operator lifecycle view for recognition treaties: active, expiring,
+expired, revoked, replaced, and visible in Connectome.
 :::
 
 :::{grid-item-card} Why A Maintainer Would Run A Sovereign

@@ -25,6 +25,7 @@ from ...trust import (
     verify_recognition_treaty,
     verify_sovereign_revocation_feed,
 )
+from ...trust.treaty_lifecycle import treaty_lifecycle
 from ..operator_console.rendering import page_document
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ def _row_payload(row: dict) -> dict:
         "status": row["status"],
         "revoked_at": row["revoked_at"],
         "revocation_reason": row["revocation_reason"],
+        "lifecycle": treaty_lifecycle(row),
     }
 
 
@@ -52,6 +54,21 @@ def _revoked_treaty_ids(service: "NetworkAuthorityService", treaty_id: str) -> s
     if stored and stored["status"] == "revoked":
         return {treaty_id}
     return set()
+
+
+def _human_datetime(value: object) -> str:
+    """Render ISO datetimes compactly for operator HTML tables."""
+    if not value:
+        return ""
+    text = str(value)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    parsed = parsed.astimezone(timezone.utc)
+    return parsed.strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _subject_public_keys_for_issuer(
@@ -162,12 +179,14 @@ def _connectome_html(view: dict) -> str:
         f"<td>{escape(str(edge.get('from', '')))}</td>"
         f"<td>{escape(str(edge.get('to', '')))}</td>"
         f"<td>{escape(str(edge.get('status', '')))}</td>"
-        f"<td>{escape(str(edge.get('valid_from', '')))}</td>"
-        f"<td>{escape(str(edge.get('expires_at', '')))}</td>"
+        f"<td>{escape(str(edge.get('lifecycle_state', '')))}</td>"
+        f"<td>{escape(str(edge.get('expiry_risk', '')))}</td>"
+        f"<td>{escape(_human_datetime(edge.get('valid_from')))}</td>"
+        f"<td>{escape(_human_datetime(edge.get('expires_at')))}</td>"
         f"<td><code>{escape(str(edge.get('treaty_id', '')))}</code></td>"
         "</tr>"
         for edge in view["recognition_edges"]
-    ) or '<tr class="empty-row"><td colspan="6">No recognition edges</td></tr>'
+    ) or '<tr class="empty-row"><td colspan="8">No recognition edges</td></tr>'
     revoked_rows = "\n".join(
         "<tr>"
         f"<td>{escape(str(item.get('type', '')))}</td>"
@@ -194,7 +213,7 @@ def _connectome_html(view: dict) -> str:
       <p><a class="action-link" href="/connectome.json">Download Connectome JSON</a></p>
     </div>
     <table class="data-table">
-      <thead><tr><th>From</th><th>To</th><th>Status</th><th>Valid from</th><th>Expires at</th><th>Treaty</th></tr></thead>
+      <thead><tr><th>From</th><th>To</th><th>Status</th><th>Lifecycle</th><th>Expiry risk</th><th>Valid from</th><th>Expires at</th><th>Treaty</th></tr></thead>
       <tbody>{edge_rows}</tbody>
     </table>
   </section>

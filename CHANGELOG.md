@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.17.4 - Treaty Lifecycle Management
+
+### Added
+
+- Added `genesis-mesh treaty list`, `inspect`, `renew`, `replace`, and
+  `revoke` operator commands for direct-recognition treaty lifecycle work.
+- Added derived treaty lifecycle state and expiry-risk classification for
+  active, expiring, expired, revoked, and replaced treaties without changing
+  treaty semantics.
+- Added lifecycle and expiry-risk visibility to Connectome recognition edges,
+  including human-readable validity dates in the operator HTML view.
+- Added operator documentation plus a docs example with generated PNG/GIF
+  assets for treaty lifecycle management.
+- Added focused CLI tests covering active, expired, revoked, renewed, replaced,
+  and unknown treaty paths.
+
+### Changed
+
+- Updated Connectome active-edge calculation so expired, revoked, and replaced
+  direct-recognition treaties do not count as active trust.
+- Registered treaty lifecycle commands in the generated CLI reference and
+  operator console surface metadata.
+- Kept treaty renew and replace as helpers over existing issue and revoke
+  semantics; no new treaty protocol primitive or schema migration was added.
+- Updated the v0.17.4 plan checklist to reflect completed implementation work.
+- Bumped the package version to `0.17.4`.
+
+### Verified
+
+- Ran the full test suite, mypy, compileall, Sphinx documentation build with
+  warnings treated as errors, pre-commit, and `git diff --check`.
+
 ## v0.17.3 - Trust Bundle Exchange
 
 ### Added
