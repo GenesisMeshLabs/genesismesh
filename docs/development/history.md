@@ -343,6 +343,13 @@ common operator commands accept direct signing keys or consistent endpoint
 aliases, and local `na start` development logs stay JSON-readable when JSON log
 mode is enabled.
 
+**v0.17.11 - Azure Deployment Verification Hardening.** The release deployment
+path is tightened after the v0.17.10 deploy exposed an environment assumption:
+the Azure VM does not provide a bare `python` executable. The workflow now uses
+the repo virtual environment for its Connectome probe, and the production NA
+systemd unit defaults to JSON logs so deployed operators get structured output
+without extra override work.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated

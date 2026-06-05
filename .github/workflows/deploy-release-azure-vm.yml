@@ -229,7 +229,7 @@ jobs:
           "$REPO_DIR/.venv/bin/genesis-mesh" federation --help >/tmp/genesis-mesh-federation-help.txt
           head -n 1 /tmp/genesis-mesh-federation-help.txt
           curl -fsS http://127.0.0.1:8443/connectome.json >/tmp/genesis-mesh-connectome.json
-          python - <<'PY'
+          "$REPO_DIR/.venv/bin/python" - <<'PY'
           import json
           from pathlib import Path
 
