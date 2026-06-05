@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.17.11 - Azure Deployment Verification Hardening
+
+### Changed
+
+- Changed the Network Authority systemd unit to default production logs to
+  JSON for Azure VM deployments.
+- Changed the Azure release deployment workflow to use the repository virtual
+  environment's Python interpreter for the Connectome probe instead of relying
+  on a system `python` executable.
+- Bumped the package version to `0.17.11`.
+
+### Verified
+
+- Deployed the release to the Azure VM and probed the public Network Authority
+  health, readiness, API reference, and Connectome surfaces.
+
 ## v0.17.10 - Observability and Operator UX Hardening
 
 ### Added
