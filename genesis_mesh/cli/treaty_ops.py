@@ -12,10 +12,11 @@ import requests
 
 from .support import (
     _admin_signer_from_inputs,
-    _normalize_role,
     _parse_claims,
     _request_json,
+    _require_positive_int,
     _signed_admin_headers,
+    _validate_cli_roles,
 )
 
 
@@ -183,7 +184,7 @@ def replace_treaty(
         operator_key=operator_key,
         operator_key_id=operator_key_id,
         yes=yes,
-        roles=[_normalize_role(role) for role in roles] or None,
+        roles=_validate_cli_roles(roles) if roles else None,
         statuses=list(statuses) or None,
         claims=_parse_claims(claim) if claim else None,
     )
@@ -293,8 +294,7 @@ def _replace_or_renew(
     statuses: list[str] | None = None,
     claims: dict[str, str] | None = None,
 ) -> None:
-    if validity_hours <= 0:
-        raise click.ClickException("--validity-hours must be greater than zero")
+    _require_positive_int("--validity-hours", validity_hours)
     if not yes:
         click.confirm(f"{action.title()} recognition treaty {treaty_id}?", abort=True)
     signer = _admin_signer_from_inputs(config_path, operator_key, operator_key_id)

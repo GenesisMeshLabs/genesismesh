@@ -194,6 +194,7 @@ operators/index
 operators/quickstart
 operators/security-checklist
 operators/federation-bootstrap
+operators/external-operator-proof
 operators/trust-bundle-exchange
 operators/treaty-lifecycle
 operators/sovereign-dashboard

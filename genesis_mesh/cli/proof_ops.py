@@ -14,10 +14,11 @@ import requests
 
 from .support import (
     _admin_signer_from_inputs,
-    _normalize_role,
     _parse_claims,
     _request_json,
+    _require_positive_int,
     _signed_admin_headers,
+    _validate_cli_roles,
 )
 
 
@@ -156,7 +157,7 @@ def proof_remote(
             issuer_operator_key or operator_key,
             issuer_operator_key_id or operator_key_id,
         ),
-        role=_normalize_role(role),
+        role=_validate_cli_roles([role])[0],
         subject_id=subject_id or f"proof-subject-{uuid.uuid4()}",
         subject_public_key=subject_public_key,
         claims=_parse_claims(claim),
@@ -209,6 +210,7 @@ def _run_remote_proof(
     operator_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run the direct-recognition proof and return a redacted proof bundle."""
+    _require_positive_int("--validity-hours", validity_hours)
     acceptor = acceptor_endpoint.rstrip("/")
     issuer = issuer_endpoint.rstrip("/")
     session = requests.Session()

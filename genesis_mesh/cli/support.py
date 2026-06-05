@@ -18,6 +18,14 @@ from ..node.node import MeshNode
 from ..node.runtime import MeshNodeRuntime
 from .config import get_config_value, load_config
 
+VALID_ROLE_PREFIXES = (
+    "role:anchor",
+    "role:bridge",
+    "role:client",
+    "role:operator",
+    "role:service:",
+)
+
 
 def _load_cli_config(config_path: str | None = None, required: bool = False) -> dict[str, Any]:
     """Load CLI config and translate missing-file errors into Click errors."""
@@ -36,6 +44,25 @@ def _parse_anchor(anchor: str) -> tuple[str, str]:
 def _normalize_role(role: str) -> str:
     """Return a canonical role string."""
     return role if role.startswith("role:") else f"role:{role}"
+
+def _validate_cli_roles(roles: tuple[str, ...] | list[str]) -> list[str]:
+    """Normalize and validate role arguments before making an NA request."""
+    normalized = [_normalize_role(role) for role in roles]
+    invalid = [
+        role for role in normalized
+        if not any(role.startswith(prefix) for prefix in VALID_ROLE_PREFIXES)
+    ]
+    if invalid:
+        allowed = "client, anchor, bridge, operator, service:<name>"
+        raise click.ClickException(
+            f"Invalid role: {invalid[0]}. Allowed roles are: {allowed}."
+        )
+    return normalized
+
+def _require_positive_int(name: str, value: int) -> None:
+    """Raise a compact CLI error when an integer option must be positive."""
+    if value <= 0:
+        raise click.ClickException(f"{name} must be greater than zero")
 
 def _load_genesis(path: Path) -> GenesisBlock:
     """Load a signed genesis block from disk."""
@@ -103,6 +130,8 @@ def _admin_headers(config: dict[str, Any], body: dict[str, Any]) -> dict[str, st
 
 def _signed_admin_headers(key_id: str, key_path: Path, body: dict[str, Any]) -> dict[str, str]:
     """Create signed admin request headers from a key ID and private key path."""
+    if not key_path.exists():
+        raise click.ClickException(f"Operator private key not found: {key_path}")
     timestamp = datetime.now(timezone.utc).isoformat()
     nonce = str(uuid.uuid4())
     canonical = json.dumps(
@@ -115,14 +144,17 @@ def _signed_admin_headers(key_id: str, key_path: Path, body: dict[str, Any]) -> 
         sort_keys=True,
         separators=(",", ":"),
     )
+    try:
+        signature = sign_data(canonical.encode("utf-8"), load_private_key(str(key_path)))
+    except Exception as exc:
+        raise click.ClickException(
+            f"Could not sign admin request with operator key {key_path}: {exc}"
+        ) from exc
     return {
         "X-Admin-Key-Id": key_id,
         "X-Admin-Timestamp": timestamp,
         "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(
-            canonical.encode("utf-8"),
-            load_private_key(str(key_path)),
-        ),
+        "X-Admin-Signature": signature,
     }
 
 def _admin_signer_from_inputs(
@@ -163,6 +195,9 @@ def _request_json(
         payload = {"raw": response.text[:500]}
 
     if response.status_code != expected_status:
+        detail = payload.get("error") if isinstance(payload, dict) else None
+        if detail:
+            raise click.ClickException(f"{label} failed: {response.status_code} {detail}")
         raise click.ClickException(f"{label} failed: {response.status_code} {payload}")
     return payload
 

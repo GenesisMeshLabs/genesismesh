@@ -43,9 +43,11 @@ from .support import (
     _load_existing_certificate,
     _load_existing_policy,
     _load_genesis,
-    _normalize_role,
+    _request_json,
+    _require_positive_int,
     _required_config_path,
     _run_runtime_forever,
+    _validate_cli_roles,
 )
 
 
@@ -133,20 +135,27 @@ def admin_invite(
 ) -> None:
     """Create a single-use invite token and print it."""
     config = _load_cli_config(config_path, required=True)
-    endpoint = (na_endpoint or get_config_value(config, "network", "na_endpoint")).rstrip("/")
+    endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
+    if not endpoint_value:
+        raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
+    _require_positive_int("--validity-hours", validity_hours)
+    _require_positive_int("--token-expiry-hours", token_expiry_hours)
+    endpoint = endpoint_value.rstrip("/")
     body: dict[str, Any] = {
-        "roles": [_normalize_role(role) for role in roles],
+        "roles": _validate_cli_roles(roles),
         "max_validity_hours": validity_hours,
         "token_expiry_hours": token_expiry_hours,
     }
-    response = requests.post(
+    payload = _request_json(
+        requests.Session(),
+        "POST",
         f"{endpoint}/admin/invite",
+        expected_status=201,
+        label="invite creation",
         json=body,
         headers=_admin_headers(config, body),
-        timeout=10,
     )
-    response.raise_for_status()
-    click.echo(response.json()["token_id"])
+    click.echo(payload["token_id"])
 
 
 @admin.command("revoke")
@@ -157,16 +166,20 @@ def admin_invite(
 def admin_revoke(config_path: str | None, na_endpoint: str | None, cert_id: str, reason: str) -> None:
     """Revoke a certificate by ID."""
     config = _load_cli_config(config_path, required=True)
-    endpoint = (na_endpoint or get_config_value(config, "network", "na_endpoint")).rstrip("/")
+    endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
+    if not endpoint_value:
+        raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
+    endpoint = endpoint_value.rstrip("/")
     body = {"cert_id": cert_id, "reason": reason}
-    response = requests.post(
+    payload = _request_json(
+        requests.Session(),
+        "POST",
         f"{endpoint}/admin/revoke",
+        label="certificate revocation",
         json=body,
         headers=_admin_headers(config, body),
-        timeout=10,
     )
-    response.raise_for_status()
-    click.echo(json.dumps(response.json(), indent=2))
+    click.echo(json.dumps(payload, indent=2))
 
 
 @click.command()
@@ -191,6 +204,7 @@ def join(
     peers: tuple[str, ...],
 ) -> None:
     """Enroll this machine as a node and persist node config."""
+    _require_positive_int("--validity-hours", validity_hours)
     config = _load_cli_config(config_path, required=False)
     endpoint = na_endpoint.rstrip("/")
     config_target = resolve_config_path(config_path)
@@ -200,10 +214,14 @@ def join(
 
     genesis_path = Path(get_config_value(config, "paths", "genesis", home / "genesis.signed.json"))
     if not genesis_path.exists():
-        response = requests.get(f"{endpoint}/genesis", timeout=10)
-        response.raise_for_status()
+        payload = _request_json(
+            requests.Session(),
+            "GET",
+            f"{endpoint}/genesis",
+            label="genesis fetch",
+        )
         genesis_path.parent.mkdir(parents=True, exist_ok=True)
-        genesis_path.write_text(json.dumps(response.json(), indent=2), encoding="utf-8")
+        genesis_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     node_key_path = Path(get_config_value(config, "paths", "node_private_key", keys_dir / "node.key"))
     if node_key_path.exists():
@@ -220,7 +238,7 @@ def join(
     node = MeshNode(
         genesis_block=genesis_block,
         node_keypair=node_keypair,
-        roles=[_normalize_role(role) for role in roles],
+        roles=_validate_cli_roles(roles),
     )
 
     reused_existing_cert = False
@@ -237,10 +255,24 @@ def join(
             if cert_error:
                 raise click.ClickException(f"{cert_error} Run with --token to re-enroll.")
             raise click.ClickException("No local certificate found. Run with --token for first enrollment.")
-        cert = node.join_network(endpoint, validity_hours=validity_hours, invite_token=token)
-        policy = node.fetch_policy(endpoint)
+        try:
+            cert = node.join_network(endpoint, validity_hours=validity_hours, invite_token=token)
+        except Exception as exc:
+            raise click.ClickException(
+                "Join enrollment failed. Check that --config belongs to the same "
+                "sovereign as --na, that the invite token is still valid, and that "
+                f"the requested role is allowed. Detail: {exc}"
+            ) from exc
+        try:
+            policy = node.fetch_policy(endpoint)
+        except Exception as exc:
+            raise click.ClickException(f"Policy fetch failed after enrollment: {exc}") from exc
 
-    if not node.send_heartbeat(endpoint):
+    try:
+        heartbeat_ok = node.send_heartbeat(endpoint)
+    except Exception as exc:
+        raise click.ClickException(f"Heartbeat failed after enrollment: {exc}") from exc
+    if not heartbeat_ok:
         if reused_existing_cert:
             raise click.ClickException(
                 "Existing local certificate was rejected by the Network Authority. "
@@ -382,13 +414,13 @@ def discover(
 
     url = f"{endpoint.rstrip('/')}/agents"
     params = {"capability": capability} if capability else {}
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise click.ClickException(f"Discovery query failed: {exc}") from exc
-
-    payload = response.json()
+    payload = _request_json(
+        requests.Session(),
+        "GET",
+        url,
+        params=params,
+        label="discovery query",
+    )
     agents = payload.get("agents", [])
 
     if output_format == "json":
@@ -432,13 +464,12 @@ def sovereign() -> None:
 def sovereign_inspect(na_endpoint: str, output_format: str) -> None:
     """Fetch operator-safe public trust material for a sovereign."""
     endpoint = na_endpoint.rstrip("/")
-    try:
-        response = requests.get(f"{endpoint}/sovereign.json", timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise click.ClickException(f"Sovereign metadata query failed: {exc}") from exc
-
-    payload = response.json()
+    payload = _request_json(
+        requests.Session(),
+        "GET",
+        f"{endpoint}/sovereign.json",
+        label="sovereign metadata query",
+    )
     if output_format == "json":
         click.echo(json.dumps(payload, indent=2, sort_keys=True))
         return

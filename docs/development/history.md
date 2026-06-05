@@ -314,6 +314,12 @@ edges are aggregated instead of overlapping, current and historical recognition
 edges are separated, dashboard audit summaries become human-readable, and docs
 include live Network Authority screenshots alongside repeatable demo assets.
 
+**v0.17.7 - CLI Error Handling Hardening.** Operator-facing CLI failures are
+converted from raw Python tracebacks into compact, actionable messages. The
+release adds shared validation for roles, validity windows, operator signing
+keys, and HTTP JSON errors across the admin, join, federation, trust-bundle,
+treaty, proof, discovery, and sovereign-inspection command paths.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
