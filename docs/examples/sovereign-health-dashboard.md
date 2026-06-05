@@ -35,6 +35,17 @@ sequenceDiagram
 
 ## Live Recording
 
+Live Network Authority screenshot:
+
+```{image} assets/images/genesis-mesh-na-sovereign-health-dashboard.png
+:alt: Live Network Authority sovereign health and trust dashboard
+:class: screenshot
+```
+
+The screenshot above shows the deployed dashboard with treaty warnings,
+revocation-feed freshness, and human-readable trust-change summaries. The
+generated recording below remains the repeatable local demo asset.
+
 ```{image} assets/images/genesis-mesh-sovereign-health-dashboard.gif
 :alt: Sovereign health and trust dashboard workflow
 :class: screenshot

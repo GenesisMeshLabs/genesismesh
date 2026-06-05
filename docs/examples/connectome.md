@@ -139,6 +139,16 @@ trust-path explanation at
 
 Static walkthrough:
 
+```{image} assets/images/genesis-mesh-na-connectome.png
+:alt: Live Network Authority Connectome showing current and historical recognition edges
+:class: screenshot
+```
+
+The screenshot above shows the deployed Network Authority view with multiple
+sovereigns, aggregated graph edges, split current and historical recognition
+tables, and readable treaty dates. The generated demo image below remains the
+repeatable local proof asset.
+
 ```{image} assets/images/genesis-mesh-connectome.png
 :alt: Static Connectome screenshot showing recognition edges and revocation impact
 :class: screenshot

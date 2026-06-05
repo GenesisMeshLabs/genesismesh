@@ -308,6 +308,12 @@ lifecycle risk, revocation-feed freshness, recent sanitized trust changes, and
 links to raw JSON/reference surfaces. The page improves operator confidence
 without becoming a browser-admin product or a new source of trust.
 
+**v0.17.6 - Operator Console Trust View Polish.** The operator console and
+dashboard are tightened for real multi-sovereign screenshots: Connectome graph
+edges are aggregated instead of overlapping, current and historical recognition
+edges are separated, dashboard audit summaries become human-readable, and docs
+include live Network Authority screenshots alongside repeatable demo assets.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
@@ -315,8 +321,8 @@ infrastructure, operational credibility for managed deployment, a
 coherent public documentation surface, smaller internal modules for auditing
 the CLI and trust-state persistence paths, and a local read-only dashboard for
 health and trust visibility. The first federation step is now easier to run,
-package for review, and explain visually, but a future external operator is still
-required for multi-cloud operation proof.
+package for review, inspect through operator-facing views, and explain visually,
+but a future external operator is still required for multi-cloud operation proof.
 
 ### Phase F - Adoption (planned)
 
