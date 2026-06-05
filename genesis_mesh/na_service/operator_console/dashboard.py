@@ -424,9 +424,12 @@ def render_dashboard(service) -> str:
                 Read-only view of local sovereign health, treaty lifecycle risk,
                 revocation feed freshness, and recent trust-state changes.
             </p>
+            <div class="hero-meta">
+                <span>{escape(model['sovereign']['id'])}</span>
+                <span>{escape(model['readiness']['status']).title()}</span>
+                <span>{escape(model['sovereign']['version'])}</span>
+            </div>
             <div class="stats" aria-label="Dashboard summary">
-                <div class="stat"><span>Sovereign</span><strong>{escape(model['sovereign']['id'])}</strong></div>
-                <div class="stat"><span>Readiness</span><strong>{escape(model['readiness']['status'])}</strong></div>
                 <div class="stat"><span>Active Edges</span><strong>{model['connectome_summary']['active_edge_count']}</strong></div>
                 <div class="stat"><span>Treaty Warnings</span><strong>{model['treaty_summary']['warning_count']}</strong></div>
                 <div class="stat"><span>Revocation Feeds</span><strong>{model['revocation_feed_summary']['count']}</strong></div>

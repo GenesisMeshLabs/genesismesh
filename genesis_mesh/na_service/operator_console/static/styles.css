@@ -339,6 +339,23 @@ section {
     margin-top: 18px;
 }
 
+.hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.hero-meta span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel) 78%, transparent);
+    padding: 5px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
 .pill {
     border: 1px solid var(--line);
     border-radius: 999px;
