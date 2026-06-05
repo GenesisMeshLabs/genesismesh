@@ -1,14 +1,11 @@
 """Health and node-observability routes for the Network Authority."""
 
 import json
-import logging
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, jsonify
 
 from ..errors import ServiceUnavailableError
-
-logger = logging.getLogger(__name__)
 
 
 def _recent_active_nodes(service) -> dict:
@@ -66,7 +63,6 @@ def create_health_blueprint(service) -> Blueprint:
                 return jsonify({"status": "not_ready"}), 503
             return jsonify({"status": "ready", "db_path": service.db.db_path})
         except Exception as exc:
-            logger.error("Readiness check failed: %s", exc)
             raise ServiceUnavailableError("Service is not ready", code="service_not_ready") from exc
 
     @bp.route("/nodes", methods=["GET"])

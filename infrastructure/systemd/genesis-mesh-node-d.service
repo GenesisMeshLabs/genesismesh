@@ -7,6 +7,8 @@ StartLimitBurst=5
 [Service]
 User=azureuser
 WorkingDirectory=/opt/genesis-mesh
+Environment=GENESIS_LOG_LEVEL=INFO
+Environment=GENESIS_LOG_FORMAT=text
 ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --na https://na.genesismesh.connectorzzz.com --config /home/azureuser/.genesis-mesh-node-d/config.toml --persistent --listen-port 7444
 Restart=on-failure
 RestartSec=10

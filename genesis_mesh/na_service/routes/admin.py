@@ -90,7 +90,6 @@ def create_admin_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Invite creation error: %s", exc)
             raise InternalServerError() from exc
 
     @bp.route("/admin/policy", methods=["POST"])
@@ -123,7 +122,6 @@ def create_admin_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Policy publish error: %s", exc)
             raise InternalServerError() from exc
 
     @bp.route("/admin/policy/history", methods=["GET"])
@@ -167,7 +165,6 @@ def create_admin_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Policy rollback error: %s", exc)
             raise InternalServerError() from exc
 
     @bp.route("/admin/revoke", methods=["POST"])
@@ -251,7 +248,6 @@ def create_admin_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Revocation error: %s", exc)
             raise InternalServerError() from exc
 
     return bp

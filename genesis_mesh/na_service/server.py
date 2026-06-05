@@ -13,6 +13,7 @@ import nacl.signing
 from ..crypto import load_private_key, sign_model
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
+from ..observability import configure_logging
 from .auth import (
     load_operator_public_keys,
     verify_admin_request,
@@ -233,10 +234,7 @@ def main():
     parser.add_argument("--db-path", default="genesis_mesh_na.db", help="SQLite database path")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    configure_logging()
 
     with open(args.genesis, "r", encoding="utf-8") as f:
         genesis_block = GenesisBlock(**json.load(f))

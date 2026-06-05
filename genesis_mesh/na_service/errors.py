@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from typing import Any
 
@@ -10,7 +11,10 @@ from flask import Flask, g, jsonify, request
 from pydantic import ValidationError as PydanticValidationError
 from werkzeug.exceptions import HTTPException
 
+from ..observability import redacted_exception_text
+
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("genesis_mesh.na_service.access")
 
 
 class ApiError(Exception):
@@ -193,11 +197,11 @@ def _log_api_error(error: ApiError, request_id: str) -> None:
     if error.status_code >= 500:
         if error.__cause__ is not None:
             logger.error(
-                "API server error request_id=%s code=%s path=%s",
+                "API server error request_id=%s code=%s path=%s\n%s",
                 request_id,
                 error.code,
                 request.path,
-                exc_info=(type(error.__cause__), error.__cause__, error.__cause__.__traceback__),
+                redacted_exception_text(error.__cause__),
             )
         else:
             logger.error(
@@ -236,10 +240,24 @@ def register_error_handlers(app: Flask) -> None:
     @app.before_request
     def _assign_request_id() -> None:
         g.request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        g.request_started_at = time.perf_counter()
 
     @app.after_request
-    def _attach_request_id(response):
+    def _attach_request_id_and_log_access(response):
         response.headers.setdefault("X-Request-ID", current_request_id())
+        started_at = getattr(g, "request_started_at", None)
+        duration_ms = 0.0
+        if started_at is not None:
+            duration_ms = (time.perf_counter() - started_at) * 1000
+        access_logger.info(
+            "API request request_id=%s method=%s path=%s status=%s duration_ms=%.2f remote_addr=%s",
+            current_request_id(),
+            request.method,
+            request.path,
+            response.status_code,
+            duration_ms,
+            request.remote_addr or "unknown",
+        )
         return response
 
     @app.errorhandler(ApiError)

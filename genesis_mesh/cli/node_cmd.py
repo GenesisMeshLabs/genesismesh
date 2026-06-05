@@ -11,6 +11,7 @@ from ..crypto import KeyPair, load_private_key
 from ..models import GenesisBlock
 from ..node.node import MeshNode
 from ..node.runtime import MeshNodeRuntime
+from ..observability import configure_logging
 
 
 logger = logging.getLogger(__name__)
@@ -130,10 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    configure_logging(debug=args.debug)
 
     genesis_block = _load_genesis(args.genesis)
     node = MeshNode(
