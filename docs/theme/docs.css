@@ -95,9 +95,9 @@ body[data-theme="dark"] {
 body:not([data-theme="dark"]),
 body[data-theme="dark"] {
     /* Page surfaces */
-    --color-background-primary: var(--gm-bg);
-    --color-background-secondary: var(--gm-panel-strong);
-    --color-background-hover: var(--gm-panel);
+    --color-background-primary: var(--gm-panel);
+    --color-background-secondary: var(--gm-bg);
+    --color-background-hover: var(--gm-panel-strong);
     --color-background-hover--transparent: var(--gm-panel);
     --color-background-border: var(--gm-line);
     --color-background-item: var(--gm-panel);
@@ -125,19 +125,19 @@ body[data-theme="dark"] {
     --color-highlight-on-target: color-mix(in srgb, var(--gm-accent-2) 12%, transparent);
 
     /* Sidebar */
-    --color-sidebar-background: var(--gm-panel);
+    --color-sidebar-background: var(--gm-bg);
     --color-sidebar-background-border: var(--gm-line);
     --color-sidebar-brand-text: var(--gm-text);
     --color-sidebar-link-text: var(--gm-muted);
     --color-sidebar-link-text--top-level: var(--gm-text);
-    --color-sidebar-item-background--hover: var(--gm-panel-strong);
-    --color-sidebar-item-background--current: var(--gm-panel-strong);
+    --color-sidebar-item-background--hover: var(--gm-panel);
+    --color-sidebar-item-background--current: var(--gm-panel);
     --color-sidebar-search-background: var(--gm-panel);
     --color-sidebar-search-border: var(--gm-line);
     --color-sidebar-search-icon: var(--gm-muted);
 
     /* Table of contents (right column) */
-    --color-toc-background: var(--gm-panel);
+    --color-toc-background: var(--gm-bg);
     --color-toc-title-text: var(--gm-muted);
     --color-toc-item-text: var(--gm-muted);
     --color-toc-item-text--hover: var(--gm-text);
@@ -168,10 +168,14 @@ html,
 body,
 .page,
 .main,
-article,
-.content,
 main {
     background-color: var(--gm-bg) !important;
+}
+
+article,
+.content,
+.article-container {
+    background-color: var(--gm-panel) !important;
 }
 
 /* ---------------------------------------------------------------------------

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from typing import Any
 
-from ...trust import build_connectome_view
 from .chrome import method_badge, render_topbar
 from .surfaces import (
     ALL_SURFACES,
@@ -46,14 +45,12 @@ def node_counts(service) -> tuple[int, int]:
     return active, tracked
 
 
-def _trust_summary(service) -> dict[str, int]:
-    """Return Connectome-derived trust summary metrics."""
-    view = build_connectome_view(service.db.export_recognition_graph())
-    summary = view["summary"]
+def _surface_summary() -> dict[str, int]:
+    """Return a small protocol-surface summary for the console hero."""
     return {
-        "sovereign_count": int(summary["sovereign_count"]),
-        "active_edge_count": int(summary["active_edge_count"]),
-        "imported_revocation_count": int(summary["imported_revocation_count"]),
+        "http_surface_count": len(HTTP_SURFACES),
+        "cli_workflow_count": len(CLI_SURFACES),
+        "browser_safe_count": browser_safe_count(),
     }
 
 
@@ -89,34 +86,6 @@ def render_surface_table(surfaces: list[Surface]) -> str:
                     <th>Method</th>
                     <th>Path / command</th>
                     <th>Surface</th>
-                    <th>Purpose</th>
-                    <th>Access</th>
-                </tr>
-            </thead>
-            <tbody>{rows}</tbody>
-        </table>
-    """
-
-
-def render_cli_workflow_table(surfaces: list[Surface]) -> str:
-    """Render curated CLI workflows as reference rows."""
-    rows = "\n".join(
-        f"""
-        <tr>
-            <td><code class="path">{escape(surface.target)}</code></td>
-            <td><strong>{escape(surface.title)}</strong></td>
-            <td>{escape(surface.purpose)}</td>
-            <td><span class="muted">{escape(surface.auth_hint)}</span></td>
-        </tr>
-        """
-        for surface in surfaces
-    )
-    return f"""
-        <table class="data-table cli-reference-table">
-            <thead>
-                <tr>
-                    <th>Command</th>
-                    <th>Workflow</th>
                     <th>Purpose</th>
                     <th>Access</th>
                 </tr>
@@ -177,8 +146,7 @@ def page_document(title: str, active_nav: str, body: str) -> str:
 def render_homepage(service) -> str:
     """Build the human-facing Network Authority home page."""
     genesis = service.genesis_block
-    active_nodes, registered_nodes = node_counts(service)
-    trust_summary = _trust_summary(service)
+    surface_summary = _surface_summary()
 
     safe_rows = render_surface_table(surfaces_by_group("safe", curated_only=True))
     node_rows = render_surface_table(surfaces_by_group("node_agent", curated_only=True))
@@ -196,15 +164,14 @@ def render_homepage(service) -> str:
                 <div class="stat"><span>Network</span><strong>{escape(genesis.network_name)}</strong></div>
                 <div class="stat"><span>Version</span><strong>{escape(genesis.network_version)}</strong></div>
                 <div class="stat"><span>Health</span><strong>Ready</strong></div>
-                <div class="stat"><span>Active Nodes</span><strong>{active_nodes}</strong></div>
-                <div class="stat"><span>Recognition Edges</span><strong>{trust_summary["active_edge_count"]}</strong></div>
-                <div class="stat"><span>Tracked Nodes</span><strong>{registered_nodes}</strong></div>
+                <div class="stat"><span>HTTP Surfaces</span><strong>{surface_summary["http_surface_count"]}</strong></div>
+                <div class="stat"><span>CLI Workflows</span><strong>{surface_summary["cli_workflow_count"]}</strong></div>
+                <div class="stat"><span>Browser-safe</span><strong>{surface_summary["browser_safe_count"]}</strong></div>
             </div>
             <div class="pill-row">
-                <span class="pill">{len(ALL_SURFACES)} surfaces</span>
-                <span class="pill">{browser_safe_count()} browser-safe</span>
-                <span class="pill">{trust_summary["sovereign_count"]} sovereigns</span>
-                <span class="pill">{trust_summary["imported_revocation_count"]} imported revocations</span>
+                <span class="pill">Surface map</span>
+                <span class="pill">Read-only console</span>
+                <span class="pill">Signed actions documented only</span>
             </div>
         </div>
 
@@ -372,15 +339,11 @@ def render_cli_reference() -> str:
         <div id="cli-reference-results">
             <section>
                 <div class="section-head">
-                    <h2>Managed Operations</h2>
-                    <p>Common managed sovereign commands.</p>
-                </div>
-                {render_cli_workflow_table(surfaces_by_group("managed", curated_only=True))}
-            </section>
-            <section>
-                <div class="section-head">
                     <h2>Command Reference</h2>
-                    <p>Generated command and option metadata.</p>
+                    <p>
+                        Generated command and option metadata. Managed operations
+                        are listed here from the same Click command tree.
+                    </p>
                 </div>
                 {command_table}
             </section>

@@ -33,7 +33,7 @@ Current deployment demonstrates:
 - Route failure recovery
 - Certificate revocation and CRL enforcement
 
-![NA dashboard showing 2 active nodes](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/na-dashboard.png)
+![Network Authority operator console](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/na-operator-console.png)
 
 ![/nodes endpoint showing two enrolled nodes with different remote addresses](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/na-nodes.png)
 
