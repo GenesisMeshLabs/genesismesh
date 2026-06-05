@@ -197,27 +197,29 @@ def _log_api_error(error: ApiError, request_id: str) -> None:
     if error.status_code >= 500:
         if error.__cause__ is not None:
             logger.error(
-                "API server error request_id=%s code=%s path=%s\n%s",
-                request_id,
-                error.code,
-                request.path,
-                redacted_exception_text(error.__cause__),
+                "API server error",
+                extra={
+                    "request_id": request_id,
+                    "code": error.code,
+                    "path": request.path,
+                    "exception": redacted_exception_text(error.__cause__),
+                },
             )
         else:
             logger.error(
-                "API server error request_id=%s code=%s path=%s",
-                request_id,
-                error.code,
-                request.path,
+                "API server error",
+                extra={"request_id": request_id, "code": error.code, "path": request.path},
             )
         return
 
     logger.warning(
-        "API client error request_id=%s status=%s code=%s path=%s",
-        request_id,
-        error.status_code,
-        error.code,
-        request.path,
+        "API client error",
+        extra={
+            "request_id": request_id,
+            "status": error.status_code,
+            "code": error.code,
+            "path": request.path,
+        },
     )
 
 
@@ -250,13 +252,15 @@ def register_error_handlers(app: Flask) -> None:
         if started_at is not None:
             duration_ms = (time.perf_counter() - started_at) * 1000
         access_logger.info(
-            "API request request_id=%s method=%s path=%s status=%s duration_ms=%.2f remote_addr=%s",
-            current_request_id(),
-            request.method,
-            request.path,
-            response.status_code,
-            duration_ms,
-            request.remote_addr or "unknown",
+            "API request",
+            extra={
+                "request_id": current_request_id(),
+                "method": request.method,
+                "path": request.path,
+                "status": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+                "remote_addr": request.remote_addr or "unknown",
+            },
         )
         return response
 

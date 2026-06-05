@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import click
 import requests
+from werkzeug.serving import run_simple
 
 from .dev_ops import dev
 from .federation import federation
@@ -38,6 +40,7 @@ from .config import (
 )
 from .support import (
     _admin_headers,
+    _admin_signer_from_inputs,
     _describe_unusable_certificate,
     _load_cli_config,
     _load_existing_certificate,
@@ -47,8 +50,11 @@ from .support import (
     _require_positive_int,
     _required_config_path,
     _run_runtime_forever,
+    _signed_admin_headers,
     _validate_cli_roles,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def register_operational_commands(cli: click.Group) -> None:
@@ -106,13 +112,17 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
         db_path=database_path,
         operator_public_keys=load_operator_public_keys([f"{operator_key_id}={operator_public_key_path}"]),
     )
-    click.echo(f"Starting Network Authority on http://{bind_host}:{bind_port}")
-    click.echo(
-        "WARNING: Starting Flask development server. "
-        "For production deployments use start.sh and Gunicorn.",
-        err=True,
+    logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
+    logger.warning(
+        "Starting Werkzeug development server. For production deployments use start.sh and Gunicorn."
     )
-    app.run(host=bind_host, port=bind_port)
+    run_simple(
+        hostname=bind_host,
+        port=bind_port,
+        application=app,
+        use_reloader=False,
+        use_debugger=False,
+    )
 
 
 @click.group()
@@ -123,18 +133,22 @@ def admin() -> None:
 @admin.command("invite")
 @click.option("--config", "config_path", default=None, help="Config path.")
 @click.option("--na", "na_endpoint", default=None, help="Network Authority URL.")
+@click.option("--operator-key", default=None, help="Operator private key.")
+@click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
 @click.option("--role", "roles", multiple=True, default=["client"], help="Role to assign.")
 @click.option("--validity-hours", default=168, type=int, help="Maximum certificate validity.")
 @click.option("--token-expiry-hours", default=24, type=int, help="Invite validity.")
 def admin_invite(
     config_path: str | None,
     na_endpoint: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
     roles: tuple[str, ...],
     validity_hours: int,
     token_expiry_hours: int,
 ) -> None:
     """Create a single-use invite token and print it."""
-    config = _load_cli_config(config_path, required=True)
+    config = _load_cli_config(config_path, required=operator_key is None)
     endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
     if not endpoint_value:
         raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
@@ -153,7 +167,7 @@ def admin_invite(
         expected_status=201,
         label="invite creation",
         json=body,
-        headers=_admin_headers(config, body),
+        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
     )
     click.echo(payload["token_id"])
 
@@ -162,10 +176,19 @@ def admin_invite(
 @click.argument("cert_id")
 @click.option("--config", "config_path", default=None, help="Config path.")
 @click.option("--na", "na_endpoint", default=None, help="Network Authority URL.")
+@click.option("--operator-key", default=None, help="Operator private key.")
+@click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
 @click.option("--reason", default="unspecified", help="Revocation reason.")
-def admin_revoke(config_path: str | None, na_endpoint: str | None, cert_id: str, reason: str) -> None:
+def admin_revoke(
+    config_path: str | None,
+    na_endpoint: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+    cert_id: str,
+    reason: str,
+) -> None:
     """Revoke a certificate by ID."""
-    config = _load_cli_config(config_path, required=True)
+    config = _load_cli_config(config_path, required=operator_key is None)
     endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
     if not endpoint_value:
         raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
@@ -177,9 +200,27 @@ def admin_revoke(config_path: str | None, na_endpoint: str | None, cert_id: str,
         f"{endpoint}/admin/revoke",
         label="certificate revocation",
         json=body,
-        headers=_admin_headers(config, body),
+        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
     )
     click.echo(json.dumps(payload, indent=2))
+
+
+def _admin_headers_from_inputs(
+    config_path: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+    config: dict[str, Any],
+    body: dict[str, Any],
+) -> dict[str, str]:
+    """Create signed admin headers from direct key flags or a CLI config."""
+    if operator_key:
+        signer_key_id, key_path = _admin_signer_from_inputs(
+            config_path,
+            operator_key,
+            operator_key_id,
+        )
+        return _signed_admin_headers(signer_key_id, key_path, body)
+    return _admin_headers(config, body)
 
 
 @click.command()
@@ -453,7 +494,13 @@ def sovereign() -> None:
 
 
 @sovereign.command("inspect")
-@click.option("--na", "na_endpoint", required=True, help="Network Authority URL.")
+@click.option(
+    "--na",
+    "--endpoint",
+    "na_endpoint",
+    required=True,
+    help="Network Authority URL.",
+)
 @click.option(
     "--format",
     "output_format",

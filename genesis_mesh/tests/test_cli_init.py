@@ -115,3 +115,39 @@ def test_init_requires_explicit_network_name_for_operator_paths(tmp_path):
     assert result.exit_code != 0
     assert "requires an explicit --network-name" in result.output
     assert "Traceback" not in result.output
+
+
+def test_init_writes_config_under_explicit_home_when_config_is_omitted(tmp_path):
+    """Operators using --home should find the generated config inside that home."""
+    home = tmp_path / "sovereign"
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "init",
+            "--home",
+            str(home),
+            "--network-name",
+            "USG-NB",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    config_path = home / "genesis-mesh.toml"
+    assert config_path.exists()
+    assert f"Initialized Genesis Mesh config: {config_path}" in result.output
+    config = load_config(str(config_path), required=True)
+    assert config["paths"]["home"] == home.as_posix()
+
+
+def test_init_force_refuses_to_delete_current_working_directory():
+    """Force init should fail clearly instead of trying to remove cwd."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["init", "--home", ".", "--force"])
+
+    assert result.exit_code != 0
+    assert "Refusing to delete" in result.output
+    assert "current working directory is inside it" in result.output
+    assert "Traceback" not in result.output

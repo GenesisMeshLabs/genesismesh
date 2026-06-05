@@ -84,6 +84,27 @@ logs every HTTP request with the request ID, method, path, status, duration, and
 remote address, and centralized API error handling logs failures through the
 same request ID.
 
+When `GENESIS_LOG_FORMAT=json` is set, request metadata is emitted as
+first-class JSON keys, not embedded in the message string:
+
+```json
+{
+  "duration_ms": 0.31,
+  "level": "INFO",
+  "logger": "genesis_mesh.na_service.access",
+  "message": "API request",
+  "method": "GET",
+  "path": "/healthz",
+  "remote_addr": "127.0.0.1",
+  "request_id": "req-123",
+  "status": 200
+}
+```
+
+The local `genesis-mesh na start` development server also routes its startup
+and Werkzeug request messages through this configured logging path. Production
+deployments should still use `start.sh` and Gunicorn.
+
 The shared logging layer redacts common secret shapes before writing logs,
 including invite tokens, bearer tokens, signatures, passwords, private-key
 markers, and common private-key file paths. Avoid logging private key paths as

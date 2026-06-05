@@ -12,7 +12,10 @@ The `genesis-mesh` command looks for config in this order:
 3. `./genesis-mesh.toml`
 4. `~/.genesis-mesh/config.toml`
 
-`genesis-mesh init` writes a local config by default. `genesis-mesh join`
+`genesis-mesh init` writes a local config by default. Without an explicit
+`--home`, the config is `./genesis-mesh.toml`. With an explicit `--home` and no
+`--config`, the config is written to `<home>/genesis-mesh.toml` so generated
+keys, genesis material, and the pointer file stay together. `genesis-mesh join`
 updates that config with node certificate and policy paths.
 
 Example:

@@ -152,8 +152,18 @@ def test_unexpected_api_error_log_redacts_sensitive_exception_text(na_service, c
         code="internal_server_error",
         message="Internal server error",
     )
-    assert "API server error request_id=req-log-redaction" in caplog.text
-    assert "RuntimeError" in caplog.text
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "genesis_mesh.na_service.errors"
+        and getattr(record, "request_id", None) == "req-log-redaction"
+    ]
+    assert records
+    record = records[-1]
+    assert record.getMessage() == "API server error"
+    assert record.code == "internal_server_error"
+    assert record.path == "/_test/unexpected-log"
+    assert "RuntimeError" in record.exception
     assert "token=abc" not in caplog.text
     assert "operator.key" not in caplog.text
     assert "C:/secrets" not in caplog.text
@@ -170,7 +180,17 @@ def test_successful_api_request_is_access_logged(na_service, caplog):
 
     assert resp.status_code == 200
     assert resp.headers["X-Request-ID"] == "req-access-log"
-    assert "API request request_id=req-access-log" in caplog.text
-    assert "method=GET" in caplog.text
-    assert "path=/healthz" in caplog.text
-    assert "status=200" in caplog.text
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "genesis_mesh.na_service.access"
+        and getattr(record, "request_id", None) == "req-access-log"
+    ]
+    assert records
+    record = records[-1]
+    assert record.getMessage() == "API request"
+    assert record.method == "GET"
+    assert record.path == "/healthz"
+    assert record.status == 200
+    assert isinstance(record.duration_ms, float)
+    assert record.remote_addr

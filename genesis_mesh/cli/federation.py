@@ -40,7 +40,13 @@ def federation() -> None:
     type=click.Path(exists=True, dir_okay=False),
     help="Trust bundle for the sovereign being recognized.",
 )
-@click.option("--acceptor-config", default=None, help="Config for acceptor admin signing.")
+@click.option(
+    "--acceptor-config",
+    "--config",
+    "acceptor_config",
+    default=None,
+    help="Config for acceptor admin signing.",
+)
 @click.option("--operator-key", default=None, help="Acceptor operator private key.")
 @click.option("--operator-key-id", default="operator-local", help="Acceptor operator key ID.")
 @click.option("--role", "roles", multiple=True, default=["role:service:maintainer"], help="Role accepted from issuer.")
@@ -74,31 +80,48 @@ def federation_bootstrap(
     output_format: str,
 ) -> None:
     """Review another sovereign and optionally issue a direct treaty."""
-    result = run_federation_bootstrap(
-        acceptor_endpoint=acceptor,
-        issuer_endpoint=issuer,
-        issuer_bundle_path=Path(issuer_bundle) if issuer_bundle else None,
-        acceptor_signer=None
-        if dry_run
-        else _admin_signer_from_inputs(acceptor_config, operator_key, operator_key_id),
-        roles=_validate_cli_roles(roles),
-        accepted_statuses=list(accepted_statuses),
-        claims=_parse_claims(claim),
-        validity_hours=validity_hours,
-        issue_treaty=not dry_run,
-        confirmed=yes,
-    )
+    try:
+        result = run_federation_bootstrap(
+            acceptor_endpoint=acceptor,
+            issuer_endpoint=issuer,
+            issuer_bundle_path=Path(issuer_bundle) if issuer_bundle else None,
+            acceptor_signer=None
+            if dry_run
+            else _admin_signer_from_inputs(acceptor_config, operator_key, operator_key_id),
+            roles=_validate_cli_roles(roles),
+            accepted_statuses=list(accepted_statuses),
+            claims=_parse_claims(claim),
+            validity_hours=validity_hours,
+            issue_treaty=not dry_run,
+            confirmed=yes,
+        )
+    except FederationBootstrapVerificationError as exc:
+        result = exc.result
+        if evidence:
+            _write_evidence(Path(evidence), result)
+        if output_format == "json":
+            click.echo(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            _echo_bootstrap_result(result)
+        raise click.ClickException(exc.message) from exc
 
     if evidence:
-        output = Path(evidence)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+        _write_evidence(Path(evidence), result)
 
     if output_format == "json":
         click.echo(json.dumps(result, indent=2, sort_keys=True))
         return
 
     _echo_bootstrap_result(result)
+
+
+class FederationBootstrapVerificationError(Exception):
+    """Raised when treaty issue succeeds but post-issue trust verification fails."""
+
+    def __init__(self, result: dict[str, Any], message: str) -> None:
+        super().__init__(message)
+        self.result = result
+        self.message = message
 
 
 def run_federation_bootstrap(
@@ -190,6 +213,13 @@ def run_federation_bootstrap(
         json=treaty_body,
         headers=_signed_admin_headers(key_id, key_path, treaty_body),
     )
+    result.update(
+        {
+            "treaty_id": treaty["treaty_id"],
+            "treaty_status": treaty["status"],
+            "verification": {"status": "pending"},
+        }
+    )
     trust_path = _request_json(
         session,
         "GET",
@@ -197,7 +227,23 @@ def run_federation_bootstrap(
         label="trust path verification",
     )
     if not trust_path.get("trusted"):
-        raise click.ClickException(f"Trust path verification failed: {trust_path}")
+        result["trust_path"] = trust_path
+        result["verification"] = {
+            "status": "failed",
+            "reason": trust_path.get("reason"),
+            "message": "Treaty was persisted but post-issue trust-path verification failed.",
+            "cleanup_hint": (
+                "Inspect or revoke the persisted treaty before rerunning: "
+                f"genesis-mesh treaty revoke --na {acceptor} {treaty['treaty_id']} "
+                "--reason bootstrap_verification_failed"
+            ),
+        }
+        raise FederationBootstrapVerificationError(
+            result,
+            "Treaty was persisted but trust path verification failed "
+            f"(treaty_id={treaty['treaty_id']}, reason={trust_path.get('reason')}). "
+            "Inspect or revoke the treaty before rerunning.",
+        )
 
     connectome = _request_json(
         session,
@@ -211,10 +257,16 @@ def run_federation_bootstrap(
             "treaty_id": treaty["treaty_id"],
             "treaty_status": treaty["status"],
             "trust_path": trust_path,
+            "verification": {"status": "passed", "reason": trust_path.get("reason")},
             "connectome_summary": connectome["summary"],
         }
     )
     return result
+
+
+def _write_evidence(output: Path, result: dict[str, Any]) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _review_sovereign(session: requests.Session, endpoint: str, label: str) -> dict[str, Any]:
@@ -386,11 +438,18 @@ def _echo_bootstrap_result(result: dict[str, Any]) -> None:
         click.echo("No treaty issued (--dry-run).")
         return
 
-    trust_path = result["trust_path"]
-    click.echo("Federation bootstrap completed")
+    trust_path = result.get("trust_path", {})
+    verification = result.get("verification", {})
+    if verification.get("status") == "failed":
+        click.echo("Federation bootstrap verification failed")
+    else:
+        click.echo("Federation bootstrap completed")
     click.echo(f"  treaty:     {result['treaty_id']}")
     click.echo(f"  status:     {result['treaty_status']}")
     click.echo(f"  trust_path: {trust_path.get('reason')}")
+    if verification.get("status") == "failed":
+        click.echo("  persisted:  yes")
+        click.echo(f"  cleanup:    {verification.get('cleanup_hint')}")
 
 
 def _echo_sovereign(label: str, summary: dict[str, Any]) -> None:
