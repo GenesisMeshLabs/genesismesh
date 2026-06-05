@@ -425,9 +425,18 @@ def render_dashboard(service) -> str:
                 revocation feed freshness, and recent trust-state changes.
             </p>
             <div class="hero-meta">
-                <span>{escape(model['sovereign']['id'])}</span>
-                <span>{escape(model['readiness']['status']).title()}</span>
-                <span>{escape(model['sovereign']['version'])}</span>
+                <span class="hero-meta-item">
+                    <span class="hero-meta-label">Sovereign</span>
+                    <strong>{escape(model['sovereign']['id'])}</strong>
+                </span>
+                <span class="hero-meta-item">
+                    <span class="hero-meta-label">Readiness</span>
+                    <strong class="hero-meta-ready">{escape(model['readiness']['status']).title()}</strong>
+                </span>
+                <span class="hero-meta-item">
+                    <span class="hero-meta-label">Version</span>
+                    <strong>{escape(model['sovereign']['version'])}</strong>
+                </span>
             </div>
             <div class="stats" aria-label="Dashboard summary">
                 <div class="stat"><span>Active Edges</span><strong>{model['connectome_summary']['active_edge_count']}</strong></div>
