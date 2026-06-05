@@ -81,6 +81,11 @@ def test_dashboard_empty_state_is_read_only(client):
     assert resp.mimetype == "text/html"
     body = resp.get_data(as_text=True)
     assert "Sovereign Health and Trust" in body
+    assert "TEST" in body
+    assert "Ready" in body
+    assert "v0.1" in body
+    assert "<span>Sovereign</span>" not in body
+    assert "<span>Readiness</span>" not in body
     assert "No recognition treaties yet." in body
     assert "No imported sovereign revocation feeds." in body
     assert "No recent trust-state changes." in body
