@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from importlib.resources import files
 
-from flask import Blueprint, Response, abort, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
+from ..errors import NotFoundError
 from ..operator_console.dashboard import build_dashboard_model, render_dashboard
 from ..operator_console.openapi import build_swagger_spec
 from ..operator_console.rendering import (
@@ -30,10 +31,10 @@ def create_public_blueprint(service) -> Blueprint:
         """Return a packaged operator-console asset by exact filename."""
         allowed_assets = {"console.js", "favicon.ico", "favicon.svg", "logo.svg", "styles.css"}
         if name not in allowed_assets:
-            abort(404)
+            raise NotFoundError("Operator console asset not found", code="asset_not_found")
         asset = files("genesis_mesh.na_service.operator_console").joinpath("static", name)
         if not asset.is_file():
-            abort(404)
+            raise NotFoundError("Operator console asset not found", code="asset_not_found")
         return Response(asset.read_bytes(), mimetype=mimetype)
 
     @bp.route("/favicon.svg", methods=["GET"])

@@ -17,6 +17,11 @@ from .na_server_helpers import (
 )
 
 
+def _error_message(resp_or_payload) -> str:
+    payload = resp_or_payload if isinstance(resp_or_payload, dict) else resp_or_payload.get_json()
+    return payload["error"]["message"]
+
+
 def test_join_valid_roles(client, node_keypair):
     """Join with valid roles succeeds."""
     resp, data, _ = join_node(client, keypair=node_keypair, roles=["role:client"])
@@ -28,7 +33,7 @@ def test_join_invalid_role_rejected(client, node_keypair):
     """Join with an invalid role prefix is rejected."""
     resp, data, _ = join_node(client, keypair=node_keypair, roles=["role:admin"])
     assert resp.status_code == 400
-    assert "Invalid role" in data["error"]
+    assert "Invalid role" in _error_message(data)
 
 
 def test_join_default_roles(client, node_keypair):
@@ -44,7 +49,7 @@ def test_join_requires_invite_token(client, node_keypair):
         "node_public_key": node_keypair.public_key_b64,
     })
     assert resp.status_code == 403
-    assert "invite_token" in resp.get_json()["error"]
+    assert "invite_token" in _error_message(resp)
 
 
 def test_join_rejects_non_positive_validity(client, node_keypair):
@@ -62,7 +67,7 @@ def test_join_rejects_non_positive_validity(client, node_keypair):
     resp = client.post("/join", json=payload)
 
     assert resp.status_code == 400
-    assert "positive integer" in resp.get_json()["error"]
+    assert "positive integer" in _error_message(resp)
 
 
 def test_join_requires_node_proof_of_possession(client, node_keypair):
@@ -76,7 +81,7 @@ def test_join_requires_node_proof_of_possession(client, node_keypair):
     })
 
     assert resp.status_code == 401
-    assert "authentication" in resp.get_json()["error"].lower()
+    assert "authentication" in _error_message(resp).lower()
 
 
 def test_failed_join_proof_does_not_consume_invite(client, node_keypair):
@@ -116,7 +121,7 @@ def test_join_unknown_invite_token_rejected_cleanly(client, node_keypair):
     })
 
     assert resp.status_code == 403
-    assert resp.get_json()["error"] == "Invalid, expired, or used invite token"
+    assert _error_message(resp) == "Invalid, expired, or used invite token"
 
 
 def test_join_expired_invite_token_rejected_cleanly(na_service, client, node_keypair):
@@ -133,7 +138,7 @@ def test_join_expired_invite_token_rejected_cleanly(na_service, client, node_key
     })
 
     assert resp.status_code == 403
-    assert resp.get_json()["error"] == "Invalid, expired, or used invite token"
+    assert _error_message(resp) == "Invalid, expired, or used invite token"
 
 
 def test_join_rate_limit_returns_429(client):
@@ -144,7 +149,7 @@ def test_join_rate_limit_returns_429(client):
 
     assert last_resp is not None
     assert last_resp.status_code == 429
-    assert last_resp.get_json()["error"] == "Rate limit exceeded"
+    assert _error_message(last_resp) == "Rate limit exceeded"
 
 
 def test_key_compromise_blocks_rejoin_with_same_public_key(client, node_keypair):
@@ -198,7 +203,7 @@ def test_renew_role_escalation_rejected(client, node_keypair):
         roles=["role:anchor", "role:operator"],
     )
     assert renew_resp.status_code == 403
-    assert "not permitted" in renew_resp.get_json()["error"]
+    assert "not permitted" in _error_message(renew_resp)
 
 
 def test_renew_role_downgrade_also_rejected(client, node_keypair):
@@ -230,7 +235,7 @@ def test_renew_wrong_key_rejected(client, node_keypair):
     other_kp = generate_keypair()
     renew_resp = signed_renew(client, join_data["cert_id"], other_kp)
     assert renew_resp.status_code == 403
-    assert "does not match" in renew_resp.get_json()["error"]
+    assert "does not match" in _error_message(renew_resp)
 
 
 def test_renew_unknown_cert_rejected(client, node_keypair):
@@ -241,7 +246,7 @@ def test_renew_unknown_cert_rejected(client, node_keypair):
     }, node_keypair.private_key)
     renew_resp = client.post("/renew", json=payload)
     assert renew_resp.status_code == 403
-    assert "Unknown certificate" in renew_resp.get_json()["error"]
+    assert "Unknown certificate" in _error_message(renew_resp)
 
 
 def test_renew_missing_cert_id(client, node_keypair):
@@ -263,7 +268,7 @@ def test_renew_rejects_non_positive_validity(client, node_keypair):
     resp = signed_renew(client, join_data["cert_id"], kp, validity_hours=0)
 
     assert resp.status_code == 400
-    assert "positive integer" in resp.get_json()["error"]
+    assert "positive integer" in _error_message(resp)
 
 
 def test_chained_renewal(client, node_keypair):
@@ -345,7 +350,8 @@ def test_heartbeat_without_signature_rejected(client, node_keypair):
         "status": "healthy",
     })
     assert resp.status_code == 401
-    assert "authentication" in resp.get_json()["error"].lower() or "Missing" in resp.get_json()["error"]
+    message = _error_message(resp)
+    assert "authentication" in message.lower() or "Missing" in message
 
 
 def test_heartbeat_with_wrong_key_rejected(client, node_keypair):
@@ -383,7 +389,7 @@ def test_heartbeat_stale_timestamp_rejected(client, node_keypair):
 
     resp = client.post("/heartbeat", json=payload)
     assert resp.status_code == 401
-    assert "too old" in resp.get_json()["error"]
+    assert "too old" in _error_message(resp)
 
 
 def test_heartbeat_nonce_replay_rejected(client, node_keypair):
@@ -402,7 +408,7 @@ def test_heartbeat_nonce_replay_rejected(client, node_keypair):
 
     resp2 = client.post("/heartbeat", json=signed)
     assert resp2.status_code == 401
-    assert "replay" in resp2.get_json()["error"].lower()
+    assert "replay" in _error_message(resp2).lower()
 
 
 def test_heartbeat_rejects_expired_persisted_certificate(na_service, client, node_keypair):
@@ -418,7 +424,7 @@ def test_heartbeat_rejects_expired_persisted_certificate(na_service, client, nod
     resp = signed_heartbeat(client, join_data["cert_id"], kp)
 
     assert resp.status_code == 403
-    assert "expired" in resp.get_json()["error"].lower()
+    assert "expired" in _error_message(resp).lower()
     event = na_service.db.list_audit_events()[-1]
     assert event["event_type"] == "heartbeat_rejected"
     assert event["details"]["reason"] == "certificate_expired"
@@ -437,7 +443,7 @@ def test_heartbeat_rejects_not_yet_valid_persisted_certificate(na_service, clien
     resp = signed_heartbeat(client, join_data["cert_id"], kp)
 
     assert resp.status_code == 403
-    assert "not yet valid" in resp.get_json()["error"].lower()
+    assert "not yet valid" in _error_message(resp).lower()
     event = na_service.db.list_audit_events()[-1]
     assert event["event_type"] == "heartbeat_rejected"
     assert event["details"]["reason"] == "certificate_not_yet_valid"
@@ -480,7 +486,7 @@ def test_renew_rejects_expired_persisted_certificate(na_service, client, node_ke
     resp = signed_renew(client, join_data["cert_id"], kp)
 
     assert resp.status_code == 403
-    assert "expired" in resp.get_json()["error"].lower()
+    assert "expired" in _error_message(resp).lower()
     event = na_service.db.list_audit_events()[-1]
     assert event["event_type"] == "renewal_rejected"
     assert event["details"]["reason"] == "certificate_expired"
@@ -499,7 +505,7 @@ def test_renew_rejects_not_yet_valid_persisted_certificate(na_service, client, n
     resp = signed_renew(client, join_data["cert_id"], kp)
 
     assert resp.status_code == 403
-    assert "not yet valid" in resp.get_json()["error"].lower()
+    assert "not yet valid" in _error_message(resp).lower()
     event = na_service.db.list_audit_events()[-1]
     assert event["event_type"] == "renewal_rejected"
     assert event["details"]["reason"] == "certificate_not_yet_valid"

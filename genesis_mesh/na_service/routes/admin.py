@@ -9,6 +9,16 @@ from flask import Blueprint, jsonify, request
 
 from ...crypto import sign_model
 from ...models import PolicyManifest
+from ..errors import (
+    ApiError,
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    RateLimitError,
+    UnauthorizedError,
+    positive_int_field,
+    request_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,26 +36,35 @@ def create_admin_blueprint(service) -> Blueprint:
     def create_invite():
         """Create a persisted invite token for a pre-authorized node."""
         try:
-            data = request.get_json(silent=True) or {}
+            data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
 
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-                return jsonify({"error": "Rate limit exceeded"}), 429
+                raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data)
             if not auth_ok:
-                return jsonify({"error": auth_err}), 401
+                raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
             roles = data.get("roles", ["role:client"])
-            max_validity_hours = int(data.get("max_validity_hours", 168))
-            token_expiry_hours = int(data.get("token_expiry_hours", 24))
+            max_validity_hours = positive_int_field(
+                data,
+                "max_validity_hours",
+                default=168,
+                code="invalid_max_validity_hours",
+                message="Token validity windows must be positive",
+            )
+            token_expiry_hours = positive_int_field(
+                data,
+                "token_expiry_hours",
+                default=24,
+                code="invalid_token_expiry_hours",
+                message="Token validity windows must be positive",
+            )
 
             valid, error = service._validate_roles(roles)
             if not valid:
-                return jsonify({"error": error}), 400
-
-            if max_validity_hours <= 0 or token_expiry_hours <= 0:
-                return jsonify({"error": "Token validity windows must be positive"}), 400
+                raise BadRequestError(error or "Invalid role", code="invalid_role")
 
             token = service.db.create_invite_token(
                 assigned_roles=roles,
@@ -68,22 +87,24 @@ def create_admin_blueprint(service) -> Blueprint:
                     "expires_at": token.expires_at.isoformat(),
                 }
             ), 201
+        except ApiError:
+            raise
         except Exception as exc:
             logger.error("Invite creation error: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            raise InternalServerError() from exc
 
     @bp.route("/admin/policy", methods=["POST"])
     def publish_policy():
         """Publish and activate a signed policy version."""
         try:
-            data = request.get_json(silent=True) or {}
+            data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-                return jsonify({"error": "Rate limit exceeded"}), 429
+                raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data)
             if not auth_ok:
-                return jsonify({"error": auth_err}), 401
+                raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
             policy = PolicyManifest(
                 policy_id=data.get("policy_id") or f"policy-{uuid.uuid4()}",
@@ -99,16 +120,18 @@ def create_admin_blueprint(service) -> Blueprint:
             service.db.save_policy(policy, active=True)
 
             return jsonify(policy.model_dump(mode="json")), 201
+        except ApiError:
+            raise
         except Exception as exc:
             logger.error("Policy publish error: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            raise InternalServerError() from exc
 
     @bp.route("/admin/policy/history", methods=["GET"])
     def policy_history():
         """Return persisted policy versions."""
         auth_ok, auth_err = service._verify_admin_request({})
         if not auth_ok:
-            return jsonify({"error": auth_err}), 401
+            raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
         versions = []
         for row in service.db.list_policy_versions():
@@ -127,36 +150,38 @@ def create_admin_blueprint(service) -> Blueprint:
     def rollback_policy():
         """Activate a previously persisted policy version."""
         try:
-            data = request.get_json(silent=True) or {}
+            data = request_json_object()
             auth_ok, auth_err = service._verify_admin_request(data)
             if not auth_ok:
-                return jsonify({"error": auth_err}), 401
+                raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
             policy_id = data.get("policy_id")
             if not policy_id:
-                return jsonify({"error": "policy_id required"}), 400
+                raise BadRequestError("policy_id required", code="missing_policy_id")
 
             if not service.db.activate_policy(policy_id):
-                return jsonify({"error": "Unknown policy"}), 404
+                raise NotFoundError("Unknown policy", code="policy_not_found")
 
             policy = service.db.get_active_policy()
             return jsonify(policy.model_dump(mode="json"))
+        except ApiError:
+            raise
         except Exception as exc:
             logger.error("Policy rollback error: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            raise InternalServerError() from exc
 
     @bp.route("/admin/revoke", methods=["POST"])
     def revoke_certificate():
         """Revoke an issued certificate and publish a new signed CRL."""
         try:
-            data = request.get_json(silent=True) or {}
+            data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-                return jsonify({"error": "Rate limit exceeded"}), 429
+                raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data)
             if not auth_ok:
-                return jsonify({"error": auth_err}), 401
+                raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
             cert_id = data.get("cert_id")
             reason = data.get("reason", "unspecified")
@@ -168,13 +193,16 @@ def create_admin_blueprint(service) -> Blueprint:
             }
 
             if not cert_id:
-                return jsonify({"error": "cert_id required"}), 400
+                raise BadRequestError("cert_id required", code="missing_cert_id")
             if reason not in allowed_reasons:
-                return jsonify({"error": "Invalid revocation reason"}), 400
+                raise BadRequestError(
+                    "Invalid revocation reason",
+                    code="invalid_revocation_reason",
+                )
 
             cert_row = service.db.get_cert(cert_id)
             if cert_row is None:
-                return jsonify({"error": "Unknown certificate"}), 404
+                raise NotFoundError("Unknown certificate", code="certificate_not_found")
 
             try:
                 crl = service.db.revoke_cert(
@@ -183,7 +211,7 @@ def create_admin_blueprint(service) -> Blueprint:
                     issuer=service.key_id,
                 )
             except KeyError:
-                return jsonify({"error": "Unknown certificate"}), 404
+                raise NotFoundError("Unknown certificate", code="certificate_not_found") from None
 
             if not crl.signatures:
                 crl.signatures.append(sign_model(crl, service.na_private_key, service.key_id))
@@ -220,8 +248,10 @@ def create_admin_blueprint(service) -> Blueprint:
                     "revoked_count": len(crl.revoked_certificates),
                 }
             )
+        except ApiError:
+            raise
         except Exception as exc:
             logger.error("Revocation error: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            raise InternalServerError() from exc
 
     return bp

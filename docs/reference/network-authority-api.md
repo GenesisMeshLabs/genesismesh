@@ -28,6 +28,40 @@ flowchart TB
     sovereign --> connectome
 ```
 
+## Error Responses
+
+All JSON API failures use one shared envelope. Routes raise typed business
+failures; the Network Authority error layer translates them into HTTP status
+codes, safe messages, and a correlation ID.
+
+```json
+{
+  "error": {
+    "code": "treaty_not_found",
+    "message": "Treaty not found",
+    "details": {},
+    "request_id": "8d2e6a0f-0e57-4f1b-b8f2-12de680d32fd"
+  }
+}
+```
+
+The same request ID is also returned in the `X-Request-ID` response header.
+Clients may send `X-Request-ID` to correlate their own logs with Network
+Authority logs.
+
+Common statuses:
+
+| Status | Meaning |
+|---|---|
+| `400` | Malformed request or invalid request parameters. |
+| `401` | Missing or invalid operator/node signature. |
+| `403` | Authenticated principal is not allowed to perform the action. |
+| `404` | Referenced resource does not exist. |
+| `409` | Request conflicts with persisted trust state, such as a stale sequence. |
+| `422` | JSON body is syntactically valid but fails schema/model validation. |
+| `429` | Request exceeded the configured rate limit. |
+| `500` | Unexpected server error. The response is sanitized and never includes stack traces, secret tokens, private keys, file paths, or internal implementation details. |
+
 ## Browser Console
 
 ### `GET /`

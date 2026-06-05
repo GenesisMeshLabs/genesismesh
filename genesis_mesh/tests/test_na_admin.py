@@ -9,6 +9,10 @@ from genesis_mesh.crypto import generate_keypair
 from .na_server_helpers import admin_headers, create_invite, publish_policy, sign_payload
 
 
+def _error_message(resp) -> str:
+    return resp.get_json()["error"]["message"]
+
+
 def test_invite_token_is_single_use(client, node_keypair):
     """A persisted invite token can issue only one certificate."""
     invite_resp = create_invite(client, roles=["role:client"])
@@ -90,7 +94,7 @@ def test_admin_invite_rate_limit_returns_429(client):
 
     assert last_resp is not None
     assert last_resp.status_code == 429
-    assert last_resp.get_json()["error"] == "Rate limit exceeded"
+    assert _error_message(last_resp) == "Rate limit exceeded"
 
 
 def test_replayed_admin_nonce_is_audited_without_request_body(na_service, client):

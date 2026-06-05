@@ -258,7 +258,7 @@ def test_connectome_trust_path_requires_source_and_target(client):
     resp = client.get("/connectome/trust-path?from=TEST")
 
     assert resp.status_code == 400
-    assert resp.get_json()["error"] == "from/source and to/target are required"
+    assert resp.get_json()["error"]["message"] == "from/source and to/target are required"
 
 
 def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_service):
@@ -354,7 +354,7 @@ def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service):
 
     assert first.status_code == 200
     assert second.status_code == 409
-    assert second.get_json()["reason"] == "stale_sequence"
+    assert second.get_json()["error"]["code"] == "stale_sequence"
 
 
 def test_treaty_issue_requires_operator_signature(client, na_service):

@@ -19,6 +19,7 @@ from .auth import (
     verify_node_request_signature,
 )
 from .db import NADatabase
+from .errors import register_error_handlers
 from .rate_limit import RateLimiter
 from .routes import (
     create_admin_blueprint,
@@ -87,6 +88,7 @@ class NetworkAuthorityService:
             raise ValueError("NA private key does not match genesis block")
 
         self.app = Flask(__name__)
+        register_error_handlers(self.app)
         self._register_blueprints()
         logger.info(
             "Network Authority service initialized for network: %s",

@@ -22,8 +22,9 @@ def test_readyz_returns_503_when_db_check_fails(na_service):
     resp = na_service.app.test_client().get("/readyz")
 
     assert resp.status_code == 503
-    assert resp.get_json()["status"] == "not_ready"
-    assert resp.get_json()["db_path"] == na_service.db.db_path
+    error = resp.get_json()["error"]
+    assert error["code"] == "service_not_ready"
+    assert error["message"] == "Service is not ready"
 
 
 def test_readyz_reports_database_path(na_service):

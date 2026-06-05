@@ -7,18 +7,25 @@ from typing import Any
 from .surfaces import HTTP_SURFACES, Surface
 
 
+_ERROR_RESPONSE_CODES = ("400", "401", "403", "404", "409", "422", "429", "500")
+
+
 def _openapi_operation(surface: Surface) -> dict[str, Any]:
     """Build a compact OpenAPI operation object for one surface."""
+    responses: dict[str, Any] = {
+        "200": {
+            "description": "Successful response",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        }
+    }
+    for status in _ERROR_RESPONSE_CODES:
+        responses[status] = {"$ref": "#/components/responses/ErrorResponse"}
+
     operation: dict[str, Any] = {
         "summary": surface.title,
         "description": surface.purpose,
         "tags": [surface.group],
-        "responses": {
-            "200": {
-                "description": "Successful response",
-                "content": {"application/json": {"schema": {"type": "object"}}},
-            }
-        },
+        "responses": responses,
         "x-genesis-mesh-access": surface.access,
         "x-genesis-mesh-auth-hint": surface.auth_hint,
     }
@@ -47,6 +54,47 @@ def build_swagger_spec(service, base_url: str) -> dict[str, Any]:
         "servers": [{"url": base_url}],
         "paths": paths,
         "components": {
+            "responses": {
+                "ErrorResponse": {
+                    "description": "Shared Genesis Mesh API error envelope.",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorEnvelope"}
+                        }
+                    },
+                }
+            },
+            "schemas": {
+                "ErrorEnvelope": {
+                    "type": "object",
+                    "required": ["error"],
+                    "properties": {
+                        "error": {
+                            "type": "object",
+                            "required": ["code", "message", "details", "request_id"],
+                            "properties": {
+                                "code": {
+                                    "type": "string",
+                                    "description": "Machine-readable error code.",
+                                },
+                                "message": {
+                                    "type": "string",
+                                    "description": "Human-readable safe error message.",
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "description": "Optional sanitized structured details.",
+                                    "additionalProperties": True,
+                                },
+                                "request_id": {
+                                    "type": "string",
+                                    "description": "Correlation ID also returned as X-Request-ID.",
+                                },
+                            },
+                        }
+                    },
+                }
+            },
             "securitySchemes": {
                 "OperatorSignature": {
                     "type": "apiKey",
