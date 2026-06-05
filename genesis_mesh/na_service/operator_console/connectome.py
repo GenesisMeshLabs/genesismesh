@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime, timezone
 from html import escape
 from math import cos, pi, sin
@@ -67,28 +68,26 @@ def _connectome_graph(view: dict[str, Any]) -> str:
                 center_y + radius * sin(angle),
             )
 
-    edge_markup = []
+    grouped_edges: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for edge in view.get("recognition_edges", []):
-        source = str(edge.get("from", ""))
-        target = str(edge.get("to", ""))
-        if source not in positions or target not in positions:
+        grouped_edges[(str(edge.get("from", "")), str(edge.get("to", "")))].append(edge)
+
+    edge_markup = []
+    for (source, target), edges in sorted(grouped_edges.items()):
+        if source not in positions or target not in positions or not edges:
             continue
         x1, y1 = positions[source]
         x2, y2 = positions[target]
-        status = str(edge.get("lifecycle_state") or edge.get("status") or "")
-        css = (
-            "graph-edge graph-edge-revoked"
-            if status in {"revoked", "replaced", "expired"}
-            else "graph-edge"
-        )
-        treaty_id = str(edge.get("treaty_id", ""))
+        has_current = any(_edge_is_current(edge) for edge in edges)
+        css = "graph-edge" if has_current else "graph-edge graph-edge-revoked"
         edge_markup.append(
             f'<line class="{css}" x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"></line>'
         )
-        edge_markup.append(
-            f'<text class="graph-edge-label" x="{((x1 + x2) / 2):.1f}" y="{((y1 + y2) / 2 - 10):.1f}">'
-            f'{escape(status or "edge")} {escape(treaty_id[:8])}</text>'
-        )
+        if len(edges) > 1:
+            edge_markup.append(
+                f'<text class="graph-edge-count" x="{((x1 + x2) / 2):.1f}" '
+                f'y="{((y1 + y2) / 2 - 16):.1f}">{len(edges)}</text>'
+            )
 
     node_markup = []
     for sovereign, (x, y) in positions.items():
