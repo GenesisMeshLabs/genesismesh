@@ -12,6 +12,15 @@ from flask import Blueprint, jsonify, request
 from ...crypto import sign_model
 from ...models import MembershipAttestation, RecognitionPolicy, SovereignRevocationFeed
 from ...trust import verify_membership_attestation
+from ..errors import (
+    BadRequestError,
+    NotFoundError,
+    RateLimitError,
+    RequestValidationError,
+    UnauthorizedError,
+    positive_int_field,
+    request_json_object,
+)
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -56,25 +65,32 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Issue a signed membership attestation for a subject."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         subject_id = data.get("subject_id")
         roles = data.get("roles") or []
         if not subject_id or not isinstance(roles, list) or not roles:
-            return jsonify({"error": "subject_id and roles are required"}), 400
+            raise BadRequestError(
+                "subject_id and roles are required",
+                code="missing_attestation_subject",
+            )
 
         valid_roles, role_error = service._validate_roles(roles)
         if not valid_roles:
-            return jsonify({"error": role_error}), 400
+            raise BadRequestError(role_error or "Invalid role", code="invalid_role")
 
-        validity_hours = int(data.get("validity_hours", 168))
-        if validity_hours <= 0:
-            return jsonify({"error": "validity_hours must be greater than zero"}), 400
+        validity_hours = positive_int_field(
+            data,
+            "validity_hours",
+            default=168,
+            code="invalid_validity_hours",
+            message="validity_hours must be greater than zero",
+        )
 
         now = datetime.now(timezone.utc)
         attestation = MembershipAttestation(
@@ -112,16 +128,16 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Revoke an issued membership attestation."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         reason = data.get("reason", "unspecified")
         if not service.db.revoke_membership_attestation(attestation_id, reason):
-            return jsonify({"error": "Attestation not found"}), 404
+            raise NotFoundError("Attestation not found", code="attestation_not_found")
 
         service.db.add_audit_event("membership_attestation_revoked", {
             "attestation_id": attestation_id,
@@ -134,17 +150,20 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Persist the local recognition policy used by attestation verification."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         try:
             policy = RecognitionPolicy.model_validate(data.get("recognition_policy"))
-        except Exception:
-            return jsonify({"error": "Invalid recognition_policy"}), 400
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid recognition_policy",
+                code="invalid_recognition_policy",
+            ) from exc
 
         policy_id = data.get("policy_id", f"recognition-{policy.local_sovereign_id}")
         service.db.save_recognition_policy(policy_id, policy, active=True)
@@ -164,7 +183,10 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Return the active local recognition policy, if configured."""
         policy = service.db.get_active_recognition_policy()
         if policy is None:
-            return jsonify({"error": "Recognition policy not configured"}), 404
+            raise NotFoundError(
+                "Recognition policy not configured",
+                code="recognition_policy_not_configured",
+            )
         return jsonify(_json_model(policy))
 
     @bp.route("/attestations/<attestation_id>", methods=["GET"])
@@ -172,7 +194,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Return a persisted membership attestation by ID."""
         row = service.db.get_membership_attestation(attestation_id)
         if not row:
-            return jsonify({"error": "Attestation not found"}), 404
+            raise NotFoundError("Attestation not found", code="attestation_not_found")
         return jsonify(_row_payload(row))
 
     @bp.route("/attestations", methods=["GET"])
@@ -223,7 +245,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/attestations/verify", methods=["POST"])
     def verify_attestation():
         """Verify a membership attestation against a local recognition policy."""
-        data = request.get_json() or {}
+        data = request_json_object()
         try:
             attestation = MembershipAttestation.model_validate(data.get("attestation"))
             if "recognition_policy" in data:
@@ -231,9 +253,17 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             else:
                 policy = service.db.get_active_recognition_policy()
                 if policy is None:
-                    return jsonify({"error": "recognition_policy is required"}), 400
-        except Exception:
-            return jsonify({"error": "Invalid attestation or recognition policy"}), 400
+                    raise BadRequestError(
+                        "recognition_policy is required",
+                        code="missing_recognition_policy",
+                    )
+        except BadRequestError:
+            raise
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid attestation or recognition policy",
+                code="invalid_attestation_or_policy",
+            ) from exc
 
         policy = _policy_with_db_revocation(service, attestation, policy)
         result = verify_membership_attestation(attestation, policy)

@@ -22,6 +22,15 @@ from flask import Blueprint, jsonify, request
 
 from ...crypto import verify_model_signature
 from ...models import AgentDescriptor
+from ..errors import (
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitError,
+    RequestValidationError,
+    UnauthorizedError,
+    request_json_object,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -70,50 +79,50 @@ def create_discovery_blueprint(service) -> Blueprint:
         """Register or refresh a signed AgentDescriptor."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"discover:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        try:
-            payload = request.get_json(force=True, silent=False)
-        except Exception:
-            return jsonify({"error": "request body must be valid JSON"}), 400
-        if not isinstance(payload, dict):
-            return jsonify({"error": "request body must be a JSON object"}), 400
+        payload = request_json_object(required=True)
 
         try:
             descriptor = AgentDescriptor.model_validate(payload)
         except Exception as exc:
-            return jsonify({"error": f"invalid descriptor: {exc}"}), 400
+            raise RequestValidationError(
+                "invalid descriptor",
+                code="invalid_agent_descriptor",
+            ) from exc
 
         if not descriptor.signatures:
-            return jsonify({"error": "descriptor must be signed by the node key"}), 401
+            raise UnauthorizedError(
+                "descriptor must be signed by the node key",
+                code="descriptor_signature_required",
+            )
 
         if not descriptor.is_active(datetime.now(timezone.utc)):
-            return jsonify({"error": "descriptor expires_at is not in the future"}), 400
+            raise BadRequestError(
+                "descriptor expires_at is not in the future",
+                code="descriptor_expired",
+            )
 
         if descriptor.network_name != service.genesis_block.network_name:
-            return (
-                jsonify(
-                    {
-                        "error": "descriptor network_name does not match this NA",
-                        "expected": service.genesis_block.network_name,
-                    }
-                ),
-                400,
+            raise BadRequestError(
+                "descriptor network_name does not match this NA",
+                code="descriptor_network_mismatch",
+                details={"expected": service.genesis_block.network_name},
             )
 
         if not _node_has_active_cert(service, descriptor.node_public_key):
-            return (
-                jsonify({"error": "node has no active join certificate"}),
-                403,
+            raise ForbiddenError(
+                "node has no active join certificate",
+                code="node_has_no_active_certificate",
             )
 
         if _node_is_revoked(service, descriptor.node_public_key):
-            return jsonify({"error": "node key is revoked"}), 403
+            raise ForbiddenError("node key is revoked", code="node_key_revoked")
 
         # Signature must be by the node key itself.
         signature = descriptor.signatures[0]
         if not verify_model_signature(descriptor, signature, descriptor.node_public_key):
-            return jsonify({"error": "invalid signature"}), 401
+            raise UnauthorizedError("invalid signature", code="invalid_signature")
 
         service.db.upsert_agent_registration(descriptor)
         logger.info(
@@ -142,32 +151,38 @@ def create_discovery_blueprint(service) -> Blueprint:
         """Return one registration."""
         descriptor = service.db.get_agent_registration(node_public_key)
         if descriptor is None:
-            return jsonify({"error": "agent not registered"}), 404
+            raise NotFoundError("agent not registered", code="agent_not_registered")
         return jsonify(descriptor.model_dump(mode="json"))
 
     @bp.route("/agents/<path:node_public_key>", methods=["DELETE"], strict_slashes=False)
     def delete_agent(node_public_key: str):
         """Voluntary deregistration. Requires a signed envelope."""
-        try:
-            body = request.get_json(force=True, silent=False) or {}
-        except Exception:
-            return jsonify({"error": "request body must be valid JSON"}), 400
+        body = request_json_object(required=True)
 
         signature_b64 = body.get("signature")
         signed_at = body.get("signed_at")
         version = body.get("version", _DELETE_VERSION)
         if not signature_b64 or not signed_at:
-            return jsonify({"error": "signature and signed_at required"}), 401
+            raise UnauthorizedError(
+                "signature and signed_at required",
+                code="delete_signature_required",
+            )
 
         try:
             ts = datetime.fromisoformat(signed_at)
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
         except ValueError:
-            return jsonify({"error": "signed_at must be ISO datetime"}), 400
+            raise BadRequestError(
+                "signed_at must be ISO datetime",
+                code="invalid_signed_at",
+            ) from None
 
         if abs((datetime.now(timezone.utc) - ts).total_seconds()) > 300:
-            return jsonify({"error": "signed_at outside ±5 min window"}), 401
+            raise UnauthorizedError(
+                "signed_at outside +/-5 min window",
+                code="signed_at_outside_window",
+            )
 
         from ...crypto import verify_signature
 
@@ -175,11 +190,11 @@ def create_discovery_blueprint(service) -> Blueprint:
             f"delete-agent|{version}|{node_public_key}|{signed_at}".encode("utf-8")
         )
         if not verify_signature(envelope, signature_b64, node_public_key):
-            return jsonify({"error": "invalid signature"}), 401
+            raise UnauthorizedError("invalid signature", code="invalid_signature")
 
         removed = service.db.delete_agent_registration(node_public_key)
         if not removed:
-            return jsonify({"error": "agent not registered"}), 404
+            raise NotFoundError("agent not registered", code="agent_not_registered")
         return jsonify({"status": "deregistered"}), 200
 
     return bp

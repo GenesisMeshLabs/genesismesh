@@ -4,6 +4,8 @@ import logging
 
 from flask import Blueprint, jsonify
 
+from ..errors import InternalServerError
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +21,6 @@ def create_crl_blueprint(service) -> Blueprint:
             return jsonify(crl.model_dump(mode="json"))
         except Exception as exc:
             logger.error("CRL retrieval error: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            raise InternalServerError() from exc
 
     return bp

@@ -320,6 +320,12 @@ release adds shared validation for roles, validity windows, operator signing
 keys, and HTTP JSON errors across the admin, join, federation, trust-bundle,
 treaty, proof, discovery, and sovereign-inspection command paths.
 
+**v0.17.8 - API Error Contract Hardening.** Network Authority HTTP failures
+are moved behind a shared typed exception layer and one JSON error envelope.
+Routes express business failures while app-level handlers translate them into
+safe status codes, request IDs, sanitized messages, and generated API metadata
+that clients can rely on.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated

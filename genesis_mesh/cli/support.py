@@ -195,11 +195,29 @@ def _request_json(
         payload = {"raw": response.text[:500]}
 
     if response.status_code != expected_status:
-        detail = payload.get("error") if isinstance(payload, dict) else None
+        detail = _api_error_message(payload)
         if detail:
             raise click.ClickException(f"{label} failed: {response.status_code} {detail}")
         raise click.ClickException(f"{label} failed: {response.status_code} {payload}")
     return payload
+
+def _api_error_message(payload: Any) -> str | None:
+    """Return a compact message from legacy or envelope-style API errors."""
+    if not isinstance(payload, dict) or "error" not in payload:
+        return None
+    error = payload["error"]
+    if isinstance(error, str):
+        return error
+    if isinstance(error, dict):
+        code = error.get("code")
+        message = error.get("message")
+        if code and message:
+            return f"{code}: {message}"
+        if message:
+            return str(message)
+        if code:
+            return str(code)
+    return str(error)
 
 def _parse_claims(claims: tuple[str, ...]) -> dict[str, str]:
     """Parse repeated key=value claim options."""

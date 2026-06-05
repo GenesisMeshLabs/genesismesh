@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.17.8 - API Error Contract Hardening
+
+### Added
+
+- Added shared Network Authority API exception classes and one JSON error
+  envelope with machine-readable codes, safe messages, details, and request
+  IDs.
+- Added app-level Flask handlers for typed API errors, framework HTTP errors,
+  Pydantic validation errors, and unexpected server exceptions.
+- Added API contract tests for 400, 401, 404, 409, 422, 429, 500, response
+  shape consistency, request ID propagation, and leak prevention.
+
+### Changed
+
+- Converted Network Authority routes to raise typed business failures instead
+  of building repeated ad hoc JSON error responses inside controllers.
+- Updated generated OpenAPI metadata and API reference docs to describe the
+  shared error envelope.
+- Kept CLI HTTP error rendering compatible with the new API error shape.
+- Bumped the package version to `0.17.8`.
+
+### Verified
+
+- Ran the full Python test suite and focused Network Authority route/API
+  contract tests.
+
 ## v0.17.7 - CLI Error Handling Hardening
 
 ### Added

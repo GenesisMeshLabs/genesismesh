@@ -24,6 +24,16 @@ from ...trust import (
     verify_sovereign_revocation_feed,
 )
 from ...trust.treaty_lifecycle import treaty_lifecycle
+from ..errors import (
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+    RateLimitError,
+    RequestValidationError,
+    UnauthorizedError,
+    positive_int_field,
+    request_json_object,
+)
 from ..operator_console.connectome import render_connectome
 
 if TYPE_CHECKING:
@@ -80,33 +90,46 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         """Issue a signed direct-recognition treaty for another sovereign."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         subject_sovereign_id = data.get("subject_sovereign_id")
         subject_public_keys = data.get("subject_public_keys") or []
         if not subject_sovereign_id or not isinstance(subject_public_keys, list):
-            return jsonify({"error": "subject_sovereign_id and subject_public_keys are required"}), 400
+            raise BadRequestError(
+                "subject_sovereign_id and subject_public_keys are required",
+                code="missing_treaty_subject",
+            )
         if not subject_public_keys:
-            return jsonify({"error": "subject_public_keys must not be empty"}), 400
+            raise BadRequestError(
+                "subject_public_keys must not be empty",
+                code="empty_subject_public_keys",
+            )
 
         try:
             scope = RecognitionTreatyScope.model_validate(data.get("scope") or {})
-        except Exception:
-            return jsonify({"error": "Invalid treaty scope"}), 400
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid treaty scope",
+                code="invalid_treaty_scope",
+            ) from exc
 
         if scope.allowed_roles:
             valid_roles, role_error = service._validate_roles(scope.allowed_roles)
             if not valid_roles:
-                return jsonify({"error": role_error}), 400
+                raise BadRequestError(role_error or "Invalid role", code="invalid_role")
 
-        validity_hours = int(data.get("validity_hours", 168))
-        if validity_hours <= 0:
-            return jsonify({"error": "validity_hours must be greater than zero"}), 400
+        validity_hours = positive_int_field(
+            data,
+            "validity_hours",
+            default=168,
+            code="invalid_validity_hours",
+            message="validity_hours must be greater than zero",
+        )
 
         now = datetime.now(timezone.utc)
         treaty = RecognitionTreaty(
@@ -142,16 +165,19 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         """Revoke a locally issued or imported recognition treaty."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         reason = data.get("reason", "unspecified")
         if not service.db.revoke_recognition_treaty(treaty_id, reason):
-            return jsonify({"error": "Recognition treaty not found"}), 404
+            raise NotFoundError(
+                "Recognition treaty not found",
+                code="treaty_not_found",
+            )
 
         service.db.add_audit_event("recognition_treaty_revoked", {
             "treaty_id": treaty_id,
@@ -164,7 +190,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         """Return a persisted recognition treaty by ID."""
         row = service.db.get_recognition_treaty(treaty_id)
         if not row:
-            return jsonify({"error": "Recognition treaty not found"}), 404
+            raise NotFoundError("Recognition treaty not found", code="treaty_not_found")
         return jsonify(_row_payload(row))
 
     @bp.route("/recognition-treaties", methods=["GET"])
@@ -183,14 +209,17 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/recognition-treaties/verify", methods=["POST"])
     def verify_treaty():
         """Verify a signed recognition treaty."""
-        data = request.get_json() or {}
+        data = request_json_object()
         try:
             treaty = RecognitionTreaty.model_validate(data.get("treaty"))
             issuer_public_keys = data.get("issuer_public_keys") or [
                 service.genesis_block.network_authority.public_key
             ]
-        except Exception:
-            return jsonify({"error": "Invalid recognition treaty"}), 400
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid recognition treaty",
+                code="invalid_recognition_treaty",
+            ) from exc
 
         result = verify_recognition_treaty(
             treaty,
@@ -217,15 +246,18 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/attestations/verify-with-treaty", methods=["POST"])
     def verify_attestation_with_treaty_route():
         """Verify a membership attestation using a recognition treaty."""
-        data = request.get_json() or {}
+        data = request_json_object()
         try:
             attestation = MembershipAttestation.model_validate(data.get("attestation"))
             treaty = RecognitionTreaty.model_validate(data.get("treaty"))
             treaty_issuer_public_keys = data.get("treaty_issuer_public_keys") or [
                 service.genesis_block.network_authority.public_key
             ]
-        except Exception:
-            return jsonify({"error": "Invalid attestation or recognition treaty"}), 400
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid attestation or recognition treaty",
+                code="invalid_attestation_or_treaty",
+            ) from exc
 
         result = verify_attestation_with_treaty(
             attestation,
@@ -256,17 +288,20 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         """Import a signed revocation feed from a recognized sovereign."""
         remote_addr = request.remote_addr or "unknown"
         if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
-            return jsonify({"error": "Rate limit exceeded"}), 429
+            raise RateLimitError()
 
-        data = request.get_json() or {}
+        data = request_json_object()
         ok, error = service._verify_admin_request(data)
         if not ok:
-            return jsonify({"error": error}), 401
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         try:
             feed = SovereignRevocationFeed.model_validate(data.get("feed"))
-        except Exception:
-            return jsonify({"error": "Invalid sovereign revocation feed"}), 400
+        except Exception as exc:
+            raise RequestValidationError(
+                "Invalid sovereign revocation feed",
+                code="invalid_sovereign_revocation_feed",
+            ) from exc
 
         issuer_public_keys = data.get("issuer_public_keys")
         if issuer_public_keys is None:
@@ -275,11 +310,11 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 feed.issuer_sovereign_id,
             )
         if not isinstance(issuer_public_keys, list) or not issuer_public_keys:
-            return jsonify({
-                "accepted": False,
-                "reason": "missing_issuer_public_keys",
-                "issuer_sovereign_id": feed.issuer_sovereign_id,
-            }), 400
+            raise BadRequestError(
+                "missing_issuer_public_keys",
+                code="missing_issuer_public_keys",
+                details={"issuer_sovereign_id": feed.issuer_sovereign_id},
+            )
 
         latest_sequence = service.db.get_latest_sovereign_revocation_sequence(
             feed.issuer_sovereign_id,
@@ -291,32 +326,36 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             min_sequence=latest_sequence,
         )
         if not result.accepted:
-            status = 409 if result.reason == "stale_sequence" else 400
             service.db.add_audit_event("sovereign_revocation_feed_rejected", {
                 "feed_id": feed.feed_id,
                 "issuer_sovereign_id": feed.issuer_sovereign_id,
                 "sequence": feed.sequence,
                 "reason": result.reason,
             })
-            return jsonify({
-                "accepted": False,
-                "reason": result.reason,
-                "feed_id": feed.feed_id,
-                "issuer_sovereign_id": feed.issuer_sovereign_id,
-                "sequence": feed.sequence,
-            }), status
+            error_cls = ConflictError if result.reason == "stale_sequence" else BadRequestError
+            raise error_cls(
+                result.reason,
+                code=result.reason,
+                details={
+                    "feed_id": feed.feed_id,
+                    "issuer_sovereign_id": feed.issuer_sovereign_id,
+                    "sequence": feed.sequence,
+                },
+            )
 
         try:
             service.db.save_sovereign_revocation_feed(feed)
         except ValueError as exc:
             if str(exc) == "stale_sequence":
-                return jsonify({
-                    "accepted": False,
-                    "reason": "stale_sequence",
-                    "feed_id": feed.feed_id,
-                    "issuer_sovereign_id": feed.issuer_sovereign_id,
-                    "sequence": feed.sequence,
-                }), 409
+                raise ConflictError(
+                    "stale_sequence",
+                    code="stale_sequence",
+                    details={
+                        "feed_id": feed.feed_id,
+                        "issuer_sovereign_id": feed.issuer_sovereign_id,
+                        "sequence": feed.sequence,
+                    },
+                ) from None
             raise
 
         service.db.add_audit_event("sovereign_revocation_feed_imported", {
@@ -350,7 +389,10 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         source = request.args.get("from") or request.args.get("source")
         target = request.args.get("to") or request.args.get("target")
         if not source or not target:
-            return jsonify({"error": "from/source and to/target are required"}), 400
+            raise BadRequestError(
+                "from/source and to/target are required",
+                code="missing_trust_path_parameters",
+            )
         return jsonify(explain_trust_path(
             service.db.export_recognition_graph(),
             source,
