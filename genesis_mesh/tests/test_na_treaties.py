@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from .na_server_helpers import admin_headers
 
 
@@ -166,11 +168,14 @@ def test_connectome_page_renders_html(client, na_service):
     assert 'class="shell operator-console"' in body
     assert "Connectome derived view" not in body
     assert "Sovereign Graph" in body
+    assert "Current Recognition Edges" in body
+    assert "Historical Recognition Edges" in body
+    assert "Persisted status" in body
     assert "Valid from" in body
     assert "Expires at" in body
     assert "Lifecycle" in body
     assert "Expiry risk" in body
-    edge_table = body.split("<thead><tr><th>From</th>", 1)[1].split("</table>", 1)[0]
+    edge_table = body.split("Current Recognition Edges", 1)[1].split("</table>", 1)[0]
     assert "+00:00" not in edge_table
     assert "UTC" in edge_table
     assert "connectome-graph" in body
@@ -184,6 +189,32 @@ def test_connectome_page_renders_html(client, na_service):
     assert "nav-link-active" in body
     assert 'href="/operator-console-static/styles.css"' in body
     assert 'src="/operator-console-static/console.js"' in body
+
+
+def test_connectome_page_separates_expired_persisted_active_edges(client, na_service):
+    """Expired active DB rows should be historical, not current trust."""
+    treaty = _issue_treaty(client, na_service).get_json()
+    row = na_service.db.get_recognition_treaty(treaty["treaty_id"])
+    assert row is not None
+    now = datetime.now(timezone.utc)
+    expired_treaty = row["treaty"].model_copy(update={
+        "issued_at": now - timedelta(days=2),
+        "valid_from": now - timedelta(days=2),
+        "expires_at": now - timedelta(days=1),
+    })
+    na_service.db.save_recognition_treaty(expired_treaty, status="active")
+
+    resp = client.get("/connectome")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    current = body.split("<h2>Current Recognition Edges</h2>", 1)[1].split("</table>", 1)[0]
+    historical = body.split("<h2>Historical Recognition Edges</h2>", 1)[1].split("</table>", 1)[0]
+    assert treaty["treaty_id"] not in current
+    assert "No current recognition edges" in current
+    assert treaty["treaty_id"] in historical
+    assert "active" in historical
+    assert "expired" in historical
 
 
 def test_connectome_page_uses_single_empty_state_when_fresh(client):

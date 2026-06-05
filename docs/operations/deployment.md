@@ -38,7 +38,7 @@ A public Network Authority runs on Azure (Sweden Central):
 
 Two enrolled nodes from separate IP addresses with active heartbeats.
 
-![NA dashboard showing 2 active nodes](../examples/assets/images/na-dashboard.png)
+![Network Authority operator console](../examples/assets/images/na-operator-console.png)
 
 ![/nodes endpoint showing two enrolled nodes with different remote addresses](../examples/assets/images/na-nodes.png)
 

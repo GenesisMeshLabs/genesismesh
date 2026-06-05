@@ -35,6 +35,17 @@ def test_homepage_links_to_operational_routes(client):
     assert "Safe GET" in body
     assert "Signed" in body
     assert "CLI" in body
+    assert "<span>HTTP Surfaces</span>" in body
+    assert "<span>CLI Workflows</span>" in body
+    assert "<span>Browser-safe</span>" in body
+    assert "Surface map" in body
+    assert "Read-only console" in body
+    assert "Signed actions documented only" in body
+    assert ">43 HTTP<" not in body
+    assert ">10 CLI<" not in body
+    assert "<span>Active Nodes</span>" not in body
+    assert "<span>Tracked Nodes</span>" not in body
+    assert "<span>Recognition Edges</span>" not in body
     assert 'data-surface-filter="safe"' in body
     assert 'data-surface-section="signed"' in body
     assert 'data-back-to-top' in body
@@ -114,8 +125,17 @@ def test_dashboard_renders_treaty_and_audit_state(client, na_service):
     assert issued.get_json()["treaty_id"] in html
     assert "expiring soon" in html
     assert "recognition_treaty_issued" in html
+    assert "Treaty issued" in html
+    assert "Audit summary" in html
+    assert "Safe details" not in html
+    changes_section = html.split("<h2>Recent Trust Changes</h2>", 1)[1].split("</table>", 1)[0]
+    assert "{&#x27;" not in changes_section
     assert "Private" not in html
     assert "Operator signature" not in html
+
+    payload = client.get("/dashboard.json").get_json()
+    assert payload["recent_changes"][0]["summary"]["title"] == "Treaty issued"
+    assert payload["recent_changes"][0]["summary"]["fields"]
 
 
 def test_operator_console_static_assets_are_served(client):
@@ -193,20 +213,18 @@ def test_cli_reference_is_generated_from_click_tree(client):
     assert "Search CLI commands" in body
     assert "data-search-input" in body
     assert 'data-search-target="tbody tr"' in body
-    assert body.index("Managed Operations") > body.index('id="cli-reference-results"')
     assert "Command Reference" in body
     assert "cli-reference-table" in body
     assert "command-card-grid" not in body
     assert "command-card" not in body
-    managed_section = body[body.index("Managed Operations"):body.index("genesis-mesh admin")]
-    assert "<th>Method</th>" not in managed_section
-    assert "method-cli" not in managed_section
+    assert "Managed Operations" not in body
     assert "Command and option reference generated from the Click command" in body
+    assert "same Click command tree" in body
     assert "No options" not in body
 
 
-def test_homepage_counts_recent_joined_nodes_as_active(na_service):
-    """Recently joined nodes should be reflected in the operator summary."""
+def test_dashboard_counts_recent_joined_nodes_as_active(na_service):
+    """Recently joined nodes should be reflected in the dashboard summary."""
     active_cert = na_service._issue_join_certificate(
         node_public_key=generate_keypair().public_key_b64,
         roles=["role:anchor"],
@@ -237,12 +255,11 @@ def test_homepage_counts_recent_joined_nodes_as_active(na_service):
         (revoked_cert.cert_id,),
     )
 
-    resp = na_service.app.test_client().get("/")
+    resp = na_service.app.test_client().get("/dashboard")
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "<span>Active Nodes</span><strong>1</strong>" in body
-    assert "<span>Tracked Nodes</span><strong>2</strong>" in body
 
 
 def test_sovereign_metadata_exposes_public_trust_material(client):

@@ -623,6 +623,34 @@ section {
     margin-top: 6px;
 }
 
+.audit-summary {
+    display: grid;
+    gap: 8px;
+}
+
+.audit-summary > .status-badge {
+    margin-top: 2px;
+}
+
+.audit-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.audit-fields span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--panel) 78%, transparent);
+    padding: 4px 9px;
+    font-size: 0.82rem;
+}
+
+.audit-fields strong {
+    color: var(--text);
+}
+
 .status-badge {
     width: fit-content;
     border: 1px solid var(--line);

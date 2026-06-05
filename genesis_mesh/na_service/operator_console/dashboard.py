@@ -12,6 +12,7 @@ from .rendering import node_counts, page_document
 
 FRESH_FEED_HOURS = 24
 STALE_FEED_HOURS = 72
+PRIVATE_DETAIL_TERMS = ("private", "secret", "signature", "token")
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -130,8 +131,104 @@ def _feed_summary(feeds: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _is_safe_detail(key: str) -> bool:
+    """Return whether an audit detail key is safe for operator surfaces."""
+    lowered = key.lower()
+    return not any(term in lowered for term in PRIVATE_DETAIL_TERMS)
+
+
+def _short_value(value: object) -> str:
+    """Render identifiers compactly without hiding their useful shape."""
+    if isinstance(value, bool):
+        return "accepted" if value else "rejected"
+    if isinstance(value, list):
+        return ", ".join(_short_value(item) for item in value)
+    text = str(value)
+    if len(text) >= 28 and "-" in text:
+        return f"{text[:8]}...{text[-6:]}"
+    if len(text) > 42:
+        return f"{text[:36]}..."
+    return text
+
+
+def _label(key: str) -> str:
+    return key.replace("_", " ").capitalize()
+
+
+def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
+    """Create a human-readable summary for trust-relevant audit details."""
+    detail_map = {
+        "recognition_treaty_issued": [
+            ("Treaty", "treaty_id"),
+            ("From", "issuer_sovereign_id"),
+            ("To", "subject_sovereign_id"),
+            ("Roles", "allowed_roles"),
+        ],
+        "recognition_treaty_revoked": [
+            ("Treaty", "treaty_id"),
+            ("Reason", "reason"),
+        ],
+        "recognition_treaty_verified": [
+            ("Treaty", "treaty_id"),
+            ("From", "issuer_sovereign_id"),
+            ("To", "subject_sovereign_id"),
+            ("Result", "accepted"),
+            ("Reason", "reason"),
+        ],
+        "treaty_attestation_verified": [
+            ("Attestation", "attestation_id"),
+            ("Treaty", "treaty_id"),
+            ("Result", "accepted"),
+            ("Reason", "reason"),
+        ],
+        "sovereign_revocation_feed_imported": [
+            ("Feed", "feed_id"),
+            ("Issuer", "issuer_sovereign_id"),
+            ("Sequence", "sequence"),
+            ("Revoked IDs", "revoked_count"),
+        ],
+        "sovereign_revocation_feed_rejected": [
+            ("Feed", "feed_id"),
+            ("Issuer", "issuer_sovereign_id"),
+            ("Sequence", "sequence"),
+            ("Reason", "reason"),
+        ],
+    }
+    titles = {
+        "recognition_treaty_issued": "Treaty issued",
+        "recognition_treaty_revoked": "Treaty revoked",
+        "recognition_treaty_verified": "Treaty verified",
+        "treaty_attestation_verified": "Attestation checked against treaty",
+        "sovereign_revocation_feed_imported": "Revocation feed imported",
+        "sovereign_revocation_feed_rejected": "Revocation feed rejected",
+    }
+    fields = []
+    for label, key in detail_map.get(event_type, []):
+        if key in details and details[key] not in (None, ""):
+            fields.append({"label": label, "value": _short_value(details[key])})
+    if not fields:
+        fields = [
+            {"label": _label(key), "value": _short_value(value)}
+            for key, value in details.items()
+        ]
+    result = details.get("accepted")
+    if isinstance(result, bool):
+        state = "accepted" if result else "rejected"
+    elif "rejected" in event_type:
+        state = "rejected"
+    elif "revoked" in event_type:
+        state = "revoked"
+    else:
+        state = "recorded"
+    return {
+        "title": titles.get(event_type, event_type.replace("_", " ")),
+        "state": state,
+        "fields": fields,
+    }
+
+
 def _safe_recent_changes(service) -> list[dict[str, Any]]:
-    """Return recent trust-relevant audit events with compact safe details."""
+    """Return recent trust-relevant audit events with human-readable details."""
     trust_terms = ("recognition", "attestation", "revocation", "policy")
     events = [
         event for event in service.db.list_audit_events()
@@ -143,16 +240,14 @@ def _safe_recent_changes(service) -> list[dict[str, Any]]:
         safe_details = {
             key: value
             for key, value in details.items()
-            if "private" not in key.lower()
-            and "secret" not in key.lower()
-            and "signature" not in key.lower()
-            and "token" not in key.lower()
+            if _is_safe_detail(str(key))
         }
         changes.append({
             "event_type": event.get("event_type", ""),
             "created_at": event.get("created_at", ""),
             "created_at_display": _human_datetime(event.get("created_at")),
             "details": safe_details,
+            "summary": _audit_summary(str(event.get("event_type", "")), safe_details),
         })
     return changes
 
@@ -200,11 +295,17 @@ def build_dashboard_model(service) -> dict[str, Any]:
     }
 
 
+def _status_class(value: str) -> str:
+    """Return the visual class for a compact status badge."""
+    css = "status-ok" if value in {"ready", "fresh", "active", "low"} else "status-watch"
+    if value in {"expired", "revoked", "stale", "not_ready", "high", "rejected"}:
+        css = "status-risk"
+    return css
+
+
 def _status_badge(value: str) -> str:
     """Render a compact status badge."""
-    css = "status-ok" if value in {"ready", "fresh", "active", "low"} else "status-watch"
-    if value in {"expired", "revoked", "stale", "not_ready", "high"}:
-        css = "status-risk"
+    css = _status_class(value)
     return f'<span class="status-badge {css}">{escape(value.replace("_", " "))}</span>'
 
 
@@ -273,17 +374,35 @@ def _changes_table(changes: list[dict[str, Any]]) -> str:
                 <span>Trust-relevant audit events appear here after treaty, attestation, policy, or revocation activity.</span>
             </div>
         """
+    def summary_markup(change: dict[str, Any]) -> str:
+        summary = change["summary"]
+        fields = "".join(
+            "<span>"
+            f"<strong>{escape(field['label'])}</strong> "
+            f"{escape(field['value'])}"
+            "</span>"
+            for field in summary["fields"]
+        )
+        return (
+            '<div class="audit-summary">'
+            f"<strong>{escape(summary['title'])}</strong>"
+            f'<span class="status-badge {_status_class(str(summary["state"]))}">'
+            f'{escape(str(summary["state"]).replace("_", " "))}</span>'
+            f'<div class="audit-fields">{fields}</div>'
+            "</div>"
+        )
+
     rows = "\n".join(
         "<tr>"
         f"<td>{escape(change['created_at_display'])}</td>"
         f"<td>{escape(change['event_type'])}</td>"
-        f"<td><code>{escape(str(change['details']))}</code></td>"
+        f"<td>{summary_markup(change)}</td>"
         "</tr>"
         for change in changes
     )
     return f"""
         <table class="data-table">
-            <thead><tr><th>Time</th><th>Event</th><th>Safe details</th></tr></thead>
+            <thead><tr><th>Time</th><th>Event</th><th>Audit summary</th></tr></thead>
             <tbody>{rows}</tbody>
         </table>
     """
