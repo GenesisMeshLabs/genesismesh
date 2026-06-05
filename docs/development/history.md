@@ -333,6 +333,16 @@ server-error logging. Operators get request IDs in responses and logs without
 exposing invite tokens, bearer tokens, signatures, private-key markers, or key
 file paths.
 
+**v0.17.10 - Observability and Operator UX Hardening.** The v0.17.x adoption
+readiness surface is tightened after the full smoke pass: JSON logs promote
+request metadata to first-class fields across the NA process, ANSI-colored
+development-server messages are sanitized, `init --home` keeps its config beside
+generated artifacts, unsafe `init --force` deletions are refused clearly,
+federation bootstrap reports half-committed treaty state with cleanup guidance,
+common operator commands accept direct signing keys or consistent endpoint
+aliases, and local `na start` development logs stay JSON-readable when JSON log
+mode is enabled.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated

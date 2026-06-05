@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -98,6 +99,90 @@ def test_admin_invite_and_join_use_single_configured_workflow(tmp_path):
         assert reuse_status.exit_code == 0, reuse_status.output
         assert "active nodes: 1" in reuse_status.output
 
+
+def test_admin_invite_accepts_direct_operator_key_flags(tmp_path):
+    """Operators can sign admin commands without creating a temporary TOML file."""
+    config_path = tmp_path / "genesis-mesh.toml"
+    home = tmp_path / ".genesis-mesh"
+    runner = CliRunner()
+
+    init_result = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(config_path),
+            "--home",
+            str(home),
+            "--force",
+        ],
+    )
+    assert init_result.exit_code == 0, init_result.output
+    config = load_config(str(config_path), required=True)
+
+    with _running_na_from_config(config_path, tmp_path / "na.db") as endpoint:
+        invite_result = runner.invoke(
+            cli,
+            [
+                "admin",
+                "invite",
+                "--na",
+                endpoint,
+                "--operator-key",
+                config["paths"]["operator_private_key"],
+                "--operator-key-id",
+                config["operator"]["key_id"],
+                "--role",
+                "client",
+            ],
+        )
+
+    assert invite_result.exit_code == 0, invite_result.output
+    assert invite_result.output.strip()
+
+
+def test_na_start_uses_logger_and_werkzeug_runner(tmp_path, monkeypatch, caplog):
+    """The local NA dev server avoids Flask's direct stderr banner path."""
+    config_path = tmp_path / "genesis-mesh.toml"
+    home = tmp_path / ".genesis-mesh"
+    runner = CliRunner()
+    called: dict[str, object] = {}
+
+    init_result = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(config_path),
+            "--home",
+            str(home),
+            "--force",
+        ],
+    )
+    assert init_result.exit_code == 0, init_result.output
+
+    def fake_run_simple(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr("genesis_mesh.cli.ops.run_simple", fake_run_simple)
+    caplog.set_level(logging.INFO)
+
+    result = runner.invoke(cli, ["na", "start", "--config", str(config_path)])
+
+    assert result.exit_code == 0, result.output
+    assert called["hostname"] == "127.0.0.1"
+    assert called["port"] == 8443
+    assert called["use_reloader"] is False
+    assert called["use_debugger"] is False
+    assert "Starting Flask development server" not in result.output
+    assert any(
+        record.name == "genesis_mesh.cli.ops"
+        and record.getMessage() == "Starting Network Authority"
+        and getattr(record, "endpoint") == "http://127.0.0.1:8443"
+        for record in caplog.records
+    )
+
+
 def test_sovereign_inspect_reads_public_metadata(tmp_path):
     """The CLI can fetch public operator-safe sovereign metadata."""
     config_path = tmp_path / "genesis-mesh.toml"
@@ -126,6 +211,34 @@ def test_sovereign_inspect_reads_public_metadata(tmp_path):
     assert "Sovereign: USG-NB" in result.output
     assert "public surfaces:" in result.output
     assert "/sovereign.json" not in result.output
+
+
+def test_sovereign_inspect_accepts_endpoint_alias(tmp_path):
+    """The public sovereign inspector accepts --endpoint as a --na alias."""
+    config_path = tmp_path / "genesis-mesh.toml"
+    home = tmp_path / ".genesis-mesh"
+    runner = CliRunner()
+
+    init_result = runner.invoke(
+        cli,
+        [
+            "init",
+            "--config",
+            str(config_path),
+            "--home",
+            str(home),
+            "--network-name",
+            "USG-NB",
+            "--force",
+        ],
+    )
+    assert init_result.exit_code == 0, init_result.output
+
+    with _running_na_from_config(config_path, tmp_path / "na.db") as endpoint:
+        result = runner.invoke(cli, ["sovereign", "inspect", "--endpoint", endpoint])
+
+    assert result.exit_code == 0, result.output
+    assert "Sovereign: USG-NB" in result.output
 
 
 def test_federation_command_is_registered():

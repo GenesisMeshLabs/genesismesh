@@ -29,7 +29,7 @@ Useful options:
 
 | Option | Description |
 |---|---|
-| `--config` | Config path to write. Defaults to `genesis-mesh.toml`. |
+| `--config` | Config path to write. Defaults to `genesis-mesh.toml` in the current directory, or `<home>/genesis-mesh.toml` when `--home` is supplied explicitly. |
 | `--home` | Directory for generated local artifacts. Defaults to `.genesis-mesh`. |
 | `--network-name` | Network name embedded in genesis. |
 | `--network-version` | Network version embedded in genesis. |
@@ -42,7 +42,7 @@ Useful options:
 | `--na-host` | Network Authority bind host to store in config. |
 | `--na-port` | Network Authority bind port to store in config. |
 | `--anchor` | Optional peer bootstrap anchor in `id:endpoint` format. Do not use the NA HTTP endpoint. |
-| `--force` | Replace an existing config and generated local artifacts. |
+| `--force` | Replace an existing config and generated local artifacts. Refuses to delete the directory the command is running from. |
 
 `init` is suitable for local development and demos. Production key generation
 should happen through an explicit key-management ceremony.
@@ -107,6 +107,8 @@ Useful options:
 |---|---|
 | `--config` | Config path to read. |
 | `--na` | Network Authority endpoint override. |
+| `--operator-key` | Operator private key path. Can be used instead of a config file. |
+| `--operator-key-id` | Operator key ID. Defaults to `operator-local`. |
 | `--role` | Role to assign. Can be repeated. |
 | `--validity-hours` | Maximum certificate validity allowed by the invite. |
 | `--token-expiry-hours` | Invite token lifetime. |
@@ -129,6 +131,7 @@ Fetches operator-safe public metadata from a Network Authority.
 ```bash
 genesis-mesh sovereign inspect --na https://na.genesismesh.connectorzzz.com
 genesis-mesh sovereign inspect --na http://164.92.250.135:8443 --format json
+genesis-mesh sovereign inspect --endpoint https://na.genesismesh.connectorzzz.com
 ```
 
 The command reads `/sovereign.json`, not private files. It prints the network
@@ -144,7 +147,7 @@ direct-recognition treaty from the accepting sovereign.
 genesis-mesh federation bootstrap \
   --acceptor https://acceptor.example.org \
   --issuer https://issuer.example.org \
-  --acceptor-config ./acceptor.toml \
+  --config ./acceptor.toml \
   --role service:maintainer \
   --claim proof=federation-bootstrap \
   --evidence ./federation-bootstrap-evidence.json \
@@ -163,13 +166,20 @@ Use `--issuer-bundle` when the issuer has shared a trust bundle:
 genesis-mesh federation bootstrap \
   --acceptor https://acceptor.example.org \
   --issuer-bundle ./issuer-trust-bundle.json \
-  --acceptor-config ./acceptor.toml \
+  --config ./acceptor.toml \
   --role service:maintainer \
   --yes
 ```
 
 The command still compares the bundle with the live issuer endpoint and still
-requires explicit operator authorization before issuing trust.
+requires explicit operator authorization before issuing trust. `--config` is an
+alias for the acceptor operator config. `--acceptor-config` remains available
+for scripts that prefer endpoint-specific names.
+
+If treaty issuance succeeds but post-issue trust-path verification fails, the
+command reports that the treaty was persisted, writes that state to the
+evidence file when requested, and prints a cleanup hint using
+`genesis-mesh treaty revoke`.
 
 ### `genesis-mesh trust-bundle export`
 

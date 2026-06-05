@@ -17,7 +17,7 @@ from .support import _parse_anchor
 
 
 @click.command()
-@click.option("--config", "config_path", default=PROJECT_CONFIG, help="Config path to write.")
+@click.option("--config", "config_path", default=None, help="Config path to write.")
 @click.option("--home", default=".genesis-mesh", help="Directory for generated artifacts.")
 @click.option("--network-name", default="USG", help="Network name.")
 @click.option("--network-version", default="v0.1", help="Network version.")
@@ -66,7 +66,9 @@ def init(
         Path(operator_public_key_file) if operator_public_key_file else keys_dir / "operator.pub"
     )
     database_path = Path(db_path) if db_path else root / "na.db"
-    target_config = Path(config_path)
+    home_was_explicit = ctx.get_parameter_source("home") == ParameterSource.COMMANDLINE
+    config_was_explicit = ctx.get_parameter_source("config_path") == ParameterSource.COMMANDLINE
+    target_config = Path(config_path) if config_was_explicit else _default_init_config_path(root, home_was_explicit)
     explicit_operator_paths = any(
         value is not None
         for value in (
@@ -93,6 +95,7 @@ def init(
         raise click.ClickException(f"{root} is not empty. Use --force to replace it.")
 
     if force and root.exists():
+        _refuse_to_delete_active_working_tree(root)
         shutil.rmtree(root)
     keys_dir.mkdir(parents=True, exist_ok=True)
     signed_genesis_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,8 +168,34 @@ def init(
         "na": {"key_id": "na-local", "host": na_host, "port": na_port},
         "operator": {"key_id": "operator-local"},
     }
-    written_config = save_config(config, config_path)
+    written_config = save_config(config, str(target_config))
 
     click.echo(f"Initialized Genesis Mesh config: {written_config}")
     click.echo(f"Genesis block: {signed_genesis_path}")
     click.echo(f"Operator key: {keys_dir / 'operator.key'}")
+
+
+def _default_init_config_path(home: Path, home_was_explicit: bool) -> Path:
+    """Return the default config path for init without surprising operators."""
+    if home_was_explicit:
+        return home / PROJECT_CONFIG
+    return Path(PROJECT_CONFIG)
+
+
+def _refuse_to_delete_active_working_tree(path: Path) -> None:
+    """Refuse force-init cleanup when the target contains the current process cwd."""
+    target = path.resolve()
+    cwd = Path.cwd().resolve()
+    if target == cwd or _is_relative_to(cwd, target):
+        raise click.ClickException(
+            f"Refusing to delete {path} while the current working directory is inside it. "
+            "Run the command from another directory or choose a different --home."
+        )
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True

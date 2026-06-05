@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.17.10 - Observability and Operator UX Hardening
+
+### Added
+
+- Added first-class JSON log fields for Network Authority access and API error
+  events so request metadata can be indexed without custom message parsing.
+- Added `--operator-key` and `--operator-key-id` support to `genesis-mesh admin
+  invite` and `genesis-mesh admin revoke`.
+- Added `--config` as a short acceptor-config alias for `genesis-mesh
+  federation bootstrap`.
+- Added `--na` as the preferred alias for `genesis-mesh sovereign inspect`
+  while keeping `--endpoint` compatible.
+
+### Changed
+
+- Applied the shared JSON formatter consistently across Genesis Mesh,
+  Network Authority, Werkzeug, and Gunicorn loggers.
+- Replaced the local `na start` Flask banner path with logger-based startup
+  messages and Werkzeug serving so JSON log mode stays machine-readable in
+  development smoke tests.
+- Sanitized ANSI control sequences from structured log messages.
+- Changed `genesis-mesh init --home <dir>` to write the generated config to
+  `<dir>/genesis-mesh.toml` when `--config` is omitted.
+- Made `genesis-mesh init --force` refuse to delete the current working tree
+  with an explicit operator-facing error.
+- Made federation bootstrap report persisted treaty state and cleanup guidance
+  when post-issue trust-path verification fails.
+- Updated CLI and configuration docs for the hardened operator flow.
+- Bumped the package version to `0.17.10`.
+
+### Verified
+
+- Ran focused CLI, federation, init, API error-contract, and observability
+  logging tests.
+
 ## v0.17.9 - Observability Logging Hardening
 
 ### Added
