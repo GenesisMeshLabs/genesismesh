@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.17.6 - Operator Console Trust View Polish
+
+### Added
+
+- Added live Network Authority screenshots for the Connectome and sovereign
+  health dashboard documentation examples.
+- Added a v0.17.6 maintainer plan for the operator console trust-view polish.
+
+### Changed
+
+- Refined the operator-facing Connectome story around current versus
+  historical recognition edges and readable trust-state screenshots.
+- Documented the dashboard's human-readable trust-change summaries alongside
+  the repeatable generated demo assets.
+- Updated the project history to include the v0.17.6 trust-view polish.
+- Bumped the package version to `0.17.6`.
+
+### Verified
+
+- Ran the full test suite, static type check, compile check, Sphinx docs build
+  with warnings treated as errors, pre-commit hooks, and Azure deployment smoke
+  after release.
+
 ## v0.17.5 - Sovereign Health and Trust Dashboard
 
 ### Added
