@@ -13,10 +13,11 @@ import requests
 
 from .support import (
     _admin_signer_from_inputs,
-    _normalize_role,
     _parse_claims,
     _request_json,
+    _require_positive_int,
     _signed_admin_headers,
+    _validate_cli_roles,
 )
 from .trust_bundle import (
     bundle_endpoint,
@@ -80,7 +81,7 @@ def federation_bootstrap(
         acceptor_signer=None
         if dry_run
         else _admin_signer_from_inputs(acceptor_config, operator_key, operator_key_id),
-        roles=[_normalize_role(role) for role in roles],
+        roles=_validate_cli_roles(roles),
         accepted_statuses=list(accepted_statuses),
         claims=_parse_claims(claim),
         validity_hours=validity_hours,
@@ -114,8 +115,7 @@ def run_federation_bootstrap(
     issuer_bundle_path: Path | None = None,
 ) -> dict[str, Any]:
     """Review a remote sovereign and optionally issue a direct treaty."""
-    if validity_hours <= 0:
-        raise click.ClickException("--validity-hours must be greater than zero")
+    _require_positive_int("--validity-hours", validity_hours)
     if issue_treaty and acceptor_signer is None:
         raise click.ClickException("Missing acceptor admin signer")
 
@@ -251,14 +251,7 @@ def _review_sovereign(session: requests.Session, endpoint: str, label: str) -> d
 
 def _fetch_required(session: requests.Session, url: str, label: str) -> dict[str, Any]:
     """Fetch required public JSON and raise a compact Click error on failure."""
-    try:
-        response = session.get(url, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as exc:
-        raise click.ClickException(f"{label} failed: {exc}") from exc
-    except ValueError as exc:
-        raise click.ClickException(f"{label} returned non-JSON response") from exc
+    return _request_json(session, "GET", url, label=label)
 
 
 def _fetch_optional(session: requests.Session, url: str, label: str) -> dict[str, Any]:
@@ -270,11 +263,18 @@ def _fetch_optional(session: requests.Session, url: str, label: str) -> dict[str
 
     if response.status_code == 404:
         return {"status": "not_configured"}
+    if not response.ok:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {"raw": response.text[:500]}
+        reason = payload.get("error") if isinstance(payload, dict) else None
+        return {
+            "status": "unavailable",
+            "reason": f"{label} failed: {response.status_code} {reason or payload}",
+        }
     try:
-        response.raise_for_status()
         payload = response.json()
-    except requests.RequestException as exc:
-        return {"status": "unavailable", "reason": str(exc)}
     except ValueError:
         return {"status": "invalid_json"}
     return {"status": "ok", "payload": payload}

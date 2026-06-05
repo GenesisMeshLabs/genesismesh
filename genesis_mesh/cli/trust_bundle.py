@@ -11,6 +11,8 @@ from typing import Any, cast
 import click
 import requests
 
+from .support import _request_json
+
 BUNDLE_TYPE = "genesis-mesh.trust-bundle"
 BUNDLE_VERSION = "v1"
 
@@ -425,14 +427,7 @@ def validate_bundle_against_review(
 
 def _fetch_required(session: requests.Session, url: str, label: str) -> dict[str, Any]:
     """Fetch required JSON for bundle export."""
-    try:
-        response = session.get(url, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as exc:
-        raise click.ClickException(f"{label} failed: {exc}") from exc
-    except ValueError as exc:
-        raise click.ClickException(f"{label} returned non-JSON response") from exc
+    return _request_json(session, "GET", url, label=label)
 
 
 def _fetch_optional(session: requests.Session, url: str, label: str) -> dict[str, Any]:
@@ -443,11 +438,18 @@ def _fetch_optional(session: requests.Session, url: str, label: str) -> dict[str
         return {"status": "unavailable", "reason": str(exc)}
     if response.status_code == 404:
         return {"status": "not_configured"}
+    if not response.ok:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {"raw": response.text[:500]}
+        reason = payload.get("error") if isinstance(payload, dict) else None
+        return {
+            "status": "unavailable",
+            "reason": f"{label} failed: {response.status_code} {reason or payload}",
+        }
     try:
-        response.raise_for_status()
         return {"status": "ok", "payload": response.json()}
-    except requests.RequestException as exc:
-        return {"status": "unavailable", "reason": str(exc)}
     except ValueError:
         return {"status": "invalid_json"}
 

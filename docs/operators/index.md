@@ -15,6 +15,8 @@ workflow.
   control before counting adoption evidence.
 - [Federation Bootstrap](federation-bootstrap.md): review another sovereign and
   issue the first direct-recognition treaty.
+- [External Operator Proof](external-operator-proof.md): run and evaluate an
+  independent-operator recognition and revocation proof.
 - [Trust Bundle Exchange](trust-bundle-exchange.md): export, inspect, and
   validate public trust material before federation review.
 - [Treaty Lifecycle](treaty-lifecycle.md): list, inspect, renew, replace, and

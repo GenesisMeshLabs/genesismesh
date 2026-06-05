@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.17.7 - CLI Error Handling Hardening
+
+### Added
+
+- Added shared CLI validation helpers for roles, positive validity windows,
+  operator signing keys, and compact HTTP JSON error reporting.
+- Added CLI error-handling tests for invalid roles, invalid expiry windows,
+  missing operator keys, server-side validation responses, and mismatched
+  join configuration.
+
+### Changed
+
+- Replaced traceback-prone `raise_for_status()` flows in operator CLI commands
+  with consistent Click errors that preserve useful server messages.
+- Hardened `admin invite`, `admin revoke`, `join`, `discover`,
+  `sovereign inspect`, `federation bootstrap`, `trust-bundle`, `treaty`, and
+  `proof remote` error paths.
+- Bumped the package version to `0.17.7`.
+
+### Verified
+
+- Ran the full Python test suite, pre-commit hooks, Sphinx docs build with
+  warnings treated as errors, compile checks, command-tree help/invalid-option
+  smoke tests, and a process-level local two-sovereign CLI smoke.
+
 ## v0.17.6 - Operator Console Trust View Polish
 
 ### Added
@@ -618,6 +643,31 @@
 - Ran focused agent-network tests and the Sphinx documentation build with
   warnings treated as errors.
 
+## v0.7.0 - Agent Discovery and Service Registry
+
+### Added
+
+- Added Network Authority-backed agent/service registration so agents can
+  publish capability tags and endpoint metadata.
+- Added discovery surfaces for querying registered agents by capability.
+- Added registry persistence and refresh/expiry behavior for advertised
+  services.
+- Added discovery foundations used by the later LLM-backed responder and
+  orchestration demos.
+
+### Changed
+
+- Moved agent coordination away from only hard-coded peer knowledge toward
+  capability-driven discovery.
+- Updated documentation and examples to explain the Network Authority as a
+  service registry for enrolled agents.
+
+### Verified
+
+- Ran focused registration, lookup, and discovery tests.
+- Verified the discovery demo path where consumers discover a provider by
+  capability before invocation.
+
 ## v0.6.0 - Cooperative Agent Workflows and Capacity Baselines
 
 ### Added
@@ -653,6 +703,148 @@
 - The 1000-request run measured p50 latency at 1199.27 ms, p95 latency at
   1354.55 ms, throughput at 8.23 requests/second, and RSS at 2840.62 MB on the
   local benchmark host.
+
+## v0.5.2 - Security Policy, Integration Tests, PyPI README Fix
+
+### Added
+
+- Added `SECURITY.md` to document the vulnerability reporting path.
+- Added initial threat model material for project trust review.
+
+### Changed
+
+- Updated README image references so the package long description renders
+  correctly on PyPI.
+- Tightened integration test markers and corrected failover assertion behavior.
+- Bumped the package version to `0.5.2`.
+
+### Verified
+
+- Ran pre-commit, focused integration/failover tests, package build checks, and
+  package metadata validation.
+
+## v0.5.1 - PyPI Packaging and Reproducible VM Bootstrap
+
+### Added
+
+- Added package metadata, publishing scripts, and release documentation for PyPI
+  publishing.
+- Added pre-commit configuration and contributing guidance.
+- Added canonical systemd unit files for VM operation.
+- Added a VM bootstrap runbook aligned with the deployed service layout.
+
+### Changed
+
+- Updated README and installation documentation around package-based usage.
+- Normalized repository formatting and documentation hygiene.
+- Bumped the package version to `0.5.1`.
+
+### Verified
+
+- Ran pre-commit, tests, package build, and package metadata checks.
+- Verified the VM bootstrap documentation matched the systemd service layout.
+
+## v0.5.0 - Live Azure Deployment and Mesh Proof
+
+### Added
+
+- Added Azure infrastructure and network-security material for a live Network
+  Authority and node deployment.
+- Added GitHub Actions deployment automation for the Azure VM path.
+- Added live deployment documentation and operational notes.
+- Added peer-to-peer send, multi-hop routing, and failover demos with generated
+  proof assets.
+- Added Kubernetes deployment manifests and an example README.
+
+### Changed
+
+- Adjusted cloud runtime behavior for ingress/proxy handling, heartbeats, and
+  bootstrap peer startup.
+- Expanded deployment examples beyond localhost while keeping the core runtime
+  unchanged.
+
+### Verified
+
+- Verified the Azure deployment path from documentation.
+- Ran local tests plus peer-to-peer, multi-hop, and failover demo recorders.
+
+## v0.4.0 - Documentation Site, Revocation Demo, Production Cleanup
+
+### Added
+
+- Added GitHub Pages documentation publishing workflow.
+- Added a runnable revocation walkthrough so trust removal is visible from a
+  local proof.
+- Added certificate ID utility behavior needed by the revocation demo.
+- Added production notes, metrics documentation, Terraform verification notes,
+  and improved diagrams/assets.
+
+### Changed
+
+- Cleaned documentation navigation, generated pages, image paths, and project
+  footer.
+- Improved heartbeat, renewal validity, proof-of-possession, and capped renewal
+  coverage.
+
+### Verified
+
+- Ran tests, documentation build, and the revocation demo recorder.
+
+## v0.3.0 - Production CLI, Sphinx Documentation, NA Console
+
+### Added
+
+- Added persona-oriented CLI workflows and clearer node command ownership.
+- Added Sphinx documentation configuration and generated project pages.
+- Added a Network Authority browser console for node visibility.
+
+### Changed
+
+- Moved the project from source-tree-only operation toward discoverable CLI,
+  documentation, and operator inspection surfaces.
+- Improved production documentation and local artifact hygiene.
+
+### Verified
+
+- Ran tests, documentation build, and CLI help checks.
+- Verified the Network Authority console exposed node visibility without
+  breaking authority endpoints.
+
+## v0.2.0 - Security Hardening and Runtime Fixes
+
+### Changed
+
+- Fixed heartbeat and renewal authorization behavior.
+- Prevented renewal from expanding privileges.
+- Scoped replay protection to the correct authority and message behavior.
+- Removed replay cache races and duplicate ping-loop behavior.
+- Fixed peer-manager deadlock paths and certificate-manager attribute handling.
+- Consolidated deployment infrastructure for later production documentation.
+
+### Verified
+
+- Added regression coverage for renewal, heartbeat, replay, peer runtime, and
+  authority hardening behavior.
+- Ran the runtime and authority test suite.
+
+## v0.1.0 - Core Mesh Protocol and WebSocket Transport
+
+### Added
+
+- Added the first signed Genesis block model for network root, policy,
+  Network Authority, and crypto-suite configuration.
+- Added Network Authority join-certificate issuance, renewal, revocation,
+  health, readiness, metrics, and audit surfaces.
+- Added node runtime startup from local configuration and issued credentials.
+- Added WebSocket peer transport, message envelopes, routing, and replay
+  protection foundations.
+- Added initial CLI commands, local quickstart, Docker scaffolding, and
+  infrastructure material.
+
+### Verified
+
+- Verified local initialization, Network Authority startup, node startup, and
+  first-pass WebSocket message exchange.
 
 ## Unreleased
 
