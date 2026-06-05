@@ -71,6 +71,22 @@ ingress, TLS, DNS, and firewall state are included in the check.
 
 ## Logging
 
-Avoid logging private key paths as proof of secret presence. Log certificate IDs,
-node IDs, operator key IDs, and request IDs where useful, but never log private
-keys or invite token secrets.
+Genesis Mesh configures process logging through the shared observability layer.
+Network Authority, CLI, and node entrypoints honor these environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GENESIS_LOG_LEVEL` | `INFO` | Minimum process log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
+| `GENESIS_LOG_FORMAT` | `text` | Log rendering format. Use `json` for machine-ingested logs. |
+
+Network Authority API responses include an `X-Request-ID` header. The service
+logs every HTTP request with the request ID, method, path, status, duration, and
+remote address, and centralized API error handling logs failures through the
+same request ID.
+
+The shared logging layer redacts common secret shapes before writing logs,
+including invite tokens, bearer tokens, signatures, passwords, private-key
+markers, and common private-key file paths. Avoid logging private key paths as
+proof of secret presence. Log certificate IDs, node IDs, operator key IDs, and
+request IDs where useful, but never intentionally log private keys, invite token
+secrets, request bodies, or authorization headers.

@@ -326,15 +326,23 @@ Routes express business failures while app-level handlers translate them into
 safe status codes, request IDs, sanitized messages, and generated API metadata
 that clients can rely on.
 
+**v0.17.9 - Observability Logging Hardening.** Process logging is moved behind
+a shared observability module with consistent level/format configuration,
+secret redaction, WSGI/CLI/node wiring, API access logs, and centralized
+server-error logging. Operators get request IDs in responses and logs without
+exposing invite tokens, bearer tokens, signatures, private-key markers, or key
+file paths.
+
 **At the end of Phase E:** A new operator has documented onboarding,
 a security checklist, an operator packet, a proof bundle format that
 distinguishes maintainer-operated from externally-operated
 infrastructure, operational credibility for managed deployment, a
 coherent public documentation surface, smaller internal modules for auditing
-the CLI and trust-state persistence paths, and a local read-only dashboard for
-health and trust visibility. The first federation step is now easier to run,
-package for review, inspect through operator-facing views, and explain visually,
-but a non-maintainer operator is still required for adoption proof.
+the CLI and trust-state persistence paths, a local read-only dashboard for
+health and trust visibility, and safer operator-facing logs. The first
+federation step is now easier to run, package for review, inspect through
+operator-facing views, and explain visually, but a non-maintainer operator is
+still required for adoption proof.
 
 ### Phase F - Adoption (planned)
 

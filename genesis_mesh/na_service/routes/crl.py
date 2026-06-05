@@ -1,12 +1,8 @@
 """Certificate revocation list routes for the Network Authority."""
 
-import logging
-
 from flask import Blueprint, jsonify
 
 from ..errors import InternalServerError
-
-logger = logging.getLogger(__name__)
 
 
 def create_crl_blueprint(service) -> Blueprint:
@@ -20,7 +16,6 @@ def create_crl_blueprint(service) -> Blueprint:
             crl = service._get_or_create_active_crl()
             return jsonify(crl.model_dump(mode="json"))
         except Exception as exc:
-            logger.error("CRL retrieval error: %s", exc)
             raise InternalServerError() from exc
 
     return bp

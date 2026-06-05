@@ -9,6 +9,7 @@ import click
 
 from ..crypto import generate_keypair, save_keypair, load_private_key, sign_model
 from ..models import GenesisBlock, NetworkAuthority, BootstrapAnchor, PolicyManifestRef
+from ..observability import configure_logging
 from .ops import register_operational_commands
 
 logger = logging.getLogger(__name__)
@@ -18,10 +19,7 @@ logger = logging.getLogger(__name__)
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 def cli(debug):
     """Genesis Mesh CLI - Cryptographic mesh networking toolkit."""
-    logging.basicConfig(
-        level=logging.DEBUG if debug else logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    configure_logging(debug=debug)
 
 
 @cli.group()

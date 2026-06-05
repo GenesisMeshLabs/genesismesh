@@ -158,7 +158,6 @@ def create_enrollment_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Error issuing certificate: %s", exc)
             raise InternalServerError() from exc
 
     @bp.route("/heartbeat", methods=["POST"])
@@ -239,7 +238,6 @@ def create_enrollment_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Heartbeat error: %s", exc)
             raise InternalServerError() from exc
 
     @bp.route("/renew", methods=["POST"])
@@ -379,7 +377,6 @@ def create_enrollment_blueprint(service) -> Blueprint:
         except ApiError:
             raise
         except Exception as exc:
-            logger.error("Renewal error: %s", exc)
             raise InternalServerError() from exc
 
     return bp

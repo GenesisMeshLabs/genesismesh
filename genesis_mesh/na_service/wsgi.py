@@ -8,6 +8,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from genesis_mesh.crypto import load_private_key
 from genesis_mesh.models import GenesisBlock
 from genesis_mesh.na_service.server import create_app
+from genesis_mesh.observability import configure_logging
+
+
+configure_logging()
 
 
 def _load_operator_public_keys() -> dict[str, str]:

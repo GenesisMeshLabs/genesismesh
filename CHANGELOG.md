@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.17.9 - Observability Logging Hardening
+
+### Added
+
+- Added shared observability logging configuration under
+  `genesis_mesh.observability.logging`.
+- Added process-wide log redaction for common secret shapes, invite tokens,
+  bearer tokens, signatures, passwords, private-key markers, and key file
+  paths.
+- Added Network Authority API access logging with request ID, method, path,
+  status, duration, and remote address.
+- Added logging tests for redaction, redacted exception tracebacks, and
+  successful API request access logs.
+
+### Changed
+
+- Wired shared logging into CLI, node CLI, Network Authority CLI validation,
+  and the production WSGI entrypoint.
+- Removed duplicate route-level unexpected-exception logs so centralized API
+  handlers own server-side failure logging.
+- Added `GENESIS_LOG_LEVEL` and `GENESIS_LOG_FORMAT` defaults to systemd units.
+- Updated monitoring documentation with logging configuration and redaction
+  guidance.
+- Bumped the package version to `0.17.9`.
+
+### Verified
+
+- Ran the full Python test suite, focused API/logging tests, pre-commit hooks,
+  compile checks, and Sphinx docs build with warnings treated as errors.
+
 ## v0.17.8 - API Error Contract Hardening
 
 ### Added

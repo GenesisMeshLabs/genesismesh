@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from genesis_mesh.na_service.errors import (
@@ -126,3 +128,49 @@ def test_unexpected_api_error_is_sanitized(na_service):
     assert "token=abc" not in serialized
     assert "operator.key" not in serialized
     assert "C:/secrets" not in serialized
+
+
+def test_unexpected_api_error_log_redacts_sensitive_exception_text(na_service, caplog):
+    """Server logs keep diagnostic stack context without leaking secrets."""
+
+    def explode():
+        raise RuntimeError(
+            "private key leaked at C:/secrets/operator.key token=abc Traceback line 1"
+        )
+
+    _register_error_route(na_service.app, "/_test/unexpected-log", explode)
+
+    caplog.set_level(logging.ERROR, logger="genesis_mesh.na_service.errors")
+    resp = na_service.app.test_client().get(
+        "/_test/unexpected-log",
+        headers={"X-Request-ID": "req-log-redaction"},
+    )
+
+    _assert_error_shape(
+        resp,
+        status=500,
+        code="internal_server_error",
+        message="Internal server error",
+    )
+    assert "API server error request_id=req-log-redaction" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "token=abc" not in caplog.text
+    assert "operator.key" not in caplog.text
+    assert "C:/secrets" not in caplog.text
+
+
+def test_successful_api_request_is_access_logged(na_service, caplog):
+    """Successful requests are correlated with request IDs in access logs."""
+    caplog.set_level(logging.INFO, logger="genesis_mesh.na_service.access")
+
+    resp = na_service.app.test_client().get(
+        "/healthz",
+        headers={"X-Request-ID": "req-access-log"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["X-Request-ID"] == "req-access-log"
+    assert "API request request_id=req-access-log" in caplog.text
+    assert "method=GET" in caplog.text
+    assert "path=/healthz" in caplog.text
+    assert "status=200" in caplog.text
