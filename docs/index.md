@@ -229,6 +229,13 @@ development/security-policy
 ```
 
 ```{toctree}
+:maxdepth: 1
+:caption: Protocol RFCs
+
+rfcs/index
+```
+
+```{toctree}
 :maxdepth: 2
 :caption: Examples
 
