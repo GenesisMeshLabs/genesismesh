@@ -1,6 +1,6 @@
 # Governance Baseline
 
-**Status:** Phase 2 baseline  
+**Status:** Phase 2 baseline
 **Purpose:** answer stewardship and control questions before they become adoption blockers.
 
 ## Why governance now

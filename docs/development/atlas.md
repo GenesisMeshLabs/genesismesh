@@ -1,6 +1,6 @@
 # Genesis Mesh Atlas
 
-**Status:** Phase 2 product concept  
+**Status:** Phase 2 product concept
 **Purpose:** public explorer for sovereigns, operators, trust material, and recognition relationships.
 
 ## Positioning

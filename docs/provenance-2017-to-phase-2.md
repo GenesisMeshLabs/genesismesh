@@ -1,8 +1,8 @@
 # GenesisMesh Provenance: December 2017 to Phase 2
 
-**Baseline date:** 2026-06-08  
-**Phase marker:** Phase 2 — Ecosystem  
-**Context:** GenesisMesh reached operator-continuity proof after v0.19.0, with non-maintainer sovereigns becoming recognized operators and Connectorzzz acting as managing partner.
+**Baseline date:** 2026-06-08
+**Phase marker:** Phase 2 — Ecosystem
+**Context:** GenesisMesh reached operator-continuity proof after v0.19.0 and documented the Phase 2 ecosystem baseline in v0.20.0, with non-maintainer sovereigns becoming recognized operators and Connectorzzz acting as managing partner.
 
 ## Why this file exists
 

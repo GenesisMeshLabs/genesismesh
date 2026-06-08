@@ -5,7 +5,7 @@ Genesis Mesh has crossed from protocol-foundation work into ecosystem formation.
 The current baseline is:
 
 - **Baseline date:** 2026-06-08
-- **Baseline release:** v0.19.0 operator continuity
+- **Baseline release:** v0.20.0 ecosystem baseline
 - **Current phase:** Phase 2 — Ecosystem
 
 For the detailed Phase 2 plan, see {doc}`phase-2-ecosystem`.

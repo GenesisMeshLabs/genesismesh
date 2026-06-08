@@ -1,6 +1,6 @@
 # Genesis Mesh RFC Program
 
-**Status:** Phase 2 seed program  
+**Status:** Phase 2 seed program
 **Purpose:** turn implemented protocol knowledge into reviewable, implementable standards documents.
 
 ## Why RFCs now
