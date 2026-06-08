@@ -361,28 +361,40 @@ federation step is now easier to run, package for review, inspect through
 operator-facing views, and explain visually, but a non-maintainer operator is
 still required for adoption proof.
 
-### Phase F - Adoption (planned)
+### Phase F - Adoption and Operator Continuity (v0.18.0 through v0.19.0)
 
-**Question:** Has someone else run this?
+**Question:** Has someone else become operationally visible in the network?
 
-This phase has not shipped yet. It is described here so the trajectory
-of the project is legible, but it is forward-looking work, not a claim
-about current state.
+This phase moved the project beyond maintainer-only demonstrations. It created
+public evidence for non-maintainer sovereigns, founding community operators,
+operator-owned control boundaries, and continuity expectations after the first
+proof.
 
-**v0.18.0 - External Operator Adoption Proof (planned).** A named
-non-maintainer operator runs a sovereign with their own genesis, NA
-key, operator key, database, endpoint, and policy. Forms a recognition
-treaty with another sovereign. Issues and revokes an attestation.
-Publishes a signed revocation feed. The recognizing sovereign imports
-the feed and rejects the attestation after import.
+**v0.18.0 - External Operator Adoption Proof.** Non-maintainer sovereigns are
+represented through public proof material. The adoption proof distinguishes
+operator-owned trust domains from Genesis Core maintenance: each operator has its
+own sovereign identity, Network Authority key, operator key, policy, endpoint,
+and public proof artifacts. The milestone shows that Genesis Mesh can explain and
+package non-maintainer participation rather than only local or maintainer-run
+scenarios.
 
-The plan codifies an Operator Quality Test: did they ask to run a
-sovereign or did the maintainer ask them; do they have a concrete
-reason that exists with or without Genesis Mesh's success; would they
-keep operating after the proof; are they willing to be named publicly;
-can they explain why they are running it without coaching.
+The Operator Quality Test remains the standard for assessing whether an operator
+is meaningful: did they ask to run a sovereign or did the maintainer push them;
+do they have a reason to operate that exists even if Genesis Mesh does not
+succeed; would they keep operating after the proof; are they willing to be named
+publicly; can they explain why they are running it without coaching.
 
-The release does not tag without a named operator passing the test.
+**v0.19.0 - Operator Continuity.** The adoption proof becomes an ongoing
+operator-continuity model. Founding community operators are documented as
+non-maintainers of Genesis Mesh who maintain their own sovereign trust domains.
+Continuity expectations cover endpoint health, backups, treaty expiry review,
+trust-bundle refresh, recurring attestation/revocation proof, and Connectome
+state checks.
+
+**At the end of Phase F:** Genesis Mesh has technical proof, operational proof,
+and early adoption proof. The next risk is no longer only technical. It is
+ecosystem risk, governance risk, independent implementation risk, and
+application-layer relevance.
 
 ---
 
@@ -430,7 +442,7 @@ and v0.16 so the same drift can't happen twice.
 
 ## 4. What Is True Today
 
-As of the most recent shipped tag:
+As of the current Phase 2 baseline:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -446,29 +458,38 @@ As of the most recent shipped tag:
 - The Connectome surfaces the recognition graph with trust-path
   explanations and revocation blast-radius summaries, as one view
   over signed protocol data.
-- Two independent sovereigns have successfully recognized each other
-  and propagated a revocation across a real network boundary between
+- Two independent infrastructure deployments have successfully recognized each
+  other and propagated a revocation across a real network boundary between
   Azure and DigitalOcean.
+- Founding community operators are documented as non-maintainers of Genesis Mesh
+  who maintain their own sovereign trust domains.
 - A reproducible operator packet exists, including a quickstart, a
   security checklist, a recognition playbook, and a proof bundle
   schema. The proof bundle format distinguishes maintainer-operated
   infrastructure from externally-operated infrastructure.
-- The full test suite passes. The project is open-source,
-  MIT-licensed, and installable from PyPI as `pip install genesis-mesh`.
+- Public operator proof artifacts and continuity expectations exist for the
+  founding operator set.
+- Connectorzzz has a defined managing-partner role: operator onboarding,
+  endpoint coordination, public trust material, continuity checks, and
+  client-facing confidence without becoming hidden owner of the operators'
+  private keys or trust decisions.
+- The project is open-source, MIT-licensed, and installable from PyPI as
+  `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
   release gate.
 
-As of the most recent shipped tag, the following are *not* yet true:
+As of the current Phase 2 baseline, the following are *not* yet true:
 
-- No non-maintainer operator has run a sovereign with their own keys
-  and infrastructure. The cross-cloud proof is operationally real,
-  but both sides are operated by the maintainer. The project says
-  this out loud rather than implying otherwise.
-- The recognition graph has one active edge today
-  (Azure <-> DigitalOcean) and both endpoints are
-  maintainer-controlled. Until at least one edge involves an external
-  operator, the network metric "Core-independent recognition
-  relationships > 0" remains zero.
+- Genesis Mesh does not yet have a complete RFC set that can stand apart from
+  the Python reference implementation.
+- Atlas does not yet exist as a public ecosystem explorer beyond individual
+  Connectome views and public proof artifacts.
+- Governance is not yet formalized into an RFC process, decision log, operator
+  exit note, and managing-partner boundary document.
+- A second implementation has not yet completed treaty-backed interoperability
+  with the Python reference implementation.
+- The first native application has not yet made Genesis Mesh legible to a
+  non-protocol buyer or operator workflow.
 
 ---
 
@@ -480,7 +501,9 @@ are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.18.0): `ops/plan-v0.*.md`
+- Per-release plans (v0.1.0 through v0.19.0): `ops/plan-v0.*.md`
+- Phase 2 ecosystem roadmap: `docs/development/phase-2-ecosystem.md`
+- Provenance note: `docs/provenance-2017-to-phase-2.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 
