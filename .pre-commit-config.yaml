@@ -21,12 +21,17 @@ repos:
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-merge-conflict
-      - id: check-added-large-files
-        args: [--maxkb=4096]
 
   # ── Local hooks that mirror the CI workflow ─────────────────────────────────
   - repo: local
     hooks:
+      - id: check-added-large-files-local
+        name: check added large files
+        entry: python scripts/check_added_large_files.py --maxkb 4096
+        language: system
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+
       - id: mypy
         name: mypy (genesis_mesh)
         entry: python -m mypy genesis_mesh --ignore-missing-imports
