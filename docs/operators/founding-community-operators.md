@@ -20,6 +20,32 @@ the public artifacts.
 | `ONS-A-NA` | `ONS-A-NA` | `examples/official-operators/ons-a-na/` |
 | `USG-NB` | `USG-NB` | `examples/official-operators/usg-nb/` |
 
+## Onboarding and Initial Backers (proof pending)
+
+Additional operators and initial backers are being onboarded. The endpoints,
+signed treaties, and proof bundles for these participants are prepared by the
+operators and backers themselves, not by Genesis Core.
+
+To keep this registry honest and externally defensible, a participant is added
+to the cohort table above — and described as adopting or operating Genesis Mesh
+— only when their public proof artifacts are committed under
+`examples/official-operators/` or `examples/founding-community-operators/`.
+Until those artifacts exist, no organization, identity provider, or partner is
+named here as an implementer or operator.
+
+Each verified entry requires, at minimum:
+
+- a reachable sovereign endpoint serving `/genesis` and `/sovereign.json`;
+- a signed recognition treaty (`treaty_id`) with Genesis Core or another
+  recognized sovereign;
+- a redacted proof bundle conforming to {doc}`proof-bundle-schema`, carrying the
+  Network Authority public-key prefix and endpoint.
+
+This is the same evidence standard the founding cohort met. It is deliberate:
+the gate is what lets a named claim survive external review. The recruitment and
+onboarding path for new participants is described in
+{doc}`external-operator-proof`.
+
 ## Control Statement
 
 For the v0.18.0 adoption proof, the founding community operators controlled

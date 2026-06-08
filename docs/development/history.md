@@ -515,7 +515,7 @@ are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.21.1): `ops/plan-v0.*.md`
+- Per-release plans (v0.1.0 through v0.21.2): `ops/plan-v0.*.md`
 - Phase 2 ecosystem roadmap: `docs/development/phase-2-ecosystem.md`
 - Provenance note: `docs/provenance-2017-to-phase-2.md`
 - Project vision and the "what we will not build" list: `VISION.md`
