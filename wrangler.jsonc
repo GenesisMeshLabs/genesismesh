@@ -9,6 +9,7 @@
   },
   "containers": [
     {
+      "name": "genesismesh-na-genesismeshnacontainer",
       "class_name": "GenesisMeshNAContainer",
       "image": "./Dockerfile",
       "max_instances": 1
