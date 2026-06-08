@@ -13,7 +13,8 @@ and multi-sovereign operation.
 
 By v0.20.0, the project also documented the Phase 2 ecosystem baseline after
 operator continuity: non-maintainer sovereigns, independent operator keys,
-independent infrastructure, public trust material, and Connectorzzz acting as a
+independent infrastructure, public trust material, provenance from IoT
+automation and digital-twin experimentation, and Connectorzzz acting as a
 managing partner for operator onboarding and coordination.
 
 Phase 2 asks a different question:
@@ -72,7 +73,8 @@ The objectives are:
 2. Make the network inspectable through Atlas.
 3. Make stewardship credible through governance documentation.
 4. Make portability undeniable through independent implementations.
-5. Make value obvious through a first native application.
+5. Make value obvious through a first native application, including workflows
+   where physical assets or automated environments are represented digitally.
 
 ## Pillar 1 — Genesis Mesh RFCs
 
@@ -103,7 +105,8 @@ Atlas is not a demo page. It is the answer to:
 
 It should show sovereigns, authorities, operators, managing partners,
 recognition treaties, trust paths, revocation state, capability manifests,
-public endpoints, and operator continuity signals.
+digital-twin or asset manifests, public endpoints, and operator continuity
+signals.
 
 See {doc}`atlas`.
 
@@ -151,7 +154,10 @@ a protocol."
 
 Phase 2 should not only add protocol primitives. It should produce one
 application that makes the value obvious to people who do not care about trust
-architecture.
+architecture. The 2017 IoT and digital-twin experimentation matters here:
+Genesis Mesh should be able to explain not only who operates a sovereign, but
+also which represented assets, environments, or capabilities are visible through
+that sovereign.
 
 The strongest candidate is:
 
@@ -195,5 +201,6 @@ Phase 2 succeeds when Genesis Mesh has evidence for all of the following:
 
 ## Strategic anchor
 
-> The 2017 enterprise work showed the problem. Genesis Mesh formalizes the
-> protocol answer. Connectorzzz operationalizes the ecosystem answer.
+> The 2017 enterprise, IoT automation, and digital-twin work showed the problem.
+> Genesis Mesh formalizes the protocol answer. Connectorzzz operationalizes the
+> ecosystem answer.
