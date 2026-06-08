@@ -1,0 +1,29 @@
+{
+  "network_name": "BOS-NA",
+  "network_version": "v0.1",
+  "root_public_key": "Q3XP1XweSlRXTeH/TFzt+/umECCt2aja/9Yzaohp0Jg=",
+  "network_authority": {
+    "public_key": "KC78NEm3H49kbEYtwpssVPUkCJMMMob2c5PAe0l22Yk=",
+    "valid_from": "2026-06-08T12:06:41.966863Z",
+    "valid_to": "2026-09-06T12:06:41.966863Z"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [],
+  "signatures": [
+    {
+      "key_id": "rs-local",
+      "sig": "+20gyscuXVI+KUIJv7wm70OUfF2UdDqux4/C6xfLSPkJ1T0o7bJSqQlvJ+JtnkXGJX9dJUFs45i9hLcEVy8hAQ=="
+    }
+  ]
+}

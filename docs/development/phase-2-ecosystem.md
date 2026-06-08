@@ -17,6 +17,11 @@ independent infrastructure, public trust material, provenance from IoT
 automation and digital-twin experimentation, and Connectorzzz acting as a
 managing partner for operator onboarding and coordination.
 
+The rollout closure marker adds the final Phase 1 proof shape: a sovereign
+operator can move from evidence collection to structured accountability, direct
+institutional notice, and escalation readiness without surrendering control of
+identity or records. See {doc}`rollout-closure`.
+
 Phase 2 asks a different question:
 
 > Can Genesis Mesh become an ecosystem rather than only a working

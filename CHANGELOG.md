@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.22.0 - NBA Team-Operator Demo
+
+### Added
+
+- Added a synthetic two-sovereign demo of the "team as operator" pattern: two
+  team-shaped Network Authorities (`BOS-NA`, `SAS-NA`) recognize each other
+  through a signed treaty and propagate a revocation across that boundary.
+- Added public demo artifacts under `examples/nba-demo-operators/` (signed
+  genesis blocks, a validated trust bundle, the Connectome, and a redacted proof
+  bundle).
+- Added the `docs/examples/nba-team-operators.md` walkthrough and linked it from
+  the adoption examples index.
+- Linked the demo from the Aspayr NBA operator packet under `ops/nba/` as its
+  technical proof point.
+
+### Notes
+
+- `BOS-NA` and `SAS-NA` are synthetic, locally generated demo sovereigns named
+  after NBA cities to illustrate the operator pattern. They are not affiliated
+  with, endorsed by, or operated by any NBA team, the NBA, or the NBPA, contain
+  no real athlete data, and are deliberately kept out of the maintainer-operated multi-cloud sovereign
+  sovereign fleet.
+
+### Changed
+
+- Bumped the package version to `0.22.0`.
+
+### Verified
+
+- Ran the live `proof remote` flow between the two demo authorities, the Sphinx
+  docs build with warnings as errors, the full pre-push hook stage, and the
+  package build.
+
 ## v0.21.2 - Operator Onboarding Status
 
 ### Added

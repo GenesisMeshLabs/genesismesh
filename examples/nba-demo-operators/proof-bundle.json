@@ -1,0 +1,67 @@
+{
+  "acceptor": {
+    "endpoint": "http://127.0.0.1:8551",
+    "na_public_key_prefix": "KC78NEm3H49kbEYtwpssVPUk",
+    "network_name": "BOS-NA"
+  },
+  "attestation_id": "d1644de7-e979-40cd-bd27-006524bf2862",
+  "connectome_summary": {
+    "active_edge_count": 1,
+    "imported_revocation_count": 1,
+    "recognition_edge_count": 1,
+    "revoked_edge_count": 0,
+    "revoked_trust_material_count": 1,
+    "sovereign_count": 2
+  },
+  "created_at": "2026-06-08T12:09:42.895519+00:00",
+  "feed_id": "dec734cd-79ec-48e8-aa33-c2985e233c9b",
+  "feed_sequence": 1,
+  "issuer": {
+    "endpoint": "http://127.0.0.1:8552",
+    "na_public_key_prefix": "sTqBnR8mSwJUFnNa2MYz6kEX",
+    "network_name": "SAS-NA"
+  },
+  "operators": {
+    "acceptor": {
+      "operator_label": "unspecified",
+      "operator_type": "unknown"
+    },
+    "adoption_proof": false,
+    "assistance_notes": [],
+    "issuer": {
+      "controls_infrastructure": false,
+      "controls_keys": false,
+      "operator_label": "unspecified",
+      "operator_type": "unknown"
+    }
+  },
+  "post_revocation": {
+    "accepted": false,
+    "reason": "attestation_locally_revoked"
+  },
+  "pre_revocation": {
+    "accepted": true,
+    "reason": "accepted"
+  },
+  "proof": "remote-sovereign-recognition-revocation",
+  "treaty_id": "86723961-c4bb-4629-b330-4d998bbd12bd",
+  "trust_path": {
+    "from": "BOS-NA",
+    "hop_count": 1,
+    "path": [
+      {
+        "expires_at": "2026-09-06T12:09:42.758084+00:00",
+        "expiry_risk": "low",
+        "from": "BOS-NA",
+        "lifecycle_state": "active",
+        "status": "active",
+        "to": "SAS-NA",
+        "treaty_id": "86723961-c4bb-4629-b330-4d998bbd12bd",
+        "valid_from": "2026-06-08T12:09:42.758084+00:00"
+      }
+    ],
+    "reason": "active_treaty_path",
+    "to": "SAS-NA",
+    "trusted": true
+  }
+}
