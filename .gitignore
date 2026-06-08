@@ -24,6 +24,7 @@ wheels/
 
 # Test and tooling caches
 .pytest_cache/
+.wrangler/
 node_modules/
 
 # Documentation build outputs
