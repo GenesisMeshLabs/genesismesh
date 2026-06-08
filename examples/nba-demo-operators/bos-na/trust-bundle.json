@@ -1,0 +1,159 @@
+{
+  "bundle_type": "genesis-mesh.trust-bundle",
+  "bundle_version": "v1",
+  "connectome": {
+    "active_treaties": [
+      {
+        "expires_at": "2026-09-06T12:09:42.758084Z",
+        "issued_at": "2026-06-08T12:09:42.758084Z",
+        "issued_by": "na-local",
+        "issuer_sovereign_id": "BOS-NA",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:8552"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:client"
+          ],
+          "claims": {
+            "acceptor": "Celtics-0",
+            "issuer": "Spurs-1",
+            "proof": "jersey-demo"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-local",
+            "sig": "cP9kLzZMeq5IvXodPOjYKOU8aX5ePOUkrRfyGwkX8MMD9kWQqH58/nHiAyfBqFg8pubMtkppca030ey2cPMWCg=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "sTqBnR8mSwJUFnNa2MYz6kEXTIzRsOjLRx1+KLggiOM="
+        ],
+        "subject_sovereign_id": "SAS-NA",
+        "treaty_id": "86723961-c4bb-4629-b330-4d998bbd12bd",
+        "valid_from": "2026-06-08T12:09:42.758084Z"
+      }
+    ],
+    "recognition_edges": [
+      {
+        "expires_at": "2026-09-06T12:09:42.758084+00:00",
+        "expiry_risk": "low",
+        "from": "BOS-NA",
+        "lifecycle_state": "active",
+        "status": "active",
+        "to": "SAS-NA",
+        "treaty_id": "86723961-c4bb-4629-b330-4d998bbd12bd",
+        "valid_from": "2026-06-08T12:09:42.758084+00:00"
+      }
+    ],
+    "revoked_trust_material": [
+      {
+        "feed_id": "dec734cd-79ec-48e8-aa33-c2985e233c9b",
+        "id": "d1644de7-e979-40cd-bd27-006524bf2862",
+        "issuer_sovereign_id": "SAS-NA",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-08T12:09:42.837494+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      }
+    ],
+    "summary": {
+      "active_edge_count": 1,
+      "imported_revocation_count": 1,
+      "recognition_edge_count": 1,
+      "revoked_edge_count": 0,
+      "revoked_trust_material_count": 1,
+      "sovereign_count": 2
+    }
+  },
+  "created_at": "2026-06-08T12:10:19.928739+00:00",
+  "endpoint_checks": {
+    "healthz": "ok",
+    "readyz": "ready"
+  },
+  "genesis": {
+    "allowed_crypto_suites": [
+      "ed25519",
+      "x25519"
+    ],
+    "allowed_transports": [
+      "quic",
+      "wireguard"
+    ],
+    "bootstrap_anchors": [],
+    "network_authority": {
+      "public_key": "KC78NEm3H49kbEYtwpssVPUkCJMMMob2c5PAe0l22Yk=",
+      "valid_from": "2026-06-08T12:06:41.966863Z",
+      "valid_to": "2026-09-06T12:06:41.966863Z"
+    },
+    "network_name": "BOS-NA",
+    "network_version": "v0.1",
+    "policy_manifest": {
+      "hash": "sha256:placeholder",
+      "url": null
+    },
+    "root_public_key": "Q3XP1XweSlRXTeH/TFzt+/umECCt2aja/9Yzaohp0Jg=",
+    "signatures": [
+      {
+        "key_id": "rs-local",
+        "sig": "+20gyscuXVI+KUIJv7wm70OUfF2UdDqux4/C6xfLSPkJ1T0o7bJSqQlvJ+JtnkXGJX9dJUFs45i9hLcEVy8hAQ=="
+      }
+    ]
+  },
+  "network_version": "v0.1",
+  "recognition_policy": {
+    "status": "not_configured"
+  },
+  "revocation_feed": {
+    "payload": {
+      "feed_id": "7e3ab442-65c2-4555-ab86-ba61d374a0cf",
+      "issued_at": "2026-06-08T12:10:19.904823Z",
+      "issued_by": "na-local",
+      "issuer_sovereign_id": "BOS-NA",
+      "revocation_reasons": {},
+      "revoked_attestation_ids": [],
+      "sequence": 0,
+      "signatures": [
+        {
+          "key_id": "na-local",
+          "sig": "tBGy2nHF+XFeVMvaOd6WEJbc64Ogt3Gn8fvRr6+pfrE5uSeSQ013ZhPY6HUtrBrxt991vDkdU+0y6vzN+jejCw=="
+        }
+      ]
+    },
+    "status": "ok"
+  },
+  "source_endpoint": "http://127.0.0.1:8551",
+  "sovereign_id": "BOS-NA",
+  "sovereign_metadata": {
+    "bootstrap_anchor_count": 0,
+    "endpoint": "http://127.0.0.1:8551",
+    "network_authority": {
+      "public_key": "KC78NEm3H49kbEYtwpssVPUkCJMMMob2c5PAe0l22Yk=",
+      "valid_from": "2026-06-08T12:06:41.966863+00:00",
+      "valid_to": "2026-09-06T12:06:41.966863+00:00"
+    },
+    "network_name": "BOS-NA",
+    "network_version": "v0.1",
+    "policy_manifest": {
+      "hash": "sha256:placeholder",
+      "url": null
+    },
+    "root_public_key": "Q3XP1XweSlRXTeH/TFzt+/umECCt2aja/9Yzaohp0Jg=",
+    "sovereign_id": "BOS-NA",
+    "supported_surfaces": {
+      "api_reference": "http://127.0.0.1:8551/api-reference",
+      "cli_reference": "http://127.0.0.1:8551/cli-reference",
+      "connectome": "http://127.0.0.1:8551/connectome.json",
+      "genesis": "http://127.0.0.1:8551/genesis",
+      "recognition_treaties": "http://127.0.0.1:8551/recognition-treaties",
+      "sovereign_revocation_feed": "http://127.0.0.1:8551/sovereign-revocation-feed",
+      "swagger": "http://127.0.0.1:8551/swagger.json"
+    }
+  }
+}

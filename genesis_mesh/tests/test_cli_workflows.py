@@ -248,3 +248,120 @@ def test_federation_command_is_registered():
 
     assert result.exit_code == 0, result.output
     assert "Review another sovereign" in result.output
+
+
+def _valid_proof_bundle() -> dict[str, object]:
+    return {
+        "proof": "remote-sovereign-recognition-revocation",
+        "acceptor": {"network_name": "BOS-NA"},
+        "issuer": {"network_name": "SAS-NA"},
+        "attestation_id": "att-1",
+        "treaty_id": "treaty-1",
+        "feed_id": "feed-1",
+        "feed_sequence": 1,
+        "pre_revocation": {"accepted": True, "reason": "accepted"},
+        "post_revocation": {
+            "accepted": False,
+            "reason": "attestation_locally_revoked",
+        },
+        "trust_path": {
+            "from": "BOS-NA",
+            "to": "SAS-NA",
+            "trusted": True,
+            "hop_count": 1,
+            "reason": "active_treaty_path",
+        },
+        "connectome_summary": {
+            "sovereign_count": 2,
+            "active_edge_count": 1,
+            "imported_revocation_count": 1,
+            "revoked_trust_material_count": 1,
+        },
+    }
+
+
+def test_proof_inspect_validates_redacted_bundle(tmp_path):
+    """Operators can validate committed proof bundles without live NA services."""
+    bundle_path = tmp_path / "proof-bundle.json"
+    bundle_path.write_text(json.dumps(_valid_proof_bundle()), encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["proof", "inspect", "--proof-bundle", str(bundle_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Proof bundle: valid" in result.output
+    assert "acceptor:    BOS-NA" in result.output
+    assert "after:       attestation_locally_revoked" in result.output
+
+
+def test_proof_inspect_cross_checks_connectome_artifact(tmp_path):
+    """Proof inspection can validate the bundle against a committed Connectome artifact."""
+    bundle_path = tmp_path / "proof-bundle.json"
+    bundle_path.write_text(json.dumps(_valid_proof_bundle()), encoding="utf-8")
+    connectome_path = tmp_path / "connectome.json"
+    connectome_path.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "sovereign_count": 2,
+                    "active_edge_count": 1,
+                    "imported_revocation_count": 1,
+                    "revoked_trust_material_count": 1,
+                },
+                "recognition_edges": [
+                    {"from": "BOS-NA", "to": "SAS-NA", "treaty_id": "treaty-1"}
+                ],
+                "revoked_trust_material": [{"id": "att-1", "feed_id": "feed-1"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        ["proof", "inspect", "--proof-bundle", str(bundle_path), "--connectome", str(connectome_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "connectome artifact: matched" in result.output
+
+
+def test_proof_inspect_rejects_connectome_mismatch(tmp_path):
+    """Stale Connectome artifacts fail proof inspection instead of looking verified."""
+    bundle_path = tmp_path / "proof-bundle.json"
+    bundle_path.write_text(json.dumps(_valid_proof_bundle()), encoding="utf-8")
+    connectome_path = tmp_path / "connectome.json"
+    connectome_path.write_text(
+        json.dumps(
+            {
+                "summary": {"sovereign_count": 2, "active_edge_count": 0},
+                "recognition_edges": [],
+                "revoked_trust_material": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        ["proof", "inspect", "--proof-bundle", str(bundle_path), "--connectome", str(connectome_path)],
+    )
+
+    assert result.exit_code != 0, result.output
+    assert "connectome artifact: mismatch" in result.output
+    assert "connectome active_edge_count mismatch" in result.output
+
+
+def test_proof_inspect_rejects_invalid_bundle(tmp_path):
+    """Invalid proof bundles fail loudly so demos do not ship stale artifacts."""
+    bundle_path = tmp_path / "proof-bundle.json"
+    bundle_path.write_text(json.dumps({"proof": "wrong"}), encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["proof", "inspect", "--proof-bundle", str(bundle_path)])
+
+    assert result.exit_code != 0, result.output
+    assert "Proof bundle: invalid" in result.output
+    assert "unexpected proof type" in result.output

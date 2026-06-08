@@ -64,6 +64,68 @@ def proof_cleanup(
         click.echo(f"  {table}: {count}")
 
 
+@proof.command("inspect")
+@click.option("--proof-bundle", required=True, help="Redacted proof bundle JSON path.")
+@click.option("--connectome", default=None, help="Optional Connectome JSON artifact to cross-check.")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json"]),
+    default="table",
+    help="Output format.",
+)
+def proof_inspect(proof_bundle: str, connectome: str | None, output_format: str) -> None:
+    """Inspect and validate a redacted sovereign proof bundle."""
+    bundle_path = Path(proof_bundle)
+    if not bundle_path.exists():
+        raise click.ClickException(f"Proof bundle not found: {bundle_path}")
+
+    try:
+        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"Proof bundle is not valid JSON: {exc}") from exc
+
+    connectome_artifact = None
+    if connectome:
+        connectome_path = Path(connectome)
+        if not connectome_path.exists():
+            raise click.ClickException(f"Connectome artifact not found: {connectome_path}")
+        try:
+            connectome_artifact = json.loads(connectome_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(f"Connectome artifact is not valid JSON: {exc}") from exc
+
+    result = _inspect_proof_bundle(bundle, connectome_artifact=connectome_artifact)
+    if output_format == "json":
+        click.echo(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        status = "valid" if result["valid"] else "invalid"
+        click.echo(f"Proof bundle: {status}")
+        click.echo(f"  proof:       {result['proof']}")
+        click.echo(f"  acceptor:    {result['acceptor']}")
+        click.echo(f"  issuer:      {result['issuer']}")
+        click.echo(f"  treaty:      {result['treaty_id']}")
+        click.echo(f"  attestation: {result['attestation_id']}")
+        click.echo(f"  feed:        {result['feed_id']} (sequence {result['feed_sequence']})")
+        click.echo(f"  before:      {result['pre_revocation_reason']}")
+        click.echo(f"  after:       {result['post_revocation_reason']}")
+        click.echo(f"  trust path:  {result['trust_path_reason']} / hops={result['trust_path_hops']}")
+        click.echo(
+            "  connectome:  "
+            f"sovereigns={result['connectome']['sovereign_count']}, "
+            f"active_edges={result['connectome']['active_edge_count']}, "
+            f"imported_revocations={result['connectome']['imported_revocation_count']}"
+        )
+        if result["connectome_artifact"]:
+            artifact_status = "matched" if result["connectome_artifact"]["matched"] else "mismatch"
+            click.echo(f"  connectome artifact: {artifact_status}")
+        for error in result["errors"]:
+            click.echo(f"  error:       {error}", err=True)
+
+    if not result["valid"]:
+        raise click.ClickException("Proof bundle validation failed")
+
+
 @proof.command("remote")
 @click.option("--acceptor", required=True, help="Recognizing sovereign NA endpoint.")
 @click.option("--issuer", required=True, help="Subject/issuing sovereign NA endpoint.")
@@ -378,6 +440,134 @@ def _run_remote_proof(
         "trust_path": trust_path,
         "connectome_summary": connectome["summary"],
     }
+
+
+def _inspect_proof_bundle(
+    bundle: dict[str, Any], *, connectome_artifact: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Validate the operator-safe proof summary emitted by proof remote."""
+    errors: list[str] = []
+    acceptor = bundle.get("acceptor", {})
+    issuer = bundle.get("issuer", {})
+    trust_path = bundle.get("trust_path", {})
+    connectome = bundle.get("connectome_summary", {})
+    pre_revocation = bundle.get("pre_revocation", {})
+    post_revocation = bundle.get("post_revocation", {})
+
+    proof_name = bundle.get("proof")
+    acceptor_name = acceptor.get("network_name")
+    issuer_name = issuer.get("network_name")
+
+    if proof_name != "remote-sovereign-recognition-revocation":
+        errors.append("unexpected proof type")
+    for key in ("attestation_id", "treaty_id", "feed_id"):
+        if not bundle.get(key):
+            errors.append(f"missing {key}")
+    if not acceptor_name:
+        errors.append("missing acceptor network name")
+    if not issuer_name:
+        errors.append("missing issuer network name")
+    if pre_revocation.get("accepted") is not True or pre_revocation.get("reason") != "accepted":
+        errors.append("pre-revocation result is not accepted")
+    if (
+        post_revocation.get("accepted") is not False
+        or post_revocation.get("reason") != "attestation_locally_revoked"
+    ):
+        errors.append("post-revocation result is not locally revoked")
+    if trust_path.get("trusted") is not True:
+        errors.append("trust path is not trusted")
+    if trust_path.get("from") != acceptor_name or trust_path.get("to") != issuer_name:
+        errors.append("trust path endpoints do not match acceptor/issuer")
+    if int(trust_path.get("hop_count") or 0) < 1:
+        errors.append("trust path has no hops")
+    if int(connectome.get("sovereign_count") or 0) < 2:
+        errors.append("connectome has fewer than two sovereigns")
+    if int(connectome.get("active_edge_count") or 0) < 1:
+        errors.append("connectome has no active recognition edge")
+    if int(connectome.get("imported_revocation_count") or 0) < 1:
+        errors.append("connectome has no imported revocation")
+    if int(connectome.get("revoked_trust_material_count") or 0) < 1:
+        errors.append("connectome has no revoked trust material")
+
+    artifact_result: dict[str, Any] | None = None
+    if connectome_artifact is not None:
+        artifact_errors = _connectome_artifact_errors(
+            bundle=bundle,
+            acceptor_name=acceptor_name,
+            issuer_name=issuer_name,
+            expected_summary=connectome,
+            artifact=connectome_artifact,
+        )
+        errors.extend(artifact_errors)
+        artifact_result = {"matched": not artifact_errors, "errors": artifact_errors}
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "proof": proof_name or "unknown",
+        "acceptor": acceptor_name or "unknown",
+        "issuer": issuer_name or "unknown",
+        "attestation_id": bundle.get("attestation_id") or "unknown",
+        "treaty_id": bundle.get("treaty_id") or "unknown",
+        "feed_id": bundle.get("feed_id") or "unknown",
+        "feed_sequence": bundle.get("feed_sequence") or "unknown",
+        "pre_revocation_reason": pre_revocation.get("reason") or "unknown",
+        "post_revocation_reason": post_revocation.get("reason") or "unknown",
+        "trust_path_reason": trust_path.get("reason") or "unknown",
+        "trust_path_hops": trust_path.get("hop_count") or 0,
+        "connectome": {
+            "sovereign_count": int(connectome.get("sovereign_count") or 0),
+            "active_edge_count": int(connectome.get("active_edge_count") or 0),
+            "imported_revocation_count": int(connectome.get("imported_revocation_count") or 0),
+            "revoked_trust_material_count": int(connectome.get("revoked_trust_material_count") or 0),
+        },
+        "connectome_artifact": artifact_result,
+    }
+
+
+def _connectome_artifact_errors(
+    *,
+    bundle: dict[str, Any],
+    acceptor_name: str | None,
+    issuer_name: str | None,
+    expected_summary: dict[str, Any],
+    artifact: dict[str, Any],
+) -> list[str]:
+    """Return mismatches between a proof bundle and a Connectome artifact."""
+    errors: list[str] = []
+    artifact_summary = artifact.get("summary", {})
+    for key in (
+        "sovereign_count",
+        "active_edge_count",
+        "imported_revocation_count",
+        "revoked_trust_material_count",
+    ):
+        expected = int(expected_summary.get(key) or 0)
+        actual = int(artifact_summary.get(key) or 0)
+        if actual != expected:
+            errors.append(f"connectome {key} mismatch: expected {expected}, got {actual}")
+
+    treaty_id = bundle.get("treaty_id")
+    has_edge = any(
+        edge.get("from") == acceptor_name
+        and edge.get("to") == issuer_name
+        and edge.get("treaty_id") == treaty_id
+        for edge in artifact.get("recognition_edges", [])
+    )
+    if not has_edge:
+        errors.append("connectome recognition edge missing for proof treaty")
+
+    attestation_id = bundle.get("attestation_id")
+    feed_id = bundle.get("feed_id")
+    has_revoked_material = any(
+        item.get("id") == attestation_id and item.get("feed_id") == feed_id
+        for item in artifact.get("revoked_trust_material", [])
+    )
+    if not has_revoked_material:
+        errors.append("connectome revoked trust material missing for proof attestation")
+
+    return errors
+
 
 def _cleanup_proof_state(
     db_path: Path,

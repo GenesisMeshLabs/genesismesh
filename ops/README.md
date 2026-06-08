@@ -14,7 +14,7 @@ use `CHANGELOG.md`, GitHub Releases, and the documentation under `docs/`.
 - [`go-to-market.md`](go-to-market.md) - adoption hypothesis and community
   wedge.
 - [`plan-v0.1.0.md`](plan-v0.1.0.md) through
-  [`plan-v0.21.2.md`](plan-v0.21.2.md) - release plans and retrospective
+  [`plan-v0.22.0.md`](plan-v0.22.0.md) - release plans and retrospective
   release notes.
 
 ## Reading Notes
