@@ -11,6 +11,9 @@ workflow.
 ## Start Here
 
 - [Operator Quickstart](quickstart.md): stand up a named sovereign on a VM.
+- [Maintainer-Operated Multi-Cloud Sovereigns](reference-sovereign-operators.md): review the
+  v0.18.0 maintainer-operated multi-cloud sovereign fleet and the continuity cadence for active
+  sovereigns.
 - [Security Checklist](security-checklist.md): confirm independent operator
   control before counting adoption evidence.
 - [Federation Bootstrap](federation-bootstrap.md): review another sovereign and

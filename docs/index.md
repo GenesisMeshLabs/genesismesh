@@ -192,6 +192,7 @@ reference/configuration
 
 operators/index
 operators/quickstart
+operators/reference-sovereign-operators
 operators/security-checklist
 operators/federation-bootstrap
 operators/external-operator-proof

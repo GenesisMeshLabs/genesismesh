@@ -2,6 +2,7 @@
   "cohort": "genesis-mesh-reference-sovereign-operators",
   "release": "v0.18.0",
   "status": "multi-cloud-operation-proof",
+  "next_milestone": "v0.19.0-active-sovereign-operator-continuity",
   "description": "Maintainer-operated multi-cloud sovereigns who tested Genesis Mesh through the early public releases and are maintained as separate sovereign deployments.",
   "operators": [
     {
@@ -54,5 +55,12 @@
     }
   ],
   "key_control_statement": "Maintainer-operated multi-cloud sovereigns used separate genesis, Network Authority key, operator key, database, endpoint, and policy. Private keys were separate per sovereign and not committed.",
-  "public_artifacts_root": "../official-operators/"
+  "public_artifacts_root": "../official-operators/",
+  "continuity_expectations": [
+    "keep sovereign endpoints alive or intentionally mark them offline",
+    "refresh public trust bundles after meaningful trust-state changes",
+    "renew or replace treaties before expiry",
+    "run a quarterly attestation and revocation proof cycle",
+    "confirm Connectome state still reflects the active recognition graph"
+  ]
 }

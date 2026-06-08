@@ -168,6 +168,14 @@ revoked peers.
 
 [Documentation Website](https://genesismesh.connectorzzz.com)
 
+## Maintainer-Operated Multi-Cloud Sovereigns
+
+v0.18.0 records the maintainer-operated multi-cloud sovereign fleet: maintainer-operated sovereign deployments that
+tested Genesis Mesh through the early public releases and now maintain their
+own sovereigns. Their public artifacts are under
+[`examples/reference-sovereign-operators/`](examples/reference-sovereign-operators/README.md)
+and [`examples/official-operators/`](examples/official-operators/README.md).
+
 ## Requirements
 
 - Python 3.12 or later
