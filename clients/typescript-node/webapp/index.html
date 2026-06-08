@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Genesis Mesh — Node Control</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 0; background: #0e1116; color: #e6edf3; }
+      header { padding: 16px 20px; border-bottom: 1px solid #222; display: flex; gap: 12px; align-items: baseline; }
+      header h1 { font-size: 16px; margin: 0; }
+      header .net { color: #7ee787; }
+      main { display: grid; grid-template-columns: 360px 1fr; gap: 0; height: calc(100vh - 58px); }
+      section { padding: 16px 20px; overflow: auto; }
+      section.left { border-right: 1px solid #222; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #8b949e; margin: 20px 0 8px; }
+      label { display: block; font-size: 12px; color: #8b949e; margin: 8px 0 2px; }
+      input { width: 100%; box-sizing: border-box; padding: 7px 9px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; }
+      button { margin-top: 8px; padding: 7px 12px; background: #238636; border: 0; border-radius: 6px; color: white; cursor: pointer; }
+      button.secondary { background: #21262d; border: 1px solid #30363d; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .kv { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; }
+      .peer { padding: 6px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin: 4px 0; cursor: pointer; }
+      .peer.active { border-color: #238636; }
+      #log { font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+      .row { color: #8b949e; } .row b { color: #e6edf3; } .row.warn { color: #f0883e; } .row.data { color: #7ee787; }
+      .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: #21262d; }
+      .ok { color: #7ee787; } .bad { color: #f85149; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Genesis Mesh — Node Control</h1>
+      <span id="conn" class="pill">connecting…</span>
+      <span class="net">network: <b id="network">—</b></span>
+      <span>node: <span id="nodeId" class="kv">—</span></span>
+    </header>
+    <main>
+      <section class="left">
+        <h2>Enroll</h2>
+        <label>Invite token</label>
+        <input id="invite" placeholder="paste single-use invite token" />
+        <label>Roles (comma-separated)</label>
+        <input id="roles" value="role:client" />
+        <button id="joinBtn">Join network</button>
+
+        <h2>Listen for peers</h2>
+        <label>Port (0 = ephemeral)</label>
+        <input id="listenPort" value="0" />
+        <button id="listenBtn" class="secondary">Start listener</button>
+
+        <h2>Connect to a peer</h2>
+        <label>Endpoint (host:port or ws[s]://)</label>
+        <input id="endpoint" placeholder="127.0.0.1:7000" />
+        <button id="connectBtn" class="secondary">Connect</button>
+
+        <h2>Certificate</h2>
+        <div class="kv" id="cert">no certificate</div>
+      </section>
+
+      <section>
+        <h2>Peers</h2>
+        <div id="peers">no peers</div>
+
+        <h2>Send message</h2>
+        <input id="msg" placeholder="type a message, press Enter to send to selected peer" />
+
+        <h2>Event log</h2>
+        <div id="log"></div>
+      </section>
+    </main>
+
+    <script type="module">
+      // Control API base. Same origin if the webapp is served by the daemon host,
+      // otherwise point at the daemon (e.g. when using a separate dev server).
+      const API = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:9100";
+      let selectedPeer = null;
+
+      const $ = (id) => document.getElementById(id);
+      const log = (cls, html) => {
+        const div = document.createElement("div");
+        div.className = "row " + (cls || "");
+        div.innerHTML = `<span style="color:#586069">${new Date().toLocaleTimeString()}</span> ${html}`;
+        $("log").prepend(div);
+      };
+
+      async function post(path, body) {
+        const res = await fetch(API + path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body || {}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        return data;
+      }
+
+      function renderStatus(s) {
+        $("network").textContent = s.network || "—";
+        $("nodeId").textContent = s.nodeId ? s.nodeId.slice(0, 24) + "…" : "—";
+        $("cert").textContent = s.hasCertificate
+          ? `cert ${s.certId}\nroles: ${s.roles.join(", ")}\nexpires: ${s.certExpires}`
+          : "no certificate";
+        const peers = s.peers || [];
+        $("peers").innerHTML = peers.length ? "" : "no peers";
+        for (const p of peers) {
+          const el = document.createElement("div");
+          el.className = "peer" + (p.peerId === selectedPeer ? " active" : "");
+          el.textContent = p.peerId.slice(0, 28) + "…" + (p.endpoint ? "  (" + p.endpoint + ")" : "");
+          el.onclick = () => { selectedPeer = p.peerId; renderStatus(s); };
+          $("peers").appendChild(el);
+        }
+      }
+
+      async function refresh() {
+        try { renderStatus(await (await fetch(API + "/api/status")).json()); } catch {}
+      }
+
+      // Live event stream from the node.
+      function connectEvents() {
+        const ws = new WebSocket(API.replace(/^http/, "ws") + "/events");
+        ws.onopen = () => { $("conn").textContent = "connected"; $("conn").className = "pill ok"; };
+        ws.onclose = () => { $("conn").textContent = "disconnected"; $("conn").className = "pill bad"; setTimeout(connectEvents, 1500); };
+        ws.onmessage = (e) => {
+          const { type, data } = JSON.parse(e.data);
+          if (type === "status") renderStatus(data);
+          else if (type === "peer:connected") { log("", `peer <b>connected</b> ${data.peerId.slice(0,16)}… roles=${(data.roles||[]).join(",")}`); refresh(); }
+          else if (type === "peer:disconnected") { log("", `peer <b>disconnected</b> ${data.peerId.slice(0,16)}…`); refresh(); }
+          else if (type === "data") log("data", `DATA from ${data.from.slice(0,16)}…: <b>${escapeHtml(data.text ?? "<binary>")}</b>`);
+          else if (type === "warn") log("warn", escapeHtml(data.message));
+        };
+      }
+      const escapeHtml = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+      $("joinBtn").onclick = async () => {
+        try {
+          const r = await post("/api/join", { inviteToken: $("invite").value.trim(), roles: $("roles").value.split(",").map(s=>s.trim()).filter(Boolean) });
+          log("", `joined ✓ cert ${r.certId} roles=${r.roles.join(",")}`); refresh();
+        } catch (e) { log("warn", "join failed: " + e.message); }
+      };
+      $("listenBtn").onclick = async () => {
+        try { const r = await post("/api/listen", { port: Number($("listenPort").value) }); log("", `listening on :<b>${r.port}</b>`); refresh(); }
+        catch (e) { log("warn", "listen failed: " + e.message); }
+      };
+      $("connectBtn").onclick = async () => {
+        try { const r = await post("/api/connect", { endpoint: $("endpoint").value.trim() }); selectedPeer = r.peerId; log("", `connected to peer ${r.peerId.slice(0,16)}…`); refresh(); }
+        catch (e) { log("warn", "connect failed: " + e.message); }
+      };
+      $("msg").onkeydown = async (e) => {
+        if (e.key !== "Enter") return;
+        if (!selectedPeer) return log("warn", "select a peer first");
+        const text = $("msg").value; $("msg").value = "";
+        try { await post("/api/send", { peerId: selectedPeer, text }); log("data", `sent → ${selectedPeer.slice(0,16)}…: <b>${escapeHtml(text)}</b>`); }
+        catch (err) { log("warn", "send failed: " + err.message); }
+      };
+
+      connectEvents();
+      refresh();
+    </script>
+  </body>
+</html>

@@ -58,9 +58,10 @@ export class NaClient {
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, JsonValue>;
     if (!res.ok) {
-      const code = (body.code as string) ?? undefined;
-      const msg = (body.error as string) ?? (body.message as string) ?? `POST ${path} failed`;
-      throw new NaError(msg, res.status, code);
+      // NA error envelope: { error: { code, message, details, request_id } }
+      const env = (body.error ?? {}) as { code?: string; message?: string };
+      const msg = env.message ?? (typeof body.error === "string" ? body.error : `POST ${path} failed`);
+      throw new NaError(msg, res.status, env.code);
     }
     return body;
   }
