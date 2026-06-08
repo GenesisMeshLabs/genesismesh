@@ -361,7 +361,7 @@ federation step is now easier to run, package for review, inspect through
 operator-facing views, and explain visually, but a future external operator is
 still required for multi-cloud operation proof.
 
-### Phase F - Adoption and Operator Continuity (v0.18.0 through v0.19.0)
+### Phase F - Adoption, Operator Continuity, and Ecosystem Baseline (v0.18.0 through v0.20.0)
 
 **Question:** Has someone else become operationally visible in the network?
 
@@ -390,6 +390,12 @@ maintainer-operated sovereign deployments who are maintained as separate soverei
 Continuity expectations cover endpoint health, backups, treaty expiry review,
 trust-bundle refresh, recurring attestation/revocation proof, and Connectome
 state checks.
+
+**v0.20.0 - Phase 2 Ecosystem Baseline.** The operator-continuity proof becomes
+the baseline for ecosystem formation. The project now names the next proof
+surfaces explicitly: RFCs, Atlas, governance, independent implementations, and
+one native application that makes the trust fabric useful beyond protocol
+readers.
 
 **At the end of Phase F:** Genesis Mesh has technical proof, operational proof,
 and early multi-cloud operation proof. The next risk is no longer only technical. It is
@@ -501,7 +507,7 @@ are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.19.0): `ops/plan-v0.*.md`
+- Per-release plans (v0.1.0 through v0.20.0): `ops/plan-v0.*.md`
 - Phase 2 ecosystem roadmap: `docs/development/phase-2-ecosystem.md`
 - Provenance note: `docs/phase-2-ecosystem.md`
 - Project vision and the "what we will not build" list: `VISION.md`

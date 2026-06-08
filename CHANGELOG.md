@@ -1,5 +1,73 @@
 # Changelog
 
+## v0.20.0 - Phase 2 Ecosystem Baseline
+
+### Added
+
+- Added the Phase 2 ecosystem baseline documentation for RFCs, Atlas,
+  governance, independent implementation, and application-layer adoption.
+- Added provenance documentation connecting the multi-cloud sovereign operation pattern
+  to the current Genesis Mesh protocol and ecosystem baseline.
+- Added development documentation for Atlas, governance baseline, and the RFC
+  program.
+
+### Changed
+
+- Updated the roadmap and development history to make the Phase 2 ecosystem
+  transition explicit after the v0.19.0 operator-continuity proof.
+- Replaced the third-party large-file pre-push hook with a local stdlib hook so
+  Windows Application Control policy does not block pushes.
+- Restricted mutating formatting hooks to pre-commit so pre-push validation does
+  not rewrite dirty working-tree docs.
+- Bumped the package version to `0.20.0`.
+
+### Verified
+
+- Ran the full pre-push hook stage, including Sphinx docs and pytest.
+
+## v0.19.0 - Operator Continuity
+
+### Added
+
+- Added the maintainer-operated multi-cloud sovereign registry to the operator
+  documentation.
+- Added continuity expectations for endpoint health, backups, treaty expiry
+  review, trust-bundle refresh, recurring attestation and revocation proof, and
+  Connectome checks.
+- Added the v0.19.0 release plan and retrospective gate.
+
+### Changed
+
+- Linked the maintainer-operated multi-cloud sovereign fleet from public README and operator
+  docs.
+- Updated maintainer-operated multi-cloud sovereign metadata to describe ongoing active
+  sovereign-operator continuity.
+- Bumped the package version to `0.19.0`.
+
+### Verified
+
+- Validated maintainer-operated multi-cloud sovereign trust material.
+- Ran Sphinx docs, pre-push hooks, package build, and release artifact checks.
+
+## v0.18.0 - Official Operators
+
+### Added
+
+- Added official operator artifacts for the maintainer-operated multi-cloud sovereign proof.
+- Added the maintainer-operated multi-cloud sovereign example directory and operator metadata.
+- Added the v0.18.0 release plan and multi-cloud operation retrospective.
+
+### Changed
+
+- Updated the external operator adoption plan to record the shipped official
+  operator proof and maintainer confirmation.
+- Bumped the package version to `0.18.0`.
+
+### Verified
+
+- Validated operator JSON, public proof material, docs, tests, and release
+  artifacts for the official-operator release.
+
 ## v0.17.11 - Azure Deployment Verification Hardening
 
 ### Changed

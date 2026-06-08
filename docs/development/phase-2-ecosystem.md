@@ -1,7 +1,7 @@
 # Phase 2 — Ecosystem
 
-**Baseline date:** 2026-06-08  
-**Baseline release:** v0.19.0 operator continuity  
+**Baseline date:** 2026-06-08
+**Baseline release:** v0.20.0 ecosystem baseline
 **Strategic shift:** from proving protocol primitives to forming an ecosystem.
 
 ## Summary
@@ -11,10 +11,10 @@ identity, Network Authorities, recognition treaties, trust bundles, revocation
 feeds, federation bootstrap, discovery, capability routing, Connectome views,
 and multi-sovereign operation.
 
-By v0.19.0, the project also demonstrated operator continuity: external
-sovereigns, independent operator keys, independent infrastructure, public trust
-material, and Connectorzzz acting as a managing partner for operator onboarding
-and coordination.
+By v0.20.0, the project also documented the Phase 2 ecosystem baseline after
+operator continuity: maintainer-operated sovereign deployments, independent operator keys,
+independent infrastructure, public trust material, and Connectorzzz acting as a
+managing partner for operator onboarding and coordination.
 
 Phase 2 asks a different question:
 
