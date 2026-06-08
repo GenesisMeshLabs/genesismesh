@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.21.0 - RFC Program Batch 1
+
+### Added
+
+- Added the first batch of Genesis Mesh protocol RFCs under `docs/rfcs/`,
+  covering sovereign identity, recognition treaties, trust bundles, revocation
+  feeds, capability manifests, the Connectome model, operator continuity, and
+  the managed operator role.
+- Added an RFC index that records draft status and maps each RFC to its
+  reference implementation module.
+- Wired the RFC section into the documentation tree and linked it from the RFC
+  program direction document.
+
+### Changed
+
+- Linked the RFC program's initial sequence to the published draft documents.
+- Bumped the package version to `0.21.0`.
+
+### Verified
+
+- Ran pytest, mypy, compileall, the Sphinx docs build with warnings as errors,
+  and the package build.
+
 ## v0.20.0 - Phase 2 Ecosystem Baseline
 
 ### Added

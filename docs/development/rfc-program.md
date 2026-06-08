@@ -26,6 +26,10 @@ Every RFC should be:
 
 ## Initial RFC sequence
 
+The first batch of drafts is published under {doc}`/rfcs/index`. Each draft below
+links to its document and maps to shipped behavior in the reference
+implementation.
+
 ### RFC-001 — Sovereign Identity
 
 Defines a sovereign identity document, its cryptographic material, public
