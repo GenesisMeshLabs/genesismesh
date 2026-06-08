@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.21.1 - RFC Prior Art and Design Lineage
+
+### Added
+
+- Added `docs/rfcs/prior-art.md` mapping each RFC to the established public
+  standards it generalizes (X.509/PKI, SAML, OpenID Federation, OCSP,
+  Certificate Transparency, DNS-SD, SPIFFE, and related prior art).
+- Documented the protocol's distinct contribution: sovereign, portable trust
+  with no permanent central authority, contrasted with federated identity.
+
+### Changed
+
+- Linked the prior-art lineage from the RFC index and added it to the RFC
+  toctree.
+- Bumped the package version to `0.21.1`.
+
+### Notes
+
+- The lineage document is design provenance, not an adoption record. It makes no
+  claim that any organization, identity provider, or partner has implemented or
+  endorsed Genesis Mesh; real third-party adoption remains gated on the
+  future external-operator proof workflow.
+
+### Verified
+
+- Ran the Sphinx docs build with warnings as errors, the full pre-push hook
+  stage, and the package build.
+
 ## v0.21.0 - RFC Program Batch 1
 
 ### Added

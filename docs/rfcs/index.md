@@ -27,6 +27,9 @@ implementation-informed and reviewable, not that the wording is frozen.
 | {doc}`RFC-007 <rfc-007-operator-continuity>` | Operator Continuity | Draft | `docs/operators/` |
 | {doc}`RFC-008 <rfc-008-managed-operator-role>` | Managed Operator Role | Draft | `docs/development/governance-baseline.md` |
 
+For the established standards and patterns each RFC generalizes — recorded as
+design lineage, not as adoption claims — see {doc}`prior-art`.
+
 ## Normative language
 
 The RFCs use **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** as
@@ -46,4 +49,5 @@ rfc-005-capability-manifests
 rfc-006-connectome-model
 rfc-007-operator-continuity
 rfc-008-managed-operator-role
+prior-art
 ```
