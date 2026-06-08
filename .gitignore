@@ -24,6 +24,7 @@ wheels/
 
 # Test and tooling caches
 .pytest_cache/
+node_modules/
 
 # Documentation build outputs
 docs_buildhtml/
@@ -44,6 +45,7 @@ genesis-mesh.toml
 
 # Local Python environments and environment files
 .env
+.dev.vars
 .venv
 env/
 venv/

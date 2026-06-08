@@ -259,10 +259,23 @@ Genesis Mesh includes deployment examples for:
 
 - **Local process** — `genesis-mesh init && genesis-mesh na start`
 - **Docker** — `docker run` and Docker Compose (`docs/examples/compose/`)
+- **Cloudflare Containers** — `wrangler deploy` with the Worker/container
+  binding in `wrangler.jsonc`
 - **Kubernetes** — manifests under `examples/kubernetes/`
 - **Terraform on Azure** — `infrastructure/azure/`, the same module used by the live deployment
 
 See the [deployment guide](https://genesismesh.connectorzzz.com/operations/deployment.html) for the full walkthrough.
+
+Cloudflare Containers deploy the Docker image through the Worker defined in
+`src/cloudflare-worker.js`. The first container-backed test case is `EPICAL-NA`.
+Before deploying it, store the NA private key and signed genesis block as Worker
+secrets:
+
+```bash
+npx wrangler secret put NA_PRIVATE_KEY
+npx wrangler secret put GENESIS_JSON
+npx wrangler deploy
+```
 
 ## Repository Layout
 
