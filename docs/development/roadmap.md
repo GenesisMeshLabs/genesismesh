@@ -1,9 +1,146 @@
 # Roadmap
 
-Genesis Mesh is in a production-hardening phase. The implementation has a real
-cryptographic foundation and runtime path, but some hardening work remains.
+Genesis Mesh has crossed from protocol-foundation work into ecosystem formation.
 
-## Implemented and Tested
+The current baseline is:
+
+- **Baseline date:** 2026-06-08
+- **Baseline release:** v0.19.0 operator continuity
+- **Current phase:** Phase 2 — Ecosystem
+
+For the detailed Phase 2 plan, see {doc}`phase-2-ecosystem`.
+
+## Current position
+
+Genesis Mesh now has evidence across three layers.
+
+### Technical proof
+
+- Sovereign identity.
+- Network Authority trust roots.
+- Recognition treaties.
+- Trust bundles.
+- Attestations.
+- Revocation feeds.
+- Federation bootstrap.
+- Discovery.
+- Capability routing.
+- Connectome trust-path visibility.
+- Multi-sovereign operation.
+
+### Operational proof
+
+- Azure deployment.
+- DigitalOcean deployment.
+- Public endpoints.
+- Independent keys.
+- Independent policies.
+- Independent infrastructure.
+- Operator runbooks.
+- Public trust material.
+
+### Adoption proof
+
+- Maintainer-operated sovereign deployments represented as maintainer-operated multi-cloud sovereigns.
+- Recognition relationships beyond maintainer-only local demos.
+- Public operator proof artifacts.
+- Operator continuity expectations.
+- Connectorzzz intended as the onboarding vehicle for onboarding and coordination.
+
+## Strategic shift
+
+The next roadmap should not be treated as only another sequence of minor
+releases.
+
+The next roadmap is:
+
+> Phase 2 — Ecosystem
+
+Phase 1 proved that sovereign trust can work. Phase 2 must prove that sovereign
+trust can become a network.
+
+## Phase 2 priorities
+
+### 1. RFC program
+
+Turn implemented protocol knowledge into standards-shaped documents.
+
+Initial targets:
+
+- RFC-001 Sovereign Identity.
+- RFC-002 Recognition Treaties.
+- RFC-003 Trust Bundles.
+- RFC-004 Revocation Feeds.
+- RFC-005 Capability Manifests.
+- RFC-006 Connectome Model.
+- RFC-007 Operator Continuity.
+- RFC-008 Managed Operator Role.
+
+See {doc}`rfc-program`.
+
+### 2. Atlas
+
+Build the public explorer for the Genesis Mesh ecosystem.
+
+Atlas should answer:
+
+> Who is using Genesis Mesh?
+
+It should show sovereigns, authorities, operators, managing partners, treaties,
+trust paths, revocation state, capabilities, endpoints, and public proof
+artifacts.
+
+See {doc}`atlas`.
+
+### 3. Governance baseline
+
+Document how the protocol is stewarded and how operators retain sovereignty.
+
+The first governance pass should define:
+
+- maintainer;
+- operator;
+- managing partner;
+- observer;
+- RFC approval flow;
+- security-review expectations;
+- fork and exit rights.
+
+See {doc}`governance-baseline`.
+
+### 4. Independent implementation
+
+Prove that Genesis Mesh is a protocol, not only a Python implementation.
+
+Target proof:
+
+> Python sovereign ↔ Go sovereign
+
+The minimum proof is treaty exchange, trust-bundle validation, revocation-feed
+consumption, and Connectome or Atlas visibility across both implementations.
+
+### 5. First native application
+
+Build one application that makes the protocol value obvious.
+
+The strongest candidate is the Connectorzzz Operator Network: independent
+operators remain sovereign while coordinating with the delivery confidence of a
+larger firm.
+
+## What not to build first
+
+To preserve protocol discipline, Phase 2 should avoid:
+
+- token economics;
+- central reputation scoring;
+- a permissionless public registry;
+- billing marketplace features;
+- governance theater;
+- a closed Connectorzzz-only authority layer.
+
+## Implemented and tested foundation
+
+The Phase 2 roadmap builds on a tested foundation:
 
 - Ed25519 key generation, signing, and verification.
 - Canonical JSON signing helpers.
@@ -12,45 +149,21 @@ cryptographic foundation and runtime path, but some hardening work remains.
 - Invite-token-backed enrollment.
 - SQLite persistence for Network Authority state.
 - Operator-key admin authentication.
-- Signed CRL endpoint and revocation enforcement for NA heartbeat/renewal.
-- Noise XX handshake proof and peer runtime connection test.
-- Gunicorn WSGI entry point.
-- Sphinx/Furo/MyST documentation build.
+- Signed CRL endpoint and revocation enforcement.
+- Noise XX peer runtime connection tests.
+- Multi-node integration tests.
+- Routed data through intermediate peers.
+- CRL gossip tests.
+- Revocation-aware route handling.
+- Signed peer discovery.
+- Container startup checks.
+- Dependency auditing.
+- Backup and restore documentation.
+- Policy signature verification.
+- Sanitized CLI/API/operator-facing errors.
+- Structured observability and request IDs.
+- Operator dashboards, Connectome views, and public docs.
 
-## Completed Hardening Work
+## Guiding line
 
-- Multi-node integration tests cover authenticated runtime connections and
-  routed data through an intermediate peer.
-- CRL gossip tests cover newer CRL acceptance, sequence announcements, update
-  requests, and sending newer local CRLs to peers.
-- Route handling rejects revoked senders, metric-zero gossip routes, stale
-  sequences, and invalid withdrawals.
-- Peer discovery verifies signed announcements, rejects unsigned/stale/replayed
-  announcements, caps response size, and derives roles from verified
-  certificates.
-- Container checks build the image and verify fail-closed startup when required
-  Network Authority secrets are missing.
-- CI runs dependency auditing with `pip-audit`.
-- Backup and restore operations are documented in
-  `operations/backup-restore.md`.
-- Client-side policy verification rejects policy manifests not signed by the
-  Network Authority key.
-- Browser probes of peer WebSocket ports are verified to return upgrade errors
-  without noisy traceback logs.
-- Optional bootstrap failures, including HTTP 404 and timeout cases, are logged
-  with endpoint context and do not block runtime startup.
-- Invalid Noise/certificate key binding failures are sanitized and do not expose
-  certificate payloads.
-- Persistent runtime cancellation and runtime shutdown stop certificate
-  management, CRL gossip, peer discovery, routing protocol, routing table
-  maintenance, and the WebSocket server.
-- `genesis-mesh dev down` reports locked generated state with remediation
-  guidance.
-- Local certificates rejected by a wiped or reset Network Authority fail with a
-  clean re-enrollment message.
-- Running two Network Authority processes against the same SQLite database is
-  documented as unsupported.
-- Readiness and CLI status output expose the configured DB path.
-- Invalid admin signatures, replayed admin nonces, revoked heartbeat, revoked
-  renewal, and invalid node signatures create sanitized audit events without
-  signed request bodies or invite token secrets.
+> Phase 1 proved the protocol. Phase 2 proves the network.
