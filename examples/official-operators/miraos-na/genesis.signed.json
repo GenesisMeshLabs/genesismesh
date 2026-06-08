@@ -1,0 +1,29 @@
+{
+  "network_name": "MiraOS-NA",
+  "network_version": "v0.1",
+  "root_public_key": "hd+xwyRZ/34NrEnaLeFVPeWz4Kpqt4so4Dl01MQP5us=",
+  "network_authority": {
+    "public_key": "/JVTbaGGJCYv11sayGEcW13PrHuGvTE6/0oQX/ORJio=",
+    "valid_from": "2026-06-06T09:54:01.756668Z",
+    "valid_to": "2026-09-04T09:54:01.756668Z"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [],
+  "signatures": [
+    {
+      "key_id": "rs-local",
+      "sig": "o/ZQJXKdjOUtQvfFIKryYdk1MlXOU22BbvratR7PZeNzMHaLPfHg3VIolLt89Bb8grxaIRAkQdpXa1ezTKFiCw=="
+    }
+  ]
+}

@@ -37,7 +37,10 @@ examples/genesis/demo/
 # Genesis Mesh local CLI/runtime artifacts
 genesis-mesh.toml
 .genesis-mesh/
+.genesis-mesh-*/
 .node*/
+*.log
+*.pid
 
 # Local Python environments and environment files
 .env

@@ -1,0 +1,24 @@
+{
+  "network_name": "AMINE-M6-NA",
+  "network_version": "v0.1",
+  "root_public_key": "7X3UKuHAkKj2PrMBC7pLZYamXimrwO4Fv7JA5y3ZG+w=",
+  "network_authority": {
+    "public_key": "MqaJGau4hFx33uVZLzdvsAfz65T0L7y+OE/d2QSXBl4=",
+    "valid_from": "2026-06-07T05:49:40.826904Z",
+    "valid_to": "2026-09-05T05:49:40.826904Z"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [],
+  "signatures": []
+}

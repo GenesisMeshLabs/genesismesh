@@ -1,0 +1,24 @@
+{
+  "network_name": "anonymous-NA",
+  "network_version": "v0.1",
+  "root_public_key": "lr4f3nBG7ghft3ToOuFcY7jQ61Vpj/pSRDv8ZRX9ask=",
+  "network_authority": {
+    "public_key": "V8lJawA0dQhjSOp983D8EiaDIz+KbrdHlapqm32iKOE=",
+    "valid_from": "2026-06-07T05:49:40.089697Z",
+    "valid_to": "2026-09-05T05:49:40.089697Z"
+  },
+  "allowed_crypto_suites": [
+    "ed25519",
+    "x25519"
+  ],
+  "allowed_transports": [
+    "quic",
+    "wireguard"
+  ],
+  "policy_manifest": {
+    "hash": "sha256:placeholder",
+    "url": null
+  },
+  "bootstrap_anchors": [],
+  "signatures": []
+}

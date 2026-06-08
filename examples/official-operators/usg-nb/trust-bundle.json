@@ -1,0 +1,566 @@
+{
+  "bundle_type": "genesis-mesh.trust-bundle",
+  "bundle_version": "v1",
+  "connectome": {
+    "active_treaties": [
+      {
+        "expires_at": "2026-06-08T13:39:59.569649Z",
+        "issued_at": "2026-06-07T13:39:59.569649Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18501"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-1",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "1hUsgFZgnmKDMjVeaqXNX8KjBZA+Hgi6twiC/aZ3E9U27PbV8Zvh1BvhTNe8TAuDZSI2jFTnvLA8bpzBjyQlDA=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "37Umk/0UJSHkzLa9Cks69PurqL+NgdNBVV0aSYmzcvE="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-1",
+        "treaty_id": "3e112462-4796-4759-ae8d-e8520477030e",
+        "valid_from": "2026-06-07T13:39:59.569649Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:01.405923Z",
+        "issued_at": "2026-06-07T13:40:01.405923Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18502"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-2",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "wBs2HMLKxn3ToCcjFKrspZe6o/wTrVUTF9+p3WUQZmFzHXaKAp7maqFd2GA7p1zJMT0/8sCOK+Nmtt4IhSPXCQ=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "RT389fhO3UcwQRWcg1pY1dem/mqtQCFeFAww7oYoD68="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-2",
+        "treaty_id": "f0b1be29-ac58-43c3-8dc7-8797bd12dd15",
+        "valid_from": "2026-06-07T13:40:01.405923Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:03.239571Z",
+        "issued_at": "2026-06-07T13:40:03.239571Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18503"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-3",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "R9Gv9VoyaxNcdmhfU4MUIKJ137qlT2WimsD6Rkh3Dt5QqHIQiL0DY51k1ctdDVVrnc8CVKsZ7L8VWHi9/0NcCA=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "Hzz4l/U/P7EgZ43uQf7sy0WnRCJwBt5xQz/WdUyamvg="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-3",
+        "treaty_id": "41a8f135-802a-4eb2-9dce-ad82d04077b1",
+        "valid_from": "2026-06-07T13:40:03.239571Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:04.704682Z",
+        "issued_at": "2026-06-07T13:40:04.704682Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18504"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-4",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "6WcpFYPgA7D+9bL/evMlY+eBSIzitA0A+WPUV28fXs+V/ML+tUDUFHekoNVU9jmg+aitDPTPwNyRwxIL1O55DA=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "DpLsVV9scj2Gy4Ua0bXazncbzPq2ctpiw3xEIhJU8Qk="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-4",
+        "treaty_id": "a2a8f6b3-b876-4e73-ab9c-528580b19129",
+        "valid_from": "2026-06-07T13:40:04.704682Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:06.289697Z",
+        "issued_at": "2026-06-07T13:40:06.289697Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18505"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-5",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "+ydjIhdBqm6wdgyHZFEZNaIrSO9ZGzzAU89fOM3w/F2RYSKdE8e2MLcVdFkcN2HisW9eEWovI4TY5d5EBMqwAQ=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "mXa8peEzmmjtGbbWw7YgwolGi4FevHva6lg0IjIpTN8="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-5",
+        "treaty_id": "e08cdc72-9c20-4bcf-85a7-b135aa9e67e8",
+        "valid_from": "2026-06-07T13:40:06.289697Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:07.561706Z",
+        "issued_at": "2026-06-07T13:40:07.561706Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "proof": "remote-sovereign-proof",
+          "subject_endpoint": "http://127.0.0.1:18506"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "demo_sovereign": "NB-COLLECTIVE-6",
+            "purpose": "collective-passthrough"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "zWO84B+OmcJfckg4Nvr4ozBJ/oYubGgaSsRg9SjBR3RqG0nWm0Y8x41QiBc6jE5rVZ9BC68m9Nh5P8QPybsmAg=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "O0w3stcSxpnsJwuOKSIday8k00+4hvjY/Equ7IWKnw0="
+        ],
+        "subject_sovereign_id": "NB-COLLECTIVE-6",
+        "treaty_id": "677d6071-19c5-497b-9f22-cdc8c9fb442b",
+        "valid_from": "2026-06-07T13:40:07.561706Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:43:58.653302Z",
+        "issued_at": "2026-06-07T13:43:58.653302Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "subject_endpoint": "https://na.genesismesh.connectorzzz.com",
+          "workflow": "federation-bootstrap"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "purpose": "nb-recognizes-usg"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "Vje49gbVuQg1kaI9M5CDK1HeUIGle1XAiaV9VLUWP4FzVq57h7JGlxhtNYp6CwQqsUtAXGaEGU5MC229dQ5PDA=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "/h/Qm1uyu21I66BXvF/XlOoV3+YJCxaJID0EAhKOaBE="
+        ],
+        "subject_sovereign_id": "USG",
+        "treaty_id": "b0f7f657-382c-431c-8ea4-0860362d4996",
+        "valid_from": "2026-06-07T13:43:58.653302Z"
+      },
+      {
+        "expires_at": "2026-06-08T13:44:06.722714Z",
+        "issued_at": "2026-06-07T13:44:06.722714Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "subject_endpoint": "https://na.genesismesh.connectorzzz.com",
+          "workflow": "federation-bootstrap"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "purpose": "nb-recognizes-usg"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "C+PePcTtLDrokZyxIijI9qCagies52IV1PfsPnjmiMLICXIfp+HomjJvcTsH5VnY31q8H1+A8xU1FJsIlZWZBQ=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "/h/Qm1uyu21I66BXvF/XlOoV3+YJCxaJID0EAhKOaBE="
+        ],
+        "subject_sovereign_id": "USG",
+        "treaty_id": "68d6cfee-5e46-4614-be2f-ab2024899b1d",
+        "valid_from": "2026-06-07T13:44:06.722714Z"
+      },
+      {
+        "expires_at": "2026-06-08T15:42:33.524971Z",
+        "issued_at": "2026-06-07T15:42:33.524971Z",
+        "issued_by": "na-2025-q1",
+        "issuer_sovereign_id": "USG-NB",
+        "metadata": {
+          "subject_endpoint": "https://na.genesismesh.connectorzzz.com",
+          "workflow": "federation-bootstrap"
+        },
+        "scope": {
+          "accepted_statuses": [
+            "active"
+          ],
+          "allowed_roles": [
+            "role:operator"
+          ],
+          "claims": {
+            "purpose": "nb-recognizes-usg"
+          }
+        },
+        "signatures": [
+          {
+            "key_id": "na-2025-q1",
+            "sig": "OEbp6ZQmRXIYYqUCG8Vp/xHqXkzzFp3HDY8aMU03ONLMzUUbbbS4yXsE7VhwZzBpIuRcB8dptP3LMpHVGrtiAw=="
+          }
+        ],
+        "status": "active",
+        "subject_public_keys": [
+          "/h/Qm1uyu21I66BXvF/XlOoV3+YJCxaJID0EAhKOaBE="
+        ],
+        "subject_sovereign_id": "USG",
+        "treaty_id": "525ab9c0-f7c8-4201-b839-45bafd7d197e",
+        "valid_from": "2026-06-07T15:42:33.524971Z"
+      }
+    ],
+    "recognition_edges": [
+      {
+        "expires_at": "2026-06-08T13:39:59.569649+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-1",
+        "treaty_id": "3e112462-4796-4759-ae8d-e8520477030e",
+        "valid_from": "2026-06-07T13:39:59.569649+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:01.405923+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-2",
+        "treaty_id": "f0b1be29-ac58-43c3-8dc7-8797bd12dd15",
+        "valid_from": "2026-06-07T13:40:01.405923+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:03.239571+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-3",
+        "treaty_id": "41a8f135-802a-4eb2-9dce-ad82d04077b1",
+        "valid_from": "2026-06-07T13:40:03.239571+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:04.704682+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-4",
+        "treaty_id": "a2a8f6b3-b876-4e73-ab9c-528580b19129",
+        "valid_from": "2026-06-07T13:40:04.704682+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:06.289697+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-5",
+        "treaty_id": "e08cdc72-9c20-4bcf-85a7-b135aa9e67e8",
+        "valid_from": "2026-06-07T13:40:06.289697+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:40:07.561706+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "NB-COLLECTIVE-6",
+        "treaty_id": "677d6071-19c5-497b-9f22-cdc8c9fb442b",
+        "valid_from": "2026-06-07T13:40:07.561706+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T15:42:33.524971+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "USG",
+        "treaty_id": "525ab9c0-f7c8-4201-b839-45bafd7d197e",
+        "valid_from": "2026-06-07T15:42:33.524971+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:44:06.722714+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "USG",
+        "treaty_id": "68d6cfee-5e46-4614-be2f-ab2024899b1d",
+        "valid_from": "2026-06-07T13:44:06.722714+00:00"
+      },
+      {
+        "expires_at": "2026-06-08T13:43:58.653302+00:00",
+        "expiry_risk": "high",
+        "from": "USG-NB",
+        "lifecycle_state": "expiring_soon",
+        "status": "active",
+        "to": "USG",
+        "treaty_id": "b0f7f657-382c-431c-8ea4-0860362d4996",
+        "valid_from": "2026-06-07T13:43:58.653302+00:00"
+      }
+    ],
+    "revoked_trust_material": [
+      {
+        "feed_id": "639dd355-3aab-4c7a-888a-a881a4ad86ea",
+        "id": "3cd9ff97-a153-4e56-9a74-b6a636235c2d",
+        "issuer_sovereign_id": "NB-COLLECTIVE-4",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:40:04.762382+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      },
+      {
+        "feed_id": "ed06a1c3-c9d7-4481-94b6-752dd5184020",
+        "id": "581683a2-58fb-4897-a17b-94bcfae7973a",
+        "issuer_sovereign_id": "NB-COLLECTIVE-6",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:40:07.607654+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      },
+      {
+        "feed_id": "d6eb3bf0-9767-422d-96c4-a66fdff6c7a8",
+        "id": "8693bb93-6a99-4b66-86d8-047a5ed2efcf",
+        "issuer_sovereign_id": "NB-COLLECTIVE-3",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:40:03.293918+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      },
+      {
+        "feed_id": "1ccf53c2-d730-483f-a998-d5dd661cb976",
+        "id": "a04d0078-297c-4dbf-9b3e-e5d40d90e8d2",
+        "issuer_sovereign_id": "NB-COLLECTIVE-2",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:40:01.461260+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      },
+      {
+        "feed_id": "1a867396-52af-4bcd-bbf7-fd46c4ae88a3",
+        "id": "d1be9cc5-c1d1-488e-8d50-809286c7bdd6",
+        "issuer_sovereign_id": "NB-COLLECTIVE-5",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:40:06.339994+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      },
+      {
+        "feed_id": "109bdcb9-9047-49ce-aa98-7c79dda8c3f5",
+        "id": "ec8b596e-a410-4dcd-9476-364f936261d8",
+        "issuer_sovereign_id": "NB-COLLECTIVE-1",
+        "reason": "remote_sovereign_proof_revocation",
+        "revoked_at": "2026-06-07T13:39:59.614072+00:00",
+        "sequence": 1,
+        "type": "membership_attestation"
+      }
+    ],
+    "summary": {
+      "active_edge_count": 9,
+      "imported_revocation_count": 6,
+      "recognition_edge_count": 9,
+      "revoked_edge_count": 0,
+      "revoked_trust_material_count": 6,
+      "sovereign_count": 8
+    }
+  },
+  "created_at": "2026-06-08T06:42:48.872621+00:00",
+  "endpoint_checks": {
+    "healthz": "ok",
+    "readyz": "ready"
+  },
+  "genesis": {
+    "allowed_crypto_suites": [
+      "ed25519",
+      "x25519"
+    ],
+    "allowed_transports": [
+      "quic",
+      "wireguard"
+    ],
+    "bootstrap_anchors": [],
+    "network_authority": {
+      "public_key": "nLtc+NNGVP+t5NZaV3wvBsFBEKDVAOKbH9DL/C7k79k=",
+      "valid_from": "2026-06-02T14:23:44.821581Z",
+      "valid_to": "2026-08-31T14:23:44.821581Z"
+    },
+    "network_name": "USG-NB",
+    "network_version": "v0.1",
+    "policy_manifest": {
+      "hash": "sha256:placeholder",
+      "url": null
+    },
+    "root_public_key": "mlYDSFInrvnfCXi2Z+9oGYpAQlJWtX9WI3ttj0W5uBo=",
+    "signatures": [
+      {
+        "key_id": "rs-local",
+        "sig": "S2DSY2Z5N4iCVaMSntsUIa/ofpS6Mtb0TpD4KlsEs7f47HAebeGofPIbf4Faui6XtYw4AKvfnkGa9GF/yUMMDA=="
+      }
+    ]
+  },
+  "network_version": "v0.1",
+  "recognition_policy": {
+    "status": "not_configured"
+  },
+  "revocation_feed": {
+    "payload": {
+      "feed_id": "54cf3e1a-3e1c-488e-98a5-7f1095aab597",
+      "issued_at": "2026-06-08T06:42:48.590767Z",
+      "issued_by": "na-2025-q1",
+      "issuer_sovereign_id": "USG-NB",
+      "revocation_reasons": {
+        "3ee9bc08-9685-461b-8b00-ed4ff05a8c16": "final_level3_proof_revocation",
+        "7ff4ef89-4bdf-481c-9fe2-16c27223057f": "remote_sovereign_proof_revocation"
+      },
+      "revoked_attestation_ids": [
+        "3ee9bc08-9685-461b-8b00-ed4ff05a8c16",
+        "7ff4ef89-4bdf-481c-9fe2-16c27223057f"
+      ],
+      "sequence": 2,
+      "signatures": [
+        {
+          "key_id": "na-2025-q1",
+          "sig": "+tDOoO5l5w1emAU1RPih4cIAgDLixU2xYfCUd453p+x6MoclBxo+ZeK853jQzO8o3w1HjEPXIqSZwIyoEUNaAw=="
+        }
+      ]
+    },
+    "status": "ok"
+  },
+  "source_endpoint": "http://164.92.250.135:8443",
+  "sovereign_id": "USG-NB",
+  "sovereign_metadata": {
+    "bootstrap_anchor_count": 0,
+    "endpoint": "http://164.92.250.135:8443",
+    "network_authority": {
+      "public_key": "nLtc+NNGVP+t5NZaV3wvBsFBEKDVAOKbH9DL/C7k79k=",
+      "valid_from": "2026-06-02T14:23:44.821581+00:00",
+      "valid_to": "2026-08-31T14:23:44.821581+00:00"
+    },
+    "network_name": "USG-NB",
+    "network_version": "v0.1",
+    "policy_manifest": {
+      "hash": "sha256:placeholder",
+      "url": null
+    },
+    "root_public_key": "mlYDSFInrvnfCXi2Z+9oGYpAQlJWtX9WI3ttj0W5uBo=",
+    "sovereign_id": "USG-NB",
+    "supported_surfaces": {
+      "api_reference": "http://164.92.250.135:8443/api-reference",
+      "cli_reference": "http://164.92.250.135:8443/cli-reference",
+      "connectome": "http://164.92.250.135:8443/connectome.json",
+      "genesis": "http://164.92.250.135:8443/genesis",
+      "recognition_treaties": "http://164.92.250.135:8443/recognition-treaties",
+      "sovereign_revocation_feed": "http://164.92.250.135:8443/sovereign-revocation-feed",
+      "swagger": "http://164.92.250.135:8443/swagger.json"
+    }
+  }
+}

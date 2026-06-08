@@ -1,0 +1,17 @@
+{
+  "cert_id": "dbe5f519-db00-4a34-afab-4f815893c85d",
+  "node_public_key": "Wk0pPkc7Iv0zVWShqU1XuX29hK2PPXXVZz3tMk/qB6g=",
+  "network_name": "MiraOS-NA",
+  "roles": [
+    "role:anchor"
+  ],
+  "issued_at": "2026-06-06T09:54:58.139838Z",
+  "expires_at": "2026-06-13T09:54:58.139838Z",
+  "issued_by": "na-local",
+  "signatures": [
+    {
+      "key_id": "na-local",
+      "sig": "eAyIwlHEGg75byfWcIv6mxqlxys1F/dguIl26PBJJby9WtoUXYkwswOLWuCymaAOehUPw8XLZcbtRVngOjQ2BA=="
+    }
+  ]
+}

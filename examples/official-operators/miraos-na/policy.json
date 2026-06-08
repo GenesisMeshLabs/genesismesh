@@ -1,0 +1,27 @@
+{
+  "policy_id": "policy-MiraOS-NA-v0.1",
+  "issued_at": "2026-06-06T09:54:58.157217Z",
+  "issued_by": "na-local",
+  "min_client_version": "0.1.0",
+  "allowed_ports": [
+    443,
+    8443
+  ],
+  "allowed_services": [
+    "service-1",
+    "service-2"
+  ],
+  "routing": {
+    "preferred_transports": [
+      "quic",
+      "wireguard"
+    ],
+    "max_hops": 6
+  },
+  "signatures": [
+    {
+      "key_id": "na-local",
+      "sig": "BuMf0JBv3gXr7PaFBqwlWklnPAF6V6U2/B6giDKYhVJ5gHZGnDJ89WTbzlEzyBgEwN70EqGS2NvzYj6LvM8rAw=="
+    }
+  ]
+}
