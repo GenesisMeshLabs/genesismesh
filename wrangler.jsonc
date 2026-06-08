@@ -7,6 +7,12 @@
   "observability": {
     "enabled": true
   },
+  "routes": [
+    {
+      "pattern": "na.epical.connectorzzz.com",
+      "custom_domain": true
+    }
+  ],
   "containers": [
     {
       "name": "genesismesh-na-genesismeshnacontainer",
