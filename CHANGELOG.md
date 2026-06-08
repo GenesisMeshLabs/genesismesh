@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.21.2 - Operator Onboarding Status
+
+### Added
+
+- Added an "Onboarding and Initial Backers (proof pending)" section to the
+  maintainer-operated multi-cloud sovereign documentation, recording that additional
+  operators and backers are remaining prospective and preparing their own proof
+  material.
+
+### Changed
+
+- Made the verification gate explicit: a participant is named in the operator
+  cohort only when public proof artifacts (reachable endpoint, signed treaty,
+  redacted proof bundle) are committed under `examples/`.
+- Bumped the package version to `0.21.2`.
+
+### Notes
+
+- No organization, identity provider, or partner is named as an implementer or
+  operator until its proof artifacts exist. This keeps the registry aligned with
+  the future external-operator proof workflow rather than asserting unverified
+  adoption.
+
+### Verified
+
+- Ran the Sphinx docs build with warnings as errors and the package build.
+
 ## v0.21.1 - RFC Prior Art and Design Lineage
 
 ### Added
