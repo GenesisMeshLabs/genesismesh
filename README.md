@@ -168,6 +168,14 @@ revoked peers.
 
 [Documentation Website](https://genesismesh.connectorzzz.com)
 
+## Founding Community Operators
+
+v0.18.0 records the founding community operator cohort: non-maintainers who
+tested Genesis Mesh through the early public releases and now maintain their
+own sovereigns. Their public artifacts are under
+[`examples/founding-community-operators/`](examples/founding-community-operators/README.md)
+and [`examples/official-operators/`](examples/official-operators/README.md).
+
 ## Requirements
 
 - Python 3.12 or later

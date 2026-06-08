@@ -11,6 +11,9 @@ workflow.
 ## Start Here
 
 - [Operator Quickstart](quickstart.md): stand up a named sovereign on a VM.
+- [Founding Community Operators](founding-community-operators.md): review the
+  v0.18.0 founding operator cohort and the continuity cadence for active
+  sovereigns.
 - [Security Checklist](security-checklist.md): confirm independent operator
   control before counting adoption evidence.
 - [Federation Bootstrap](federation-bootstrap.md): review another sovereign and

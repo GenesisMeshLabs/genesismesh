@@ -2,6 +2,7 @@
   "cohort": "genesis-mesh-founding-community-operators",
   "release": "v0.18.0",
   "status": "adoption-proof-complete",
+  "next_milestone": "v0.19.0-active-sovereign-operator-continuity",
   "description": "Founding community operators who tested Genesis Mesh through the early public releases and now maintain their own sovereigns.",
   "operators": [
     {
@@ -54,5 +55,12 @@
     }
   ],
   "key_control_statement": "Founding community operators controlled their own genesis, Network Authority key, operator key, database, endpoint, and policy. Genesis Core did not receive or control their private keys.",
-  "public_artifacts_root": "../official-operators/"
+  "public_artifacts_root": "../official-operators/",
+  "continuity_expectations": [
+    "keep sovereign endpoints alive or intentionally mark them offline",
+    "refresh public trust bundles after meaningful trust-state changes",
+    "renew or replace treaties before expiry",
+    "run a quarterly attestation and revocation proof cycle",
+    "confirm Connectome state still reflects the active recognition graph"
+  ]
 }
