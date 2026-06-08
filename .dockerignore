@@ -20,7 +20,11 @@ wheels/
 *.egg
 MANIFEST
 .env
+.dev.vars
 .venv
+.venv/
+.venv-linux
+.venv-linux/
 env/
 venv/
 ENV/
@@ -28,6 +32,7 @@ env.bak/
 venv.bak/
 .mypy_cache/
 .pytest_cache/
+node_modules/
 .git
 .gitignore
 .azure/
@@ -40,8 +45,11 @@ examples/genesis/demo/
 # Local CLI/runtime output must never enter the build context.
 genesis-mesh.toml
 .genesis-mesh/
+.genesis-mesh-*/
 .node*/
 
+*.log
+*.pid
 *.db
 *.db-shm
 *.db-wal
