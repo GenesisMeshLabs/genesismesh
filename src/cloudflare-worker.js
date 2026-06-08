@@ -41,10 +41,28 @@ export default {
 
     if (url.pathname === "/cf-healthz") {
       return Response.json({
-        ok: true,
+        ok: Boolean(workerEnv.NA_PRIVATE_KEY && workerEnv.GENESIS_JSON),
         service: "genesismesh-na-worker",
         testCase: "EPICAL-NA",
+        hasGenesisJson: Boolean(workerEnv.GENESIS_JSON),
+        hasNaPrivateKey: Boolean(workerEnv.NA_PRIVATE_KEY),
       });
+    }
+
+    if (url.pathname === "/favicon.ico") {
+      return new Response(null, { status: 204 });
+    }
+
+    if (!workerEnv.NA_PRIVATE_KEY || !workerEnv.GENESIS_JSON) {
+      return Response.json(
+        {
+          error: "missing_cloudflare_secrets",
+          message:
+            "Set Worker secrets NA_PRIVATE_KEY and GENESIS_JSON before starting the EPICAL-NA container.",
+          requiredSecrets: ["NA_PRIVATE_KEY", "GENESIS_JSON"],
+        },
+        { status: 503 },
+      );
     }
 
     const container = getContainer(workerEnv.GENESIS_MESH_NA, "epical-na");
