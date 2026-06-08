@@ -1,7 +1,7 @@
 # Genesis Mesh Atlas
 
 **Status:** Phase 2 product concept
-**Purpose:** public explorer for sovereigns, operators, trust material, and recognition relationships.
+**Purpose:** public explorer for sovereigns, operators, trust material, digital twins, and recognition relationships.
 
 ## Positioning
 
@@ -32,6 +32,7 @@ Atlas should show:
 - managing partners;
 - public endpoints;
 - sovereign metadata;
+- digital twins or represented physical assets where an operator publishes them;
 - recognition treaties;
 - trust paths;
 - revocation-feed freshness;
@@ -92,6 +93,7 @@ Acceptable source types:
 - public trust bundles;
 - public revocation feeds;
 - public capability manifests;
+- public digital-twin or asset manifests;
 - repository proof artifacts;
 - operator-declared metadata.
 

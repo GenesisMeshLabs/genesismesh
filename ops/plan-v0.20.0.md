@@ -19,7 +19,8 @@ The release should prove this statement:
 - Atlas product direction in `docs/development/atlas.md`;
 - RFC program direction in `docs/development/rfc-program.md`;
 - governance baseline in `docs/development/governance-baseline.md`;
-- provenance note in `docs/phase-2-ecosystem.md`;
+- provenance note in `docs/phase-2-ecosystem.md`, including IoT
+  automation and digital-twin experimentation;
 - Windows-safe pre-push hook behavior for large-file checks and mutating
   formatters.
 
@@ -30,8 +31,8 @@ The release should prove this statement:
       operators, trust material, and recognition relationships.
 - [x] RFC program direction is documented.
 - [x] Governance baseline is documented.
-- [x] Provenance from the multi-cloud sovereign operation pattern to the Phase 2 baseline
-      is recorded.
+- [x] Provenance from the maintainer-operated multi-cloud sovereign operation, IoT automation, and
+      multi-cloud operation pattern to the Phase 2 baseline is recorded.
 - [x] Pre-push hooks validate without relying on `SKIP=check-added-large-files`.
 - [x] Mutating hooks no longer rewrite dirty docs during push validation.
 - [x] Full release verification passes.
