@@ -1,0 +1,4 @@
+# Preprod private key material — never commit.
+*.secrets.sh
+*.key
+miraos-upload/
