@@ -1,0 +1,39 @@
+# Genesis Mesh fleet configuration (template).
+#
+# Copy this file to `fleet.toml` (gitignored) and edit it for your environment.
+# Each NA is fully described by its own genesis-mesh.toml, so this file only
+# lists which configs are in the fleet plus global/tunnel settings.
+#
+# Every value here can be overridden by environment variables:
+#   GENESIS_FLEET_CONFIG   path to this file
+#   GENESIS_FLEET_REPO     repo root used to resolve relative paths
+
+[fleet]
+# Repo root. Relative paths below resolve from here. Leave commented to use the
+# repository this script lives in (ops/scripts/../..).
+# repo = "."
+
+# How to invoke the CLI. Default is the current Python's module entrypoint,
+# which always works inside the project venv. You can also use "genesis-mesh".
+# runner = "genesis-mesh"
+
+# Where per-node stdout/stderr logs and pidfiles are written.
+log_dir = ".genesis-mesh-logs"
+
+# The fleet: list each NA's genesis-mesh.toml. Add a node = add a line.
+nodes = [
+  ".genesis-mesh-example-na/genesis-mesh.toml",
+  # ".genesis-mesh-second-na/genesis-mesh.toml",
+]
+
+# Defaults used by `fleet mesh` (overridable with --roles / --validity-hours).
+default_roles = ["role:anchor", "role:bridge", "role:operator", "role:client"]
+default_validity_hours = 8760  # 24 * 365
+
+[tunnels]
+# Public tunnels for exposing local NAs (e.g. for demos / external operators).
+enabled = false
+provider = "localtunnel"          # requires `npx localtunnel`
+local_host = "127.0.0.1"
+# Subdomain becomes "<prefix>-<port>", e.g. acme-8443 -> https://acme-8443.loca.lt
+subdomain_prefix = "genesis"
