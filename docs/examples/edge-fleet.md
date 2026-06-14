@@ -58,3 +58,37 @@ If Factory B is decommissioned:
 3. Factory A and Factory C reject Factory B as a peer.
 4. Routes learned through Factory B are withdrawn.
 5. If the site returns later, issue a new invite and enroll it again.
+
+## Running a Local Multi-NA Fleet
+
+For development, demos, and small single-host fleets, the repository ships a
+fleet operations CLI at [`ops/scripts/fleet.py`](https://github.com/thaersaidi/genesismesh/blob/main/ops/scripts/fleet.py)
+(see `ops/scripts/README.md`). It manages several Network Authorities on one
+host and consolidates the day-2 tasks:
+
+| Command | Purpose |
+| --- | --- |
+| `up` / `down` / `restart` | Start/stop NAs |
+| `status` / `health` | Port and `/health` checks |
+| `tunnels up\|down\|status` | Expose NAs via public tunnels |
+| `mesh` | Wire recognition treaties across every node pair |
+| `verify` | Confirm trust-paths resolve across the fleet |
+| `migrate` | Run per-node database migrations |
+
+Each NA is described by its own `genesis-mesh.toml`, so the fleet config only
+lists which configs are in play (copy `ops/scripts/fleet.example.toml` to
+`ops/scripts/fleet.toml`). A typical loop:
+
+```bash
+python ops/scripts/fleet.py up        # start the fleet
+python ops/scripts/fleet.py health    # confirm each NA is serving
+python ops/scripts/fleet.py mesh      # issue recognition treaties (all pairs)
+python ops/scripts/fleet.py verify    # confirm trust paths
+```
+
+```{note}
+`fleet.py` targets single-host orchestration (local ports, optional tunnels) for
+dev/preprod/demo and small edge fleets. For production deployments — one NA per
+host under systemd or Kubernetes — use the
+[Deployment](../operations/deployment-index.md) runbooks instead.
+```
