@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.23.0 - Fleet Operations CLI
+
+### Added
+
+- Added a `genesis-mesh fleet` command group for operating a fleet of
+  independent sovereign Network Authorities:
+  - `fleet generate` scaffolds N sovereigns (root/NA/operator keys, a signed
+    genesis block, and a per-NA `genesis-mesh.toml`) plus a `fleet.toml`
+    manifest. Each NA is its own sovereign; adding one is a one-line manifest
+    edit.
+  - `fleet mesh` issues recognition treaties across every ordered pair so the
+    fleet trusts itself, reusing federation bootstrap for review, signing, and
+    trust-path verification. The operation is idempotent.
+  - `fleet verify` confirms a trust-path resolves across every ordered pair.
+  - `fleet status` reports `healthz`/`readyz` for each NA.
+- Added `genesis_mesh/tests/test_cli_fleet.py` and CLI reference plus
+  `docs/examples/edge-fleet.md` coverage for the new commands.
+
+### Changed
+
+- Bumped the package version to `0.23.0`.
+
+### Notes
+
+- The `fleet` commands are deterministic and API-driven; they do not start or
+  stop processes. Production NAs run one-per-host under systemd or Kubernetes.
+  Single-host dev/demo orchestration (start/stop/tunnels) lives in
+  `ops/scripts/fleet.py`, which shares the same `fleet.toml` manifest format.
+- The operator console `/cli-reference` page picks up the new group
+  automatically from the Click command tree.
+
+### Verified
+
+- Ran the live `fleet generate` -> `na start` -> `fleet mesh` -> `fleet verify`
+  flow across a generated three-NA fleet (all pairs trusted, re-mesh idempotent),
+  the full CLI test suite, mypy, and the Sphinx docs build with warnings as
+  errors.
+
 ## v0.22.0 - NBA Team-Operator Demo
 
 ### Added
