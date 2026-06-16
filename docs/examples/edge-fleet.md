@@ -59,36 +59,33 @@ If Factory B is decommissioned:
 4. Routes learned through Factory B are withdrawn.
 5. If the site returns later, issue a new invite and enroll it again.
 
-## Running a Local Multi-NA Fleet
+## Generating and Federating a Fleet
 
-For development, demos, and small single-host fleets, the repository ships a
-fleet operations CLI at [`ops/scripts/fleet.py`](https://github.com/thaersaidi/genesismesh/blob/main/ops/scripts/fleet.py)
-(see `ops/scripts/README.md`). It manages several Network Authorities on one
-host and consolidates the day-2 tasks:
-
-| Command | Purpose |
-| --- | --- |
-| `up` / `down` / `restart` | Start/stop NAs |
-| `status` / `health` | Port and `/health` checks |
-| `tunnels up\|down\|status` | Expose NAs via public tunnels |
-| `mesh` | Wire recognition treaties across every node pair |
-| `verify` | Confirm trust-paths resolve across the fleet |
-| `migrate` | Run per-node database migrations |
-
-Each NA is described by its own `genesis-mesh.toml`, so the fleet config only
-lists which configs are in play (copy `ops/scripts/fleet.example.toml` to
-`ops/scripts/fleet.toml`). A typical loop:
+The shipped CLI manages a fleet of independent sovereigns directly. Each NA is
+described by its own `genesis-mesh.toml`; a `fleet.toml` manifest lists which
+NAs are in the fleet.
 
 ```bash
-python ops/scripts/fleet.py up        # start the fleet
-python ops/scripts/fleet.py health    # confirm each NA is serving
-python ops/scripts/fleet.py mesh      # issue recognition treaties (all pairs)
-python ops/scripts/fleet.py verify    # confirm trust paths
+# Scaffold keys, signed genesis, and configs for 4 sovereigns + a manifest
+genesis-mesh fleet generate --output ./fleet --count 4 --prefix edge --base-port 8443
+
+# Start each NA (one per host in production; here for illustration)
+genesis-mesh na start --config ./fleet/edge-1/genesis-mesh.toml
+
+# Federate the whole fleet and confirm it
+genesis-mesh fleet mesh   --config ./fleet/fleet.toml   # treaties across all pairs
+genesis-mesh fleet verify --config ./fleet/fleet.toml   # confirm trust paths
+genesis-mesh fleet status --config ./fleet/fleet.toml   # healthz/readyz per NA
 ```
 
+`fleet mesh` is idempotent — re-running it skips pairs that already have an
+active treaty. See the [CLI reference](../reference/cli.md) for full options.
+
 ```{note}
-`fleet.py` targets single-host orchestration (local ports, optional tunnels) for
-dev/preprod/demo and small edge fleets. For production deployments — one NA per
-host under systemd or Kubernetes — use the
-[Deployment](../operations/deployment-index.md) runbooks instead.
+`genesis-mesh fleet` is deterministic and API-driven; it does not start or stop
+processes. Production NAs run one-per-host under systemd or Kubernetes (see the
+[Deployment](../operations/deployment-index.md) runbooks). For **local
+dev/demo** single-host orchestration — starting/stopping processes and public
+tunnels — use the `ops/scripts/fleet.py` helper, which adds `up`/`down`/
+`restart`/`tunnels` on top of the same manifest format.
 ```

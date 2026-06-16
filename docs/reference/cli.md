@@ -181,6 +181,64 @@ command reports that the treaty was persisted, writes that state to the
 evidence file when requested, and prints a cleanup hint using
 `genesis-mesh treaty revoke`.
 
+### `genesis-mesh fleet generate`
+
+Scaffolds a fleet of independent sovereign Network Authorities — for each NA it
+generates root/NA/operator keys, a signed genesis block, and a
+`genesis-mesh.toml`, then writes a `fleet.toml` manifest listing them. Adding an
+NA later is a one-line manifest edit.
+
+```bash
+genesis-mesh fleet generate \
+  --output ./fleet \
+  --count 4 \
+  --prefix edge \
+  --base-port 8443
+# or name them explicitly:
+genesis-mesh fleet generate --output ./fleet --name bos-na --name sas-na
+```
+
+Each NA is its own sovereign (distinct root key and genesis). Ports increment
+from `--base-port`. The generated genesis blocks carry a placeholder policy
+hash — replace it before production use.
+
+### `genesis-mesh fleet mesh`
+
+Issues recognition treaties across every ordered pair of NAs in the manifest so
+the whole fleet trusts itself. It reviews each sovereign, issues the treaty with
+the accepting NA's operator key, and verifies the resulting trust path. The
+operation is **idempotent** — pairs that already have an active treaty are
+skipped.
+
+```bash
+genesis-mesh fleet mesh --config ./fleet/fleet.toml
+genesis-mesh fleet mesh --config ./fleet/fleet.toml --role role:operator --format json
+```
+
+### `genesis-mesh fleet verify`
+
+Confirms a trust path resolves across every ordered pair. Exits non-zero if any
+pair is untrusted.
+
+```bash
+genesis-mesh fleet verify --config ./fleet/fleet.toml
+```
+
+### `genesis-mesh fleet status`
+
+Reports `healthz`/`readyz` for each NA in the manifest.
+
+```bash
+genesis-mesh fleet status --config ./fleet/fleet.toml
+```
+
+```{note}
+The `fleet` commands are deterministic and API-driven (no host process
+management). Production NAs run one-per-host under systemd or Kubernetes — see
+the [Deployment](../operations/deployment-index.md) runbooks. For local
+dev/demo orchestration (start/stop/tunnels on one host) use `ops/scripts/fleet.py`.
+```
+
 ### `genesis-mesh trust-bundle export`
 
 Exports public sovereign trust material into a reviewable JSON bundle.

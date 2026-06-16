@@ -11,6 +11,14 @@ It complements the **bootstrap** scripts elsewhere in the repo
 which only handle keygen → genesis → sign → verify. Once your NAs exist, you run
 them with `fleet.py`.
 
+> **Relationship to `genesis-mesh fleet`.** The shipped CLI now provides the
+> production-grade, deterministic fleet commands: `genesis-mesh fleet generate`
+> (scaffold a fleet + manifest), `mesh`, `verify`, and `status`. Prefer those
+> for generating and federating fleets. This script adds the **single-host
+> dev/demo orchestration** the shipped CLI deliberately omits — `up`/`down`/
+> `restart` (spawning processes) and `tunnels` (localtunnel) — on top of the
+> same `fleet.toml` manifest format.
+
 ## Why this exists
 
 Each NA is fully described by its own `genesis-mesh.toml` (name, port, endpoint,

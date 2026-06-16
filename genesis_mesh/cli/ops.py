@@ -14,6 +14,7 @@ from werkzeug.serving import run_simple
 
 from .dev_ops import dev
 from .federation import federation
+from .fleet_ops import fleet
 from .init_ops import init
 from .managed import managed
 from .proof_ops import proof
@@ -69,6 +70,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(discover)
     cli.add_command(sovereign)
     cli.add_command(federation)
+    cli.add_command(fleet)
     cli.add_command(proof)
     cli.add_command(managed)
     cli.add_command(supply_chain)
