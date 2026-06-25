@@ -5,9 +5,9 @@
 
 ## Why governance now
 
-Genesis Mesh has moved beyond a local technical proof. Once external
-sovereigns, public trust material, and managing-partner roles exist, reviewers
-will ask governance questions.
+Genesis Mesh has moved beyond a local technical proof into maintainer-operated
+multi-cloud sovereign operation. Before external operators arrive, reviewers
+will ask governance questions about control, stewardship, and exit rights.
 
 Those questions do not require a legal foundation on day one, but they do
 require clear written answers.

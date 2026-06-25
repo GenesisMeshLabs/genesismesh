@@ -19,8 +19,8 @@ The release should prove this statement:
 - Atlas product direction in `docs/development/atlas.md`;
 - RFC program direction in `docs/development/rfc-program.md`;
 - governance baseline in `docs/development/governance-baseline.md`;
-- provenance note in `docs/phase-2-ecosystem.md`, including IoT
-  automation and digital-twin experimentation;
+- Phase 2 externalization plan in `docs/development/phase-2-ecosystem.md`,
+  covering maintainer-operated multi-cloud sovereign operation;
 - Windows-safe pre-push hook behavior for large-file checks and mutating
   formatters.
 

@@ -1,12 +1,14 @@
 # Roadmap
 
-Genesis Mesh has crossed from protocol-foundation work into ecosystem formation.
+Genesis Mesh has crossed from protocol-foundation work into externalization:
+turning a maintainer-operated multi-cloud sovereign fleet into something
+external operators and implementers can evaluate and run.
 
 The current baseline is:
 
 - **Baseline date:** 2026-06-08
 - **Baseline release:** v0.20.0 ecosystem baseline
-- **Current phase:** Phase 2 — Ecosystem
+- **Current phase:** Phase 2 - Externalization
 
 For the detailed Phase 2 plan, see {doc}`phase-2-ecosystem`.
 
@@ -39,13 +41,15 @@ Genesis Mesh now has evidence across three layers.
 - Operator runbooks.
 - Public trust material.
 
-### Adoption proof
+### Externalization status
 
-- Maintainer-operated sovereign deployments represented as maintainer-operated multi-cloud sovereigns.
+- Maintainer-operated sovereigns running across Azure, DigitalOcean,
+  Cloudflare, and Akamai/Linode.
 - Recognition relationships beyond maintainer-only local demos.
 - Public operator proof artifacts.
 - Operator continuity expectations.
-- Connectorzzz intended as the onboarding vehicle for onboarding and coordination.
+- External operator adoption remains pending.
+- Connectorzzz is the intended onboarding and coordination vehicle.
 
 ## Strategic shift
 
@@ -54,10 +58,11 @@ releases.
 
 The next roadmap is:
 
-> Phase 2 — Ecosystem
+> Phase 2 - Externalization
 
-Phase 1 proved that sovereign trust can work. Phase 2 must prove that sovereign
-trust can become a network.
+Phase 1 proved that sovereign trust can work across a maintainer-operated
+multi-cloud fleet. Phase 2 must prove that external operators and independent
+implementations can join without surrendering control.
 
 ## Phase 2 priorities
 

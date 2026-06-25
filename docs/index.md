@@ -222,7 +222,6 @@ development/phase-2-ecosystem
 development/rfc-program
 development/atlas
 development/governance-baseline
-phase-2-ecosystem
 development/contributing
 development/module-structure
 development/testing

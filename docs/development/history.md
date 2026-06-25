@@ -361,22 +361,22 @@ federation step is now easier to run, package for review, inspect through
 operator-facing views, and explain visually, but a future external operator is
 still required for multi-cloud operation proof.
 
-### Phase F - Adoption, Operator Continuity, and Ecosystem Baseline (v0.18.0 through v0.21.0)
+### Phase F - Multi-Cloud Operation and Externalization Baseline (v0.18.0 through v0.21.0)
 
-**Question:** Has someone else become operationally visible in the network?
+**Question:** Can separate sovereigns run across real cloud boundaries, and what
+still has to happen before external adoption is real?
 
-This phase moved the project beyond maintainer-only demonstrations. It created
-public evidence for maintainer-operated sovereign deployments, maintainer-operated multi-cloud sovereigns,
-operator-owned control boundaries, and continuity expectations after the first
-proof.
+This phase moved the project beyond local demonstrations. It created public
+evidence for maintainer-operated sovereign deployments across multiple clouds,
+separate control boundaries, and continuity expectations after the first
+multi-cloud proof.
 
-**v0.18.0 - Multi-Cloud Sovereign Operation Proof.** Maintainer-operated sovereign deployments are
-represented through public proof material. The multi-cloud operation proof distinguishes
-operator-owned trust domains from Genesis Core maintenance: each operator has its
-own sovereign identity, Network Authority key, operator key, policy, endpoint,
-and public proof artifacts. The milestone shows that Genesis Mesh can explain and
-package multi-cloud operation rather than only local or maintainer-run
-scenarios.
+**v0.18.0 - Multi-Cloud Sovereign Operation Proof.** Maintainer-operated
+sovereign deployments are represented through public proof material. The proof
+distinguishes separate sovereign trust domains from a single local demo: each
+sovereign has its own identity, Network Authority key, operator key, policy,
+endpoint, and public proof artifacts. The milestone shows that Genesis Mesh can
+explain and package multi-cloud operation rather than only local scenarios.
 
 The Operator Quality Test remains the standard for assessing whether an operator
 is meaningful: did they ask to run a sovereign or did the maintainer push them;
@@ -384,9 +384,9 @@ do they have a reason to operate that exists even if Genesis Mesh does not
 succeed; would they keep operating after the proof; are they willing to be named
 publicly; can they explain why they are running it without coaching.
 
-**v0.19.0 - Operator Continuity.** The multi-cloud operation proof becomes an ongoing
-operator-continuity model. Maintainer-operated multi-cloud sovereigns are documented as
-maintainer-operated sovereign deployments who are maintained as separate sovereign trust domains.
+**v0.19.0 - Operator Continuity.** The multi-cloud proof becomes an ongoing
+continuity model. Maintainer-operated multi-cloud sovereigns are documented as
+separate sovereign trust domains.
 Continuity expectations cover endpoint health, backups, treaty expiry review,
 trust-bundle refresh, recurring attestation/revocation proof, and Connectome
 state checks.
@@ -405,10 +405,10 @@ feeds, capability manifests, the Connectome model, operator continuity, and the
 managed operator role. The protocol can now be read as a standard, not only as
 Python.
 
-**At the end of Phase F:** Genesis Mesh has technical proof, operational proof,
-and early multi-cloud operation proof. The next risk is no longer only technical. It is
-ecosystem risk, governance risk, independent implementation risk, and
-application-layer relevance.
+**At the end of Phase F:** Genesis Mesh has technical proof and operational
+multi-cloud proof. The next risk is no longer only technical. It is external
+operator adoption, governance, independent implementation, and application-layer
+relevance.
 
 ---
 
@@ -472,21 +472,20 @@ As of the current Phase 2 baseline:
 - The Connectome surfaces the recognition graph with trust-path
   explanations and revocation blast-radius summaries, as one view
   over signed protocol data.
-- Two independent infrastructure deployments have successfully recognized each
-  other and propagated a revocation across a real network boundary between
-  Azure and DigitalOcean.
-- Maintainer-operated multi-cloud sovereigns are documented as maintainer-operated sovereign deployments
-  who are maintained as separate sovereign trust domains.
+- Maintainer-operated sovereigns run across Azure, DigitalOcean, Cloudflare, and
+  Akamai/Linode with separate identities, keys, endpoints, policies, and public
+  trust material.
+- Separate sovereign deployments have successfully recognized each other and
+  propagated revocation across real network boundaries.
 - A reproducible operator packet exists, including a quickstart, a
   security checklist, a recognition playbook, and a proof bundle
   schema. The proof bundle format distinguishes maintainer-operated
   infrastructure from externally-operated infrastructure.
 - Public operator proof artifacts and continuity expectations exist for the
   maintainer-operated multi-cloud sovereign fleet.
-- Connectorzzz has a defined managing-partner role: operator onboarding,
-  endpoint coordination, public trust material, continuity checks, and
-  client-facing confidence without becoming hidden owner of the operators'
-  private keys or trust decisions.
+- Connectorzzz is the intended onboarding and coordination vehicle for future
+  external operators, without becoming hidden owner of their private keys or
+  trust decisions.
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
@@ -502,6 +501,9 @@ As of the current Phase 2 baseline, the following are *not* yet true:
   exit note, and managing-partner boundary document.
 - A second implementation has not yet completed treaty-backed interoperability
   with the Python reference implementation.
+- No external operator has yet run a sovereign with their own
+  infrastructure account, keys, policy, endpoint, and continuity
+  responsibilities.
 - The first native application has not yet made Genesis Mesh legible to a
   non-protocol buyer or operator workflow.
 
@@ -517,7 +519,7 @@ are listed as paths rather than as links.
 - Pre-1.0 milestone list: `ops/roadmap.md`
 - Per-release plans (v0.1.0 through v0.22.0): `ops/plan-v0.*.md`
 - Phase 2 ecosystem roadmap: `docs/development/phase-2-ecosystem.md`
-- Provenance note: `docs/phase-2-ecosystem.md`
+- Phase 2 externalization plan: `docs/development/phase-2-ecosystem.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 

@@ -1,8 +1,9 @@
-# Phase 2 — Ecosystem
+# Phase 2 - Externalization
 
 **Baseline date:** 2026-06-08
 **Baseline release:** v0.20.0 ecosystem baseline
-**Strategic shift:** from proving protocol primitives to forming an ecosystem.
+**Strategic shift:** from maintainer-operated multi-cloud proof to external
+operators, independent implementations, and ecosystem-facing surfaces.
 
 ## Summary
 
@@ -11,11 +12,15 @@ identity, Network Authorities, recognition treaties, trust bundles, revocation
 feeds, federation bootstrap, discovery, capability routing, Connectome views,
 and multi-sovereign operation.
 
-By v0.20.0, the project also documented the Phase 2 ecosystem baseline after
-operator continuity: maintainer-operated sovereign deployments, independent operator keys,
-independent infrastructure, public trust material, provenance from IoT
-automation and digital-twin experimentation, and Connectorzzz acting as a
-managing partner for operator onboarding and coordination.
+By v0.20.0, the project documented a stronger operational baseline:
+maintainer-operated sovereigns running across Azure, DigitalOcean, Cloudflare,
+and Akamai/Linode, with separate identities, operator keys, infrastructure,
+public endpoints, recognition treaties, revocation feeds, and trust material.
+
+This is multi-cloud operation proof. It is not yet external operator adoption.
+The next milestone is a external operator running a sovereign with their
+own infrastructure account, keys, policy, endpoint, and continuity
+responsibilities.
 
 The rollout closure marker adds the final Phase 1 proof shape: a sovereign
 operator can move from evidence collection to structured accountability, direct
@@ -24,15 +29,15 @@ identity or records. See {doc}`rollout-closure`.
 
 Phase 2 asks a different question:
 
-> Can Genesis Mesh become an ecosystem rather than only a working
-> implementation?
+> Can Genesis Mesh move from a maintainer-operated multi-cloud fleet to a real
+> external operator network?
 
 The primary risks are now ecosystem risk, governance risk, adoption risk,
 independent implementation risk, and application-layer relevance.
 
 ## Phase line
 
-> Phase 1 proved the protocol. Phase 2 proves the network.
+> Phase 1 proved the protocol. Phase 2 proves external operation.
 
 ## What Phase 1 proved
 
@@ -53,24 +58,29 @@ independent implementation risk, and application-layer relevance.
 
 - Azure-hosted Network Authority.
 - DigitalOcean-hosted Network Authority.
-- Independent keys.
-- Independent policies.
-- Independent infrastructure.
+- Cloudflare-hosted Network Authority surface.
+- Akamai/Linode-hosted Network Authority.
+- Separate keys.
+- Separate policies.
+- Separate infrastructure.
 - Public endpoints.
 - Public trust material.
 - Operator-facing runbooks and continuity checks.
 
-### Adoption proof
+### Externalization status
 
-- Maintainer-operated sovereign deployments represented as maintainer-operated multi-cloud sovereigns.
+- Maintainer-operated sovereigns run across multiple clouds.
 - Recognition relationships between sovereigns.
 - Public operator proof artifacts.
-- Continuity expectations for active operators.
-- Connectorzzz framed as the intended onboarding vehicle rather than protocol owner.
+- Continuity expectations for active sovereign deployments.
+- External operator adoption remains pending.
+- Connectorzzz is the intended onboarding vehicle, not a claimed third-party
+  operator network.
 
 ## Phase 2 objectives
 
-Phase 2 turns Genesis Mesh from a project into an ecosystem surface.
+Phase 2 turns Genesis Mesh from a working maintainer-operated system into
+something external operators and implementers can evaluate and run.
 
 The objectives are:
 
@@ -78,10 +88,9 @@ The objectives are:
 2. Make the network inspectable through Atlas.
 3. Make stewardship credible through governance documentation.
 4. Make portability undeniable through independent implementations.
-5. Make value obvious through a first native application, including workflows
-   where physical assets or automated environments are represented digitally.
+5. Make value obvious through a first native application or operator workflow.
 
-## Pillar 1 — Genesis Mesh RFCs
+## Pillar 1 - Genesis Mesh RFCs
 
 Genesis Mesh needs a standards-shaped body of protocol documents so that future
 operators and implementers can understand the protocol without reading the
@@ -100,22 +109,22 @@ Initial RFC candidates:
 
 See {doc}`rfc-program`.
 
-## Pillar 2 — Genesis Mesh Atlas
+## Pillar 2 - Genesis Mesh Atlas
 
-Genesis Mesh Atlas should become the public explorer for the ecosystem.
+Genesis Mesh Atlas should become the public explorer for the sovereign fleet and
+future ecosystem.
 
 Atlas is not a demo page. It is the answer to:
 
 > Who is using Genesis Mesh?
 
-It should show sovereigns, authorities, operators, managing partners,
-recognition treaties, trust paths, revocation state, capability manifests,
-digital-twin or asset manifests, public endpoints, and operator continuity
-signals.
+It should show sovereigns, authorities, operators, recognition treaties, trust
+paths, revocation state, capability manifests, public endpoints, cloud placement,
+and continuity signals.
 
 See {doc}`atlas`.
 
-## Pillar 3 — Governance baseline
+## Pillar 3 - Governance baseline
 
 Genesis Mesh does not need a legal foundation immediately, but it needs
 foundation-style answers.
@@ -134,14 +143,14 @@ The governance baseline should answer:
 
 See {doc}`governance-baseline`.
 
-## Pillar 4 — Independent implementations
+## Pillar 4 - Independent implementations
 
 The strongest next technical proof is not another Python feature. It is a second
 implementation that can interoperate with the Python reference implementation.
 
 Target proof:
 
-> Python sovereign ↔ Go sovereign
+> Python sovereign <-> Go sovereign
 
 Minimum acceptance:
 
@@ -155,14 +164,11 @@ Minimum acceptance:
 That proof changes the claim from "Genesis Mesh is software" to "Genesis Mesh is
 a protocol."
 
-## Pillar 5 — First native application
+## Pillar 5 - First native application
 
 Phase 2 should not only add protocol primitives. It should produce one
-application that makes the value obvious to people who do not care about trust
-architecture. The multi-cloud sovereign operation proof matters here:
-Genesis Mesh should be able to explain not only who operates a sovereign, but
-also which represented assets, environments, or capabilities are visible through
-that sovereign.
+application or workflow that makes the value obvious to people who do not care
+about trust architecture.
 
 The strongest candidate is:
 
@@ -170,12 +176,13 @@ The strongest candidate is:
 
 The application thesis:
 
-> Independent operators should be able to remain sovereign while coordinating
-> with the delivery confidence of a larger firm.
+> External operators should be able to remain sovereign while coordinating with
+> the delivery confidence of a larger firm.
 
 Genesis Mesh provides identity, recognition, revocation, capabilities, and
-trust-path evidence. Connectorzzz provides onboarding, coordination, public
-endpoint management, continuity checks, and client-facing packaging.
+trust-path evidence. Connectorzzz is the intended vehicle for onboarding,
+coordination, public endpoint management, continuity checks, and client-facing
+packaging when external operators arrive.
 
 ## Non-goals for Phase 2
 
@@ -201,11 +208,12 @@ Phase 2 succeeds when Genesis Mesh has evidence for all of the following:
   operator exit/fork rights.
 - A second implementation performs at least one treaty-backed trust exchange
   with the Python reference implementation.
-- A native application demonstrates why the trust fabric matters to a concrete
-  customer or operator workflow.
+- At least one external operator runs a sovereign with their own keys,
+  infrastructure account, policy, endpoint, and continuity responsibilities.
+- A native application or operator workflow demonstrates why the trust fabric
+  matters beyond protocol readers.
 
 ## Strategic anchor
 
-> The multi-cloud sovereign operation work showed the problem.
-> Genesis Mesh formalizes the protocol answer. Connectorzzz operationalizes the
-> ecosystem answer.
+> The multi-cloud sovereign fleet proves the operational pattern. Phase 2 proves
+> whether external operators and implementers can adopt it.

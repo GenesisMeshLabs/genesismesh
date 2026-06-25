@@ -170,4 +170,3 @@ Related documents:
 - {doc}`roadmap`
 - {doc}`phase-2-ecosystem`
 - {doc}`governance-baseline`
-- {doc}`../phase-2-ecosystem`

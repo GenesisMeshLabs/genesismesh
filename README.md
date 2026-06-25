@@ -170,9 +170,11 @@ revoked peers.
 
 ## Maintainer-Operated Multi-Cloud Sovereigns
 
-v0.18.0 records the maintainer-operated multi-cloud sovereign fleet: maintainer-operated sovereign deployments that
-tested Genesis Mesh through the early public releases and now maintain their
-own sovereigns. Their public artifacts are under
+v0.18.0 records the maintainer-operated multi-cloud sovereign fleet. The fleet
+proves separate sovereign identities, keys, endpoints, treaties, revocation
+feeds, and public trust material across multiple cloud providers. It is
+operational portability proof, not third-party adoption proof. Public artifacts
+are under
 [`examples/reference-sovereign-operators/`](examples/reference-sovereign-operators/README.md)
 and [`examples/official-operators/`](examples/official-operators/README.md).
 

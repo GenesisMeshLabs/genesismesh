@@ -1,15 +1,21 @@
 # Maintainer-Operated Multi-Cloud Sovereigns
 
-The maintainer-operated multi-cloud sovereigns are maintainer-operated sovereign deployments that exercised
-the protocol through early public releases and now maintain their own sovereign
-trust domains.
+These sovereigns are separate maintainer-operated deployments used to prove that
+Genesis Mesh can run across multiple clouds with distinct identities, keys,
+endpoints, policies, recognition treaties, revocation feeds, and public trust
+material.
+
+This page is operational portability evidence, not external adoption evidence.
+External operator adoption begins when a external runs a sovereign with
+their own infrastructure account, keys, policy, endpoint, and continuity
+responsibilities.
 
 Their public proof artifacts are stored under
 `examples/reference-sovereign-operators/` and `examples/official-operators/`.
 Private runtime homes, local configs, logs, databases, and keys are not part of
 the public artifacts.
 
-## Cohort
+## Reference Fleet
 
 | Operator label | Sovereign | Public artifacts |
 | --- | --- | --- |
@@ -20,15 +26,15 @@ the public artifacts.
 | `ONS-A-NA` | `ONS-A-NA` | `examples/official-operators/ons-a-na/` |
 | `USG-NB` | `USG-NB` | `examples/official-operators/usg-nb/` |
 
-## Onboarding and Initial Backers (proof pending)
+## External Operators (proof pending)
 
-Additional external operators and initial backers remain prospective. The endpoints,
-signed treaties, and proof bundles for these participants are prepared by the
-future participants once their own proof exists.
+Additional external operators and initial backers remain prospective. They
+should only be listed here after their endpoints, signed treaties, and proof
+bundles exist and show operator control.
 
-To keep this registry honest and externally defensible, a participant is added
-to the cohort table above — and described as adopting or operating Genesis Mesh
-— only when their public proof artifacts are committed under
+To keep this registry honest and externally defensible, an external participant
+is added to a future operator table only when their public proof artifacts are
+committed under
 `examples/official-operators/` or `examples/reference-sovereign-operators/`.
 Until those artifacts exist, no organization, identity provider, or partner is
 named here as an implementer or operator.
@@ -41,19 +47,18 @@ Each verified entry requires, at minimum:
 - a redacted proof bundle conforming to {doc}`proof-bundle-schema`, carrying the
   Network Authority public-key prefix and endpoint.
 
-This is the same evidence standard the reference sovereign fleet met. It is deliberate:
-the gate is what lets a named claim survive external review. The recruitment and
-onboarding path for new participants is described in
-{doc}`external-operator-proof`.
+This evidence gate is deliberate: it is what lets a named adoption claim survive
+external review. The recruitment and onboarding path for new participants is
+described in {doc}`external-operator-proof`.
 
 ## Control Statement
 
-For the v0.18.0 multi-cloud operation proof, the maintainer-operated multi-cloud sovereigns controlled
-their own genesis, Network Authority key, operator key, database, endpoint, and
+For the v0.18.0 multi-cloud operation proof, each sovereign had separate
+genesis material, Network Authority key, operator key, database, endpoint, and
 policy. Private keys were separate per sovereign and not committed.
 
-The reference sovereigns are separate maintainer-operated sovereign deployments. They
-are not Genesis Mesh core maintainers.
+The reference sovereigns are separate maintainer-operated deployments. They are
+not third-party operators.
 
 ## Continuity Expectations
 
@@ -116,7 +121,7 @@ genesis-mesh treaty renew --na "$NA_ENDPOINT" "$TREATY_ID"
 
 ## Quarterly Proof Cycle
 
-At least once per quarter, the active operator set should run a short proof
+At least once per quarter, the active sovereign fleet should run a short proof
 cycle:
 
 1. Issue one membership, maintainer, or agent attestation.
@@ -127,5 +132,5 @@ cycle:
 6. Export updated public trust material.
 7. Record the refreshed artifact path.
 
-This keeps the maintainer-operated multi-cloud sovereign proof alive instead of treating it
-as a one-time release event.
+This keeps the maintainer-operated multi-cloud sovereign proof alive instead of
+treating it as a one-time release event.
