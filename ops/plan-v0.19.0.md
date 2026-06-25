@@ -15,7 +15,7 @@ The release should prove this statement:
 
 `v0.19.0` ships the continuity layer for the maintainer-operated multi-cloud sovereigns:
 
-- public operator registry in `docs/operators/reference-sovereign-operators.md`;
+- public operator registry in `docs/operators/maintainer-operated-sovereigns.md`;
 - README and operator-docs links to the maintainer-operated multi-cloud sovereign fleet;
 - continuity expectations in
   `examples/reference-sovereign-operators/operators.json`;
@@ -61,7 +61,7 @@ proves brittle.
 
 ### Phase 1 - Registry and Runbooks
 
-- [x] Publish `docs/operators/reference-sovereign-operators.md`.
+- [x] Publish `docs/operators/maintainer-operated-sovereigns.md`.
 - [x] Link the registry from README and operator docs.
 - [x] Add one continuity runbook per reference sovereign or a shared template if
       the steps are identical.

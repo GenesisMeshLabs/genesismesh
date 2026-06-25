@@ -89,7 +89,7 @@ many operators.
   management, and continuity support; operators keep identity, recognition,
   revocation, and trust-path authority.
 - Governance roles, change authority, and the RFC process that frames this role
-  are described in {doc}`/development/governance-baseline`.
+  are described in {doc}`/development/governance`.
 
 ## Compatibility notes
 

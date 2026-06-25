@@ -13,10 +13,10 @@ under `ops/nba/`.
 named after NBA cities only to make the operator pattern legible. They are
 **not** affiliated with, endorsed by, or operated by any NBA team, the NBA, or
 the NBPA, and they contain no real player, contract, financial, or personal
-data. Nothing here implies a partnership. Real adoption is proven only through
+data. Nothing here implies a partnership. External adoption is proven only through
 the {doc}`future external-operator proof workflow </operators/external-operator-proof>`,
 which is why these demo operators are kept out of the
-{doc}`maintainer-operated multi-cloud sovereign fleet </operators/reference-sovereign-operators>`.
+{doc}`maintainer-operated multi-cloud sovereign fleet </operators/maintainer-operated-sovereigns>`.
 ```
 
 ## Why this maps to the Aspayr operator wedge

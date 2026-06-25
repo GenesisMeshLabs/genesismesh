@@ -1,4 +1,4 @@
-# Phase 2 - Externalization
+# Phase 2 Externalization
 
 **Baseline date:** 2026-06-08
 **Baseline release:** v0.20.0 ecosystem baseline
@@ -18,14 +18,14 @@ and Akamai/Linode, with separate identities, operator keys, infrastructure,
 public endpoints, recognition treaties, revocation feeds, and trust material.
 
 This is multi-cloud operation proof. It is not yet external operator adoption.
-The next milestone is a external operator running a sovereign with their
+The next milestone is an external operator running a sovereign with their
 own infrastructure account, keys, policy, endpoint, and continuity
 responsibilities.
 
 The rollout closure marker adds the final Phase 1 proof shape: a sovereign
 operator can move from evidence collection to structured accountability, direct
 institutional notice, and escalation readiness without surrendering control of
-identity or records. See {doc}`rollout-closure`.
+identity or records. See {doc}`phase-1-rollout-closure`.
 
 Phase 2 asks a different question:
 
@@ -141,7 +141,7 @@ The governance baseline should answer:
 - What happens if the original maintainer disappears?
 - Can operators fork, revoke, or exit?
 
-See {doc}`governance-baseline`.
+See {doc}`governance`.
 
 ## Pillar 4 - Independent implementations
 
@@ -170,7 +170,7 @@ Phase 2 should not only add protocol primitives. It should produce one
 application or workflow that makes the value obvious to people who do not care
 about trust architecture.
 
-The strongest candidate is:
+The intended candidate is:
 
 > Connectorzzz Operator Network
 

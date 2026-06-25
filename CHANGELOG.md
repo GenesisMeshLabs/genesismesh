@@ -75,15 +75,15 @@
 
 ### Added
 
-- Added an "Onboarding and Initial Backers (proof pending)" section to the
-  maintainer-operated multi-cloud sovereign documentation, recording that additional
-  operators and backers are remaining prospective and preparing their own proof
-  material.
+- Added an "External Operators (proof pending)" section to the
+  maintainer-operated multi-cloud sovereign documentation, recording that
+  additional operators and backers remain prospective until their proof material
+  exists.
 
 ### Changed
 
 - Made the verification gate explicit: a participant is named in the operator
-  cohort only when public proof artifacts (reachable endpoint, signed treaty,
+  registry only when public proof artifacts (reachable endpoint, signed treaty,
   redacted proof bundle) are committed under `examples/`.
 - Bumped the package version to `0.21.2`.
 
@@ -118,7 +118,7 @@
 
 - The lineage document is design provenance, not an adoption record. It makes no
   claim that any organization, identity provider, or partner has implemented or
-  endorsed Genesis Mesh; real third-party adoption remains gated on the
+  endorsed Genesis Mesh; third-party adoption remains gated on the
   future external-operator proof workflow.
 
 ### Verified
@@ -720,7 +720,7 @@
   external issuer operator.
 - Added `--adoption-proof` validation requiring the issuer to be marked
   external and to confirm control of keys and infrastructure before a bundle is
-  accepted as adoption evidence.
+  accepted as external adoption evidence.
 - Added operator packet documentation for external sovereign onboarding:
   security checklist, recognition playbook, and proof-bundle schema.
 - Linked the operator packet from the documentation index and CLI reference.

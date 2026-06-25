@@ -1,8 +1,8 @@
-# Rollout Closure
+# Phase 1 Rollout Closure
 
 **Status:** Phase 1 / rollout closure marker
 **Closure date:** 2026-06-08
-**Next state:** Phase 2 — Ecosystem
+**Next state:** Phase 2 - Externalization
 
 ## Summary
 
@@ -12,7 +12,7 @@ only technical protocol behavior, but also a real-world accountability workflow.
 The closure point is not a single feature. It is the point where the protocol
 arc connects to institutional reality:
 
-> identity → evidence → trust → accountability → responsible escalation path
+> identity -> evidence -> trust -> accountability -> responsible escalation path
 
 By this marker, Genesis Mesh has moved beyond a local implementation proof. It
 has demonstrated the operating pattern needed for sovereign actors to collect
@@ -85,11 +85,11 @@ loop:
 
 ```text
 sovereign identity
-  → evidence collection
-  → structured proof
-  → accountable notice
-  → institutional response path
-  → escalation readiness
+  -> evidence collection
+  -> structured proof
+  -> accountable notice
+  -> institutional response path
+  -> escalation readiness
 ```
 
 This does not mean the ecosystem is complete. It means the foundation has done
@@ -168,5 +168,5 @@ Related documents:
 
 - {doc}`history`
 - {doc}`roadmap`
-- {doc}`phase-2-ecosystem`
-- {doc}`governance-baseline`
+- {doc}`phase-2-externalization`
+- {doc}`governance`

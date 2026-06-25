@@ -40,7 +40,7 @@ for the highest-value one:
 - RFC-005 Capability Manifests (`genesis_mesh/models/discovery.py`).
 - RFC-006 Connectome Model (`genesis_mesh/trust/connectome.py`).
 - RFC-007 Operator Continuity (`docs/operators/`).
-- RFC-008 Managed Operator Role (`docs/development/governance-baseline.md`).
+- RFC-008 Managed Operator Role (`docs/development/governance.md`).
 
 ## Success Criteria
 

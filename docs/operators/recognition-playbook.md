@@ -14,7 +14,7 @@ prove that Sovereign B can later revoke its own trust material.
 | Issuer | The sovereign that issues and revokes the membership attestation. |
 | Subject | The maintainer, service, agent, or key named by the issuer's attestation. |
 
-For the v0.14 multi-cloud operation proof, the issuer should be the external operator.
+For external adoption proof, the issuer should be the external operator.
 
 ## 1. Exchange Public Metadata
 
@@ -46,7 +46,7 @@ Before the proof run, record:
 - What assistance Genesis Core provided.
 
 If the issuer does not control both keys and infrastructure, the proof can
-still be technically useful, but it is not v0.14 adoption evidence.
+still be technically useful, but it is not external adoption evidence.
 
 ## 3. Run The Remote Proof
 

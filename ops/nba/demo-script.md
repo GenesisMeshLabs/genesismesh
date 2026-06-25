@@ -64,6 +64,6 @@ Scenario:
 
 - "We advise the player how to invest."
 - "The team can see who is at risk."
-- "Any claim that Aspayr has an NBA, NBPA, or team partnership."
+- Any claim that Aspayr has an NBA, NBPA, or team partnership.
 - "We replace the player's CPA, agent, attorney, or advisor."
 - "We use real player data" unless it is true and authorized.

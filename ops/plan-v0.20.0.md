@@ -15,11 +15,11 @@ The release should prove this statement:
 
 `v0.20.0` ships the Phase 2 ecosystem baseline:
 
-- Phase 2 ecosystem objectives in `docs/development/phase-2-ecosystem.md`;
+- Phase 2 externalization objectives in `docs/development/phase-2-externalization.md`;
 - Atlas product direction in `docs/development/atlas.md`;
 - RFC program direction in `docs/development/rfc-program.md`;
-- governance baseline in `docs/development/governance-baseline.md`;
-- Phase 2 externalization plan in `docs/development/phase-2-ecosystem.md`,
+- governance documentation in `docs/development/governance.md`;
+- Phase 2 externalization plan in `docs/development/phase-2-externalization.md`,
   covering maintainer-operated multi-cloud sovereign operation;
 - Windows-safe pre-push hook behavior for large-file checks and mutating
   formatters.
@@ -31,8 +31,8 @@ The release should prove this statement:
       operators, trust material, and recognition relationships.
 - [x] RFC program direction is documented.
 - [x] Governance baseline is documented.
-- [x] Provenance from the maintainer-operated multi-cloud sovereign operation, IoT automation, and
-      multi-cloud operation pattern to the Phase 2 baseline is recorded.
+- [x] The transition from maintainer-operated multi-cloud sovereign operation
+      to the Phase 2 baseline is recorded.
 - [x] Pre-push hooks validate without relying on `SKIP=check-added-large-files`.
 - [x] Mutating hooks no longer rewrite dirty docs during push validation.
 - [x] Full release verification passes.

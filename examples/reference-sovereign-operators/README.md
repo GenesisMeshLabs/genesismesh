@@ -12,7 +12,7 @@ The public verification artifacts live in `examples/official-operators/`.
 This directory provides the reference fleet view over those artifacts without
 duplicating private runtime material.
 
-## Cohort
+## Reference Fleet
 
 | Operator label | Sovereign | Artifact path |
 | --- | --- | --- |
@@ -25,9 +25,10 @@ duplicating private runtime material.
 
 ## Proof Statement
 
-The maintainer-operated multi-cloud sovereigns used separate genesis, Network
-Authority key, operator key, database, endpoint, and policy during the v0.18.0
-operator run. Private keys were separate per sovereign and not committed.
+The maintainer-operated multi-cloud sovereigns used separate genesis material,
+Network Authority keys, operator keys, databases, endpoints, and policies
+during the v0.18.0 operator run. Private keys were separate per sovereign and
+not committed.
 
 The v0.18.0 release uses their public material to demonstrate a maintainer-operated multi-cloud
 sovereign fleet, signed recognition, revocation feed propagation, and Connectome

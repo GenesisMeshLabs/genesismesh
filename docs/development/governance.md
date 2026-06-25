@@ -1,4 +1,4 @@
-# Governance Baseline
+# Governance
 
 **Status:** Phase 2 baseline
 **Purpose:** answer stewardship and control questions before they become adoption blockers.
@@ -40,7 +40,7 @@ material packaging, runbooks, and client-facing confidence.
 A managing partner must not silently take ownership of an operator's private
 keys, genesis authority, or local trust decisions.
 
-Connectorzzz is currently the clearest example of this role.
+Connectorzzz is the intended example of this role.
 
 ### Observer
 

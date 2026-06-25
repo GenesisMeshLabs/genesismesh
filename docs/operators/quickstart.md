@@ -117,7 +117,7 @@ genesis-mesh proof remote \
 The proof command creates live proof artifacts: one membership attestation, one
 recognition treaty, one issuer revocation, and one imported revocation feed.
 
-For v0.14 adoption evidence, use the
+For external adoption evidence, use the
 [Recognition Playbook](recognition-playbook.md) and include `--adoption-proof`
 operator-control metadata in the proof bundle.
 

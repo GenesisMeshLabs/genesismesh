@@ -7,7 +7,7 @@ protocol without reverse-engineering the Python reference implementation.
 
 The program goals, principles, template, and acceptance bar are described in
 {doc}`/development/rfc-program`. The strategic context is in
-{doc}`/development/phase-2-ecosystem`.
+{doc}`/development/phase-2-externalization`.
 
 ## Status of this batch
 
@@ -25,7 +25,7 @@ implementation-informed and reviewable, not that the wording is frozen.
 | {doc}`RFC-005 <rfc-005-capability-manifests>` | Capability Manifests | Draft | `genesis_mesh/models/discovery.py` |
 | {doc}`RFC-006 <rfc-006-connectome-model>` | Connectome Model | Draft | `genesis_mesh/trust/connectome.py` |
 | {doc}`RFC-007 <rfc-007-operator-continuity>` | Operator Continuity | Draft | `docs/operators/` |
-| {doc}`RFC-008 <rfc-008-managed-operator-role>` | Managed Operator Role | Draft | `docs/development/governance-baseline.md` |
+| {doc}`RFC-008 <rfc-008-managed-operator-role>` | Managed Operator Role | Draft | `docs/development/governance.md` |
 
 For the established standards and patterns each RFC generalizes — recorded as
 design lineage, not as adoption claims — see {doc}`prior-art`.

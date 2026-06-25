@@ -1,5 +1,5 @@
 {
-  "cohort": "genesis-mesh-reference-sovereign-operators",
+  "fleet": "genesis-mesh-reference-sovereign-operators",
   "release": "v0.18.0",
   "status": "multi-cloud-operation-proof",
   "next_milestone": "v0.19.0-active-sovereign-operator-continuity",
@@ -9,52 +9,52 @@
       "label": "MiraOS-NA",
       "sovereign_id": "MiraOS-NA",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/miraos-na/"
     },
     {
       "label": "001-NA",
       "sovereign_id": "001-NA",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/001-na/"
     },
     {
       "label": "anonymous-NA",
       "sovereign_id": "anonymous-NA",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/anonymous-na/"
     },
     {
       "label": "AMINE-M6-NA",
       "sovereign_id": "AMINE-M6-NA",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/amine-m6-na/"
     },
     {
       "label": "ONS-A-NA",
       "sovereign_id": "ONS-A-NA",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/ons-a-na/"
     },
     {
       "label": "USG-NB",
       "sovereign_id": "USG-NB",
       "role": "reference-sovereign-operator",
-      "genesis_mesh_maintainer": false,
-      "sovereign_maintainer": true,
+      "maintainer_operated": true,
+      "external_operator": false,
       "artifact_path": "../official-operators/usg-nb/"
     }
   ],
-  "key_control_statement": "Maintainer-operated multi-cloud sovereigns used separate genesis, Network Authority key, operator key, database, endpoint, and policy. Private keys were separate per sovereign and not committed.",
+  "key_control_statement": "Maintainer-operated multi-cloud sovereigns used separate genesis material, Network Authority keys, operator keys, databases, endpoints, and policies. Private keys were separate per sovereign and not committed.",
   "public_artifacts_root": "../official-operators/",
   "continuity_expectations": [
     "keep sovereign endpoints alive or intentionally mark them offline",

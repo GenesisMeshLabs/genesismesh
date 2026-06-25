@@ -233,7 +233,7 @@ Proof" and gated the tag on a real external operator having run the
 proof. When that gate was not yet met but the engineering work was
 done, the release was renamed to "Readiness" and a CHANGELOG note
 explicitly stated the adoption milestone was still open. The actual
-adoption-proof work moved to v0.18.0.
+external adoption proof remained a separate milestone.
 
 **v0.15.0 - Supply-Chain Trust Gate.** A narrow CI/release gate that
 demonstrates how Genesis Mesh sits in a publishing or release path. A
@@ -359,7 +359,7 @@ the CLI and trust-state persistence paths, a local read-only dashboard for
 health and trust visibility, and safer operator-facing logs. The first
 federation step is now easier to run, package for review, inspect through
 operator-facing views, and explain visually, but a future external operator is
-still required for multi-cloud operation proof.
+still required for external adoption proof.
 
 ### Phase F - Multi-Cloud Operation and Externalization Baseline (v0.18.0 through v0.21.0)
 
@@ -436,9 +436,8 @@ specific mypy output, and demo confirmation.
 **Honesty is structural.** v0.9 says explicitly that the first proof
 is operated by the maintainer on two NAs and the demo must say so.
 v0.12.1 says "the important claim is not 'two services are online,'"
-naming what the proof is and is not. v0.14 CHANGELOG says "the real
-adoption milestone still requires a future external operator." v0.17
-says "do not tag without a named future external operator."
+naming what the proof is and is not. v0.14 CHANGELOG says the external
+adoption milestone still requires an external operator.
 
 **Protocol-vs-platform discipline never broke.** Across every shipped
 release, no release drifted into building a marketplace, a token
@@ -448,9 +447,8 @@ Out-of-Scope sections held the line at every step.
 **The recovery from v0.14 is the most informative single artifact.**
 When reality didn't match the plan, the response was: rename the
 release to be honest about what shipped, write a CHANGELOG note that
-acknowledges the original goal is still open, split the actual work
-into a new milestone, and add Parallel Adoption Checkpoints to v0.15
-and v0.16 so the same drift can't happen twice.
+acknowledges the original goal is still open, and keep external adoption
+proof separate from maintainer-operated evidence.
 
 ---
 
@@ -518,8 +516,7 @@ are listed as paths rather than as links.
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
 - Per-release plans (v0.1.0 through v0.22.0): `ops/plan-v0.*.md`
-- Phase 2 ecosystem roadmap: `docs/development/phase-2-ecosystem.md`
-- Phase 2 externalization plan: `docs/development/phase-2-ecosystem.md`
+- Phase 2 externalization plan: `docs/development/phase-2-externalization.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 

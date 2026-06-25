@@ -6,7 +6,7 @@
 ## Why RFCs now
 
 Genesis Mesh is no longer only a Python implementation. The project has enough
-technical, operational, and adoption evidence to describe stable protocol
+technical and maintainer-operated multi-cloud evidence to describe stable protocol
 surfaces in a standards-shaped format.
 
 The RFC program exists so that a future operator, implementer, standards body,

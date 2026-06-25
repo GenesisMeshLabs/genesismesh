@@ -96,6 +96,6 @@ contain private keys, invite tokens, local DB files, or operator secrets.
 Federation bootstrap proves that the workflow can review and connect two
 sovereigns. It does not by itself prove external adoption.
 
-For v0.18.0 adoption evidence, the issuer must be controlled by a named
-future external operator using their own keys, policy, database, endpoint, and
+For external adoption evidence, the issuer must be controlled by a named
+external operator using their own keys, policy, database, endpoint, and
 infrastructure.

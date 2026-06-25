@@ -1,4 +1,4 @@
-﻿# Genesis Mesh
+# Genesis Mesh
 
 Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
 agents, edge systems, and distributed infrastructure.
@@ -192,7 +192,7 @@ reference/configuration
 
 operators/index
 operators/quickstart
-operators/reference-sovereign-operators
+operators/maintainer-operated-sovereigns
 operators/security-checklist
 operators/federation-bootstrap
 operators/external-operator-proof
@@ -217,11 +217,11 @@ operations/runbooks-index
 
 development/history
 development/roadmap
-development/rollout-closure
-development/phase-2-ecosystem
+development/phase-1-rollout-closure
+development/phase-2-externalization
 development/rfc-program
 development/atlas
-development/governance-baseline
+development/governance
 development/contributing
 development/module-structure
 development/testing

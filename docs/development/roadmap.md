@@ -10,7 +10,7 @@ The current baseline is:
 - **Baseline release:** v0.20.0 ecosystem baseline
 - **Current phase:** Phase 2 - Externalization
 
-For the detailed Phase 2 plan, see {doc}`phase-2-ecosystem`.
+For the detailed Phase 2 plan, see {doc}`phase-2-externalization`.
 
 ## Current position
 
@@ -111,7 +111,7 @@ The first governance pass should define:
 - security-review expectations;
 - fork and exit rights.
 
-See {doc}`governance-baseline`.
+See {doc}`governance`.
 
 ### 4. Independent implementation
 
@@ -128,9 +128,9 @@ consumption, and Connectome or Atlas visibility across both implementations.
 
 Build one application that makes the protocol value obvious.
 
-The strongest candidate is the Connectorzzz Operator Network: independent
-operators remain sovereign while coordinating with the delivery confidence of a
-larger firm.
+The intended candidate is the Connectorzzz Operator Network: independent
+operators would remain sovereign while coordinating with the delivery confidence
+of a larger firm.
 
 ## What not to build first
 

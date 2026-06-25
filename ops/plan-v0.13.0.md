@@ -17,7 +17,7 @@ codebase.
 
 v0.13 has no standalone investor value. Its purpose is to remove the
 operator-friction blockers that would otherwise sink v0.14. Treat every Phase
-here as "would this make it harder for a external to run their own
+here as "would this make it harder for an external operator to run their own
 sovereign?" If yes, fix it.
 
 ## Success Criteria

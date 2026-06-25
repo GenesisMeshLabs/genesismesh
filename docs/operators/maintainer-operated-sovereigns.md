@@ -6,7 +6,7 @@ endpoints, policies, recognition treaties, revocation feeds, and public trust
 material.
 
 This page is operational portability evidence, not external adoption evidence.
-External operator adoption begins when a external runs a sovereign with
+External operator adoption begins when an external operator runs a sovereign with
 their own infrastructure account, keys, policy, endpoint, and continuity
 responsibilities.
 

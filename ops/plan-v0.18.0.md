@@ -2,7 +2,7 @@
 
 ## Current Status - 2026-06-08
 
-`v0.18.0` has shipped as an official-operator artifact release:
+`v0.18.0` shipped as an official-operator artifact release:
 
 - Commit: `8e80e4b` (`Release v0.18.0 official operators`)
 - Tag: `v0.18.0`
@@ -27,58 +27,48 @@ The shipped `USG-NB` trust bundle validates against
 Operator status confirmation:
 
 - The public operator labels represented in `examples/official-operators/`
-  are confirmed by the maintainer to be maintainer-operated sovereign deployments.
+  are maintainer-operated sovereign deployments.
 - The public labels currently recorded are `MiraOS-NA`, `001-NA`,
   `anonymous-NA`, `AMINE-M6-NA`, `ONS-A-NA`, and `USG-NB`.
-- These operators are also confirmed as maintainer-operated multi-cloud sovereigns: early
-  protocol testers from the initial public releases who now maintain their own
-  sovereigns.
+- These operators are maintained as separate sovereign trust domains with
+  distinct genesis material, NA keys, operator keys, databases, endpoints, and
+  policies.
 
-Important distinction: this release proves the current official-operator
-connectome, public trust material path, and maintainer-operated multi-cloud sovereign fleet.
-The operators are separate maintainer-operated sovereign deployments, not Genesis Mesh
-core maintainers.
-
-## Adoption Proof Completion Confirmation
-
-Maintainer confirmation for the v0.18.0 multi-cloud operation proof:
-
-- The maintainer-operated multi-cloud sovereigns used separate genesis, NA key,
-  operator key, database, endpoint, and policy.
-- Private keys were separate per sovereign and not committed.
-- The public operator artifacts distinguish reference-sovereign-operated
-  sovereigns from Genesis Core-maintained runtime material.
-- The operator run completed cleanly, onboarding gaps were handled, and no
-  unresolved blocker remains for the shipped artifact release.
-
-With these confirmations, the original multi-cloud sovereign operation proof is
-complete for the v0.18.0 release narrative.
+Important distinction: this release proves maintainer-operated multi-cloud
+sovereign operation. It does not prove third-party or external-operator
+adoption.
 
 ## Positioning
 
-v0.18.0 is the multi-cloud operation milestone. v0.14.0 made the operator packet
-ready; v0.18.0 proves that the maintainer-operated multi-cloud fleet can run it.
+v0.18.0 is the multi-cloud operation milestone. v0.14.0 made the external
+operator packet ready; v0.18.0 proved that separate sovereign trust domains can
+be packaged, documented, recognized, and reviewed as a public fleet.
 
 This is the release that changes the public story:
 
-- Before v0.18: Genesis Mesh has maintainer-operated proof and operator
-  readiness.
-- After v0.18: Genesis Mesh has evidence of an early network.
-
-Every other release in v0.13-v0.16 is mostly code, docs, or operations that the
-maintainer can ship alone. v0.18 cannot be completed alone, and that is exactly
-why it matters.
+- Before v0.18: Genesis Mesh had local protocol proofs, operator readiness, and
+  two-cloud operational evidence.
+- After v0.18: Genesis Mesh had a maintainer-operated reference fleet with
+  public trust material and continuity expectations.
 
 The release should prove this statement:
 
-> A named future external operator can run a sovereign trust domain, form a
-> recognition relationship, and complete the revocation proof without handing
-> control of their keys, policy, or infrastructure to Genesis Core.
+> Separate maintainer-operated sovereign trust domains can run across multiple
+> clouds, publish reviewable trust material, form recognition relationships, and
+> propagate revocation without sharing private keys or collapsing into one
+> central authority.
+
+The future external-operator milestone remains separate:
+
+> A named external operator runs a sovereign trust domain with their own account,
+> keys, policy, endpoint, and continuity responsibilities, then produces a proof
+> bundle that distinguishes their infrastructure from Genesis Mesh maintainer
+> infrastructure.
 
 ## v0.17.x Readiness Patches
 
-The v0.17.x patch series can ship before v0.18.0, but it must not dilute what
-v0.18.0 means.
+The v0.17.x patch series shipped before v0.18.0 and reduced onboarding
+friction:
 
 - v0.17.2 - Federation Bootstrap Readiness: reduce the friction of the first
   recognition relationship.
@@ -89,52 +79,52 @@ v0.18.0 means.
 - v0.17.5 - Sovereign Health and Trust Dashboard: make sovereign health and
   trust state legible without creating a central control plane.
 
-These releases are readiness patches. They are allowed to make operator
-onboarding easier, but they do not count as multi-cloud operation proof. The v0.18.0
-gate remains unchanged: a named future external operator must run a sovereign
-with their own keys, policy, database, endpoint, and infrastructure.
-
-At each v0.17.x patch tag, record the adoption checkpoint from that plan. If
-candidate operator conversations are still zero across the patch series, pause
-feature work before v0.18.0 and focus on recruitment. More readiness code does
-not solve a zero-demand signal.
+These releases are readiness patches. They make operator onboarding easier, but
+they do not count as external adoption proof.
 
 ## Operator Quality Test
 
-The realness of the first external operator is the whole game. An investor will
-smell the difference between "real adopter" and "friend doing a favor" in one
-question. Use this test before counting the proof as complete:
+The realness of the first external operator remains a separate gate. Use this
+test before counting future external-operator proof as complete:
 
 - Did they ask to run a sovereign, or did the maintainer ask them?
 - Do they have a concrete reason to run it that exists with or without Genesis
   Mesh's success?
 - Would they keep operating it after the proof, or shut it down?
-- Are they willing to be named publicly as Sovereign B?
+- Are they willing to be named publicly?
 - Would they answer "why are you running this?" without coaching?
 
 If two or more answers are no, the proof is technically valid but narratively
-weak. Recruit harder rather than ship faster. A second operator who shuts the
-sovereign down after the demo is not adoption; it is theater.
+weak. Recruit harder rather than ship faster.
 
 ## Success Criteria
 
-- [x] A future external operator is named and willing to be referenced in release
-      notes or a public case artifact.
-- [x] The operator runs a sovereign using their own genesis, NA key, operator
-      key, DB, endpoint, and policy.
-- [x] The operator publishes or shares public trust material for recognition.
-- [x] The operator issues and revokes a membership, maintainer, or agent
-      attestation.
-- [x] Another sovereign recognizes that operator's sovereign through a signed
-      treaty.
-- [x] Revocation propagates and changes acceptance on the recognizing
-      sovereign.
+### Completed v0.18.0 Criteria
+
+- [x] Maintainer-operated sovereigns run with separate genesis material, NA
+      keys, operator keys, databases, endpoints, and policies.
+- [x] Public trust material is committed under `examples/official-operators/`.
+- [x] `USG-NB` trust material validates against its live public endpoint.
+- [x] The public material includes signed recognition and revocation-feed
+      evidence.
 - [x] The proof bundle clearly distinguishes maintainer-operated infrastructure
-      from externally operated infrastructure.
-- [x] Any shipped v0.17.x readiness patches were reviewed during the operator
-      run, and remaining onboarding gaps are recorded.
-- [x] Documentation records what the operator did self-service and where
-      maintainer assistance was still required.
+      from future externally operated infrastructure.
+- [x] Documentation records what the release proves and what remains open.
+- [x] Full release verification passes.
+
+### Still Open For External Adoption
+
+- [ ] A named external operator runs a sovereign from their own infrastructure
+      account.
+- [ ] The external operator controls their own genesis material, NA key,
+      operator key, database, endpoint, and policy.
+- [ ] The external operator publishes or shares public trust material for
+      recognition.
+- [ ] Another sovereign recognizes that external operator's sovereign through a
+      signed treaty.
+- [ ] Revocation propagates and changes acceptance on the recognizing
+      sovereign.
+- [ ] A public case artifact or release note names the operator if they agree.
 
 ## Release Name
 
@@ -143,34 +133,35 @@ sovereign down after the demo is not adoption; it is theater.
 ## Core Flow
 
 ```text
-External Operator
-  -> runs Sovereign B
-  -> owns genesis, keys, policy, database, endpoint
-  -> issues member, maintainer, or agent attestation
+Maintainer-Operated Reference Sovereign
+  -> owns separate genesis, keys, policy, database, endpoint
+  -> publishes public trust material
+  -> issues an attestation
   -> revokes that attestation
   -> publishes signed feed
 
 Recognizing Sovereign
-  -> fetches B public material
-  -> signs treaty for B
-  -> accepts B attestation
-  -> imports B feed
+  -> fetches public material
+  -> signs treaty for the issuer
+  -> accepts issuer attestation
+  -> imports issuer feed
   -> rejects revoked attestation
   -> explains trust state in Connectome
 ```
 
-The v0.15 supply-chain gate is the preferred recruitment wedge. A maintainer who
-has a real reason to protect release authority is a stronger Sovereign B than a
-friendly operator running a demo with no reason to continue.
+The future external-operator flow uses the same protocol path, but it must be
+run by an external operator with their own infrastructure and continuity
+responsibilities.
 
 ## Design Principles
 
-- Be honest about independence. "External operator" means a real second human
-  controls at least one sovereign's keys and infrastructure.
-- Do not tag without a named future external operator.
-- Do not hide operational friction. Record every manual step that blocked the
-  operator.
-- Prefer one strong multi-cloud operation proof over several maintainer-operated demos.
+- Be honest about independence. Maintainer-operated multi-cloud proof is
+  operational evidence, not third-party adoption.
+- Do not count a maintainer-controlled deployment as external adoption.
+- Do not hide operational friction. Record every manual step that would matter
+  to the next operator.
+- Prefer one strong external proof over several synthetic or maintainer-run
+  demos.
 - If recruitment slips repeatedly, treat that as a demand signal. Do not answer
   it by shipping unrelated code.
 
@@ -178,39 +169,29 @@ friendly operator running a demo with no reason to continue.
 
 ### In Scope
 
-- Recruiting one credible external operator.
-- Running the v0.14 operator packet with that operator.
-- Capturing the proof bundle from their run.
-- Patching small onboarding blockers discovered during the run.
-- Updating docs and examples from the operator's actual experience.
-- Publishing a short public artifact if the operator agrees.
+- Recording public trust material for the maintainer-operated reference fleet.
+- Validating live trust material and revocation-feed evidence.
+- Updating docs and examples to describe maintainer-operated multi-cloud
+  operation accurately.
+- Preserving the future external-operator gate as a separate milestone.
 
 ### Out of Scope
 
+- Claiming third-party adoption.
 - Marketplace or registry launch.
 - Paid billing integration.
 - Transitive trust.
 - General global discovery of all sovereigns.
-- Enterprise IdP bridge unless the external operator specifically needs it.
-- Counting a maintainer-controlled second VM as multi-cloud operation proof.
+- Enterprise IdP bridge.
 
 ## Implementation Phases
 
-### Phase 1 - Recruit Operator
+### Phase 1 - Reference Sovereign Inventory
 
-- [x] Identify candidate operators from v0.15 and commercial-track outreach.
-- [x] Review the shipped v0.17.x readiness artifacts with candidate operators.
-- [x] Apply the Operator Quality Test.
-- [x] Confirm the operator has a concrete reason to run a sovereign.
-- [x] Confirm what can be named publicly.
-- [x] Agree on proof scope, timeline, and support boundaries.
-
-### Phase 2 - Operator-Owned Sovereign
-
-- [x] Have the operator generate their own genesis.
-- [x] Have the operator generate or own their NA key and operator key.
-- [x] Have the operator run their own DB and endpoint.
-- [x] Confirm private keys are never shared with Genesis Core.
+- [x] Identify maintainer-operated sovereigns represented in public artifacts.
+- [x] Confirm separate sovereign identities, keys, endpoints, databases, and
+      policies.
+- [x] Confirm private keys are not committed.
 - [x] Capture health, readiness, Genesis, and Connectome evidence.
 
 Captured evidence:
@@ -222,19 +203,15 @@ Captured evidence:
 - The exported `USG-NB` connectome summary contains `9` active recognition
   edges.
 
-Ownership confirmation is complete: the maintainer-operated multi-cloud sovereigns maintain
-their own sovereigns, and Private keys were separate per sovereign and not committed.
+### Phase 2 - Recognition and Revocation Proof
 
-### Phase 3 - Recognition and Revocation Proof
-
-- [x] Import or fetch the operator's public trust material.
-- [x] Form a signed treaty with the recognizing sovereign.
-- [x] Issue an attestation from the operator sovereign.
-- [x] Verify the recognizing sovereign accepts it before revocation.
-- [x] Revoke the attestation on the operator sovereign.
-- [x] Import the revocation feed.
-- [x] Verify the recognizing sovereign rejects the same attestation after
-      revocation.
+- [x] Import or fetch public trust material.
+- [x] Form signed treaties with recognizing sovereigns.
+- [x] Issue attestations from issuer sovereigns.
+- [x] Verify recognizing sovereigns accept before revocation.
+- [x] Revoke attestations on issuer sovereigns.
+- [x] Import revocation feeds.
+- [x] Verify recognizing sovereigns reject after revocation.
 
 Captured evidence:
 
@@ -242,16 +219,14 @@ Captured evidence:
   revocation feed with sequence `2`.
 - The live `USG-NB` trust bundle validation reported no errors or warnings.
 
-Before/after revocation acceptance evidence is complete for the operator run.
+### Phase 3 - Evidence and Hardening
 
-### Phase 4 - Evidence and Hardening
-
-- [x] Capture the proof bundle.
+- [x] Capture proof material.
 - [x] Redact secrets and sensitive endpoints if needed.
 - [x] Record what was self-service versus assisted.
 - [x] Patch the top friction points found during onboarding.
 - [x] Add tests for any code fixes.
-- [x] Update docs from the operator's actual run.
+- [x] Update docs from the actual run.
 
 Captured evidence:
 
@@ -260,12 +235,6 @@ Captured evidence:
 - Public material was moved into `examples/official-operators/` rather than
   committing generated runtime homes.
 - `v0.18.0` package metadata, tag, release, wheel, and sdist were created.
-- Maintainer confirmation: onboarding gaps from the operator run are clean and
-  handled; no unresolved onboarding blocker remains for the shipped artifact
-  release.
-
-The shipped artifact release required no unresolved follow-up code fix from the
-operator run.
 
 ## Verification
 
@@ -276,9 +245,6 @@ python -m compileall genesis_mesh docs\examples\assets\scripts -q
 python -m sphinx -b html -W docs docs\pages
 git diff --check
 ```
-
-External proof verification must include the operator's confirmation that they
-used separate keys and infrastructure.
 
 ### Completed Verification For Shipped v0.18.0
 
@@ -298,18 +264,19 @@ well below the configured `4096 KB` limit.
 
 ## Release Gate
 
-Original external-adoption release gate:
+Completed v0.18.0 gate:
 
-- [x] A named future external operator has run one sovereign.
-- [x] The proof completed without Genesis Core controlling the operator's keys.
+- [x] Maintainer-operated reference sovereigns are represented by public
+      artifacts.
+- [x] The proof completed without sharing private keys across sovereigns.
 - [x] The proof bundle is captured and redacted.
-- [x] The onboarding gaps are documented.
+- [x] Onboarding gaps are documented.
 - [x] Any critical onboarding blockers found during the run are fixed.
 - [x] v0.17.x readiness work has not been substituted for external-operator
       evidence.
 - [x] Public release notes distinguish this from the v0.14 readiness release.
 - [x] Full verification passes.
 
-`v0.18.0` has already been tagged and released. With the maintainer
-confirmations recorded above, the release can be described as external
-multi-cloud sovereign operation proof by maintainer-operated multi-cloud sovereigns.
+`v0.18.0` has already been tagged and released. With the maintainer-operated
+reference fleet confirmations recorded above, the release can be described as
+multi-cloud sovereign operation proof, not external adoption proof.
