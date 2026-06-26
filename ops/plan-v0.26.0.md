@@ -1,233 +1,312 @@
-# v0.26.0 Plan - Trust Negotiation
+# v0.26.0 Plan — Relationship Agreement
 
 ## Positioning
 
-v0.24.0 turned a boolean into a decision and a signed TrustEvidence record.
-v0.25.0 made the recognition graph and those records inspectable via Atlas.
+v0.24.0 produced a signed TrustEvidence record: proof that one sovereign
+evaluated trust toward another, at this graph state, at this time.
 
-v0.26.0 changes the question entirely.
+v0.25.0 made that graph inspectable via Atlas.
 
-v0.24 answers: *"Did I trust you?"*
-v0.26 answers: *"Let us establish trust — right now, between us."*
+v0.26.0 adds the protocol that turns evaluated trust into a mutually-binding,
+scope-bounded, dual-signed operational agreement.
 
 The release should prove this statement:
 
-> Two independent actors can exchange trust material, negotiate capability scope,
-> and reach a shared trust verdict as part of the protocol exchange itself —
-> without a pre-existing relationship, shared backend, or out-of-band agreement.
+> Two independent sovereigns — already related by treaties and revocation feeds —
+> can exchange a signed Offer, optionally narrow its scope in a Counter-offer,
+> and produce an AgreementRecord that neither party can generate alone, binding
+> both to specific capabilities under specific conditions at a specific graph
+> state.
 
-This is the milestone where Genesis Mesh stops being a trust library and starts
-being trust infrastructure. It is the first workflow that **cannot exist** without
-Genesis Mesh, because ordinary TLS, PKI, IAM, and application logging all assume
-trust was decided before the connection. Genesis Mesh decides it **as** the
-connection.
+That is the first workflow in Genesis Mesh that **neither party can fake,
+replay, or produce without the other.**
 
-## Why this, and why now
+## On "no prior relationship required"
 
-The current flow is:
+This phrase would be wrong.
+
+Prior trust material is always required:
+
+- Trust bundles carry sovereign identity and public material.
+- Recognition treaties carry scope and mutual recognition.
+- Revocation feeds carry freshness of that recognition.
+- `evaluate_trust_decision` (v0.24) evaluates it all.
+
+What is **not** required is a prior *runtime relationship* — an active
+connection, session, or shared backend. Two parties that have never connected
+in real time can exchange signed files, produce an AgreementRecord, and both
+hold a verifiable proof of what was agreed. No server. No session. No
+real-time synchronization.
+
+The accurate framing: **no prior runtime relationship required, but treaty-level
+trust material is the prerequisite.**
+
+## Why Agreement, not Negotiation
+
+Consider the flow the user experiences:
 
 ```
-Sovereign A evaluates graph -> produces TrustEvidence -> shares evidence
-Sovereign B verifies evidence -> trusts or not
+Aspayr sends Offer:
+  "I am Aspayr. I want:
+   - transactions.read
+   - balances.read
+   - payments.none"
+
+Bank sends Counter-offer:
+  "I can offer:
+   - transactions.read
+   - balances.read
+  (payments is not offered; read freshness guaranteed for 24h)"
+
+Aspayr sends Acceptance:
+  "Accepted. I sign the Counter-offer terms."
+
+Both parties hold a dual-signed AgreementRecord.
 ```
 
-That is retrospective. Trust is computed over a static graph snapshot.
+What happened is not trust establishment. Aspayr and the Bank already trust
+each other via treaty. What changed is this:
 
-The needed flow is:
+- Aspayr expressed a *specific, bounded capability request* for this session.
+- Bank expressed what it *will actually deliver* under those terms.
+- Both parties signed the same scope, producing a *mutually-binding record*.
 
-```
-Actor A: Hello. Here is my trust bundle.
-Actor B: I need capability X under scope Y.
-Actor A: My treaty allows that role. Here is my revocation feed (fresh).
-Actor B: Feed accepted. Verdict: ALLOW. Here is a signed TrustEvidence.
-Actor A: Accepted. Relationship established.
-```
+That is contract execution, not trust negotiation.
 
-That exchange is a **trust negotiation** — a structured, protocol-level
-handshake that produces a live trust decision, not a post-hoc audit record.
+The analogy is not TLS (which establishes a secure channel). The analogy is
+**contract law**: Offer → Counter-offer → Acceptance. Genesis Mesh happens to
+operate over signed JSON instead of paper, but the protocol is contractual.
 
-The distinction maps directly to what research calls the difference between
-identity governance as a log and identity governance as infrastructure. The
-log records what happened. The infrastructure controls what can happen next.
+This framing is also universal. The same Agreement protocol works for:
+
+- Operator → Hospital: "I need patient-records.read under jurisdiction-EU."
+- Bank → Robot: "I offer balance.query with 1-second freshness for 8 hours."
+- AI Agent → Digital Twin: "I want simulation.write under audit-mode."
+- Satellite → Ground Station: "I accept telemetry.read under no-replay constraint."
+
+None of these are "AI protocol." All of them are **operational agreement between
+sovereign entities** using the same GM primitives.
 
 ## Design
 
-### Trust negotiation is a message exchange, not a new key type
+### Model: Offer → Counter-offer → Acceptance
 
-Trust negotiation reuses every existing primitive:
-
-- Trust bundles (RFC-003) carry the proposer's sovereign identity and public
-  material.
-- Recognition treaties (RFC-002) carry scope.
-- Revocation feeds (RFC-004) carry freshness.
-- `evaluate_trust_decision` (v0.24) produces the verdict.
-- `build_trust_evidence` (v0.24) produces the signed proof.
-
-The new layer is the **exchange protocol**: the structured sequence of messages
-that moves two actors from "unknown to each other" to "trust decision + signed
-evidence" without a human in the loop.
-
-### Negotiation phases
+The three-step contract model replaces the six-phase session model:
 
 ```
-Phase 1  Proposal
-         Actor A sends: sovereign identity + trust bundle reference + requested
-         capability scope. No trust is implied yet.
+Step 1  Offer
+        A sends a signed CapabilityOffer:
+          - offerer_sovereign_id
+          - responder_sovereign_id
+          - requested_capabilities   (list of capability URIs or role IDs)
+          - requested_scope          (roles, delegation, freshness floor)
+          - graph_digest             (SHA-256 of the graph A evaluated)
+          - offerer_evidence         (TrustEvidence from A toward B)
+          - expires_at               (offer validity window)
+          - signatures               (A's signature)
 
-Phase 2  Challenge
-         Actor B responds: its own sovereign identity + trust bundle + the scope
-         it is willing to accept + a freshness requirement (revocation feed
-         sequence floor).
+Step 2  Counter-offer (optional)
+        B may send a signed CapabilityCounter:
+          - offer_id                 (links back to the Offer)
+          - offered_capabilities     (subset of what A requested, or narrower scope)
+          - offered_scope
+          - freshness_commitment     (what revocation freshness B guarantees)
+          - responder_evidence       (TrustEvidence from B toward A)
+          - signatures               (B's signature)
 
-Phase 3  Evidence exchange
-         Actor A provides: revocation feed (meeting B's floor) + any treaty
-         that recognizes B (if A wants to accept B in return).
-         Actor B provides: same toward A.
+        If A's Offer already fits what B can deliver, B skips Step 2 and
+        signs directly in Step 3.
 
-Phase 4  Decision
-         Each actor independently runs evaluate_trust_decision over the
-         received material and produces a TrustEvidence record.
+Step 3  Acceptance
+        Either party signs the Offer or Counter-offer to produce an
+        AgreementRecord. If A accepts the Counter-offer, A signs it. If
+        B accepts the Offer directly, B signs it.
 
-Phase 5  Confirmation
-         Each actor shares its TrustEvidence with the other. Both actors
-         now hold signed proof of the other's trust decision.
-
-Phase 6  Establishment (or rejection)
-         If both verdicts are ALLOW (or WARN, subject to operator policy),
-         the relationship is established. Either actor can terminate by
-         sending a REJECT with a reason code at any phase.
+        The AgreementRecord is the Counter-offer (or Offer) with both
+        parties' signatures. It is complete when both signatures are present.
 ```
 
-### Scope negotiation
-
-A negotiation may fail at Phase 2 if the scope B offers is narrower than what
-A requested. Rather than a hard reject, the protocol supports one round of
-scope adjustment:
-
-- A may counter-propose a narrower scope that fits within B's offer.
-- B may accept, reject, or adjust again (maximum one additional round).
-- This keeps the protocol bounded while allowing common-case negotiation
-  (e.g. "I asked for read-write; you offered read-only; I accept read-only").
-
-### What a negotiation produces
-
-A completed negotiation produces a **NegotiationRecord**:
+### AgreementRecord
 
 ```
-NegotiationRecord
-  negotiation_id        UUID
-  initiator_sovereign   who started the negotiation
-  responder_sovereign   who responded
-  agreed_scope          final accepted scope
-  initiator_evidence    TrustEvidence from initiator's perspective
-  responder_evidence    TrustEvidence from responder's perspective
-  established_at        UTC timestamp
-  expires_at            validity window (default: min of treaty expiries)
-  signatures            both parties sign the record
+AgreementRecord
+  agreement_id              UUID
+  offerer_sovereign_id      who initiated
+  responder_sovereign_id    who responded
+  agreed_capabilities       final capability list (from accepted offer/counter)
+  agreed_scope              final scope (roles, delegation, restrictions)
+  freshness_commitment      revocation feed sequence floor guaranteed
+  offerer_evidence          TrustEvidence from offerer toward responder
+  responder_evidence        TrustEvidence from responder toward offerer
+  graph_digest              SHA-256 of the graph state at agreement time
+  established_at            UTC timestamp
+  expires_at                validity window (not extendable without new agreement)
+  signatures                list[Signature] — must contain both parties
 ```
 
-A NegotiationRecord is the first artifact in Genesis Mesh that requires
-signatures from **two** independent sovereigns. That is also what makes it
-unique: neither party can produce it alone.
+The AgreementRecord is the first artifact in Genesis Mesh that requires
+signatures from **two independent sovereigns**. Neither party can produce it
+alone. That is what makes it unique.
 
-### What a negotiation does NOT do
+### What an AgreementRecord proves
 
-- It does not create a new treaty. Treaties are operator-level decisions signed
-  offline. A negotiation is an actor-level exchange that evaluates existing
-  treaties.
-- It does not grant new capabilities. Scope is always a subset of what existing
-  treaties allow.
-- It does not replace revocation. Either party can terminate a relationship at
-  any time by publishing a revocation; a NegotiationRecord does not override it.
-- It does not require a network connection between Network Authorities. The
-  exchange is between actors (nodes), not between NAs.
+A holder of an AgreementRecord can verify:
 
-### Transport
+1. **Identity**: both signers are who they claim (Ed25519 signature over
+   canonical JSON, same convention as RecognitionTreaty and TrustEvidence).
+2. **Agreement**: both parties signed the same scope and capabilities —
+   nobody unilaterally changed the terms after signing.
+3. **Trust state at agreement time**: the `graph_digest` and both embedded
+   `TrustEvidence` records bind the agreement to the specific graph state
+   when it was made. A stale or forked graph cannot be substituted silently.
+4. **Freshness commitment**: the `freshness_commitment` tells the holder what
+   revocation-feed recency was guaranteed by the responder at signing time.
+5. **Bounded validity**: `expires_at` is set and not extendable. A new agreement
+   requires a new offer cycle.
 
-Phase 1-5 messages are signed JSON payloads, transport-agnostic. They can be
-exchanged over:
+### What an AgreementRecord does NOT prove
 
-- the existing Noise XX WebSocket peer session (in-band, for live actors)
-- a shared file or API endpoint (out-of-band, for operators setting up a
-  relationship offline)
-
-The CLI implements the offline path first (file exchange). The in-band path
-over the peer session is a later integration.
+- It does not create a new treaty. Treaties remain operator-level, signed
+  offline. The agreement evaluates existing treaties; it does not create them.
+- It does not grant new capabilities beyond what treaties allow. Scope in the
+  AgreementRecord is always a subset of what existing treaties permit.
+- It does not supersede revocation. Either party can revoke trust at any time
+  via revocation feeds; a current AgreementRecord does not override a
+  subsequent revocation.
+- It does not require a live connection. The exchange can happen via files,
+  API endpoints, or any transport. The protocol is transport-agnostic.
 
 ### New modules
 
-- `genesis_mesh/trust/negotiation.py` — `NegotiationRecord` model and
-  `NegotiationSession` stateful driver:
-  - `NegotiationSession.propose(bundle, requested_scope) -> ProposalMessage`
-  - `NegotiationSession.respond(proposal, bundle, offered_scope) -> ChallengeMessage`
-  - `NegotiationSession.advance(challenge) -> EvidenceMessage | ScopeCounterMessage | RejectMessage`
-  - `NegotiationSession.finalise(evidence_messages) -> NegotiationRecord`
-  - `NegotiationSession.verify_record(record, peer_public_keys) -> NegotiationVerificationResult`
-- `genesis_mesh/models/negotiation.py` — `NegotiationRecord`, `ProposalMessage`,
-  `ChallengeMessage`, `EvidenceMessage`, `ScopeCounterMessage`, `RejectMessage`.
-  All signed. All `to_canonical_json()` / `signatures` convention.
+**`genesis_mesh/models/agreement.py`**
+
+Pydantic models following the canonical-JSON signing convention:
+
+- `CapabilityOffer` — Step 1 message. Signed by offerer.
+- `CapabilityCounter` — Step 2 message. Signed by responder. References
+  `offer_id`.
+- `AgreementRecord` — Final artifact. Signed by both parties.
+
+All three have `to_canonical_json()` (excludes `signatures`, sorted keys,
+compact separators) and `signatures: list[Signature]`.
+
+**`genesis_mesh/trust/agreement.py`**
+
+Pure functions — no I/O, no signing:
+
+- `build_offer(offerer_id, responder_id, requested_capabilities, requested_scope, graph, signing_key, *, issued_by, now) -> CapabilityOffer`
+  Signs an offer. Internally runs `evaluate_trust_decision` and embeds the
+  resulting TrustEvidence in `offerer_evidence`.
+
+- `build_counter(offer, offered_capabilities, offered_scope, freshness_commitment, responder_graph, signing_key, *, issued_by, now) -> CapabilityCounter`
+  Signs a counter-offer. Internally runs `evaluate_trust_decision` in the
+  responder's direction and embeds TrustEvidence.
+
+- `accept_offer(offer, responder_graph, signing_key, *, issued_by, now) -> AgreementRecord`
+  Responder accepts the Offer directly (no counter needed). Produces the
+  AgreementRecord with both signatures (offerer's from the Offer, responder's
+  new signature).
+
+- `accept_counter(counter, original_offer, offerer_graph, signing_key, *, issued_by, now) -> AgreementRecord`
+  Offerer accepts the Counter-offer. Produces the AgreementRecord.
+
+- `verify_agreement(record, offerer_public_keys, responder_public_keys, *, expected_graph_digest=None) -> AgreementVerificationResult`
+  Verifies both signatures and optionally the graph-digest binding.
+  Returns a frozen `AgreementVerificationResult(accepted, reason, agreement_id,
+  offerer_sovereign_id, responder_sovereign_id)`.
 
 ### New CLI surface (under `genesis-mesh trust`)
 
-- `trust negotiate propose` — initiates a negotiation, writes a proposal file.
-- `trust negotiate respond` — responds to a proposal, writes a challenge file.
-- `trust negotiate advance` — accepts a challenge and produces an evidence
-  message or scope counter.
-- `trust negotiate finalise` — given evidence from both sides, produces a
-  signed NegotiationRecord.
-- `trust negotiate verify` — verifies a NegotiationRecord's dual signatures and
-  checks both evidence records.
+The existing `trust` group gains a `trust agree` sub-group:
 
-The offline file-exchange flow (propose -> respond -> advance -> finalise)
-produces a NegotiationRecord in 4 CLI steps, no live connection needed.
+- `trust agree offer` — Build and sign a CapabilityOffer. Writes offer JSON.
+- `trust agree counter` — Build and sign a CapabilityCounter from an Offer. Writes counter JSON.
+- `trust agree accept` — Accept an Offer or Counter-offer. Writes AgreementRecord JSON.
+- `trust agree verify` — Verify an AgreementRecord's dual signatures and embedded evidence.
+
+The offline file-exchange workflow (offer → counter → accept) produces a
+dual-signed AgreementRecord in 3 CLI steps, no live connection needed.
+
+## What this enables that nothing else does
+
+Without Genesis Mesh:
+
+- TLS proves a channel is secure and both parties are who they claim.
+- OAuth proves a client is authorized by a specific authority.
+- A policy API returns "yes" or "no" for a given capability request.
+
+All of these produce a *unilateral decision by one party* about what the
+other party may do. None produce a *mutual agreement signed by both parties.*
+
+With Genesis Mesh's Relationship Agreement:
+
+Two independent sovereigns, related by treaties and bound by revocation feeds,
+can produce a signed artifact that:
+
+- Was agreed by both parties (dual signature).
+- Is bounded to specific capabilities (not open-ended).
+- Is bound to the trust graph state at agreement time (graph_digest).
+- Carries each party's independent TrustEvidence toward the other.
+- Expires and cannot be silently extended.
+- Cannot be produced by either party alone.
+
+No central authority. No shared backend. No runtime session required.
+No PKI, IAM, or application logging naturally produces this artifact.
+That is the capability that requires a protocol layer.
 
 ## Success Criteria
 
-- [ ] Two independently keyed actors complete a full negotiate/respond/advance/
-      finalise cycle and produce a valid, dual-signed NegotiationRecord.
-- [ ] Scope negotiation: a counter-proposal that fits within the offered scope
-      is accepted; one that exceeds it is rejected.
-- [ ] A NegotiationRecord with a tampered evidence field fails verification.
-- [ ] A NegotiationRecord signed by only one party fails verification.
-- [ ] Revocation-pressure escalation from v0.24 propagates into negotiation:
-      an ESCALATE verdict during finalise produces a NegotiationRecord with
-      `verdict: escalate`, not `allow`.
+- [ ] `build_offer` + `accept_offer` (direct) round-trip: a responder that
+      accepts the Offer directly produces a valid dual-signed AgreementRecord.
+- [ ] `build_offer` + `build_counter` + `accept_counter` round-trip: an offerer
+      that accepts a Counter-offer produces a valid dual-signed AgreementRecord.
+- [ ] A Counter-offer with capabilities outside the Offer's requested set is
+      rejected (scope cannot be widened by the responder).
+- [ ] An AgreementRecord with a tampered `agreed_capabilities` field fails
+      verification (`invalid_signature`).
+- [ ] An AgreementRecord signed by only one party fails verification
+      (`missing_signature`).
+- [ ] `verify_agreement` with `--graph` enforces `graph_digest` binding.
+- [ ] Revocation-pressure escalation (from v0.24) propagates into evidence
+      embedded in the AgreementRecord: an `escalate` verdict is visible in
+      the embedded TrustEvidence, not silently promoted to `allow`.
 - [ ] The offline file-exchange flow works end-to-end with the CLI.
-- [ ] Tests cover the full negotiation lifecycle, scope counter, rejection, and
-      tamper detection.
+- [ ] Tests cover the full agreement lifecycle, counter-offer, direct acceptance,
+      scope violation, tamper detection, and verification.
 - [ ] The Sphinx build passes with warnings as errors.
 
 ## Scope
 
 ### In Scope
 
-- `trust/negotiation.py`, `models/negotiation.py` and their tests.
-- The `genesis-mesh trust negotiate` subcommand group.
-- A worked offline two-actor example in docs.
+- `models/agreement.py`, `trust/agreement.py`, and their tests.
+- The `genesis-mesh trust agree` sub-group (offer, counter, accept, verify).
+- A worked offline two-sovereign example in docs.
 - Release metadata for `0.26.0`.
 
 ### Out of Scope
 
-- In-band negotiation over the live Noise XX peer session (later).
-- Multi-party negotiation (more than two actors). Direct negotiation first.
-- Automated renewal of NegotiationRecords. Operators re-run negotiate when
-  their treaties are renewed.
-- Any new trust root, treaty, or revocation mechanism. Negotiation only
-  evaluates what already exists in the graph.
-- Token, billing, or reputation overlays.
+- In-band agreement over the live Noise XX peer session (later).
+- Multi-party agreement (more than two sovereigns). Direct agreement first.
+- Automated renewal. Sovereigns re-run the offer cycle when treaties renew.
+- Any new trust root, treaty, or revocation mechanism. Agreement only
+  evaluates existing graph state.
+- Token, billing, reputation, or scoring overlays.
+- A network endpoint for agreement exchange (CLI + library first, as with
+  TrustEvidence).
 
 ## Dependencies
 
-- Requires v0.24.0 `evaluate_trust_decision` + `build_trust_evidence` (the
-  decision engine that produces each party's evidence during finalise).
-- Requires v0.25.0 Atlas is not a hard dependency, but Atlas should be able
-  to display NegotiationRecords as a relationship surface.
+- Requires v0.24.0 `evaluate_trust_decision` + `build_trust_evidence`.
+- v0.25.0 Atlas is not a hard dependency, but Atlas should eventually be
+  able to display AgreementRecords as a relationship surface alongside the
+  recognition graph.
 
 ## Verification
 
 ```powershell
 git diff --check
-python -m pytest genesis_mesh/tests/test_trust_negotiation.py
+python -m pytest genesis_mesh/tests/test_trust_agreement.py
 python -m sphinx -b html -W docs docs\pages
 pre-commit run --hook-stage pre-push --all-files
 python -m build
@@ -239,25 +318,7 @@ Do not tag v0.26.0 until:
 
 - [ ] Package metadata is bumped to `0.26.0`.
 - [ ] Changelog documents the release.
-- [ ] The `trust negotiate` commands are documented in the CLI reference and
-      a worked two-actor example.
+- [ ] The `trust agree` commands are documented in the CLI reference and a
+      worked two-sovereign example exists in docs.
 - [ ] Sphinx docs build passes with warnings as errors.
 - [ ] Wheel and sdist are built and twine-checked.
-
-## Why this is the "impossible without GM" milestone
-
-Without Genesis Mesh, you can build:
-
-- A TLS handshake that proves identity.
-- An OAuth flow that proves authorization.
-- An API call that checks a policy database.
-
-All of these assume trust was decided before the connection, by some authority
-outside the exchange itself.
-
-With Genesis Mesh, the trust negotiation is the connection. The actors carry
-their own trust material, evaluate each other's claims using the protocol
-primitives, and produce a dual-signed record that neither can generate alone.
-No central authority. No shared backend. No pre-existing relationship required.
-
-That is the capability that cannot exist without a protocol layer.
