@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from urllib.parse import quote
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,7 @@ master_doc = "index"
 
 html_theme = "furo"
 html_title = "Genesis Mesh"
+html_baseurl = "https://genesismesh.connectorzzz.com/"
 html_show_sphinx = False
 html_logo = "../genesis_mesh/na_service/operator_console/static/logo.svg"
 html_favicon = "../genesis_mesh/na_service/operator_console/static/favicon.svg"
@@ -73,3 +75,45 @@ autodoc_typehints = "description"
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 mermaid_version = "11.4.1"
+
+
+def _write_crawler_files(app, _exception):
+    if app.builder.name != "html":
+        return
+
+    outdir = Path(app.outdir)
+    baseurl = app.config.html_baseurl.rstrip("/")
+
+    pages = []
+    for docname in app.env.found_docs:
+        rel = Path(app.builder.get_outfilename(docname)).relative_to(outdir).as_posix()
+        url = f"{baseurl}/{quote(rel)}"
+        if rel == "index.html":
+            url = f"{baseurl}/"
+        pages.append(url)
+
+    sitemap = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for url in sorted(pages):
+        sitemap.extend(["  <url>", f"    <loc>{url}</loc>", "  </url>"])
+    sitemap.append("</urlset>")
+
+    (outdir / "sitemap.xml").write_text("\n".join(sitemap) + "\n", encoding="utf-8")
+    (outdir / "robots.txt").write_text(
+        "\n".join(
+            [
+                "User-agent: *",
+                "Allow: /",
+                "",
+                f"Sitemap: {baseurl}/sitemap.xml",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def setup(app):
+    app.connect("build-finished", _write_crawler_files)
