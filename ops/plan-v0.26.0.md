@@ -2,128 +2,200 @@
 
 ## Positioning
 
-v0.24.0 produced a signed TrustEvidence record: proof that one sovereign
-evaluated trust toward another, at this graph state, at this time.
+v0.24.0 produced signed TrustEvidence: proof that one sovereign evaluated
+trust toward another at a specific graph state.
 
-v0.25.0 made that graph inspectable via Atlas.
+v0.25.0 made the recognition graph and those records inspectable via Atlas.
 
-v0.26.0 adds the protocol that turns evaluated trust into a mutually-binding,
-scope-bounded, dual-signed operational agreement.
+v0.26.0 adds the protocol layer that sits above trust material and below
+execution: the **Relationship Agreement**.
 
 The release should prove this statement:
 
-> Two independent sovereigns — already related by treaties and revocation feeds —
-> can exchange a signed Offer, optionally narrow its scope in a Counter-offer,
-> and produce an AgreementRecord that neither party can generate alone, binding
-> both to specific capabilities under specific conditions at a specific graph
-> state.
+> Two independent sovereigns — possessing portable trust material in the form
+> of treaties, feeds, and identity proofs — can determine whether that material
+> is sufficient for a specific purpose, scope, and point in time, and produce
+> a dual-signed AgreementRecord that neither party can generate alone.
 
-That is the first workflow in Genesis Mesh that **neither party can fake,
-replay, or produce without the other.**
+## The architectural layer this adds
 
-## On "no prior relationship required"
+Before this release, the GM stack is:
 
-This phrase would be wrong.
+```
+Identity
+  ↓
+Trust material  (treaties, feeds, bundles, TrustEvidence)
+  ↓
+Decision        (allow / warn / block / escalate)
+```
 
-Prior trust material is always required:
+After this release:
 
-- Trust bundles carry sovereign identity and public material.
-- Recognition treaties carry scope and mutual recognition.
-- Revocation feeds carry freshness of that recognition.
-- `evaluate_trust_decision` (v0.24) evaluates it all.
+```
+Identity
+  ↓
+Trust material  (treaties, feeds, bundles, TrustEvidence)
+  ↓
+Relationship Agreement   ← this release
+  ↓
+Capability execution
+```
 
-What is **not** required is a prior *runtime relationship* — an active
-connection, session, or shared backend. Two parties that have never connected
-in real time can exchange signed files, produce an AgreementRecord, and both
-hold a verifiable proof of what was agreed. No server. No session. No
-real-time synchronization.
+The Agreement becomes the artifact that applications consume. Execution
+happens *because an agreement exists*, not merely because authentication
+succeeded. That is a different architectural layer.
 
-The accurate framing: **no prior runtime relationship required, but treaty-level
-trust material is the prerequisite.**
+The distinction maps onto how things work between people and organisations:
+
+- You do not act because authentication succeeded.
+- You act because an agreement authorises the action, and the agreement
+  exists because both parties signed it.
+
+Compare two worlds:
+
+**Without GM:**
+```
+OAuth succeeds
+    ↓
+TLS succeeds
+    ↓
+API call
+```
+Bank and client each hold their own unilateral access logs.
+
+**With GM:**
+```
+Recognition (treaty)
+    ↓
+Relationship Agreement  (dual-signed, scope-bounded, time-limited)
+    ↓
+Capability execution
+    ↓
+Evidence
+```
+Execution is backed by a mutual record that neither party can alter retroactively.
+
+## On trust material, not "established trust"
+
+The protocol does not assume trust is fully or unconditionally established.
+It assumes each party **possesses portable trust material** — treaties,
+revocation feeds, identity proofs — and determines whether that material is
+**sufficient to establish a relationship for a specific purpose, scope, and
+point in time**.
+
+The evaluation may conclude: allow, warn, escalate, or block. A Relationship
+Agreement is only formed when the evaluation on both sides is compatible with
+proceeding. If one party's trust material is insufficient for the requested
+scope, the Agreement is not formed — the attempt produces a signed rejection,
+not silence.
 
 ## Why Agreement, not Negotiation
 
-Consider the flow the user experiences:
+Consider what actually happens:
 
 ```
 Aspayr sends Offer:
-  "I am Aspayr. I want:
-   - transactions.read
-   - balances.read
-   - payments.none"
+  "I am Aspayr.
+   I want:
+     - transactions.read
+     - balances.read
+     - payments: none
+   Valid until Friday.
+   My revocation feed is current as of sequence 47."
 
 Bank sends Counter-offer:
   "I can offer:
-   - transactions.read
-   - balances.read
-  (payments is not offered; read freshness guaranteed for 24h)"
+     - transactions.read
+     - balances.read
+   (payments is not offered)
+   Freshness guaranteed for 24h.
+   My revocation feed is current as of sequence 12."
 
-Aspayr sends Acceptance:
-  "Accepted. I sign the Counter-offer terms."
-
-Both parties hold a dual-signed AgreementRecord.
+Aspayr accepts. Both parties sign the Counter-offer terms.
 ```
 
-What happened is not trust establishment. Aspayr and the Bank already trust
-each other via treaty. What changed is this:
+What is exchanged is not trust. Aspayr and Bank already possess trust material
+toward each other via treaty. What is exchanged is a **set of terms**: which
+specific capabilities will be active, under what scope, until when, with what
+freshness guarantees.
 
-- Aspayr expressed a *specific, bounded capability request* for this session.
-- Bank expressed what it *will actually deliver* under those terms.
-- Both parties signed the same scope, producing a *mutually-binding record*.
+Capabilities are **one term inside the agreement**, not the whole thing.
+A Relationship Agreement may also carry:
 
-That is contract execution, not trust negotiation.
+- validity window and renewal conditions
+- freshness commitments (revocation feed sequence floor)
+- evidence requirements (what proofs must be presented at execution)
+- operator obligations
+- delegation constraints
 
-The analogy is not TLS (which establishes a secure channel). The analogy is
-**contract law**: Offer → Counter-offer → Acceptance. Genesis Mesh happens to
-operate over signed JSON instead of paper, but the protocol is contractual.
+That makes the protocol future-proof. A hospital and a bank use the same
+Agreement protocol whether they are agreeing on `patient-records.read`,
+`payment-rails.transfer`, or `audit-log.write`. The protocol is about
+establishing a mutual commitment; the specific terms are negotiable content,
+not fixed fields.
 
-This framing is also universal. The same Agreement protocol works for:
+## The contract analogy
 
-- Operator → Hospital: "I need patient-records.read under jurisdiction-EU."
-- Bank → Robot: "I offer balance.query with 1-second freshness for 8 hours."
-- AI Agent → Digital Twin: "I want simulation.write under audit-mode."
-- Satellite → Ground Station: "I accept telemetry.read under no-replay constraint."
+The right analogy is not TLS (a secure channel handshake). The right analogy
+is **contract law**: Offer → Counter-offer → Acceptance.
 
-None of these are "AI protocol." All of them are **operational agreement between
-sovereign entities** using the same GM primitives.
+We use this analogy specifically because:
+
+- Treaties, recognition, scope, and capabilities are already contractual
+  concepts. The Agreement protocol formalises how parties exercise rights
+  established by those contracts.
+- Contract law is universally understood outside engineering. A hospital
+  administrator, a bank officer, and a regulator can read "Offer" and
+  "Counter-offer" without needing to know what TLS does.
+- Contracts exist independently of any transport. A physical contract is not
+  invalidated by the courier who delivered it. A Relationship Agreement must
+  have the same property.
+
+### Transport independence test
+
+**Can the AgreementRecord exist independently of the transport used to exchange
+it?**
+
+The answer must be yes. If the AgreementRecord's validity depends on the channel
+through which it was exchanged, it is a handshake, not a protocol. GM's
+AgreementRecord must be valid whether it was exchanged via:
+
+- signed files shared over email,
+- an API endpoint,
+- the Noise XX peer session,
+- a USB drive handed between operators.
+
+Transport carries the messages. The Agreement is the content. They are separate.
 
 ## Design
 
 ### Model: Offer → Counter-offer → Acceptance
 
-The three-step contract model replaces the six-phase session model:
-
 ```
-Step 1  Offer
-        A sends a signed CapabilityOffer:
-          - offerer_sovereign_id
-          - responder_sovereign_id
-          - requested_capabilities   (list of capability URIs or role IDs)
-          - requested_scope          (roles, delegation, freshness floor)
-          - graph_digest             (SHA-256 of the graph A evaluated)
-          - offerer_evidence         (TrustEvidence from A toward B)
-          - expires_at               (offer validity window)
-          - signatures               (A's signature)
+Step 1  Offer (CapabilityOffer, signed by offerer)
+        - offerer_sovereign_id
+        - responder_sovereign_id
+        - requested_terms          (capabilities, scope, validity, freshness floor)
+        - graph_digest             (SHA-256 of graph A evaluated)
+        - offerer_evidence         (TrustEvidence from A toward B)
+        - expires_at               (offer validity window)
+        - signatures               [offerer]
 
-Step 2  Counter-offer (optional)
-        B may send a signed CapabilityCounter:
-          - offer_id                 (links back to the Offer)
-          - offered_capabilities     (subset of what A requested, or narrower scope)
-          - offered_scope
-          - freshness_commitment     (what revocation freshness B guarantees)
-          - responder_evidence       (TrustEvidence from B toward A)
-          - signatures               (B's signature)
+Step 2  Counter-offer (optional, CapabilityCounter, signed by responder)
+        - offer_id                 (links to Offer)
+        - offered_terms            (subset or narrower scope of requested_terms)
+        - freshness_commitment     (revocation freshness responder guarantees)
+        - responder_evidence       (TrustEvidence from B toward A)
+        - signatures               [responder]
 
-        If A's Offer already fits what B can deliver, B skips Step 2 and
-        signs directly in Step 3.
+        If the Offer already fits what the responder can deliver, Step 2 is
+        skipped and the responder moves directly to Step 3 (acceptance).
 
-Step 3  Acceptance
-        Either party signs the Offer or Counter-offer to produce an
-        AgreementRecord. If A accepts the Counter-offer, A signs it. If
-        B accepts the Offer directly, B signs it.
-
-        The AgreementRecord is the Counter-offer (or Offer) with both
-        parties' signatures. It is complete when both signatures are present.
+Step 3  Acceptance (AgreementRecord)
+        Whoever accepts (offerer accepting a Counter, or responder accepting
+        the Offer directly) adds their signature. The AgreementRecord is
+        complete when both signatures are present. It is the Counter-offer (or
+        Offer) carrying both parties' signatures.
 ```
 
 ### AgreementRecord
@@ -133,126 +205,167 @@ AgreementRecord
   agreement_id              UUID
   offerer_sovereign_id      who initiated
   responder_sovereign_id    who responded
-  agreed_capabilities       final capability list (from accepted offer/counter)
-  agreed_scope              final scope (roles, delegation, restrictions)
-  freshness_commitment      revocation feed sequence floor guaranteed
-  offerer_evidence          TrustEvidence from offerer toward responder
-  responder_evidence        TrustEvidence from responder toward offerer
-  graph_digest              SHA-256 of the graph state at agreement time
-  established_at            UTC timestamp
-  expires_at                validity window (not extendable without new agreement)
-  signatures                list[Signature] — must contain both parties
+  agreed_terms              {
+                              capabilities: list[str],
+                              scope: dict,
+                              validity: {from, until},
+                              freshness_commitment: int,   (revocation seq floor)
+                            }
+  offerer_evidence          TrustEvidence (offerer → responder direction)
+  responder_evidence        TrustEvidence (responder → offerer direction)
+  graph_digest              SHA-256 of recognition graph at agreement time
+  established_at            UTC ISO timestamp
+  expires_at                agreement validity ceiling
+  signatures                list[Signature]  — must contain both parties
 ```
-
-The AgreementRecord is the first artifact in Genesis Mesh that requires
-signatures from **two independent sovereigns**. Neither party can produce it
-alone. That is what makes it unique.
 
 ### What an AgreementRecord proves
 
-A holder of an AgreementRecord can verify:
+A holder can verify:
 
-1. **Identity**: both signers are who they claim (Ed25519 signature over
-   canonical JSON, same convention as RecognitionTreaty and TrustEvidence).
-2. **Agreement**: both parties signed the same scope and capabilities —
-   nobody unilaterally changed the terms after signing.
-3. **Trust state at agreement time**: the `graph_digest` and both embedded
-   `TrustEvidence` records bind the agreement to the specific graph state
-   when it was made. A stale or forked graph cannot be substituted silently.
-4. **Freshness commitment**: the `freshness_commitment` tells the holder what
-   revocation-feed recency was guaranteed by the responder at signing time.
-5. **Bounded validity**: `expires_at` is set and not extendable. A new agreement
-   requires a new offer cycle.
+1. **Identity**: both signers are who they claim (Ed25519 over canonical JSON).
+2. **Mutual agreement**: both parties signed the same terms — neither party can
+   unilaterally change the terms after signing.
+3. **Trust state at agreement time**: `graph_digest` + both `TrustEvidence`
+   records bind the agreement to the specific graph state when it was made.
+4. **Freshness**: the `freshness_commitment` shows what revocation-feed recency
+   the responder guaranteed at signing time.
+5. **Bounded validity**: `expires_at` is set. Renewal requires a new Offer cycle.
 
 ### What an AgreementRecord does NOT prove
 
-- It does not create a new treaty. Treaties remain operator-level, signed
-  offline. The agreement evaluates existing treaties; it does not create them.
-- It does not grant new capabilities beyond what treaties allow. Scope in the
-  AgreementRecord is always a subset of what existing treaties permit.
-- It does not supersede revocation. Either party can revoke trust at any time
-  via revocation feeds; a current AgreementRecord does not override a
+- That a new treaty exists. Agreements evaluate existing treaties; they do not
+  create them.
+- That capabilities are granted beyond what treaties allow. Terms in the
+  Agreement are always a subset of treaty-permitted scope.
+- That trust is unconditionally established. Either party may revoke at any
+  time via revocation feeds; a current AgreementRecord does not override a
   subsequent revocation.
-- It does not require a live connection. The exchange can happen via files,
-  API endpoints, or any transport. The protocol is transport-agnostic.
 
 ### New modules
 
-**`genesis_mesh/models/agreement.py`**
+**`genesis_mesh/models/agreement.py`** — Pydantic models:
+- `AgreementTerms` — the terms block (capabilities, scope, validity, freshness)
+- `CapabilityOffer` — Step 1. Signed by offerer.
+- `CapabilityCounter` — Step 2. Signed by responder. References `offer_id`.
+- `AgreementRecord` — Final artifact. Both signatures required.
 
-Pydantic models following the canonical-JSON signing convention:
+All have `to_canonical_json()` (excludes `signatures`, sorted keys, compact
+separators) and `signatures: list[Signature]`, matching the existing convention.
 
-- `CapabilityOffer` — Step 1 message. Signed by offerer.
-- `CapabilityCounter` — Step 2 message. Signed by responder. References
-  `offer_id`.
-- `AgreementRecord` — Final artifact. Signed by both parties.
-
-All three have `to_canonical_json()` (excludes `signatures`, sorted keys,
-compact separators) and `signatures: list[Signature]`.
-
-**`genesis_mesh/trust/agreement.py`**
-
-Pure functions — no I/O, no signing:
-
-- `build_offer(offerer_id, responder_id, requested_capabilities, requested_scope, graph, signing_key, *, issued_by, now) -> CapabilityOffer`
-  Signs an offer. Internally runs `evaluate_trust_decision` and embeds the
-  resulting TrustEvidence in `offerer_evidence`.
-
-- `build_counter(offer, offered_capabilities, offered_scope, freshness_commitment, responder_graph, signing_key, *, issued_by, now) -> CapabilityCounter`
-  Signs a counter-offer. Internally runs `evaluate_trust_decision` in the
-  responder's direction and embeds TrustEvidence.
-
+**`genesis_mesh/trust/agreement.py`** — Pure functions (no I/O, no signing):
+- `build_offer(offerer_id, responder_id, requested_terms, graph, signing_key, *, issued_by, now) -> CapabilityOffer`
+- `build_counter(offer, offered_terms, freshness_commitment, responder_graph, signing_key, *, issued_by, now) -> CapabilityCounter`
 - `accept_offer(offer, responder_graph, signing_key, *, issued_by, now) -> AgreementRecord`
-  Responder accepts the Offer directly (no counter needed). Produces the
-  AgreementRecord with both signatures (offerer's from the Offer, responder's
-  new signature).
-
+  (responder accepts Offer directly — no counter)
 - `accept_counter(counter, original_offer, offerer_graph, signing_key, *, issued_by, now) -> AgreementRecord`
-  Offerer accepts the Counter-offer. Produces the AgreementRecord.
+  (offerer accepts Counter)
+- `verify_agreement(record, offerer_public_keys, responder_public_keys, *, expected_graph_digest) -> AgreementVerificationResult`
 
-- `verify_agreement(record, offerer_public_keys, responder_public_keys, *, expected_graph_digest=None) -> AgreementVerificationResult`
-  Verifies both signatures and optionally the graph-digest binding.
-  Returns a frozen `AgreementVerificationResult(accepted, reason, agreement_id,
-  offerer_sovereign_id, responder_sovereign_id)`.
+`AgreementVerificationResult` is a frozen dataclass: `accepted`, `reason`
+(Literal), `agreement_id`, `offerer_sovereign_id`, `responder_sovereign_id`.
+Reason codes: `accepted`, `missing_offerer_signature`, `missing_responder_signature`,
+`invalid_offerer_signature`, `invalid_responder_signature`, `graph_digest_mismatch`,
+`terms_mismatch` (counter terms exceed offer scope).
 
-### New CLI surface (under `genesis-mesh trust`)
-
-The existing `trust` group gains a `trust agree` sub-group:
+### New CLI surface (under `genesis-mesh trust agree`)
 
 - `trust agree offer` — Build and sign a CapabilityOffer. Writes offer JSON.
-- `trust agree counter` — Build and sign a CapabilityCounter from an Offer. Writes counter JSON.
+- `trust agree counter` — Build and sign a CapabilityCounter from an Offer file.
 - `trust agree accept` — Accept an Offer or Counter-offer. Writes AgreementRecord JSON.
-- `trust agree verify` — Verify an AgreementRecord's dual signatures and embedded evidence.
+- `trust agree verify` — Verify dual signatures + evidence on an AgreementRecord.
 
-The offline file-exchange workflow (offer → counter → accept) produces a
-dual-signed AgreementRecord in 3 CLI steps, no live connection needed.
+The offline file-exchange flow:
+
+```bash
+# Aspayr (offerer)
+genesis-mesh trust agree offer \
+  --from aspayr --to bank-a \
+  --capability transactions.read --capability balances.read \
+  --scope '{"delegation": false}' \
+  --graph aspayr-graph.json \
+  --signing-key aspayr.key --key-id aspayr-2026 \
+  --output offer.json
+
+# Bank A (responder) — accepts directly or counters
+genesis-mesh trust agree counter \
+  --offer offer.json \
+  --capability transactions.read --capability balances.read \
+  --freshness-sequence 12 \
+  --graph bank-graph.json \
+  --signing-key bank.key --key-id bank-2026 \
+  --output counter.json
+
+# Aspayr accepts the counter
+genesis-mesh trust agree accept \
+  --counter counter.json --offer offer.json \
+  --graph aspayr-graph.json \
+  --signing-key aspayr.key --key-id aspayr-2026 \
+  --output agreement.json
+
+# Either party verifies
+genesis-mesh trust agree verify \
+  --agreement agreement.json \
+  --offerer-public-key <aspayr-pub-b64> \
+  --responder-public-key <bank-pub-b64> \
+  --graph aspayr-graph.json
+```
 
 ## What this enables that nothing else does
 
-Without Genesis Mesh:
+TLS, OAuth, and policy APIs all produce a *unilateral decision* by one party
+about what the other may do. None produce a *mutual signed agreement*.
 
-- TLS proves a channel is secure and both parties are who they claim.
-- OAuth proves a client is authorized by a specific authority.
-- A policy API returns "yes" or "no" for a given capability request.
-
-All of these produce a *unilateral decision by one party* about what the
-other party may do. None produce a *mutual agreement signed by both parties.*
-
-With Genesis Mesh's Relationship Agreement:
-
-Two independent sovereigns, related by treaties and bound by revocation feeds,
-can produce a signed artifact that:
-
-- Was agreed by both parties (dual signature).
-- Is bounded to specific capabilities (not open-ended).
-- Is bound to the trust graph state at agreement time (graph_digest).
-- Carries each party's independent TrustEvidence toward the other.
-- Expires and cannot be silently extended.
+The AgreementRecord is the first artifact in Genesis Mesh that:
+- Requires two independent signatures.
+- Binds both parties to the same specific terms.
+- Is bounded to a specific graph state (graph_digest).
+- Carries independent TrustEvidence from both directions.
 - Cannot be produced by either party alone.
+- Exists independently of any transport or runtime session.
 
-No central authority. No shared backend. No runtime session required.
-No PKI, IAM, or application logging naturally produces this artifact.
+No PKI, IAM, OAuth server, or application framework naturally produces this.
 That is the capability that requires a protocol layer.
+
+## Forward roadmap beyond v0.26
+
+The architecture chain this release introduces has natural continuations:
+
+```
+Relationship Agreement (v0.26)
+  ↓
+Relationship Lifecycle  (renewal — new offer cycle when treaties renew)
+                        (suspension — one party signals inability to execute)
+                        (termination — either party ends the agreement)
+  ↓
+Capability Execution    (execution under an agreement reference — the
+                         AgreementRecord ID is presented alongside a
+                         request as proof of what was agreed)
+  ↓
+Execution Evidence      (signed record of what was done under the agreement,
+                         linking back to the AgreementRecord)
+```
+
+Each layer is a distinct release. v0.26 establishes the Agreement layer only.
+Lifecycle and Execution are out of scope and should not leak into this release.
+
+The full eventual stack:
+
+```
+Identity
+    ↓
+Recognition
+    ↓
+Relationship Agreement   ← this release
+    ↓
+Capability Execution
+    ↓
+Relationship Lifecycle
+    ↓
+Renewal / Termination
+    ↓
+Execution Evidence
+```
 
 ## Success Criteria
 
@@ -260,47 +373,50 @@ That is the capability that requires a protocol layer.
       accepts the Offer directly produces a valid dual-signed AgreementRecord.
 - [ ] `build_offer` + `build_counter` + `accept_counter` round-trip: an offerer
       that accepts a Counter-offer produces a valid dual-signed AgreementRecord.
-- [ ] A Counter-offer with capabilities outside the Offer's requested set is
-      rejected (scope cannot be widened by the responder).
-- [ ] An AgreementRecord with a tampered `agreed_capabilities` field fails
-      verification (`invalid_signature`).
-- [ ] An AgreementRecord signed by only one party fails verification
-      (`missing_signature`).
+- [ ] A Counter-offer with terms outside the Offer's requested scope is rejected
+      (terms cannot be widened by the responder).
+- [ ] An AgreementRecord with a tampered `agreed_terms` field fails verification
+      with `invalid_offerer_signature` or `invalid_responder_signature`.
+- [ ] An AgreementRecord signed by only one party fails with
+      `missing_offerer_signature` or `missing_responder_signature`.
 - [ ] `verify_agreement` with `--graph` enforces `graph_digest` binding.
-- [ ] Revocation-pressure escalation (from v0.24) propagates into evidence
-      embedded in the AgreementRecord: an `escalate` verdict is visible in
-      the embedded TrustEvidence, not silently promoted to `allow`.
-- [ ] The offline file-exchange flow works end-to-end with the CLI.
-- [ ] Tests cover the full agreement lifecycle, counter-offer, direct acceptance,
-      scope violation, tamper detection, and verification.
+- [ ] Revocation-pressure escalation (v0.24) is visible in embedded TrustEvidence;
+      it is not silently promoted to `allow` when building the Agreement.
+- [ ] The offline file-exchange CLI flow works end-to-end.
+- [ ] The AgreementRecord is valid regardless of which transport was used to
+      exchange the offer/counter/acceptance files.
+- [ ] Tests cover: direct acceptance, counter + acceptance, scope violation,
+      tamper detection, single-signature rejection, graph-digest binding.
 - [ ] The Sphinx build passes with warnings as errors.
 
 ## Scope
 
 ### In Scope
 
-- `models/agreement.py`, `trust/agreement.py`, and their tests.
-- The `genesis-mesh trust agree` sub-group (offer, counter, accept, verify).
+- `models/agreement.py`, `trust/agreement.py`, and `tests/test_trust_agreement.py`.
+- The `genesis-mesh trust agree` sub-group.
 - A worked offline two-sovereign example in docs.
 - Release metadata for `0.26.0`.
 
 ### Out of Scope
 
-- In-band agreement over the live Noise XX peer session (later).
-- Multi-party agreement (more than two sovereigns). Direct agreement first.
+- In-band exchange over the Noise XX peer session (later).
+- Multi-party agreements (more than two sovereigns).
 - Automated renewal. Sovereigns re-run the offer cycle when treaties renew.
-- Any new trust root, treaty, or revocation mechanism. Agreement only
-  evaluates existing graph state.
+- Any new trust root, treaty, or revocation mechanism.
+- Capability Execution, Relationship Lifecycle, or Execution Evidence (future
+  releases — see Forward roadmap).
 - Token, billing, reputation, or scoring overlays.
 - A network endpoint for agreement exchange (CLI + library first, as with
-  TrustEvidence).
+  TrustEvidence in v0.24).
 
 ## Dependencies
 
-- Requires v0.24.0 `evaluate_trust_decision` + `build_trust_evidence`.
-- v0.25.0 Atlas is not a hard dependency, but Atlas should eventually be
-  able to display AgreementRecords as a relationship surface alongside the
-  recognition graph.
+- Requires v0.24.0 `evaluate_trust_decision` + `build_trust_evidence`
+  (both are called internally when building an Offer or Counter-offer to
+  embed TrustEvidence from each party's perspective).
+- v0.25.0 Atlas is not a hard dependency but Atlas should eventually
+  surface AgreementRecords alongside the recognition graph.
 
 ## Verification
 
