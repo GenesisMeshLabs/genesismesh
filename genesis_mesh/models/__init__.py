@@ -15,6 +15,7 @@ from .sovereign import (
     SovereignIdentity,
     SovereignRevocationFeed,
 )
+from .evidence import TrustEvidence
 
 __all__ = [
     "AgentDescriptor",
@@ -23,6 +24,7 @@ __all__ = [
     "NetworkAuthority",
     "BootstrapAnchor",
     "PolicyManifestRef",
+    "TrustEvidence",
     "Signature",
     "JoinCertificate",
     "ServiceManifest",

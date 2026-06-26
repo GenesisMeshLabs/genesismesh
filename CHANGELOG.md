@@ -1,5 +1,59 @@
 # Changelog
 
+## v0.24.0 - Trust Decisions and Trust Evidence
+
+### Added
+
+- Added `genesis_mesh/trust/decision.py`: `evaluate_trust_decision` produces a
+  frozen `TrustDecision` (verdict, reason, signals, trust path, hop count) from
+  a recognition-graph export. Verdict precedence: `block` > `escalate` > `warn`
+  > `allow`. Signals derive from real graph state:
+  - `scope_not_in_treaty` (block) — requested roles not permitted at every hop.
+  - `recognition_under_revocation_pressure` (escalate) — imported revocation
+    targets a sovereign on the active path.
+  - `treaty_expiring_soon` (warn) — a treaty on the path is approaching expiry.
+- Added `genesis_mesh/models/evidence.py`: `TrustEvidence` Pydantic model
+  following the existing canonical-JSON signing convention. Binds a trust verdict
+  to the recognition-graph state via `graph_digest` (SHA-256 of the canonical
+  graph export).
+- Added `genesis_mesh/trust/evidence.py`: `build_trust_evidence` and
+  `verify_trust_evidence` with a frozen `EvidenceVerificationResult`
+  (`accepted`, `reason`, `evidence_id`, `issuer_sovereign_id`, `verdict`).
+  Reason codes: `accepted`, `missing_signature`, `invalid_signature`,
+  `graph_digest_mismatch`.
+- Added `genesis-mesh trust` command group (`cli/decision_ops.py`):
+  - `trust decide` — prints the decision table or JSON; exit code mirrors verdict.
+  - `trust evidence` — evaluates trust and emits a signed `TrustEvidence` JSON.
+  - `trust verify-evidence` — verifies signature; with `--graph` also enforces
+    graph-digest binding.
+- Added `genesis_mesh/tests/test_trust_decision.py` covering all four verdicts,
+  scope blocking at every hop, sign→verify roundtrip, serialise roundtrip,
+  tamper detection, digest mismatch, and deterministic digest derivation.
+- Added `docs/examples/trust-evidence.md` — two-sovereign worked example with
+  CLI commands and a Python snippet.
+- Added Trust Decision Commands section to `docs/reference/cli.md`.
+
+### Changed
+
+- Bumped the package version to `0.24.0`.
+- The Connectome and graph-export behavior are unchanged; the new modules are
+  additive consumers only.
+
+### Notes
+
+- The decision engine is pure (no I/O, no signing). Signing and verification
+  live in `trust/evidence.py`, cleanly separated from the logic.
+- TrustEvidence records are self-describing: a verifier needs only the record
+  and the issuer public key. `--graph` adds optional strict graph-state binding.
+- Network endpoint (`/trust/decision`) is out of scope for this release;
+  CLI + library first until the artifact format is settled.
+
+### Verified
+
+- Full test suite (`pytest`) passes with 21 new tests in `test_trust_decision.py`.
+- mypy clean on new modules.
+- Sphinx docs build passes with warnings as errors.
+
 ## v0.23.0 - Fleet Operations CLI
 
 ### Added

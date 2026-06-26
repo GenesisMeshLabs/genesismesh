@@ -479,6 +479,84 @@ genesis-mesh managed audit-export \
 Use `--event-type recognition_treaty_issued` to export one event class and
 `--format json` when a JSON array is easier to ingest.
 
+## Trust Decision Commands
+
+The `genesis-mesh trust` group evaluates trust decisions over a recognition-graph
+export and issues signed TrustEvidence records that a second sovereign can verify
+offline, without sharing a backend, database, or identity provider.
+
+All commands operate over a graph export file produced by
+`proof export-graph`, `federation bootstrap --evidence`, or the live
+`/trust/graph` Network Authority endpoint.
+
+### `genesis-mesh trust decide`
+
+Evaluates a trust decision from one sovereign toward another and prints the
+verdict, justifying signals, and trust path.
+
+```bash
+genesis-mesh trust decide \
+  --graph fleet-graph.json \
+  --from sovereign-a \
+  --to sovereign-b \
+  --role role:service:maintainer
+```
+
+The verdict is one of `allow`, `warn`, `block`, or `escalate`:
+
+| Verdict | Meaning |
+|---|---|
+| `allow` | Active treaty path with no risk signals. |
+| `warn` | Active path, but one or more treaties are expiring soon. |
+| `escalate` | Active path, but a revocation feed targets a sovereign on the path. |
+| `block` | No active path, or requested roles are outside treaty scope. |
+
+The exit code mirrors the verdict: `0`=allow, `1`=warn, `2`=escalate, `3`=block.
+Use `--format json` for machine-readable output.
+
+### `genesis-mesh trust evidence`
+
+Evaluates trust and emits a signed TrustEvidence record. The evidence binds
+the verdict to the recognition-graph state via a SHA-256 digest so a second
+sovereign can independently verify it later.
+
+```bash
+genesis-mesh trust evidence \
+  --graph fleet-graph.json \
+  --from sovereign-a \
+  --to sovereign-b \
+  --role role:service:maintainer \
+  --issuer-sovereign sovereign-a \
+  --signing-key keys/na.key \
+  --key-id na-2026-q1 \
+  --output evidence-a-b.json
+```
+
+The output file is a signed JSON record containing the verdict, signals,
+trust path, graph digest, and issuer Ed25519 signature.
+
+### `genesis-mesh trust verify-evidence`
+
+Verifies the signature on a TrustEvidence record. Without `--graph`, checks
+only the Ed25519 signature. With `--graph`, also re-derives the graph digest
+and confirms the evidence was produced over the same graph state.
+
+```bash
+# Signature check only
+genesis-mesh trust verify-evidence \
+  --evidence evidence-a-b.json \
+  --public-key <base64-issuer-public-key>
+
+# Strict: signature + graph-state binding
+genesis-mesh trust verify-evidence \
+  --evidence evidence-a-b.json \
+  --public-key <base64-issuer-public-key> \
+  --graph fleet-graph.json
+```
+
+Exits `0` on success, `1` on any verification failure. Use `--format json`
+for machine-readable output.
+
 ## Node Operator Commands
 
 ### `genesis-mesh join`

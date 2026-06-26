@@ -12,6 +12,7 @@ import click
 import requests
 from werkzeug.serving import run_simple
 
+from .decision_ops import trust
 from .dev_ops import dev
 from .federation import federation
 from .fleet_ops import fleet
@@ -76,6 +77,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(supply_chain)
     cli.add_command(trust_bundle)
     cli.add_command(treaty)
+    cli.add_command(trust)
 
 
 

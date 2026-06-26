@@ -1,16 +1,17 @@
-# v0.24.0 Plan - Trust Decisions and Relationship Receipts
+# v0.24.0 Plan - Trust Decisions and Trust Evidence
 
 ## Positioning
 
 The v0.23.0 line shipped fleet operations: an operator can stand up and federate
 a fleet of independent sovereigns. The Connectome can already answer *does A
 recognize B?* through `explain_trust_path`. v0.24.0 turns that boolean into an
-operator-grade **decision** and emits a portable, signed **proof** of it.
+operator-grade **decision** and emits a portable, signed **TrustEvidence** record
+that a second sovereign can verify offline.
 
 The release should prove this statement:
 
 > A sovereign can evaluate trust toward another sovereign and produce a signed
-> Relationship Receipt that a second, independent sovereign can verify offline,
+> TrustEvidence record that a second, independent sovereign can verify offline,
 > without sharing a backend, database, or identity provider.
 
 This is the concrete code form of Genesis Mesh's value proposition: trust that
@@ -43,8 +44,9 @@ demonstrate -- two local sovereigns are sufficient.
 - The Connectome stays a read-only view. `trust/connectome.py` and
   `db_trust.export_recognition_graph` are **not modified**. The decision engine
   is a new consumer of the same graph export.
-- The decision engine is pure: no I/O, no signing. Receipts are built from a
-  decision in a separate module so the logic stays testable in isolation.
+- The decision engine is pure: no I/O, no signing. TrustEvidence records are
+  built from a decision in a separate module so the logic stays testable in
+  isolation.
 
 ### New modules
 
@@ -59,42 +61,41 @@ demonstrate -- two local sovereigns are sufficient.
   - revocation pressure: an imported membership revocation whose issuer is on the
     path -> `escalate` (`recognition_under_revocation_pressure`).
   - no active path -> `block` with the path's own reason.
-- `genesis_mesh/models/receipt.py` -- `RelationshipReceipt` Pydantic model
+- `genesis_mesh/models/evidence.py` -- `TrustEvidence` Pydantic model
   following the existing convention (`to_canonical_json` excludes `signatures`,
-  sorted keys, compact separators). Binds the decision to its evidence via a
-  `graph_digest` (SHA-256 of the canonical graph export) so a receipt cannot be
+  sorted keys, compact separators). Binds the decision to the graph state via
+  `graph_digest` (SHA-256 of the canonical graph export) so evidence cannot be
   replayed against different graph state.
-- `genesis_mesh/trust/receipt.py` -- `build_relationship_receipt(decision,
+- `genesis_mesh/trust/evidence.py` -- `build_trust_evidence(decision,
   issuer_sovereign_id, graph_digest, issued_by, ...)` and
-  `verify_relationship_receipt(receipt, issuer_public_keys, *,
-  expected_graph_digest=None)` returning a frozen result with a `Literal`
-  reason (`accepted`, `missing_signature`, `invalid_signature`,
+  `verify_trust_evidence(evidence, issuer_public_keys, *,
+  expected_graph_digest=None)` returning a frozen `EvidenceVerificationResult`
+  with `Literal` reason (`accepted`, `missing_signature`, `invalid_signature`,
   `graph_digest_mismatch`), mirroring `TreatyVerificationResult`.
 
 ### New CLI surface (a `trust` group, registered in `cli/ops.py`)
 
 - `genesis-mesh trust decide --graph <file> --from <sid> --to <sid>
   [--role r ...] [--format table|json]` -- prints the decision.
-- `genesis-mesh trust receipt --graph <file> --from --to [--role ...]
+- `genesis-mesh trust evidence --graph <file> --from --to [--role ...]
   --issuer-sovereign <sid> --signing-key <path> --key-id <id> --output <file>`
-  -- emits a signed receipt.
-- `genesis-mesh trust verify-receipt --receipt <file> --public-key <b64|path>
+  -- emits a signed TrustEvidence record.
+- `genesis-mesh trust verify-evidence --evidence <file> --public-key <b64|path>
   [--graph <file>]` -- always checks the signature; with `--graph` also
   re-derives and binds `graph_digest`.
 
 ## Success Criteria
 
-- [ ] `trust decide` returns each verdict (`allow`/`warn`/`block`/`escalate`)
+- [x] `trust decide` returns each verdict (`allow`/`warn`/`block`/`escalate`)
       from the appropriate graph state, with justifying signals.
-- [ ] A role outside treaty scope on any hop yields a `block` decision.
-- [ ] `trust receipt` -> `trust verify-receipt` is a green roundtrip across two
-      independently keyed sovereigns.
-- [ ] A receipt verified against a different graph fails with
-      `graph_digest_mismatch`; a tampered receipt fails with
-      `invalid_signature`.
-- [ ] The `trust` group appears in the operator console `/cli-reference`
+- [x] A role outside treaty scope on any hop yields a `block` decision.
+- [x] `trust evidence` -> `trust verify-evidence` is a green roundtrip across
+      two independently keyed sovereigns.
+- [x] Evidence verified against a different graph fails with
+      `graph_digest_mismatch`; tampered evidence fails with `invalid_signature`.
+- [x] The `trust` group appears in the operator console `/cli-reference`
       automatically from the Click tree.
-- [ ] Tests cover decision logic, scope blocking, signing, verification, and
+- [x] Tests cover decision logic, scope blocking, signing, verification, and
       digest binding.
 - [ ] The Sphinx build passes with warnings as errors.
 
@@ -102,17 +103,16 @@ demonstrate -- two local sovereigns are sufficient.
 
 ### In Scope
 
-- The `trust/decision.py`, `models/receipt.py`, `trust/receipt.py` modules.
+- The `trust/decision.py`, `models/evidence.py`, `trust/evidence.py` modules.
 - The `genesis-mesh trust` command group and its tests.
-- Reference docs and one worked two-sovereign example producing a verifiable
-  receipt.
+- Reference docs and one worked two-sovereign example (`docs/examples/trust-evidence.md`).
 - Release metadata for `0.24.0`.
 
 ### Out of Scope
 
 - Any change to Connectome or graph-export behavior (read-only consumers only).
 - Capability discovery filtering (separate, later release).
-- A network endpoint for decisions/receipts. CLI + library first; an NA
+- A network endpoint for decisions/evidence. CLI + library first; an NA
   `/trust/decision` route can follow once the artifact format is settled.
 - Transitive/derived recognition. Decisions evaluate the explicit treaty graph
   only, per the VISION.md guardrail.
@@ -132,8 +132,8 @@ python -m build
 
 Do not tag v0.24.0 until:
 
-- [ ] Package metadata is bumped to `0.24.0`.
-- [ ] Changelog documents the release.
-- [ ] The `trust` commands are documented in the CLI reference and an example.
+- [x] Package metadata is bumped to `0.24.0`.
+- [x] Changelog documents the release.
+- [x] The `trust` commands are documented in the CLI reference and an example.
 - [ ] Sphinx docs build passes with warnings as errors.
 - [ ] Wheel and sdist are built and twine-checked.
