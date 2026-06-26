@@ -45,6 +45,8 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("GET", "/dashboard.json", "Dashboard JSON", "Machine-readable sovereign health and trust summary.", "safe", "browser_safe", "None", True),
     Surface("GET", "/connectome", "Connectome", "Human-readable recognition and revocation view.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/connectome.json", "Connectome JSON", "Machine-readable Connectome summary.", "safe", "browser_safe", "None", True),
+    Surface("GET", "/atlas", "Trust Atlas", "Read-only recognition graph explorer with evidence overlay.", "safe", "browser_safe", "None", True, True),
+    Surface("GET", "/atlas.json", "Atlas JSON", "Machine-readable Atlas summary with graph digest.", "safe", "browser_safe", "None", True),
     Surface(
         "GET",
         "/connectome/trust-path",
@@ -97,6 +99,7 @@ CLI_SURFACES: tuple[Surface, ...] = (
     Surface("CLI", "genesis-mesh trust-bundle export", "Trust bundle export", "Package public sovereign trust material for review.", "operator", "cli", "Public GET"),
     Surface("CLI", "genesis-mesh trust-bundle import", "Trust bundle import", "Record a reviewed bundle without granting trust.", "operator", "cli", "Local shell"),
     Surface("CLI", "genesis-mesh trust-bundle validate", "Trust bundle validate", "Validate shared trust material before federation review.", "operator", "cli", "Public GET"),
+    Surface("CLI", "genesis-mesh atlas build", "Atlas build", "Build a self-contained static Atlas from a recognition graph export.", "operator", "cli", "Public GET", curated=True),
     Surface("CLI", "genesis-mesh managed backup", "Backup", "Create a consistent online NA DB backup.", "managed", "cli", "Local shell", curated=True),
     Surface("CLI", "genesis-mesh managed restore", "Restore", "Restore a validated backup while the NA is stopped.", "managed", "cli", "Local shell", curated=True),
     Surface("CLI", "genesis-mesh managed audit-export", "Audit export", "Export redacted audit events.", "managed", "cli", "Local shell", curated=True),

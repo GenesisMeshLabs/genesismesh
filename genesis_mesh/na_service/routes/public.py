@@ -7,6 +7,7 @@ from importlib.resources import files
 from flask import Blueprint, Response, jsonify, request
 
 from ..errors import NotFoundError
+from ..operator_console.atlas import render_atlas
 from ..operator_console.dashboard import build_dashboard_model, render_dashboard
 from ..operator_console.openapi import build_swagger_spec
 from ..operator_console.rendering import (
@@ -91,6 +92,25 @@ def create_public_blueprint(service) -> Blueprint:
     def cli_reference():
         """Return a generated CLI reference page."""
         return Response(render_cli_reference(), mimetype="text/html")
+
+    @bp.route("/atlas", methods=["GET"])
+    def atlas_page():
+        """Return the read-only Trust Atlas page."""
+        graph = service.db.export_recognition_graph()
+        return Response(render_atlas(graph), mimetype="text/html")
+
+    @bp.route("/atlas.json", methods=["GET"])
+    def atlas_json():
+        """Return machine-readable Atlas summary with graph digest."""
+        from ...trust.evidence import graph_digest_from_export
+        graph = service.db.export_recognition_graph()
+        return jsonify({
+            "sovereigns": graph.get("sovereigns", []),
+            "recognition_edges": graph.get("recognition_edges", []),
+            "active_treaty_count": len(graph.get("active_treaties", [])),
+            "revoked_trust_material_count": len(graph.get("revoked_trust_material", [])),
+            "graph_digest": graph_digest_from_export(graph),
+        })
 
     @bp.route("/genesis", methods=["GET"])
     def get_genesis():

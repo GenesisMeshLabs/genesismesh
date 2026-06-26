@@ -11,6 +11,7 @@ def render_topbar(active: str) -> str:
         ("Console", "/"),
         ("Dashboard", "/dashboard"),
         ("Connectome", "/connectome"),
+        ("Atlas", "/atlas"),
         ("API Docs", "/api-reference"),
         ("CLI Docs", "/cli-reference"),
         ("Operator Docs", "https://genesismesh.connectorzzz.com/operators/"),

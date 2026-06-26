@@ -135,5 +135,5 @@ Do not tag v0.24.0 until:
 - [x] Package metadata is bumped to `0.24.0`.
 - [x] Changelog documents the release.
 - [x] The `trust` commands are documented in the CLI reference and an example.
-- [ ] Sphinx docs build passes with warnings as errors.
-- [ ] Wheel and sdist are built and twine-checked.
+- [x] Sphinx docs build passes with warnings as errors.
+- [x] Wheel and sdist are built and twine-checked.

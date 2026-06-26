@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.25.0 - Trust Atlas MVP
+
+### Added
+
+- Added `genesis-mesh atlas build` command (`cli/atlas_ops.py`): reads a
+  recognition-graph JSON export, optionally verifies TrustEvidence records
+  against it, and writes a self-contained `atlas.json` + `atlas.html` to the
+  output directory. Exit code 1 if any evidence fails verification.
+- Added `/atlas` operator-console page (`na_service/operator_console/atlas.py`):
+  read-only live Trust Atlas rendered from the NA's recognition graph — sovereigns,
+  active/expiring/revoked relationships, treaty scope (allowed roles), and a
+  TrustEvidence overlay section. Linked from the top navigation.
+- Added `/atlas.json` endpoint: machine-readable Atlas summary including
+  `sovereigns`, `recognition_edges`, treaty/revocation counts, and `graph_digest`
+  (SHA-256 of the canonical graph export from v0.24.0).
+- Added `render_atlas_standalone` in `atlas.py` for self-contained static HTML
+  output (no dependency on the operator console stylesheet or nav).
+- Added `/atlas` and `/atlas.json` to `surfaces.py` (browser-safe, curated).
+- Added "Atlas" link to the operator console top navigation (`chrome.py`).
+- Added `genesis_mesh/tests/test_atlas.py` — 17 tests covering: empty and
+  active graphs, role scope display, expiring/revoked edge labelling, graph
+  digest embedding, evidence overlay rendering, standalone HTML self-containment,
+  CLI build (json+html output, evidence verification, wrong-key failure, bad
+  evidence file, missing paths), and `/atlas` + `/atlas.json` routes.
+- Added Atlas Commands section to `docs/reference/cli.md`.
+
+### Changed
+
+- Bumped the package version to `0.25.0`.
+- Top navigation now includes an "Atlas" link between "Connectome" and "API Docs".
+- `operator_console/surfaces.py` grows by two surfaces (atlas, atlas.json) and
+  `cli_surfaces` grows by one (atlas build).
+
+### Notes
+
+- Atlas is read-only by construction. No write paths exist on any Atlas surface.
+- The static `atlas.html` produced by `atlas build` is fully self-contained:
+  no network calls, no external stylesheets, no server needed at view time.
+- TrustEvidence overlay: records without a `--public-key` are not signature-checked
+  (signatures are merely carried through to the output). Passing `--public-key`
+  enables full Ed25519 verification + graph-digest binding.
+- The `/atlas` console page shows no evidence overlay (live server view only);
+  evidence overlay requires `atlas build --evidence`.
+
+### Verified
+
+- Full test suite (`pytest`) passes with 17 new tests in `test_atlas.py`.
+- Sphinx docs build passes with warnings as errors.
+
 ## v0.24.0 - Trust Decisions and Trust Evidence
 
 ### Added

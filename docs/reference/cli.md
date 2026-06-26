@@ -479,6 +479,49 @@ genesis-mesh managed audit-export \
 Use `--event-type recognition_treaty_issued` to export one event class and
 `--format json` when a JSON array is easier to ingest.
 
+## Atlas Commands
+
+The `genesis-mesh atlas` group builds a read-only trust graph explorer from a
+recognition-graph export. It surfaces sovereigns, relationships, treaty scope,
+and verified TrustEvidence records without write paths or ranking.
+
+### `genesis-mesh atlas build`
+
+Reads a recognition-graph JSON export, optionally verifies TrustEvidence
+records against it, and writes a self-contained `atlas.json` + `atlas.html` to
+the output directory.
+
+```bash
+genesis-mesh atlas build \
+  --graph fleet-graph.json \
+  --output ./atlas-snapshot/
+```
+
+With TrustEvidence overlay:
+
+```bash
+genesis-mesh atlas build \
+  --graph fleet-graph.json \
+  --output ./atlas-snapshot/ \
+  --evidence ./evidence/ \
+  --public-key <sovereign-a-public-key-base64> \
+  --public-key <sovereign-b-public-key-base64>
+```
+
+| Option | Description |
+|---|---|
+| `--graph` | Recognition graph JSON export path (required). |
+| `--output` | Directory to write `atlas.json` and `atlas.html` (required). |
+| `--evidence` | Directory of TrustEvidence JSON files to overlay (optional). |
+| `--public-key` | Issuer public key (base64) for signature verification. Repeatable. |
+
+Exit codes:
+- `0` — Build succeeded (all supplied evidence verified or none supplied).
+- `1` — One or more evidence files could not be parsed or signature verification failed.
+
+The operator console also exposes a live `/atlas` page and `/atlas.json` endpoint
+generated from the NA's live recognition graph.
+
 ## Trust Decision Commands
 
 The `genesis-mesh trust` group evaluates trust decisions over a recognition-graph

@@ -17,6 +17,7 @@ recognition-treaties
 cross-sovereign-revocation
 connectome
 independent-sovereigns
+trust-evidence
 ```
 
 ## Start Here
@@ -62,6 +63,14 @@ explanations and revocation blast-radius summaries.
 
 The cross-cloud operational proof between sovereigns on Azure and
 DigitalOcean, with separate keys, databases, and policies.
+:::
+
+:::{grid-item-card} Trust Evidence
+:link: trust-evidence
+:link-type: doc
+
+Two independently keyed sovereigns produce and verify a signed TrustEvidence
+record offline — no shared backend or identity provider required.
 :::
 
 ::::
