@@ -76,4 +76,4 @@ Do not tag v0.23.0 until:
 - [x] Changelog documents the release.
 - [x] The commands are documented in the CLI reference and an example.
 - [x] Sphinx docs build passes with warnings as errors.
-- [ ] Wheel and sdist are built.
+- [x] Wheel and sdist are built.
