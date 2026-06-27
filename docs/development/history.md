@@ -605,6 +605,50 @@ without forwarding the token. The `SelectiveDisclosureGate` plugs directly into
 `BoundaryEngine.add_gate()`, replacing the standard `capability_gate` for
 interactions where selective disclosure is preferred.
 
+**v0.36.0 — Distributed Consensus Authorization.** Selective disclosure solves
+the third-party proof problem; this release solves the treaty-level decision
+problem. Some authorizations are too consequential for a single operator to approve
+unilaterally — they require independent confirmation from a named set of validators
+before any agent may act.
+
+A `ConsensusProof` assembles K-of-N signed `ValidatorVote`s over the same
+`JustificationProof`. Votes from sovereigns outside the named validator set are
+excluded from the threshold count, preventing Sybil substitution. From an
+approved `ConsensusProof`, an operator issues an `EphemeralExecutionIdentity` —
+a bearer-bound token that expires within ~120 s and cannot be transferred to a
+different sovereign. The `ConsensusGate` is entirely opt-in: the normal
+`BoundaryEngine` path is unmodified.
+
+The design avoids distributed consensus machinery (no BFT, no quorum protocol,
+no sequencer). K-of-N threshold is enforced by the assembler, not by a
+distributed protocol. This is appropriate for the authorization-layer use case
+where the threshold is small and the cost of coordination is higher than the
+cost of the human network round-trip.
+
+**v0.37.0 — Peer Risk Signals.** With six capability layers shipped, the remaining
+question is: *what does the authorization pipeline know about how well the counterparty
+has behaved?*  Until now, every decision is stateless with respect to history.
+
+v0.37 adds locally-computed, time-decaying signals that each sovereign maintains
+independently about its own counterparties.  A `PeerRiskSignal` starts at 0.5 and
+moves toward 1.0 with successful outcomes, toward 0.0 with failures, via an
+exponentially-weighted moving average (EWMA, α=0.2).  Between updates, the signal
+decays as `signal × exp(-λ × elapsed_days)` (λ=0.05, halves in ≈ 14 days) — so
+a counterparty that goes quiet is treated with increasing caution rather than
+frozen trust.
+
+A `RiskAnomaly` is raised when a new delta falls more than 3σ outside the variance
+of the last 10 updates — catching a sudden failure after a run of successes without
+triggering on normal noise.  The `RiskSignalGate` is opt-in: it requires the current
+decayed signal to be above a configurable minimum before authorization proceeds.
+
+The design discipline is strict: this is **not** a reputation system.  There is no
+shared ledger, no federation-wide score, and no cross-sovereign ranking.  Two sovereigns
+observing the same counterparty hold independent signals that they never compare or
+share.  The word "trust score" is deliberately absent.  This closes the second complete
+GenesisMesh trust cycle (v0.32–v0.37): from portable bearer tokens through distributed
+consensus to local behavioral history.
+
 ---
 
 ## 3. Patterns of Discipline
@@ -649,7 +693,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.35.0:
+As of v0.37.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -687,6 +731,10 @@ As of v0.35.0:
   dual-signed agreements, attenuable delegation chains, gated boundary decisions,
   tamper-evident execution evidence, bounded freshness proofs, machine-checked
   security lemmas (Tamarin Prover), and SPIFFE/W3C VC/JWT interop bridges.
+- The second complete trust architecture cycle (v0.32–v0.37) is shipped:
+  portable IBCT bearer tokens, signed justification proofs, human-in-the-loop
+  dual-signed commitments, Merkle selective disclosure, K-of-N distributed
+  consensus authorization, and locally-computed peer risk signals.
 - IBCTs (v0.32) give the trust pipeline a portable bearer artefact: an agent
   carries a signed token with attenuated capabilities and an invocation budget
   to any offline verifier without a network call to the GM stack.
@@ -698,11 +746,16 @@ As of v0.35.0:
 - Merkle-based selective disclosure (v0.35) lets agents prove one capability to
   a third party without revealing the full capability set, agreement, or any
   other capability. CapabilityNullifiers prevent replay.
+- Distributed consensus authorization (v0.36) requires K-of-N named validators
+  to independently approve a JustificationProof before an EphemeralExecutionIdentity
+  is issued. Bearer-bound and expiring; not transferable.
+- Peer risk signals (v0.37) give each sovereign a locally-computed, time-decaying
+  view of counterparty reliability, updated from execution history. No shared
+  ledger, no global ranking. Anomaly detection surfaces sudden drops after stable
+  history. RiskSignalGate is opt-in at the BoundaryEngine level.
 
-As of v0.35.0, the following are *not* yet true:
+As of v0.37.0, the following are *not* yet true:
 
-- Phase I runtime trust features (v0.36–v0.37) are not yet shipped:
-  Distributed Consensus Authorization and Peer Risk Signals.
 - Genesis Mesh does not yet have a complete RFC set that can stand apart from
   the Python reference implementation.
 - Atlas does not yet exist as a public ecosystem explorer beyond individual

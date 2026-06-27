@@ -934,6 +934,71 @@ genesis-mesh trust consensus verify-identity \
 
 Exit code 0 on success; 1 on failure.
 
+## Peer Risk Signal Commands
+
+> **This is not a reputation system.** Each sovereign maintains its own local,
+> independent signals for its counterparties. There is no shared ledger, no
+> global ranking, and no cross-sovereign comparison.
+
+The `genesis-mesh trust risk` sub-group (v0.37) implements locally-computed,
+time-decaying EWMA signals over `ExecutionEvidence` outcomes. The
+`RiskSignalGate` is an **opt-in** gate — adding it to a `BoundaryEngine`
+requires it; the default engine path is unchanged.
+
+Algorithm: decay `signal × exp(-λ × elapsed_days)`, then EWMA
+`α × outcome_value + (1 - α) × decayed_signal`. Anomaly raised when
+`|Δ - mean(last_10)| > 3σ`.
+
+### `genesis-mesh trust risk create`
+
+Create a new signed `PeerRiskSignal` for a counterparty.
+
+```bash
+genesis-mesh trust risk create \
+    --from-sovereign sovereign-a \
+    --to-sovereign counterparty-b \
+    --signing-key keys/sov-a.key \
+    --output signals/b.json
+```
+
+Options: `--initial-signal` (default 0.5), `--alpha` (default 0.2),
+`--decay-lambda` (default 0.05).
+
+### `genesis-mesh trust risk update`
+
+Update signal from an `ExecutionEvidence` outcome. Emits anomaly JSON if
+a sudden drop is detected.
+
+```bash
+genesis-mesh trust risk update \
+    --signal signals/b.json \
+    --evidence evidence.json \
+    --signing-key keys/sov-a.key \
+    --output signals/b-updated.json \
+    --output-anomaly anomaly.json
+```
+
+Outcomes accepted: `success` (→ 1.0), `partial` (→ 0.5), `failure` (→ 0.0).
+
+### `genesis-mesh trust risk decay`
+
+Apply exponential time decay without an evidence update (scheduled jobs).
+
+```bash
+genesis-mesh trust risk decay \
+    --signal signals/b-updated.json \
+    --signing-key keys/sov-a.key \
+    --output signals/b-decayed.json
+```
+
+### `genesis-mesh trust risk show`
+
+Display current signal state.
+
+```bash
+genesis-mesh trust risk show --signal signals/b.json --format json
+```
+
 ## Selective Disclosure Commands
 
 The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based

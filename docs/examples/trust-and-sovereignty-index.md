@@ -30,6 +30,7 @@ justification-proofs
 human-oversight
 selective-disclosure
 distributed-consensus
+peer-risk-signals
 ```
 
 ## Start Here
@@ -191,6 +192,16 @@ other capability. CapabilityNullifier prevents replay.
 K-of-N validator threshold for high-stakes decisions. Validators sign the same
 JustificationProof; the assembled ConsensusProof gates an EphemeralExecutionIdentity
 that expires in ~120 s. Opt-in gate — normal authorization is unaffected.
+:::
+
+::::{grid-item-card} Peer Risk Signals
+:link: peer-risk-signals
+:link-type: doc
+
+Locally-computed EWMA over ExecutionEvidence outcomes, time-decayed between
+updates. Anomaly detection when a delta exceeds 3σ of the last 10 updates.
+RiskSignalGate is opt-in. Not a reputation system — each sovereign's signals
+are independent and never shared.
 :::
 
 ::::

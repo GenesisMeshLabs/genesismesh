@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.37.0 - Peer Risk Signals
+
+### Added
+
+**Models** (`genesis_mesh/models/risk_signal.py`):
+- `PeerRiskSignal`: locally-computed, signed EWMA signal in [0.0, 1.0] that one
+  sovereign maintains about a counterparty. Carries `alpha`, `decay_lambda`,
+  `update_count`, `last_updated_at`, and `created_at`. Two sovereigns observing
+  the same counterparty hold independent, unshared signals.
+- `RiskSignalUpdate`: signed record of a single EWMA update from an
+  `ExecutionEvidence` outcome. Stores `prior_signal`, `posterior_signal`, and `delta`.
+- `RiskAnomaly`: raised when `|Δ - mean(last_10_deltas)| > sigma_threshold × σ`.
+  Records `sigma_multiples` and `trigger_update_id`.
+
+**Trust** (`genesis_mesh/trust/risk_signal.py`):
+- `create_risk_signal()`: create and sign a new PeerRiskSignal (default initial=0.5).
+- `update_risk_signal()`: apply time decay then EWMA, emit RiskSignalUpdate, optionally
+  emit RiskAnomaly. Returns `(updated_signal, update_record, anomaly | None)`.
+- `decay_risk_signal()`: apply exponential decay without a new evidence update
+  (for scheduled maintenance jobs).
+- `check_risk_signal_gate()`: verify signature and check decayed signal ≥ minimum.
+- `RiskSignalGate`: callable gate for `BoundaryEngine.add_gate()`. Opt-in; normal
+  authorization path is entirely unaffected when the gate is absent.
+
+Algorithm:
+- Decay: `signal = signal × exp(-λ × elapsed_days)` — default λ=0.05 (halves ≈ 14 d)
+- EWMA: `signal = α × outcome_value + (1 - α) × decayed_signal` — default α=0.2
+- Anomaly: last-10-update variance window, default threshold 3σ, min 10 records
+
+**CLI** (`genesis_mesh/cli/risk_signal_ops.py`, wired as `trust risk`):
+- `genesis-mesh trust risk create`
+- `genesis-mesh trust risk update`
+- `genesis-mesh trust risk decay`
+- `genesis-mesh trust risk show` (`--format json`)
+
+**Tests** (`genesis_mesh/tests/test_peer_risk_signals.py`): 28 tests covering
+create/update/decay cycle, all three outcomes, time decay before EWMA, anomaly
+detection (raised / not raised / field checks), signal clamping, RiskSignalGate
+(pass/block/invalid sig/no sig), independent sovereign signals, CLI end-to-end.
+Full suite: 737 passed, 1 skipped.
+
+**Docs**:
+- `docs/examples/peer-risk-signals.md` — full worked example with CLI, Python API,
+  algorithm table, anomaly detection, gate result codes, research basis
+- "Not a reputation system" positioning language in both model docstring and docs
+
+**Operator console** (`surfaces.py`): 4 new curated CLI surfaces.
+
+### Research basis
+- arXiv:2603.15809 — Don't Trust Stubborn Neighbors: A Security Framework for Agentic Networks
+- arXiv:2605.05440 — Authorization Propagation in Multi-Agent AI Systems
+- arXiv:2604.02767 — SentinelAgent
+
+---
+
 ## v0.36.0 - Distributed Consensus Authorization
 
 ### Added

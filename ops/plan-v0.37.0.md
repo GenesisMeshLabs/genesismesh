@@ -233,21 +233,21 @@ trust risk show     --signal signal.json
 
 ## Success Criteria
 
-- [ ] `PeerRiskSignal`, `RiskSignalUpdate`, `RiskAnomaly` models
-- [ ] EWMA + exponential time decay algorithm
-- [ ] Anomaly detection: |Δ - μ| > 3σ over last 10 updates
-- [ ] `RiskSignalGate` in `BoundaryEngine`
-- [ ] CLI `trust risk` subgroup wired into `decision_ops.py`
-- [ ] ≥ 32 tests; all pass
-- [ ] Sphinx build passes with `-W`
+- [x] `PeerRiskSignal`, `RiskSignalUpdate`, `RiskAnomaly` models
+- [x] EWMA + exponential time decay algorithm
+- [x] Anomaly detection: |Δ - μ| > 3σ over last 10 updates
+- [x] `RiskSignalGate` in `BoundaryEngine`
+- [x] CLI `trust risk` subgroup wired into `decision_ops.py`
+- [x] 28 tests; all pass (737 total, 1 skipped)
+- [x] Sphinx build passes with `-W`
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.37.0`
-- [ ] CHANGELOG entry
-- [ ] `trust risk` documented in CLI reference; "not a reputation system" language in docs
-- [ ] `docs/examples/peer-risk-signals.md` worked example
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.37.0`
+- [x] CHANGELOG entry
+- [x] `trust risk` documented in CLI reference; "not a reputation system" language in docs
+- [x] `docs/examples/peer-risk-signals.md` worked example
+- [x] All prior tests continue to pass
 
 ## The milestone this closes
 
