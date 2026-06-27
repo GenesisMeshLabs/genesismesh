@@ -35,6 +35,7 @@ def _register_trust_subgroups() -> None:
     from .token_ops import token  # noqa: PLC0415
     from .justification_ops import justify  # noqa: PLC0415
     from .oversight_ops import oversight  # noqa: PLC0415
+    from .disclose_ops import disclose  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
@@ -44,6 +45,7 @@ def _register_trust_subgroups() -> None:
     trust.add_command(token)
     trust.add_command(justify)
     trust.add_command(oversight)
+    trust.add_command(disclose)
 
 
 _register_trust_subgroups()

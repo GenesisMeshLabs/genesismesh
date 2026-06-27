@@ -1,5 +1,57 @@
 # Changelog
 
+## v0.35.0 - Selective Disclosure Capability Proofs
+
+### Added
+
+**Models** (`genesis_mesh/models/selective_disclosure.py`):
+- `CapabilityCommitment`: signed Merkle root over a sorted capability set.
+  Reveals only the root hex and capability count — not the capability strings.
+- `MerklePathNode`: one sibling in a Merkle membership path (`sibling_hash`,
+  `is_left`).
+- `CapabilityMembershipProof`: proof for one capability (`revealed_capability`,
+  `leaf_hash`, `merkle_path`). Nothing about other capabilities is encoded.
+- `CapabilityNullifier`: signed single-use replay-prevention token.
+
+**Trust** (`genesis_mesh/trust/selective_disclosure.py`):
+- Pure-Python balanced binary Merkle tree over sorted, SHA-256-hashed
+  capabilities. Padded to next power-of-2 with `SHA-256(b"")`.
+- `commit_capabilities()`: sorts, builds tree, signs root.
+- `prove_capability_membership()`: builds O(log N) sibling path. Raises
+  `ValueError` if capability not in set.
+- `verify_capability_proof()`: 8-path typed verification:
+  `commitment_not_signed → commitment_invalid_signature →
+  path_length_inconsistent → leaf_hash_mismatch → root_mismatch →
+  nullifier_expired → nullifier_already_used → valid`.
+- `issue_nullifier()`: signed single-use nullifier with configurable TTL.
+- `SelectiveDisclosureGate`: callable gate class for `BoundaryEngine.add_gate()`
+  — replaces `capability_gate` when proofs are preferred over full agreements.
+
+**CLI** (`genesis_mesh/cli/disclose_ops.py`, wired as `trust disclose`):
+- `genesis-mesh trust disclose commit`
+- `genesis-mesh trust disclose prove`
+- `genesis-mesh trust disclose verify` (`--format json`)
+- `genesis-mesh trust disclose nullify`
+
+**Tests** (`genesis_mesh/tests/test_selective_disclosure.py`): 32 tests covering
+commit determinism, path lengths (1/2/4/7/8 caps), all 8 verification codes,
+nullifier replay, SelectiveDisclosureGate pass/fail, CLI end-to-end.
+Full suite: 679 passed, 1 skipped.
+
+**Docs**:
+- `docs/examples/selective-disclosure.md` — full worked example, Merkle diagram,
+  path-length reference, what-this-does-not-do section
+- Trust & Sovereignty index updated with Selective Disclosure card
+- CLI reference updated with `trust disclose` section
+
+**Operator console** (`surfaces.py`): 4 new curated CLI surfaces.
+
+### Research basis
+- arXiv:2505.19301 — A Novel Zero-Trust Identity Framework for Agentic AI
+- arXiv:2603.24775 — AIP: Agent Identity Protocol for Verifiable Delegation
+
+---
+
 ## v0.34.0 - Human Oversight + Dual-Signed Commitments
 
 ### Added

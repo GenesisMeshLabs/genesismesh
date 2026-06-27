@@ -28,6 +28,7 @@ formal-verification
 invocation-bound-tokens
 justification-proofs
 human-oversight
+selective-disclosure
 ```
 
 ## Start Here
@@ -171,6 +172,15 @@ point. Any auditor can verify the reasoning offline without re-running the engin
 An 8-check deterministic policy engine that classifies proposed actions as
 automatic, human_approve, or block. High-stakes actions require a
 DualSignedCommitment — both agent and human custodian keys are required.
+:::
+
+:::{grid-item-card} Selective Disclosure
+:link: selective-disclosure
+:link-type: doc
+
+Merkle-based capability membership proofs. Prove that you hold a specific
+capability without revealing the full capability set, the agreement ID, or any
+other capability. CapabilityNullifier prevents replay.
 :::
 
 ::::

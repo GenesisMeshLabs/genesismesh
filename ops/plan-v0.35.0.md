@@ -221,22 +221,22 @@ trust disclose nullify  --proof proof.json --signing-key prover.key
 
 ## Success Criteria
 
-- [ ] `CapabilityCommitment`, `CapabilityMembershipProof`, `CapabilityNullifier` models
-- [ ] Merkle tree build is deterministic (sorted, padded to power-of-2)
-- [ ] `prove_capability_membership()` produces a verifiable sibling path
-- [ ] `verify_capability_proof()`: typed reason in all 8 paths
-- [ ] `SelectiveDisclosureGate` in `BoundaryEngine`
-- [ ] CLI `trust disclose` subgroup wired into `decision_ops.py`
-- [ ] ≥ 30 tests; all pass
-- [ ] Sphinx build passes with `-W`
+- [x] `CapabilityCommitment`, `CapabilityMembershipProof`, `CapabilityNullifier` models
+- [x] Merkle tree build is deterministic (sorted, padded to power-of-2)
+- [x] `prove_capability_membership()` produces a verifiable sibling path
+- [x] `verify_capability_proof()`: typed reason in all 8 paths
+- [x] `SelectiveDisclosureGate` in `BoundaryEngine`
+- [x] CLI `trust disclose` subgroup wired into `decision_ops.py`
+- [x] ≥ 30 tests; all pass (32 passed)
+- [x] Sphinx build passes with `-W`
 
-## Release Gate
+## Release Gate — CLOSED
 
-- [ ] Package metadata bumped to `0.35.0`
-- [ ] CHANGELOG entry
-- [ ] `trust disclose` documented in CLI reference
-- [ ] `docs/examples/selective-disclosure.md` worked example (names scheme correctly as Merkle-based selective disclosure)
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.35.0`
+- [x] CHANGELOG entry
+- [x] `trust disclose` documented in CLI reference
+- [x] `docs/examples/selective-disclosure.md` worked example
+- [x] All prior tests continue to pass (679 passed, 1 skipped)
 
 ## Research citations
 

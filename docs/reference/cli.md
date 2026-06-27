@@ -866,6 +866,68 @@ genesis-mesh trust token record-use \
     --prior use-1.json --signing-key agent.key --output use-2.json
 ```
 
+## Selective Disclosure Commands
+
+The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based
+capability membership proofs. An agent can prove it holds a specific capability
+without revealing the full capability set, the agreement, or any other capability.
+
+### `genesis-mesh trust disclose commit`
+
+Build and sign a Merkle commitment over an agreement's capability set. Reveals
+only the root and capability count — not the capability strings.
+
+```bash
+genesis-mesh trust disclose commit \
+    --agreement agreement.json \
+    --signing-key keys/issuer.key \
+    --issuer operator-sovereign \
+    --output commitment.json
+```
+
+### `genesis-mesh trust disclose prove`
+
+Generate a membership proof for one capability. The full capability list is kept
+local and is not embedded in the proof.
+
+```bash
+genesis-mesh trust disclose prove \
+    --capability "transactions.send" \
+    --agreement agreement.json \
+    --commitment commitment.json \
+    --prover agent-b \
+    --output proof.json
+```
+
+### `genesis-mesh trust disclose verify`
+
+Verify a `CapabilityMembershipProof` against its commitment. Checks the
+commitment signature, leaf hash derivation, and Merkle root reconstruction.
+
+```bash
+genesis-mesh trust disclose verify \
+    --proof proof.json \
+    --commitment commitment.json \
+    --verify-key issuer.pub \
+    [--format json]
+```
+
+Exit code 0 on success; 1 on failure.
+
+### `genesis-mesh trust disclose nullify`
+
+Issue a signed single-use `CapabilityNullifier` for a proof. Prevents replay
+within the validity window when the verifier records used nullifier IDs.
+
+```bash
+genesis-mesh trust disclose nullify \
+    --proof proof.json \
+    --signing-key keys/agent.key \
+    --prover agent-b \
+    --valid-for 60 \
+    --output nullifier.json
+```
+
 ## Human Oversight Commands
 
 The `genesis-mesh trust oversight` sub-group (v0.34) implements a deterministic
