@@ -17,6 +17,16 @@ The release should prove this statement:
 > is sufficient for a specific purpose, scope, and point in time, and produce
 > a dual-signed AgreementRecord that neither party can generate alone.
 
+## The motivation in one sentence
+
+Existing systems let **one party decide** what another party may do.
+Genesis Mesh lets **two sovereign parties produce a shared, signed agreement**
+describing the relationship under which future interactions occur.
+
+That is the whole distinction. The sentence is worth keeping exactly, because
+it scales from AI agents to hospitals to satellites without needing any
+technology-specific analogy.
+
 ## The architectural layer this adds
 
 Before this release, the GM stack is:
@@ -38,42 +48,27 @@ Trust material  (treaties, feeds, bundles, TrustEvidence)
   ↓
 Relationship Agreement   ← this release
   ↓
-Capability execution
+Relationship Context     (named but not implemented here — see Forward roadmap)
+  ↓
+Capability Execution
 ```
 
-The Agreement becomes the artifact that applications consume. Execution
-happens *because an agreement exists*, not merely because authentication
-succeeded. That is a different architectural layer.
+The Agreement becomes the artifact that authorises future interactions.
+Execution happens *because an agreement exists and a context activates it*,
+not merely because authentication succeeded. That is a different architectural
+layer — and it is why the Agreement and the Context must be kept separate:
 
-The distinction maps onto how things work between people and organisations:
+- **Agreement**: "These two parties have established these rights under these
+  terms, signed by both, bounded to this graph state."
+- **Context**: "Right now, under this agreement, these specific conditions are
+  active and execution is permitted." This is where approval workflows,
+  scheduling, regulatory checks, operator gates, and business conditions live.
+  A context has a shorter validity than the agreement. Multiple contexts can
+  be active under a single agreement.
 
-- You do not act because authentication succeeded.
-- You act because an agreement authorises the action, and the agreement
-  exists because both parties signed it.
-
-Compare two worlds:
-
-**Without GM:**
-```
-OAuth succeeds
-    ↓
-TLS succeeds
-    ↓
-API call
-```
-Bank and client each hold their own unilateral access logs.
-
-**With GM:**
-```
-Recognition (treaty)
-    ↓
-Relationship Agreement  (dual-signed, scope-bounded, time-limited)
-    ↓
-Capability execution
-    ↓
-Evidence
-```
-Execution is backed by a mutual record that neither party can alter retroactively.
+v0.26 ships the Agreement layer. The Context layer is explicitly named here
+so it is not accidentally collapsed into either Agreement or Execution in
+a future release.
 
 ## On trust material, not "established trust"
 
@@ -313,59 +308,103 @@ genesis-mesh trust agree verify \
 
 ## What this enables that nothing else does
 
-TLS, OAuth, and policy APIs all produce a *unilateral decision* by one party
-about what the other may do. None produce a *mutual signed agreement*.
-
 The AgreementRecord is the first artifact in Genesis Mesh that:
-- Requires two independent signatures.
-- Binds both parties to the same specific terms.
+- Requires two independent signatures — neither party can produce it alone.
+- Binds both parties to the same specific terms, signed simultaneously.
 - Is bounded to a specific graph state (graph_digest).
 - Carries independent TrustEvidence from both directions.
-- Cannot be produced by either party alone.
 - Exists independently of any transport or runtime session.
+- Is the beginning of a relationship lifecycle, not the end of an
+  authentication flow.
 
-No PKI, IAM, OAuth server, or application framework naturally produces this.
-That is the capability that requires a protocol layer.
+### The AgreementRecord disappears test
+
+Apply this test to every future release in this chain:
+
+> If the AgreementRecord disappeared, what capability would applications lose?
+
+If the answer is only *"a nice proof"*, the artifact is still mostly an audit
+record. When the answer becomes *"applications can no longer establish, amend,
+or execute governed relationships across sovereign boundaries"*, GM has crossed
+from being a library into being infrastructure.
+
+This test should guide every design decision in the Agreement, Context, and
+Execution layers.
+
+### The invariant that must never be broken
+
+Treaties establish recognition. Agreements evaluate existing rights.
+**Agreements never create new rights.**
+
+An AgreementRecord can only activate a subset of what existing treaties permit.
+It cannot expand treaty scope, grant roles that no treaty authorises, or
+override revocation. Violating this invariant turns GM into a distributed
+contract engine or a policy re-implementation — both of which already exist
+and neither of which is the goal.
+
+This invariant is what keeps the protocol composable and auditable. The trust
+root remains the treaty graph, not the Agreement layer.
 
 ## Forward roadmap beyond v0.26
 
-The architecture chain this release introduces has natural continuations:
+The right model for this roadmap is **contract law**, not protocol design.
+The terms below are legal, not networking, and that is intentional — they are
+universally legible and they describe the actual concepts.
 
 ```
-Relationship Agreement (v0.26)
+Relationship Agreement   (v0.26 — this release)
   ↓
-Relationship Lifecycle  (renewal — new offer cycle when treaties renew)
-                        (suspension — one party signals inability to execute)
-                        (termination — either party ends the agreement)
+Relationship Context     (activates an agreement for a specific execution window;
+                          the layer where approval workflows, scheduling,
+                          regulatory conditions, and operator gates live;
+                          context validity < agreement validity;
+                          multiple contexts may be active under one agreement)
   ↓
-Capability Execution    (execution under an agreement reference — the
-                         AgreementRecord ID is presented alongside a
-                         request as proof of what was agreed)
+Capability Execution     (execution occurs under a Context reference, not
+                          directly under an Agreement reference;
+                          the Context is what gets presented alongside a request)
   ↓
-Execution Evidence      (signed record of what was done under the agreement,
-                         linking back to the AgreementRecord)
+Relationship Lifecycle:
+    Amendment            (both parties sign a change to agreed terms;
+                          cannot widen scope beyond treaty permissions)
+    Renewal              (new offer cycle when treaties or agreements expire)
+    Delegation           (one party grants a sub-scope to a third party,
+                          bounded by the original agreement terms)
+    Suspension           (one party signals temporary inability to execute;
+                          reversible without a new offer cycle)
+    Termination          (either party ends the relationship;
+                          produces a signed TerminationRecord)
+  ↓
+Execution Evidence       (signed record of what was done under a Context,
+                          linking to AgreementRecord → ContextRecord → action)
 ```
 
-Each layer is a distinct release. v0.26 establishes the Agreement layer only.
-Lifecycle and Execution are out of scope and should not leak into this release.
+Each step is a distinct future release. v0.26 establishes the Agreement layer
+only. Context, Execution, Lifecycle, and Evidence must not leak into this
+release.
 
-The full eventual stack:
+The full protocol stack when complete:
 
 ```
 Identity
     ↓
-Recognition
+Recognition               (treaties, trust material, TrustEvidence)
     ↓
-Relationship Agreement   ← this release
+Relationship Agreement    ← this release
     ↓
-Capability Execution
+Relationship Context      (activation, conditions, approval)
     ↓
-Relationship Lifecycle
+Capability Execution      (under a context reference)
     ↓
-Renewal / Termination
+Relationship Lifecycle    (Amendment, Renewal, Delegation, Suspension, Termination)
     ↓
-Execution Evidence
+Execution Evidence        (what happened, under what authority)
 ```
+
+Apply the AgreementRecord disappears test at each layer: if removing the layer
+leaves applications only without a proof, the layer is an audit artifact.
+When removing it breaks the ability to establish, amend, or execute governed
+relationships, the layer is infrastructure.
 
 ## Success Criteria
 
