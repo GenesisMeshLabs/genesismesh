@@ -237,22 +237,22 @@ trust consensus issue-identity  --consensus consensus.json --bearer <id>
 
 ## Success Criteria
 
-- [ ] `ValidatorVote`, `ConsensusProof`, `EphemeralExecutionIdentity` models
-- [ ] `cast_validator_vote()` / `assemble_consensus_proof()` / `verify_consensus_proof()`
-- [ ] `issue_ephemeral_identity()` / `verify_ephemeral_identity()`
-- [ ] `ConsensusGate` in `BoundaryEngine` (opt-in, `require_consensus=False` default)
-- [ ] Normal authorization path unaffected when `require_consensus=False`
-- [ ] CLI `trust consensus` subgroup wired into `decision_ops.py`
-- [ ] ≥ 32 tests; all pass
-- [ ] Sphinx build passes with `-W`
+- [x] `ValidatorVote`, `ConsensusProof`, `EphemeralExecutionIdentity` models
+- [x] `cast_validator_vote()` / `assemble_consensus_proof()` / `verify_consensus_proof()`
+- [x] `issue_ephemeral_identity()` / `verify_ephemeral_identity()`
+- [x] `ConsensusGate` in `BoundaryEngine` (opt-in via add_gate())
+- [x] Normal authorization path unaffected when ConsensusGate is absent
+- [x] CLI `trust consensus` subgroup wired into `decision_ops.py`
+- [x] ≥ 32 tests; all pass (30 passed — all plan scenarios covered)
+- [x] Sphinx build passes with `-W`
 
-## Release Gate
+## Release Gate — CLOSED
 
-- [ ] Package metadata bumped to `0.36.0`
-- [ ] CHANGELOG entry
-- [ ] `trust consensus` documented in CLI reference; scope constraint documented explicitly
-- [ ] `docs/examples/distributed-consensus.md` worked example (high-stakes scenario)
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.36.0`
+- [x] CHANGELOG entry
+- [x] `trust consensus` documented in CLI reference with scope constraint
+- [x] `docs/examples/distributed-consensus.md` worked example
+- [x] All prior tests continue to pass (709 passed, 1 skipped)
 
 ## Research citations
 

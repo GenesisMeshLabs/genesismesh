@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.36.0 - Distributed Consensus Authorization
+
+### Added
+
+**Models** (`genesis_mesh/models/consensus.py`):
+- `ValidatorVote`: signed approve/reject vote over a `JustificationProof`.
+- `ConsensusProof`: signed K-of-N threshold artifact assembled by an operator.
+  `approvals()` filters to named-validator-set approve votes; `threshold_met()`
+  checks the count.
+- `EphemeralExecutionIdentity`: short-lived bearer-bound identity derived from
+  a `ConsensusProof`. Default TTL 120 s. Cannot be transferred.
+
+**Trust** (`genesis_mesh/trust/consensus.py`):
+- `cast_validator_vote()`: signed vote over a `JustificationProof`.
+- `assemble_consensus_proof()`: assembles K-of-N votes; raises `ValueError` if
+  threshold not met. Votes outside the named validator set are excluded.
+- `verify_consensus_proof()`: 8-path typed verification:
+  `missing_signature → invalid_assembler_signature → proof_id_mismatch →
+  invalid_vote_signature → vote_not_in_validator_set → threshold_not_met →
+  expired → valid`.
+- `issue_ephemeral_identity()`: bearer-bound EphemeralExecutionIdentity from
+  a ConsensusProof.
+- `verify_ephemeral_identity()`: 7-path typed verification:
+  `missing_signature → invalid_signature → bearer_mismatch →
+  capability_not_granted → consensus_id_mismatch → expired → valid`.
+- `ConsensusGate`: callable gate for `BoundaryEngine.add_gate()`. Opt-in;
+  normal authorization path is entirely unaffected when the gate is absent.
+
+**CLI** (`genesis_mesh/cli/consensus_ops.py`, wired as `trust consensus`):
+- `genesis-mesh trust consensus vote`
+- `genesis-mesh trust consensus assemble`
+- `genesis-mesh trust consensus verify` (`--format json`)
+- `genesis-mesh trust consensus issue-identity`
+- `genesis-mesh trust consensus verify-identity`
+
+**Tests** (`genesis_mesh/tests/test_consensus_authorization.py`): 30 tests
+covering vote/assemble/verify workflow, non-named validator exclusion, all 8
+ConsensusProof verification codes, all 7 EphemeralIdentity codes, ConsensusGate
+pass/fail/unaffected, CLI end-to-end.
+Full suite: 709 passed, 1 skipped.
+
+**Docs**:
+- `docs/examples/distributed-consensus.md` — full worked example with CLI,
+  Python API, both verification code tables, scope constraint section
+- Trust & Sovereignty index updated with Distributed Consensus card
+- CLI reference updated with `trust consensus` section
+
+**Operator console** (`surfaces.py`): 5 new curated CLI surfaces.
+
+### Research basis
+- arXiv:2605.15228 — Verifiable Agentic Infrastructure: Proof-Derived Authorization
+- arXiv:2604.02767 — SentinelAgent: Seven Security Properties for Agentic AI
+
+---
+
 ## v0.35.0 - Selective Disclosure Capability Proofs
 
 ### Added

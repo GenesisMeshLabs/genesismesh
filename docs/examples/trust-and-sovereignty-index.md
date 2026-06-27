@@ -29,6 +29,7 @@ invocation-bound-tokens
 justification-proofs
 human-oversight
 selective-disclosure
+distributed-consensus
 ```
 
 ## Start Here
@@ -181,6 +182,15 @@ DualSignedCommitment — both agent and human custodian keys are required.
 Merkle-based capability membership proofs. Prove that you hold a specific
 capability without revealing the full capability set, the agreement ID, or any
 other capability. CapabilityNullifier prevents replay.
+:::
+
+:::{grid-item-card} Distributed Consensus
+:link: distributed-consensus
+:link-type: doc
+
+K-of-N validator threshold for high-stakes decisions. Validators sign the same
+JustificationProof; the assembled ConsensusProof gates an EphemeralExecutionIdentity
+that expires in ~120 s. Opt-in gate — normal authorization is unaffected.
 :::
 
 ::::

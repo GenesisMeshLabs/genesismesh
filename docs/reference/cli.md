@@ -866,6 +866,74 @@ genesis-mesh trust token record-use \
     --prior use-1.json --signing-key agent.key --output use-2.json
 ```
 
+## Distributed Consensus Commands
+
+The `genesis-mesh trust consensus` sub-group (v0.36) implements K-of-N validator
+threshold authorization for high-stakes decisions. This is an **opt-in** gate —
+adding it to a `BoundaryEngine` requires it; the default engine path is unchanged.
+
+### `genesis-mesh trust consensus vote`
+
+Validator casts a signed approve or reject vote on a JustificationProof.
+
+```bash
+genesis-mesh trust consensus vote \
+    --proof proof.json --validator validator-1 --approve \
+    --signing-key keys/v1.key --output v1.json
+```
+
+Use `--reject` instead of `--approve` to cast a rejection vote.
+
+### `genesis-mesh trust consensus assemble`
+
+Assemble K-of-N ValidatorVotes into a signed ConsensusProof once the threshold
+is met. Exits with an error if the threshold is not reached.
+
+```bash
+genesis-mesh trust consensus assemble \
+    --proof proof.json --vote v1.json --vote v2.json --vote v3.json \
+    --threshold 2 --validators "validator-1,validator-2,validator-3" \
+    --signing-key keys/assembler.key --assembler assembler \
+    --output consensus.json
+```
+
+### `genesis-mesh trust consensus verify`
+
+Verify the ConsensusProof assembler signature, vote signatures, and threshold.
+
+```bash
+genesis-mesh trust consensus verify \
+    --consensus consensus.json \
+    --assembler-key assembler.pub \
+    --validator-key="validator-1:v1.pub" \
+    --validator-key="validator-2:v2.pub" \
+    [--proof proof.json] [--format json]
+```
+
+### `genesis-mesh trust consensus issue-identity`
+
+Derive a short-lived `EphemeralExecutionIdentity` from a `ConsensusProof`.
+Default validity: 120 seconds.
+
+```bash
+genesis-mesh trust consensus issue-identity \
+    --consensus consensus.json --bearer agent-b \
+    --cap "transactions.send" --signing-key keys/assembler.key \
+    --issuer assembler --valid-for 120 --output identity.json
+```
+
+### `genesis-mesh trust consensus verify-identity`
+
+Verify an `EphemeralExecutionIdentity` for a specific capability and bearer.
+
+```bash
+genesis-mesh trust consensus verify-identity \
+    --identity identity.json --issuer-key assembler.pub \
+    --capability "transactions.send" --bearer agent-b
+```
+
+Exit code 0 on success; 1 on failure.
+
 ## Selective Disclosure Commands
 
 The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based
