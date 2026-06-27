@@ -766,6 +766,42 @@ genesis-mesh trust freshness verify \
     --required-sequence 42
 ```
 
+## Interop Bridge Commands
+
+The `genesis-mesh trust interop` sub-group (v0.31) converts GM records to
+common external formats.  All outputs carry `_gm_bridge_source` so receivers
+know the provenance.
+
+### `genesis-mesh trust interop to-spiffe`
+
+Convert an `AgreementRecord` to a SPIFFE SVID-like JSON.
+
+```bash
+genesis-mesh trust interop to-spiffe \
+    --agreement agreement.json \
+    --output svid.json
+```
+
+### `genesis-mesh trust interop to-vc`
+
+Convert an `AgreementRecord` or `TrustEvidence` to a W3C Verifiable Credential.
+
+```bash
+genesis-mesh trust interop to-vc --agreement agreement.json --output vc.json
+genesis-mesh trust interop to-vc --evidence evidence.json  --output vc.json
+```
+
+### `genesis-mesh trust interop to-jwt`
+
+Encode a `BoundaryDecision` as a signed EdDSA JWT (RFC 8037 OKP/Ed25519).
+
+```bash
+genesis-mesh trust interop to-jwt \
+    --decision decision.json \
+    --signing-key keys/bridge.key --key-id bridge-2026 \
+    --output decision.jwt
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a

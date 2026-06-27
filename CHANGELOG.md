@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.31.0 - Formal Verification + Interop Bridges
+
+### Added
+
+**Formal Verification (Tamarin Prover)**:
+- Added `ops/tamarin/gm_protocol.spthy` — Tamarin Prover model covering the
+  full GM protocol pipeline (Agreement → Authorization → Execution) with five
+  security lemmas: `authorization_requires_agreement`,
+  `execution_requires_authorization`, `agreement_has_two_signers`,
+  `delegation_requires_agreement`, `execution_traceability`.
+  Uses Tamarin's `signing` builtin equational theory to model Ed25519.
+- Added `genesis_mesh/tests/test_tamarin_proofs.py` — 4 tests (3 always-run
+  structural checks + 1 skipped when `tamarin-prover` is absent):
+  model file exists, readable, has 5 lemmas, prover runs to 0.
+
+**Interop Bridges**:
+- Added `genesis_mesh/interop/__init__.py`, `spiffe.py`, `w3c_vc.py`, `jose.py`:
+  - `spiffe.agreement_to_svid` / `svid_to_agreement_fields`: SPIFFE SVID-like
+    JSON with GM signatures as extensions
+  - `w3c_vc.trust_evidence_to_vc` / `agreement_to_vc` / `vc_to_trust_evidence_fields`:
+    W3C VC JSON-LD with Ed25519Signature2020 proof structure
+  - `jose.decision_to_jwt` / `jwt_to_decision_claims`: EdDSA JWT (RFC 8037
+    OKP/Ed25519) encoding BoundaryDecision with standard + `gm:*` claims;
+    no external JWT library required (uses PyNaCl directly)
+- Added `genesis-mesh trust interop` CLI sub-group (`cli/interop_ops.py`):
+  `to-spiffe` (agreement → SVID JSON), `to-vc` (agreement or evidence → W3C VC),
+  `to-jwt` (decision → EdDSA JWT).
+- Added `genesis_mesh/tests/test_interop_bridges.py` — 28 tests covering:
+  SPIFFE fields and round-trip, W3C VC @context/type/credentialSubject/proof,
+  JWT 3-part structure, claim round-trip, wrong-key → None, malformed → None,
+  denied decision → denial claim, CLI to-spiffe/to-vc/to-jwt.
+- Added `docs/examples/formal-verification.md` — formal verification + bridges
+  worked example.
+- Added `Interop Bridge Commands` section to `docs/reference/cli.md`.
+- Added 3 CLI surfaces to operator console surfaces registry.
+
+### Architecture milestone
+
+v0.31 closes the first complete GenesisMesh trust architecture cycle.  The
+pipeline from Agreement to Execution Evidence now has machine-checked security
+properties and portable interop adapters for SPIFFE, W3C VC, and JOSE/JWT.
+
 ## v0.30.0 - Freshness Proofs + Bounded Revocation
 
 ### Added

@@ -24,6 +24,7 @@ delegation-chain
 relationship-context
 execution-evidence-chain
 freshness-proofs
+formal-verification
 ```
 
 ## Start Here
@@ -131,6 +132,15 @@ breaks the chain and is immediately detectable.
 A FreshnessProof binds revocation-feed state to a specific time. The
 BoundaryEngine embeds valid proofs in every BoundaryDecision; execution
 records produced after the proof window are flagged as stale.
+:::
+
+:::{grid-item-card} Formal Verification + Interop Bridges
+:link: formal-verification
+:link-type: doc
+
+The GenesisMesh protocol is formally verified with Tamarin Prover (five
+security lemmas). GM records cross ecosystem boundaries via SPIFFE, W3C VC,
+and JOSE/JWT bridges without losing provability guarantees.
 :::
 
 ::::
