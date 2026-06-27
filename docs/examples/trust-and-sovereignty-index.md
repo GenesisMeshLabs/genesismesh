@@ -25,6 +25,7 @@ relationship-context
 execution-evidence-chain
 freshness-proofs
 formal-verification
+invocation-bound-tokens
 ```
 
 ## Start Here
@@ -141,6 +142,15 @@ records produced after the proof window are flagged as stale.
 The GenesisMesh protocol is formally verified with Tamarin Prover (five
 security lemmas). GM records cross ecosystem boundaries via SPIFFE, W3C VC,
 and JOSE/JWT bridges without losing provability guarantees.
+:::
+
+:::{grid-item-card} Invocation-Bound Capability Tokens
+:link: invocation-bound-tokens
+:link-type: doc
+
+A compact signed token that lets an agent prove offline what it can do,
+how often, and until when — without calling the GM stack. Supports budget
+caps, policy constraints, and tamper-evident use chains.
 :::
 
 ::::

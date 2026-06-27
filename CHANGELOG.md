@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.32.0 - Invocation-Bound Capability Tokens (IBCTs)
+
+### Added
+
+**Models** (`genesis_mesh/models/invocation_token.py`):
+- `InvocationToken`: compact signed artefact fusing sovereign identity,
+  attenuated capabilities (always ⊆ source agreement or delegation),
+  an optional invocation budget (`max_invocations`), and policy constraints.
+  `to_canonical_json()` / `digest()` follow the standard GM signing convention.
+- `InvocationUseRecord`: records a single token invocation; links to prior use
+  via `prev_use_digest = SHA-256(prior.canonical_json)`, forming a tamper-evident
+  use chain mirroring the `ExecutionEvidence` pattern.
+
+**Trust** (`genesis_mesh/trust/invocation_token.py`):
+- `issue_invocation_token()`: validates capabilities ⊆ source scope, signs token.
+  Supports delegation-derived tokens via `delegation` parameter.
+- `verify_invocation_token()`: 8-path typed verification with reason codes:
+  `missing_signature`, `invalid_signature`, `bearer_mismatch`, `expired`,
+  `capability_not_granted`, `budget_exhausted`, `policy_violated`, `valid`.
+  Budget check counts supplied `use_records`; policy engine enforces
+  `not_before:ISO8601` and `peer_sovereign:id` constraints.
+- `record_invocation_use()`: signs an `InvocationUseRecord`; sets
+  `prev_use_digest` from `prior_use.digest()` when chaining.
+
+**CLI** (`genesis_mesh/cli/token_ops.py`, wired as `trust token`):
+- `genesis-mesh trust token issue` — issue a signed IBCT
+- `genesis-mesh trust token verify` — verify a token for a specific invocation
+- `genesis-mesh trust token record-use` — record and chain a signed use
+
+**Tests** (`genesis_mesh/tests/test_invocation_tokens.py`): 30 tests covering
+all 8 verification paths, use-chain linking, budget exhaustion, policy
+constraints, delegation-derived scope, CLI end-to-end.
+
+**Docs**:
+- `docs/examples/invocation-bound-tokens.md` — worked example with CLI and Python API
+- Trust & Sovereignty index updated with IBCT card
+
+**Operator console** (`surfaces.py`): 3 new curated CLI surfaces for token
+issue / verify / record-use.
+
+### Research basis
+
+arXiv:2603.24775 — AIP: Agent Identity Protocol for Verifiable Delegation Across
+MCP and A2A. Scanned ≈ 2,000 MCP servers; all lacked authentication. IBCTs
+achieve 100% adversarial rejection across 600 attack attempts in the paper's
+evaluation, with 0.189 ms Python verification latency.
+
+---
+
 ## v0.31.0 - Formal Verification + Interop Bridges
 
 ### Added

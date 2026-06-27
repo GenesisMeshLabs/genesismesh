@@ -177,22 +177,22 @@ trust token record-use  --token token.json --action "transactions.read"
 
 ## Success Criteria
 
-- [ ] `InvocationToken` and `InvocationUseRecord` models with `to_canonical_json()` and `digest()`
-- [ ] `issue_invocation_token()` validates capability subset and signs
-- [ ] `verify_invocation_token()` returns typed reason in all 8 paths
-- [ ] `record_invocation_use()` chains use records with `prev_use_digest`
-- [ ] Budget exhaustion detected at verification time, not issue time
-- [ ] CLI `trust token` subgroup wired into `decision_ops.py`
-- [ ] ≥ 30 tests; all pass
-- [ ] Sphinx build passes with `-W`
+- [x] `InvocationToken` and `InvocationUseRecord` models with `to_canonical_json()` and `digest()`
+- [x] `issue_invocation_token()` validates capability subset and signs
+- [x] `verify_invocation_token()` returns typed reason in all 8 paths
+- [x] `record_invocation_use()` chains use records with `prev_use_digest`
+- [x] Budget exhaustion detected at verification time, not issue time
+- [x] CLI `trust token` subgroup wired into `decision_ops.py`
+- [x] ≥ 30 tests; all pass (30 passed)
+- [x] Sphinx build passes with `-W`
 
-## Release Gate
+## Release Gate — CLOSED
 
-- [ ] Package metadata bumped to `0.32.0`
-- [ ] CHANGELOG entry
-- [ ] `trust token` documented in CLI reference
-- [ ] `docs/examples/invocation-bound-tokens.md` worked example
-- [ ] All prior tests continue to pass (no regressions)
+- [x] Package metadata bumped to `0.32.0`
+- [x] CHANGELOG entry
+- [x] `trust token` documented in CLI reference
+- [x] `docs/examples/invocation-bound-tokens.md` worked example
+- [x] All prior tests continue to pass (576 passed, 1 skipped)
 
 ## Research citations
 

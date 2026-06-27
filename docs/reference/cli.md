@@ -802,6 +802,70 @@ genesis-mesh trust interop to-jwt \
     --output decision.jwt
 ```
 
+## Invocation-Bound Capability Token Commands
+
+The `genesis-mesh trust token` sub-group (v0.32) issues, verifies, and records
+usage of Invocation-Bound Capability Tokens (IBCTs).  A token lets an agent
+prove offline what it can do, how often, and until when — with no live call to
+the GM stack.
+
+### `genesis-mesh trust token issue`
+
+Issue a signed IBCT from an `AgreementRecord`.
+
+```bash
+genesis-mesh trust token issue \
+    --agreement agreement.json \
+    --bearer agent-b \
+    --caps "transactions.read,audit.read" \
+    --signing-key operator.key --key-id op-2026 \
+    --valid-for 300 \
+    --max-invocations 5 \
+    --output token.json
+```
+
+Key options:
+
+| Option | Description |
+|---|---|
+| `--agreement` | Source `AgreementRecord` JSON |
+| `--bearer` | Sovereign ID that will use the token |
+| `--caps` | Comma-separated capability identifiers (must be ⊆ agreement) |
+| `--valid-for` | Token lifetime in seconds (default 300) |
+| `--max-invocations` | Budget cap; omit for unlimited |
+| `--constraint` | Policy constraint string; repeatable (`not_before:ISO8601`, `peer_sovereign:id`) |
+| `--delegation` | `DelegatedAgreementRecord` when deriving from a delegation hop |
+
+### `genesis-mesh trust token verify`
+
+Verify a token for a specific capability invocation.  Exit code 0 = valid, 1 = any failure.
+
+```bash
+genesis-mesh trust token verify \
+    --token token.json \
+    --verify-key operator.pub \
+    --capability "transactions.read" \
+    --bearer agent-b \
+    --use-record use-1.json \
+    --use-record use-2.json
+```
+
+### `genesis-mesh trust token record-use`
+
+Record a signed invocation.  Chain to a prior use-record with `--prior`.
+
+```bash
+# First use
+genesis-mesh trust token record-use \
+    --token token.json --action "transactions.read" --outcome success \
+    --signing-key agent.key --output use-1.json
+
+# Second use (chained)
+genesis-mesh trust token record-use \
+    --token token.json --action "transactions.read" --outcome success \
+    --prior use-1.json --signing-key agent.key --output use-2.json
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a

@@ -32,12 +32,14 @@ def _register_trust_subgroups() -> None:
     from .execution_ops import execution  # noqa: PLC0415
     from .freshness_ops import freshness  # noqa: PLC0415
     from .interop_ops import interop  # noqa: PLC0415
+    from .token_ops import token  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
     trust.add_command(execution)
     trust.add_command(freshness)
     trust.add_command(interop)
+    trust.add_command(token)
 
 
 _register_trust_subgroups()
