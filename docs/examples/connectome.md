@@ -189,3 +189,10 @@ The Connectome is deliberately read-only. It visualizes and explains trust
 state, but the authoritative records remain signed treaties, signed
 attestations, imported signed revocation feeds, and the local Network Authority
 database.
+
+## See also
+
+- {doc}`atlas` — relational view of who can do what, under what scope, with
+  TrustEvidence overlay. Complements the Connectome's edge-focused view.
+- {doc}`trust-evidence` — produce signed TrustEvidence records that Atlas can
+  overlay on the recognition graph.

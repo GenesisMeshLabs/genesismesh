@@ -18,6 +18,7 @@ cross-sovereign-revocation
 connectome
 independent-sovereigns
 trust-evidence
+atlas
 ```
 
 ## Start Here
@@ -71,6 +72,15 @@ DigitalOcean, with separate keys, databases, and policies.
 
 Two independently keyed sovereigns produce and verify a signed TrustEvidence
 record offline — no shared backend or identity provider required.
+:::
+
+:::{grid-item-card} Trust Atlas
+:link: atlas
+:link-type: doc
+
+A read-only explorer over the recognition graph — sovereigns, relationships,
+treaty scope, and TrustEvidence overlay — as a live console page or a
+self-contained static snapshot.
 :::
 
 ::::

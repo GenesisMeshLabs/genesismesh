@@ -140,6 +140,8 @@ def create_public_blueprint(service) -> Blueprint:
                 "recognition_treaties": f"{base_url}/recognition-treaties",
                 "sovereign_revocation_feed": f"{base_url}/sovereign-revocation-feed",
                 "connectome": f"{base_url}/connectome.json",
+                "recognition_graph": f"{base_url}/recognition-graph",
+                "atlas": f"{base_url}/atlas.json",
                 "swagger": f"{base_url}/swagger.json",
                 "api_reference": f"{base_url}/api-reference",
                 "cli_reference": f"{base_url}/cli-reference",
