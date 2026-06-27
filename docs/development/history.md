@@ -556,6 +556,55 @@ across 600 attack attempts with 0.189 ms Python verification latency. The
 deployment unlock: an edge resource can answer "does this agent have this
 capability, right now, within budget?" without any network call.
 
+**v0.33.0 — Justification Proofs + Gate Trace Artifacts.** An authorization
+decision should not just say "yes" or "no" — it should prove *why*. A
+`JustificationProof` wraps the ordered `GateTrace` from a `BoundaryEngine` run:
+each gate's name, type, inputs, and pass/fail result, with a short-circuit pointer
+if evaluation terminated early. The proof is signed by the issuer and can be
+verified by any auditor holding the public key, without re-running the engine.
+`evaluate_with_proof()` was added alongside the unchanged `evaluate()` method,
+preserving backward compatibility with all existing callers.
+
+The thinking: authorization auditability is not about running the decision again.
+It is about proving what decision was made and how, in a form that cannot be
+forged after the fact. The `JustificationProof` is the runtime analogue of the
+machine-checked security lemmas from v0.29.
+
+**v0.34.0 — Human Oversight + Dual-Signed Commitments.** Machine-to-machine
+authorization is fast and offline-verifiable. It does not answer the question
+organizations ask first: *what stops my agent from doing something drastic while
+I am not watching?*
+
+The answer is a `HumanOversightPolicy` and a `DualSignedCommitment`. The policy
+engine runs 8 deterministic checks (capability scope, counterparty allowlist, value
+threshold, time window, frequency limit, irreversibility, novel counterparty, anomaly
+flag) and produces one of three outcomes: `automatic`, `human_approve`, or `block`.
+High-stakes actions produce a `HumanApprovalRequest` that the human custodian must
+countersign; the result is a `DualSignedCommitment` that requires both keys. Neither
+party can forge it alone.
+
+The research basis is arXiv:2603.00318 (AESP, 2026): "agents are economically
+capable but never economically sovereign." That framing holds here: the agent cannot
+execute a blocked action regardless of its own cryptographic capabilities.
+
+**v0.35.0 — Selective Disclosure Capability Proofs.** Presenting a full
+`AgreementRecord` to a third-party gatekeeper is appropriate within a federation
+but exposes too much to an edge service that is entitled to know only "this agent
+has capability X." Selective disclosure via Merkle membership proofs answers this.
+
+A `CapabilityCommitment` is a signed Merkle root over the sorted, SHA-256-hashed
+capability set (padded to the next power-of-2). A `CapabilityMembershipProof`
+carries only the leaf hash and O(log N) sibling hashes — nothing about other
+capabilities. Any verifier that holds the signed root can confirm membership by
+walking the sibling path. A `CapabilityNullifier` (single-use token) prevents
+replay within its validity window.
+
+IBCTs and Merkle proofs are complementary: IBCTs carry authorization forward to
+the resource; Merkle proofs let the agent prove authorization *to a third party*
+without forwarding the token. The `SelectiveDisclosureGate` plugs directly into
+`BoundaryEngine.add_gate()`, replacing the standard `capability_gate` for
+interactions where selective disclosure is preferred.
+
 ---
 
 ## 3. Patterns of Discipline
@@ -600,7 +649,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.32.0:
+As of v0.35.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -641,12 +690,19 @@ As of v0.32.0:
 - IBCTs (v0.32) give the trust pipeline a portable bearer artefact: an agent
   carries a signed token with attenuated capabilities and an invocation budget
   to any offline verifier without a network call to the GM stack.
+- JustificationProofs (v0.33) give every BoundaryDecision a signed gate trace:
+  auditors can verify not just what was decided, but how.
+- HumanOversightPolicy + DualSignedCommitments (v0.34) give operators a
+  human-in-the-loop veto: high-stakes actions require both the agent key and the
+  human custodian key. Neither can forge the commitment alone.
+- Merkle-based selective disclosure (v0.35) lets agents prove one capability to
+  a third party without revealing the full capability set, agreement, or any
+  other capability. CapabilityNullifiers prevent replay.
 
-As of v0.32.0, the following are *not* yet true:
+As of v0.35.0, the following are *not* yet true:
 
-- Phase I runtime trust features (v0.33–v0.37) are not yet shipped:
-  Justification Proofs, Human Oversight, Selective Disclosure Capability Proofs,
-  Distributed Consensus Authorization, and Peer Risk Signals.
+- Phase I runtime trust features (v0.36–v0.37) are not yet shipped:
+  Distributed Consensus Authorization and Peer Risk Signals.
 - Genesis Mesh does not yet have a complete RFC set that can stand apart from
   the Python reference implementation.
 - Atlas does not yet exist as a public ecosystem explorer beyond individual
