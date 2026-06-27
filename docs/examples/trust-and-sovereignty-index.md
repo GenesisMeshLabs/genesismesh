@@ -19,6 +19,7 @@ connectome
 independent-sovereigns
 trust-evidence
 atlas
+relationship-agreement
 ```
 
 ## Start Here
@@ -81,6 +82,15 @@ record offline — no shared backend or identity provider required.
 A read-only explorer over the recognition graph — sovereigns, relationships,
 treaty scope, and TrustEvidence overlay — as a live console page or a
 self-contained static snapshot.
+:::
+
+:::{grid-item-card} Relationship Agreement
+:link: relationship-agreement
+:link-type: doc
+
+Two sovereigns exchange a dual-signed AgreementRecord via Offer → Counter →
+Acceptance. Neither party can produce the record alone. The first artifact
+in GM that requires two independent signatures.
 :::
 
 ::::

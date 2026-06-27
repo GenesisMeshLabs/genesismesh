@@ -25,6 +25,14 @@ def trust() -> None:
     """Evaluate trust decisions and issue portable signed evidence."""
 
 
+def _register_trust_subgroups() -> None:
+    from .agreement_ops import agree  # noqa: PLC0415
+    trust.add_command(agree)
+
+
+_register_trust_subgroups()
+
+
 def _load_graph(path: str) -> dict[str, Any]:
     """Load and parse a recognition-graph export file."""
     try:

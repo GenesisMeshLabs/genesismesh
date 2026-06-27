@@ -479,6 +479,95 @@ genesis-mesh managed audit-export \
 Use `--event-type recognition_treaty_issued` to export one event class and
 `--format json` when a JSON array is easier to ingest.
 
+## Relationship Agreement Commands
+
+The `genesis-mesh trust agree` sub-group implements the Offer → Counter-offer →
+Acceptance protocol.  Two parties — each possessing portable trust material —
+determine whether that material is sufficient for a specific purpose, scope, and
+time, and produce a dual-signed `AgreementRecord` that neither can generate alone.
+
+### `genesis-mesh trust agree offer`
+
+Build and sign a `CapabilityOffer` (Step 1).  Evaluates trust from the offerer
+toward the responder and embeds the result as `offerer_evidence`.
+
+```bash
+genesis-mesh trust agree offer \
+    --from aspayr --to bank-a \
+    --capability transactions.read --capability balances.read \
+    --scope '{"delegation": false}' \
+    --valid-until 2027-01-01T00:00:00Z \
+    --graph aspayr-graph.json \
+    --signing-key aspayr.key --key-id aspayr-2026 \
+    --output offer.json
+```
+
+### `genesis-mesh trust agree counter`
+
+Build and sign a `CapabilityCounter` (Step 2, optional).  Counter capabilities
+must be a subset of the offer's requested capabilities; widening is rejected.
+
+```bash
+genesis-mesh trust agree counter \
+    --offer offer.json \
+    --capability transactions.read \
+    --freshness-floor 12 \
+    --graph bank-graph.json \
+    --signing-key bank.key --key-id bank-2026 \
+    --output counter.json
+```
+
+### `genesis-mesh trust agree accept`
+
+Accept an offer (direct, by the responder) or a counter-offer (by the offerer).
+
+Counter acceptance produces a **dual-signed** `AgreementRecord` immediately,
+because the counter and agreement share the same canonical form.
+
+Direct acceptance produces a half-signed record; the offerer must run
+`trust agree cosign` to finalize.
+
+```bash
+# Counter acceptance (offerer)
+genesis-mesh trust agree accept \
+    --counter counter.json --offer offer.json \
+    --signing-key aspayr.key --key-id aspayr-2026 \
+    --output agreement.json
+
+# Direct acceptance (responder, no counter)
+genesis-mesh trust agree accept \
+    --offer offer.json --graph bank-graph.json \
+    --signing-key bank.key --key-id bank-2026 \
+    --output half-agreement.json
+```
+
+### `genesis-mesh trust agree cosign`
+
+Add the offerer's co-signature to a half-signed `AgreementRecord` produced by
+direct acceptance.
+
+```bash
+genesis-mesh trust agree cosign \
+    --agreement half-agreement.json \
+    --signing-key aspayr.key --key-id aspayr-2026 \
+    --output agreement.json
+```
+
+### `genesis-mesh trust agree verify`
+
+Verify that both the offerer and responder have signed the `AgreementRecord`.
+With `--graph`, also re-derives the graph digest and confirms binding.
+
+Exit code 0 if verified, 1 on any failure.
+
+```bash
+genesis-mesh trust agree verify \
+    --agreement agreement.json \
+    --offerer-public-key <aspayr-pub-b64> \
+    --responder-public-key <bank-pub-b64> \
+    --graph aspayr-graph.json
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a

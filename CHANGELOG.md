@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.26.0 - Relationship Agreement
+
+### Added
+
+- Added `genesis_mesh/models/agreement.py` — Pydantic models for the Offer →
+  Counter-offer → Acceptance protocol: `AgreementTerms`, `CapabilityOffer`,
+  `CapabilityCounter`, `AgreementRecord`.  `CapabilityCounter` and
+  `AgreementRecord` share an identical canonical-JSON form (same fields,
+  excluding `signatures`, `agreement_id`, `established_at`), enabling
+  the responder's counter signature to remain valid over the final
+  `AgreementRecord` without an additional round trip.
+- Added `genesis_mesh/trust/agreement.py` — pure functions: `build_offer`,
+  `build_counter`, `accept_offer`, `accept_counter`, `cosign_agreement`,
+  `verify_agreement`.  `AgreementVerificationResult` frozen dataclass.
+  Scope enforcement: counter capabilities must be ⊆ offer capabilities.
+  Trust verdict from embedded `TrustEvidence` is never silently promoted.
+- Added `genesis-mesh trust agree` CLI sub-group (`cli/agreement_ops.py`):
+  `offer`, `counter`, `accept`, `cosign`, `verify`.
+  Counter flow (`accept --counter`) produces a dual-signed record in one step.
+  Direct acceptance (`accept --offer`) produces a half-signed record; `cosign`
+  finalizes.  `verify` exits 0 on success, 1 on any signature or digest failure.
+- Added `genesis_mesh/tests/test_trust_agreement.py` — 38 tests covering:
+  direct-acceptance and counter-acceptance round-trips, scope-widening
+  rejection, tamper detection, missing/invalid-signature cases,
+  graph-digest binding, revocation-pressure escalation visibility in
+  embedded evidence, transport independence (JSON serialization round-trip),
+  and CLI end-to-end flows for both acceptance paths.
+- Added `docs/examples/relationship-agreement.md` — worked two-sovereign
+  example with both flow variants, AgreementRecord structure, failure cases,
+  and boundary notes.
+- Added Relationship Agreement Commands section to `docs/reference/cli.md`.
+- Added `trust agree` surfaces to `operator_console/surfaces.py` (curated).
+- Added `relationship-agreement` to the trust-and-sovereignty-index toctree
+  and grid.
+
+### Changed
+
+- `cli/decision_ops.py`: registered `agree` sub-group on the `trust` group.
+- Bumped version to `0.26.0`.
+
+### Invariants introduced
+
+- Agreements evaluate existing rights; agreements never create new rights.
+- Counter capabilities must be a strict subset of offer capabilities.
+- The `AgreementRecord` is the first GM artifact requiring two independent
+  signatures — neither party can produce it alone.
+- Transport independence: the `AgreementRecord` canonical form is valid
+  regardless of the channel used to exchange the offer/counter files.
+
 ## v0.25.0 - Trust Atlas MVP
 
 ### Added
