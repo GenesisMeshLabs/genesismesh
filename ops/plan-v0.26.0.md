@@ -408,25 +408,25 @@ relationships, the layer is infrastructure.
 
 ## Success Criteria
 
-- [ ] `build_offer` + `accept_offer` (direct) round-trip: a responder that
+- [x] `build_offer` + `accept_offer` (direct) round-trip: a responder that
       accepts the Offer directly produces a valid dual-signed AgreementRecord.
-- [ ] `build_offer` + `build_counter` + `accept_counter` round-trip: an offerer
+- [x] `build_offer` + `build_counter` + `accept_counter` round-trip: an offerer
       that accepts a Counter-offer produces a valid dual-signed AgreementRecord.
-- [ ] A Counter-offer with terms outside the Offer's requested scope is rejected
+- [x] A Counter-offer with terms outside the Offer's requested scope is rejected
       (terms cannot be widened by the responder).
-- [ ] An AgreementRecord with a tampered `agreed_terms` field fails verification
+- [x] An AgreementRecord with a tampered `agreed_terms` field fails verification
       with `invalid_offerer_signature` or `invalid_responder_signature`.
-- [ ] An AgreementRecord signed by only one party fails with
+- [x] An AgreementRecord signed by only one party fails with
       `missing_offerer_signature` or `missing_responder_signature`.
-- [ ] `verify_agreement` with `--graph` enforces `graph_digest` binding.
-- [ ] Revocation-pressure escalation (v0.24) is visible in embedded TrustEvidence;
+- [x] `verify_agreement` with `--graph` enforces `graph_digest` binding.
+- [x] Revocation-pressure escalation (v0.24) is visible in embedded TrustEvidence;
       it is not silently promoted to `allow` when building the Agreement.
-- [ ] The offline file-exchange CLI flow works end-to-end.
-- [ ] The AgreementRecord is valid regardless of which transport was used to
+- [x] The offline file-exchange CLI flow works end-to-end.
+- [x] The AgreementRecord is valid regardless of which transport was used to
       exchange the offer/counter/acceptance files.
-- [ ] Tests cover: direct acceptance, counter + acceptance, scope violation,
+- [x] Tests cover: direct acceptance, counter + acceptance, scope violation,
       tamper detection, single-signature rejection, graph-digest binding.
-- [ ] The Sphinx build passes with warnings as errors.
+- [x] The Sphinx build passes with warnings as errors.
 
 ## Scope
 
