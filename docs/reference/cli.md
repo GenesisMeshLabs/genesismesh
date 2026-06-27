@@ -637,6 +637,54 @@ genesis-mesh trust delegate verify \
 
 Exit code 0 if verified, 1 on any failure.
 
+## Relationship Context Commands
+
+The `genesis-mesh trust context` sub-group implements the Relationship Context
+layer.  A `ContextRecord` is an unsigned assertion of a capability invocation
+request.  The `BoundaryEngine` evaluates it against ordered gates and produces
+a signed, time-bounded `BoundaryDecision`.
+
+### `genesis-mesh trust context request`
+
+Create a `ContextRecord` asserting a capability invocation request.  The record
+is unsigned — it is input to the boundary engine.
+
+```bash
+genesis-mesh trust context request \
+    --agreement agreement.json \
+    --capability transactions.read \
+    --requester aspayr --provider bank-a \
+    --freshness-seq 12 \
+    --output context.json
+```
+
+### `genesis-mesh trust context evaluate`
+
+Run the `BoundaryEngine` on a `ContextRecord`.  Evaluates capability scope,
+validity window, and freshness commitment in order.  First gate failure
+short-circuits.  Exit code 0 if authorized, 1 if denied.
+
+```bash
+genesis-mesh trust context evaluate \
+    --context context.json \
+    --agreement agreement.json \
+    --operator bank-a \
+    --signing-key bank.key --key-id bank-2026 \
+    --decision-valid-seconds 300 \
+    --output decision.json
+```
+
+### `genesis-mesh trust context verify`
+
+Verify a `BoundaryDecision`'s operator signature and check it has not expired.
+Exit code 0 if valid, 1 on any failure.
+
+```bash
+genesis-mesh trust context verify \
+    --decision decision.json \
+    --operator-public-key <bank-pub-b64>
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a

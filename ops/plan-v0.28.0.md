@@ -188,19 +188,19 @@ can be appended to the engine's gate list.
 
 ## Success Criteria
 
-- [ ] `BoundaryEngine.evaluate` with a valid ContextRecord and AgreementRecord
+- [x] `BoundaryEngine.evaluate` with a valid ContextRecord and AgreementRecord
       produces `authorized=True` with all gates passed.
-- [ ] Capability not in `agreed_terms.capabilities` produces `authorized=False`
+- [x] Capability not in `agreed_terms.capabilities` produces `authorized=False`
       with `CapabilityGate.passed=False`.
-- [ ] requested_at outside validity window produces `authorized=False`.
-- [ ] `context_freshness_seq < freshness_commitment` produces `authorized=False`.
-- [ ] A custom gate appended to the engine is evaluated and recorded in
+- [x] requested_at outside validity window produces `authorized=False`.
+- [x] `context_freshness_seq < freshness_commitment` produces `authorized=False`.
+- [x] A custom gate appended to the engine is evaluated and recorded in
       `gate_results`.
-- [ ] `verify_boundary_decision` confirms the signature and gate completeness.
-- [ ] `BoundaryDecision.decision_expired` if `decision_valid_until` is in the past.
-- [ ] CLI `trust context request` → `evaluate` → `verify` end-to-end.
-- [ ] 38 tests covering all gate cases, signature verification, CLI.
-- [ ] Sphinx build passes with warnings as errors.
+- [x] `verify_boundary_decision` confirms the signature and gate completeness.
+- [x] `BoundaryDecision.decision_expired` if `decision_valid_until` is in the past.
+- [x] CLI `trust context request` → `evaluate` → `verify` end-to-end.
+- [x] 32 tests covering all gate cases, signature verification, CLI.
+- [x] Sphinx build passes with warnings as errors.
 
 ## Scope
 

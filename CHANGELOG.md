@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.28.0 - Relationship Context + Boundary Engine
+
+### Added
+
+- Added `genesis_mesh/models/context.py` — `ContextRecord` (unsigned requester
+  assertion), `BoundaryDecision` (signed operator evaluation, time-bounded),
+  `GateResult` (per-gate pass/fail with detail string).
+  `BoundaryDecision.to_canonical_json()` excludes `signature` only.
+- Added `genesis_mesh/trust/context.py` — `BoundaryEngine` class and three
+  built-in gate functions:
+  `capability_gate` (capability ∈ agreed_terms.capabilities),
+  `validity_window_gate` (requested_at ∈ [valid_from, valid_until]),
+  `freshness_gate` (freshness_seq ≥ commitment).
+  Engine evaluates gates in order; first failure short-circuits.
+  `add_gate()` accepts any callable `(ContextRecord, AgreementTerms) -> GateResult`.
+  `verify_boundary_decision` checks signature and expiry; maps denial_reason
+  to one of: `authorized`, `unauthorized_capability_out_of_scope`,
+  `unauthorized_outside_validity_window`, `unauthorized_insufficient_freshness`,
+  `unauthorized_gate_failure`, `invalid_signature`, `decision_expired`,
+  `missing_signature`.
+- Added `genesis-mesh trust context` CLI sub-group (`cli/context_ops.py`):
+  `request` (create ContextRecord), `evaluate` (run BoundaryEngine, exit 1 if
+  denied), `verify` (check decision signature and expiry).
+- Added `genesis_mesh/tests/test_trust_context.py` — 32 tests covering:
+  valid evaluation, CapabilityGate, ValidityWindowGate (before/after window),
+  FreshnessGate (insufficient/exact/surplus/zero), custom gate extension,
+  short-circuit on first failure, verify_boundary_decision (valid/expired/wrong
+  key/missing sig/denied with reason mapping), JSON round-trip, CLI end-to-end.
+- Added `docs/examples/relationship-context.md` — worked example, gate table,
+  failure cases, custom gate extension, BoundaryDecision structure.
+- Added Relationship Context Commands section to `docs/reference/cli.md`.
+- Added `relationship-context` to trust-and-sovereignty-index toctree + grid.
+- Added `trust context` surfaces to `operator_console/surfaces.py` (curated).
+
+### Changed
+
+- `cli/decision_ops.py`: registered `context` sub-group on the `trust` group.
+- Bumped version to `0.28.0`.
+
+### Invariant introduced
+
+- A party holding an `AgreementRecord` cannot self-authorize execution.
+  Authorization requires a `BoundaryDecision` signed by an independent operator.
+  The decision is bounded in time (default 300 s) and is not a permanent grant.
+
 ## v0.27.0 - Attenuable Delegation Chains
 
 ### Added
