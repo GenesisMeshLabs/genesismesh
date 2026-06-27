@@ -29,9 +29,11 @@ def _register_trust_subgroups() -> None:
     from .agreement_ops import agree  # noqa: PLC0415
     from .delegation_ops import delegate  # noqa: PLC0415
     from .context_ops import context  # noqa: PLC0415
+    from .execution_ops import execution  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
+    trust.add_command(execution)
 
 
 _register_trust_subgroups()

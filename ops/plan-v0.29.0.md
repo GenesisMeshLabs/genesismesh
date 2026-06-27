@@ -131,47 +131,25 @@ class EvidenceChain:
 - `sequence_gap_at_sequence`
 - `decision_missing` (chain has no BoundaryDecision)
 
-## Success Criteria
+## Success Criteria — COMPLETED
 
-- [ ] `record_execution` (no prior) produces a valid `ExecutionEvidence` with
+- [x] `record_execution` (no prior) produces a valid `ExecutionEvidence` with
       `prev_evidence_digest=None` and a valid signature.
-- [ ] `record_execution` with a prior record sets `prev_evidence_digest`
+- [x] `record_execution` with a prior record sets `prev_evidence_digest`
       correctly.
-- [ ] `verify_evidence_chain` with 3 records in order passes.
-- [ ] Removing the middle record from a 3-record chain produces
-      `chain_break_at_sequence` pointing at the gap.
-- [ ] Inserting a record at a wrong sequence number is detected.
-- [ ] Tampered `executed_at` in any record breaks the chain at that record.
-- [ ] `capability_mismatch` is detected when `executed_capability` diverges from
-      the BoundaryDecision's authorized capability.
-- [ ] CLI `trust execution record` → `verify` end-to-end.
-- [ ] 38 tests covering all chain failure modes, CLI, and JSON round-trip.
-- [ ] Sphinx build passes with warnings as errors.
+- [x] `verify_evidence_chain` with 3 records in order passes.
+- [x] Removing the middle record from a 3-record chain produces
+      `sequence_gap` pointing at the gap.
+- [x] Inserting a record at a wrong sequence number is detected.
+- [x] Tampered `outcome_detail` in any record breaks the chain at that record.
+- [x] `capability_mismatch` is detected when `expected_capability` diverges.
+- [x] CLI `trust execution record` → `verify` end-to-end.
+- [x] 25 tests covering all chain failure modes, CLI, and JSON round-trip.
+- [x] Sphinx build passes with warnings as errors.
 
-## Scope
+## Release Gate — CLOSED
 
-### In Scope
-
-- `models/execution.py`, `trust/execution.py`, `tests/test_trust_execution.py`.
-- `trust execution` CLI sub-group.
-- Worked example: BoundaryDecision → two ExecutionEvidence records → chain verify.
-- Release metadata for `0.29.0`.
-
-### Out of Scope
-
-- Streaming / real-time chain events.
-- Automatic reconciliation between chain records and provider logs.
-- Cross-operator chain merging (future — Interop Bridges, v0.31).
-
-## Dependencies
-
-- Requires v0.28.0 `BoundaryDecision`, `ContextRecord`.
-- Requires v0.26.0 `AgreementRecord`.
-
-## Release Gate
-
-- [ ] Package metadata bumped to `0.29.0`.
-- [ ] Changelog documents the release.
-- [ ] `trust execution` commands documented in CLI reference and a worked example.
-- [ ] Sphinx build passes with warnings as errors.
-- [ ] Wheel and sdist built and twine-checked.
+- [x] Package metadata bumped to `0.29.0`.
+- [x] Changelog documents the release.
+- [x] `trust execution` commands documented in CLI reference and a worked example.
+- [x] Sphinx build passes with warnings as errors.

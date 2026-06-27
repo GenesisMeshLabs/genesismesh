@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.29.0 - Execution Evidence Hash Chain
+
+### Added
+
+- Added `genesis_mesh/models/execution.py` — `ExecutionEvidence` (signed record
+  of one capability execution event with `prev_evidence_digest` chain linkage)
+  and `EvidenceChain` (decision_id + ordered list of records).
+  `ExecutionEvidence.to_canonical_json()` excludes `signature` only;
+  `prev_evidence_digest` IS signed, making any reorder or gap detectable.
+  `digest()` returns SHA-256 hex of canonical JSON for chain linking.
+- Added `genesis_mesh/trust/execution.py` — `record_execution` (create and sign
+  a new `ExecutionEvidence`, optionally linked to a prior record via
+  `prev_evidence_digest`) and `verify_evidence_chain` (checks sequence
+  contiguity 1-N, digest linkage, capability match, and Ed25519 signatures).
+  `EvidenceChainVerificationResult` with 9 typed reason codes:
+  `verified`, `empty_chain`, `chain_break`, `digest_mismatch`,
+  `invalid_signature`, `capability_mismatch`, `sequence_gap`,
+  `sequence_out_of_order`, `missing_signature`.
+- Added `genesis-mesh trust execution` CLI sub-group (`cli/execution_ops.py`):
+  `record` (create and sign first or chained evidence record, supports
+  `--prior` for chain linking), `verify` (verify full chain: sequence,
+  digests, signatures; exit 1 on failure).
+- Added `genesis_mesh/tests/test_trust_execution.py` — 25 tests covering:
+  first and chained records, 3-record chain verification, removed middle record
+  (sequence_gap), wrong prev_digest (digest_mismatch), tampered field, first
+  record with unexpected prev_digest (chain_break), reorder at start
+  (sequence_gap), out-of-order lower-seq (sequence_out_of_order), empty chain,
+  wrong executor key, no keys for sovereign, missing signature, capability
+  mismatch, JSON round-trip transport independence, CLI record and verify flows.
+- Added `docs/examples/execution-evidence-chain.md` — worked three-record
+  chain example with tamper-detection demonstration.
+- Added `Execution Evidence Commands` section to `docs/reference/cli.md`.
+- Added 2 CLI surfaces to operator console surfaces registry.
+
 ## v0.28.0 - Relationship Context + Boundary Engine
 
 ### Added

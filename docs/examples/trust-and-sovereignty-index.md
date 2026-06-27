@@ -22,6 +22,7 @@ atlas
 relationship-agreement
 delegation-chain
 relationship-context
+execution-evidence-chain
 ```
 
 ## Start Here
@@ -111,6 +112,15 @@ can only narrow — never widen — at each hop.
 A ContextRecord asserts a specific capability invocation. The BoundaryEngine
 evaluates it against ordered gates and produces a signed, time-bounded
 BoundaryDecision. An agreement alone is not an authorization.
+:::
+
+:::{grid-item-card} Execution Evidence Chain
+:link: execution-evidence-chain
+:link-type: doc
+
+After execution, each event is recorded as a signed ExecutionEvidence record
+linked by prev_evidence_digest. Any insertion, deletion, reorder, or tampering
+breaks the chain and is immediately detectable.
 :::
 
 ::::

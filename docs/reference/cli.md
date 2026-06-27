@@ -685,6 +685,55 @@ genesis-mesh trust context verify \
     --operator-public-key <bank-pub-b64>
 ```
 
+## Execution Evidence Commands
+
+The `genesis-mesh trust execution` sub-group implements the Execution Evidence
+hash chain protocol (v0.29). Records are linked by `prev_evidence_digest`; any
+insertion, deletion, or reorder is detectable by `verify`.
+
+### `genesis-mesh trust execution record`
+
+Create and sign an `ExecutionEvidence` record. With `--prior`, links the
+record to the previous record via `prev_evidence_digest`.
+
+```bash
+# First record (no prior)
+genesis-mesh trust execution record \
+    --decision decision.json \
+    --capability transactions.read \
+    --executor bank-a \
+    --outcome success \
+    --sequence 1 \
+    --signing-key keys/bank-a.key --key-id bank-a-2026 \
+    --output evidence-1.json
+
+# Chained record
+genesis-mesh trust execution record \
+    --decision decision.json \
+    --capability transactions.read \
+    --executor bank-a \
+    --outcome success \
+    --sequence 2 \
+    --prior evidence-1.json \
+    --signing-key keys/bank-a.key --key-id bank-a-2026 \
+    --output evidence-2.json
+```
+
+### `genesis-mesh trust execution verify`
+
+Verify an `ExecutionEvidence` hash chain. Checks sequence contiguity,
+`prev_evidence_digest` linkage, and Ed25519 signatures. Exit code 0 if
+verified, 1 on any failure.
+
+```bash
+genesis-mesh trust execution verify \
+    --decision-id <uuid> \
+    --evidence evidence-1.json \
+    --evidence evidence-2.json \
+    --key bank-a:<bank-a-pub-b64> \
+    --expected-capability transactions.read
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a
