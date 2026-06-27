@@ -27,6 +27,7 @@ freshness-proofs
 formal-verification
 invocation-bound-tokens
 justification-proofs
+human-oversight
 ```
 
 ## Start Here
@@ -161,6 +162,15 @@ caps, policy constraints, and tamper-evident use chains.
 A signed artifact that proves not just what the BoundaryEngine decided,
 but how: the ordered gate inputs, intermediate results, and short-circuit
 point. Any auditor can verify the reasoning offline without re-running the engine.
+:::
+
+:::{grid-item-card} Human Oversight
+:link: human-oversight
+:link-type: doc
+
+An 8-check deterministic policy engine that classifies proposed actions as
+automatic, human_approve, or block. High-stakes actions require a
+DualSignedCommitment — both agent and human custodian keys are required.
 :::
 
 ::::

@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.34.0 - Human Oversight + Dual-Signed Commitments
+
+### Added
+
+**Models** (`genesis_mesh/models/oversight.py`):
+- `HumanOversightPolicy`: signed policy defining which actions require human
+  approval. Fields: `allowed_capabilities`, `counterparty_allowlist`,
+  `value_threshold`, `allowed_hours`, `frequency_limit`.
+- `HumanApprovalRequest`: agent-signed proposal for a high-stakes action.
+  Contains `proposed_action`, `escalation_level`, `escalation_reasons`,
+  and `expires_at`.
+- `HumanApprovalResponse`: human custodian's signed approval or rejection.
+- `DualSignedCommitment`: commitment requiring both `agent_signature` and
+  `human_signature`. `to_canonical_json()` excludes both; `is_fully_signed()`
+  checks presence of both. Neither party can forge it alone.
+
+**Trust** (`genesis_mesh/trust/oversight.py`):
+- `evaluate_oversight_policy()`: deterministic 8-check policy engine returning
+  `PolicyEvaluation` with result (`automatic` / `human_approve` / `block`),
+  per-check outcomes, and escalation reasons.
+  Checks: capability_scope, counterparty_allowlist, value_threshold, time_window,
+  frequency_limit, irreversibility, novel_counterparty, anomaly_flag.
+- `propose_commitment()`: evaluates policy and signs `HumanApprovalRequest`.
+  Raises `RuntimeError` on `automatic`; `ValueError` on `block`.
+- `approve_commitment()`: human custodian countersigns, produces
+  `(HumanApprovalResponse, DualSignedCommitment)`.
+- `reject_commitment()`: human signs rejection `HumanApprovalResponse`.
+- `verify_dual_signed_commitment()`: 7-path typed verification:
+  `missing_agent_signature → missing_human_signature → request_response_mismatch →
+  invalid_agent_signature → invalid_human_signature → expired → valid`.
+  Agent signature is verified against the `HumanApprovalRequest` canonical form
+  when `request` is supplied.
+
+**CLI** (`genesis_mesh/cli/oversight_ops.py`, wired as `trust oversight`):
+- `genesis-mesh trust oversight evaluate` (exit 0/1/2)
+- `genesis-mesh trust oversight propose`
+- `genesis-mesh trust oversight approve`
+- `genesis-mesh trust oversight reject`
+- `genesis-mesh trust oversight verify` (`--format json`)
+
+**Tests** (`genesis_mesh/tests/test_human_oversight.py`): 39 tests covering all
+8 policy checks, three-tier outcome logic, propose/approve/reject workflow,
+dual-signed commitment, all 7 verification reason codes, and CLI end-to-end.
+Full suite: 647 passed, 1 skipped.
+
+**Docs**:
+- `docs/examples/human-oversight.md` — worked example with CLI and Python API
+- Trust & Sovereignty index updated with Human Oversight card
+- CLI reference updated with `trust oversight` section
+
+**Operator console** (`surfaces.py`): 4 new curated CLI surfaces for evaluate,
+propose, approve, and verify.
+
+### Research basis
+- arXiv:2603.00318 — AESP: Human-Sovereign Economic Protocol for AI Agents
+- arXiv:2506.04253 — HADA: Human-AI Agent Decision Alignment Architecture
+- arXiv:2605.05440 — Authorization Propagation in Multi-Agent AI Systems
+
+---
+
 ## v0.33.0 - Justification Proofs + Gate Trace Artifacts
 
 ### Added

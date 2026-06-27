@@ -866,6 +866,79 @@ genesis-mesh trust token record-use \
     --prior use-1.json --signing-key agent.key --output use-2.json
 ```
 
+## Human Oversight Commands
+
+The `genesis-mesh trust oversight` sub-group (v0.34) implements a deterministic
+8-check policy engine and the dual-signed commitment workflow. High-stakes
+proposed actions require both an agent signature and a human custodian
+countersignature before execution.
+
+### `genesis-mesh trust oversight evaluate`
+
+Run the policy engine and print the escalation result without signing anything.
+
+```bash
+genesis-mesh trust oversight evaluate \
+    --policy policy.json \
+    --action action.json \
+    --requester agent-sovereign \
+    [--recent-count 2] [--anomaly]
+```
+
+Exit codes: 0=automatic, 1=human_approve, 2=block.
+
+### `genesis-mesh trust oversight propose`
+
+Agent signs a `HumanApprovalRequest` for an action that requires human approval.
+Fails with a clear error if the policy result is `automatic` or `block`.
+
+```bash
+genesis-mesh trust oversight propose \
+    --policy policy.json --action action.json \
+    --requester agent-sovereign \
+    --signing-key keys/agent.key \
+    --output request.json
+```
+
+### `genesis-mesh trust oversight approve`
+
+Human custodian countersigns the request and produces a `DualSignedCommitment`
+with both the agent signature (from the request) and the human signature.
+
+```bash
+genesis-mesh trust oversight approve \
+    --request request.json --policy policy.json \
+    --signing-key keys/human.key \
+    --note "approved after review" \
+    --output commitment.json
+```
+
+### `genesis-mesh trust oversight reject`
+
+Human custodian rejects the request with a signed `HumanApprovalResponse`.
+
+```bash
+genesis-mesh trust oversight reject \
+    --request request.json --policy policy.json \
+    --signing-key keys/human.key \
+    --note "unusual counterparty" \
+    --output response.json
+```
+
+### `genesis-mesh trust oversight verify`
+
+Verify both signatures on a `DualSignedCommitment`.
+
+```bash
+genesis-mesh trust oversight verify \
+    --commitment commitment.json \
+    --agent-key agent.pub \
+    --human-key human.pub \
+    [--request request.json] [--format json]
+```
+
+Exit code 0 on success; 1 on any verification failure.
+
 ## Justification Proof Commands
 
 The `genesis-mesh trust justify` sub-group (v0.33) signs and verifies

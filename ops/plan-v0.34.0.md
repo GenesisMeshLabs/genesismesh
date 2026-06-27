@@ -259,23 +259,23 @@ trust oversight verify    --commitment commitment.json
 
 ## Success Criteria
 
-- [ ] `HumanOversightPolicy`, `HumanApprovalRequest`, `HumanApprovalResponse`,
+- [x] `HumanOversightPolicy`, `HumanApprovalRequest`, `HumanApprovalResponse`,
       `DualSignedCommitment` models with `to_canonical_json()`
-- [ ] 8-check `evaluate_oversight_policy()` with three-tier outcome
-- [ ] `propose_commitment()` raises on `automatic` and `block` results
-- [ ] `approve_commitment()` / `reject_commitment()` / `verify_dual_signed_commitment()`
-- [ ] Typed reason in all 7 verification paths
-- [ ] CLI `trust oversight` subgroup wired into `decision_ops.py`
-- [ ] ≥ 34 tests; all pass
-- [ ] Sphinx build passes with `-W`
+- [x] 8-check `evaluate_oversight_policy()` with three-tier outcome
+- [x] `propose_commitment()` raises on `automatic` and `block` results
+- [x] `approve_commitment()` / `reject_commitment()` / `verify_dual_signed_commitment()`
+- [x] Typed reason in all 7 verification paths
+- [x] CLI `trust oversight` subgroup wired into `decision_ops.py`
+- [x] ≥ 34 tests; all pass (39 passed)
+- [x] Sphinx build passes with `-W`
 
-## Release Gate
+## Release Gate — CLOSED
 
-- [ ] Package metadata bumped to `0.34.0`
-- [ ] CHANGELOG entry
-- [ ] `trust oversight` documented in CLI reference
-- [ ] `docs/examples/human-oversight.md` worked example
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.34.0`
+- [x] CHANGELOG entry
+- [x] `trust oversight` documented in CLI reference
+- [x] `docs/examples/human-oversight.md` worked example
+- [x] All prior tests continue to pass (647 passed, 1 skipped)
 
 ## Research citations
 
