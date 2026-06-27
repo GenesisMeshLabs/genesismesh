@@ -33,6 +33,7 @@ def _register_trust_subgroups() -> None:
     from .freshness_ops import freshness  # noqa: PLC0415
     from .interop_ops import interop  # noqa: PLC0415
     from .token_ops import token  # noqa: PLC0415
+    from .justification_ops import justify  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
@@ -40,6 +41,7 @@ def _register_trust_subgroups() -> None:
     trust.add_command(freshness)
     trust.add_command(interop)
     trust.add_command(token)
+    trust.add_command(justify)
 
 
 _register_trust_subgroups()

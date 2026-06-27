@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.33.0 - Justification Proofs + Gate Trace Artifacts
+
+### Added
+
+**Models** (`genesis_mesh/models/justification.py`):
+- `GateTraceEntry`: record of a single gate evaluation — gate name, type,
+  timestamp, per-gate inputs (serialisable), result, and human-readable reason.
+- `GateTrace`: ordered list of `GateTraceEntry` records from one engine run,
+  with `short_circuited_at` (first failed gate name, or `None`) and
+  `final_authorized` flag.
+- `JustificationProof`: signed artefact binding a `GateTrace` to a
+  `BoundaryDecision`. `to_canonical_json()` / `digest()` follow the standard
+  GM signing convention.
+
+**BoundaryEngine** (`genesis_mesh/trust/context.py`):
+- `evaluate_with_proof()`: identical semantics to `evaluate()` but additionally
+  captures a `GateTraceEntry` per gate and returns
+  `(BoundaryDecision, JustificationProof)`. Existing `evaluate()` is unchanged.
+- Helper functions `_gate_inputs()` and `_freshness_proof_inputs()` extract
+  structured inputs per gate name for trace capture.
+- `_GATE_TYPE_MAP` maps built-in gate names to class-name strings
+  (`CapabilityGate`, `ValidityWindowGate`, `FreshnessGate`, `FreshnessProofGate`).
+
+**Trust** (`genesis_mesh/trust/justification.py`):
+- `sign_justification_proof()`: validates `trace.decision_id == decision.decision_id`
+  and `trace.final_authorized == decision.authorized` before signing.
+- `verify_justification_proof()`: 6-path typed verification:
+  `missing_signature → invalid_signature → decision_id_mismatch →
+  trace_entry_count_mismatch → short_circuit_inconsistent → valid`.
+  Optional `decision` parameter enables cross-checks on `decision_id` and gate count.
+- `JustificationProofVerificationResult`: frozen dataclass with `valid`, `reason`,
+  `proof_id`, `decision_id`.
+
+**CLI** (`genesis_mesh/cli/justification_ops.py`, wired as `trust justify`):
+- `genesis-mesh trust justify sign` — sign a GateTrace into a JustificationProof
+- `genesis-mesh trust justify verify` — verify a JustificationProof; optional
+  `--decision` cross-check; `--format json` for machine-readable output
+
+**Tests** (`genesis_mesh/tests/test_justification_proofs.py`): 32 tests covering
+all 6 verification paths, authorized/denied trace capture, short-circuit
+visibility, gate input correctness, custom gate integration, digest determinism,
+and CLI end-to-end. Full suite: 608 passed, 1 skipped.
+
+**Docs**:
+- `docs/examples/justification-proofs.md` — worked example with CLI and Python API
+- Trust & Sovereignty index updated with Justification Proofs card
+- CLI reference updated with `trust justify sign / verify` section
+
+**Operator console** (`surfaces.py`): 2 new curated CLI surfaces for
+`trust justify sign` and `trust justify verify`.
+
+### Research basis
+- arXiv:2605.15228 — Verifiable Agentic Infrastructure: Proof-Derived Authorization
+- arXiv:2605.05440 — Authorization Propagation in Multi-Agent AI Systems
+
+---
+
 ## v0.32.0 - Invocation-Bound Capability Tokens (IBCTs)
 
 ### Added

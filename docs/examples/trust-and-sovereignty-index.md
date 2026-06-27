@@ -26,6 +26,7 @@ execution-evidence-chain
 freshness-proofs
 formal-verification
 invocation-bound-tokens
+justification-proofs
 ```
 
 ## Start Here
@@ -151,6 +152,15 @@ and JOSE/JWT bridges without losing provability guarantees.
 A compact signed token that lets an agent prove offline what it can do,
 how often, and until when — without calling the GM stack. Supports budget
 caps, policy constraints, and tamper-evident use chains.
+:::
+
+:::{grid-item-card} Justification Proofs
+:link: justification-proofs
+:link-type: doc
+
+A signed artifact that proves not just what the BoundaryEngine decided,
+but how: the ordered gate inputs, intermediate results, and short-circuit
+point. Any auditor can verify the reasoning offline without re-running the engine.
 :::
 
 ::::

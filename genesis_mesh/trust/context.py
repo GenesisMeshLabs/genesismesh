@@ -307,6 +307,136 @@ class BoundaryEngine:
         return decision.model_copy(update={"signature": sig})
 
 
+    def evaluate_with_proof(
+        self,
+        context: ContextRecord,
+        agreement: AgreementRecord,
+        signing_key: nacl.signing.SigningKey,
+        *,
+        issued_by: str,
+        freshness_proof: FreshnessProof | None = None,
+        freshness_proof_issuer_keys: list[str] | None = None,
+        now: datetime | None = None,
+    ) -> "tuple[BoundaryDecision, Any]":
+        """Evaluate context and emit a signed JustificationProof alongside the decision.
+
+        Identical semantics to evaluate() but additionally captures a GateTrace
+        and signs it into a JustificationProof.  Returns (BoundaryDecision, JustificationProof).
+        """
+        from ..models.justification import GateTrace, GateTraceEntry
+        from .justification import sign_justification_proof
+
+        ts = now or datetime.now(timezone.utc)
+        terms = agreement.agreed_terms
+        trace_entries: list[GateTraceEntry] = []
+        gate_results: list[GateResult] = []
+        first_failure: GateResult | None = None
+        short_circuited_at: str | None = None
+
+        for gate in self._gates:
+            result = gate(context, terms)
+            gate_results.append(result)
+            trace_entries.append(GateTraceEntry(
+                gate_name=result.gate_name,
+                gate_type=_GATE_TYPE_MAP.get(result.gate_name, "CustomGate"),
+                evaluated_at=ts,
+                inputs=_gate_inputs(result.gate_name, context, terms),
+                result=result.passed,
+                reason=result.detail,
+            ))
+            if not result.passed:
+                first_failure = result
+                short_circuited_at = result.gate_name
+                break
+
+        if first_failure is None and self._require_freshness_proof:
+            proof_result = _freshness_proof_gate(
+                freshness_proof, terms, freshness_proof_issuer_keys or [], ts,
+            )
+            gate_results.append(proof_result)
+            trace_entries.append(GateTraceEntry(
+                gate_name=proof_result.gate_name,
+                gate_type="FreshnessProofGate",
+                evaluated_at=ts,
+                inputs=_freshness_proof_inputs(freshness_proof, terms),
+                result=proof_result.passed,
+                reason=proof_result.detail,
+            ))
+            if not proof_result.passed:
+                first_failure = proof_result
+                short_circuited_at = proof_result.gate_name
+
+        authorized = first_failure is None
+        denial_reason: str | None = _denial_reason(first_failure) if first_failure else None
+        embedded_proof: FreshnessProof | None = freshness_proof if (authorized and freshness_proof) else None
+
+        decision = BoundaryDecision(
+            context_id=context.context_id,
+            agreement_id=context.agreement_id,
+            authorized=authorized,
+            denial_reason=denial_reason,
+            gate_results=gate_results,
+            decision_made_at=ts,
+            decision_valid_until=ts + timedelta(seconds=self.decision_valid_seconds),
+            operator_sovereign_id=self.operator_sovereign_id,
+            freshness_proof=embedded_proof,
+        )
+        sig = sign_model(decision, signing_key, issued_by)
+        decision = decision.model_copy(update={"signature": sig})
+
+        trace = GateTrace(
+            decision_id=decision.decision_id,
+            agreement_id=agreement.agreement_id,
+            operator_sovereign_id=self.operator_sovereign_id,
+            traced_at=ts,
+            entries=trace_entries,
+            short_circuited_at=short_circuited_at,
+            final_authorized=authorized,
+        )
+        justification = sign_justification_proof(trace, decision, signing_key, issued_by=issued_by, now=ts)
+        return decision, justification
+
+
+_GATE_TYPE_MAP: dict[str, str] = {
+    "capability_check": "CapabilityGate",
+    "validity_window": "ValidityWindowGate",
+    "freshness_check": "FreshnessGate",
+    "freshness_proof": "FreshnessProofGate",
+}
+
+
+def _gate_inputs(gate_name: str, context: ContextRecord, terms: AgreementTerms) -> "dict[str, Any]":
+    if gate_name == "capability_check":
+        return {
+            "requested_capability": context.requested_capability,
+            "capabilities": terms.capabilities,
+        }
+    if gate_name == "validity_window":
+        return {
+            "requested_at": context.requested_at.isoformat(),
+            "valid_from": terms.valid_from.isoformat(),
+            "valid_until": terms.valid_until.isoformat(),
+        }
+    if gate_name == "freshness_check":
+        return {
+            "context_freshness_seq": context.context_freshness_seq,
+            "freshness_commitment": terms.freshness_commitment,
+        }
+    return {}
+
+
+def _freshness_proof_inputs(proof: "FreshnessProof | None", terms: AgreementTerms) -> "dict[str, Any]":
+    if proof is None:
+        return {"proof_present": False, "freshness_commitment": terms.freshness_commitment}
+    return {
+        "proof_present": True,
+        "proof_id": proof.proof_id,
+        "feed_sequence": proof.feed_sequence,
+        "proof_valid_until": proof.proof_valid_until.isoformat(),
+        "freshness_commitment": terms.freshness_commitment,
+    }
+
+
 def _denial_reason(gate: GateResult) -> str:
     """Map a failed gate name to a BoundaryDecisionVerificationReason-style string."""
     mapping = {

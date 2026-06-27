@@ -866,6 +866,59 @@ genesis-mesh trust token record-use \
     --prior use-1.json --signing-key agent.key --output use-2.json
 ```
 
+## Justification Proof Commands
+
+The `genesis-mesh trust justify` sub-group (v0.33) signs and verifies
+`JustificationProof` artefacts — signed records of BoundaryEngine gate
+evaluation order, inputs, and intermediate results. An auditor can verify
+the reasoning behind a `BoundaryDecision` offline without re-running the engine.
+
+### `genesis-mesh trust justify sign`
+
+Sign a `GateTrace` into a `JustificationProof`.
+
+```bash
+genesis-mesh trust justify sign \
+    --decision decision.json \
+    --trace trace.json \
+    --signing-key keys/operator.key \
+    --output proof.json
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--decision` | Yes | Path to the signed `BoundaryDecision` JSON |
+| `--trace` | Yes | Path to the `GateTrace` JSON |
+| `--signing-key` | Yes | Operator Ed25519 private key (base64 text file) |
+| `--key-id` | No | Key identifier in the proof signature (default: `operator`) |
+| `--output` | Yes | Output path for the signed `JustificationProof` JSON |
+
+### `genesis-mesh trust justify verify`
+
+Verify the signature on a `JustificationProof`.
+
+```bash
+# Signature check only
+genesis-mesh trust justify verify \
+    --proof proof.json \
+    --verify-key <base64-pub>
+
+# With decision cross-check (decision_id + gate count)
+genesis-mesh trust justify verify \
+    --proof proof.json \
+    --verify-key <base64-pub> \
+    --decision decision.json
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--proof` | Yes | Path to the `JustificationProof` JSON |
+| `--verify-key` | Yes | Issuer public key: base64 string or path to file |
+| `--decision` | No | `BoundaryDecision` to cross-check `decision_id` and gate count |
+| `--format` | No | `table` (default) or `json` |
+
+Exit code 0 on success; 1 on any verification failure.
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a

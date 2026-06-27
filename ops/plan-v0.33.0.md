@@ -159,22 +159,22 @@ trust justify verify  --proof proof.json --verify-key operator.pub
 
 ## Success Criteria
 
-- [ ] `GateTraceEntry`, `GateTrace`, `JustificationProof` models
-- [ ] `BoundaryEngine.evaluate()` captures gate trace when requested
-- [ ] `sign_justification_proof()` validates trace/decision consistency
-- [ ] `verify_justification_proof()` returns typed reason in all 6 paths
-- [ ] CLI `trust justify` subgroup wired into `decision_ops.py`
-- [ ] ≥ 28 tests; all pass
-- [ ] No performance regression when `emit_justification_proof=False` (default)
-- [ ] Sphinx build passes with `-W`
+- [x] `GateTraceEntry`, `GateTrace`, `JustificationProof` models
+- [x] `BoundaryEngine.evaluate_with_proof()` captures gate trace (evaluate() unchanged)
+- [x] `sign_justification_proof()` validates trace/decision consistency
+- [x] `verify_justification_proof()` returns typed reason in all 6 paths
+- [x] CLI `trust justify` subgroup wired into `decision_ops.py`
+- [x] ≥ 28 tests; all pass (32 passed)
+- [x] No performance regression — evaluate() path unchanged
+- [x] Sphinx build passes with `-W`
 
-## Release Gate
+## Release Gate — CLOSED
 
-- [ ] Package metadata bumped to `0.33.0`
-- [ ] CHANGELOG entry
-- [ ] `trust justify` documented in CLI reference
-- [ ] `docs/examples/justification-proofs.md` worked example
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.33.0`
+- [x] CHANGELOG entry
+- [x] `trust justify` documented in CLI reference
+- [x] `docs/examples/justification-proofs.md` worked example
+- [x] All prior tests continue to pass (608 passed, 1 skipped)
 
 ## Research citations
 
