@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.30.0 - Freshness Proofs + Bounded Revocation
+
+### Added
+
+- Added `genesis_mesh/models/freshness.py` — `FreshnessProof` model: signed
+  attestation that a specific revocation-feed sequence was current at a specific
+  time.  `to_canonical_json()` excludes `signature` only; all timestamps,
+  `feed_sequence`, and `feed_digest` are signed.
+- Added `genesis_mesh/trust/freshness.py` — `issue_freshness_proof` (create
+  and sign a FreshnessProof) and `verify_freshness_proof` (checks: missing
+  signature, invalid signature, expiry, sequence >= requirement).
+  `FreshnessProofVerificationResult` with 5 typed reason codes: `valid`,
+  `expired`, `sequence_insufficient`, `invalid_signature`, `missing_signature`.
+- Updated `genesis_mesh/models/context.py` — `BoundaryDecision` gains optional
+  `freshness_proof: FreshnessProof | None` field.  Embedded proof IS included in
+  `to_canonical_json()` (operator signs over the full proof structure).
+- Updated `genesis_mesh/trust/context.py` — `BoundaryEngine` gains
+  `require_freshness_proof=False` constructor param; `evaluate()` gains
+  `freshness_proof` and `freshness_proof_issuer_keys` params.  When
+  `require_freshness_proof=True`, a `freshness_proof` gate runs after standard
+  gates and short-circuits on invalid or missing proof.  Valid proof is embedded
+  in the `BoundaryDecision`.  `verify_boundary_decision` gains optional
+  `freshness_proof_issuer_keys` param; when provided and a proof is embedded,
+  checks proof signature and `proof_valid_until >= decision_made_at`.
+  New reason codes: `freshness_proof_expired`, `freshness_proof_invalid_signature`.
+- Updated `genesis_mesh/trust/execution.py` — `verify_evidence_chain` gains
+  optional `decision: BoundaryDecision | None` param.  When provided and the
+  decision has an embedded `freshness_proof`, any record with
+  `executed_at > proof_valid_until` returns `stale_freshness_proof`.
+- Added `genesis-mesh trust freshness` CLI sub-group (`cli/freshness_ops.py`):
+  `issue` (create and sign FreshnessProof), `verify` (check proof validity,
+  exit 1 on failure).
+- Added `genesis_mesh/tests/test_trust_freshness.py` — 29 tests covering:
+  proof issuance, all verify_freshness_proof failure modes, BoundaryEngine with
+  require_freshness_proof (valid/absent/invalid-sig/expired/seq-insufficient),
+  verify_boundary_decision proof checks, stale proof in evidence chain,
+  transport independence (JSON round-trip), CLI issue and verify flows.
+- Added `docs/examples/freshness-proofs.md` — worked example.
+- Added `Freshness Proof Commands` section to `docs/reference/cli.md`.
+- Added 2 CLI surfaces to operator console surfaces registry.
+
 ## v0.29.0 - Execution Evidence Hash Chain
 
 ### Added

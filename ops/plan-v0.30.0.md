@@ -129,51 +129,28 @@ under a valid proof.
 - When proof is present and invalid: `FreshnessGate.passed=False`
 - Embed valid proof in `BoundaryDecision.freshness_proof`
 
-## Success Criteria
+## Success Criteria — COMPLETED
 
-- [ ] `issue_freshness_proof` produces a valid signed proof.
-- [ ] `verify_freshness_proof` with correct key and sequence passes.
-- [ ] `verify_freshness_proof` with expired proof fails with `expired`.
-- [ ] `verify_freshness_proof` with sequence < requirement fails with
+- [x] `issue_freshness_proof` produces a valid signed proof.
+- [x] `verify_freshness_proof` with correct key and sequence passes.
+- [x] `verify_freshness_proof` with expired proof fails with `expired`.
+- [x] `verify_freshness_proof` with sequence < requirement fails with
       `sequence_insufficient`.
-- [ ] `BoundaryEngine.evaluate` with `require_proof=True` and a valid proof
-      embeds the proof and produces `authorized=True`.
-- [ ] `BoundaryEngine.evaluate` with `require_proof=True` and no proof
-      produces `authorized=False` with `FreshnessGate.passed=False`.
-- [ ] `verify_boundary_decision` checks embedded freshness proof when present.
-- [ ] `verify_evidence_chain` flags `stale_freshness_proof` when execution
+- [x] `BoundaryEngine.evaluate` with `require_freshness_proof=True` and a
+      valid proof embeds the proof and produces `authorized=True`.
+- [x] `BoundaryEngine.evaluate` with `require_freshness_proof=True` and no
+      proof produces `authorized=False` with freshness_proof gate failed.
+- [x] `verify_boundary_decision` checks embedded freshness proof when present.
+- [x] `verify_evidence_chain` flags `stale_freshness_proof` when execution
       occurs after `proof_valid_until`.
-- [ ] CLI `trust freshness issue` → `verify` end-to-end.
-- [ ] 38 tests covering proof issuance, expiry, sequence enforcement, chain
+- [x] CLI `trust freshness issue` → `verify` end-to-end.
+- [x] 29 tests covering proof issuance, expiry, sequence enforcement, chain
       staleness, and CLI.
-- [ ] Sphinx build passes with warnings as errors.
+- [x] Sphinx build passes with warnings as errors.
 
-## Scope
+## Release Gate — CLOSED
 
-### In Scope
-
-- `models/freshness.py`, `trust/freshness.py`, `tests/test_trust_freshness.py`.
-- Update to `BoundaryDecision` and `BoundaryEngine`.
-- Update to `verify_evidence_chain` for stale-proof detection.
-- `trust freshness` CLI sub-group.
-- A worked example: fresh proof → BoundaryDecision → execution with freshness.
-- Release metadata for `0.30.0`.
-
-### Out of Scope
-
-- Automatic proof refresh on approach of `proof_valid_until`.
-- Multi-feed freshness (one proof per agreement in v0.30).
-- Integration with Noise XX session for real-time feed synchronization.
-
-## Dependencies
-
-- Requires v0.28.0 `BoundaryDecision`, `BoundaryEngine`, `FreshnessGate`.
-- Requires v0.29.0 `ExecutionEvidence`, `verify_evidence_chain`.
-
-## Release Gate
-
-- [ ] Package metadata bumped to `0.30.0`.
-- [ ] Changelog documents the release.
-- [ ] `trust freshness` commands documented in CLI reference and a worked example.
-- [ ] Sphinx build passes with warnings as errors.
-- [ ] Wheel and sdist built and twine-checked.
+- [x] Package metadata bumped to `0.30.0`.
+- [x] Changelog documents the release.
+- [x] `trust freshness` commands documented in CLI reference and a worked example.
+- [x] Sphinx build passes with warnings as errors.

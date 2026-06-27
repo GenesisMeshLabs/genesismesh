@@ -35,6 +35,7 @@ EvidenceChainVerificationReason = Literal[
     "sequence_gap",
     "sequence_out_of_order",
     "missing_signature",
+    "stale_freshness_proof",
 ]
 
 
@@ -145,6 +146,7 @@ def verify_evidence_chain(
     *,
     executor_public_keys_by_sovereign: dict[str, list[str]],
     expected_capability: str | None = None,
+    decision: BoundaryDecision | None = None,
 ) -> EvidenceChainVerificationResult:
     """Verify an ExecutionEvidence hash chain.
 
@@ -154,6 +156,9 @@ def verify_evidence_chain(
        JSON (None for the first record).
     3. Signature is valid for the declared ``executor_sovereign_id``.
     4. ``executed_capability`` matches ``expected_capability`` if provided.
+    5. When ``decision`` is provided and has an embedded ``freshness_proof``:
+       each ``executed_at`` must be <= ``proof_valid_until``.  Any record
+       executed after the proof expired returns ``stale_freshness_proof``.
 
     Args:
         chain: EvidenceChain with decision_id and ordered records.
@@ -161,6 +166,8 @@ def verify_evidence_chain(
             base64 public keys.
         expected_capability: When provided, each record's executed_capability
             must match.
+        decision: Optional BoundaryDecision.  When provided and it has an
+            embedded freshness_proof, stale-proof detection is active.
 
     Returns:
         EvidenceChainVerificationResult with reason and failed_at_sequence.
@@ -211,6 +218,14 @@ def verify_evidence_chain(
         )
         if not sig_valid:
             return _reject("invalid_signature", n, seq)
+
+        # Stale-proof check: execution occurred after the proof's validity window
+        if (
+            decision is not None
+            and decision.freshness_proof is not None
+            and record.executed_at > decision.freshness_proof.proof_valid_until
+        ):
+            return _reject("stale_freshness_proof", n, seq)
 
         prev = record
 

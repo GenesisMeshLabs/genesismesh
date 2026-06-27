@@ -24,6 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .freshness import FreshnessProof
 from .genesis import Signature
 
 
@@ -117,6 +118,11 @@ class BoundaryDecision(BaseModel):
     operator_sovereign_id: str = Field(
         ..., description="Operator whose key signed this decision"
     )
+    freshness_proof: FreshnessProof | None = Field(
+        default=None,
+        description="Optional FreshnessProof embedded by the BoundaryEngine "
+        "when require_freshness_proof=True; included in canonical form",
+    )
     signature: Signature | None = Field(
         default=None,
         description="Ed25519 signature by the operator over canonical decision body",
@@ -125,7 +131,9 @@ class BoundaryDecision(BaseModel):
     def to_canonical_json(self) -> str:
         """Return deterministic JSON the operator signs.
 
-        Excludes ``signature`` only.  Sorted keys, compact separators.
+        Excludes ``signature`` only.  ``freshness_proof`` (including the proof's
+        own nested signature) IS included — the operator signs over the whole
+        proof structure.  Sorted keys, compact separators.
         """
         data = self.model_dump(exclude={"signature"}, mode="json")
         return json.dumps(data, sort_keys=True, separators=(",", ":"))

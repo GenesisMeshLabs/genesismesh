@@ -23,6 +23,7 @@ relationship-agreement
 delegation-chain
 relationship-context
 execution-evidence-chain
+freshness-proofs
 ```
 
 ## Start Here
@@ -121,6 +122,15 @@ BoundaryDecision. An agreement alone is not an authorization.
 After execution, each event is recorded as a signed ExecutionEvidence record
 linked by prev_evidence_digest. Any insertion, deletion, reorder, or tampering
 breaks the chain and is immediately detectable.
+:::
+
+:::{grid-item-card} Freshness Proofs
+:link: freshness-proofs
+:link-type: doc
+
+A FreshnessProof binds revocation-feed state to a specific time. The
+BoundaryEngine embeds valid proofs in every BoundaryDecision; execution
+records produced after the proof window are flagged as stale.
 :::
 
 ::::

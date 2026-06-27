@@ -8,7 +8,8 @@ Built-in gates (evaluated in order, first failure short-circuits):
 1. CapabilityGate   — requested_capability ∈ agreed_terms.capabilities
 2. ValidityWindowGate — requested_at ∈ [valid_from, valid_until]
 3. FreshnessGate    — context_freshness_seq ≥ freshness_commitment
-4. ExpiryGate       — decision_valid_until set from engine config
+4. FreshnessProofGate — when require_freshness_proof=True: proof is present,
+   signature valid, not expired, feed_sequence ≥ commitment
 
 Operator-extensible: any callable satisfying
 ``gate(context, terms) -> GateResult`` can be appended to the gate list.
@@ -25,7 +26,9 @@ import nacl.signing
 from ..crypto import sign_model, verify_model_signature
 from ..models.agreement import AgreementRecord, AgreementTerms
 from ..models.context import BoundaryDecision, ContextRecord, GateResult
+from ..models.freshness import FreshnessProof
 from ..models.genesis import Signature
+from .freshness import verify_freshness_proof
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +44,8 @@ BoundaryDecisionVerificationReason = Literal[
     "invalid_signature",
     "decision_expired",
     "missing_signature",
+    "freshness_proof_expired",
+    "freshness_proof_invalid_signature",
 ]
 
 
@@ -132,6 +137,52 @@ def freshness_gate(context: ContextRecord, terms: AgreementTerms) -> GateResult:
 
 
 # ---------------------------------------------------------------------------
+# FreshnessProof gate (internal — not part of the GateCallable protocol)
+# ---------------------------------------------------------------------------
+
+
+def _freshness_proof_gate(
+    proof: FreshnessProof | None,
+    terms: AgreementTerms,
+    issuer_public_keys: list[str],
+    at_time: datetime,
+) -> GateResult:
+    """Internal gate: verify the embedded FreshnessProof.
+
+    Runs only when ``require_freshness_proof=True``.  Not part of the
+    GateCallable protocol because it needs the proof, not just context+terms.
+    """
+    if proof is None:
+        return GateResult(
+            gate_name="freshness_proof",
+            passed=False,
+            detail="freshness_proof required but not provided",
+        )
+
+    result = verify_freshness_proof(
+        proof,
+        issuer_public_keys,
+        required_sequence=terms.freshness_commitment,
+        at_time=at_time,
+    )
+    if result.valid:
+        return GateResult(
+            gate_name="freshness_proof",
+            passed=True,
+            detail=(
+                f"freshness proof valid: seq={proof.feed_sequence} >= "
+                f"commitment={terms.freshness_commitment}, "
+                f"valid_until={proof.proof_valid_until.isoformat()}"
+            ),
+        )
+    return GateResult(
+        gate_name="freshness_proof",
+        passed=False,
+        detail=f"freshness proof {result.reason}: {proof.proof_id}",
+    )
+
+
+# ---------------------------------------------------------------------------
 # BoundaryEngine
 # ---------------------------------------------------------------------------
 
@@ -148,10 +199,16 @@ class BoundaryEngine:
     Custom gates can be appended via ``add_gate()``.  They receive
     ``(context, agreed_terms)`` and return a ``GateResult``.
 
+    When ``require_freshness_proof=True``, the engine additionally validates
+    an embedded FreshnessProof after the standard gates pass.  The proof gate
+    runs last and is also short-circuited by earlier failures.
+
     Args:
         operator_sovereign_id: Sovereign whose key signs decisions.
         decision_valid_seconds: How long a decision is valid after issuance
             (default: 300 seconds / 5 minutes).
+        require_freshness_proof: When True, evaluation requires a valid
+            FreshnessProof to be supplied to evaluate().
     """
 
     def __init__(
@@ -159,9 +216,11 @@ class BoundaryEngine:
         operator_sovereign_id: str,
         *,
         decision_valid_seconds: int = 300,
+        require_freshness_proof: bool = False,
     ) -> None:
         self.operator_sovereign_id = operator_sovereign_id
         self.decision_valid_seconds = decision_valid_seconds
+        self._require_freshness_proof = require_freshness_proof
         self._gates: list[GateCallable] = [
             capability_gate,
             validity_window_gate,
@@ -179,18 +238,21 @@ class BoundaryEngine:
         signing_key: nacl.signing.SigningKey,
         *,
         issued_by: str,
+        freshness_proof: FreshnessProof | None = None,
+        freshness_proof_issuer_keys: list[str] | None = None,
         now: datetime | None = None,
     ) -> BoundaryDecision:
         """Evaluate context against agreement and return a signed BoundaryDecision.
 
         Args:
             context: The requester's ContextRecord.
-            agreement: The AgreementRecord governing this interaction.  For
-                delegation chains, pass the DelegatedAgreementRecord's
-                delegated_terms wrapped in a transient AgreementRecord — or pass
-                the root AgreementRecord with the delegation's terms substituted.
+            agreement: The AgreementRecord governing this interaction.
             signing_key: Operator's Ed25519 private key.
             issued_by: Key identifier recorded in the signature.
+            freshness_proof: Optional FreshnessProof to embed and validate.
+                Required when ``require_freshness_proof=True``.
+            freshness_proof_issuer_keys: Public keys for verifying the proof's
+                signature.  Required when providing a proof.
             now: Override for the current timestamp.
 
         Returns:
@@ -201,17 +263,34 @@ class BoundaryEngine:
         gate_results: list[GateResult] = []
         first_failure: GateResult | None = None
 
+        # Standard gates (short-circuit on first failure)
         for gate in self._gates:
             result = gate(context, terms)
             gate_results.append(result)
             if not result.passed:
                 first_failure = result
-                break  # short-circuit
+                break
+
+        # FreshnessProof gate — only if standard gates all passed
+        if first_failure is None and self._require_freshness_proof:
+            proof_result = _freshness_proof_gate(
+                freshness_proof,
+                terms,
+                freshness_proof_issuer_keys or [],
+                ts,
+            )
+            gate_results.append(proof_result)
+            if not proof_result.passed:
+                first_failure = proof_result
 
         authorized = first_failure is None
         denial_reason: str | None = None
         if first_failure is not None:
             denial_reason = _denial_reason(first_failure)
+
+        embedded_proof: FreshnessProof | None = None
+        if authorized and freshness_proof is not None:
+            embedded_proof = freshness_proof
 
         decision = BoundaryDecision(
             context_id=context.context_id,
@@ -222,6 +301,7 @@ class BoundaryEngine:
             decision_made_at=ts,
             decision_valid_until=ts + timedelta(seconds=self.decision_valid_seconds),
             operator_sovereign_id=self.operator_sovereign_id,
+            freshness_proof=embedded_proof,
         )
         sig = sign_model(decision, signing_key, issued_by)
         return decision.model_copy(update={"signature": sig})
@@ -233,6 +313,7 @@ def _denial_reason(gate: GateResult) -> str:
         "capability_check": "capability out of scope",
         "validity_window": "outside validity window",
         "freshness_check": "insufficient freshness",
+        "freshness_proof": "insufficient freshness",
     }
     return mapping.get(gate.gate_name, f"gate '{gate.gate_name}' failed: {gate.detail}")
 
@@ -246,14 +327,21 @@ def verify_boundary_decision(
     decision: BoundaryDecision,
     operator_public_keys: list[str],
     *,
+    freshness_proof_issuer_keys: list[str] | None = None,
     now: datetime | None = None,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and check it has not expired.
+
+    When ``freshness_proof_issuer_keys`` is provided and the decision has an
+    embedded ``freshness_proof``, also verifies the proof's signature and
+    checks that the proof was valid at ``decision_made_at``.
 
     Args:
         decision: The BoundaryDecision to verify.
         operator_public_keys: One or more base64 Ed25519 public keys for the
             operator that signed the decision.
+        freshness_proof_issuer_keys: Optional public keys for verifying an
+            embedded FreshnessProof.
         now: Override for the current timestamp (for testing expiry).
 
     Returns:
@@ -283,6 +371,24 @@ def verify_boundary_decision(
     )
     if not sig_valid:
         return _reject("invalid_signature")
+
+    # Freshness proof check (when keys provided and proof is embedded)
+    if decision.freshness_proof is not None and freshness_proof_issuer_keys:
+        proof = decision.freshness_proof
+        if proof.signature is not None:
+            proof_sig_valid = any(
+                verify_model_signature(proof, proof.signature, pub)
+                for pub in freshness_proof_issuer_keys
+            )
+        else:
+            proof_sig_valid = False
+
+        if not proof_sig_valid:
+            return _reject("freshness_proof_invalid_signature")
+
+        # Check proof was valid at decision_made_at
+        if proof.proof_valid_until < decision.decision_made_at:
+            return _reject("freshness_proof_expired")
 
     # Map authorization status to reason
     if not decision.authorized:

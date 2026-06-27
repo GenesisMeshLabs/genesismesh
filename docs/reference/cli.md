@@ -734,6 +734,38 @@ genesis-mesh trust execution verify \
     --expected-capability transactions.read
 ```
 
+## Freshness Proof Commands
+
+The `genesis-mesh trust freshness` sub-group implements the Freshness Proof
+protocol (v0.30). Proofs are short-lived signed attestations that a specific
+revocation-feed sequence was current at a specific time.
+
+### `genesis-mesh trust freshness issue`
+
+Issue a signed `FreshnessProof` for a feed sovereign.
+
+```bash
+genesis-mesh trust freshness issue \
+    --feed-sovereign bank-a \
+    --feed-sequence 42 \
+    --issuer-sovereign feed-node-1 \
+    --valid-for 300 \
+    --signing-key keys/feed-node.key --key-id node-2026 \
+    --output freshness-proof.json
+```
+
+### `genesis-mesh trust freshness verify`
+
+Verify a `FreshnessProof` for a required sequence at a given time. Exit code 0
+if valid, 1 otherwise.
+
+```bash
+genesis-mesh trust freshness verify \
+    --proof freshness-proof.json \
+    --issuer-key <feed-node-pub-b64> \
+    --required-sequence 42
+```
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a
