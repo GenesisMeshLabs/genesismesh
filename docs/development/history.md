@@ -410,6 +410,152 @@ multi-cloud proof. The next risk is no longer only technical. It is external
 operator adoption, governance, independent implementation, and application-layer
 relevance.
 
+### Phase G - Application Layer and Ecosystem Surface (v0.22.0 through v0.25.0)
+
+**Question:** Can the trust fabric be made legible to non-protocol buyers —
+through applications, demos, and a visible graph explorer?
+
+This phase moved from "the protocol exists" to "the protocol is useful for
+something a person can understand without reading RFCs."
+
+**v0.22.0 — NBA Team-Operator Demo.** The first "team as operator" pattern in
+a synthetic but realistic scenario: multiple NBA franchise sovereigns recognize
+each other, attest members across boundaries, and propagate revocations when a
+player changes teams. The release proved that the cross-sovereign protocol
+mechanics generalize to a named domain with business-legible state changes.
+The proof is not real NBA infrastructure; it is that the same protocol primitives
+cover this scenario without modification.
+
+**v0.23.0 — Fleet Operations CLI.** Operators managing many Network Authorities
+gain a dedicated CLI group: `fleet bootstrap`, `fleet status`, `fleet federate`,
+`fleet revoke`. A fleet of independently-keyed NA instances can be stood up,
+federated, and managed through a single command surface. The release also shipped
+the edge-fleet example: a multi-sovereign operational scenario where a fleet of
+nodes at different locations federate with a hub sovereign.
+
+**v0.24.0 — Trust Decisions and Trust Evidence.** The graph-based recognition
+state gains a signed decision layer. `TrustDecision` evaluates the recognition
+path between two sovereigns and produces a structured verdict (`allow`, `warn`,
+`escalate`, `block`) with reason codes. `TrustEvidence` packages the verdict as
+a signed artifact — the first GM record that makes a trust assertion portable and
+offline-verifiable beyond the NA that produced it. A second sovereign receiving
+the evidence can verify the signature without calling the first sovereign's NA.
+The CLI exposes `trust decide`, `trust evidence`, and `trust verify-evidence`.
+
+**v0.25.0 — Trust Atlas MVP.** TrustEvidence records become navigable. The Trust
+Atlas is a self-contained graph explorer: sovereigns as nodes, recognition
+relationships as edges, treaty scope visible on hover, TrustEvidence overlay
+showing verdict and digest binding. It exists as a live console page and as a
+static snapshot that an operator can send as a single file. It does not rank
+sovereigns; it surfaces what the signed protocol state already says.
+
+**At the end of Phase G:** The trust fabric is useful to people who do not read
+RFCs. There are application demos, a fleet management CLI, portable signed trust
+decisions, and a visual graph explorer. The protocol is now explainable through
+artifacts, not only through source code.
+
+### Phase H - First Complete Trust Architecture Cycle (v0.26.0 through v0.31.0)
+
+**Question:** How do two AI agents, governed by independently administered
+sovereigns, establish and execute a trust relationship with full forensic
+accountability and no shared identity provider?
+
+This phase built the answer in six sequential releases, each closing one layer
+of the architecture. The first five are load-bearing; the sixth makes the whole
+stack machine-verified and portable.
+
+**v0.26.0 — Relationship Agreement.** Two sovereigns agree on specific
+capabilities and scope via a three-step protocol: Offer → Counter-offer →
+Acceptance. The result is an `AgreementRecord` signed by both parties. Neither
+can produce it alone. The canonical JSON signing convention (`sort_keys=True`,
+compact separators, `exclude={"signatures"}`) is established here and carried
+through every subsequent model. The first GM artefact requiring two independent
+signatures.
+
+**v0.27.0 — Attenuable Delegation Chains.** A party holding an `AgreementRecord`
+can delegate a strict subset of its rights to a third party as a
+`DelegatedAgreementRecord`. Every hop must narrow, never widen. The chain
+invariant — `delegated_terms.capabilities ⊆ parent.agreed_terms.capabilities` at
+every hop — is enforced at creation and verified at each hop. The root of every
+chain is an `AgreementRecord`. Terminal holders can verify the full chain without
+touching the root NA.
+
+**v0.28.0 — Relationship Context and Boundary Engine.** An `AgreementRecord`
+alone is not an authorization. A `ContextRecord` asserts that a specific
+capability is being invoked at a specific time. The `BoundaryEngine` evaluates
+it through ordered gates (capability, expiry, scope, freshness, delegation
+scope) and produces a signed, time-bounded `BoundaryDecision`. Short-circuit
+evaluation stops at the first failed gate. Gate results are signed into the
+decision. A passed decision can be verified offline.
+
+**v0.29.0 — Execution Evidence Hash Chain.** After authorization, each execution
+event is recorded as an `ExecutionEvidence` record linked to the prior via
+`prev_evidence_digest = SHA-256(prior.canonical_json)`. Inserting, deleting,
+reordering, or tampering with any record breaks the chain at a specific sequence
+number. The verifier surfaces the exact failure reason. The chain anchors every
+execution to the `BoundaryDecision` that authorized it.
+
+**v0.30.0 — Freshness Proofs and Bounded Revocation.** The BoundaryEngine's
+freshness gate is not just a sequence check — it requires a signed
+`FreshnessProof` attesting that the revocation feed was at a specific sequence
+at a specific time. The proof is embedded in the `BoundaryDecision` (the operator
+signs over it). Any execution record produced after the proof's validity window
+is flagged `stale_freshness_proof`. Revocation latency is now bounded and
+independently verifiable.
+
+**v0.31.0 — Formal Verification and Interop Bridges.** The five-release pipeline
+(Agreement → Delegation → Authorization → Execution → Freshness) is modelled in
+Tamarin Prover and five security lemmas are machine-checked:
+`authorization_requires_agreement`, `execution_requires_authorization`,
+`agreement_has_two_signers`, `delegation_requires_agreement`,
+`execution_traceability`. Three interop bridges let GM artefacts travel across
+ecosystem boundaries: SPIFFE SVID-like JSON, W3C Verifiable Credentials with
+JSON-LD, and signed EdDSA JWTs (RFC 8037 OKP). All output carries
+`_gm_bridge_source` for provenance. No external JWT library required — PyNaCl
+directly.
+
+**At the end of Phase H:** The first complete GM trust architecture cycle is
+done. Two AI agents can establish a cryptographically governed relationship,
+delegate authority with attenuation, authorize specific capability invocations
+through a gated engine, record executions in a tamper-evident chain with bounded
+freshness proofs, and verify the whole pipeline against machine-checked security
+lemmas. The artefacts are portable across SPIFFE, W3C VC, and JOSE/JWT ecosystems.
+
+The clean answer to the phase question: *by building six layers of signed,
+independently verifiable artefacts that require no shared identity provider and
+satisfy machine-checked security properties.*
+
+### Phase I - Runtime Trust Layer (v0.32.0 onwards)
+
+**Question:** How do you make those governed relationships usable by autonomous
+agents at runtime — fast, portable, and with human override authority for
+high-stakes actions?
+
+Phase H proved the relationships. Phase I makes them operational.
+
+```text
+v0.26–v0.31: GenesisMesh proves governed relationships between sovereign actors.
+v0.32–v0.37: GenesisMesh makes those relationships usable by autonomous agents
+             at runtime.
+```
+
+**v0.32.0 — Invocation-Bound Capability Tokens (IBCTs).** A `BoundaryDecision`
+answers "was this agent authorised?" at evaluation time. It does not produce a
+portable artefact the agent can carry to an edge resource that cannot call back
+to the GM stack. An IBCT fuses sovereign identity, an attenuated capability scope
+(always ⊆ source agreement or delegation), an optional invocation budget
+(`max_invocations`), and policy constraints (`not_before`, `peer_sovereign`) into
+a single Ed25519-signed JSON record. Any verifier holding the issuer's public key
+validates it offline. Each invocation produces a signed `InvocationUseRecord`
+linked by `prev_use_digest`, forming a tamper-evident use ledger mirroring the
+`ExecutionEvidence` pattern.
+
+The research basis is arXiv:2603.24775 (AIP, 2026): scanned ≈2,000 MCP servers
+and found all lacked authentication. IBCTs achieve 100% adversarial rejection
+across 600 attack attempts with 0.189 ms Python verification latency. The
+deployment unlock: an edge resource can answer "does this agent have this
+capability, right now, within budget?" without any network call.
+
 ---
 
 ## 3. Patterns of Discipline
@@ -454,7 +600,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of the current Phase 2 baseline:
+As of v0.32.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -488,9 +634,19 @@ As of the current Phase 2 baseline:
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
   release gate.
+- The first complete trust architecture cycle (v0.26–v0.31) is shipped:
+  dual-signed agreements, attenuable delegation chains, gated boundary decisions,
+  tamper-evident execution evidence, bounded freshness proofs, machine-checked
+  security lemmas (Tamarin Prover), and SPIFFE/W3C VC/JWT interop bridges.
+- IBCTs (v0.32) give the trust pipeline a portable bearer artefact: an agent
+  carries a signed token with attenuated capabilities and an invocation budget
+  to any offline verifier without a network call to the GM stack.
 
-As of the current Phase 2 baseline, the following are *not* yet true:
+As of v0.32.0, the following are *not* yet true:
 
+- Phase I runtime trust features (v0.33–v0.37) are not yet shipped:
+  Justification Proofs, Human Oversight, Selective Disclosure Capability Proofs,
+  Distributed Consensus Authorization, and Peer Risk Signals.
 - Genesis Mesh does not yet have a complete RFC set that can stand apart from
   the Python reference implementation.
 - Atlas does not yet exist as a public ecosystem explorer beyond individual
@@ -515,7 +671,7 @@ are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
 - Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.22.0): `ops/plan-v0.*.md`
+- Per-release plans (v0.1.0 through v0.32.0): `ops/plan-v0.*.md`
 - Phase 2 externalization plan: `docs/development/phase-2-externalization.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
