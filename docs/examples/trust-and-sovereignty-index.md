@@ -20,6 +20,7 @@ independent-sovereigns
 trust-evidence
 atlas
 relationship-agreement
+delegation-chain
 ```
 
 ## Start Here
@@ -91,6 +92,15 @@ self-contained static snapshot.
 Two sovereigns exchange a dual-signed AgreementRecord via Offer → Counter →
 Acceptance. Neither party can produce the record alone. The first artifact
 in GM that requires two independent signatures.
+:::
+
+:::{grid-item-card} Delegation Chain
+:link: delegation-chain
+:link-type: doc
+
+A party holding an AgreementRecord delegates a strict subset of its rights
+to a third party. Every hop in the chain is independently signed. Capabilities
+can only narrow — never widen — at each hop.
 :::
 
 ::::

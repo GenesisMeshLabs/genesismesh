@@ -154,19 +154,20 @@ class DelegationChain:
 
 ## Success Criteria
 
-- [ ] `build_delegation` + `cosign_delegation` round-trip produces a valid
+- [x] `build_delegation` + `cosign_delegation` round-trip produces a valid
       dual-signed `DelegatedAgreementRecord`.
-- [ ] `verify_delegation_chain` with root = AgreementRecord and one hop passes.
-- [ ] `verify_delegation_chain` with two hops (chain of length 2) passes.
-- [ ] Delegation that widens `delegated_terms.capabilities` is rejected by
+- [x] `verify_delegation_chain` with root = AgreementRecord and one hop passes.
+- [x] `verify_delegation_chain` with two hops (chain of length 2) passes.
+- [x] Delegation that widens `delegated_terms.capabilities` is rejected by
       `verify_delegation_chain` with `scope_escalation`.
-- [ ] Delegation with `expires_at > parent.expires_at` is rejected with
+- [x] Delegation with `expires_at > parent.expires_at` is rejected with
       `validity_escalation`.
-- [ ] Tampered `parent_terms_digest` is rejected with `terms_digest_mismatch`.
-- [ ] CLI `trust delegate create` → `cosign` → `verify` end-to-end.
-- [ ] 38 tests covering: chain of length 1, chain of length 2, scope escalation,
-      validity escalation, digest mismatch, tamper detection, CLI.
-- [ ] The Sphinx build passes with warnings as errors.
+- [x] Tampered `parent_terms_digest` is rejected with `terms_digest_mismatch`.
+- [x] CLI `trust delegate create` → `cosign` → `verify` end-to-end.
+- [x] 33 tests covering: chain of length 1, chain of length 2, scope escalation,
+      validity escalation, digest mismatch, parent-ID mismatch, tamper detection,
+      missing/invalid signatures, empty chain, transport independence, CLI.
+- [x] The Sphinx build passes with warnings as errors.
 
 ## Scope
 

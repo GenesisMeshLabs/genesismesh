@@ -1,5 +1,58 @@
 # Changelog
 
+## v0.27.0 - Attenuable Delegation Chains
+
+### Added
+
+- Added `genesis_mesh/models/delegation.py` — `DelegatedAgreementRecord` Pydantic
+  model and `DelegationChain` frozen dataclass.  `terms_digest()` helper computes
+  SHA-256 of canonical `AgreementTerms` JSON, binding each hop to the exact terms
+  of its parent.  `to_canonical_json()` excludes `delegate_evidence`, `signatures`,
+  `delegation_id`, and `established_at` — enabling the delegator to sign before
+  the delegate's evidence exists, with both parties signing the same canonical form.
+- Added `genesis_mesh/trust/delegation.py` — pure functions:
+  `build_delegation` (delegator builds and signs, returns half-signed record),
+  `cosign_delegation` (delegate adds evidence and co-signature, returns
+  dual-signed record), `verify_delegation_chain` (walks root AgreementRecord to
+  terminal hop, checking parent linkage, terms digest, scope attenuation, validity
+  bounds, and both signatures at every hop).
+  `DelegationChainVerificationResult` frozen dataclass with reason codes:
+  `accepted`, `missing_delegator_signature`, `invalid_delegator_signature`,
+  `missing_delegate_signature`, `invalid_delegate_signature`, `scope_escalation`,
+  `validity_escalation`, `terms_digest_mismatch`, `root_agreement_invalid`,
+  `empty_chain`, `parent_id_mismatch`.
+- Added `genesis_mesh/cli/delegation_ops.py` — `genesis-mesh trust delegate`
+  sub-group: `create`, `cosign`, `verify`.
+  `create` accepts `--agreement` (root) or `--parent-delegation` (chain hop).
+  `verify` accepts multiple `--delegation` flags for N-hop chains and
+  `--key sovereign_id:pub_b64` pairs for per-hop signature verification.
+- Added `genesis_mesh/tests/test_trust_delegation.py` — 33 tests covering:
+  single-hop round-trip, two-hop chain, scope widening rejection (at build and at
+  verify), validity escalation, non-party delegator, terms-digest mismatch,
+  parent-ID mismatch, missing/invalid signatures, tamper detection, empty chain,
+  JSON transport-independence round-trip, CLI create/cosign/verify.
+- Added `docs/examples/delegation-chain.md` — worked two-hop example, structure
+  reference, failure cases, canonical form note.
+- Added Delegation Chain Commands section to `docs/reference/cli.md`.
+- Added `delegation-chain` to the trust-and-sovereignty-index toctree and grid.
+- Added `trust delegate` surfaces to `operator_console/surfaces.py` (curated).
+
+### Changed
+
+- `cli/decision_ops.py`: registered `delegate` sub-group on the `trust` group.
+- Bumped version to `0.27.0`.
+
+### Invariants introduced
+
+- Delegated capabilities must be a strict subset of parent capabilities at
+  every hop (`delegated_terms.capabilities ⊆ parent.agreed_terms.capabilities`).
+- Delegated validity window must fit within parent validity
+  (`expires_at ≤ parent.expires_at`).
+- Every hop's `parent_terms_digest` must match the parent's canonical
+  `agreed_terms` — if parent terms change, the delegation requires renewal.
+- The root of every chain is an `AgreementRecord`; trust root is always the
+  treaty graph, never the delegation mechanism.
+
 ## v0.26.0 - Relationship Agreement
 
 ### Added

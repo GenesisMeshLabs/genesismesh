@@ -568,6 +568,75 @@ genesis-mesh trust agree verify \
     --graph aspayr-graph.json
 ```
 
+## Delegation Chain Commands
+
+The `genesis-mesh trust delegate` sub-group implements Attenuable Delegation
+Chains.  A party holding an `AgreementRecord` can delegate a strict subset of
+its rights to a third party, producing a `DelegatedAgreementRecord` signed by
+both delegator and delegate.  Every hop must narrow authority.
+
+### `genesis-mesh trust delegate create`
+
+Build and sign a `DelegatedAgreementRecord` (delegator's step).  Returns a
+half-signed record — the delegate must run `trust delegate cosign` to finalize.
+
+```bash
+genesis-mesh trust delegate create \
+    --agreement agreement.json \
+    --from aspayr --to agent-x \
+    --capability transactions.read \
+    --valid-until 2026-12-01T00:00:00Z \
+    --graph aspayr-graph.json \
+    --signing-key aspayr.key --key-id aspayr-2026 \
+    --output delegation.json
+```
+
+For chained delegation (delegate passes rights to a third party):
+
+```bash
+genesis-mesh trust delegate create \
+    --parent-delegation delegation-final.json \
+    --from agent-x --to agent-y \
+    --capability transactions.read \
+    --valid-until 2026-11-01T00:00:00Z \
+    --graph agent-x-graph.json \
+    --signing-key agent-x.key --key-id agent-x-2026 \
+    --output delegation2.json
+```
+
+### `genesis-mesh trust delegate cosign`
+
+Add the delegate's signature and embedded evidence to a half-signed
+`DelegatedAgreementRecord`.
+
+```bash
+genesis-mesh trust delegate cosign \
+    --delegation delegation.json \
+    --graph agent-x-graph.json \
+    --signing-key agent-x.key --key-id agent-x-2026 \
+    --output delegation-final.json
+```
+
+### `genesis-mesh trust delegate verify`
+
+Verify a complete delegation chain — root `AgreementRecord` through all hops to
+the terminal `DelegatedAgreementRecord`.  Checks parent linkage, scope
+attenuation, validity bounds, and both signatures at every hop.
+
+Supply one `--key sovereign_id:public_key_b64` pair for each hop party.
+
+```bash
+genesis-mesh trust delegate verify \
+    --agreement agreement.json \
+    --delegation delegation-final.json \
+    --offerer-public-key <aspayr-pub-b64> \
+    --responder-public-key <bank-pub-b64> \
+    --key aspayr:AAAA... \
+    --key agent-x:BBBB...
+```
+
+Exit code 0 if verified, 1 on any failure.
+
 ## Atlas Commands
 
 The `genesis-mesh atlas` group builds a read-only trust graph explorer from a
