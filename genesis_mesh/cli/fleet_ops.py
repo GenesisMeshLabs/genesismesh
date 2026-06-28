@@ -12,8 +12,8 @@ deterministic, API-driven lifecycle:
 * ``fleet status`` — health (``healthz``/``readyz``) of each NA.
 
 Single-host process orchestration (start/stop/tunnels) is intentionally *not*
-here — production NAs run one-per-host under systemd/Kubernetes. For local
-dev/demo orchestration see ``ops/scripts/fleet.py``.
+here — production NAs run one-per-host under systemd/Kubernetes. See the
+Deployment runbooks in ``infrastructure/`` for systemd service files.
 """
 
 from __future__ import annotations

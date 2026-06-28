@@ -1,6 +1,0 @@
-# Operator's real fleet config — machine/deployment specific, never committed.
-fleet.toml
-
-# Local fleet logs/pidfiles if pointed here.
-*.log
-*.pid

@@ -235,8 +235,8 @@ genesis-mesh fleet status --config ./fleet/fleet.toml
 ```{note}
 The `fleet` commands are deterministic and API-driven (no host process
 management). Production NAs run one-per-host under systemd or Kubernetes — see
-the [Deployment](../operations/deployment-index.md) runbooks. For local
-dev/demo orchestration (start/stop/tunnels on one host) use `ops/scripts/fleet.py`.
+the [Deployment](../operations/deployment-index.md) runbooks and the systemd
+unit files in `infrastructure/systemd/`.
 ```
 
 ### `genesis-mesh trust-bundle export`

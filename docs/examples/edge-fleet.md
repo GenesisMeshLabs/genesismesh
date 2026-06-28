@@ -83,9 +83,7 @@ active treaty. See the [CLI reference](../reference/cli.md) for full options.
 
 ```{note}
 `genesis-mesh fleet` is deterministic and API-driven; it does not start or stop
-processes. Production NAs run one-per-host under systemd or Kubernetes (see the
-[Deployment](../operations/deployment-index.md) runbooks). For **local
-dev/demo** single-host orchestration — starting/stopping processes and public
-tunnels — use the `ops/scripts/fleet.py` helper, which adds `up`/`down`/
-`restart`/`tunnels` on top of the same manifest format.
+processes. Production NAs run one-per-host under systemd or Kubernetes — see the
+[Deployment](../operations/deployment-index.md) runbooks and the systemd unit
+files in `infrastructure/systemd/`.
 ```
