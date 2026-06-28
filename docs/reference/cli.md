@@ -1125,6 +1125,53 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Process-Level Execution Mediation Commands
+
+The `genesis-mesh trust guard` sub-group (v0.45) provides a local enforcement
+sidecar that validates authorization artifacts before spawning subprocesses.
+
+See {doc}`/examples/process-level-mediation` for the advisory vs. mandatory
+mediation mode distinction and the 5-point mandatory enforcement checklist.
+
+### `genesis-mesh trust guard start`
+
+Start the GenesisGuard daemon (foreground; Ctrl-C to stop).
+
+```bash
+genesis-mesh trust guard start \
+    --guard-sovereign guard-1 \
+    --signing-key keys/guard.key \
+    --port 8700 \
+    --command-allowlist python,node
+```
+
+### `genesis-mesh trust guard request`
+
+Submit an `ExecutionMediationRequest` to a running daemon and write the
+response (receipt or rejection) to a file.
+
+```bash
+genesis-mesh trust guard request \
+    --capability run-python \
+    --decision decision.json \
+    --command python -- script.py \
+    --signing-key keys/agent.key \
+    --socket-host 127.0.0.1 \
+    --socket-port 8700 \
+    --output receipt.json
+```
+
+### `genesis-mesh trust guard verify`
+
+Verify a signed `MediatedExecutionReceipt`. Exits non-zero if invalid.
+
+```bash
+genesis-mesh trust guard verify \
+    --receipt receipt.json \
+    --guard-key "$(cat keys/guard.pub.b64)" \
+    --format json
+```
+
 ## Sovereign Overlay Discovery Commands
 
 The `genesis-mesh trust discover` sub-group (v0.44) enables DNS-free peer

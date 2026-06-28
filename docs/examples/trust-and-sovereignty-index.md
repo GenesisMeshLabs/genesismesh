@@ -38,6 +38,7 @@ context-injection-defense
 ephemeral-identity-purge
 communication-privacy
 sovereign-overlay-discovery
+process-level-mediation
 ```
 
 ## Start Here
@@ -277,6 +278,16 @@ DNS-free peer discovery via gossip over existing Noise XX connections.
 OverlayDiscoveryRecords are Ed25519-signed, binding endpoint to cryptographic
 identity. Sequence numbers enable supersession detection; hop-count limits
 prevent unbounded gossip propagation.
+:::
+
+:::{grid-item-card} Process-Level Execution Mediation
+:link: process-level-mediation
+:link-type: doc
+
+GenesisGuard local enforcement sidecar: validates BoundaryDecision and IBCT
+before spawning subprocesses. Issues signed MediatedExecutionReceipts.
+Covers advisory mode and mandatory mediation mode with explicit 5-point
+enforcement checklist. Non-LLM, deterministic, no network access.
 :::
 
 ::::

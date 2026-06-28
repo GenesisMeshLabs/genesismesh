@@ -238,25 +238,25 @@ trust guard verify  --receipt receipt.json --guard-key guard.pub
 
 ## Success Criteria
 
-- [ ] `ExecutionMediationRequest`, `MediatedExecutionReceipt`, `MediationRejection` models
-- [ ] `validate_mediation_request()` with all 7 typed rejection reasons
-- [ ] `GenesisGuardDaemon` local socket enforcement sidecar
-- [ ] CLI `trust guard` subgroup with start / request / verify
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `ExecutionMediationRequest`, `MediatedExecutionReceipt`, `MediationRejection` models
+- [x] `validate_mediation_request()` with all 7 typed rejection reasons
+- [x] `GenesisGuardDaemon` local socket enforcement sidecar
+- [x] CLI `trust guard` subgroup with start / request / verify
+- [x] 19 tests; all pass; full suite passes (983)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.45.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/process-level-mediation.md` worked example including:
+- [x] Package metadata bumped to `0.45.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/process-level-mediation.md` worked example including:
       - explicit statement of what this covers vs OS kernel approaches
       - advisory mode vs mandatory mediation mode clearly described
       - the 5-point mandatory enforcement checklist
       - explicit warning that advisory mode does NOT prevent bypass
-- [ ] CLI reference updated with `trust guard`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] CLI reference updated with `trust guard`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

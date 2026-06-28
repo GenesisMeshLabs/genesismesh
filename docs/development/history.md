@@ -670,6 +670,17 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.45.0 — Process-Level Execution Mediation.** Introduces GenesisGuard, a
+local enforcement sidecar satisfying Pirch (arXiv:2605.14932)'s requirement
+for a non-agent, deterministic mediator. GenesisGuard validates
+BoundaryDecision and IBCT before spawning any subprocess, strips the
+subprocess environment to only explicitly allowed vars, and issues a signed
+`MediatedExecutionReceipt`. Seven typed rejection reasons. Importantly: this
+provides enforcement below the agent process but above the OS — it does NOT
+replace OS kernel hooks or hardware attestation. The docs clearly distinguish
+advisory mode (audit only, bypass possible) from mandatory mediation mode
+(five-point deployment checklist required). 19 new tests.
+
 **v0.44.0 — Sovereign Overlay Discovery.** Removes the DNS dependency from peer
 discovery. Once a sovereign is connected to any bootstrap peer via Noise XX,
 it can discover all others through a signed gossip layer without DNS. An

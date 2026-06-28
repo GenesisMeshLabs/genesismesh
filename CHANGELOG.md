@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.45.0 - Process-Level Execution Mediation
+
+### Added
+
+- `ExecutionMediationRequest`, `MediatedExecutionReceipt`, `MediationRejection`
+  models (`models/mediation.py`):
+  - `ExecutionMediationRequest`: signed agent request to spawn a subprocess
+    (carries `requested_capability`, `decision_id`, `token_id`,
+    `subprocess_command`, `allowed_env_vars`)
+  - `MediatedExecutionReceipt`: signed proof from GenesisGuard that mediation
+    occurred (carries `subprocess_pid`, `subprocess_exit_code`, `guard_sovereign_id`)
+  - `MediationRejection`: typed rejection record
+
+- `MediationRejectionReason` Literal (7 reasons: `invalid_request_signature`,
+  `decision_not_found`, `decision_expired`, `capability_not_authorized`,
+  `token_budget_exhausted`, `token_expired`, `command_not_in_allowlist`,
+  `subprocess_blocked`)
+
+- `validate_mediation_request()` (`trust/mediation.py`): validates all
+  authorization artifacts (request signature, BoundaryDecision authorized +
+  not expired, IBCT capability + expiry + budget, command allowlist) in
+  strict order before any subprocess is spawned.
+
+- `create_mediated_execution_receipt()` (`trust/mediation.py`): signed receipt
+  builder.
+
+- `GenesisGuardDaemon` (`guard/daemon.py`): TCP localhost enforcement sidecar.
+  Non-LLM, deterministic. Listens for `ExecutionMediationRequest` JSON, runs
+  `validate_mediation_request()`, spawns subprocess with constrained env,
+  issues signed `MediatedExecutionReceipt`.
+
+- `genesis-mesh trust guard` CLI subgroup:
+  - `start`: start the GenesisGuard daemon (foreground)
+  - `request`: submit a mediation request to a running daemon
+  - `verify`: verify a signed `MediatedExecutionReceipt`
+
+- `docs/examples/process-level-mediation.md`: advisory vs. mandatory mode
+  distinction, 5-point mandatory enforcement checklist, explicit scope
+  statement (not OS kernel hooks, not hardware attestation)
+
+### Notes
+
+- Advisory mode does NOT prevent bypass — documented prominently.
+- 19 new tests; 983 total pass.
+
+---
+
 ## v0.44.0 - Sovereign Overlay Discovery
 
 ### Added
