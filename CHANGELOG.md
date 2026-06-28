@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.41.0 - Context-Injection Defense Gate
+
+### Added
+
+- `ContextTree`, `ContextAppendSegment`, `ContextIntegrityRecord`,
+  `ContextViolationReport` models (`models/context_integrity.py`):
+  - `ContextTree`: canonical context snapshot with deterministic `canonical_hash()`
+  - `ContextAppendSegment`: declared, typed, bounded unit of post-base context
+    (segment_type, source_id, max_tokens, provenance_digest, actual_tokens)
+  - `ContextIntegrityRecord`: signed commitment to base context hash plus
+    declared append segments. `committed_base_context_hash` auto-computed.
+  - `ContextViolationReport`: violation record with type, committed/observed values
+
+- `create_context_integrity_record()` (`trust/context_integrity.py`): creates a
+  signed commitment to the current base context and expected segments.
+
+- `verify_context_integrity()` (`trust/context_integrity.py`): 8 typed reason codes.
+  Checks in order: signature → expiry → base_context_tampered → undeclared_segment
+  → segment_token_exceeded → total_token_exceeded.
+
+- `scan_for_injection_markers()` (`trust/context_integrity.py`): heuristic scanner
+  for known prompt-injection patterns (non-blocking, informational).
+
+- `ContextInjectionGate` (`trust/context_integrity.py`): opt-in `BoundaryEngine`
+  gate that blocks execution when the final context violates the commitment.
+
+- `genesis-mesh trust integrity` CLI subgroup with two commands:
+  - `commit`: sign a `ContextIntegrityRecord` from CLI args
+  - `verify`: verify final context against record, exits 0/1
+
+- `docs/examples/context-injection-defense.md`: worked example
+
+### Notes
+
+- Closes the "container fallacy": a valid `ModelAttestation` does not protect
+  against adversarial content injected into tool outputs or retrieved documents.
+- 36 new tests; 875 total pass.
+
+---
+
 ## v0.40.0 - Verifiable Logic Attestation
 
 ### Added

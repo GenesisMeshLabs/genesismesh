@@ -1125,6 +1125,58 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Context-Injection Defense Commands
+
+The `genesis-mesh trust integrity` sub-group (v0.41) implements pre-execution
+context commitment. An agent commits to its base context hash and the typed,
+bounded segments it expects to receive. Any undeclared, oversized, or tampered
+segment in the final context is a gate violation.
+
+This closes the "container fallacy" gap: even with a valid ModelAttestation,
+adversarial content injected via tool outputs or retrieval results can manipulate
+the model. `ContextInjectionGate` catches that by checking the final context
+structure against the pre-execution commitment.
+
+### `genesis-mesh trust integrity commit`
+
+Commit to a base context before execution begins.
+
+```bash
+genesis-mesh trust integrity commit \
+    --agent-sovereign agent-a \
+    --decision-id decision-xyz \
+    --system-prompt-file prompts/system.txt \
+    --max-turns 20 \
+    --max-tool-results 50 \
+    --max-total-tokens 8192 \
+    --signing-key keys/agent.key \
+    --output record.json
+```
+
+Options: `--valid-for` (seconds, default 600).
+
+The system prompt hash is captured at commit time; the raw prompt is not stored.
+
+### `genesis-mesh trust integrity verify`
+
+Verify final context matches committed base plus declared segments. Exits 0 if
+valid, 1 if any check fails.
+
+```bash
+genesis-mesh trust integrity verify \
+    --record record.json \
+    --final-context final-context.json \
+    --public-key <agent-pub-b64> \
+    --format human
+```
+
+Reason codes on failure: `missing_signature`, `invalid_signature`, `expired`,
+`base_context_tampered`, `undeclared_segment`, `segment_token_exceeded`,
+`total_token_exceeded`.
+
+Optional `--segment` (JSON string, repeatable) passes observed
+`ContextAppendSegment` objects for per-segment token checking.
+
 ## Selective Disclosure Commands
 
 The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based

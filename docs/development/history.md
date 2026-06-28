@@ -670,6 +670,18 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.41.0 — Context-Injection Defense Gate.** Closes the "container fallacy":
+even with a valid `ModelAttestation`, adversarial content injected into tool
+outputs or retrieved documents can manipulate the model's reasoning. A signed
+`ContextIntegrityRecord` commits to the base context hash and a list of typed,
+bounded `ContextAppendSegment`s before execution. At gate time, the
+`ContextInjectionGate` verifies that the final context equals exactly the
+committed base plus the declared segments — no undeclared, oversized, or tampered
+content. Complements v0.40 attestation: v0.40 covers the *container*
+(model/prompt/tools); v0.41 covers the *contents* (what arrives at runtime).
+A `scan_for_injection_markers()` utility flags known jailbreak patterns in
+retrieved content (non-blocking). 36 new tests.
+
 **v0.40.0 — Verifiable Logic Attestation.** Closes the "hidden instruction"
 exploit: a valid IBCT can only authorize an agent whose declared execution
 context (model, system prompt hash, tool manifest hash) matches the operator's

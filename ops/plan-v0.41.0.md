@@ -256,23 +256,23 @@ def scan_for_injection_markers(
 
 ## Success Criteria
 
-- [ ] `ContextTree`, `ContextAppendSegment`, `ContextIntegrityRecord`, `ContextViolationReport` models
-- [ ] `create_context_integrity_record()` and `verify_context_integrity()`
-- [ ] `ContextInjectionGate` with 8 typed reason codes (updated invariant: base + declared segments)
-- [ ] `scan_for_injection_markers()` heuristic scanner
-- [ ] Explicit test that tool results appended as declared segments pass the gate
-- [ ] CLI `trust context` subgroup with commit / verify
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `ContextTree`, `ContextAppendSegment`, `ContextIntegrityRecord`, `ContextViolationReport` models
+- [x] `create_context_integrity_record()` and `verify_context_integrity()`
+- [x] `ContextInjectionGate` with 8 typed reason codes (updated invariant: base + declared segments)
+- [x] `scan_for_injection_markers()` heuristic scanner
+- [x] Explicit test that tool results appended as declared segments pass the gate
+- [x] CLI `trust integrity` subgroup with commit / verify (renamed from `context` to avoid collision)
+- [x] >= 28 tests (36); all pass; full suite passes (875)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.41.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/context-injection-defense.md` worked example
-- [ ] CLI reference updated with `trust context`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.41.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/context-injection-defense.md` worked example
+- [x] CLI reference updated with `trust integrity`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

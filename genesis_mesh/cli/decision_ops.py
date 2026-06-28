@@ -39,6 +39,7 @@ def _register_trust_subgroups() -> None:
     from .consensus_ops import consensus  # noqa: PLC0415
     from .risk_signal_ops import risk  # noqa: PLC0415
     from .attestation_ops import attest  # noqa: PLC0415
+    from .context_integrity_ops import integrity  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
@@ -52,6 +53,7 @@ def _register_trust_subgroups() -> None:
     trust.add_command(consensus)
     trust.add_command(risk)
     trust.add_command(attest)
+    trust.add_command(integrity)
 
 
 _register_trust_subgroups()

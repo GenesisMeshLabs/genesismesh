@@ -34,6 +34,7 @@ peer-risk-signals
 cascade-resilient-consensus
 adversarial-seed-isolation
 verifiable-logic-attestation
+context-injection-defense
 ```
 
 ## Start Here
@@ -234,6 +235,15 @@ detection. SeedIsolationGate is opt-in. Each sovereign's assessment is independe
 Closes the "hidden instruction" exploit: a signed ModelAttestation binds
 model_id, system_prompt_hash, and tool_manifest_hash to each capability invocation.
 LogicAttestationGate rejects mismatched configurations before execution proceeds.
+:::
+
+:::{grid-item-card} Context-Injection Defense Gate
+:link: context-injection-defense
+:link-type: doc
+
+Blocks prompt-injection attacks via structural context commitment: a signed
+ContextIntegrityRecord declares permitted append segments before execution.
+ContextInjectionGate rejects undeclared, oversized, or tampered context at runtime.
 :::
 
 ::::
