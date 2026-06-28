@@ -310,7 +310,7 @@ The first implementation should use direct recognition:
 Sovereign A explicitly accepts trust material from Sovereign B.
 ```
 
-That is enough for `v0.9.0` local policy and `v0.10.0` signed treaties.
+The `v0.9.0` local policy and `v0.10.0` signed treaties shipped on this model.
 Treaties are the base primitive: derived or transitive recognition is a later
 overlay computed on the treaty graph, not a replacement for direct recognition.
 
@@ -343,24 +343,52 @@ Genesis Mesh is not:
 These may be built on top of the protocol later. They should not be confused
 with the protocol itself.
 
-## Versioning Discipline
+## Current State (v0.48.0)
 
-Genesis Mesh is not close to 1.0.
+Three complete trust cycles have shipped.
 
-The project should slow down on major-version language and use concrete
-pre-1.0 minor releases for architectural milestones:
+**Phase H (v0.26–v0.31) — Governed Relationships.** Dual-signed agreements,
+attenuable delegation chains, gated boundary decisions, tamper-evident execution
+evidence, bounded freshness proofs, Tamarin-verified security lemmas, and
+SPIFFE/W3C VC/JWT interop bridges.
 
-- `v0.8.0`: trust-aware capability orchestration
-- `v0.9.0`: sovereign trust and membership attestations
-- `v0.10.0`: recognition treaties
-- `v0.11.0`: revocation propagation across sovereigns
-- `v0.12.0`: Connectome visualization and operator workflows
-- later `v0.x.0`: operational hardening, HA, IdP bridge, and additional
-  production-readiness milestones
+**Phase I (v0.32–v0.37) — Runtime Trust Layer.** Portable IBCT bearer tokens,
+signed gate-trace justification proofs, human-in-the-loop dual-signed commitments,
+Merkle selective disclosure, K-of-N distributed consensus authorization, and
+locally-computed peer risk signals.
 
-Use `1.0.0` only when the protocol has a stable trust model, stable operator
-workflows, documented migration guarantees, and production-grade deployment
-guidance.
+**Phase J (v0.38–v0.48) — Third Trust Cycle.** Cascade-resilient consensus,
+adversarial seed isolation, verifiable logic attestation, context-injection defense,
+ephemeral identity purge, communication privacy, sovereign overlay discovery,
+process-level execution mediation, trust path performance and atlas pruning, data
+usage attestation, and formal Tamarin verification of the PeerRiskSignal state
+machine. Three maintenance releases enforced the layer rule and removed vertical
+material from the public repo.
+
+The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
+logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.
+No commercial vertical material lives in the public repo.
+
+1,041 tests pass. Eight Tamarin lemmas are machine-checked across the full
+protocol pipeline and the PeerRiskSignal state machine.
+
+### Pre-1.0 Gate
+
+Use `1.0.0` only when:
+
+- core trust models are stable with documented migration guarantees
+- independent operators can run sovereign trust domains without relying on
+  Genesis Core as a permanent central authority
+- a second implementation has completed treaty-backed interoperability with
+  the Python reference implementation
+- governance is formalized: RFC process, decision log, operator exit note,
+  managing-partner boundary document
+- deployment hardening is credible: HA, backup, and security guidance exist
+  for external operator use
+
+The 1.0 question is not "does the demo work?" It is: can two independent
+sovereign communities recognize each other, revoke trust, and explain every
+trust decision without Genesis Core brokering or approving the relationship?
 
 ## Final Statement
 

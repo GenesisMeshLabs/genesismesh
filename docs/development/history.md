@@ -646,6 +646,28 @@ share.  The word "trust score" is deliberately absent.  This closes the second c
 GenesisMesh trust cycle (v0.32–v0.37): from portable bearer tokens through distributed
 consensus to local behavioral history.
 
+**At the end of Phase I:** The trust pipeline has a complete runtime layer: portable
+bearer tokens, signed gate traces, human-in-the-loop commitments, Merkle selective
+disclosure, K-of-N consensus authorization, and locally-computed peer risk signals.
+Every component is opt-in. The normal authorization path — AgreementRecord →
+BoundaryDecision → ExecutionEvidence — is unmodified for callers that do not need
+the extended layer.
+
+### Phase J - Third Trust Cycle (v0.38.0 through v0.48.0)
+
+**Question:** How does the trust pipeline defend against adversarial behavior
+at the voting, execution, reasoning, and data layers — and can those defenses
+be formally machine-checked?
+
+This phase opened with a specific attack surface in the K-of-N consensus from
+Phase I (v0.36): correlated validators could satisfy a threshold while appearing
+independent. Phase J hardened the full pipeline against adversarial inputs across
+eleven versions — cascades in voting, patient credit-farming attacks, hidden model
+instructions, context injection, communication fingerprinting, DNS-free discovery,
+process-level enforcement, data access attestation, and formal machine-checked proofs.
+Two maintenance releases (v0.38.1, v0.38.2) simultaneously enforced the layer rule
+and removed vertical-specific material to sharpen the public protocol boundary.
+
 **v0.38.0 — Cascade-Resilient Consensus.** The v0.36 K-of-N threshold counted
 votes, not *independent* votes.  The Friedkin-Johnsen persuasion model (arXiv:2603.15809)
 shows that when validators share context before voting, the effective number of
@@ -667,111 +689,27 @@ from the embedded votes, adding `missing_context_digest` and `cascade_detected` 
 existing verification reason codes.  `cascade_threshold=0.0` disables the check for
 testing or deployment contexts where it is not needed.
 
-This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
-privacy, and the Data Plane.
+**v0.38.1 — Codebase Modularity Cleanup.** No user-visible changes. This maintenance
+release enforces the layer rule that had been stated but not yet fully implemented:
+`models/` holds signed entities, `trust/` holds protocol logic, `cli/` holds only Click
+parsing and output, and a new `workflows/` package holds multi-step orchestration.
 
-**v0.48.0 — Formal PeerRiskSignal Verification (Tamarin).** Extends the Tamarin
-Prover models from v0.31 to cover the PeerRiskSignal state machine. Three
-security lemmas are proven over the abstract protocol: `signal_bounded` (signal
-value stays in the `{low, mid, high}` lattice after any sequence of updates),
-`anomaly_detection_responsive` (a SuddenDrop cannot permanently suppress anomaly
-detection), and `no_single_source_cascade` (cascade amplification requires
-genuine independent observations from each detecting sovereign — a single
-adversary cannot tunnel one event into simultaneous alarms). Executable
-property-based tests (no Tamarin required) exercise the same boundary conditions
-in the standard pytest run. Lemma 3 answers the cascade-amplification
-denial-of-service question from the PeerRiskSignal design review. 17 new tests
-(14 property-based + 3 file-structure; 3 additional Tamarin runner tests skip
-when tamarin-prover is not installed).
+`trust/consensus.py` (410 lines) was split into a five-module package — `cascade.py`,
+`votes.py`, `proof.py`, `identity.py`, `gate.py` — each with a single responsibility.
+`trust/context.py` (464 lines) was split into `gates.py`, `engine.py`, and `decisions.py`.
+Three CLI files were reduced to thin wrappers: `trust_bundle.py` (602 → 281 lines),
+`federation.py` (465 → 163 lines), `proof_ops.py` (623 → 264 lines).  The extracted
+workflow logic moved to `genesis_mesh/workflows/`.  All backward-compat re-exports are
+in place; no caller changes were required outside the test monkeypatch target.
+`AGENT.md` was updated with the enforced layer rule for future contributors.
 
-**v0.47.0 — Data Usage Attestation Layer.** Introduces signed pre- and
-post-execution attestation for data access. `DataLicensePolicy` lets a licensor
-define an explicit source allowlist, permitted access types, prohibited
-classification tags, and a per-session volume cap. An agent signs a
-`DataAccessIntent` before execution and a `DataAccessRecord` after; both are
-independently verifiable without trusting the agent process. `DataUsageGate`
-integrates attestation into the `BoundaryEngine` as a standard protocol gate.
-`verify_data_access_intent()` reports all violations (not just the first) so
-auditors can assess the full non-compliance surface in a single call. Seven
-violation reasons: `source_not_licensed`, `access_type_not_permitted`,
-`prohibited_classification`, `volume_cap_exceeded`, `intent_expired`,
-`policy_expired`, `intent_exceeds_license`. Payment, royalty calculation, and
-external settlement are explicitly out of scope. 20 new tests.
-
-**v0.46.0 — Trust Path Performance and Atlas Pruning.** Introduces signed
-TTL-bound trust path caching and verifiable graph pruning. A `TrustPathCache`
-lets operators pre-compute BFS trust paths for (source, target) pairs and
-serve repeat lookups in O(1) without re-traversing the graph.
-`GraphPruningPolicy` removes three categories of stale edges (expired treaties,
-revoked certificates, empty scopes) with a staleness guard that refuses to
-prune graphs older than the policy maximum. Every pruning run produces a signed
-`PrunedAtlasExport` with per-edge `PruningAuditEntry` records. 21 new tests.
-
-**v0.45.0 — Process-Level Execution Mediation.** Introduces GenesisGuard, a
-local enforcement sidecar satisfying Pirch (arXiv:2605.14932)'s requirement
-for a non-agent, deterministic mediator. GenesisGuard validates
-BoundaryDecision and IBCT before spawning any subprocess, strips the
-subprocess environment to only explicitly allowed vars, and issues a signed
-`MediatedExecutionReceipt`. Seven typed rejection reasons. Importantly: this
-provides enforcement below the agent process but above the OS — it does NOT
-replace OS kernel hooks or hardware attestation. The docs clearly distinguish
-advisory mode (audit only, bypass possible) from mandatory mediation mode
-(five-point deployment checklist required). 19 new tests.
-
-**v0.44.0 — Sovereign Overlay Discovery.** Removes the DNS dependency from peer
-discovery. Once a sovereign is connected to any bootstrap peer via Noise XX,
-it can discover all others through a signed gossip layer without DNS. An
-`OverlayDiscoveryRecord` binds endpoint to Ed25519 public key, is propagated
-hop-by-hop (default max 5), and carries a monotonic `sequence_no` enabling
-supersession detection. `merge_discovery_records()` keeps the highest
-sequence_no per sovereign (idempotent on repeats). `build_discovery_feed()`
-lets operators publish a signed aggregate for fast bootstrapping. 26 new tests.
-
-**v0.43.0 — Communication Privacy Layer.** Addresses the mesh-layer attack
-surface exposed by SALA (Stylometry-Assisted LLM Analysis, arXiv:2602.23079),
-which can fingerprint agents from message length distributions, timing
-correlations, and header metadata even when transport is encrypted. A
-`CommunicationPrivacyProfile` normalizes outbound messages in three dimensions:
-timestamp bucketing (floor to nearest N seconds), payload block-padding (pad
-to nearest multiple of M bytes, never truncate), and header stripping (retain
-only GM-required fields and an explicit allowlist). A signed `MetadataEnvelope`
-records the normalized metadata; a `PrivacyAuditRecord` documents exactly what
-was changed. `scan_metadata_fingerprints()` provides a non-blocking pre-send
-scan. Scope is structural/metadata normalization only — content-level
-stylometric rewriting requires a separate LLM service. 33 new tests.
-
-**v0.42.0 — Ephemeral Identity Purge Protocol.** Addresses three consequences of
-indefinitely accumulating expired `EphemeralExecutionIdentity` records: audit log
-bloat, residual correlation risk, and unverifiable destruction. A `NullificationReceipt`
-proves identity X was active, expired, and had its full record destroyed — without
-retaining `bearer_sovereign_id`, `allowed_capabilities`, or `decision_id`. Receipts
-are batched into a signed `NullificationRegistryRoot` using the same balanced Merkle
-algorithm as v0.35 selective disclosure, enabling auditors to verify inclusion via
-`NullificationInclusionProof` without resurrecting deleted content. `PurgePolicyGate`
-enforces configurable retention windows at the gate layer. 30 new tests.
-
-**v0.41.0 — Context-Injection Defense Gate.** Closes the "container fallacy":
-even with a valid `ModelAttestation`, adversarial content injected into tool
-outputs or retrieved documents can manipulate the model's reasoning. A signed
-`ContextIntegrityRecord` commits to the base context hash and a list of typed,
-bounded `ContextAppendSegment`s before execution. At gate time, the
-`ContextInjectionGate` verifies that the final context equals exactly the
-committed base plus the declared segments — no undeclared, oversized, or tampered
-content. Complements v0.40 attestation: v0.40 covers the *container*
-(model/prompt/tools); v0.41 covers the *contents* (what arrives at runtime).
-A `scan_for_injection_markers()` utility flags known jailbreak patterns in
-retrieved content (non-blocking). 36 new tests.
-
-**v0.40.0 — Verifiable Logic Attestation.** Closes the "hidden instruction"
-exploit: a valid IBCT can only authorize an agent whose declared execution
-context (model, system prompt hash, tool manifest hash) matches the operator's
-`AttestationPolicy`. The agent signs a short-lived `ModelAttestation` before
-each capability invocation; `LogicAttestationGate` validates it at the
-`BoundaryEngine` gate layer. The system prompt is never stored — only its
-SHA-256 hash appears in the attestation. Tool order is normalized before
-hashing so the hash is order-independent. This is the bridge between the
-Identity Plane (which sovereign) and the Reasoning Plane (which model, which
-prompt) described in arXiv:2606.12320. 41 new tests.
+**v0.38.2 — Vertical Material Removal.** Documentation-only release. Removed
+commercial vertical artifacts (`examples/nba-demo-operators/`, `ops/nba/`) that
+were not aligned with the public protocol boundary. Replaced all
+vertical-branded sovereign name placeholders (`aspayr`) in docs examples with
+the neutral `org-a`. Retroactively neutralized the v0.22.0 release description
+to describe the generic "organization as operator" pattern. No protocol, API,
+or test changes.
 
 **v0.39.0 — Adversarial Seed Isolation.** v0.37's anomaly detector catches sudden
 per-update drops but is blind to patient credit-farming attacks — an adversary who
@@ -787,27 +725,120 @@ exceeds a configurable threshold. The `SeedIsolationGate` plugs into the
 sovereign independently analyzes its own history for a counterparty and may reach
 different conclusions. 41 new tests.
 
-**v0.38.2 — Vertical Material Removal.** Documentation-only release. Removed
-commercial vertical artifacts (`examples/nba-demo-operators/`, `ops/nba/`) that
-were not aligned with the public protocol boundary. Replaced all
-vertical-branded sovereign name placeholders (`aspayr`) in docs examples with
-the neutral `org-a`. Retroactively neutralized the v0.22.0 release description
-to describe the generic "organization as operator" pattern. No protocol, API,
-or test changes.
+**v0.40.0 — Verifiable Logic Attestation.** Closes the "hidden instruction"
+exploit: a valid IBCT can only authorize an agent whose declared execution
+context (model, system prompt hash, tool manifest hash) matches the operator's
+`AttestationPolicy`. The agent signs a short-lived `ModelAttestation` before
+each capability invocation; `LogicAttestationGate` validates it at the
+`BoundaryEngine` gate layer. The system prompt is never stored — only its
+SHA-256 hash appears in the attestation. Tool order is normalized before
+hashing so the hash is order-independent. This is the bridge between the
+Identity Plane (which sovereign) and the Reasoning Plane (which model, which
+prompt) described in arXiv:2606.12320. 41 new tests.
 
-**v0.38.1 — Codebase Modularity Cleanup.** No user-visible changes. This maintenance
-release enforces the layer rule that had been stated but not yet fully implemented:
-`models/` holds signed entities, `trust/` holds protocol logic, `cli/` holds only Click
-parsing and output, and a new `workflows/` package holds multi-step orchestration.
+**v0.41.0 — Context-Injection Defense Gate.** Closes the "container fallacy":
+even with a valid `ModelAttestation`, adversarial content injected into tool
+outputs or retrieved documents can manipulate the model's reasoning. A signed
+`ContextIntegrityRecord` commits to the base context hash and a list of typed,
+bounded `ContextAppendSegment`s before execution. At gate time, the
+`ContextInjectionGate` verifies that the final context equals exactly the
+committed base plus the declared segments — no undeclared, oversized, or tampered
+content. Complements v0.40 attestation: v0.40 covers the *container*
+(model/prompt/tools); v0.41 covers the *contents* (what arrives at runtime).
+A `scan_for_injection_markers()` utility flags known jailbreak patterns in
+retrieved content (non-blocking). 36 new tests.
 
-`trust/consensus.py` (410 lines) was split into a five-module package — `cascade.py`,
-`votes.py`, `proof.py`, `identity.py`, `gate.py` — each with a single responsibility.
-`trust/context.py` (464 lines) was split into `gates.py`, `engine.py`, and `decisions.py`.
-Three CLI files were reduced to thin wrappers: `trust_bundle.py` (602 → 281 lines),
-`federation.py` (465 → 163 lines), `proof_ops.py` (623 → 264 lines).  The extracted
-workflow logic moved to `genesis_mesh/workflows/`.  All backward-compat re-exports are
-in place; no caller changes were required outside the test monkeypatch target.
-`AGENT.md` was updated with the enforced layer rule for future contributors.
+**v0.42.0 — Ephemeral Identity Purge Protocol.** Addresses three consequences of
+indefinitely accumulating expired `EphemeralExecutionIdentity` records: audit log
+bloat, residual correlation risk, and unverifiable destruction. A `NullificationReceipt`
+proves identity X was active, expired, and had its full record destroyed — without
+retaining `bearer_sovereign_id`, `allowed_capabilities`, or `decision_id`. Receipts
+are batched into a signed `NullificationRegistryRoot` using the same balanced Merkle
+algorithm as v0.35 selective disclosure, enabling auditors to verify inclusion via
+`NullificationInclusionProof` without resurrecting deleted content. `PurgePolicyGate`
+enforces configurable retention windows at the gate layer. 30 new tests.
+
+**v0.43.0 — Communication Privacy Layer.** Addresses the mesh-layer attack
+surface exposed by SALA (Stylometry-Assisted LLM Analysis, arXiv:2602.23079),
+which can fingerprint agents from message length distributions, timing
+correlations, and header metadata even when transport is encrypted. A
+`CommunicationPrivacyProfile` normalizes outbound messages in three dimensions:
+timestamp bucketing (floor to nearest N seconds), payload block-padding (pad
+to nearest multiple of M bytes, never truncate), and header stripping (retain
+only GM-required fields and an explicit allowlist). A signed `MetadataEnvelope`
+records the normalized metadata; a `PrivacyAuditRecord` documents exactly what
+was changed. `scan_metadata_fingerprints()` provides a non-blocking pre-send
+scan. Scope is structural/metadata normalization only — content-level
+stylometric rewriting requires a separate LLM service. 33 new tests.
+
+**v0.44.0 — Sovereign Overlay Discovery.** Removes the DNS dependency from peer
+discovery. Once a sovereign is connected to any bootstrap peer via Noise XX,
+it can discover all others through a signed gossip layer without DNS. An
+`OverlayDiscoveryRecord` binds endpoint to Ed25519 public key, is propagated
+hop-by-hop (default max 5), and carries a monotonic `sequence_no` enabling
+supersession detection. `merge_discovery_records()` keeps the highest
+sequence_no per sovereign (idempotent on repeats). `build_discovery_feed()`
+lets operators publish a signed aggregate for fast bootstrapping. 26 new tests.
+
+**v0.45.0 — Process-Level Execution Mediation.** Introduces GenesisGuard, a
+local enforcement sidecar satisfying Pirch (arXiv:2605.14932)'s requirement
+for a non-agent, deterministic mediator. GenesisGuard validates
+BoundaryDecision and IBCT before spawning any subprocess, strips the
+subprocess environment to only explicitly allowed vars, and issues a signed
+`MediatedExecutionReceipt`. Seven typed rejection reasons. Importantly: this
+provides enforcement below the agent process but above the OS — it does NOT
+replace OS kernel hooks or hardware attestation. The docs clearly distinguish
+advisory mode (audit only, bypass possible) from mandatory mediation mode
+(five-point deployment checklist required). 19 new tests.
+
+**v0.46.0 — Trust Path Performance and Atlas Pruning.** Introduces signed
+TTL-bound trust path caching and verifiable graph pruning. A `TrustPathCache`
+lets operators pre-compute BFS trust paths for (source, target) pairs and
+serve repeat lookups in O(1) without re-traversing the graph.
+`GraphPruningPolicy` removes three categories of stale edges (expired treaties,
+revoked certificates, empty scopes) with a staleness guard that refuses to
+prune graphs older than the policy maximum. Every pruning run produces a signed
+`PrunedAtlasExport` with per-edge `PruningAuditEntry` records. 21 new tests.
+
+**v0.47.0 — Data Usage Attestation Layer.** Introduces signed pre- and
+post-execution attestation for data access. `DataLicensePolicy` lets a licensor
+define an explicit source allowlist, permitted access types, prohibited
+classification tags, and a per-session volume cap. An agent signs a
+`DataAccessIntent` before execution and a `DataAccessRecord` after; both are
+independently verifiable without trusting the agent process. `DataUsageGate`
+integrates attestation into the `BoundaryEngine` as a standard protocol gate.
+`verify_data_access_intent()` reports all violations (not just the first) so
+auditors can assess the full non-compliance surface in a single call. Seven
+violation reasons: `source_not_licensed`, `access_type_not_permitted`,
+`prohibited_classification`, `volume_cap_exceeded`, `intent_expired`,
+`policy_expired`, `intent_exceeds_license`. Payment, royalty calculation, and
+external settlement are explicitly out of scope. 20 new tests.
+
+**v0.48.0 — Formal PeerRiskSignal Verification (Tamarin).** Extends the Tamarin
+Prover models from v0.31 to cover the PeerRiskSignal state machine. Three
+security lemmas are proven over the abstract protocol: `signal_bounded` (signal
+value stays in the `{low, mid, high}` lattice after any sequence of updates),
+`anomaly_detection_responsive` (a SuddenDrop cannot permanently suppress anomaly
+detection), and `no_single_source_cascade` (cascade amplification requires
+genuine independent observations from each detecting sovereign — a single
+adversary cannot tunnel one event into simultaneous alarms). Executable
+property-based tests (no Tamarin required) exercise the same boundary conditions
+in the standard pytest run. Lemma 3 answers the cascade-amplification
+denial-of-service question from the PeerRiskSignal design review. 17 new tests
+(14 property-based + 3 file-structure; 3 additional Tamarin runner tests skip
+when tamarin-prover is not installed).
+
+**At the end of Phase J:** The trust pipeline is adversarially hardened across
+every layer it controls. Cascade detection guards consensus voting. Seed isolation
+catches patient credit-farming. Logic attestation closes hidden-instruction exploits.
+Context integrity blocks injection of undeclared runtime content. Communication
+privacy normalizes the metadata that leaks over an encrypted channel. Overlay
+discovery removes the DNS dependency from peer bootstrapping. Process mediation
+enforces authorization below the agent process. Data usage attestation makes data
+access auditable before and after execution. Formal Tamarin proofs cover both the
+main protocol pipeline (v0.31, five lemmas) and the PeerRiskSignal state machine
+(v0.48, three lemmas). 1,041 tests pass. The layer rule and public boundary rule
+are enforced in code and documented in AGENT.md.
 
 ---
 
@@ -853,7 +884,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.37.0:
+As of v0.48.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -895,6 +926,12 @@ As of v0.37.0:
   portable IBCT bearer tokens, signed justification proofs, human-in-the-loop
   dual-signed commitments, Merkle selective disclosure, K-of-N distributed
   consensus authorization, and locally-computed peer risk signals.
+- The third complete trust architecture cycle (v0.38–v0.48) is shipped:
+  cascade-resilient consensus, adversarial seed isolation, verifiable logic
+  attestation, context-injection defense, ephemeral identity purge, communication
+  privacy, sovereign overlay discovery, process-level execution mediation, trust
+  path performance and atlas pruning, data usage attestation, and formal Tamarin
+  proofs over the PeerRiskSignal state machine.
 - IBCTs (v0.32) give the trust pipeline a portable bearer artefact: an agent
   carries a signed token with attenuated capabilities and an invocation budget
   to any offline verifier without a network call to the GM stack.
@@ -913,15 +950,45 @@ As of v0.37.0:
   view of counterparty reliability, updated from execution history. No shared
   ledger, no global ranking. Anomaly detection surfaces sudden drops after stable
   history. RiskSignalGate is opt-in at the BoundaryEngine level.
+- Cascade-resilient consensus (v0.38) defends K-of-N voting against correlated
+  validators through Context Divergence Score and Temporal Clustering Score.
+- Adversarial seed isolation (v0.39) detects patient credit-farming attacks on
+  PeerRiskSignals through three orthogonal pattern scores over the full update
+  history.
+- Verifiable logic attestation (v0.40) closes the hidden-instruction exploit:
+  an agent must sign a ModelAttestation binding model, prompt hash, and tool
+  manifest before any capability invocation is authorized.
+- Context-injection defense (v0.41) closes the container fallacy: a signed
+  ContextIntegrityRecord commits to what content may arrive at runtime; anything
+  undeclared, oversized, or tampered is blocked at the gate.
+- Ephemeral identity purge (v0.42) provides verifiable deletion of expired
+  EphemeralExecutionIdentities via NullificationReceipts and a signed Merkle
+  registry — cheating on deletion is auditable.
+- Communication privacy (v0.43) normalizes the metadata that leaks over an
+  encrypted channel: timestamp bucketing, payload block-padding, and header
+  stripping, all signed into a MetadataEnvelope.
+- Sovereign overlay discovery (v0.44) removes DNS from peer bootstrapping:
+  signed OverlayDiscoveryRecords propagate hop-by-hop over existing Noise XX
+  connections.
+- Process-level execution mediation (v0.45) enforces authorization below the
+  agent process via GenesisGuard, which validates BoundaryDecision and IBCT
+  before spawning any subprocess.
+- Trust path performance (v0.46) accelerates repeat path lookups to O(1) via
+  signed TTL-bound TrustPathCache; GraphPruningPolicy removes stale edges with
+  a per-edge audit trail.
+- Data usage attestation (v0.47) makes data access auditable: signed
+  DataAccessIntent before execution and DataAccessRecord after, both
+  independently verifiable. Seven violation reasons; payment out of scope.
+- Formal Tamarin verification (v0.31 + v0.48) covers eight security lemmas
+  across the full trust pipeline and the PeerRiskSignal state machine.
+  1,041 tests pass.
+- The layer rule (models/trust/cli/workflows) and public boundary rule are
+  enforced in code from v0.38.1 and documented in AGENT.md.
 
-As of v0.37.0, the following are *not* yet true:
+As of v0.48.0, the following are *not* yet true:
 
 - Genesis Mesh does not yet have a complete RFC set that can stand apart from
   the Python reference implementation.
-- Atlas does not yet exist as a public ecosystem explorer beyond individual
-  Connectome views and public proof artifacts.
-- Governance is not yet formalized into an RFC process, decision log, operator
-  exit note, and managing-partner boundary document.
 - A second implementation has not yet completed treaty-backed interoperability
   with the Python reference implementation.
 - No external operator has yet run a sovereign with their own
@@ -929,6 +996,8 @@ As of v0.37.0, the following are *not* yet true:
   responsibilities.
 - The first native application has not yet made Genesis Mesh legible to a
   non-protocol buyer or operator workflow.
+- Governance is not yet formalized into a decision log, operator exit note, and
+  managing-partner boundary document.
 
 ---
 
@@ -939,8 +1008,7 @@ The files referenced below live in the repository root and under
 are listed as paths rather than as links.
 
 - Architecture and design philosophy: `ops/strategy.md`
-- Pre-1.0 milestone list: `ops/roadmap.md`
-- Per-release plans (v0.1.0 through v0.32.0): `ops/plan-v0.*.md`
+- Per-release plans: `ops/plan-v0.*.md`
 - Phase 2 externalization plan: `docs/development/phase-2-externalization.md`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
