@@ -673,6 +673,20 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.38.1 — Codebase Modularity Cleanup.** No user-visible changes. This maintenance
+release enforces the layer rule that had been stated but not yet fully implemented:
+`models/` holds signed entities, `trust/` holds protocol logic, `cli/` holds only Click
+parsing and output, and a new `workflows/` package holds multi-step orchestration.
+
+`trust/consensus.py` (410 lines) was split into a five-module package — `cascade.py`,
+`votes.py`, `proof.py`, `identity.py`, `gate.py` — each with a single responsibility.
+`trust/context.py` (464 lines) was split into `gates.py`, `engine.py`, and `decisions.py`.
+Three CLI files were reduced to thin wrappers: `trust_bundle.py` (602 → 281 lines),
+`federation.py` (465 → 163 lines), `proof_ops.py` (623 → 264 lines).  The extracted
+workflow logic moved to `genesis_mesh/workflows/`.  All backward-compat re-exports are
+in place; no caller changes were required outside the test monkeypatch target.
+`AGENT.md` was updated with the enforced layer rule for future contributors.
+
 ---
 
 ## 3. Patterns of Discipline

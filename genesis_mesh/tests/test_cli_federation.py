@@ -9,7 +9,7 @@ import requests
 from click.testing import CliRunner
 
 from genesis_mesh.crypto import generate_keypair, save_keypair
-from genesis_mesh.cli.federation import (
+from genesis_mesh.workflows.federation import (
     FederationBootstrapVerificationError,
     run_federation_bootstrap,
 )
@@ -212,7 +212,7 @@ def test_federation_bootstrap_reports_persisted_treaty_on_failed_verification(
             return {"trusted": False, "reason": "no_active_treaty_path"}
         raise AssertionError(f"unexpected request: {method} {url} {label}")
 
-    monkeypatch.setattr("genesis_mesh.cli.federation._request_json", fake_request_json)
+    monkeypatch.setattr("genesis_mesh.workflows.federation._request_json", fake_request_json)
 
     try:
         run_federation_bootstrap(

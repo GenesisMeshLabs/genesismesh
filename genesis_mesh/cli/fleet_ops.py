@@ -32,7 +32,7 @@ import requests
 from ..crypto import generate_keypair, save_keypair, sign_model
 from ..models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from .config import config_path_value, save_config
-from .federation import (
+from ..workflows.federation import (
     FederationBootstrapVerificationError,
     run_federation_bootstrap,
 )

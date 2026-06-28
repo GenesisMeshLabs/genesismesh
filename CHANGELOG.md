@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.38.1 - Codebase Modularity Cleanup (internal maintenance)
+
+### Changed
+
+No user-visible behavior changes. This release enforces the layer rule
+(`models/` = entities, `trust/` = protocol logic, `cli/` = Click parsing,
+`workflows/` = multi-step orchestration) across the two most active modules.
+
+**`genesis_mesh/trust/consensus/` (split from single file)**:
+- `cascade.py` — `assess_cascade_risk()`, `CascadeAssessmentReason`
+- `votes.py` — `cast_validator_vote()`
+- `proof.py` — `assemble_consensus_proof()`, `verify_consensus_proof()`, result types
+- `identity.py` — `issue_ephemeral_identity()`, `verify_ephemeral_identity()`, result types
+- `gate.py` — `ConsensusGate`
+- `__init__.py` re-exports all symbols; all existing `from genesis_mesh.trust.consensus import X`
+  imports continue to work unchanged.
+
+**`genesis_mesh/trust/context/` (split from single file)**:
+- `gates.py` — `GateCallable`, `capability_gate`, `validity_window_gate`, `freshness_gate`, `freshness_proof_gate`
+- `engine.py` — `BoundaryEngine` (evaluate, evaluate_with_proof)
+- `decisions.py` — `verify_boundary_decision`, result types
+- `__init__.py` re-exports all symbols; all existing imports unchanged.
+
+**`genesis_mesh/workflows/` (new package)**:
+- `trust_bundle.py` — bundle export, validation, loading (moved from `cli/trust_bundle.py`)
+- `federation.py` — `run_federation_bootstrap`, `FederationBootstrapVerificationError` (moved from `cli/federation.py`)
+- `proof.py` — `run_remote_proof`, `inspect_proof_bundle`, `cleanup_proof_state` (moved from `cli/proof_ops.py`)
+
+**CLI files** are now thin Click wrappers:
+- `cli/trust_bundle.py` reduced from 602 → 281 lines
+- `cli/federation.py` reduced from 465 → 163 lines
+- `cli/proof_ops.py` reduced from 623 → 264 lines
+
+**`AGENT.md`** updated with the enforced layer rule for future contributors.
+
+---
+
 ## v0.38.0 - Cascade-Resilient Consensus
 
 ### Added

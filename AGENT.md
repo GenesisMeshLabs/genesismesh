@@ -86,9 +86,42 @@ The protocol core must remain usable without any specific agent framework, LLM
 provider, marketplace, cloud, or enterprise IdP. Cross-cutting application
 concerns belong in `examples/` or in dedicated overlay modules, never in core.
 
-### 2. Modular Boundaries
+### 2. Modular Boundaries — The Layer Rule
 
-Each module has one reason to change. Avoid mixing:
+Each module has exactly one responsibility. The enforced layer rule is:
+
+```
+models/*              = Pydantic entities + pure data helpers only
+                        (to_canonical_json, digest, is_fresh, threshold_met)
+                        No crypto calls. No multi-step logic. No imports from trust/.
+
+trust/*               = Protocol logic only
+                        (create_*, verify_*, assess_*, check_*)
+                        No Click imports. No HTTP. No formatting for display.
+                        Trust modules may only import from models/ and crypto/.
+                        Trust modules must NOT import from other trust modules
+                        (trust→trust imports signal a missing abstraction).
+
+cli/*                 = Click parsing + output only
+                        One domain per file. Thin wrappers that call trust/*.
+                        Multi-step workflow logic goes in workflows/*.
+                        No protocol rules inline in command bodies.
+
+na_service/routes/*   = HTTP adaptation only
+                        Parse request → dispatch to na_service/services/* ���
+                        return response. No domain validation inline.
+
+na_service/services/* = NA application logic
+                        Called by routes. May import trust/* and models/*.
+
+workflows/*           = Multi-step orchestration across trust modules
+                        Used by CLI commands and integration tests.
+```
+
+A file that does more than one of the above must be split before the plan
+that introduced it ships.
+
+Avoid mixing:
 
 - crypto and HTTP handlers
 - CLI parsing and business logic
