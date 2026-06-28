@@ -840,6 +840,12 @@ main protocol pipeline (v0.31, five lemmas) and the PeerRiskSignal state machine
 (v0.48, three lemmas). 1,041 tests pass. The layer rule and public boundary rule
 are enforced in code and documented in AGENT.md.
 
+**v0.48.1 — Enterprise-grade example suite.** Completes the documentation layer
+with 25 animated GIF demos covering every trust protocol feature across all three
+phases (H, I, J). A shared Pillow-based terminal renderer and bootstrap helpers
+make every demo runnable from the repository root. All 25 feature example pages
+gain embedded GIF references. 1,041 tests pass; Sphinx builds clean.
+
 ---
 
 ## 3. Patterns of Discipline

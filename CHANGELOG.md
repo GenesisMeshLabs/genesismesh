@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.48.1 - Enterprise-Grade Example Suite
+
+### Added
+
+- `docs/examples/assets/scripts/terminal_render.py` — shared Pillow-based dark
+  terminal renderer used by all 25 demo scripts (`render_gif`, `render_png`).
+- `docs/examples/assets/scripts/_bootstrap.py` — shared helpers for constructing
+  agreements, boundary decisions, and trust graphs in all demos.
+- **25 animated GIF demos** covering every protocol feature across Phase H
+  (Governed Relationships), Phase I (Runtime Trust Layer), and Phase J (Third
+  Trust Cycle):
+  - Phase H: relationship-agreement, delegation-chain, relationship-context,
+    execution-evidence-chain, freshness-proofs, formal-verification
+  - Phase I: invocation-bound-tokens, justification-proofs, human-oversight,
+    selective-disclosure, distributed-consensus, peer-risk-signals
+  - Phase J: cascade-resilient-consensus, adversarial-seed-isolation,
+    verifiable-logic-attestation, context-injection-defense,
+    ephemeral-identity-purge, communication-privacy, sovereign-overlay-discovery,
+    process-level-mediation, trust-path-performance, data-usage-attestation,
+    formal-risk-signal-verification, trust-evidence, atlas
+- GIF image references (`{image}` directives) added to all 25 feature example
+  markdown files.
+
+### Notes
+
+1,041 pytest tests pass; Sphinx builds clean with no warnings.
+
+---
+
 ## v0.48.0 - Formal PeerRiskSignal Verification (Tamarin)
 
 ### Added
