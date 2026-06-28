@@ -238,23 +238,23 @@ trust data verify    --intent intent.json --policy policy.json
 
 ## Success Criteria
 
-- [ ] `DataSourceDescriptor`, `DataLicensePolicy`, `DataAccessIntent`, `DataAccessRecord`, `DataUsageViolation` models
-- [ ] `verify_data_access_intent()` with 7 typed violation reasons
-- [ ] `verify_data_access_record()` post-execution compliance check
-- [ ] `DataUsageGate` with typed gate results
-- [ ] CLI `trust data` subgroup with policy / intent / record / verify
-- [ ] >= 30 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `DataSourceDescriptor`, `DataLicensePolicy`, `DataAccessIntent`, `DataAccessRecord`, `DataUsageViolation` models
+- [x] `verify_data_access_intent()` with 7 typed violation reasons
+- [x] `verify_data_access_record()` post-execution compliance check
+- [x] `DataUsageGate` with typed gate results
+- [x] CLI `trust data` subgroup with policy / intent / record / verify
+- [x] >= 30 tests; all pass; full suite passes
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.47.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/data-usage-attestation.md` worked example with explicit
+- [x] Package metadata bumped to `0.47.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/data-usage-attestation.md` worked example with explicit
       statement that payment/settlement is out of scope
-- [ ] CLI reference updated with `trust data`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] CLI reference updated with `trust data`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

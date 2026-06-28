@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.47.0 - Data Usage Attestation Layer
+
+### Added
+
+- `DataSourceDescriptor`, `DataLicensePolicy`, `DataAccessIntent`,
+  `DataAccessRecord`, `DataUsageViolation` models (`models/data_usage.py`):
+  - `DataLicensePolicy`: source allowlist, access-type list, prohibited
+    classification tags, volume cap, signed by licensor.
+  - `DataAccessIntent`: agent-signed pre-execution declaration; expires in TTL.
+  - `DataAccessRecord`: agent-signed post-execution record linked to intent.
+  - `DataUsageViolation`: structured violation record (7 violation types).
+
+- `verify_data_access_intent()` (`trust/data_usage.py`): pre-execution
+  compliance check; returns `(ok, first_reason, all_violations)`.
+
+- `verify_data_access_record()` (`trust/data_usage.py`): post-execution
+  compliance check using the same violation logic over actual sources/volume.
+
+- `create_data_access_intent()` (`trust/data_usage.py`): signed intent builder.
+
+- `DataUsageGate` (`trust/data_usage.py`): `BoundaryEngine` gate that calls
+  `verify_data_access_intent()` and returns a `GateResult`.
+
+- `genesis-mesh trust data policy / intent / record / verify` CLI
+  (`cli/data_usage_ops.py`).
+
+- `docs/examples/data-usage-attestation.md` (includes explicit statement that
+  payment and settlement are out of scope).
+
+- 20 new tests (`tests/test_data_usage_attestation.py`).
+
 ## v0.46.0 - Trust Path Performance and Atlas Pruning
 
 ### Added

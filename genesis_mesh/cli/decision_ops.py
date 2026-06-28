@@ -44,6 +44,7 @@ def _register_trust_subgroups() -> None:
     from .privacy_ops import privacy  # noqa: PLC0415
     from .overlay_discovery_ops import discover  # noqa: PLC0415
     from .mediation_ops import guard  # noqa: PLC0415
+    from .data_usage_ops import data  # noqa: PLC0415
     trust.add_command(agree)
     trust.add_command(delegate)
     trust.add_command(context)
@@ -62,6 +63,7 @@ def _register_trust_subgroups() -> None:
     trust.add_command(privacy)
     trust.add_command(discover)
     trust.add_command(guard)
+    trust.add_command(data)
 
 
 _register_trust_subgroups()

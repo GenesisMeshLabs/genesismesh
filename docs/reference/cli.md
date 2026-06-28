@@ -1323,6 +1323,74 @@ genesis-mesh trust privacy scan \
     --format human
 ```
 
+## Data Usage Attestation Commands
+
+The `genesis-mesh trust data` sub-group (v0.47) provides signed attestation for
+data access.  A licensor issues a `DataLicensePolicy`; an agent declares a signed
+`DataAccessIntent` before execution and produces a signed `DataAccessRecord` after.
+`verify` checks compliance against the policy.  Payment and settlement are explicitly
+out of scope.
+
+### `genesis-mesh trust data policy`
+
+Create a signed `DataLicensePolicy`.
+
+```bash
+genesis-mesh trust data policy \
+    --licensor-sovereign operator-1 \
+    --licensee-sovereign agent-a \
+    --allow-source model-weights-v3 \
+    --allow-access read \
+    --max-volume-bytes 104857600 \
+    --signing-key keys/operator.key \
+    --output policy.json
+```
+
+Options: `--prohibit-tag TAG` (repeatable), `--valid-for-hours N` (default 24).
+
+### `genesis-mesh trust data intent`
+
+Create a signed `DataAccessIntent`.
+
+```bash
+genesis-mesh trust data intent \
+    --agent-sovereign agent-a \
+    --decision-id dec-abc123 \
+    --source "model-weights-v3:proprietary:operator-1" \
+    --access-type read \
+    --volume-bytes 52428800 \
+    --signing-key keys/agent.key \
+    --output intent.json
+```
+
+Options: `--source` and `--access-type` are repeatable; `--valid-for-seconds N` (default 300).
+
+### `genesis-mesh trust data record`
+
+Create a signed `DataAccessRecord` after execution.
+
+```bash
+genesis-mesh trust data record \
+    --intent intent.json \
+    --source "model-weights-v3:proprietary:operator-1" \
+    --access-type read \
+    --volume-bytes 48234496 \
+    --signing-key keys/agent.key \
+    --output record.json
+```
+
+### `genesis-mesh trust data verify`
+
+Verify a `DataAccessIntent` against a `DataLicensePolicy`. Exits 0 on compliance,
+1 on violation. Lists all violations when non-compliant.
+
+```bash
+genesis-mesh trust data verify \
+    --intent  intent.json \
+    --policy  policy.json \
+    --public-key "$(cat keys/agent.pub.b64)"
+```
+
 ## Ephemeral Identity Purge Commands
 
 The `genesis-mesh trust purge` sub-group (v0.42) implements verifiable deletion

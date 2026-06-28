@@ -40,6 +40,7 @@ communication-privacy
 sovereign-overlay-discovery
 process-level-mediation
 trust-path-performance
+data-usage-attestation
 ```
 
 ## Start Here
@@ -299,6 +300,16 @@ TrustPathCache (signed, TTL-bound) accelerates repeat path lookups to O(1).
 GraphPruningPolicy removes expired, revoked, and empty-scope edges. Every
 pruning run produces a signed PrunedAtlasExport with per-edge audit entries
 and staleness guard (refuses to prune graphs older than policy max).
+:::
+
+:::{grid-item-card} Data Usage Attestation Layer
+:link: data-usage-attestation
+:link-type: doc
+
+Signed pre- and post-execution attestation for data access. DataLicensePolicy
+defines source allowlists and volume caps. DataAccessIntent and DataAccessRecord
+bind the agent's declared intent to actual access. DataUsageGate integrates with
+BoundaryEngine. Payment and settlement are explicitly out of scope.
 :::
 
 ::::

@@ -670,6 +670,20 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.47.0 — Data Usage Attestation Layer.** Introduces signed pre- and
+post-execution attestation for data access. `DataLicensePolicy` lets a licensor
+define an explicit source allowlist, permitted access types, prohibited
+classification tags, and a per-session volume cap. An agent signs a
+`DataAccessIntent` before execution and a `DataAccessRecord` after; both are
+independently verifiable without trusting the agent process. `DataUsageGate`
+integrates attestation into the `BoundaryEngine` as a standard protocol gate.
+`verify_data_access_intent()` reports all violations (not just the first) so
+auditors can assess the full non-compliance surface in a single call. Seven
+violation reasons: `source_not_licensed`, `access_type_not_permitted`,
+`prohibited_classification`, `volume_cap_exceeded`, `intent_expired`,
+`policy_expired`, `intent_exceeds_license`. Payment, royalty calculation, and
+external settlement are explicitly out of scope. 20 new tests.
+
 **v0.46.0 — Trust Path Performance and Atlas Pruning.** Introduces signed
 TTL-bound trust path caching and verifiable graph pruning. A `TrustPathCache`
 lets operators pre-compute BFS trust paths for (source, target) pairs and
