@@ -67,6 +67,35 @@ class RiskSignalUpdate(BaseModel):
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
 
 
+class SeedIsolationReport(BaseModel):
+    """Result of assess_seed_isolation() over a counterparty's RiskSignalUpdate history.
+
+    Identifies whether the history matches known adversarial seed patterns
+    (credit farming, volatility discontinuity, streak fragility) even when
+    no individual update triggered a RiskAnomaly.
+
+    isolated=False with all scores=0.0 is returned when history is below the
+    minimum length for assessment.
+    """
+
+    report_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    signal_id: str
+    from_sovereign_id: str
+    to_sovereign_id: str
+    assessed_at: datetime
+    history_length: int
+    credit_farming_score: float = Field(..., ge=0.0, le=1.0)
+    volatility_discontinuity_score: float = Field(..., ge=0.0, le=1.0)
+    streak_fragility_score: float = Field(..., ge=0.0, le=1.0)
+    seed_probability: float = Field(..., ge=0.0, le=1.0)
+    isolated: bool
+    threshold_used: float
+    early_window_mean_delta: float
+    late_window_mean_delta: float
+    max_success_streak: int
+    discontinuity_midpoint_index: int | None
+
+
 class RiskAnomaly(BaseModel):
     """Raised when a signal drops faster than historical variance.
 

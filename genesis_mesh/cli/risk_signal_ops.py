@@ -15,8 +15,13 @@ import click
 
 from ..crypto import load_private_key
 from ..models.execution import ExecutionEvidence
-from ..models.risk_signal import PeerRiskSignal
-from ..trust.risk_signal import create_risk_signal, decay_risk_signal, update_risk_signal
+from ..models.risk_signal import PeerRiskSignal, RiskSignalUpdate
+from ..trust.risk_signal import (
+    assess_seed_isolation,
+    create_risk_signal,
+    decay_risk_signal,
+    update_risk_signal,
+)
 
 
 @click.group("risk")
@@ -122,6 +127,59 @@ def risk_decay(signal_path: str, key_path: str, output_path: str) -> None:
     decayed = decay_risk_signal(signal, sk)
     Path(output_path).write_text(decayed.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Signal decayed: {signal.signal:.4f} → {decayed.signal:.4f}")
+
+
+# ---------------------------------------------------------------------------
+# show
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# assess-seed
+# ---------------------------------------------------------------------------
+
+
+@risk.command("assess-seed")
+@click.option("--signal", "signal_path", required=True, type=click.Path(exists=True),
+              help="PeerRiskSignal JSON file.")
+@click.option("--history", "history_paths", required=True, multiple=True,
+              type=click.Path(exists=True),
+              help="RiskSignalUpdate JSON files (pass once per update).")
+@click.option("--seed-threshold", "threshold", type=float, default=0.5,
+              help="Seed probability threshold for isolation (default 0.5).")
+@click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
+              help="Output format.")
+def risk_assess_seed(
+    signal_path: str, history_paths: tuple[str, ...], threshold: float, fmt: str,
+) -> None:
+    """Assess whether a counterparty's update history matches adversarial seed patterns.
+
+    Exits 0 if not isolated, 1 if isolated.
+    """
+    signal = PeerRiskSignal.model_validate_json(Path(signal_path).read_text(encoding="utf-8"))
+    history = [
+        RiskSignalUpdate.model_validate_json(Path(p).read_text(encoding="utf-8"))
+        for p in history_paths
+    ]
+
+    report = assess_seed_isolation(signal, history, seed_threshold=threshold)
+
+    if fmt == "json":
+        click.echo(report.model_dump_json(indent=2))
+    else:
+        status = "[ISOLATED]" if report.isolated else "[OK]"
+        click.echo(f"{status} Seed isolation assessment")
+        click.echo(f"  Counterparty     : {report.to_sovereign_id}")
+        click.echo(f"  History length   : {report.history_length}")
+        click.echo(f"  Seed probability : {report.seed_probability:.3f}")
+        click.echo(f"  Threshold        : {report.threshold_used}")
+        click.echo(f"  CFS              : {report.credit_farming_score:.3f}")
+        click.echo(f"  VDS              : {report.volatility_discontinuity_score:.3f}")
+        click.echo(f"  SFS              : {report.streak_fragility_score:.3f}")
+        click.echo(f"  Max streak       : {report.max_success_streak}")
+
+    if report.isolated:
+        raise click.exceptions.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------

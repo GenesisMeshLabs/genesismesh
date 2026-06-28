@@ -19,7 +19,12 @@ import nacl.signing
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.execution import ExecutionEvidence
-from ..models.risk_signal import PeerRiskSignal, RiskAnomaly, RiskSignalUpdate
+from ..models.risk_signal import (
+    PeerRiskSignal,
+    RiskAnomaly,
+    RiskSignalUpdate,
+    SeedIsolationReport,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -36,6 +41,12 @@ _DEFAULT_ALPHA = 0.2
 _DEFAULT_LAMBDA = 0.05
 _DEFAULT_SIGMA_THRESHOLD = 3.0
 _ANOMALY_MIN_HISTORY = 10
+
+_SEED_MIN_HISTORY = 20
+_DEFAULT_SEED_THRESHOLD = 0.5
+_DEFAULT_CFS_WEIGHT = 0.4
+_DEFAULT_VDS_WEIGHT = 0.3
+_DEFAULT_SFS_WEIGHT = 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +239,156 @@ def check_risk_signal_gate(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Seed isolation pattern scoring helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_cfs(deltas: list[float]) -> tuple[float, float, float]:
+    """Credit Farming Score. Returns (cfs, early_window_mean, late_window_mean).
+
+    Measures how much better the early history is vs the late history.
+    Positive CFS indicates sustained early inflation followed by deterioration.
+    """
+    n = len(deltas)
+    window = max(1, int(n * 0.2))
+    early_mean = statistics.mean(deltas[:window])
+    late_mean = statistics.mean(deltas[-window:])
+    cfs = max(0.0, min(1.0, early_mean - late_mean))
+    return cfs, early_mean, late_mean
+
+
+def _compute_vds(deltas: list[float]) -> tuple[float, int | None]:
+    """Volatility Discontinuity Score. Returns (vds, best_midpoint_index).
+
+    Measures whether variance abruptly changed at a specific point in time,
+    suggesting a behavioral mode switch.
+    """
+    n = len(deltas)
+    if n < 4:
+        return 0.0, None
+
+    best_vds = 0.0
+    best_mid: int | None = None
+    for mid in range(2, n - 1):
+        left = deltas[:mid]
+        right = deltas[mid:]
+        if len(left) < 2 or len(right) < 2:
+            continue
+        std_left = statistics.stdev(left)
+        std_right = statistics.stdev(right)
+        vds_at_mid = abs(std_left - std_right)
+        if vds_at_mid > best_vds:
+            best_vds = vds_at_mid
+            best_mid = mid
+
+    return min(1.0, best_vds), best_mid
+
+
+def _compute_sfs(deltas: list[float]) -> tuple[float, int]:
+    """Streak Fragility Score. Returns (sfs, max_success_streak).
+
+    Measures whether the history contains an implausibly long success streak
+    relative to the expected outcome distribution under a benign model.
+    """
+    n = len(deltas)
+    if n == 0:
+        return 0.0, 0
+
+    max_streak = 0
+    current = 0
+    for d in deltas:
+        if d > 0:
+            current += 1
+            max_streak = max(max_streak, current)
+        else:
+            current = 0
+
+    if max_streak == 0:
+        return 0.0, 0
+
+    p_benign = 0.5 ** max_streak
+    sfs = max(0.0, min(1.0, (max_streak / n) * (1.0 - p_benign)))
+    return sfs, max_streak
+
+
+# ---------------------------------------------------------------------------
+# assess_seed_isolation
+# ---------------------------------------------------------------------------
+
+
+def assess_seed_isolation(
+    signal: PeerRiskSignal,
+    history: list[RiskSignalUpdate],
+    *,
+    seed_threshold: float = _DEFAULT_SEED_THRESHOLD,
+    cfs_weight: float = _DEFAULT_CFS_WEIGHT,
+    vds_weight: float = _DEFAULT_VDS_WEIGHT,
+    sfs_weight: float = _DEFAULT_SFS_WEIGHT,
+    min_history_for_assessment: int = _SEED_MIN_HISTORY,
+    now: datetime | None = None,
+) -> SeedIsolationReport:
+    """Assess whether a counterparty's update history matches adversarial seed patterns.
+
+    Three pattern scores are computed from the full update history:
+    - CFS (Credit Farming Score): early history much better than late history
+    - VDS (Volatility Discontinuity Score): abrupt change in variance at some midpoint
+    - SFS (Streak Fragility Score): implausibly long success streak
+
+    seed_probability = cfs_weight*CFS + vds_weight*VDS + sfs_weight*SFS
+
+    Returns isolated=False with all scores 0.0 when history < min_history_for_assessment.
+    Assessment is local — two sovereigns may reach different conclusions about the same
+    counterparty based on their independent histories.
+    """
+    now = now or datetime.now(timezone.utc)
+
+    if len(history) < min_history_for_assessment:
+        return SeedIsolationReport(
+            signal_id=signal.signal_id,
+            from_sovereign_id=signal.from_sovereign_id,
+            to_sovereign_id=signal.to_sovereign_id,
+            assessed_at=now,
+            history_length=len(history),
+            credit_farming_score=0.0,
+            volatility_discontinuity_score=0.0,
+            streak_fragility_score=0.0,
+            seed_probability=0.0,
+            isolated=False,
+            threshold_used=seed_threshold,
+            early_window_mean_delta=0.0,
+            late_window_mean_delta=0.0,
+            max_success_streak=0,
+            discontinuity_midpoint_index=None,
+        )
+
+    deltas = [u.delta for u in history]
+
+    cfs, early_mean, late_mean = _compute_cfs(deltas)
+    vds, best_mid = _compute_vds(deltas)
+    sfs, max_streak = _compute_sfs(deltas)
+
+    seed_probability = min(1.0, cfs_weight * cfs + vds_weight * vds + sfs_weight * sfs)
+
+    return SeedIsolationReport(
+        signal_id=signal.signal_id,
+        from_sovereign_id=signal.from_sovereign_id,
+        to_sovereign_id=signal.to_sovereign_id,
+        assessed_at=now,
+        history_length=len(history),
+        credit_farming_score=cfs,
+        volatility_discontinuity_score=vds,
+        streak_fragility_score=sfs,
+        seed_probability=seed_probability,
+        isolated=seed_probability > seed_threshold,
+        threshold_used=seed_threshold,
+        early_window_mean_delta=early_mean,
+        late_window_mean_delta=late_mean,
+        max_success_streak=max_streak,
+        discontinuity_midpoint_index=best_mid,
+    )
+
+
 class RiskSignalGate:
     """Callable gate that requires the current (decayed) peer risk signal to be
     above a minimum before authorization proceeds.
@@ -271,4 +432,59 @@ class RiskSignalGate:
             gate_name="risk_signal",
             passed=False,
             detail=reason,
+        )
+
+
+# ---------------------------------------------------------------------------
+# SeedIsolationGate — plugs into BoundaryEngine via add_gate()
+# ---------------------------------------------------------------------------
+
+
+class SeedIsolationGate:
+    """Callable gate that blocks execution if seed_probability exceeds threshold.
+
+    Usage (opt-in):
+
+        gate = SeedIsolationGate(
+            signal=peer_risk_signal,
+            history=update_history,
+            seed_threshold=0.5,
+        )
+        engine.add_gate(gate)
+    """
+
+    def __init__(
+        self,
+        signal: PeerRiskSignal,
+        history: list[RiskSignalUpdate],
+        seed_threshold: float = 0.5,
+    ) -> None:
+        self._signal = signal
+        self._history = history
+        self._threshold = seed_threshold
+
+    def __call__(self, context: object, terms: object) -> object:
+        from ..models.context import GateResult
+
+        report = assess_seed_isolation(
+            self._signal,
+            self._history,
+            seed_threshold=self._threshold,
+        )
+        if report.isolated:
+            return GateResult(
+                gate_name="seed_isolation",
+                passed=False,
+                detail=(
+                    f"counterparty '{self._signal.to_sovereign_id}' isolated "
+                    f"(seed_probability={report.seed_probability:.3f} > {self._threshold})"
+                ),
+            )
+        return GateResult(
+            gate_name="seed_isolation",
+            passed=True,
+            detail=(
+                f"counterparty '{self._signal.to_sovereign_id}' passes seed check "
+                f"(seed_probability={report.seed_probability:.3f})"
+            ),
         )

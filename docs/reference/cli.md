@@ -1024,6 +1024,42 @@ Display current signal state.
 genesis-mesh trust risk show --signal signals/b.json --format json
 ```
 
+### `genesis-mesh trust risk assess-seed`
+
+Assess whether a counterparty's `RiskSignalUpdate` history matches adversarial
+seed patterns (credit farming, volatility discontinuity, streak fragility).
+
+```bash
+genesis-mesh trust risk assess-seed \
+    --signal signals/b.json \
+    --history updates/u0001.json \
+    --history updates/u0002.json \
+    --seed-threshold 0.5 \
+    --format human
+```
+
+Exits 0 if not isolated, 1 if isolated.
+
+Three pattern scores are computed from the full update history:
+
+- **CFS (Credit Farming Score)**: early history is significantly better than the
+  late history — the counterparty built credit before degrading.
+- **VDS (Volatility Discontinuity Score)**: variance in deltas changed abruptly
+  at some midpoint — a behavioral mode switch.
+- **SFS (Streak Fragility Score)**: an implausibly long consecutive success
+  streak, inconsistent with a benign EWMA history.
+
+`seed_probability = 0.4 × CFS + 0.3 × VDS + 0.3 × SFS`
+
+Returns `isolated=False` with all scores 0.0 when history < 20 updates (no
+evidence yet). Assessment is entirely local — two sovereigns may reach different
+conclusions about the same counterparty based on their independent histories.
+
+The `SeedIsolationGate` can be added to a `BoundaryEngine` to block execution
+automatically once `seed_probability` exceeds the threshold.
+
+Options: `--seed-threshold` (default 0.5), `--format human|json`.
+
 ## Selective Disclosure Commands
 
 The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based

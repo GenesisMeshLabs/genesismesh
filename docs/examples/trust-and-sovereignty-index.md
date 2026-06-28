@@ -32,6 +32,7 @@ selective-disclosure
 distributed-consensus
 peer-risk-signals
 cascade-resilient-consensus
+adversarial-seed-isolation
 ```
 
 ## Start Here
@@ -213,6 +214,16 @@ Extends K-of-N voting with Context Divergence Score and Temporal Clustering
 Score. Assembly is blocked when CascadeScore exceeds threshold, preventing
 correlated validators from satisfying a threshold they appear to meet
 independently.
+:::
+
+:::{grid-item-card} Adversarial Seed Isolation
+:link: adversarial-seed-isolation
+:link-type: doc
+
+Pattern-based detection of credit-farming attacks on PeerRiskSignals. Three
+scores — Credit Farming (CFS), Volatility Discontinuity (VDS), and Streak
+Fragility (SFS) — identify adversarial histories that evaded per-update anomaly
+detection. SeedIsolationGate is opt-in. Each sovereign's assessment is independent.
 :::
 
 ::::

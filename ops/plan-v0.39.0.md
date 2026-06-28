@@ -173,21 +173,21 @@ Prints `SeedIsolationReport`. Exit 0 if not isolated, 1 if isolated.
 
 ## Success Criteria
 
-- [ ] `SeedIsolationReport` model with CFS, VDS, SFS, seed_probability
-- [ ] `assess_seed_isolation()` with configurable weights and thresholds
-- [ ] `SeedIsolationGate` callable gate for BoundaryEngine
-- [ ] CLI `trust risk assess-seed` subcommand
-- [ ] >= 30 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `SeedIsolationReport` model with CFS, VDS, SFS, seed_probability
+- [x] `assess_seed_isolation()` with configurable weights and thresholds
+- [x] `SeedIsolationGate` callable gate for BoundaryEngine
+- [x] CLI `trust risk assess-seed` subcommand
+- [x] >= 30 tests; all pass; full suite passes (41 new tests, 798 total)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.39.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/adversarial-seed-isolation.md` worked example
-- [ ] CLI reference updated
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.39.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/adversarial-seed-isolation.md` worked example
+- [x] CLI reference updated
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.39.0 - Adversarial Seed Isolation
+
+### Added
+
+- `SeedIsolationReport` model (`models/risk_signal.py`): captures Credit Farming
+  Score (CFS), Volatility Discontinuity Score (VDS), Streak Fragility Score (SFS),
+  weighted `seed_probability`, `isolated` flag, `threshold_used`, early/late window
+  means, max success streak, and discontinuity midpoint index.
+
+- `assess_seed_isolation()` (`trust/risk_signal.py`): computes the three pattern
+  scores over a counterparty's full `RiskSignalUpdate` history:
+  - **CFS** — `max(0, mean(early_window_deltas) - mean(late_window_deltas))`
+    (early window = first 20%, late window = last 20%)
+  - **VDS** — max over all midpoints of `|std(left_half) - std(right_half)|`
+    (identifies an abrupt behavioral mode switch)
+  - **SFS** — `(max_streak / n) × (1 - 0.5^max_streak)`
+    (measures implausibly long success streaks under a benign model)
+  - `seed_probability = 0.4 × CFS + 0.3 × VDS + 0.3 × SFS`
+  - Returns `isolated=False` with all scores `0.0` when history < 20 updates.
+  - Configurable: `seed_threshold`, `cfs_weight`, `vds_weight`, `sfs_weight`,
+    `min_history_for_assessment`.
+
+- `SeedIsolationGate` (`trust/risk_signal.py`): opt-in `BoundaryEngine` gate that
+  runs `assess_seed_isolation()` and blocks execution when `isolated=True`.
+
+- `genesis-mesh trust risk assess-seed` CLI subcommand: reads a `PeerRiskSignal`
+  and a sequence of `RiskSignalUpdate` files, outputs a `SeedIsolationReport`
+  in human or JSON format, exits 1 if isolated.
+
+- `docs/examples/adversarial-seed-isolation.md`: worked example covering the
+  farming attack pattern, score interpretation, gate integration, and failure cases.
+
+### Notes
+
+- Assessment is entirely local. Two sovereigns observing the same counterparty with
+  different histories will reach independent conclusions.
+- No single score can cause isolation with default weights (CFS-only max contribution
+  is 0.4, VDS-only 0.3, SFS-only 0.3). All three must fire to exceed the 0.5 threshold.
+- 41 new tests added; full suite (798) continues to pass.
+
+---
+
 ## v0.38.2 - Remove Vertical-Specific Material
 
 ### Removed

@@ -670,6 +670,20 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.39.0 — Adversarial Seed Isolation.** v0.37's anomaly detector catches sudden
+per-update drops but is blind to patient credit-farming attacks — an adversary who
+builds consistently positive history, then degrades gradually or triggers a
+coordinated event. v0.39 adds `assess_seed_isolation()`, a pattern-based local
+analysis of a counterparty's full `RiskSignalUpdate` history, scoring three
+orthogonal adversarial signals: Credit Farming (early-better-than-late mean delta),
+Volatility Discontinuity (abrupt variance change at a history midpoint), and Streak
+Fragility (implausibly long consecutive success run under a geometric benign model).
+The weighted combination becomes `seed_probability`; isolation is flagged when it
+exceeds a configurable threshold. The `SeedIsolationGate` plugs into the
+`BoundaryEngine`'s opt-in gate mechanism. Assessment is strictly local — each
+sovereign independently analyzes its own history for a counterparty and may reach
+different conclusions. 41 new tests.
+
 **v0.38.2 — Vertical Material Removal.** Documentation-only release. Removed
 commercial vertical artifacts (`examples/nba-demo-operators/`, `ops/nba/`) that
 were not aligned with the public protocol boundary. Replaced all
