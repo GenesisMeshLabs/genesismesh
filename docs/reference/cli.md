@@ -1125,6 +1125,53 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Trust Atlas Cache and Pruning Commands
+
+The following commands (v0.46) extend the existing `genesis-mesh trust atlas`
+group with path caching and graph pruning.
+
+### `genesis-mesh trust atlas cache`
+
+Pre-compute trust paths for (source, target) pairs and write a signed
+`TrustPathCache`.
+
+```bash
+genesis-mesh trust atlas cache \
+    --graph graph.json \
+    --pairs pairs.json \
+    --operator-sovereign operator-1 \
+    --path-ttl-seconds 300 \
+    --signing-key keys/operator.key \
+    --output cache.json
+```
+
+### `genesis-mesh trust atlas lookup`
+
+Query a `TrustPathCache` for a specific pair. Exits non-zero on cache miss.
+
+```bash
+genesis-mesh trust atlas lookup \
+    --cache cache.json \
+    --from sovereign-a \
+    --to sovereign-b \
+    --format json
+```
+
+### `genesis-mesh trust atlas prune`
+
+Prune expired/revoked/empty-scope edges from a graph and produce a signed
+`PrunedAtlasExport` with per-edge audit entries.
+
+```bash
+genesis-mesh trust atlas prune \
+    --graph graph.json \
+    --policy policy.json \
+    --operator-sovereign operator-1 \
+    --signing-key keys/operator.key \
+    --output-graph pruned.json \
+    --output-audit audit.json
+```
+
 ## Process-Level Execution Mediation Commands
 
 The `genesis-mesh trust guard` sub-group (v0.45) provides a local enforcement

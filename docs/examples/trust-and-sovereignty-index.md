@@ -39,6 +39,7 @@ ephemeral-identity-purge
 communication-privacy
 sovereign-overlay-discovery
 process-level-mediation
+trust-path-performance
 ```
 
 ## Start Here
@@ -288,6 +289,16 @@ GenesisGuard local enforcement sidecar: validates BoundaryDecision and IBCT
 before spawning subprocesses. Issues signed MediatedExecutionReceipts.
 Covers advisory mode and mandatory mediation mode with explicit 5-point
 enforcement checklist. Non-LLM, deterministic, no network access.
+:::
+
+:::{grid-item-card} Trust Path Performance and Atlas Pruning
+:link: trust-path-performance
+:link-type: doc
+
+TrustPathCache (signed, TTL-bound) accelerates repeat path lookups to O(1).
+GraphPruningPolicy removes expired, revoked, and empty-scope edges. Every
+pruning run produces a signed PrunedAtlasExport with per-edge audit entries
+and staleness guard (refuses to prune graphs older than policy max).
 :::
 
 ::::

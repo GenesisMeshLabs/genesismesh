@@ -9,11 +9,15 @@ import click
 
 from ..trust.evidence import graph_digest_from_export, verify_trust_evidence
 from ..models.evidence import TrustEvidence
+from .atlas_cache_ops import register_atlas_cache_commands
 
 
 @click.group()
 def atlas() -> None:
     """Trust graph exploration and evidence overlay."""
+
+
+register_atlas_cache_commands(atlas)
 
 
 @atlas.command("build")

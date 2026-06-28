@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.46.0 - Trust Path Performance and Atlas Pruning
+
+### Added
+
+- `TrustPathEntry`, `TrustPathCache`, `GraphPruningPolicy`, `PruningAuditEntry`,
+  `PrunedAtlasExport` models (`models/atlas.py`):
+  - `TrustPathEntry`: signed, TTL-bound cache entry for a (source, target) pair
+  - `TrustPathCache`: collection of entries for a given graph snapshot
+  - `GraphPruningPolicy`: operator rules for edge removal (3 conditions + staleness guard)
+  - `PrunedAtlasExport`: signed pruned graph snapshot with per-edge audit log
+
+- `cache_trust_path()` (`trust/atlas.py`): BFS path computation over
+  `recognition_edges`, signed and TTL-bounded.
+
+- `lookup_trust_path()` (`trust/atlas.py`): O(1) cache lookup — returns None
+  if expired, pair not found, or graph digest mismatch.
+
+- `build_trust_path_cache()` (`trust/atlas.py`): pre-compute many pairs at once;
+  returns signed `TrustPathCache`.
+
+- `prune_graph()` (`trust/atlas.py`): removes edges matching policy
+  (`expired_treaty`, `revoked_cert`, `empty_scope`); staleness guard raises
+  `ValueError` if graph is too old; returns `(pruned_graph, PrunedAtlasExport)`.
+
+- `genesis-mesh trust atlas cache / lookup / prune` CLI extensions (registered
+  onto existing `atlas` group via `register_atlas_cache_commands()`).
+
+- `docs/examples/trust-path-performance.md`
+
+### Notes
+
+- Scope: optimizes path computation and graph management only. Not a live
+  distributed graph database or real-time push.
+- 21 new tests; 1004 total pass.
+
+---
+
 ## v0.45.0 - Process-Level Execution Mediation
 
 ### Added

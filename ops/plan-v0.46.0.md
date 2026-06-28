@@ -207,22 +207,22 @@ trust atlas prune    --graph graph.json --policy policy.json
 
 ## Success Criteria
 
-- [ ] `TrustPathEntry`, `TrustPathCache`, `GraphPruningPolicy`, `PrunedAtlasExport` models
-- [ ] `cache_trust_path()`, `lookup_trust_path()`, `prune_graph()`, `build_trust_path_cache()`
-- [ ] Cache invalidation on TTL expiry and graph digest mismatch
-- [ ] Pruning audit log with per-edge removal reasons
-- [ ] CLI `trust atlas` extension with cache / lookup / prune
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `TrustPathEntry`, `TrustPathCache`, `GraphPruningPolicy`, `PrunedAtlasExport` models
+- [x] `cache_trust_path()`, `lookup_trust_path()`, `prune_graph()`, `build_trust_path_cache()`
+- [x] Cache invalidation on TTL expiry and graph digest mismatch
+- [x] Pruning audit log with per-edge removal reasons
+- [x] CLI `trust atlas` extension with cache / lookup / prune
+- [x] 21 tests; all pass; full suite passes (1004)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.46.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/trust-path-performance.md` worked example
-- [ ] CLI reference updated
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.46.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/trust-path-performance.md` worked example
+- [x] CLI reference updated
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

@@ -670,6 +670,15 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.46.0 — Trust Path Performance and Atlas Pruning.** Introduces signed
+TTL-bound trust path caching and verifiable graph pruning. A `TrustPathCache`
+lets operators pre-compute BFS trust paths for (source, target) pairs and
+serve repeat lookups in O(1) without re-traversing the graph.
+`GraphPruningPolicy` removes three categories of stale edges (expired treaties,
+revoked certificates, empty scopes) with a staleness guard that refuses to
+prune graphs older than the policy maximum. Every pruning run produces a signed
+`PrunedAtlasExport` with per-edge `PruningAuditEntry` records. 21 new tests.
+
 **v0.45.0 — Process-Level Execution Mediation.** Introduces GenesisGuard, a
 local enforcement sidecar satisfying Pirch (arXiv:2605.14932)'s requirement
 for a non-agent, deterministic mediator. GenesisGuard validates
