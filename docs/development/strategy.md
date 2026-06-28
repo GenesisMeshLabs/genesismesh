@@ -280,7 +280,7 @@ The strongest adoption hypothesis is **open-source supply-chain maintainers**,
 because maintainer compromise, delegated publishing, and revocation after
 incidents are concrete, named pain that Genesis Mesh primitives map onto
 directly. Adoption tracking and recruitment for this hypothesis live in
-[`go-to-market.md`](go-to-market.md), not in this strategy document.
+`ops/go-to-market.md`, not in this strategy document.
 
 These are not in conflict. The demo is a template that proves the protocol
 mechanism; the adoption push targets the community whose recognition has the
@@ -343,7 +343,7 @@ Genesis Mesh is not:
 These may be built on top of the protocol later. They should not be confused
 with the protocol itself.
 
-## Current State (v0.48.0)
+## Current State (v0.49.0)
 
 Three complete trust cycles have shipped.
 
@@ -357,13 +357,13 @@ signed gate-trace justification proofs, human-in-the-loop dual-signed commitment
 Merkle selective disclosure, K-of-N distributed consensus authorization, and
 locally-computed peer risk signals.
 
-**Phase J (v0.38–v0.48) — Third Trust Cycle.** Cascade-resilient consensus,
+**Phase J (v0.38–v0.49) — Third Trust Cycle.** Cascade-resilient consensus,
 adversarial seed isolation, verifiable logic attestation, context-injection defense,
 ephemeral identity purge, communication privacy, sovereign overlay discovery,
 process-level execution mediation, trust path performance and atlas pruning, data
-usage attestation, and formal Tamarin verification of the PeerRiskSignal state
-machine. Three maintenance releases enforced the layer rule and removed vertical
-material from the public repo.
+usage attestation, formal Tamarin verification of the PeerRiskSignal state machine,
+25 animated terminal demos across all protocol features, and a documentation
+restructure that splits the full project history into 10 per-phase pages.
 
 The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
 logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.

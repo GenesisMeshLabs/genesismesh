@@ -8,7 +8,7 @@ workflows, marketplaces, and economies are overlays on top of that
 trust fabric, never the foundation.
 
 This document is the short version. Full architecture lives in
-[`ops/strategy.md`](ops/strategy.md). Release milestones live in
+[`docs/development/strategy.md`](docs/development/strategy.md). Release milestones live in
 [`docs/development/roadmap.md`](docs/development/roadmap.md). When this document conflicts with
 those, the canonical files win.
 
@@ -128,8 +128,8 @@ Genesis Mesh itself.
 
 - New here: [`README.md`](README.md) and [`docs/quickstart.md`](docs/quickstart.md).
 - Working in the codebase: [`AGENT.md`](AGENT.md).
-- Architectural depth: [`ops/strategy.md`](ops/strategy.md).
-- Release plan and milestones: [`ops/roadmap.md`](ops/roadmap.md) and
+- Architectural depth: [`docs/development/strategy.md`](docs/development/strategy.md).
+- Release plan and milestones: [`docs/development/roadmap.md`](docs/development/roadmap.md) and
   [`ops/plan-v0.*.md`](ops/).
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - Security policy: [`SECURITY.md`](SECURITY.md).

@@ -226,6 +226,7 @@ development/phases/phase-g
 development/phases/phase-h
 development/phases/phase-i
 development/phases/phase-j
+development/strategy
 development/roadmap
 development/phase-1-rollout-closure
 development/phase-2-externalization

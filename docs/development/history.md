@@ -6,7 +6,7 @@ pages. Each phase page names the question the phase answered, what changed,
 what guarantees were added, and what became possible.
 
 The canonical sources behind this document are the per-release plans under
-`ops/`, the architectural thesis in `ops/strategy.md`, and the project
+`ops/`, the architectural thesis in {doc}`strategy`, and the project
 `VISION.md`.
 
 ---
@@ -169,7 +169,7 @@ As of v0.48.1, the following are *not* yet true:
 ## 5. Where to Read More
 
 - Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`
-- Architecture and design philosophy: `ops/strategy.md`
+- Architecture and design philosophy: {doc}`strategy`
 - Per-release plans: `ops/plan-v0.*.md`
 - Phase 2 externalization plan: {doc}`phase-2-externalization`
 - Project vision and the "what we will not build" list: `VISION.md`
