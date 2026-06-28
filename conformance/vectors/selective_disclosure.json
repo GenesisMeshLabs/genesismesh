@@ -1,0 +1,87 @@
+{
+  "suite": "selective_disclosure",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "sd-001",
+      "description": "prove 'write' membership in a 3-capability Merkle commitment",
+      "input": {
+        "commitment": {
+          "commitment_id": "803f8375-34f5-42f0-8771-b1b11bd5ca35",
+          "merkle_root": "6d048369a4dda703e61189433bb33838d3b6075a66500360127d16a5f075939f",
+          "capability_count": 3,
+          "agreement_id": "4319206e-e378-4c63-a03b-feb881df7eb6",
+          "committed_at": "2026-01-01T00:00:00Z",
+          "issuer_sovereign_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "signature": {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "h7y1IDzGkzI/ZRIf0OiVeyQfR7+NABOjCeiyVmU/iLV70/y4AshyJYCWi0AwyVku3Qy4IKAf59vdWPO+nwu7BQ=="
+          }
+        },
+        "proof": {
+          "proof_id": "0688cc32-8274-435a-a19a-e51fba5b31fa",
+          "commitment_id": "803f8375-34f5-42f0-8771-b1b11bd5ca35",
+          "revealed_capability": "write",
+          "leaf_hash": "10fd874b68dad080ed706762c8e163dabb20514bddae38fb159c56f714a3b143",
+          "merkle_path": [
+            {
+              "sibling_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "is_left": false
+            },
+            {
+              "sibling_hash": "ff26a2c4a5f29b504c651fb23186b3416f75018e7036a471b50d1259d0d83014",
+              "is_left": true
+            }
+          ],
+          "prover_sovereign_id": "sovereign-b",
+          "proved_at": "2026-01-01T00:00:00Z"
+        },
+        "issuer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "capability": "write"
+      }
+    },
+    {
+      "id": "sd-002",
+      "description": "nullifier issued for a used disclosure proof",
+      "input": {
+        "proof": {
+          "proof_id": "0688cc32-8274-435a-a19a-e51fba5b31fa",
+          "commitment_id": "803f8375-34f5-42f0-8771-b1b11bd5ca35",
+          "revealed_capability": "write",
+          "leaf_hash": "10fd874b68dad080ed706762c8e163dabb20514bddae38fb159c56f714a3b143",
+          "merkle_path": [
+            {
+              "sibling_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "is_left": false
+            },
+            {
+              "sibling_hash": "ff26a2c4a5f29b504c651fb23186b3416f75018e7036a471b50d1259d0d83014",
+              "is_left": true
+            }
+          ],
+          "prover_sovereign_id": "sovereign-b",
+          "proved_at": "2026-01-01T00:00:00Z"
+        }
+      },
+      "expected": {
+        "nullifier": {
+          "nullifier_id": "e2ed622b-d20a-4dc1-a7ef-7450457974f5",
+          "proof_id": "0688cc32-8274-435a-a19a-e51fba5b31fa",
+          "nonce": "f14c0d7c38d2478cd857d08e34486cfb",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T00:01:00Z",
+          "prover_sovereign_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "signature": {
+            "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "sig": "aYX1YMH48mI6tN+ahhWlRKfNILhUuUINJ7jjY0bHKv51s5qbIY3kkS2rNrWZUaAqBtWJ2fK5nY2DhcvtW/H5CA=="
+          }
+        }
+      }
+    }
+  ]
+}

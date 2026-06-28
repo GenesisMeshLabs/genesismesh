@@ -1,0 +1,47 @@
+{
+  "suite": "attestations",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "att-001",
+      "description": "ModelAttestation binding agent, model, prompt, and tools",
+      "input": {
+        "attestation": {
+          "attestation_id": "11996374-33a2-4153-b7ba-53eaf2327e17",
+          "agent_sovereign_id": "sovereign-a",
+          "model_id": "gpt-4o",
+          "model_version_tag": "2025-01",
+          "system_prompt_hash": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+          "tool_manifest_hash": "3871198aaf3d6998bc147e0e321096e9aff5c9e9ccf551358055d773c64080b0",
+          "token_id": "00000000-0000-4000-8000-000000000001",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T00:05:00Z",
+          "signature": {
+            "key_id": "sovereign-a",
+            "sig": "vYLriyQYKzmPl2u58vqi6nA6Auex+NzKVDfd5VmOIj/lE3RtzdUYbzJBOr/n4K6PBMYzmKleWgilpvblEuywBA=="
+          }
+        },
+        "policy": {
+          "policy_id": "00000000-0000-4000-8000-000000000002",
+          "operator_sovereign_id": "sovereign-a",
+          "allowed_model_ids": [
+            "gpt-4o"
+          ],
+          "allowed_system_prompt_hashes": [],
+          "allowed_tool_manifest_hashes": [],
+          "require_bound_token": false,
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "signature": null
+        },
+        "agent_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "reason": "valid"
+      }
+    }
+  ]
+}

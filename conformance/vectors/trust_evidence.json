@@ -1,0 +1,45 @@
+{
+  "suite": "trust_evidence",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "te-001",
+      "description": "TrustEvidence packaging an allow TrustDecision",
+      "input": {
+        "evidence": {
+          "evidence_id": "c62713c5-a13c-4d37-aa41-9a149f5576f2",
+          "issuer_sovereign_id": "sovereign-a",
+          "source_sovereign_id": "sovereign-a",
+          "target_sovereign_id": "sovereign-b",
+          "verdict": "allow",
+          "reason": "TREATY_RECOGNIZED",
+          "requested_roles": [
+            "anchor"
+          ],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [],
+          "graph_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "evaluated_at": "2026-01-01T00:00:00+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "NCTKPI8+SqkOwyHnKMJ79vFPP3b82q+2/odJ4GxaXZMsuN0QCZbsNXd/Gab3652Lr6xZ+wyCJUOwcDTFAd8CDA=="
+            }
+          ]
+        },
+        "issuer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ],
+        "expected_graph_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "expected": {
+        "accepted": true,
+        "verdict": "allow"
+      }
+    }
+  ]
+}

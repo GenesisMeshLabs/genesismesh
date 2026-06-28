@@ -1,0 +1,46 @@
+{
+  "suite": "treaties",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "treaty-001",
+      "description": "valid RecognitionTreaty from sovereign-a recognizing sovereign-b",
+      "input": {
+        "treaty": {
+          "treaty_id": "00000000-0000-4000-8000-000000000001",
+          "issuer_sovereign_id": "sovereign-a",
+          "subject_sovereign_id": "sovereign-b",
+          "subject_public_keys": [
+            "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "key-a",
+              "sig": "rWWHRZUxF2dfTddgMj6cZn2Y/S8UhxoHFhVRaNH25F2TM/MTdCn+VL5Hm2HIr989+7qvPcJ4ZDoU7DUnf4sFBg=="
+            }
+          ]
+        },
+        "issuer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "treaty_id": "00000000-0000-4000-8000-000000000001"
+      }
+    }
+  ]
+}

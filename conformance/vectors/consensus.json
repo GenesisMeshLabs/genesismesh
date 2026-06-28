@@ -1,0 +1,86 @@
+{
+  "suite": "consensus",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "con-001",
+      "description": "3-of-3 ConsensusProof (threshold=2) over a JustificationProof",
+      "input": {
+        "proof": {
+          "consensus_id": "7e67702e-47d2-4310-a57a-f5a2d5766494",
+          "proof_id": "c8e242fe-8c48-423e-8c3d-fad63f6a8687",
+          "decision_id": "00000000-0000-4000-8000-000000000002",
+          "required_threshold": 2,
+          "validator_sovereign_ids": [
+            "sovereign-a",
+            "sovereign-b",
+            "sovereign-c"
+          ],
+          "votes": [
+            {
+              "vote_id": "a4a9e0dc-9bed-401c-bb8c-9103e4011cd0",
+              "proof_id": "c8e242fe-8c48-423e-8c3d-fad63f6a8687",
+              "decision_id": "00000000-0000-4000-8000-000000000002",
+              "validator_sovereign_id": "sovereign-a",
+              "vote": true,
+              "reason": "Justification is valid",
+              "voted_at": "2026-01-01T00:00:00Z",
+              "context_digest": "64577d60f5ffa5562611c40df1a7aaf8b6e3244a56ab9f80d483366c6692422f",
+              "signature": {
+                "key_id": "sovereign-a",
+                "sig": "XuNFaYklrTkEiEJImcZ4dVyc2gqyfdT5bJdJqQpO3n9R5qgEN5OEfxFcX53CpiMSA0MPGxHbuhzaXaBlXVPsAw=="
+              }
+            },
+            {
+              "vote_id": "f9f16d9a-6bbf-4eb0-bb37-5b1896f56a70",
+              "proof_id": "c8e242fe-8c48-423e-8c3d-fad63f6a8687",
+              "decision_id": "00000000-0000-4000-8000-000000000002",
+              "validator_sovereign_id": "sovereign-b",
+              "vote": true,
+              "reason": "Justification is valid",
+              "voted_at": "2026-01-01T00:00:00Z",
+              "context_digest": "0e93cef6981c852bedde67ee47f143e13bc33b7169cd69740e8c315fcc18a9ad",
+              "signature": {
+                "key_id": "sovereign-b",
+                "sig": "CBRDi3ZA6Ki8MLOMRaYTIgRIrdBwv02Cxh/YAey6/ut4nGCSJ9DghrnyyISyVIfmo8F/KQu7Bok4BVE2D/1aDg=="
+              }
+            },
+            {
+              "vote_id": "196bc196-8cfe-4ffc-afae-e66c10d7753a",
+              "proof_id": "c8e242fe-8c48-423e-8c3d-fad63f6a8687",
+              "decision_id": "00000000-0000-4000-8000-000000000002",
+              "validator_sovereign_id": "sovereign-c",
+              "vote": true,
+              "reason": "Justification is valid",
+              "voted_at": "2026-01-01T00:00:00Z",
+              "context_digest": "b5285222c85d685fe3bab4262c39f5da4fb0d814af5fdd3b7a11dec60e01fafe",
+              "signature": {
+                "key_id": "sovereign-c",
+                "sig": "fetS2rd0KRfbUGD/4Epb8UseeLcuWeSXBWZuG22Wgku1Nf4h1AhuglcYBuoTJr/5pvBhRO9kFJosQEjYeVTYCw=="
+              }
+            }
+          ],
+          "reached_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T01:00:00Z",
+          "cascade_assessment_digest": "dd9083cd01716527ca3dc6ec6edcb67961cba15b2fc35dbe4b9dbdb5eb529c36",
+          "signature": {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "4i2JJ5CAhGgoI+owel1m2IeL3MEaQ+AgmsfOu5sgtDnHceL5wTrvKptPsp7XJrJFOepEDpX2o5BK/aEH00anBg=="
+          }
+        },
+        "assembler_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ],
+        "validator_public_keys": {
+          "sovereign-a": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "sovereign-b": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "sovereign-c": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        }
+      },
+      "expected": {
+        "valid": true,
+        "vote_count": 3
+      }
+    }
+  ]
+}

@@ -58,7 +58,7 @@ Ten phases, each answering one open question.
 | G | v0.22.0 – v0.25.0 | Application Layer | {doc}`phases/phase-g` |
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
-| J | v0.38.0 – v0.50.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| J | v0.38.0 – v0.51.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
 proved it carries real workloads and crosses real cloud boundaries.
@@ -115,7 +115,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.50.0:
+As of v0.51.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -156,11 +156,14 @@ As of v0.50.0:
 - Structured issue templates, a PR template, CODEOWNERS, a full
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
+- A versioned public API stability contract is declared in
+  `docs/stability.md`, with a formal deprecation policy in
+  `DEPRECATION_POLICY.md`.
+- A protocol conformance suite exists in `conformance/`: 9 suites,
+  11 deterministic vectors, a reference runner, and a pytest integration.
 
-As of v0.50.0, the following are *not* yet true:
+As of v0.51.0, the following are *not* yet true:
 
-- A stable, versioned public API contract has not been declared.
-- A protocol conformance suite does not yet exist.
 - Genesis Mesh does not yet have TypeScript, Go, or C# SDKs.
 - A second independent implementation has not yet been built.
 - No external operator has yet run a sovereign with their own

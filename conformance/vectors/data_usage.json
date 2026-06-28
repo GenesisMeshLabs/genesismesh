@@ -1,0 +1,61 @@
+{
+  "suite": "data_usage",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "du-001",
+      "description": "DataAccessIntent within policy; no violations",
+      "input": {
+        "intent": {
+          "intent_id": "889f0290-5868-4a79-a718-7608fa829da3",
+          "agent_sovereign_id": "sovereign-b",
+          "decision_id": "00000000-0000-4000-8000-000000000002",
+          "declared_sources": [
+            {
+              "source_id": "dataset-alpha",
+              "source_type": "tabular",
+              "owner_sovereign_id": "sovereign-a",
+              "classification_tags": []
+            }
+          ],
+          "declared_access_types": [
+            "read"
+          ],
+          "estimated_volume_bytes": null,
+          "declared_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T01:00:00Z",
+          "signature": {
+            "key_id": "sovereign-b",
+            "sig": "TSDG3dk4hGEQPzwi9z3r/8GhPw3n+nkjCuHSkF6MffWRxYsUT5qbuRfdpbDYmha1OR7Z2Elv5stUvAEPEwmtCw=="
+          }
+        },
+        "policy": {
+          "policy_id": "00000000-0000-4000-8000-000000000001",
+          "licensor_sovereign_id": "sovereign-a",
+          "licensee_sovereign_id": "sovereign-b",
+          "allowed_source_ids": [
+            "dataset-alpha"
+          ],
+          "allowed_access_types": [
+            "read"
+          ],
+          "max_volume_bytes_per_session": null,
+          "prohibited_classification_tags": [],
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "signature": {
+            "key_id": "key-a",
+            "sig": "t8OeDneF/2XEVklQ/TAx8zDbJMXeQGrKhPfvxtFLqd66c3+baWKylWTkUyvIMjqeJg4DoEGk41VIR9OseSk4CQ=="
+          }
+        },
+        "agent_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "violation_count": 0
+      }
+    }
+  ]
+}

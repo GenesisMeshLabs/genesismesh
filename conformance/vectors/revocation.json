@@ -1,0 +1,38 @@
+{
+  "suite": "revocation",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "rev-001",
+      "description": "SovereignRevocationFeed revoking one attestation",
+      "input": {
+        "feed": {
+          "feed_id": "00000000-0000-4000-8000-000000000002",
+          "issuer_sovereign_id": "sovereign-a",
+          "sequence": 1,
+          "issued_at": "2026-01-01T00:00:00Z",
+          "revoked_attestation_ids": [
+            "00000000-0000-4000-8000-000000000001"
+          ],
+          "revocation_reasons": {
+            "00000000-0000-4000-8000-000000000001": "POLICY_VIOLATION"
+          },
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "signatures": [
+            {
+              "key_id": "key-a",
+              "sig": "oKhtYq1/Z/5tEBI4WZAL6/CueBoaBrGND9Qc8qaT+YOvMfhv1tWhLzIBkDGVriKXE/MWENzoDgbYRQGo7ZYqBQ=="
+            }
+          ]
+        },
+        "issuer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "revoked_count": 1
+      }
+    }
+  ]
+}

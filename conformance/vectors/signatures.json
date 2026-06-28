@@ -1,0 +1,31 @@
+{
+  "suite": "signatures",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "sig-001",
+      "description": "Ed25519 sign canonical JSON of RecognitionTreaty; verify with matching key",
+      "input": {
+        "canonical_json": "{\"expires_at\":\"2027-01-01T00:00:00Z\",\"issued_at\":\"2026-01-01T00:00:00Z\",\"issued_by\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"issuer_sovereign_id\":\"sovereign-a\",\"metadata\":{},\"scope\":{\"accepted_statuses\":[\"active\"],\"allowed_roles\":[],\"claims\":{}},\"status\":\"active\",\"subject_public_keys\":[\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\"],\"subject_sovereign_id\":\"sovereign-b\",\"treaty_id\":\"00000000-0000-4000-8000-000000000001\",\"valid_from\":\"2026-01-01T00:00:00Z\"}",
+        "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "key_id": "key-a"
+      },
+      "expected": {
+        "signature_b64": "rWWHRZUxF2dfTddgMj6cZn2Y/S8UhxoHFhVRaNH25F2TM/MTdCn+VL5Hm2HIr989+7qvPcJ4ZDoU7DUnf4sFBg==",
+        "valid": true
+      }
+    },
+    {
+      "id": "sig-002",
+      "description": "signature from key-a must not verify against key-b",
+      "input": {
+        "canonical_json": "{\"expires_at\":\"2027-01-01T00:00:00Z\",\"issued_at\":\"2026-01-01T00:00:00Z\",\"issued_by\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"issuer_sovereign_id\":\"sovereign-a\",\"metadata\":{},\"scope\":{\"accepted_statuses\":[\"active\"],\"allowed_roles\":[],\"claims\":{}},\"status\":\"active\",\"subject_public_keys\":[\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\"],\"subject_sovereign_id\":\"sovereign-b\",\"treaty_id\":\"00000000-0000-4000-8000-000000000001\",\"valid_from\":\"2026-01-01T00:00:00Z\"}",
+        "signature_b64": "rWWHRZUxF2dfTddgMj6cZn2Y/S8UhxoHFhVRaNH25F2TM/MTdCn+VL5Hm2HIr989+7qvPcJ4ZDoU7DUnf4sFBg==",
+        "public_key_b64": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+      },
+      "expected": {
+        "valid": false
+      }
+    }
+  ]
+}

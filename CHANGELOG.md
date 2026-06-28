@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.51.0 - Public API Stability + Protocol Conformance Suite
+
+### Added
+
+- `conformance/vectors/` — 9 deterministic JSON vector files covering every
+  major trust operation: signatures, treaties, attestations, revocation,
+  IBCT, trust evidence, selective disclosure, consensus, and data usage.
+  All vectors use fixed Ed25519 seeds and timestamps so they are stable
+  across runs and across implementations.
+- `conformance/generate_vectors.py` — reference generator that produces
+  the vector files from the Python implementation.
+- `conformance/runner.py` — suite runner that loads vectors and re-executes
+  every assertion against the installed `genesis_mesh` package.
+  `run_suite(name)` and `run_all()` are importable for third-party use.
+- `conformance/CONFORMANCE.md` — conformance specification for alternative
+  implementations (TypeScript, Go, C#, etc.).
+- `conformance/README.md` — quick-start instructions for the conformance suite.
+- `genesis_mesh/tests/test_conformance.py` — parametrized pytest that runs
+  all 9 suites; 11 vectors total.
+- `docs/stability.md` — first versioned public API contract: lists every
+  stable CLI command and Python symbol with the version it stabilized in,
+  plus beta symbols and internal exclusions.
+- `DEPRECATION_POLICY.md` — formal deprecation cycle: announce → one minor
+  version maintenance window → removal, with security-fix exemption.
+
+### No breaking changes
+
+All existing stable symbols retain their signatures.
+
+---
+
 ## v0.50.0 - Maintainer Quality
 
 ### Added

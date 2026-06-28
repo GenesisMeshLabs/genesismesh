@@ -1,0 +1,39 @@
+{
+  "suite": "ibct",
+  "version": "0.51.0",
+  "vectors": [
+    {
+      "id": "ibct-001",
+      "description": "InvocationToken issued against a valid AgreementRecord",
+      "input": {
+        "token": {
+          "token_id": "10f1f364-9be9-4eb3-9f96-3b7b436fa84c",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T01:00:00Z",
+          "issuer_sovereign_id": "sovereign-a",
+          "bearer_sovereign_id": "sovereign-b",
+          "agreement_id": "c856fff8-065c-435a-8bce-ab8dabd93c42",
+          "delegation_id": null,
+          "capabilities": [
+            "read"
+          ],
+          "max_invocations": 5,
+          "policy_constraints": [],
+          "signature": {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "EkLXhaHhdirK8xGkZrxTJUay07XjsgbgaFL6BS2nIMkThXR5lX5A3OsFLjz4DD/WF70/MDMwMcWYPTs0Wn40Dg=="
+          }
+        },
+        "issuer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "capabilities": [
+          "read"
+        ]
+      }
+    }
+  ]
+}
