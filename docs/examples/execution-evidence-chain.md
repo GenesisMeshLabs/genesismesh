@@ -6,7 +6,7 @@ integrity.
 
 ## Scenario
 
-**aspayr** and **bank-a** have an active `AgreementRecord` for
+**org-a** and **bank-a** have an active `AgreementRecord` for
 `transactions.read`. After **bank-a**'s BoundaryEngine issues a
 `BoundaryDecision` authorizing the request, **bank-a** executes the
 capability three times and records each execution as a signed

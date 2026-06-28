@@ -29,9 +29,9 @@ The core invariant is:
 ## Architecture
 
 ```
-AgreementRecord  (aspayr ↔ bank-a)        — root, dual-signed
+AgreementRecord  (org-a ↔ bank-a)        — root, dual-signed
       ↓
-DelegatedAgreementRecord  (aspayr → agent-x)  — hop 1, dual-signed
+DelegatedAgreementRecord  (org-a → agent-x)  — hop 1, dual-signed
       ↓
 DelegatedAgreementRecord  (agent-x → agent-y) — hop 2, dual-signed
 ```
@@ -42,23 +42,23 @@ DelegatedAgreementRecord  (agent-x → agent-y) — hop 2, dual-signed
 - Each delegating party's Ed25519 operator key.
 - Each receiving party's recognition-graph export.
 
-## Flow: Aspayr delegates to Agent X
+## Flow: Org-A delegates to Agent X
 
-### 1. Aspayr creates the delegation (half-signed)
+### 1. Org-A creates the delegation (half-signed)
 
 ```bash
 genesis-mesh trust delegate create \
     --agreement agreement.json \
-    --from aspayr \
+    --from org-a \
     --to agent-x \
     --capability transactions.read \
     --valid-until 2026-12-01T00:00:00Z \
-    --graph aspayr-graph.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --graph org-a-graph.json \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output delegation-half.json
 ```
 
-Aspayr sends `delegation-half.json` to Agent X.
+Org-A sends `delegation-half.json` to Agent X.
 
 ### 2. Agent X cosigns (dual-signed)
 
@@ -78,9 +78,9 @@ genesis-mesh trust delegate cosign \
 genesis-mesh trust delegate verify \
     --agreement agreement.json \
     --delegation delegation.json \
-    --offerer-public-key <aspayr-pub-b64> \
+    --offerer-public-key <org-a-pub-b64> \
     --responder-public-key <bank-pub-b64> \
-    --key aspayr:<aspayr-pub-b64> \
+    --key org-a:<org-a-pub-b64> \
     --key agent-x:<agent-x-pub-b64>
 ```
 
@@ -121,9 +121,9 @@ genesis-mesh trust delegate verify \
     --agreement agreement.json \
     --delegation delegation.json \
     --delegation delegation2.json \
-    --offerer-public-key <aspayr-pub-b64> \
+    --offerer-public-key <org-a-pub-b64> \
     --responder-public-key <bank-pub-b64> \
-    --key aspayr:<aspayr-pub-b64> \
+    --key org-a:<org-a-pub-b64> \
     --key agent-x:<agent-x-pub-b64> \
     --key agent-y:<agent-y-pub-b64>
 ```

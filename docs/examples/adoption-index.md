@@ -18,7 +18,6 @@ operator-onboarding-exchange
 treaty-lifecycle-management
 sovereign-health-dashboard
 maintainer-sovereign-pitch
-nba-team-operators
 sigstore-comparison
 ```
 
@@ -75,15 +74,6 @@ freshness, recent trust changes, and raw verification links.
 
 A recruitment-oriented page aimed at open-source maintainers explaining the
 concrete reasons to stand up a sovereign.
-:::
-
-:::{grid-item-card} NBA Team-Operator Demo
-:link: nba-team-operators
-:link-type: doc
-
-A synthetic two-sovereign demo of the "team as operator" pattern behind the
-Aspayr Athlete Financial Twin direction - team-shaped sovereigns recognize each
-other and propagate a revocation. No affiliation, no real data.
 :::
 
 :::{grid-item-card} Genesis Mesh vs Sigstore And SLSA

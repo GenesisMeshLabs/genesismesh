@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.38.2 - Remove Vertical-Specific Material
+
+### Removed
+
+- Deleted `examples/nba-demo-operators/` and `ops/nba/` — commercial vertical
+  artifacts not aligned with the public protocol documentation.
+- Deleted `docs/examples/nba-team-operators.md` and removed the toctree entry
+  from the adoption-examples index.
+- Deleted `ops/plan-v0.22.0.md`.
+
+### Changed
+
+- Retroactively neutralized the v0.22.0 CHANGELOG and history.md entries to
+  describe the generic "organization as operator" pattern instead of the
+  NBA-branded framing.
+- Replaced all `aspayr` sovereign name references in documentation examples
+  (`relationship-agreement.md`, `delegation-chain.md`, `formal-verification.md`,
+  `execution-evidence-chain.md`, `relationship-context.md`,
+  `invocation-bound-tokens.md`, `docs/reference/cli.md`) with the generic
+  placeholder `org-a`.
+
+### Notes
+
+- No protocol changes, no API changes, no test changes.
+- Vertical-specific material may return if a real adopter exists and makes the
+  example legitimate in a protocol context.
+
+---
+
 ## v0.38.1 - Codebase Modularity Cleanup (internal maintenance)
 
 ### Changed
@@ -812,28 +841,13 @@ properties and portable interop adapters for SPIFFE, W3C VC, and JOSE/JWT.
   the full CLI test suite, mypy, and the Sphinx docs build with warnings as
   errors.
 
-## v0.22.0 - NBA Team-Operator Demo
+## v0.22.0 - Cross-Sovereign Pattern Demonstration
 
 ### Added
 
-- Added a synthetic two-sovereign demo of the "team as operator" pattern: two
-  team-shaped Network Authorities (`BOS-NA`, `SAS-NA`) recognize each other
-  through a signed treaty and propagate a revocation across that boundary.
-- Added public demo artifacts under `examples/nba-demo-operators/` (signed
-  genesis blocks, a validated trust bundle, the Connectome, and a redacted proof
-  bundle).
-- Added the `docs/examples/nba-team-operators.md` walkthrough and linked it from
-  the adoption examples index.
-- Linked the demo from the Aspayr NBA operator packet under `ops/nba/` as its
-  technical proof point.
-
-### Notes
-
-- `BOS-NA` and `SAS-NA` are synthetic, locally generated demo sovereigns named
-  after NBA cities to illustrate the operator pattern. They are not affiliated
-  with, endorsed by, or operated by any NBA team, the NBA, or the NBPA, contain
-  no real athlete data, and are deliberately kept out of the maintainer-operated multi-cloud sovereign
-  sovereign fleet.
+- Added a two-sovereign demo of the "organization as operator" pattern:
+  two independently-keyed Network Authorities recognize each other through
+  a signed treaty and propagate a revocation across that boundary.
 
 ### Changed
 

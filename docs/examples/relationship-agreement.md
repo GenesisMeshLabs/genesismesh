@@ -12,7 +12,7 @@ The protocol is: **Offer → Counter-offer (optional) → Acceptance**.
 
 ```{mermaid}
 sequenceDiagram
-    participant A as Aspayr (offerer)
+    participant A as Org-A (offerer)
     participant B as Bank A (responder)
 
     A->>A: evaluate trust → offerer_evidence
@@ -40,29 +40,29 @@ sequenceDiagram
 
 ## Prerequisites
 
-Two sovereigns (Aspayr and Bank A) each holding:
+Two sovereigns (Org-A and Bank A) each holding:
 - A recognition-graph export (from `/recognition-graph`)
 - An Ed25519 operator private key
 - An active treaty toward the other party
 
 ## Flow A: Offer → Counter-offer → Acceptance (recommended)
 
-### 1. Aspayr builds and signs an Offer
+### 1. Org-A builds and signs an Offer
 
 ```bash
 genesis-mesh trust agree offer \
-    --from aspayr \
+    --from org-a \
     --to bank-a \
     --capability transactions.read \
     --capability balances.read \
     --scope '{"delegation": false}' \
     --valid-until 2027-01-01T00:00:00Z \
-    --graph aspayr-graph.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --graph org-a-graph.json \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output offer.json
 ```
 
-Aspayr sends `offer.json` to Bank A.
+Org-A sends `offer.json` to Bank A.
 
 ### 2. Bank A builds a Counter-offer
 
@@ -78,15 +78,15 @@ genesis-mesh trust agree counter \
     --output counter.json
 ```
 
-Bank A sends `counter.json` back to Aspayr.
+Bank A sends `counter.json` back to Org-A.
 
-### 3. Aspayr accepts the Counter-offer
+### 3. Org-A accepts the Counter-offer
 
 ```bash
 genesis-mesh trust agree accept \
     --counter counter.json \
     --offer offer.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output agreement.json
 ```
 
@@ -99,9 +99,9 @@ counter signature is valid over the agreement.
 ```bash
 genesis-mesh trust agree verify \
     --agreement agreement.json \
-    --offerer-public-key <aspayr-pub-b64> \
+    --offerer-public-key <org-a-pub-b64> \
     --responder-public-key <bank-pub-b64> \
-    --graph aspayr-graph.json
+    --graph org-a-graph.json
 ```
 
 Expected output:
@@ -109,7 +109,7 @@ Expected output:
 ```text
 [OK] accepted
 Agreement : <uuid>
-From      : aspayr
+From      : org-a
 To        : bank-a
 Digest    : bound
 ```
@@ -131,7 +131,7 @@ genesis-mesh trust agree accept \
 # Offerer adds their co-signature to finalize
 genesis-mesh trust agree cosign \
     --agreement half-agreement.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output agreement.json
 ```
 

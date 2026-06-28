@@ -51,7 +51,7 @@ Custom gates can be added to the engine via `BoundaryEngine.add_gate()`.
 genesis-mesh trust context request \
     --agreement agreement.json \
     --capability transactions.read \
-    --requester aspayr \
+    --requester org-a \
     --provider bank-a \
     --freshness-seq 12 \
     --output context.json

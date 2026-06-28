@@ -418,13 +418,10 @@ through applications, demos, and a visible graph explorer?
 This phase moved from "the protocol exists" to "the protocol is useful for
 something a person can understand without reading RFCs."
 
-**v0.22.0 — NBA Team-Operator Demo.** The first "team as operator" pattern in
-a synthetic but realistic scenario: multiple NBA franchise sovereigns recognize
-each other, attest members across boundaries, and propagate revocations when a
-player changes teams. The release proved that the cross-sovereign protocol
-mechanics generalize to a named domain with business-legible state changes.
-The proof is not real NBA infrastructure; it is that the same protocol primitives
-cover this scenario without modification.
+**v0.22.0 — Cross-Sovereign Pattern Demonstration.** Two independently-keyed
+Network Authorities recognize each other through a signed treaty and propagate a
+revocation across that boundary. The release proved that the cross-sovereign
+protocol mechanics work correctly with independently-operated sovereigns.
 
 **v0.23.0 — Fleet Operations CLI.** Operators managing many Network Authorities
 gain a dedicated CLI group: `fleet bootstrap`, `fleet status`, `fleet federate`,
@@ -672,6 +669,14 @@ testing or deployment contexts where it is not needed.
 
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
+
+**v0.38.2 — Vertical Material Removal.** Documentation-only release. Removed
+commercial vertical artifacts (`examples/nba-demo-operators/`, `ops/nba/`) that
+were not aligned with the public protocol boundary. Replaced all
+vertical-branded sovereign name placeholders (`aspayr`) in docs examples with
+the neutral `org-a`. Retroactively neutralized the v0.22.0 release description
+to describe the generic "organization as operator" pattern. No protocol, API,
+or test changes.
 
 **v0.38.1 — Codebase Modularity Cleanup.** No user-visible changes. This maintenance
 release enforces the layer rule that had been stated but not yet fully implemented:

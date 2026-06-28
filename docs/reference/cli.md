@@ -493,12 +493,12 @@ toward the responder and embeds the result as `offerer_evidence`.
 
 ```bash
 genesis-mesh trust agree offer \
-    --from aspayr --to bank-a \
+    --from org-a --to bank-a \
     --capability transactions.read --capability balances.read \
     --scope '{"delegation": false}' \
     --valid-until 2027-01-01T00:00:00Z \
-    --graph aspayr-graph.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --graph org-a-graph.json \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output offer.json
 ```
 
@@ -531,7 +531,7 @@ Direct acceptance produces a half-signed record; the offerer must run
 # Counter acceptance (offerer)
 genesis-mesh trust agree accept \
     --counter counter.json --offer offer.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output agreement.json
 
 # Direct acceptance (responder, no counter)
@@ -549,7 +549,7 @@ direct acceptance.
 ```bash
 genesis-mesh trust agree cosign \
     --agreement half-agreement.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output agreement.json
 ```
 
@@ -563,9 +563,9 @@ Exit code 0 if verified, 1 on any failure.
 ```bash
 genesis-mesh trust agree verify \
     --agreement agreement.json \
-    --offerer-public-key <aspayr-pub-b64> \
+    --offerer-public-key <org-a-pub-b64> \
     --responder-public-key <bank-pub-b64> \
-    --graph aspayr-graph.json
+    --graph org-a-graph.json
 ```
 
 ## Delegation Chain Commands
@@ -583,11 +583,11 @@ half-signed record — the delegate must run `trust delegate cosign` to finalize
 ```bash
 genesis-mesh trust delegate create \
     --agreement agreement.json \
-    --from aspayr --to agent-x \
+    --from org-a --to agent-x \
     --capability transactions.read \
     --valid-until 2026-12-01T00:00:00Z \
-    --graph aspayr-graph.json \
-    --signing-key aspayr.key --key-id aspayr-2026 \
+    --graph org-a-graph.json \
+    --signing-key org-a.key --key-id org-a-2026 \
     --output delegation.json
 ```
 
@@ -629,9 +629,9 @@ Supply one `--key sovereign_id:public_key_b64` pair for each hop party.
 genesis-mesh trust delegate verify \
     --agreement agreement.json \
     --delegation delegation-final.json \
-    --offerer-public-key <aspayr-pub-b64> \
+    --offerer-public-key <org-a-pub-b64> \
     --responder-public-key <bank-pub-b64> \
-    --key aspayr:AAAA... \
+    --key org-a:AAAA... \
     --key agent-x:BBBB...
 ```
 
@@ -653,7 +653,7 @@ is unsigned — it is input to the boundary engine.
 genesis-mesh trust context request \
     --agreement agreement.json \
     --capability transactions.read \
-    --requester aspayr --provider bank-a \
+    --requester org-a --provider bank-a \
     --freshness-seq 12 \
     --output context.json
 ```

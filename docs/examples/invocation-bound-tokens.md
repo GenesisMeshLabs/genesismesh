@@ -44,7 +44,7 @@ Output:
 ```text
 Token     : 3b7e9f12-...
 Bearer    : agent-b
-Issuer    : aspayr
+Issuer    : org-a
 Caps      : transactions.read
 Budget    : unlimited
 Expires at: 2026-07-01T12:05:00+00:00

@@ -3,7 +3,7 @@
 **Not for production.** This directory holds credential-bearing, environment-
 specific *worked examples* for maintainers — distinct from the clean, public
 verification artifacts under `examples/official-operators/`,
-`examples/reference-sovereign-operators/`, and `examples/nba-demo-operators/`,
+`examples/reference-sovereign-operators/`,
 which contain declarative data only (no executable logic, no secrets).
 
 ## `install-miraos-na.reference.sh`

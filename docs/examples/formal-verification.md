@@ -66,8 +66,8 @@ genesis-mesh trust interop to-spiffe \
 
 ```text
 {
-  "spiffe_id": "spiffe://aspayr/3b7e9f12-...",
-  "trust_domain": "aspayr",
+  "spiffe_id": "spiffe://org-a/3b7e9f12-...",
+  "trust_domain": "org-a",
   "capabilities": ["transactions.read"],
   "gm_signatures": [...]
 }
