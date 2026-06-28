@@ -4,6 +4,11 @@ This example shows how a feed-serving node issues a signed `FreshnessProof`,
 how a `BoundaryEngine` embeds it in a `BoundaryDecision`, and how a verifier
 confirms the proof was current when the decision was made.
 
+```{image} assets/images/genesis-mesh-freshness-proofs.gif
+:alt: Freshness proofs demo
+:class: screenshot
+```
+
 ## Scenario
 
 **bank-a** operates a revocation feed.  Before authorizing a capability

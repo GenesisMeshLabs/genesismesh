@@ -1,5 +1,10 @@
 # Invocation-Bound Capability Tokens (IBCTs)
 
+```{image} assets/images/genesis-mesh-invocation-bound-tokens.gif
+:alt: Invocation-bound capability tokens demo
+:class: screenshot
+```
+
 ## What problem do IBCTs solve?
 
 A `BoundaryDecision` answers "was this agent authorised?" at the time the

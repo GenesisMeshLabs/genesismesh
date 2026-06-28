@@ -18,6 +18,11 @@ structure, timing, and metadata before forwarding.
 > stylometric rewriting (e.g. paraphrasing outputs with a different writing
 > style) requires an LLM-in-the-loop service and is explicitly out of scope.
 
+```{image} assets/images/genesis-mesh-communication-privacy.gif
+:alt: Communication privacy demo
+:class: screenshot
+```
+
 ## What the privacy profile normalizes
 
 | Attack vector | Defense |

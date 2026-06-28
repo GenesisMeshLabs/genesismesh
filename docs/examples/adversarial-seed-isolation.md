@@ -16,6 +16,11 @@ with honest behavior, even when each individual update was within the anomaly th
 > assesses whether a counterparty's pattern looks seeded. Two sovereigns may reach
 > different conclusions about the same counterparty.
 
+```{image} assets/images/genesis-mesh-adversarial-seed-isolation.gif
+:alt: Adversarial seed isolation demo
+:class: screenshot
+```
+
 ## What a SeedIsolationReport proves
 
 - **Credit Farming Score (CFS)**: whether the counterparty's early history is

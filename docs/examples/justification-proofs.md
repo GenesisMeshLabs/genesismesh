@@ -26,6 +26,11 @@ BoundaryDecision ←── signed over ──→ JustificationProof
                                └──────────────────────┘
 ```
 
+```{image} assets/images/genesis-mesh-justification-proofs.gif
+:alt: Justification proofs and gate trace demo
+:class: screenshot
+```
+
 ## Research basis
 
 **arXiv:2605.15228 — Verifiable Agentic Infrastructure (2026)**: introduces the

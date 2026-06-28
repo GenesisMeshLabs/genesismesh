@@ -1,5 +1,10 @@
 # Selective Disclosure Capability Proofs
 
+```{image} assets/images/genesis-mesh-selective-disclosure.gif
+:alt: Selective disclosure Merkle proof demo
+:class: screenshot
+```
+
 ## What problem does this solve?
 
 Every trust interaction in GenesisMesh up to v0.34 requires the requesting party

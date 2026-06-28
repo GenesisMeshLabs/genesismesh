@@ -22,6 +22,11 @@ endpoint belongs to the identity.
 
 ---
 
+```{image} assets/images/genesis-mesh-sovereign-overlay-discovery.gif
+:alt: Sovereign overlay discovery demo
+:class: screenshot
+```
+
 ## Step 1 — Announce your endpoint
 
 ```bash

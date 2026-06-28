@@ -32,6 +32,11 @@ flowchart LR
     external --> static
 ```
 
+```{image} assets/images/genesis-mesh-atlas.gif
+:alt: Trust atlas demo
+:class: screenshot
+```
+
 ## What This Proves
 
 - Any party with the recognition graph export and a set of TrustEvidence files

@@ -1,5 +1,10 @@
 # Distributed Consensus Authorization
 
+```{image} assets/images/genesis-mesh-distributed-consensus.gif
+:alt: Distributed consensus authorization demo
+:class: screenshot
+```
+
 ## What problem does this solve?
 
 `BoundaryDecision` is signed by a single operator. For the vast majority of

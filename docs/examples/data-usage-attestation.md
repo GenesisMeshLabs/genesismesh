@@ -20,6 +20,11 @@ v0.47 introduces a signed attestation layer for data access:
 
 ---
 
+```{image} assets/images/genesis-mesh-data-usage-attestation.gif
+:alt: Data usage attestation demo
+:class: screenshot
+```
+
 ## Step 1 — Create a license policy
 
 The data licensor (e.g., the operator or data owner) defines which sources the

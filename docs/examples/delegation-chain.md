@@ -11,6 +11,11 @@ The core invariant is:
 > Any hop that widens scope or extends validity makes the entire chain
 > unverifiable.
 
+```{image} assets/images/genesis-mesh-delegation-chain.gif
+:alt: Attenuable delegation chain demo
+:class: screenshot
+```
+
 ## What a chain proves
 
 - **Identity at every hop**: each `DelegatedAgreementRecord` requires two

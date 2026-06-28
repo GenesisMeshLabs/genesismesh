@@ -24,6 +24,11 @@ sequenceDiagram
     A-->>B: AgreementRecord (dual-signed)
 ```
 
+```{image} assets/images/genesis-mesh-relationship-agreement.gif
+:alt: Relationship agreement negotiation demo
+:class: screenshot
+```
+
 ## What This Proves
 
 - Neither party can produce the `AgreementRecord` alone — it requires two

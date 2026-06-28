@@ -3,6 +3,11 @@
 > **Version**: v0.38.0
 > **Requires**: Distributed Consensus Authorization (v0.36)
 
+```{image} assets/images/genesis-mesh-cascade-resilient-consensus.gif
+:alt: Cascade-resilient consensus demo
+:class: screenshot
+```
+
 ## The Problem
 
 K-of-N voting counts votes — but it does not count *independent* votes.  If an

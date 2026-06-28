@@ -6,6 +6,11 @@
 > local signals for its own decisions only.  Two sovereigns observing the same
 > counterparty will have independent, unshared signals.
 
+```{image} assets/images/genesis-mesh-peer-risk-signals.gif
+:alt: Peer risk signal trust gate demo
+:class: screenshot
+```
+
 ## What are peer risk signals?
 
 A `PeerRiskSignal` is a locally-computed, time-decaying summary of how reliably

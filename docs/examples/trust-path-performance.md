@@ -20,6 +20,11 @@ v0.46 introduces:
 
 ---
 
+```{image} assets/images/genesis-mesh-trust-path-performance.gif
+:alt: Trust path performance demo
+:class: screenshot
+```
+
 ## Step 1 — Pre-compute a trust path cache
 
 ```bash

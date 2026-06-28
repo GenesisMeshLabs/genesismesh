@@ -11,6 +11,11 @@ A `BoundaryDecision` proves: *this specific invocation is authorised right now.*
 These are different claims.  The agreement is permanent (until revoked or
 expired).  The decision is ephemeral — valid for seconds or minutes, not months.
 
+```{image} assets/images/genesis-mesh-relationship-context.gif
+:alt: Relationship context boundary evaluation demo
+:class: screenshot
+```
+
 ## The invariant
 
 ```

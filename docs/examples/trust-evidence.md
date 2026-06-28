@@ -19,6 +19,11 @@ sequenceDiagram
     B-->>B: trust confirmed, no shared backend needed
 ```
 
+```{image} assets/images/genesis-mesh-trust-evidence.gif
+:alt: Trust evidence demo
+:class: screenshot
+```
+
 ## Why TrustEvidence matters
 
 A Network Authority can already answer *does A recognize B?* through the

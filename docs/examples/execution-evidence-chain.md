@@ -4,6 +4,11 @@ This example shows how two sovereigns record post-authorization execution
 events as a tamper-evident hash chain, and how a verifier confirms chain
 integrity.
 
+```{image} assets/images/genesis-mesh-execution-evidence-chain.gif
+:alt: Execution evidence chain demo
+:class: screenshot
+```
+
 ## Scenario
 
 **org-a** and **bank-a** have an active `AgreementRecord` for

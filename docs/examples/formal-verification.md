@@ -1,5 +1,10 @@
 # Formal Verification + Interop Bridges
 
+```{image} assets/images/genesis-mesh-formal-verification.gif
+:alt: Formal verification and credential bridge demo
+:class: screenshot
+```
+
 ## Formal Verification (Tamarin Prover)
 
 The GenesisMesh trust protocol is formally verified using

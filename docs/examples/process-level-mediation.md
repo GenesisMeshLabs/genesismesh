@@ -19,6 +19,11 @@ mediation occurred.
 
 ---
 
+```{image} assets/images/genesis-mesh-process-level-mediation.gif
+:alt: Process-level mediation demo
+:class: screenshot
+```
+
 ## Critical: Advisory Mode vs. Mandatory Mediation Mode
 
 > **Read this before deploying GenesisGuard.**

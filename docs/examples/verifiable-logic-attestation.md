@@ -17,6 +17,11 @@ context that a `LogicAttestationGate` validates before a capability executes.
 > We verify that the model's configuration matches what was authorized — not
 > what the model will produce.
 
+```{image} assets/images/genesis-mesh-verifiable-logic-attestation.gif
+:alt: Verifiable logic attestation demo
+:class: screenshot
+```
+
 ## What a ModelAttestation proves
 
 - **model_id** + **model_version_tag**: the exact model in use

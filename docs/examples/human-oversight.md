@@ -29,6 +29,11 @@ proceed       propose()       reject
      (agent_sig + human_sig)
 ```
 
+```{image} assets/images/genesis-mesh-human-oversight.gif
+:alt: Human oversight dual-signed commitment demo
+:class: screenshot
+```
+
 ## Research basis
 
 **arXiv:2603.00318 — AESP (2026)**: 8-check deterministic policy engine with three-tier

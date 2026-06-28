@@ -27,6 +27,11 @@ PeerRiskSignal state machine.  Three security lemmas are proven.
 
 ---
 
+```{image} assets/images/genesis-mesh-formal-risk-signal-verification.gif
+:alt: Formal risk signal verification demo
+:class: screenshot
+```
+
 ## The three lemmas
 
 ### Lemma 1 — `signal_bounded`

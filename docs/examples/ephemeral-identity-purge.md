@@ -22,6 +22,11 @@ in a signed Merkle tree auditors can query without resurrecting deleted content.
 > purge protocol. Actual deletion is an operational guarantee; the protocol makes
 > cheating on that guarantee auditable.
 
+```{image} assets/images/genesis-mesh-ephemeral-identity-purge.gif
+:alt: Ephemeral identity purge demo
+:class: screenshot
+```
+
 ## What a NullificationReceipt proves
 
 - `identity_id` and `consensus_id` — non-sensitive correlation keys

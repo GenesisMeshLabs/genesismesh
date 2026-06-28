@@ -22,6 +22,11 @@ the final context contains any undeclared, oversized, or tampered segment.
 > **Scope**: Context integrity operates on structural properties — segment types,
 > provenance hashes, size bounds. LLM-based semantic content analysis is out of scope.
 
+```{image} assets/images/genesis-mesh-context-injection-defense.gif
+:alt: Context injection defense demo
+:class: screenshot
+```
+
 ## Prerequisites
 
 - Agent Ed25519 signing key (`agent.key`)
