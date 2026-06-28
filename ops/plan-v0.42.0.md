@@ -193,23 +193,23 @@ trust purge verify    --proof proof.json --registry registry.json
 
 ## Success Criteria
 
-- [ ] `NullificationReceipt`, `NullificationRegistryRoot`, `NullificationInclusionProof`, `PurgePolicy` models
-- [ ] `create_nullification_receipt()`, `build_nullification_registry()`, prove/verify
-- [ ] Receipt contains identity_digest but not sensitive fields
-- [ ] Merkle proof over receipts reusing v0.35 algorithm
-- [ ] `PurgePolicyGate`
-- [ ] CLI `trust purge` subgroup
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `NullificationReceipt`, `NullificationRegistryRoot`, `NullificationInclusionProof`, `PurgePolicy` models
+- [x] `create_nullification_receipt()`, `build_nullification_registry()`, prove/verify
+- [x] Receipt contains identity_digest but not sensitive fields
+- [x] Merkle proof over receipts reusing v0.35 algorithm
+- [x] `PurgePolicyGate`
+- [x] CLI `trust purge` subgroup
+- [x] >= 28 tests (30); all pass; full suite passes (905)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.42.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/ephemeral-identity-purge.md` worked example
-- [ ] CLI reference updated with `trust purge`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.42.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/ephemeral-identity-purge.md` worked example
+- [x] CLI reference updated with `trust purge`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

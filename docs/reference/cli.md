@@ -1125,6 +1125,73 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Ephemeral Identity Purge Commands
+
+The `genesis-mesh trust purge` sub-group (v0.42) implements verifiable deletion
+of expired `EphemeralExecutionIdentities`. A `NullificationReceipt` proves an
+identity existed and was destroyed without retaining sensitive fields. Receipts
+are batched into a signed Merkle registry that auditors can query.
+
+### `genesis-mesh trust purge receipt`
+
+Create a signed `NullificationReceipt` for an expired identity.
+
+```bash
+genesis-mesh trust purge receipt \
+    --identity identity.json \
+    --purging-sovereign operator-x \
+    --signing-key keys/operator.key \
+    --output receipt.json
+```
+
+Fails if the identity has not yet expired. The receipt retains only
+`identity_id`, `consensus_id`, `identity_expired_at`, `purged_at`,
+`purged_by_sovereign_id`, and `identity_digest`.
+Not retained: `bearer_sovereign_id`, `allowed_capabilities`, `decision_id`.
+
+### `genesis-mesh trust purge register`
+
+Batch receipts into a signed Merkle registry root.
+
+```bash
+genesis-mesh trust purge register \
+    --receipt r1.json --receipt r2.json \
+    --operator-sovereign operator-x \
+    --signing-key keys/operator.key \
+    --output registry.json \
+    --output-receipts receipts-ordered.json
+```
+
+`--output-receipts` preserves the ordered receipt list needed for proof generation.
+
+### `genesis-mesh trust purge prove`
+
+Generate a Merkle inclusion proof for one receipt.
+
+```bash
+genesis-mesh trust purge prove \
+    --receipt-id <uuid> \
+    --receipts-file receipts-ordered.json \
+    --registry registry.json \
+    --output proof.json
+```
+
+### `genesis-mesh trust purge verify`
+
+Verify a Merkle inclusion proof. Exits 0 if valid, 1 if any check fails.
+
+```bash
+genesis-mesh trust purge verify \
+    --proof proof.json \
+    --registry registry.json \
+    --receipt receipt.json \
+    --public-key <operator-pub-b64> \
+    --format human
+```
+
+Failure reasons: `registry_missing_signature`, `registry_invalid_signature`,
+`root_id_mismatch`, `leaf_hash_mismatch`, `root_mismatch`.
+
 ## Context-Injection Defense Commands
 
 The `genesis-mesh trust integrity` sub-group (v0.41) implements pre-execution

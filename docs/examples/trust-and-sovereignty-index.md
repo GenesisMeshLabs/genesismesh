@@ -35,6 +35,7 @@ cascade-resilient-consensus
 adversarial-seed-isolation
 verifiable-logic-attestation
 context-injection-defense
+ephemeral-identity-purge
 ```
 
 ## Start Here
@@ -244,6 +245,16 @@ LogicAttestationGate rejects mismatched configurations before execution proceeds
 Blocks prompt-injection attacks via structural context commitment: a signed
 ContextIntegrityRecord declares permitted append segments before execution.
 ContextInjectionGate rejects undeclared, oversized, or tampered context at runtime.
+:::
+
+:::{grid-item-card} Ephemeral Identity Purge Protocol
+:link: ephemeral-identity-purge
+:link-type: doc
+
+Verifiable deletion of expired EphemeralExecutionIdentities. NullificationReceipts
+commit to identity existence and destruction without retaining sensitive fields.
+A signed Merkle registry enables auditable proof of inclusion without resurrecting
+deleted records.
 :::
 
 ::::

@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.42.0 - Ephemeral Identity Purge Protocol
+
+### Added
+
+- `NullificationReceipt`, `NullificationRegistryRoot`, `NullificationInclusionProof`,
+  `PurgePolicy` models (`models/purge.py`):
+  - `NullificationReceipt`: proves an identity existed and was purged. Retains
+    only `identity_id`, `consensus_id`, `identity_expired_at`, `purged_at`,
+    `identity_digest`. Explicitly excludes `bearer_sovereign_id`, `allowed_capabilities`.
+  - `NullificationRegistryRoot`: signed Merkle root over a receipt batch.
+  - `NullificationInclusionProof`: Merkle inclusion proof reusing `MerklePathNode` (v0.35).
+  - `PurgePolicy`: operator-defined max retention window (default 3600 s) and batch size.
+
+- `create_nullification_receipt()` (`trust/purge.py`): validates the identity is
+  expired, computes `identity_digest`, produces signed receipt without sensitive fields.
+  Raises `ValueError` if identity not yet expired.
+
+- `build_nullification_registry()` (`trust/purge.py`): builds a signed Merkle tree
+  over receipt digests (same algorithm as v0.35, without sorting).
+
+- `prove_nullification_inclusion()` and `verify_nullification_inclusion()`
+  (`trust/purge.py`): Merkle proof generation and verification.
+
+- `PurgePolicyGate` (`trust/purge.py`): opt-in `BoundaryEngine` gate that enforces
+  identities are purged within the configured window.
+
+- `genesis-mesh trust purge` CLI subgroup:
+  - `receipt`: create NullificationReceipt for an expired identity
+  - `register`: batch receipts into a signed Merkle registry
+  - `prove`: generate Merkle inclusion proof for a receipt
+  - `verify`: verify inclusion proof, exits 0/1
+
+- `docs/examples/ephemeral-identity-purge.md`: worked example
+
+### Notes
+
+- Three problems addressed: audit log bloat, residual correlation risk,
+  unverifiable destruction. The protocol makes cheating on deletion auditable.
+- 30 new tests; 905 total pass.
+
+---
+
 ## v0.41.0 - Context-Injection Defense Gate
 
 ### Added

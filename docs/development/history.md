@@ -670,6 +670,16 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.42.0 — Ephemeral Identity Purge Protocol.** Addresses three consequences of
+indefinitely accumulating expired `EphemeralExecutionIdentity` records: audit log
+bloat, residual correlation risk, and unverifiable destruction. A `NullificationReceipt`
+proves identity X was active, expired, and had its full record destroyed — without
+retaining `bearer_sovereign_id`, `allowed_capabilities`, or `decision_id`. Receipts
+are batched into a signed `NullificationRegistryRoot` using the same balanced Merkle
+algorithm as v0.35 selective disclosure, enabling auditors to verify inclusion via
+`NullificationInclusionProof` without resurrecting deleted content. `PurgePolicyGate`
+enforces configurable retention windows at the gate layer. 30 new tests.
+
 **v0.41.0 — Context-Injection Defense Gate.** Closes the "container fallacy":
 even with a valid `ModelAttestation`, adversarial content injected into tool
 outputs or retrieved documents can manipulate the model's reasoning. A signed
