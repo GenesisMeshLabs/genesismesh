@@ -9,7 +9,7 @@ trust fabric, never the foundation.
 
 This document is the short version. Full architecture lives in
 [`ops/strategy.md`](ops/strategy.md). Release milestones live in
-[`ops/roadmap.md`](ops/roadmap.md). When this document conflicts with
+[`docs/development/roadmap.md`](docs/development/roadmap.md). When this document conflicts with
 those, the canonical files win.
 
 ---
