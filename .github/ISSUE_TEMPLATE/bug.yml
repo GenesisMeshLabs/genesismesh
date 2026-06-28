@@ -1,0 +1,81 @@
+name: Bug Report
+description: Report a defect in Genesis Mesh
+labels: ["bug"]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Title
+      description: One-line summary of the bug
+      placeholder: "e.g. BoundaryEngine rejects valid AgreementRecord on Python 3.13"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: Which version are you running?
+      options:
+        - latest (main)
+        - v0.50
+        - v0.49
+        - v0.48
+        - earlier
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the codebase is affected?
+      options:
+        - CLI
+        - Trust engine (models, trust/)
+        - Boundary engine
+        - Network Authority
+        - Formal models (Tamarin)
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce the issue
+      placeholder: |
+        1. Run `genesis-mesh init`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happens instead? Include the full error message and traceback.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, OS, and any relevant config
+      placeholder: |
+        Python: 3.12.4
+        OS: Ubuntu 24.04
+        Install: pip install genesis-mesh==0.50.0
+    validations:
+      required: false

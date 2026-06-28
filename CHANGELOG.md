@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.50.0 - Maintainer Quality
+
+### Added
+
+- `.github/ISSUE_TEMPLATE/bug.yml` — structured bug report with version,
+  component, reproduction steps, expected/actual behavior, and environment.
+- `.github/ISSUE_TEMPLATE/feature.yml` — structured feature request with
+  problem statement, proposed solution, alternatives, and research links.
+- `.github/pull_request_template.md` — PR checklist covering tests, Sphinx
+  build, CHANGELOG, and no-secrets guard.
+- `CODEOWNERS` — assigns `@thaersaidi` to `trust/`, `models/`, `crypto/`,
+  `ops/tamarin/`, `cli/`, and `docs/`.
+- `ops/release-checklist.md` — step-by-step pre-release, release, and
+  post-release checklist.
+
+### Changed
+
+- `CONTRIBUTING.md` — replaced placeholder with full 8-section guide:
+  dev setup, running tests, docs build, branch naming, commit style, PR
+  process, protocol-change requirements, and release process.
+- `README.md` — pruned to quick-start scope: one-paragraph description,
+  install, three-command quickstart, docs link, contributing link, security
+  link, license.
+
+### No code changes
+
+No Python modules, tests, CLI commands, or Sphinx extensions were modified
+in this release.
+
+---
+
 ## v0.49.0 - Documentation Restructure by Phase
 
 ### Added

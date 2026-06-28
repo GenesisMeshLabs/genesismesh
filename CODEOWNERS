@@ -1,0 +1,18 @@
+# Genesis Mesh — Code Owners
+#
+# Each entry assigns review responsibility for a path.
+# A PR touching a path cannot be merged without approval from the listed owner.
+
+# Protocol core — trust models and cryptographic primitives
+genesis_mesh/trust/         @thaersaidi
+genesis_mesh/models/        @thaersaidi
+genesis_mesh/crypto/        @thaersaidi
+
+# Formal verification models
+ops/tamarin/                @thaersaidi
+
+# CLI
+genesis_mesh/cli/           @thaersaidi
+
+# Docs
+docs/                       @thaersaidi

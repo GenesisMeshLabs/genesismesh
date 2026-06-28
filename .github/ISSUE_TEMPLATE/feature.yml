@@ -1,0 +1,54 @@
+name: Feature Request
+description: Propose a new capability or protocol extension
+labels: ["enhancement"]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Title
+      description: One-line summary of the proposed feature
+      placeholder: "e.g. Add CBOR encoding option for AgreementRecord"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: >
+        What trust guarantee is currently missing or inadequate?
+        Be specific about the scenario and why existing primitives
+        do not cover it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: >
+        Describe the change at the protocol or API level.
+        If you have a design sketch or pseudocode, include it here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >
+        What other approaches did you evaluate, and why did you
+        rule them out?
+    validations:
+      required: false
+
+  - type: textarea
+    id: research
+    attributes:
+      label: Relevant research
+      description: >
+        Optional links to academic papers, IETF RFCs, or other
+        prior art that informed this proposal.
+      placeholder: "e.g. https://eprint.iacr.org/..."
+    validations:
+      required: false
