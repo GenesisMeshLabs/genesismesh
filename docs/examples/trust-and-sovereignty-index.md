@@ -33,6 +33,7 @@ distributed-consensus
 peer-risk-signals
 cascade-resilient-consensus
 adversarial-seed-isolation
+verifiable-logic-attestation
 ```
 
 ## Start Here
@@ -224,6 +225,15 @@ Pattern-based detection of credit-farming attacks on PeerRiskSignals. Three
 scores — Credit Farming (CFS), Volatility Discontinuity (VDS), and Streak
 Fragility (SFS) — identify adversarial histories that evaded per-update anomaly
 detection. SeedIsolationGate is opt-in. Each sovereign's assessment is independent.
+:::
+
+:::{grid-item-card} Verifiable Logic Attestation
+:link: verifiable-logic-attestation
+:link-type: doc
+
+Closes the "hidden instruction" exploit: a signed ModelAttestation binds
+model_id, system_prompt_hash, and tool_manifest_hash to each capability invocation.
+LogicAttestationGate rejects mismatched configurations before execution proceeds.
 :::
 
 ::::

@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.40.0 - Verifiable Logic Attestation
+
+### Added
+
+- `ToolManifest`, `ModelAttestation`, `AttestationPolicy` models (`models/attestation.py`):
+  - `ToolManifest`: ordered tool list with order-independent hash (`sorted(tool_ids)`)
+  - `ModelAttestation`: signed declaration of `model_id`, `model_version_tag`,
+    `system_prompt_hash`, `tool_manifest_hash`, optional `token_id`, `attested_at`,
+    `expires_at`. Short-lived (default 300 s).
+  - `AttestationPolicy`: operator allowlists for model IDs, prompt hashes, tool hashes.
+    Empty allowlist = any value permitted. `require_bound_token` flag.
+
+- `create_model_attestation()` (`trust/logic_attestation.py`): hashes the raw
+  system prompt (SHA-256 UTF-8) and tool list (sorted canonical JSON) locally,
+  then signs the attestation with the agent's Ed25519 key.
+
+- `verify_model_attestation()` (`trust/logic_attestation.py`): checks signature,
+  expiry, model allowlist, prompt hash allowlist, tool hash allowlist, token binding.
+  Returns typed `LogicAttestationVerificationReason` (7 codes).
+
+- `LogicAttestationGate` (`trust/logic_attestation.py`): opt-in `BoundaryEngine`
+  gate that verifies attestation against policy before authorization proceeds.
+
+- `genesis-mesh trust attest` CLI subgroup with three commands:
+  - `create`: signs a `ModelAttestation` from CLI args
+  - `verify`: verifies against policy, exits 0/1
+  - `policy`: creates a signed `AttestationPolicy`
+
+- `docs/examples/verifiable-logic-attestation.md`: worked example
+
+### Notes
+
+- This closes the "hidden instruction" exploit: a valid IBCT cannot be used
+  by an agent running under a different model, prompt, or tool set.
+- 41 new tests; full suite (839) passes.
+
+---
+
 ## v0.39.0 - Adversarial Seed Isolation
 
 ### Added

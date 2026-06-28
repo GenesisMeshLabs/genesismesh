@@ -1060,6 +1060,71 @@ automatically once `seed_probability` exceeds the threshold.
 
 Options: `--seed-threshold` (default 0.5), `--format human|json`.
 
+## Verifiable Logic Attestation Commands
+
+The `genesis-mesh trust attest` sub-group (v0.40) implements pre-execution
+configuration binding: an agent signs a `ModelAttestation` declaring its
+exact model, system prompt, and tool list before a capability runs. The
+`LogicAttestationGate` validates it against an operator `AttestationPolicy`.
+
+This closes the "hidden instruction" exploit — a valid IBCT cannot be used
+by an agent running under a different model, prompt, or tool set than was
+authorized.
+
+### `genesis-mesh trust attest create`
+
+Create a signed `ModelAttestation` for the current execution context.
+
+```bash
+genesis-mesh trust attest create \
+    --agent-sovereign agent-a \
+    --model-id claude-sonnet-4-6 \
+    --model-version 20251001 \
+    --system-prompt-file prompts/system.txt \
+    --tool-id tool_read --tool-id tool_write \
+    --signing-key keys/agent.key \
+    --output attestation.json
+```
+
+Options: `--token-id` (optional IBCT binding), `--valid-for` (seconds, default 300).
+
+The system prompt is hashed (SHA-256, UTF-8) — the raw prompt is never stored.
+Tool IDs are sorted before hashing so declaration order does not affect the hash.
+
+### `genesis-mesh trust attest verify`
+
+Verify a `ModelAttestation` against an `AttestationPolicy`. Exits 0 if valid, 1 if not.
+
+```bash
+genesis-mesh trust attest verify \
+    --attestation attestation.json \
+    --policy policy.json \
+    --public-key <agent-pub-b64> \
+    --format human
+```
+
+Reason codes on failure: `missing_signature`, `invalid_signature`, `expired`,
+`model_not_permitted`, `system_prompt_not_permitted`, `tool_manifest_not_permitted`,
+`token_binding_required`.
+
+### `genesis-mesh trust attest policy`
+
+Create a signed `AttestationPolicy` defining permitted execution contexts.
+
+```bash
+genesis-mesh trust attest policy \
+    --operator-sovereign operator-x \
+    --allow-model claude-sonnet-4-6 \
+    --allow-prompt-hash <sha256-hex> \
+    --valid-until 2027-01-01T00:00:00Z \
+    --signing-key keys/operator.key \
+    --output policy.json
+```
+
+Empty `--allow-*` lists mean "any value permitted" for that dimension.
+Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
+`--require-bound-token` (flag).
+
 ## Selective Disclosure Commands
 
 The `genesis-mesh trust disclose` sub-group (v0.35) implements Merkle-based

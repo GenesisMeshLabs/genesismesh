@@ -670,6 +670,17 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.40.0 — Verifiable Logic Attestation.** Closes the "hidden instruction"
+exploit: a valid IBCT can only authorize an agent whose declared execution
+context (model, system prompt hash, tool manifest hash) matches the operator's
+`AttestationPolicy`. The agent signs a short-lived `ModelAttestation` before
+each capability invocation; `LogicAttestationGate` validates it at the
+`BoundaryEngine` gate layer. The system prompt is never stored — only its
+SHA-256 hash appears in the attestation. Tool order is normalized before
+hashing so the hash is order-independent. This is the bridge between the
+Identity Plane (which sovereign) and the Reasoning Plane (which model, which
+prompt) described in arXiv:2606.12320. 41 new tests.
+
 **v0.39.0 — Adversarial Seed Isolation.** v0.37's anomaly detector catches sudden
 per-update drops but is blind to patient credit-farming attacks — an adversary who
 builds consistently positive history, then degrades gradually or triggers a

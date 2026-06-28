@@ -207,21 +207,21 @@ trust attest policy  --operator-sovereign <id>
 
 ## Success Criteria
 
-- [ ] `ModelAttestation`, `ToolManifest`, `AttestationPolicy` models
-- [ ] `create_model_attestation()` and `verify_model_attestation()`
-- [ ] `LogicAttestationGate` with 7 typed reason codes
-- [ ] CLI `trust attest` subgroup with create / verify / policy
-- [ ] >= 30 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `ModelAttestation`, `ToolManifest`, `AttestationPolicy` models
+- [x] `create_model_attestation()` and `verify_model_attestation()`
+- [x] `LogicAttestationGate` with 7 typed reason codes
+- [x] CLI `trust attest` subgroup with create / verify / policy
+- [x] >= 30 tests; all pass; full suite passes (41 new, 839 total)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.40.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/verifiable-logic-attestation.md` worked example
-- [ ] CLI reference updated with `trust attest`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.40.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/verifiable-logic-attestation.md` worked example
+- [x] CLI reference updated with `trust attest`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 
