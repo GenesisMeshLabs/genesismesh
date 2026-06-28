@@ -216,6 +216,16 @@ operations/runbooks-index
 :caption: Development
 
 development/history
+development/phases/phase-a
+development/phases/phase-b
+development/phases/phase-c
+development/phases/phase-d
+development/phases/phase-e
+development/phases/phase-f
+development/phases/phase-g
+development/phases/phase-h
+development/phases/phase-i
+development/phases/phase-j
 development/roadmap
 development/phase-1-rollout-closure
 development/phase-2-externalization

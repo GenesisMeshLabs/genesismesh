@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.49.0 - Documentation Restructure by Phase
+
+### Added
+
+- `docs/development/phases/` directory with 10 per-phase Markdown pages
+  (`phase-a.md` through `phase-j.md`), each covering: question answered,
+  what changed, value added, what became possible, and a key-releases
+  table.
+- `docs/index.md` toctree updated to list all 10 phase pages under the
+  Development section.
+
+### Changed
+
+- `docs/development/history.md` restructured: Phase detail moved to
+  per-phase pages; the history page is now a one-screen timeline table
+  with links, a narrative arc, and the Patterns / What Is True Today /
+  Where to Read More sections. "What Is True Today" updated to v0.48.1.
+
+### No code changes
+
+No Python modules, tests, CLI commands, or Sphinx extensions were
+modified in this release.
+
+---
+
 ## v0.48.1 - Enterprise-Grade Example Suite
 
 ### Added
