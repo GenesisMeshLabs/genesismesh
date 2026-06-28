@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.38.0 - Cascade-Resilient Consensus
+
+### Added
+
+**Models** (`genesis_mesh/models/consensus.py`):
+- `ValidatorVote.context_digest`: optional SHA-256 field proving the validator
+  used independent local state. Auto-generated (unique random) by
+  `cast_validator_vote()` if not supplied. `None` on pre-v0.38 votes.
+- `CascadeAssessment`: records `cascade_score`, `context_divergence_score`,
+  `temporal_clustering_score`, `modal_context_digest`, `approve_vote_count`,
+  `unique_context_count`, `blocked`, and `threshold_used`.
+- `ConsensusProof.cascade_assessment_digest`: digest of the `CascadeAssessment`
+  that cleared assembly. `None` on pre-v0.38 proofs.
+
+**Trust** (`genesis_mesh/trust/consensus.py`):
+- `assess_cascade_risk()`: computes CDS and TCS from a vote list and returns a
+  `CascadeAssessment` + typed `CascadeAssessmentReason`.
+  - CDS formula: `(modal_count − 1) / (n − 1)` — 0.0 when all unique, 1.0 when
+    all same. Avoids false positives at small K.
+  - TCS formula: `1.0 − stdev(timestamps) / expected_deliberation_seconds`,
+    clamped `[0.0, 1.0]`.
+  - CascadeScore: `0.7 × CDS + 0.3 × TCS` (configurable weights).
+  - `cascade_threshold=0.0` disables the check (always independent).
+- `assemble_consensus_proof()`: raises `ValueError("cascade_detected: ...")` when
+  `CascadeScore > cascade_threshold`. Stores `cascade_assessment_digest` on the
+  assembled proof.
+- `verify_consensus_proof()`: adds two new reason codes:
+  - `missing_context_digest`: any named approve vote lacks `context_digest`.
+  - `cascade_detected`: re-assessed CascadeScore exceeds threshold.
+
+**CLI** (`genesis_mesh/cli/consensus_ops.py`):
+- `trust consensus assess-cascade`: assess cascade risk on vote files without
+  assembling. Exit 0 = independent; exit 1 = cascade detected.
+
+### Research
+
+Addresses arXiv:2603.15809 (Don't Trust Stubborn Neighbors): Friedkin-Johnsen
+persuasion cascade in K-of-N voting; defense via trust-adaptive, context-
+divergence-weighted vote scoring.
+
+---
+
 ## v0.37.0 - Peer Risk Signals
 
 ### Added

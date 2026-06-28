@@ -31,6 +31,7 @@ human-oversight
 selective-disclosure
 distributed-consensus
 peer-risk-signals
+cascade-resilient-consensus
 ```
 
 ## Start Here
@@ -194,7 +195,7 @@ JustificationProof; the assembled ConsensusProof gates an EphemeralExecutionIden
 that expires in ~120 s. Opt-in gate — normal authorization is unaffected.
 :::
 
-::::{grid-item-card} Peer Risk Signals
+:::{grid-item-card} Peer Risk Signals
 :link: peer-risk-signals
 :link-type: doc
 
@@ -202,6 +203,16 @@ Locally-computed EWMA over ExecutionEvidence outcomes, time-decayed between
 updates. Anomaly detection when a delta exceeds 3σ of the last 10 updates.
 RiskSignalGate is opt-in. Not a reputation system — each sovereign's signals
 are independent and never shared.
+:::
+
+:::{grid-item-card} Cascade-Resilient Consensus
+:link: cascade-resilient-consensus
+:link-type: doc
+
+Extends K-of-N voting with Context Divergence Score and Temporal Clustering
+Score. Assembly is blocked when CascadeScore exceeds threshold, preventing
+correlated validators from satisfying a threshold they appear to meet
+independently.
 :::
 
 ::::

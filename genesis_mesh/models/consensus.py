@@ -1,9 +1,12 @@
-"""Distributed Consensus Authorization models (v0.36).
+"""Distributed Consensus Authorization models (v0.36 + v0.38).
 
 For high-stakes decisions, K-of-N validators each sign a ValidatorVote over the
 same JustificationProof.  The operator assembles the votes into a ConsensusProof
 once the threshold is met.  An EphemeralExecutionIdentity is then derived from
 the consensus — it expires quickly (default 120 s) and cannot be transferred.
+
+v0.38 extends ValidatorVote with context_digest (vote independence signal) and
+adds CascadeAssessment to detect correlated validator state before assembly.
 """
 
 from __future__ import annotations
@@ -28,6 +31,12 @@ class ValidatorVote(BaseModel):
     vote: bool = Field(..., description="True = approve, False = reject")
     reason: str | None = Field(default=None)
     voted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    context_digest: str | None = Field(
+        default=None,
+        description="SHA-256 of (proof_digest, local_risk_digest, state_nonce).  "
+                    "Absent on pre-v0.38 votes; verify_consensus_proof returns "
+                    "missing_context_digest if any approve vote lacks this field.",
+    )
     signature: Signature | None = Field(default=None)
 
     def to_canonical_json(self) -> str:
@@ -36,6 +45,28 @@ class ValidatorVote(BaseModel):
 
     def digest(self) -> str:
         return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()
+
+
+class CascadeAssessment(BaseModel):
+    """Vote-independence assessment computed before ConsensusProof assembly."""
+
+    assessment_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    consensus_id: str
+    cascade_score: float = Field(..., ge=0.0, le=1.0)
+    context_divergence_score: float = Field(..., ge=0.0, le=1.0)
+    temporal_clustering_score: float = Field(..., ge=0.0, le=1.0)
+    modal_context_digest: str
+    approve_vote_count: int
+    unique_context_count: int
+    assessed_at: datetime
+    blocked: bool
+    threshold_used: float
+
+    def digest(self) -> str:
+        data = self.model_dump(mode="json")
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
 
 
 class ConsensusProof(BaseModel):
@@ -53,6 +84,11 @@ class ConsensusProof(BaseModel):
     votes: list[ValidatorVote] = Field(default_factory=list)
     reached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime
+    cascade_assessment_digest: str | None = Field(
+        default=None,
+        description="Digest of the CascadeAssessment that cleared this proof.  "
+                    "None on pre-v0.38 proofs.",
+    )
     signature: Signature | None = Field(default=None)
 
     def to_canonical_json(self) -> str:

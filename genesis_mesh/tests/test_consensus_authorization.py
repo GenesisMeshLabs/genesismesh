@@ -131,9 +131,10 @@ def _make_consensus_proof(
     jp: JustificationProof,
     threshold: int = 2,
 ) -> ConsensusProof:
+    # Spread timestamps so TCS stays low; unique digests auto-generated per cast_validator_vote.
     v1_vote = cast_validator_vote(jp, _V1, True, v1_sk, now=_NOW)
-    v2_vote = cast_validator_vote(jp, _V2, True, v2_sk, now=_NOW)
-    v3_vote = cast_validator_vote(jp, _V3, False, v3_sk, now=_NOW)  # rejects
+    v2_vote = cast_validator_vote(jp, _V2, True, v2_sk, now=_NOW + timedelta(seconds=30))
+    v3_vote = cast_validator_vote(jp, _V3, False, v3_sk, now=_NOW + timedelta(seconds=60))
     return assemble_consensus_proof(
         jp, [v1_vote, v2_vote, v3_vote], threshold, [_V1, _V2, _V3],
         assembler_sk, issued_by=_ASSEMBLER, valid_for_seconds=300, now=_NOW,

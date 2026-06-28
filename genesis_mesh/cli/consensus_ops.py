@@ -5,6 +5,7 @@ trust consensus assemble      -- assemble K-of-N votes into a ConsensusProof
 trust consensus issue-identity -- derive an EphemeralExecutionIdentity from consensus
 trust consensus verify        -- verify a ConsensusProof
 trust consensus verify-identity -- verify an EphemeralExecutionIdentity
+trust consensus assess-cascade -- assess cascade risk on a set of votes (v0.38)
 """
 
 from __future__ import annotations
@@ -16,9 +17,10 @@ from pathlib import Path
 import click
 
 from ..crypto import load_private_key
-from ..models.consensus import ConsensusProof, EphemeralExecutionIdentity
+from ..models.consensus import ConsensusProof, EphemeralExecutionIdentity, ValidatorVote
 from ..models.justification import JustificationProof
 from ..trust.consensus import (
+    assess_cascade_risk,
     assemble_consensus_proof,
     cast_validator_vote,
     issue_ephemeral_identity,
@@ -242,4 +244,68 @@ def consensus_verify_identity(
             click.echo(f"     Expires   : {eid.expires_at.isoformat()}")
 
     if not result.valid:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# assess-cascade  (v0.38)
+# ---------------------------------------------------------------------------
+
+
+@consensus.command("assess-cascade")
+@click.option("--vote", "vote_paths", required=True, multiple=True, type=click.Path(exists=True),
+              help="ValidatorVote JSON files to assess (supply once per vote).")
+@click.option("--threshold", "cascade_threshold", type=float, default=0.4, show_default=True,
+              help="CascadeScore threshold above which assembly would be blocked.")
+@click.option("--deliberation-seconds", "deliberation_seconds", type=float, default=30.0,
+              show_default=True,
+              help="Expected deliberation window in seconds (used for TCS).")
+@click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
+              help="Output format.")
+def consensus_assess_cascade(
+    vote_paths: tuple[str, ...],
+    cascade_threshold: float,
+    deliberation_seconds: float,
+    fmt: str,
+) -> None:
+    """Assess cascade risk on a set of ValidatorVotes without assembling a proof.
+
+    Exits 0 when votes appear independent; exits 1 when cascade is detected.
+    """
+    votes = [
+        ValidatorVote.model_validate_json(Path(p).read_text(encoding="utf-8"))
+        for p in vote_paths
+    ]
+
+    assessment, reason = assess_cascade_risk(
+        votes,
+        cascade_threshold=cascade_threshold,
+        expected_deliberation_seconds=deliberation_seconds,
+    )
+
+    if fmt == "json":
+        click.echo(
+            json.dumps(
+                {
+                    "reason": reason,
+                    "cascade_score": assessment.cascade_score,
+                    "context_divergence_score": assessment.context_divergence_score,
+                    "temporal_clustering_score": assessment.temporal_clustering_score,
+                    "approve_vote_count": assessment.approve_vote_count,
+                    "unique_context_count": assessment.unique_context_count,
+                    "blocked": assessment.blocked,
+                },
+                indent=2,
+            )
+        )
+    else:
+        status = "[CASCADE DETECTED]" if assessment.blocked else "[OK] independent"
+        click.echo(f"{status}")
+        click.echo(f"  CascadeScore  : {assessment.cascade_score:.3f} (threshold {cascade_threshold})")
+        click.echo(f"  CDS           : {assessment.context_divergence_score:.3f}")
+        click.echo(f"  TCS           : {assessment.temporal_clustering_score:.3f}")
+        click.echo(f"  Approve votes : {assessment.approve_vote_count}")
+        click.echo(f"  Unique contexts: {assessment.unique_context_count}")
+
+    if assessment.blocked:
         sys.exit(1)

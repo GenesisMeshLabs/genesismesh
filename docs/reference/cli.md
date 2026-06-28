@@ -934,6 +934,31 @@ genesis-mesh trust consensus verify-identity \
 
 Exit code 0 on success; 1 on failure.
 
+### `genesis-mesh trust consensus assess-cascade`
+
+> **v0.38** — Cascade-Resilient Consensus
+
+Assess cascade risk on a set of `ValidatorVote` files without assembling a
+proof.  Computes Context Divergence Score (CDS), Temporal Clustering Score
+(TCS), and the combined `CascadeScore`.
+
+```bash
+genesis-mesh trust consensus assess-cascade \
+    --vote vote-v1.json \
+    --vote vote-v2.json \
+    --vote vote-v3.json \
+    --threshold 0.4
+```
+
+| Option | Description |
+|--------|-------------|
+| `--vote` | ValidatorVote JSON (repeat once per vote). |
+| `--threshold` | CascadeScore above which votes would be blocked (default 0.4). |
+| `--deliberation-seconds` | Expected deliberation window for TCS (default 30.0). |
+| `--format` | `human` (default) or `json`. |
+
+Exit code 0 = independent; exit code 1 = cascade detected.
+
 ## Peer Risk Signal Commands
 
 > **This is not a reputation system.** Each sovereign maintains its own local,

@@ -649,6 +649,30 @@ share.  The word "trust score" is deliberately absent.  This closes the second c
 GenesisMesh trust cycle (v0.32–v0.37): from portable bearer tokens through distributed
 consensus to local behavioral history.
 
+**v0.38.0 — Cascade-Resilient Consensus.** The v0.36 K-of-N threshold counted
+votes, not *independent* votes.  The Friedkin-Johnsen persuasion model (arXiv:2603.15809)
+shows that when validators share context before voting, the effective number of
+independent opinions collapses toward one — a single adversary can satisfy a 3-of-5
+threshold by seeding a shared narrative.
+
+v0.38 adds two independence signals to each `ValidatorVote`.  The **Context Divergence
+Score** (CDS) measures whether approve votes carry statistically indistinguishable
+`context_digest` values.  The **Temporal Clustering Score** (TCS) measures whether votes
+arrived in an implausibly tight window.  A weighted `CascadeScore = 0.7 × CDS + 0.3 × TCS`
+is computed before assembly; if it exceeds the threshold (default 0.4), assembly raises
+a typed exception rather than producing a proof.
+
+The CDS formula uses `(modal_count − 1) / (n − 1)` rather than `modal_count / n`.
+This avoids a false-positive at K=2 where any two independent votes always have
+CDS = 0.5 under the naive formula.  The corrected formula returns 0.0 for all-unique
+and 1.0 for all-same, regardless of n.  `verify_consensus_proof()` re-assesses cascade
+from the embedded votes, adding `missing_context_digest` and `cascade_detected` to the
+existing verification reason codes.  `cascade_threshold=0.0` disables the check for
+testing or deployment contexts where it is not needed.
+
+This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
+privacy, and the Data Plane.
+
 ---
 
 ## 3. Patterns of Discipline

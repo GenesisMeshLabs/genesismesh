@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genesis-mesh"
-version = "0.37.0"
+version = "0.38.0"
 description = "Sovereign trust, identity, and communication fabric for AI agents, edge systems, and distributed infrastructure."
 readme = "README.md"
 requires-python = ">=3.12"
