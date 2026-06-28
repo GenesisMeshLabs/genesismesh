@@ -11,7 +11,7 @@ and how to report a vulnerability.
 disclosure channel instead.
 
 - Open a draft advisory at
-  [github.com/thaersaidi/genesismesh/security/advisories/new](https://github.com/thaersaidi/genesismesh/security/advisories/new).
+  [github.com/GenesisMeshLabs/genesismesh/security/advisories/new](https://github.com/GenesisMeshLabs/genesismesh/security/advisories/new).
 - Include: a description, reproduction steps, the version (`pip show
   genesis-mesh`), and any logs or proof-of-concept code.
 - You should receive acknowledgement within **5 business days**.

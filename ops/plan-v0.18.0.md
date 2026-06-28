@@ -6,7 +6,7 @@
 
 - Commit: `8e80e4b` (`Release v0.18.0 official operators`)
 - Tag: `v0.18.0`
-- Release: `https://github.com/thaersaidi/genesismesh/releases/tag/v0.18.0`
+- Release: `https://github.com/GenesisMeshLabs/genesismesh/releases/tag/v0.18.0`
 - Assets: `genesis_mesh-0.18.0-py3-none-any.whl`,
   `genesis_mesh-0.18.0.tar.gz`
 - Public operator artifacts:

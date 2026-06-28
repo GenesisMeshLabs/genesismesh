@@ -7,7 +7,7 @@ membership, trust, certificate, policy, and revocation layer for nodes and
 agents inside or outside the cluster.
 
 The repository ships a working example under
-[`examples/kubernetes/`](https://github.com/thaersaidi/genesismesh/tree/main/examples/kubernetes).
+[`examples/kubernetes/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/examples/kubernetes).
 
 ## Deployment Shape
 

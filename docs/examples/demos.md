@@ -655,7 +655,7 @@ support below Python 3.14, so run the real LLM recording with Python 3.12 or
 3.13 until LiteLLM publishes compatible 3.14 builds.
 
 Set the LLM provider in your environment (see
-[`examples/agent-network/README.md`](https://github.com/thaersaidi/genesismesh/blob/main/examples/agent-network/README.md)
+[`examples/agent-network/README.md`](https://github.com/GenesisMeshLabs/genesismesh/blob/main/examples/agent-network/README.md)
 for the full provider matrix). For Azure OpenAI's v1 endpoint:
 
 ```bash
@@ -742,7 +742,7 @@ A: A permissioned mesh network benefits from a capability-based discovery layer 
 
 ### Provider swap matrix
 
-See the [agent-network example README](https://github.com/thaersaidi/genesismesh/blob/main/examples/agent-network/README.md#llm-backed-responder-agent)
+See the [agent-network example README](https://github.com/GenesisMeshLabs/genesismesh/blob/main/examples/agent-network/README.md#llm-backed-responder-agent)
 for the full LiteLLM provider matrix (OpenAI, Azure OpenAI v1, Anthropic,
 Ollama, Mistral, Groq, Together, vLLM, LM Studio, and OpenAI-compatible
 servers).

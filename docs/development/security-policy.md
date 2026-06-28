@@ -1,7 +1,7 @@
 # Security Policy
 
 The canonical security policy lives at
-[`SECURITY.md`](https://github.com/thaersaidi/genesismesh/blob/main/SECURITY.md)
+[`SECURITY.md`](https://github.com/GenesisMeshLabs/genesismesh/blob/main/SECURITY.md)
 in the repo root. It documents:
 
 - What Genesis Mesh defends against (in scope)
@@ -37,7 +37,7 @@ Pay extra attention to changes that touch:
 ## Reporting
 
 Open a draft advisory at
-[github.com/thaersaidi/genesismesh/security/advisories/new](https://github.com/thaersaidi/genesismesh/security/advisories/new).
-See [SECURITY.md](https://github.com/thaersaidi/genesismesh/blob/main/SECURITY.md)
+[github.com/GenesisMeshLabs/genesismesh/security/advisories/new](https://github.com/GenesisMeshLabs/genesismesh/security/advisories/new).
+See [SECURITY.md](https://github.com/GenesisMeshLabs/genesismesh/blob/main/SECURITY.md)
 for the full reporting process, acknowledgement timeline, and remediation
 expectations.

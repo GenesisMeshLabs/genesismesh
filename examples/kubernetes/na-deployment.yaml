@@ -27,7 +27,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: na
-          image: ghcr.io/thaersaidi/genesismesh:latest
+          image: ghcr.io/GenesisMeshLabs/genesismesh:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

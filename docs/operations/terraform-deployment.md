@@ -1,7 +1,7 @@
 # Terraform Deployment on Azure
 
 The repository ships a self-contained Terraform module at
-[`infrastructure/azure/`](https://github.com/thaersaidi/genesismesh/tree/main/infrastructure/azure)
+[`infrastructure/azure/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/infrastructure/azure)
 that provisions a complete Network Authority environment on Azure.
 
 This is the same module used by the public deployment at
@@ -151,7 +151,7 @@ steps:
 ## Multi-cloud Module
 
 A separate provider-selectable module under
-[`infrastructure/`](https://github.com/thaersaidi/genesismesh/tree/main/infrastructure)
+[`infrastructure/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/infrastructure)
 includes Terraform shapes for AWS, GCP, Alibaba Cloud, and generic SSH. It is
 useful as a starting point, but expects you to provide network IDs, image IDs,
 security groups, and a secret-mounting strategy appropriate for the target

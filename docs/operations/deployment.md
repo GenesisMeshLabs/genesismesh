@@ -98,7 +98,7 @@ The Deployment runs a single non-root replica, mounts the genesis block and NA
 key as a `Secret`, and persists the SQLite database to a `PersistentVolumeClaim`.
 
 See: [Kubernetes deployment guide](kubernetes-deployment.md) and
-[examples/kubernetes/README.md](https://github.com/thaersaidi/genesismesh/tree/main/examples/kubernetes)
+[examples/kubernetes/README.md](https://github.com/GenesisMeshLabs/genesismesh/tree/main/examples/kubernetes)
 
 ## 4. Terraform on Azure
 

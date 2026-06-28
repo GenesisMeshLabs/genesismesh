@@ -119,7 +119,7 @@ sudo apt install -y \
 ## 2. Clone and install the package
 
 ```bash
-sudo git clone https://github.com/thaersaidi/genesismesh.git /opt/genesis-mesh
+sudo git clone https://github.com/GenesisMeshLabs/genesismesh.git /opt/genesis-mesh
 sudo chown -R azureuser:azureuser /opt/genesis-mesh
 cd /opt/genesis-mesh
 

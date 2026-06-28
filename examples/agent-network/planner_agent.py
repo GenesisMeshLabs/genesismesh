@@ -181,7 +181,7 @@ async def run_planner_agent(
     async def answer(request: CapabilityRequest) -> CapabilityResponse:
         """Execute the narrow planner.answer flow."""
         question = str(request.arguments.get("question") or "")
-        repo = str(request.arguments.get("repo") or "thaersaidi/genesismesh")
+        repo = str(request.arguments.get("repo") or "GenesisMeshLabs/genesismesh")
         trace = list(request.trace)
 
         repo_response: CapabilityResponse | None = None

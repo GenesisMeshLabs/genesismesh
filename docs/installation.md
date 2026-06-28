@@ -24,7 +24,7 @@ install in editable mode with the dev and docs extras:
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/thaersaidi/genesismesh.git
+git clone https://github.com/GenesisMeshLabs/genesismesh.git
 cd genesismesh
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -35,7 +35,7 @@ python -m pip install -e ".[dev,docs]"
 ### Linux, macOS, or WSL
 
 ```bash
-git clone https://github.com/thaersaidi/genesismesh.git
+git clone https://github.com/GenesisMeshLabs/genesismesh.git
 cd genesismesh
 python3 -m venv .venv
 . .venv/bin/activate

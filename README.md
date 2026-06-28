@@ -8,7 +8,7 @@
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://genesismesh.connectorzzz.com)
 [![Security](https://img.shields.io/badge/security-policy-orange)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/thaersaidi/genesismesh)](https://github.com/thaersaidi/genesismesh/releases)
+[![Release](https://img.shields.io/github/v/release/GenesisMeshLabs/genesismesh)](https://github.com/GenesisMeshLabs/genesismesh/releases)
 
 ## Live Deployment
 
@@ -33,15 +33,15 @@ Current deployment demonstrates:
 - Route failure recovery
 - Certificate revocation and CRL enforcement
 
-![Network Authority operator console](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/na-operator-console.png)
+![Network Authority operator console](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/na-operator-console.png)
 
-![/nodes endpoint showing two enrolled nodes with different remote addresses](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/na-nodes.png)
+![/nodes endpoint showing two enrolled nodes with different remote addresses](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/na-nodes.png)
 
 ## Live Message Delivery
 
 A remote local node sends a DATA message to an Azure-hosted node over a Noise XX encrypted peer session.
 
-![Genesis Mesh live message delivery](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/genesis-mesh-message-delivery.gif)
+![Genesis Mesh live message delivery](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/genesis-mesh-message-delivery.gif)
 
 - Noise XX handshake completed
 - Connection established
@@ -58,7 +58,7 @@ Node A and Node C do not connect directly. Instead:
 
 Node B learns routes, forwards packets, and decrements TTL values during transit.
 
-![Genesis Mesh multi-hop routing demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/genesis-mesh-multi-hop.gif)
+![Genesis Mesh multi-hop routing demo](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/genesis-mesh-multi-hop.gif)
 
 - Route learned via intermediate node
 - DATA forwarded by router
@@ -70,7 +70,7 @@ When a router goes offline, neighboring nodes withdraw its routes and traffic re
 
 **Topology:** A reaches C through two routers — B (primary) and D (backup). B is killed mid-demo.
 
-![Genesis Mesh route failure recovery demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/genesis-mesh-failover.gif)
+![Genesis Mesh route failure recovery demo](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/genesis-mesh-failover.gif)
 
 - Primary path A → B → C delivers
 - B goes offline
@@ -78,7 +78,7 @@ When a router goes offline, neighboring nodes withdraw its routes and traffic re
 - A → D → C delivers without retry or operator action
 
 
-![Genesis Mesh revocation demo](https://raw.githubusercontent.com/thaersaidi/genesismesh/main/docs/examples/assets/images/genesis-mesh-revocation.gif)
+![Genesis Mesh revocation demo](https://raw.githubusercontent.com/GenesisMeshLabs/genesismesh/main/docs/examples/assets/images/genesis-mesh-revocation.gif)
 
 **Trust can be revoked.**
 
@@ -192,7 +192,7 @@ pip install genesis-mesh
 For development from a clone:
 
 ```bash
-git clone https://github.com/thaersaidi/genesismesh.git
+git clone https://github.com/GenesisMeshLabs/genesismesh.git
 cd genesismesh
 python -m venv .venv
 source .venv/bin/activate   # PowerShell: .\.venv\Scripts\Activate.ps1
@@ -323,7 +323,7 @@ See [SECURITY.md](SECURITY.md) for:
 - How to report a vulnerability privately
 
 Quick reporting link:
-[github.com/thaersaidi/genesismesh/security/advisories/new](https://github.com/thaersaidi/genesismesh/security/advisories/new)
+[github.com/GenesisMeshLabs/genesismesh/security/advisories/new](https://github.com/GenesisMeshLabs/genesismesh/security/advisories/new)
 
 ## License
 

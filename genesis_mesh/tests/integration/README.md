@@ -5,7 +5,7 @@ instances, real WebSocket connections, real Noise XX handshakes, and real
 distance-vector route propagation.
 
 Each test corresponds to a documented capability demo at
-[`docs/examples/demos.md`](https://github.com/thaersaidi/genesismesh/blob/main/docs/examples/demos.md).
+[`docs/examples/demos.md`](https://github.com/GenesisMeshLabs/genesismesh/blob/main/docs/examples/demos.md).
 The bash demos under `docs/examples/assets/*.sh` are for **operators and
 viewers**; the pytest files here are the **automated regression coverage**.
 
