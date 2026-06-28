@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.44.0 - Sovereign Overlay Discovery
+
+### Added
+
+- `OverlayDiscoveryRecord`, `DiscoveryGossipMessage`, `DiscoveryCacheEntry`,
+  `DiscoveryFeed` models (`models/overlay_discovery.py`):
+  - `OverlayDiscoveryRecord`: signed announcement of a sovereign's reachable endpoints.
+    Carries `na_public_key_b64`, `endpoints`, `capabilities_hash`, `sequence_no`, `valid_until`.
+  - `DiscoveryGossipMessage`: hop-counted wrapper for propagating records between peers.
+  - `DiscoveryCacheEntry`: local cache entry with verification status.
+  - `DiscoveryFeed`: operator-signed aggregation of discovery records for bootstrapping.
+
+- `create_discovery_record()` (`trust/overlay_discovery.py`): builds and
+  Ed25519-signs a discovery record.
+
+- `verify_discovery_record()` (`trust/overlay_discovery.py`): verifies signature
+  (using `na_public_key_b64` embedded in record), expiry, and sequence supersession.
+  Reasons: `valid`, `missing_signature`, `invalid_signature`, `expired`, `superseded`.
+
+- `merge_discovery_records()` (`trust/overlay_discovery.py`): merges incoming
+  records into cache, keeping highest `sequence_no` per sovereign (idempotent for
+  same sequence; ignores lower).
+
+- `gossip_should_forward()` (`trust/overlay_discovery.py`): returns True if
+  `hop_count < max_hops`.
+
+- `build_discovery_feed()` (`trust/overlay_discovery.py`): builds a signed
+  `DiscoveryFeed` from a list of records.
+
+- `genesis-mesh trust discover` CLI subgroup:
+  - `announce`: create and sign a discovery record
+  - `verify`: verify a received record (exits non-zero if invalid)
+  - `feed`: build a signed DiscoveryFeed from record files
+  - `merge`: merge incoming records into a local cache file
+
+- `docs/examples/sovereign-overlay-discovery.md`
+
+### Notes
+
+- Endpoint reachability is the caller's responsibility — `endpoint_unreachable`
+  is not a verification reason.
+- 26 new tests; 964 total pass.
+
+---
+
 ## v0.43.0 - Communication Privacy Layer
 
 ### Added

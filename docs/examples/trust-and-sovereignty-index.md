@@ -37,6 +37,7 @@ verifiable-logic-attestation
 context-injection-defense
 ephemeral-identity-purge
 communication-privacy
+sovereign-overlay-discovery
 ```
 
 ## Start Here
@@ -266,6 +267,16 @@ Defends against SALA mesh-layer fingerprinting: normalizes message length
 (block-padding), dispatch timestamps (bucket rounding), and strips custom
 headers before forwarding. MetadataEnvelopes are signed; a PrivacyAuditRecord
 documents exactly what was changed.
+:::
+
+:::{grid-item-card} Sovereign Overlay Discovery
+:link: sovereign-overlay-discovery
+:link-type: doc
+
+DNS-free peer discovery via gossip over existing Noise XX connections.
+OverlayDiscoveryRecords are Ed25519-signed, binding endpoint to cryptographic
+identity. Sequence numbers enable supersession detection; hop-count limits
+prevent unbounded gossip propagation.
 :::
 
 ::::

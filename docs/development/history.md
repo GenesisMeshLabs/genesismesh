@@ -670,6 +670,15 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.44.0 — Sovereign Overlay Discovery.** Removes the DNS dependency from peer
+discovery. Once a sovereign is connected to any bootstrap peer via Noise XX,
+it can discover all others through a signed gossip layer without DNS. An
+`OverlayDiscoveryRecord` binds endpoint to Ed25519 public key, is propagated
+hop-by-hop (default max 5), and carries a monotonic `sequence_no` enabling
+supersession detection. `merge_discovery_records()` keeps the highest
+sequence_no per sovereign (idempotent on repeats). `build_discovery_feed()`
+lets operators publish a signed aggregate for fast bootstrapping. 26 new tests.
+
 **v0.43.0 — Communication Privacy Layer.** Addresses the mesh-layer attack
 surface exposed by SALA (Stylometry-Assisted LLM Analysis, arXiv:2602.23079),
 which can fingerprint agents from message length distributions, timing

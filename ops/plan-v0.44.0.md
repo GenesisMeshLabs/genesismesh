@@ -206,21 +206,21 @@ trust discover merge     --cache cache.json --incoming record.json
 
 ## Success Criteria
 
-- [ ] `OverlayDiscoveryRecord`, `DiscoveryGossipMessage`, `DiscoveryCacheEntry`, `DiscoveryFeed` models
-- [ ] `create_discovery_record()`, `verify_discovery_record()`, `merge_discovery_records()`, `gossip_should_forward()`
-- [ ] `build_discovery_feed()`
-- [ ] CLI `trust discover` subgroup with announce / verify / feed / merge
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `OverlayDiscoveryRecord`, `DiscoveryGossipMessage`, `DiscoveryCacheEntry`, `DiscoveryFeed` models
+- [x] `create_discovery_record()`, `verify_discovery_record()`, `merge_discovery_records()`, `gossip_should_forward()`
+- [x] `build_discovery_feed()`
+- [x] CLI `trust discover` subgroup with announce / verify / feed / merge
+- [x] 26 tests; all pass; full suite passes (964)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.44.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/sovereign-overlay-discovery.md` worked example
-- [ ] CLI reference updated with `trust discover`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.44.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/sovereign-overlay-discovery.md` worked example
+- [x] CLI reference updated with `trust discover`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

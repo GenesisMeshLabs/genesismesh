@@ -1125,6 +1125,61 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Sovereign Overlay Discovery Commands
+
+The `genesis-mesh trust discover` sub-group (v0.44) enables DNS-free peer
+discovery via gossip over existing Noise XX connections.
+
+### `genesis-mesh trust discover announce`
+
+Create a signed `OverlayDiscoveryRecord`.
+
+```bash
+genesis-mesh trust discover announce \
+    --sovereign-id agent-a \
+    --na-public-key "$(cat keys/agent-a.pub.b64)" \
+    --endpoint http://agent-a.mesh:8443 \
+    --capabilities-hash <hash> \
+    --signing-key keys/agent-a.key \
+    --output record.json
+```
+
+Options: `--sequence-no N` (default 1), `--valid-for-hours N` (default 24).
+
+### `genesis-mesh trust discover verify`
+
+Verify a received `OverlayDiscoveryRecord`. Exits non-zero if invalid.
+
+```bash
+genesis-mesh trust discover verify \
+    --record record.json \
+    --known-sequence-no 5 \
+    --format json
+```
+
+### `genesis-mesh trust discover feed`
+
+Build a signed `DiscoveryFeed` from one or more record files.
+
+```bash
+genesis-mesh trust discover feed \
+    --record r1.json --record r2.json \
+    --operator-sovereign operator-1 \
+    --signing-key keys/operator.key \
+    --output feed.json
+```
+
+### `genesis-mesh trust discover merge`
+
+Merge incoming records into a local cache file (highest `sequence_no` wins).
+
+```bash
+genesis-mesh trust discover merge \
+    --cache cache.json \
+    --incoming peer-record.json \
+    --output cache.json
+```
+
 ## Communication Privacy Commands
 
 The `genesis-mesh trust privacy` sub-group (v0.43) normalizes outbound message
