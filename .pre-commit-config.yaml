@@ -57,7 +57,21 @@ repos:
         pass_filenames: false
         files: ^docs/.*\.(md|rst|py)$
 
-      # Slow check — runs on `git push`, not every `git commit`.
+      # Slow checks — run on `git push`, not every `git commit`.
+      - id: pip-audit
+        name: pip-audit (dependency CVE scan)
+        entry: python -m pip_audit -r requirements.txt -r requirements-dev.txt
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cli-smoke
+        name: cli smoke (dev up)
+        entry: python -m genesis_mesh.cli dev up
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
       - id: pytest
         name: pytest
         entry: python -m pytest genesis_mesh/tests -q
