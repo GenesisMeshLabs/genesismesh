@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.51.1 - Repository cleanup + SECURITY.md patch
+
+### Changed
+
+- `SECURITY.md`: updated Supported Versions table from `0.5.x` to `0.51.x`;
+  removed stale "When 0.6.0 ships" line and outdated v0.6/v0.7 forward references.
+
+### Removed
+
+- `ops/tamarin/` (`gm_protocol.spthy`, `risk_signal/peer_risk_signal.spthy`):
+  formal verification models moved out of the main repo; associated tests
+  (`test_tamarin_proofs.py`, `test_risk_signal_tamarin.py`) removed.
+- `ops/scripts/` (`fleet.py`, `fleet.example.toml`, README): dev-only
+  single-host orchestration helper superseded by `genesis-mesh fleet` CLI.
+
+---
+
 ## v0.51.0 - Public API Stability + Protocol Conformance Suite
 
 ### Added

@@ -27,10 +27,8 @@ Only the latest minor release receives security fixes.
 
 | Version | Status |
 |---|---|
-| `0.5.x` | Supported |
-| `< 0.5` | Unsupported |
-
-When `0.6.0` ships, `0.5.x` moves to unsupported.
+| `0.51.x` | Supported |
+| `< 0.51` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
 
@@ -101,7 +99,7 @@ them externally.
   offline, ideally on hardware.
 - **Network Authority private key compromise.** A compromised NA key allows
   forging certificates for any identity. Mitigation: HSM or external secret
-  manager, plus rotation. A rotation runbook is planned for v0.7+.
+  manager, plus rotation.
 - **Operator workstation compromise.** An attacker who steals an operator
   private key can issue invites and revoke certificates. Mitigation:
   workstation hygiene, hardware key, short-lived operator credentials.
@@ -143,7 +141,7 @@ them externally.
   verified.
 - **VM/host compromise.** Compromising the host that runs the NA gives the
   attacker the NA private key. Mitigations are container hardening, systemd
-  hardening (in progress for v0.6.0), and an external secret manager.
+  hardening (see `infrastructure/systemd/`), and an external secret manager.
 
 ### Application-level
 
@@ -162,4 +160,3 @@ them externally.
 - [Security model](https://genesismesh.connectorzzz.com/concepts/security-model.html)
 - [Certificate lifecycle](https://genesismesh.connectorzzz.com/concepts/certificate-lifecycle.html)
 - [Revocation operations](https://genesismesh.connectorzzz.com/operations/revocation.html)
-- [Operational resilience plan (v0.6.0)](ops/plan-v0.6.md)
