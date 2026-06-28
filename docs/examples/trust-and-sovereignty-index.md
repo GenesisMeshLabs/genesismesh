@@ -41,6 +41,7 @@ sovereign-overlay-discovery
 process-level-mediation
 trust-path-performance
 data-usage-attestation
+formal-risk-signal-verification
 ```
 
 ## Start Here
@@ -310,6 +311,17 @@ Signed pre- and post-execution attestation for data access. DataLicensePolicy
 defines source allowlists and volume caps. DataAccessIntent and DataAccessRecord
 bind the agent's declared intent to actual access. DataUsageGate integrates with
 BoundaryEngine. Payment and settlement are explicitly out of scope.
+:::
+
+:::{grid-item-card} Formal PeerRiskSignal Verification
+:link: formal-risk-signal-verification
+:link-type: doc
+
+Three Tamarin Prover lemmas over the PeerRiskSignal state machine: (1)
+signal_bounded — signal stays in [0,1]; (2) anomaly_detection_responsive —
+SuddenDrop cannot permanently suppress detection; (3) no_single_source_cascade
+— cascade amplification requires independent per-sovereign observations.
+Executable property tests included for standard pytest runs.
 :::
 
 ::::

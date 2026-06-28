@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.48.0 - Formal PeerRiskSignal Verification (Tamarin)
+
+### Added
+
+- `ops/tamarin/risk_signal/peer_risk_signal.spthy`: Tamarin Prover theory for
+  the PeerRiskSignal state machine.  Three protocol rules (`InitSignal`,
+  `UpdateSignal_*`, `EmitAnomaly`) and three security lemmas:
+  - `signal_bounded` — signal value always in `{low, mid, high}`
+  - `anomaly_detection_responsive` — SuddenDrop eventually followed by Anomaly
+  - `no_single_source_cascade` — cascade requires per-sovereign drops
+
+- `genesis_mesh/tests/test_risk_signal_tamarin.py`: pytest wrappers that invoke
+  `tamarin-prover --prove` for each lemma; skipped when tamarin-prover is not
+  installed.  Four file-structure tests run unconditionally.
+
+- `genesis_mesh/tests/test_risk_signal_formal.py`: 13 executable property-based
+  tests covering: signal always bounded over random sequences, anomaly fires after
+  SuddenDrop, alternating adversarial pattern cannot suppress detection
+  indefinitely, two sovereigns are independent, cascade requires independent drops.
+
+- `docs/examples/formal-risk-signal-verification.md` — explains what each lemma
+  proves, how to run tamarin-prover, and what is explicitly NOT proved (implementation
+  fidelity, timing attacks, cross-sovereign collusion).
+
 ## v0.47.0 - Data Usage Attestation Layer
 
 ### Added

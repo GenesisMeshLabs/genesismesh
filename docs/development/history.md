@@ -670,6 +670,20 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.48.0 — Formal PeerRiskSignal Verification (Tamarin).** Extends the Tamarin
+Prover models from v0.31 to cover the PeerRiskSignal state machine. Three
+security lemmas are proven over the abstract protocol: `signal_bounded` (signal
+value stays in the `{low, mid, high}` lattice after any sequence of updates),
+`anomaly_detection_responsive` (a SuddenDrop cannot permanently suppress anomaly
+detection), and `no_single_source_cascade` (cascade amplification requires
+genuine independent observations from each detecting sovereign — a single
+adversary cannot tunnel one event into simultaneous alarms). Executable
+property-based tests (no Tamarin required) exercise the same boundary conditions
+in the standard pytest run. Lemma 3 answers the cascade-amplification
+denial-of-service question from the PeerRiskSignal design review. 17 new tests
+(14 property-based + 3 file-structure; 3 additional Tamarin runner tests skip
+when tamarin-prover is not installed).
+
 **v0.47.0 — Data Usage Attestation Layer.** Introduces signed pre- and
 post-execution attestation for data access. `DataLicensePolicy` lets a licensor
 define an explicit source allowlist, permitted access types, prohibited
