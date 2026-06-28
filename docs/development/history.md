@@ -670,6 +670,19 @@ testing or deployment contexts where it is not needed.
 This opens the Third Trust Cycle (v0.38–v0.48): adversarial hardening, communication
 privacy, and the Data Plane.
 
+**v0.43.0 — Communication Privacy Layer.** Addresses the mesh-layer attack
+surface exposed by SALA (Stylometry-Assisted LLM Analysis, arXiv:2602.23079),
+which can fingerprint agents from message length distributions, timing
+correlations, and header metadata even when transport is encrypted. A
+`CommunicationPrivacyProfile` normalizes outbound messages in three dimensions:
+timestamp bucketing (floor to nearest N seconds), payload block-padding (pad
+to nearest multiple of M bytes, never truncate), and header stripping (retain
+only GM-required fields and an explicit allowlist). A signed `MetadataEnvelope`
+records the normalized metadata; a `PrivacyAuditRecord` documents exactly what
+was changed. `scan_metadata_fingerprints()` provides a non-blocking pre-send
+scan. Scope is structural/metadata normalization only — content-level
+stylometric rewriting requires a separate LLM service. 33 new tests.
+
 **v0.42.0 — Ephemeral Identity Purge Protocol.** Addresses three consequences of
 indefinitely accumulating expired `EphemeralExecutionIdentity` records: audit log
 bloat, residual correlation risk, and unverifiable destruction. A `NullificationReceipt`

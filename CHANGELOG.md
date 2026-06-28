@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.43.0 - Communication Privacy Layer
+
+### Added
+
+- `CommunicationPrivacyProfile`, `MetadataEnvelope`, `PrivacyAuditRecord`
+  models (`models/privacy.py`):
+  - `CommunicationPrivacyProfile`: per-sovereign normalization policy
+    (strip_custom_headers, normalize_timestamps, timestamp_bucket_seconds,
+    normalize_message_length, message_length_block_bytes, allowed_header_keys)
+  - `MetadataEnvelope`: signed outbound wrapper with payload_hash,
+    normalized_length, bucketed_timestamp, retained_headers
+  - `PrivacyAuditRecord`: documents original vs. normalized values
+    (length_padded_bytes, timestamp_shifted_seconds, headers_stripped)
+
+- `bucket_timestamp()` (`trust/privacy.py`): rounds timestamp DOWN to the
+  nearest `bucket_seconds` boundary (UTC epoch-relative, floor division).
+
+- `normalize_payload_length()` (`trust/privacy.py`): pads to next multiple
+  of `block_bytes` using zero-bytes. Never truncates.
+
+- `apply_privacy_profile()` (`trust/privacy.py`): strips custom headers
+  (retaining GM-required fields + allowlisted keys), buckets timestamp,
+  pads payload, signs the `MetadataEnvelope`, returns `(envelope, normalized_payload, audit)`.
+
+- `scan_metadata_fingerprints()` (`trust/privacy.py`): non-blocking pre-send
+  scan that returns header keys the profile would strip.
+
+- `genesis-mesh trust privacy` CLI subgroup:
+  - `profile`: create signed `CommunicationPrivacyProfile`
+  - `apply`: normalize payload + headers, output envelope + padded payload
+  - `scan`: list strippable headers (informational)
+
+- `docs/examples/communication-privacy.md`: worked example including scope
+  and explicit list of what the layer does NOT protect against
+
+### Notes
+
+- GM-required headers (`gm-version`, `gm-sovereign`, `gm-message-id`) are
+  always retained regardless of profile settings.
+- Truncation of payload is architecturally prohibited — it invalidates signatures.
+- 33 new tests; 938 total pass.
+
+---
+
 ## v0.42.0 - Ephemeral Identity Purge Protocol
 
 ### Added

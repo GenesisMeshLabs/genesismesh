@@ -200,21 +200,21 @@ trust privacy scan      --headers headers.json --profile profile.json
 
 ## Success Criteria
 
-- [ ] `CommunicationPrivacyProfile`, `MetadataEnvelope`, `PrivacyAuditRecord` models
-- [ ] `apply_privacy_profile()` with timestamp bucketing + length normalization
-- [ ] `scan_metadata_fingerprints()` heuristic
-- [ ] CLI `trust privacy` subgroup with profile / apply / scan
-- [ ] >= 28 tests; all pass; full suite passes
-- [ ] Sphinx build clean with -W
+- [x] `CommunicationPrivacyProfile`, `MetadataEnvelope`, `PrivacyAuditRecord` models
+- [x] `apply_privacy_profile()` with timestamp bucketing + length normalization
+- [x] `scan_metadata_fingerprints()` heuristic
+- [x] CLI `trust privacy` subgroup with profile / apply / scan
+- [x] >= 28 tests (33); all pass; full suite passes (938)
+- [x] Sphinx build clean with -W
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.43.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/examples/communication-privacy.md` worked example including what is and is not covered
-- [ ] CLI reference updated with `trust privacy`
-- [ ] history.md updated
-- [ ] All prior tests continue to pass
+- [x] Package metadata bumped to `0.43.0`
+- [x] CHANGELOG entry
+- [x] `docs/examples/communication-privacy.md` worked example including what is and is not covered
+- [x] CLI reference updated with `trust privacy`
+- [x] history.md updated
+- [x] All prior tests continue to pass
 
 ## Research citations
 

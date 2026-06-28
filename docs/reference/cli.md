@@ -1125,6 +1125,55 @@ Empty `--allow-*` lists mean "any value permitted" for that dimension.
 Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeatable),
 `--require-bound-token` (flag).
 
+## Communication Privacy Commands
+
+The `genesis-mesh trust privacy` sub-group (v0.43) normalizes outbound message
+metadata to eliminate the easiest SALA (Stylometry-Assisted LLM Analysis)
+fingerprinting vectors at the mesh layer.
+
+### `genesis-mesh trust privacy profile`
+
+Create a signed `CommunicationPrivacyProfile`.
+
+```bash
+genesis-mesh trust privacy profile \
+    --sovereign-id agent-a \
+    --bucket-seconds 5 \
+    --block-bytes 256 \
+    --allow-header x-correlation-id \
+    --signing-key keys/agent.key \
+    --output profile.json
+```
+
+Options: `--no-strip-headers`, `--no-normalize-timestamps`, `--no-normalize-length`.
+
+### `genesis-mesh trust privacy apply`
+
+Apply a privacy profile to an outbound payload + headers.
+
+```bash
+genesis-mesh trust privacy apply \
+    --payload message.bin \
+    --headers headers.json \
+    --profile profile.json \
+    --signing-key keys/agent.key \
+    --output-envelope envelope.json \
+    --output-payload normalized.bin
+```
+
+Produces a signed `MetadataEnvelope` and a block-padded payload file.
+
+### `genesis-mesh trust privacy scan`
+
+List header keys that would be stripped. Non-blocking — informational only.
+
+```bash
+genesis-mesh trust privacy scan \
+    --headers headers.json \
+    --profile profile.json \
+    --format human
+```
+
 ## Ephemeral Identity Purge Commands
 
 The `genesis-mesh trust purge` sub-group (v0.42) implements verifiable deletion

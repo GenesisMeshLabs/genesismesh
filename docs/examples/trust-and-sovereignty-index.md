@@ -36,6 +36,7 @@ adversarial-seed-isolation
 verifiable-logic-attestation
 context-injection-defense
 ephemeral-identity-purge
+communication-privacy
 ```
 
 ## Start Here
@@ -255,6 +256,16 @@ Verifiable deletion of expired EphemeralExecutionIdentities. NullificationReceip
 commit to identity existence and destruction without retaining sensitive fields.
 A signed Merkle registry enables auditable proof of inclusion without resurrecting
 deleted records.
+:::
+
+:::{grid-item-card} Communication Privacy Layer
+:link: communication-privacy
+:link-type: doc
+
+Defends against SALA mesh-layer fingerprinting: normalizes message length
+(block-padding), dispatch timestamps (bucket rounding), and strips custom
+headers before forwarding. MetadataEnvelopes are signed; a PrivacyAuditRecord
+documents exactly what was changed.
 :::
 
 ::::
