@@ -149,20 +149,19 @@ Minimum supported: Node.js 20 LTS, TypeScript 5.0.
 
 ## Success Criteria
 
-- [ ] `sdk/typescript/` with full source tree
-- [ ] `GenesisMeshClient` with all 7 sub-clients
-- [ ] TypeScript interfaces for all stable protocol models
-- [ ] Typed error classes covering all API error codes
-- [ ] Jest test suite: >= 40 tests; all pass
-- [ ] `npm run build` produces ESM + CJS + types
-- [ ] `npm test` passes (mock server)
-- [ ] README with install + quick-start + all 7 sub-client examples
-- [ ] Sphinx build (Python side) clean with `-W`
+- [x] `sdk-ts/` at `C:\Source\GenesisMeshLabs\sdk-ts\` (decoupled from main repo)
+- [x] `GenesisMeshClient` with all 7 sub-clients
+- [x] TypeScript interfaces for all stable protocol models (`src/types.ts`)
+- [x] Typed error classes covering all API error codes (`src/errors.ts`)
+- [x] Admin auth in dedicated `src/auth.ts` — canonicalJson, Ed25519 signing, header building
+- [x] Jest test suite: 74 tests; all pass (`npm test`)
+- [x] `npm run build` produces ESM + CJS + types
+- [x] README with install + quick-start + all 7 sub-client examples
+- [x] Sphinx build (Python side) clean with `-W`
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.52.0`
-- [ ] `sdk/typescript/package.json` version `0.52.0`
-- [ ] CHANGELOG entry (TypeScript SDK)
-- [ ] history.md updated with v0.53.0 entry
-- [ ] All prior Python tests continue to pass
+- [x] `sdk-ts/package.json` version `0.53.0`
+- [x] CHANGELOG entry (TypeScript SDK)
+- [x] history.md updated with v0.53.0 entry
+- [x] All prior Python tests continue to pass
