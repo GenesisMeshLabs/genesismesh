@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.52.0 - Trust API Surface (NA HTTP Endpoints)
+
+### Added
+
+- `genesis_mesh/na_service/routes/agreement.py` — `POST /admin/agreements/offer`,
+  `/counter`, `/accept`; `POST /agreements/verify`.
+- `genesis_mesh/na_service/routes/boundary.py` — `POST /admin/boundary/decide`;
+  `POST /boundary/verify`.
+- `genesis_mesh/na_service/routes/evidence.py` — `POST /admin/trust-evidence`;
+  `POST /trust-evidence/verify`.
+- `genesis_mesh/na_service/routes/disclosure.py` — `POST /admin/disclosure/commit`,
+  `/nullifier`; `POST /disclosure/prove`, `/verify`.
+- `genesis_mesh/na_service/routes/consensus.py` — `POST /admin/consensus/vote`,
+  `/proof`; `POST /consensus/verify`.
+- `genesis_mesh/na_service/routes/data_usage.py` — `POST /admin/data-usage/policy`,
+  `/intent`; `GET /data-usage/policy`; `POST /data-usage/verify`.
+- `docs/api/trust-http.md` — full HTTP reference for the new endpoints
+  (route, auth, request/response shape, error codes, curl examples).
+- `genesis_mesh/tests/test_na_trust_api.py` — 45 tests covering all new routes.
+
+### Security
+
+- Admin routes enforce the signing security constraint: the NA constructs
+  canonical protocol artifacts from declared intent and signs them. Pre-built
+  model payloads are never accepted for signing.
+- `POST /disclosure/prove` is intentionally unauthenticated: all inputs are
+  caller-supplied, no NA state is used, and the output is a Merkle proof (not
+  a signed artifact).
+
+---
+
 ## v0.51.1 - Repository cleanup + SECURITY.md patch
 
 ### Changed

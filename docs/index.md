@@ -184,6 +184,7 @@ concepts/routing
 reference/cli
 reference/network-authority-api
 reference/configuration
+api/trust-http
 ```
 
 ```{toctree}

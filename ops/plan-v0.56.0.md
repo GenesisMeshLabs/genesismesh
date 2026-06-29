@@ -1,174 +1,170 @@
-# v0.56.0 Plan -- Cross-Language Interoperability Proof
+# v0.56.0 Plan -- Go Protocol Verifier (First Independent Implementation)
 
 ## Positioning
 
-v0.55 proved that a second implementation passes the conformance suite.
-That is a necessary condition for calling Genesis Mesh a protocol.
-It is not sufficient.
+Three SDKs (TypeScript, Go, C#) make it easier to call Genesis Mesh.
+They do not prove that Genesis Mesh is a protocol.
 
-A protocol is interoperable when implementations can exchange records with
-each other in a live, end-to-end scenario.  The conformance suite tests
-each implementation in isolation against fixed vectors.  It does not test
-that a record produced by the Python implementation at runtime is accepted
-by the Go verifier, and that a record signed by a TypeScript client is
-verifiable by the C# client.
+A protocol is independent of any single implementation.  The only way to
+prove that is with a second implementation that passes the conformance suite
+without using the first implementation's code.
 
-v0.56 constructs the interoperability proof: a CI-enforced test matrix that
-runs a cross-language scenario end-to-end.  The scenario covers the complete
-authorization path: agreement negotiation (Python), boundary decision (Python),
-agreement verification (Go verifier), boundary decision verification (Go),
-TypeScript intent submission (TS SDK), C# intent verification (C# SDK).
+The Go protocol verifier is the first independent implementation of Genesis
+Mesh.  It is written in Go from the protocol specification and the conformance
+vectors (v0.51).  It shares no code with the Python implementation.
 
-This is not a synthetic test.  It uses the actual implementations, actual
-network calls, and actual signed records.  The scenario fails if any
-implementation disagrees with another on any protocol decision.
+Scope for v0.56 is verification only.  The verifier can check signatures,
+validate treaties, verify attestations, check revocation feeds, verify IBCTs,
+verify TrustEvidence records, verify selective-disclosure proofs, and verify
+consensus proofs.  It does not issue, sign, or construct new records.
+
+A sovereign that wants to verify that another party has produced a valid
+Genesis Mesh record can do so using the Go verifier without running any
+Python or calling any external service.  This is the foundation for
+multi-runtime trust enforcement in infrastructure-level components.
 
 v0.56 should prove:
 
-> A trust agreement produced by the Python Network Authority is independently
-> verifiable by the Go verifier; a boundary decision produced by Python is
-> verifiable in Go; a data access intent submitted by the TypeScript SDK is
-> verifiable by the C# SDK; all four implementations agree on all protocol
-> decisions in the cross-language scenario.
+> A Genesis Mesh record produced by the Python implementation can be
+> independently verified by the Go verifier: the verifier passes all
+> conformance vectors for the 9 supported suites using only the Go standard
+> library plus an Ed25519 package, with no Python dependency.
 
 ## Design
 
-### Interoperability scenario: `interop/`
+### Repository location: `verifier/go/`
+
+The verifier is a standalone Go module, separate from the `sdk/go/` client.
+It has no network dependency -- it verifies records from local data.
 
 ```
-interop/
+verifier/go/
+  go.mod                     -- module: github.com/thaersaidi/genesismesh/verifier
+  go.sum
+  verifier/
+    signatures.go            -- Ed25519 signature verification
+    treaties.go              -- treaty structure + signature verification
+    attestations.go          -- model attestation verification
+    revocation.go            -- revocation feed chain verification
+    ibct.go                  -- InvocationBoundedContinuityToken verification
+    trust_evidence.go        -- TrustEvidence + graph digest verification
+    disclosure.go            -- Merkle proof verification (capability membership)
+    consensus.go             -- multi-validator consensus proof verification
+    data_usage.go            -- DataAccessIntent + policy compliance check
+  cmd/
+    gm-verify/
+      main.go                -- CLI: gm-verify <suite> <record.json>
+  conformance/
+    runner.go                -- runs conformance/vectors/ against this verifier
+  verifier_test/
+    signatures_test.go
+    treaties_test.go
+    ...
   README.md
-  scenario.md              -- narrative description of the full scenario
-  run_all.sh               -- orchestration script (starts NA, runs all legs)
-  python/
-    setup.py               -- create agreement + boundary decision, write to fixtures/
-  go/
-    verify.go              -- read fixtures/, verify with Go verifier, exit 0/1
-  typescript/
-    submit_intent.ts       -- read fixtures/, submit data intent via TS SDK
-  csharp/
-    VerifyIntent/Program.cs -- read fixtures/ + TS output, verify via C# SDK
-  fixtures/                -- written by python/setup.py, read by other legs
-    agreement.json
-    boundary_decision.json
-    data_policy.json
 ```
 
-### The scenario (four legs)
+### Core verification functions
 
-**Leg 1 (Python)** -- `interop/python/setup.py`
+Each function takes a Go struct (deserialized from the protocol JSON) and
+returns `(bool, VerificationResult)`:
 
-1. Start a local Network Authority
-2. Create two sovereigns (org-a, bank-a) with real Ed25519 keys
-3. Negotiate a full agreement (offer → counter → accept → cosign)
-4. Issue a boundary decision for `transactions.read`
-5. Create a `DataLicensePolicy`
-6. Write all signed artifacts to `interop/fixtures/`
+```go
+// Signature verification
+func VerifySignature(message []byte, signature []byte, publicKey ed25519.PublicKey) bool
 
-**Leg 2 (Go)** -- `interop/go/verify.go`
+// Treaty
+func VerifyTreaty(treaty Treaty, issuerPublicKey ed25519.PublicKey) (bool, VerificationResult)
 
-1. Read `fixtures/agreement.json`, `fixtures/boundary_decision.json`
-2. Verify agreement with Go verifier using public keys from fixtures
-3. Verify boundary decision with Go verifier
-4. Assert both return `valid=true`
-5. Print: `[GO VERIFIER] agreement: OK  boundary: OK`
-6. Exit 0 if both OK, exit 1 if any fail
+// Model attestation
+func VerifyAttestation(attestation ModelAttestation, policy LogicPolicy,
+    agentPublicKeys []ed25519.PublicKey, atTime time.Time) (bool, AttestationVerificationResult)
 
-**Leg 3 (TypeScript)** -- `interop/typescript/submit_intent.ts`
+// Revocation feed
+func VerifyRevocationFeed(feed RevocationFeed, issuerPublicKey ed25519.PublicKey) (bool, VerificationResult)
 
-1. Read `fixtures/data_policy.json` and public keys
-2. Create a `DataAccessIntent` for `db-prod` source using TS SDK
-3. Submit to local NA
-4. Assert `compliant=true`
-5. Write `fixtures/ts_intent.json`
-6. Print: `[TS SDK] intent: submitted  compliant: true`
+// IBCT
+func VerifyIBCT(token InvocationToken, useCount int, issuerPublicKey ed25519.PublicKey,
+    atTime time.Time) (bool, IBCTVerificationResult)
 
-**Leg 4 (C#)** -- `interop/csharp/VerifyIntent/Program.cs`
+// TrustEvidence
+func VerifyTrustEvidence(evidence TrustEvidence, graphExport GraphExport,
+    issuerPublicKey ed25519.PublicKey, atTime time.Time) (bool, EvidenceVerificationResult)
 
-1. Read `fixtures/ts_intent.json` and `fixtures/data_policy.json`
-2. Verify intent against policy using C# SDK
-3. Assert `compliant=true`
-4. Print: `[CSHARP SDK] intent: verified  compliant: true`
-5. Exit 0 if OK
+// Selective disclosure
+func VerifyCapabilityProof(proof CapabilityMembershipProof, commitment CapabilityCommitment,
+    issuerPublicKey ed25519.PublicKey) (bool, ProofVerificationResult)
 
-### CI matrix: `.github/workflows/interop.yml`
+// Consensus
+func VerifyConsensusProof(proof ConsensusProof,
+    validatorPublicKeys map[string]ed25519.PublicKey,
+    atTime time.Time) (bool, ConsensusVerificationResult)
 
-```yaml
-name: Interoperability
-on: [push, pull_request]
-jobs:
-  interop:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
-
-      - name: Install Python deps
-        run: pip install -e ".[dev]"
-
-      - name: Leg 1 -- Python setup
-        run: python interop/python/setup.py
-
-      - name: Leg 2 -- Go verification
-        run: cd interop/go && go run verify.go
-
-      - name: Leg 3 -- TypeScript intent
-        run: cd interop/typescript && npm ci && npx ts-node submit_intent.ts
-
-      - name: Leg 4 -- C# verification
-        run: cd interop/csharp/VerifyIntent && dotnet run
-
-      - name: Assert all legs passed
-        run: cat interop/fixtures/results.json | python -c "
-import json, sys
-r = json.load(sys.stdin)
-assert all(r[k] for k in r), f'Interop failure: {r}'
-print('ALL LEGS PASSED')
-"
+// Data usage
+func VerifyDataAccessIntent(intent DataAccessIntent, policy DataLicensePolicy,
+    agentPublicKey ed25519.PublicKey, atTime time.Time) (bool, DataUsageViolationReason, []DataUsageViolation)
 ```
 
-### `interop/scenario.md`
+### `VerificationResult` type
 
-Human-readable narrative that describes:
-- The trust scenario being tested
-- What each leg does and why
-- What a failure in each leg means
-- How to run the scenario locally
-
-This document is the interoperability certificate: it states precisely
-what has been proven about cross-language agreement.
-
-### Interoperability badge in README
-
-```markdown
-![Interoperability](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/interop.yml/badge.svg)
+```go
+type VerificationResult struct {
+    Valid  bool
+    Reason string // matches Python reason strings exactly
+}
 ```
+
+Reason strings must exactly match the Python implementation's reason strings
+as documented in the conformance suite.  This is the correctness invariant.
+
+### `cmd/gm-verify` CLI
+
+```
+gm-verify signatures   record.json --public-key <base64url>
+gm-verify treaty       treaty.json --public-key <base64url>
+gm-verify attestation  attestation.json --policy policy.json --public-key <base64url>
+gm-verify evidence     evidence.json --graph graph.json --public-key <base64url>
+gm-verify ibct         token.json --use-count 3 --public-key <base64url>
+gm-verify disclosure   proof.json --commitment commitment.json --public-key <base64url>
+gm-verify consensus    proof.json --validators validators.json
+gm-verify data-usage   intent.json --policy policy.json --public-key <base64url>
+```
+
+Exit code 0 = valid.  Exit code 1 = invalid (reason printed to stdout as JSON).
+
+### Conformance runner
+
+`verifier/go/conformance/runner.go` reads the vector files from
+`conformance/vectors/` (the Python-side suite from v0.51) and runs each
+vector through the Go verifier.  Output is a pass/fail table per vector.
+
+`go test ./conformance/...` runs all vectors as subtests.
+
+### Dependencies
+
+Go standard library only, plus:
+- `golang.org/x/crypto` (Ed25519 is in stdlib since Go 1.13, but x/crypto
+  provides the NaCl-compatible API that matches the Python `nacl` library)
+
+No external HTTP dependencies.  No Python.  No cgo.
 
 ## Success Criteria
 
-- [ ] `interop/` directory with all four legs
-- [ ] Leg 1 (Python) produces all fixtures
-- [ ] Leg 2 (Go) verifies agreement + boundary decision: exit 0
-- [ ] Leg 3 (TypeScript) submits + verifies data intent: exit 0
-- [ ] Leg 4 (C#) verifies TypeScript-produced intent: exit 0
-- [ ] `.github/workflows/interop.yml` runs all four legs in sequence
-- [ ] CI passes on `main` branch
-- [ ] `interop/scenario.md` narrative documents the full scenario
-- [ ] Interoperability badge added to README
+- [ ] `verifier/go/` with all 9 verification functions
+- [ ] All functions accept and return the correct protocol types
+- [ ] Reason strings exactly match Python implementation strings
+- [ ] `gm-verify` CLI handles all 8 suites; exits 0/1 correctly
+- [ ] Conformance runner passes all 9 vector suites (100% pass rate)
+- [ ] `go test ./...` >= 50 tests; all pass
+- [ ] `go build ./...` produces no errors
+- [ ] Zero external dependencies beyond `golang.org/x/crypto`
+- [ ] `README.md` explains verification-only scope
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.56.0`
-- [ ] CHANGELOG entry (cross-language interoperability proof)
+- [ ] Package metadata bumped to `0.55.0`
+- [ ] `verifier/go/go.mod` at correct version
+- [ ] CHANGELOG entry (Go verifier -- "first independent implementation")
 - [ ] history.md updated with v0.56.0 entry
 - [ ] All prior Python tests continue to pass
 - [ ] All SDK tests continue to pass
-- [ ] Go verifier conformance: 100% pass rate
-- [ ] Interop CI workflow: all four legs green
+- [ ] Conformance vector pass rate explicitly stated in CHANGELOG (must be 100%)

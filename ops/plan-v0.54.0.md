@@ -1,193 +1,180 @@
-# v0.54.0 Plan -- C# SDK
+# v0.54.0 Plan -- Go SDK
 
 ## Positioning
 
-The TypeScript and Go SDKs (v0.52, v0.53) cover web applications and cloud
-infrastructure respectively.  The third major developer ecosystem is the
-Microsoft stack: Azure deployments, enterprise software, .NET backends,
-and AI agent frameworks built on the Semantic Kernel or Azure AI ecosystem.
+The TypeScript SDK (v0.53) targets web developers and MCP server authors.
+The Go SDK targets the infrastructure layer: Kubernetes operators, cloud
+backend services, edge systems, and API gateways.
 
-C# is the entry point for enterprises running Azure OpenAI, enterprise
-CoPilot extensions, and .NET microservices.  These organizations are among
-the most likely early adopters of sovereign trust infrastructure: they operate
-under compliance regimes that require exactly the kind of auditable, signed
-authorization records Genesis Mesh produces.
+Go's characteristics make it the right second SDK target:
+- Single static binary deployment (no runtime dependency)
+- Native concurrency model suits high-throughput trust checks
+- Strong typing without a separate compilation step for consumers
+- Cloud-native ecosystem: K8s, gRPC, service mesh integrations
 
-Like the TypeScript and Go SDKs, the C# SDK is a typed client over the
-stable Python API (v0.51).  It is not a protocol reimplementation.
+Like the TypeScript SDK, the Go SDK is a typed client over the stable
+Python API (v0.51).  It does not reimplement the protocol.  It makes the
+protocol's capabilities accessible to Go infrastructure engineers without
+any Python knowledge.
 
-v0.54 should prove:
+v0.53 should prove:
 
-> A .NET developer can integrate Genesis Mesh boundary checks and trust
-> agreement verification into an Azure-hosted service or Semantic Kernel
-> agent using idiomatic C#: async/await, typed result objects, NuGet package
-> install, and no Python knowledge required.
+> A Go service can perform boundary checks, verify trust agreements, and
+> submit data usage intents against a Genesis Mesh Network Authority using
+> idiomatic Go: context-aware functions, typed errors, and zero external
+> runtime dependencies.
 
 ## Design
 
-### Package: `sdk/csharp/`
+### Module: `sdk/go/`
 
-Published to NuGet as `GenesisMesh.SDK`.
+Published as Go module `github.com/thaersaidi/genesismesh/sdk`.
 
 ```
-sdk/csharp/
-  GenesisMesh.SDK/
-    GenesisMesh.SDK.csproj
-    Client/
-      GenesisMeshClient.cs    -- main client, options, HttpClient wrapper
-      AgreementClient.cs
-      BoundaryClient.cs
-      EvidenceClient.cs
-      AttestationClient.cs
-      DisclosureClient.cs
-      ConsensusClient.cs
-      DataUsageClient.cs
-    Models/
-      AgreementRecord.cs
-      BoundaryDecision.cs
-      TrustEvidence.cs
-      DataAccessIntent.cs
-      // ... all stable protocol models
-    Errors/
-      GenesisMeshException.cs
-      ApiError.cs
-  GenesisMesh.SDK.Tests/
-    AgreementClientTests.cs
-    BoundaryClientTests.cs
+sdk/go/
+  go.mod
+  go.sum
+  genesismesh/
+    client.go          -- Client struct, options, HTTP transport
+    agreement.go       -- Offer, Counter, Accept, Cosign, Verify
+    boundary.go        -- Decide, Verify
+    evidence.go        -- Build, Verify
+    attestation.go     -- Create, Verify
+    disclosure.go      -- Commit, Prove, Verify, Nullifier
+    consensus.go       -- Vote, BuildProof, Verify
+    data_usage.go      -- CreateIntent, VerifyIntent, VerifyRecord
+    types.go           -- all protocol struct types
+    errors.go          -- typed error types
+  genesismesh_test/
+    agreement_test.go
+    boundary_test.go
     ...
-  GenesisMesh.SDK.Examples/
-    BoundaryCheck/Program.cs
-    DataIntent/Program.cs
   README.md
+  examples/
+    boundary_check/main.go
+    data_intent/main.go
 ```
 
-### `GenesisMeshClient`
+### `Client`
 
-```csharp
-public class GenesisMeshClient : IDisposable
-{
-    public GenesisMeshClient(GenesisMeshOptions options);
-
-    public AgreementClient    Agreement    { get; }
-    public BoundaryClient     Boundary     { get; }
-    public EvidenceClient     Evidence     { get; }
-    public AttestationClient  Attestation  { get; }
-    public DisclosureClient   Disclosure   { get; }
-    public ConsensusClient    Consensus    { get; }
-    public DataUsageClient    DataUsage    { get; }
+```go
+type Client struct {
+    Agreement  *AgreementClient
+    Boundary   *BoundaryClient
+    Evidence   *EvidenceClient
+    Attestation *AttestationClient
+    Disclosure  *DisclosureClient
+    Consensus   *ConsensusClient
+    DataUsage   *DataUsageClient
 }
 
-public class GenesisMeshOptions
-{
-    public required string BaseUrl { get; init; }
-    public string? SigningKeyBase64 { get; init; }
-    public string? ApiKey { get; init; }
-    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
-    public HttpClient? HttpClient { get; init; }  // Optional custom client
+type Options struct {
+    BaseURL    string
+    SigningKey  []byte        // Ed25519 private key seed (32 bytes)
+    APIKey     string         // Optional bearer token
+    Timeout    time.Duration  // default 10s
+    HTTPClient *http.Client   // Optional custom transport
 }
+
+func NewClient(opts Options) (*Client, error)
 ```
 
 ### Example: boundary check
 
-```csharp
-using GenesisMesh.SDK;
+```go
+package main
 
-var client = new GenesisMeshClient(new GenesisMeshOptions
-{
-    BaseUrl = "https://na.example.com",
-    SigningKeyBase64 = Environment.GetEnvironmentVariable("OPERATOR_KEY"),
-});
+import (
+    "context"
+    "fmt"
+    "github.com/thaersaidi/genesismesh/sdk/genesismesh"
+)
 
-var result = await client.Boundary.DecideAsync(new BoundaryRequest
-{
-    RequestingAgent = "agent-a",
-    TargetAgent     = "agent-b",
-    Capability      = "transactions.read",
-    AgreementId     = agreementId,
-});
+func main() {
+    client, _ := genesismesh.NewClient(genesismesh.Options{
+        BaseURL:   "https://na.example.com",
+        SigningKey: loadKey("operator.key"),
+    })
 
-if (!result.Allowed)
-    throw new UnauthorizedAccessException($"Boundary denied: {result.Reason}");
-```
-
-### Example: Semantic Kernel plugin
-
-```csharp
-[KernelFunction("check_boundary")]
-[Description("Verify that an agent is authorized to perform a capability")]
-public async Task<string> CheckBoundaryAsync(
-    [Description("The capability to check")] string capability,
-    [Description("The target agent")] string targetAgent)
-{
-    var result = await _meshClient.Boundary.DecideAsync(new BoundaryRequest
-    {
-        RequestingAgent = _agentId,
-        TargetAgent     = targetAgent,
-        Capability      = capability,
-    });
-    return result.Allowed ? "authorized" : $"denied:{result.Reason}";
+    result, err := client.Boundary.Decide(context.Background(), genesismesh.BoundaryRequest{
+        RequestingAgent: "agent-a",
+        TargetAgent:     "agent-b",
+        Capability:      "transactions.read",
+        AgreementID:     agreementID,
+    })
+    if err != nil {
+        panic(err)
+    }
+    if !result.Allowed {
+        fmt.Printf("denied: %s\n", result.Reason)
+    }
 }
 ```
 
-### Error handling
+### Error types
 
-```csharp
-public class GenesisMeshException : Exception
-{
-    public string ErrorCode { get; }
-    public int? HttpStatus { get; }
+```go
+type APIError struct {
+    Code    string // protocol error code e.g. "capability_not_in_agreement"
+    Message string
+    Status  int    // HTTP status code
 }
 
-// Common subclasses
-public class UnauthorizedSignatureException : GenesisMeshException { }
-public class AgreementExpiredException     : GenesisMeshException { }
-public class CapabilityDeniedException     : GenesisMeshException { }
+func (e *APIError) Error() string { ... }
+
+// Sentinel errors for common cases
+var (
+    ErrUnauthorized       = &APIError{Code: "unauthorized"}
+    ErrCapabilityDenied   = &APIError{Code: "capability_not_in_agreement"}
+    ErrSignatureInvalid   = &APIError{Code: "invalid_signature"}
+    ErrAgreementExpired   = &APIError{Code: "agreement_expired"}
+)
 ```
 
-### Models
+### Types
 
-All stable protocol models as C# record types with `System.Text.Json`
-serialization attributes:
+All stable protocol models as Go structs with JSON tags:
 
-```csharp
-public record AgreementRecord(
-    [property: JsonPropertyName("agreement_id")]           string AgreementId,
-    [property: JsonPropertyName("offerer_sovereign_id")]   string OffererSovereignId,
+```go
+type AgreementRecord struct {
+    AgreementID         string      `json:"agreement_id"`
+    OffererSovereignID  string      `json:"offerer_sovereign_id"`
+    ResponderSovereignID string     `json:"responder_sovereign_id"`
+    AgreedTerms         AgreedTerms `json:"agreed_terms"`
     // ...
-);
+}
 ```
 
 ### Test strategy
 
-xUnit tests run against WireMock.Net (HTTP mock server).
-Integration tests tagged `[Trait("Category", "Integration")]` run against
-a real NA.
+`go test ./...` runs against a mock HTTP server (httptest).
+Integration tests (`//go:build integration`) run against a real NA.
 
-Target framework: .NET 8 LTS.
+Minimum supported: Go 1.22.
 
-### Azure Function example (in `examples/`)
+### K8s admission webhook example (in `examples/`)
 
-A minimal Azure Function (`HttpTrigger`) that verifies boundary authorization
-before processing a request.  This demonstrates the concrete Azure use case.
+A minimal Kubernetes admission webhook that uses the Go SDK to check
+boundary authorization before allowing a pod to be scheduled.  This
+demonstrates the concrete cloud-native use case.
 
 ## Success Criteria
 
-- [ ] `sdk/csharp/` with full solution structure
-- [ ] `GenesisMeshClient` with all 7 sub-clients
-- [ ] C# record types for all stable protocol models with JSON attributes
-- [ ] Typed exception hierarchy; common subclasses for frequent errors
-- [ ] xUnit test suite: >= 40 tests; all pass
-- [ ] `dotnet build` produces no errors or warnings
-- [ ] `examples/BoundaryCheck/Program.cs` and `examples/DataIntent/Program.cs`
-- [ ] Semantic Kernel plugin example in `examples/`
-- [ ] Azure Function example in `examples/`
-- [ ] `README.md` with NuGet install + quick-start
+- [ ] `sdk/go/` with full module structure
+- [ ] `Client` with all 7 sub-clients
+- [ ] Go structs for all stable protocol models with correct JSON tags
+- [ ] Typed error types; sentinel errors for common cases
+- [ ] `go test ./...` >= 40 tests; all pass
+- [ ] `go build ./...` produces no errors
+- [ ] `examples/boundary_check/main.go` compiles and includes README
+- [ ] K8s admission webhook example in `examples/`
+- [ ] `README.md` with install + quick-start
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.54.0`
-- [ ] `GenesisMesh.SDK.csproj` version `0.54.0`
-- [ ] CHANGELOG entry (C# SDK)
+- [ ] Package metadata bumped to `0.53.0`
+- [ ] `sdk/go/go.mod` version set to `v0.54.0`
+- [ ] CHANGELOG entry (Go SDK)
 - [ ] history.md updated with v0.54.0 entry
 - [ ] All prior Python tests continue to pass
-- [ ] TypeScript + Go SDK tests continue to pass
+- [ ] TypeScript SDK tests continue to pass

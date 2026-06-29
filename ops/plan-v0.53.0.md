@@ -1,180 +1,168 @@
-# v0.53.0 Plan -- Go SDK
+# v0.53.0 Plan -- TypeScript SDK
 
 ## Positioning
 
-The TypeScript SDK (v0.52) targets web developers and MCP server authors.
-The Go SDK targets the infrastructure layer: Kubernetes operators, cloud
-backend services, edge systems, and API gateways.
+The Genesis Mesh Python implementation is the protocol reference.  It is not
+the right entry point for the majority of developers who will build on top of
+the protocol.
 
-Go's characteristics make it the right second SDK target:
-- Single static binary deployment (no runtime dependency)
-- Native concurrency model suits high-throughput trust checks
-- Strong typing without a separate compilation step for consumers
-- Cloud-native ecosystem: K8s, gRPC, service mesh integrations
+Web application developers, MCP server authors, dashboard builders, and
+operator tooling authors all work in TypeScript.  They should not need to run
+a Python subprocess or call a CLI to perform a signature verification or check
+a boundary decision.
 
-Like the TypeScript SDK, the Go SDK is a typed client over the stable
-Python API (v0.51).  It does not reimplement the protocol.  It makes the
-protocol's capabilities accessible to Go infrastructure engineers without
-any Python knowledge.
+The TypeScript SDK is not a reimplementation of the protocol.  It is a typed
+client that wraps the stable Python API (defined in v0.51) via the Genesis
+Mesh Network Authority HTTP interface.  The SDK handles:
+- Authentication and key management
+- Request serialization / response deserialization
+- Typed error handling
+- Node.js and browser compatibility (ESM, no native dependencies)
 
-v0.53 should prove:
+The SDK covers the stable surface only.  It does not expose internal or
+experimental APIs.
 
-> A Go service can perform boundary checks, verify trust agreements, and
-> submit data usage intents against a Genesis Mesh Network Authority using
-> idiomatic Go: context-aware functions, typed errors, and zero external
-> runtime dependencies.
+v0.52 should prove:
+
+> A TypeScript developer can verify a trust agreement, check boundary
+> authorization, and submit a data access intent against a Genesis Mesh
+> Network Authority using strongly-typed async functions, with no Python
+> knowledge required.
 
 ## Design
 
-### Module: `sdk/go/`
+### Package: `sdk/typescript/`
 
-Published as Go module `github.com/thaersaidi/genesismesh/sdk`.
+Published to npm as `genesis-mesh` (scoped: `@genesismesh/sdk` if preferred).
 
 ```
-sdk/go/
-  go.mod
-  go.sum
-  genesismesh/
-    client.go          -- Client struct, options, HTTP transport
-    agreement.go       -- Offer, Counter, Accept, Cosign, Verify
-    boundary.go        -- Decide, Verify
-    evidence.go        -- Build, Verify
-    attestation.go     -- Create, Verify
-    disclosure.go      -- Commit, Prove, Verify, Nullifier
-    consensus.go       -- Vote, BuildProof, Verify
-    data_usage.go      -- CreateIntent, VerifyIntent, VerifyRecord
-    types.go           -- all protocol struct types
-    errors.go          -- typed error types
-  genesismesh_test/
-    agreement_test.go
-    boundary_test.go
+sdk/typescript/
+  package.json
+  tsconfig.json
+  src/
+    client.ts          -- GenesisMeshClient: base HTTP client, auth
+    agreement.ts       -- offer, counter, accept, cosign, verify
+    boundary.ts        -- decide, verify
+    evidence.ts        -- build, verify
+    attestation.ts     -- model attestation: create, verify
+    disclosure.ts      -- commit, prove, verify, nullifier
+    consensus.ts       -- vote, build proof, verify
+    data_usage.ts      -- intent, record, verify
+    types.ts           -- all TypeScript interfaces matching protocol models
+    errors.ts          -- typed error classes
+    index.ts           -- public re-exports
+  tests/
+    agreement.test.ts
+    boundary.test.ts
     ...
   README.md
-  examples/
-    boundary_check/main.go
-    data_intent/main.go
 ```
 
-### `Client`
+### `GenesisMeshClient`
 
-```go
-type Client struct {
-    Agreement  *AgreementClient
-    Boundary   *BoundaryClient
-    Evidence   *EvidenceClient
-    Attestation *AttestationClient
-    Disclosure  *DisclosureClient
-    Consensus   *ConsensusClient
-    DataUsage   *DataUsageClient
+```typescript
+export class GenesisMeshClient {
+  constructor(options: {
+    baseUrl: string;          // Network Authority URL
+    signingKey?: string;      // base64url Ed25519 private key (for signing)
+    apiKey?: string;          // Optional bearer token for NA auth
+    timeout?: number;         // ms, default 10000
+  });
+
+  // Sub-clients
+  readonly agreement: AgreementClient;
+  readonly boundary: BoundaryClient;
+  readonly evidence: EvidenceClient;
+  readonly attestation: AttestationClient;
+  readonly disclosure: DisclosureClient;
+  readonly consensus: ConsensusClient;
+  readonly dataUsage: DataUsageClient;
 }
-
-type Options struct {
-    BaseURL    string
-    SigningKey  []byte        // Ed25519 private key seed (32 bytes)
-    APIKey     string         // Optional bearer token
-    Timeout    time.Duration  // default 10s
-    HTTPClient *http.Client   // Optional custom transport
-}
-
-func NewClient(opts Options) (*Client, error)
 ```
 
 ### Example: boundary check
 
-```go
-package main
+```typescript
+import { GenesisMeshClient } from 'genesis-mesh';
 
-import (
-    "context"
-    "fmt"
-    "github.com/thaersaidi/genesismesh/sdk/genesismesh"
-)
+const client = new GenesisMeshClient({
+  baseUrl: 'https://na.example.com',
+  signingKey: process.env.OPERATOR_KEY,
+});
 
-func main() {
-    client, _ := genesismesh.NewClient(genesismesh.Options{
-        BaseURL:   "https://na.example.com",
-        SigningKey: loadKey("operator.key"),
-    })
+const result = await client.boundary.decide({
+  requestingAgent: 'agent-a',
+  targetAgent:     'agent-b',
+  capability:      'transactions.read',
+  agreementId:     agreement.agreementId,
+});
 
-    result, err := client.Boundary.Decide(context.Background(), genesismesh.BoundaryRequest{
-        RequestingAgent: "agent-a",
-        TargetAgent:     "agent-b",
-        Capability:      "transactions.read",
-        AgreementID:     agreementID,
-    })
-    if err != nil {
-        panic(err)
-    }
-    if !result.Allowed {
-        fmt.Printf("denied: %s\n", result.Reason)
-    }
+if (!result.allowed) {
+  throw new Error(`Boundary denied: ${result.reason}`);
 }
 ```
 
-### Error types
+### Example: MCP server integration
 
-```go
-type APIError struct {
-    Code    string // protocol error code e.g. "capability_not_in_agreement"
-    Message string
-    Status  int    // HTTP status code
-}
+```typescript
+// In an MCP tool handler:
+const intent = await client.dataUsage.createIntent({
+  agentSovereignId: agentId,
+  decisionId:       decisionId,
+  sources:          [{ sourceId: 'db-prod', sourceType: 'proprietary', ownerSovereignId: 'org-a' }],
+  accessTypes:      ['read'],
+});
 
-func (e *APIError) Error() string { ... }
-
-// Sentinel errors for common cases
-var (
-    ErrUnauthorized       = &APIError{Code: "unauthorized"}
-    ErrCapabilityDenied   = &APIError{Code: "capability_not_in_agreement"}
-    ErrSignatureInvalid   = &APIError{Code: "invalid_signature"}
-    ErrAgreementExpired   = &APIError{Code: "agreement_expired"}
-)
+const { compliant, violations } = await client.dataUsage.verifyIntent({
+  intent,
+  policyId: activePolicyId,
+});
 ```
 
 ### Types
 
-All stable protocol models as Go structs with JSON tags:
+All protocol model types are exported as TypeScript interfaces:
 
-```go
-type AgreementRecord struct {
-    AgreementID         string      `json:"agreement_id"`
-    OffererSovereignID  string      `json:"offerer_sovereign_id"`
-    ResponderSovereignID string     `json:"responder_sovereign_id"`
-    AgreedTerms         AgreedTerms `json:"agreed_terms"`
-    // ...
-}
+```typescript
+export interface AgreementRecord { ... }
+export interface BoundaryDecision { ... }
+export interface TrustEvidence { ... }
+export interface DataAccessIntent { ... }
+// etc -- one interface per stable Python model
 ```
 
 ### Test strategy
 
-`go test ./...` runs against a mock HTTP server (httptest).
-Integration tests (`//go:build integration`) run against a real NA.
+Tests run against a local Network Authority started in a subprocess.
+A mock server option is provided for CI environments without a full NA.
 
-Minimum supported: Go 1.22.
+`npm test` runs Jest with the mock server.
+`npm run test:integration` runs against a real NA (requires env vars).
 
-### K8s admission webhook example (in `examples/`)
+### Build targets
 
-A minimal Kubernetes admission webhook that uses the Go SDK to check
-boundary authorization before allowing a pod to be scheduled.  This
-demonstrates the concrete cloud-native use case.
+- **ESM** (`dist/esm/`) -- for bundlers, Next.js, Deno
+- **CJS** (`dist/cjs/`) -- for Node.js require()
+- **Types** (`dist/types/`) -- `.d.ts` declarations
+
+Minimum supported: Node.js 20 LTS, TypeScript 5.0.
 
 ## Success Criteria
 
-- [ ] `sdk/go/` with full module structure
-- [ ] `Client` with all 7 sub-clients
-- [ ] Go structs for all stable protocol models with correct JSON tags
-- [ ] Typed error types; sentinel errors for common cases
-- [ ] `go test ./...` >= 40 tests; all pass
-- [ ] `go build ./...` produces no errors
-- [ ] `examples/boundary_check/main.go` compiles and includes README
-- [ ] K8s admission webhook example in `examples/`
-- [ ] `README.md` with install + quick-start
+- [ ] `sdk/typescript/` with full source tree
+- [ ] `GenesisMeshClient` with all 7 sub-clients
+- [ ] TypeScript interfaces for all stable protocol models
+- [ ] Typed error classes covering all API error codes
+- [ ] Jest test suite: >= 40 tests; all pass
+- [ ] `npm run build` produces ESM + CJS + types
+- [ ] `npm test` passes (mock server)
+- [ ] README with install + quick-start + all 7 sub-client examples
+- [ ] Sphinx build (Python side) clean with `-W`
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.53.0`
-- [ ] `sdk/go/go.mod` version set to `v0.53.0`
-- [ ] CHANGELOG entry (Go SDK)
+- [ ] Package metadata bumped to `0.52.0`
+- [ ] `sdk/typescript/package.json` version `0.52.0`
+- [ ] CHANGELOG entry (TypeScript SDK)
 - [ ] history.md updated with v0.53.0 entry
 - [ ] All prior Python tests continue to pass
-- [ ] TypeScript SDK tests continue to pass

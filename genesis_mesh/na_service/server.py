@@ -24,10 +24,16 @@ from .errors import register_error_handlers
 from .rate_limit import RateLimiter
 from .routes import (
     create_admin_blueprint,
+    create_agreement_blueprint,
     create_attestation_blueprint,
+    create_boundary_blueprint,
+    create_consensus_blueprint,
     create_crl_blueprint,
+    create_data_usage_blueprint,
+    create_disclosure_blueprint,
     create_discovery_blueprint,
     create_enrollment_blueprint,
+    create_evidence_blueprint,
     create_health_blueprint,
     create_public_blueprint,
     create_treaty_blueprint,
@@ -106,6 +112,12 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_discovery_blueprint(self))
         self.app.register_blueprint(create_attestation_blueprint(self))
         self.app.register_blueprint(create_treaty_blueprint(self))
+        self.app.register_blueprint(create_agreement_blueprint(self))
+        self.app.register_blueprint(create_boundary_blueprint(self))
+        self.app.register_blueprint(create_evidence_blueprint(self))
+        self.app.register_blueprint(create_disclosure_blueprint(self))
+        self.app.register_blueprint(create_consensus_blueprint(self))
+        self.app.register_blueprint(create_data_usage_blueprint(self))
 
     def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
         """
