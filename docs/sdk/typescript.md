@@ -1,6 +1,6 @@
-# TypeScript SDK
+﻿# TypeScript SDK
 
-> **Added in v0.53.0** · Package: `@genesismesh/sdk` · Source: `sdk-typescript/`
+> **Added in v0.53.0** · Package: `@genesismeshlabs/sdk` · Source: `sdk-typescript/`
 
 The TypeScript SDK is a standalone client for the Genesis Mesh Network Authority
 (NA) HTTP API. It ships ESM, CJS, and type declarations. Node.js ≥ 20 required.
@@ -13,7 +13,7 @@ surface, per-sub-client constraints, and error model.
 ## Install
 
 ```sh
-npm install @genesismesh/sdk
+npm install @genesismeshlabs/sdk
 ```
 
 ---
@@ -21,7 +21,7 @@ npm install @genesismesh/sdk
 ## `GenesisMeshClient`
 
 ```typescript
-import { GenesisMeshClient } from '@genesismesh/sdk';
+import { GenesisMeshClient } from '@genesismeshlabs/sdk';
 
 const client = new GenesisMeshClient({
   baseUrl: 'http://127.0.0.1:9443',   // NA address
@@ -154,7 +154,7 @@ For NA admin routes not covered by a sub-client, use `buildAdminHeaders`
 directly:
 
 ```typescript
-import { buildAdminHeaders } from '@genesismesh/sdk';
+import { buildAdminHeaders } from '@genesismeshlabs/sdk';
 
 const body = {
   subject_sovereign_id: 'BETA-NA',
@@ -202,7 +202,7 @@ The SDK unwraps this automatically.
 
 ## Types
 
-All protocol interfaces are re-exported from `@genesismesh/sdk`. Field names
+All protocol interfaces are re-exported from `@genesismeshlabs/sdk`. Field names
 use snake_case to match the NA JSON API exactly.
 
 Key types: `CapabilityOffer`, `AgreementRecord`, `BoundaryDecision`,

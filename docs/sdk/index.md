@@ -1,4 +1,4 @@
-# SDK Clients
+﻿# SDK Clients
 
 Genesis Mesh ships client libraries for all major server-side runtimes. Every
 SDK wraps the same Network Authority HTTP API — the surface documented in
@@ -12,7 +12,7 @@ They share no runtime dependencies with the Python server.
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `@genesismesh/sdk` | 0.53.0 | `sdk-typescript/` |
+| TypeScript / Node.js | `@genesismeshlabs/sdk` | 0.53.0 | `sdk-typescript/` |
 
 ## Planned
 
