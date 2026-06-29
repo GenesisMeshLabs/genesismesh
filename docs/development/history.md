@@ -166,9 +166,53 @@ As of v0.52.1:
   consensus, data usage), with a full HTTP reference at
   `docs/api/trust-http.md`.
 
-As of v0.52.1, the following are *not* yet true:
+### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
-- Genesis Mesh does not yet have TypeScript, Go, or C# SDKs.
+**Question this phase answered:** Can a TypeScript developer verify trust and
+check boundary authorization against a Genesis Mesh Network Authority using
+strongly-typed async functions, with no Python knowledge required?
+
+**What changed:**
+
+A standalone TypeScript SDK was created at `sdk-ts/` (decoupled from the
+Python repo, at `C:\Source\GenesisMeshLabs\sdk-ts\`). The SDK is the first
+external-language client for the Genesis Mesh Trust API.
+
+- **`GenesisMeshClient`** facade with 7 sub-clients covering the complete
+  stable HTTP surface introduced in v0.51–v0.52:
+  `agreement`, `boundary`, `evidence`, `attestation`, `disclosure`,
+  `consensus`, `dataUsage`.
+- **`src/auth.ts`** — pure functions for admin authentication:
+  `canonicalJson` (byte-for-byte compatible with Python's
+  `json.dumps(..., sort_keys=True, separators=(",",":"))`), Ed25519 signing
+  via Node.js built-in `crypto`, and `buildAdminHeaders` that produces
+  the four `X-Admin-*` headers consumed by all admin NA routes.
+- **`src/types.ts`** — 30+ TypeScript interfaces mirroring the Pydantic models
+  for all stable protocol objects (agreements, decisions, evidence, proofs,
+  policies, intents, nullifiers, votes).
+- **`src/errors.ts`** — typed error hierarchy: `GenesisMeshError`,
+  `UnauthorizedError`, `ValidationError`, `NotFoundError`, `RateLimitError`,
+  `NetworkError`, `BadRequestError`.
+- **74 Jest tests** (9 suites), all passing. Tests use a mock fetch injection
+  rather than a running NA, making them fast and CI-friendly.
+- **Build targets:** ESM (`dist/esm/`) + CJS (`dist/cjs/`) + type declarations
+  (`dist/types/`). Zero runtime dependencies.
+
+**What became possible:**
+
+- TypeScript/JavaScript developers can now interact with any Genesis Mesh NA
+  without a Python environment.
+- Admin operations (offer, decide, build-evidence, commit, vote, etc.) are
+  fully typed and handle Ed25519 request signing transparently.
+- Verify operations (agreement, boundary, evidence, proof, consensus, data
+  usage) require no signing key and can be called from browser or edge
+  environments.
+- The SDK repo structure establishes the decoupling pattern for Go SDK
+  (v0.54), C# SDK (v0.55), and subsequent language implementations.
+
+As of v0.53.0, the following are *not* yet true:
+
+- Genesis Mesh does not yet have Go or C# SDKs.
 - A second independent implementation has not yet been built.
 - No external operator has yet run a sovereign with their own
   infrastructure account, keys, policy, endpoint, and continuity

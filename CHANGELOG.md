@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.53.0 - TypeScript SDK
+
+### Added
+
+- `sdk-ts/` at `C:\Source\GenesisMeshLabs\sdk-ts\` — standalone TypeScript SDK
+  for the Genesis Mesh Network Authority HTTP API, decoupled from the Python repo.
+- `@genesismesh/sdk` npm package v0.53.0 with `GenesisMeshClient` and 7 sub-clients:
+  `agreement`, `boundary`, `evidence`, `attestation`, `disclosure`, `consensus`,
+  `dataUsage`.
+- `src/auth.ts` — `canonicalJson`, `signBytes`, `buildAdminHeaders` (Ed25519
+  admin auth, byte-for-byte compatible with the Python NA verifier).
+- `src/types.ts` — 30+ TypeScript interfaces for all stable protocol models.
+- `src/errors.ts` — typed error hierarchy with `UnauthorizedError`,
+  `ValidationError`, `NotFoundError`, `RateLimitError`, `NetworkError`,
+  `BadRequestError`.
+- 74 Jest tests across 9 suites (auth, client, agreement, boundary, evidence,
+  attestation, disclosure, consensus, data_usage); all pass.
+- ESM + CJS + TypeScript declaration build targets. Zero runtime dependencies.
+- `README.md` with install, quick-start, all 7 sub-client examples, and auth
+  header documentation.
+
+---
+
 ## v0.52.1 - Trust API production hardening + `/ship` release skill
 
 ### Fixed
