@@ -12,25 +12,25 @@ They share no runtime dependencies with the Python server.
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `genesis-mesh-sdk` | 0.53.0 | `sdk-typescript/` |
+| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.53.0 | `sdk-typescript/` |
+| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.54.0 | `sdk-go/` |
 
 ## Planned
 
 | SDK | Target version |
 |-----|---------------|
-| Go | 0.54.0 |
 | C# | 0.55.0 |
 
 ## Design principles
 
 All SDKs mirror the main repo's layer separation:
 
-| Layer | TypeScript | Python equivalent |
-|-------|-----------|------------------|
-| Crypto | `src/auth.ts` | `genesis_mesh/crypto/` |
-| HTTP transport | `src/client.ts` | `na_service/` |
-| Domain sub-clients | `src/agreement.ts` … | `na_service/routes/` |
-| Types | `src/types.ts` | `genesis_mesh/models/` |
+| Layer | TypeScript | Go | Python equivalent |
+|-------|-----------|-----|------------------|
+| Crypto | `src/auth.ts` | `genesismesh/auth.go` | `genesis_mesh/crypto/` |
+| HTTP transport | `src/client.ts` | `genesismesh/transport.go` | `na_service/` |
+| Domain sub-clients | `src/agreement.ts` … | `genesismesh/agreement.go` … | `na_service/routes/` |
+| Types | `src/types.ts` | `genesismesh/types.go` | `genesis_mesh/models/` |
 
 **No runtime dependencies.** SDKs use only the platform's built-in fetch and
 crypto APIs.
@@ -47,4 +47,5 @@ handles the distinction — callers just use the right sub-client method.
 :maxdepth: 2
 
 typescript
+go
 ```

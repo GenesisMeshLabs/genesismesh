@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.54.0 — Go SDK
+
+### Added
+
+- Go SDK at `github.com/GenesisMeshLabs/sdk-go` (v0.54.0) — full 7-domain Trust API
+  coverage: Agreement, Boundary, Evidence, Attestation, Disclosure, Consensus, DataUsage.
+- Ed25519 admin signing (`BuildAdminHeaders`) and canonical JSON matching the Python wire format.
+- 19 tests across auth, errors, and all sub-client paths; `-race` clean on Go 1.22 and 1.23.
+- `docs/sdk/go.md` — Go SDK API reference.
+- `docs/sdk/index.md` — SDK index lists Go as Available; layer table extended with Go column.
+
 ## v0.53.0 - TypeScript SDK
 
 ### Added
