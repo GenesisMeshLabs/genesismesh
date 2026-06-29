@@ -12,7 +12,7 @@ They share no runtime dependencies with the Python server.
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `@genesismesh/sdk` | 0.53.0 | `sdk-ts/` |
+| TypeScript / Node.js | `@genesismesh/sdk` | 0.53.0 | `sdk-typescript/` |
 
 ## Planned
 

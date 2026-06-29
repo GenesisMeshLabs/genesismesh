@@ -174,8 +174,8 @@ strongly-typed async functions, with no Python knowledge required?
 
 **What changed:**
 
-A standalone TypeScript SDK was created at `sdk-ts/` (decoupled from the
-Python repo, at `C:\Source\GenesisMeshLabs\sdk-ts\`). The SDK is the first
+A standalone TypeScript SDK was created at `sdk-typescript/` (decoupled from the
+Python repo, at `C:\Source\GenesisMeshLabs\sdk-typescript\`). The SDK is the first
 external-language client for the Genesis Mesh Trust API.
 
 - **`GenesisMeshClient`** facade with 7 sub-clients covering the complete

@@ -149,7 +149,7 @@ Minimum supported: Node.js 20 LTS, TypeScript 5.0.
 
 ## Success Criteria
 
-- [x] `sdk-ts/` at `C:\Source\GenesisMeshLabs\sdk-ts\` (decoupled from main repo)
+- [x] `sdk-typescript/` at `C:\Source\GenesisMeshLabs\sdk-typescript\` (decoupled from main repo)
 - [x] `GenesisMeshClient` with all 7 sub-clients
 - [x] TypeScript interfaces for all stable protocol models (`src/types.ts`)
 - [x] Typed error classes covering all API error codes (`src/errors.ts`)
@@ -161,7 +161,7 @@ Minimum supported: Node.js 20 LTS, TypeScript 5.0.
 
 ## Release Gate
 
-- [x] `sdk-ts/package.json` version `0.53.0`
+- [x] `sdk-typescript/package.json` version `0.53.0`
 - [x] CHANGELOG entry (TypeScript SDK)
 - [x] history.md updated with v0.53.0 entry
 - [x] All prior Python tests continue to pass

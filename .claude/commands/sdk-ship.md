@@ -16,7 +16,7 @@ Determine the target SDK directory from context or ask once if ambiguous:
 
 | SDK | Directory |
 |-----|-----------|
-| TypeScript | `C:\Source\GenesisMeshLabs\sdk-ts\` |
+| TypeScript | `C:\Source\GenesisMeshLabs\sdk-typescript\` |
 | Go | `C:\Source\GenesisMeshLabs\sdk-go\` |
 | C# | `C:\Source\GenesisMeshLabs\sdk-cs\` |
 
@@ -24,7 +24,7 @@ Run all checks in parallel. Abort with a clear message if any fail.
 
 **TypeScript:**
 ```sh
-cd sdk-ts
+cd sdk-typescript
 node --version      # must be ≥ 20
 npm ci              # must exit 0
 ```
@@ -116,7 +116,7 @@ Draft a new plan by:
 {Test structure: unit mocks + live smoke test.}
 
 ## Known NA constraints
-{From sdk-ts/AGENT.md "Known constraints" table — apply same constraints.}
+{From sdk-typescript/AGENT.md "Known constraints" table — apply same constraints.}
 
 ## Success Criteria
 
@@ -163,7 +163,7 @@ imports in sub-client files (everything except `auth.ts` / `auth.go` / `Auth.cs`
 
 **TypeScript:**
 ```sh
-grep -n "createPrivateKey\|crypto\.sign\|Ed25519" sdk-ts/src/ \
+grep -n "createPrivateKey\|crypto\.sign\|Ed25519" sdk-typescript/src/ \
   --include="*.ts" | grep -v "auth.ts"
 ```
 
@@ -176,7 +176,7 @@ Scan for camelCase field names in type/interface/struct definitions:
 
 **TypeScript:**
 ```sh
-grep -n "readonly [a-z][a-zA-Z]*[A-Z]" sdk-ts/src/types.ts
+grep -n "readonly [a-z][a-zA-Z]*[A-Z]" sdk-typescript/src/types.ts
 ```
 
 If matches: **HARD STOP** — use snake_case field names.
@@ -277,7 +277,7 @@ structure), error handling, admin auth explanation, build commands.
 
 ### 6D — SDK-specific AGENT.md: `sdk-{lang}/AGENT.md`
 
-Adapted from `sdk-ts/AGENT.md`. Update:
+Adapted from `sdk-typescript/AGENT.md`. Update:
 - Repo layout for the new language
 - Language-specific layer rule
 - Language-specific signing implementation notes
@@ -306,7 +306,7 @@ Each check must pass before the next runs.
 
 **TypeScript:**
 ```sh
-cd sdk-ts && npm run build
+cd sdk-typescript && npm run build
 ```
 
 **Go:**
@@ -325,7 +325,7 @@ Fail: **HARD STOP** — show full compiler output.
 
 **TypeScript:**
 ```sh
-cd sdk-ts && node --experimental-vm-modules node_modules/jest/bin/jest.js \
+cd sdk-typescript && node --experimental-vm-modules node_modules/jest/bin/jest.js \
   --config jest.config.cjs
 ```
 
@@ -370,7 +370,7 @@ Update the version in the SDK package manifest to `X.Y.Z`:
 
 | Language | File | Field |
 |----------|------|-------|
-| TypeScript | `sdk-ts/package.json` | `"version"` |
+| TypeScript | `sdk-typescript/package.json` | `"version"` |
 | Go | `sdk-go/go.mod` | module path tag (set via git tag) |
 | C# | `sdk-cs/{Project}.csproj` | `<Version>` |
 
@@ -382,8 +382,8 @@ Stage files explicitly — never `git add -A`.
 
 **TypeScript example:**
 ```sh
-git add sdk-ts/src/ sdk-ts/tests/ sdk-ts/package.json sdk-ts/README.md \
-        sdk-ts/AGENT.md genesismesh/docs/sdk/ genesismesh/docs/index.md \
+git add sdk-typescript/src/ sdk-typescript/tests/ sdk-typescript/package.json sdk-typescript/README.md \
+        sdk-typescript/AGENT.md genesismesh/docs/sdk/ genesismesh/docs/index.md \
         genesismesh/CHANGELOG.md genesismesh/docs/development/history.md \
         genesismesh/ops/plan-vX.Y.Z.md
 ```

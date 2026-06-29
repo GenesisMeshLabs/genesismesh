@@ -1,11 +1,11 @@
 # TypeScript SDK
 
-> **Added in v0.53.0** · Package: `@genesismesh/sdk` · Source: `sdk-ts/`
+> **Added in v0.53.0** · Package: `@genesismesh/sdk` · Source: `sdk-typescript/`
 
 The TypeScript SDK is a standalone client for the Genesis Mesh Network Authority
 (NA) HTTP API. It ships ESM, CJS, and type declarations. Node.js ≥ 20 required.
 
-Full usage examples live in `sdk-ts/README.md`. This page covers the API
+Full usage examples live in `sdk-typescript/README.md`. This page covers the API
 surface, per-sub-client constraints, and error model.
 
 ---
@@ -210,7 +210,7 @@ Key types: `CapabilityOffer`, `AgreementRecord`, `BoundaryDecision`,
 `DataAccessIntent`, `DataSourceDescriptor`, `ConsensusProof`,
 `CapabilityCommitment`, `CapabilityMembershipProof`.
 
-See `sdk-ts/src/types.ts` for the full list with JSDoc constraints.
+See `sdk-typescript/src/types.ts` for the full list with JSDoc constraints.
 
 ---
 
@@ -236,7 +236,7 @@ provide the base64-encoded 32-byte seed.
 ## Build and test
 
 ```sh
-cd sdk-ts
+cd sdk-typescript
 npm run build   # ESM → dist/esm/ · CJS → dist/cjs/ · types → dist/types/
 npm test        # 74 Jest tests
 ```
