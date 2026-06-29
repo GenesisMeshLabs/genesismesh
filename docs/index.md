@@ -143,6 +143,14 @@ Working demonstrations: trust thesis, agent capability orchestration,
 adoption walkthroughs, and use-case scenarios.
 :::
 
+:::{grid-item-card} SDK Clients
+:link: sdk/index
+:link-type: doc
+
+TypeScript, Go, and C# clients for the NA HTTP API — standalone packages
+with typed errors and dual-mode admin auth.
+:::
+
 :::{grid-item-card} Development
 :link: development/history
 :link-type: doc
@@ -185,6 +193,14 @@ reference/cli
 reference/network-authority-api
 reference/configuration
 api/trust-http
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: SDK Clients
+
+sdk/index
+sdk/typescript
 ```
 
 ```{toctree}
