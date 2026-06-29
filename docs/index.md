@@ -200,7 +200,6 @@ api/trust-http
 :caption: SDK Clients
 
 sdk/index
-sdk/typescript
 ```
 
 ```{toctree}
@@ -229,20 +228,11 @@ operations/runbooks-index
 ```
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 :caption: Development
 
 development/history
-development/phases/phase-a
-development/phases/phase-b
-development/phases/phase-c
-development/phases/phase-d
-development/phases/phase-e
-development/phases/phase-f
-development/phases/phase-g
-development/phases/phase-h
-development/phases/phase-i
-development/phases/phase-j
+development/phases/index
 development/strategy
 stability
 development/roadmap

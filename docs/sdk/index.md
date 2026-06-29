@@ -46,6 +46,6 @@ handles the distinction — callers just use the right sub-client method.
 ```{toctree}
 :maxdepth: 2
 
-typescript
-go
+typescript/index
+go/index
 ```
