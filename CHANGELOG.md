@@ -6,7 +6,7 @@
 
 - `sdk-typescript/` at `C:\Source\GenesisMeshLabs\sdk-typescript\` — standalone TypeScript SDK
   for the Genesis Mesh Network Authority HTTP API, decoupled from the Python repo.
-- `@genesismeshlabs/sdk` npm package v0.53.0 with `GenesisMeshClient` and 7 sub-clients:
+- `genesis-mesh-sdk` npm package v0.53.0 with `GenesisMeshClient` and 7 sub-clients:
   `agreement`, `boundary`, `evidence`, `attestation`, `disclosure`, `consensus`,
   `dataUsage`.
 - `src/auth.ts` — `canonicalJson`, `signBytes`, `buildAdminHeaders` (Ed25519

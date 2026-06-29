@@ -33,7 +33,7 @@ v0.52 should prove:
 
 ### Package: `sdk/typescript/`
 
-Published to npm as `genesis-mesh` (scoped: `@genesismeshlabs/sdk` if preferred).
+Published to npm as `genesis-mesh` (scoped: `genesis-mesh-sdk` if preferred).
 
 ```
 sdk/typescript/
