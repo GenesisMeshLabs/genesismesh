@@ -15,15 +15,19 @@ Run all checks in parallel. Abort with a clear message if any fail.
 
 ```
 git status --short
-python --version        # must be 3.12+
-pip check               # must exit 0
-git branch --show-current   # must NOT be main or master
+git branch --show-current
+python --version
+pip check
+python -m pip_audit -r requirements.txt -r requirements-dev.txt
 ```
 
-If the working tree is dirty: **STOP** — list the unclean files and ask the user
-to stash or commit them before running `/ship`.
-
-If on `main` or `master`: **STOP** — tell the user to create a feature branch first.
+**Stop conditions:**
+- Working tree dirty → list the unclean files and ask the user to stash or commit first.
+- On `main` or `master` → tell the user to create a feature branch first.
+  Branch names follow the `ops/{feature}` convention (e.g. `ops/typescript-sdk`).
+- Python < 3.12 → halt.
+- `pip check` non-zero → broken dependency metadata; halt.
+- `pip_audit` finds CVEs → halt and list them; do not proceed until resolved.
 
 ---
 
@@ -31,21 +35,29 @@ If on `main` or `master`: **STOP** — tell the user to create a feature branch 
 
 Read all of the following in parallel before writing a single line of code:
 
-1. **Memory files** — Read every `.md` file in
-   `C:\Users\thaer\.claude\projects\c--Source-genesismesh\memory\` and apply the
+1. **AGENT.md** — the operational rulebook for this repo. Contains the enforced
+   layer rule, modular boundaries, stable surface definition, and conventions that
+   override everything else. Read this first.
+
+2. **Memory files** — every `.md` file in
+   `C:\Users\thaer\.claude\projects\c--Source-genesismesh\memory\` — apply the
    rules and conventions they describe throughout the entire run.
 
-2. **All existing plan files** — `ops/plan-v*.md` — to understand the release
-   history, version numbering, scope pattern, and what the next logical increment
-   is. Sort by version to determine the sequence.
+3. **All existing plan files** — `ops/plan-v*.md` — sorted by version, to
+   understand release history, scope patterns, and what the next logical increment
+   is.
 
-3. **Prior version's commit diff** — run `git log --oneline -5` then
+4. **Prior version's commit diff** — run `git log --oneline -5` then
    `git diff <last-tag>..HEAD -- genesis_mesh/` to see concrete implementation
    patterns from the most recent release.
 
-4. **CHANGELOG.md** — to understand entry format and confirm the last shipped version.
+5. **CHANGELOG.md** — to understand entry format and confirm the last shipped version.
 
-5. **docs/development/history.md** — to understand the history table format.
+6. **docs/development/history.md** — to understand the history table structure and
+   the "What Is True Today" section format.
+
+7. **docs/stability.md** — to understand which symbols are already declared stable
+   and what format new stable additions use.
 
 ---
 
@@ -140,8 +152,8 @@ If matches: **HARD STOP** — hardcoded sovereign identity detected.
 
 ## PHASE 4 — Implementation
 
-Follow the conventions loaded from memory (Phase 1). For every new file or
-changed file, also enforce:
+Follow the conventions in AGENT.md and the memory files loaded in Phase 1.
+For every new file or changed file, also enforce:
 
 ### Route files (na_service/routes/)
 
@@ -168,12 +180,19 @@ Every route blueprint **must** have:
 Every model type used by new routes must be added to `genesis_mesh/models/__init__.py`
 and its `__all__` list.
 
+### Stable surface
+
+If this release adds new stable CLI commands or Python API symbols (i.e. they are
+intended to be stable after this release), add them to `docs/stability.md` with
+the version they stabilize in, following the existing format in that file.
+
 ### Tests
 
 Every new route must have at least:
 - A test that the happy-path POST returns the expected status code (201 or 200)
 - A test that a key field exists in the response body
 - A test that the verification route validates a correctly built artifact
+- Both suites must pass with `-W error::DeprecationWarning` — no deprecation warnings allowed
 
 Place tests in `genesis_mesh/tests/test_na_{feature}.py` following existing conventions.
 
@@ -197,41 +216,77 @@ For each such call, verify:
 
 Each check must pass before the next runs. Never commit if any check fails.
 
-### 6A — Full test suite
+### 6A — Unit tests (with deprecation-warning enforcement)
 ```
-python -m pytest -q --tb=short 2>&1 | tail -5
+python -m pytest genesis_mesh/tests -q --tb=short -W error::DeprecationWarning -m "not integration"
 ```
-Pass: `N passed` with 0 failed and 0 errors.
-Fail: **HARD STOP** — show the failing test output and wait for a fix.
+Pass: all tests pass, zero warnings promoted to errors.
+Fail: **HARD STOP** — show the full failing output (do not truncate with `tail`).
 
-### 6B — Sphinx documentation build
+### 6B — Integration tests
 ```
-python -m sphinx -W -b html docs docs/_build/html -q 2>&1
+python -m pytest genesis_mesh/tests/integration -v --tb=short -W error::DeprecationWarning -m integration
+```
+Pass: all integration tests pass.
+Fail: **HARD STOP** — show the full failing output.
+
+### 6C — Sphinx documentation build
+```
+python -m sphinx -W -b html docs docs/_build/html -q
 ```
 Pass: exits 0, no warnings.
 Fail: **HARD STOP** — show the warnings and fix them.
 
-### 6C — mypy type check
+### 6D — mypy type check
 ```
 python -m mypy genesis_mesh --ignore-missing-imports --no-error-summary 2>&1 | grep "error:"
 ```
 Pass: zero `error:` lines.
 Fail: **HARD STOP** — show all errors and fix them.
 
-### 6D — Plan success criteria
+### 6E — Compile check
+```
+python -m compileall genesis_mesh -q
+```
+Pass: exits 0.
+Fail: **HARD STOP** — syntax error in compiled bytecode.
+
+### 6F — Dependency CVE scan
+```
+python -m pip_audit -r requirements.txt -r requirements-dev.txt
+```
+Pass: zero vulnerabilities.
+Fail: **HARD STOP** — list CVEs; do not ship until resolved or explicitly acknowledged.
+
+### 6G — Plan success criteria
 Read `ops/plan-v{X.Y.Z}.md`. Every checkbox under "Success Criteria" and
 "Release Gate" must be checked or checkable right now. If any is not,
-implement what is missing, then re-run 6A–6C.
+implement what is missing, then re-run 6A–6F.
 Mark all checkboxes as `[x]` once satisfied.
 
-### 6E — CHANGELOG
+### 6H — CHANGELOG
 `CHANGELOG.md` must contain an entry for `v{X.Y.Z}` above all prior versions.
 If missing: write it following the format of prior entries (added/changed/fixed
 sections, bullet points). Do NOT create a separate release-notes file.
 
-### 6F — History
-`docs/development/history.md` must show the new version in the history table
-with the correct phase range and test count. Update it if needed.
+### 6I — History
+`docs/development/history.md` has four places to update when a version changes.
+Update ALL FOUR:
+
+1. **Phase table row** — e.g. `| J | v0.38.0 – v0.52.1 | ...` → update the
+   upper bound to the new version.
+2. **"What Is True Today" heading** — `As of v0.52.1:` → `As of v{X.Y.Z}:`.
+3. **"not yet true" heading** — `As of v0.52.1, the following are *not* yet true:`
+   → `As of v{X.Y.Z}, ...`.
+4. **Test count sentence** — e.g. `1,088 tests pass.` → update the number with
+   comma formatting (e.g. `1,134 tests pass.`). Run `python -m pytest --co -q`
+   to get the exact count.
+
+### 6J — SECURITY.md Supported Versions
+Open `SECURITY.md` and check the Supported Versions table. If the new version
+changes the supported minor or major version, update the table so that `{X.Y}.x`
+shows `✅ Yes` and prior minors are marked accordingly. A patch release typically
+does not change this table; a minor or major release does.
 
 ---
 
@@ -244,12 +299,27 @@ Edit `pyproject.toml`: set `version = "{X.Y.Z}"`.
 ## PHASE 8 — Commit
 
 Stage only the files changed as part of this release (be explicit, never
-`git add -A`). Commit with a message that follows the project style seen in
-`git log --oneline`:
+`git add -A`).
+
+**Commit message format:**
+
+Choose the type based on what the release does:
+- `feat({scope}):` — new feature or capability
+- `fix({scope}):` — bug fix or security patch
+- `chore({scope}):` — maintenance, cleanup, tooling (no new user-facing feature)
+- `docs({scope}):` — documentation only
+
+The scope is the primary area changed (e.g. `api`, `cli`, `conformance`, `security`,
+`sdk`, `repo`). The title ends with `— v{X.Y.Z}` or `(v{X.Y.Z})` matching prior
+style. The body lists 3–5 bullet points covering what actually changed.
 
 ```
 git commit -m "$(cat <<'EOF'
-chore(release): prepare v{X.Y.Z} ({Feature Name})
+{type}({scope}): {description} — v{X.Y.Z}
+
+- {key change 1}
+- {key change 2}
+- {key change 3}
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
@@ -263,11 +333,22 @@ git tag v{X.Y.Z}
 
 ---
 
-## PHASE 9 — Push and GitHub release
+## PHASE 9 — Push
 
 ```
 git push origin HEAD
 git push origin v{X.Y.Z}
+```
+
+The pre-push hook will run `pip-audit`, `cli-smoke`, and `pytest`. Wait for it to
+complete before proceeding. If the hook fails: **HARD STOP** — do not create the
+GitHub release until the push succeeds clean.
+
+---
+
+## PHASE 10 — GitHub release
+
+```
 gh release create v{X.Y.Z} \
   --title "v{X.Y.Z} — {Feature Name}" \
   --notes "$(cat <<'EOF'
@@ -286,9 +367,17 @@ EOF
 )"
 ```
 
+Creating the release triggers `publish-pypi.yml` automatically. After ~2 minutes,
+verify the package is live:
+```
+pip index versions genesis-mesh 2>/dev/null | head -3
+```
+Pass: `v{X.Y.Z}` appears in the version list.
+Fail: check the Actions tab on GitHub for the publish workflow run.
+
 ---
 
-## PHASE 10 — Memory update
+## PHASE 11 — Memory update
 
 Review the implementation just shipped. Identify any decisions, patterns, or
 constraints that were **non-obvious** — things that would trip up a future
@@ -302,15 +391,16 @@ Update `MEMORY.md` with a pointer to any new memory file written.
 
 ## Summary output
 
-After Phase 10, print a single summary block:
+After Phase 11, print a single summary block:
 
 ```
 v{X.Y.Z} shipped.
 
 Files changed: {count}
-Tests: {N} passed
+Tests: {N} passed ({unit} unit + {integration} integration)
 Tag: v{X.Y.Z} pushed
 GitHub release: {URL}
+PyPI: verified / pending (check Actions)
 Memory: {file written, or "none"}
 
 Non-obvious decisions:
@@ -326,6 +416,6 @@ Nothing else. The user can read the diff.
 When any hard stop fires:
 
 1. Print: `HARD STOP — {rule name}`
-2. Print the exact violating lines or output (not a summary).
+2. Print the exact violating lines or output (not a summary, not truncated).
 3. State what must be fixed before `/ship` can continue.
 4. Wait. Do not attempt a workaround. Do not continue automatically.
