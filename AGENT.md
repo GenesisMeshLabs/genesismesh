@@ -491,6 +491,19 @@ A change is done only when:
 
 ---
 
+## Release Skill
+
+The project ships releases using the `/ship` Claude Code skill at
+`.claude/commands/ship.md`. Run `/ship` inside Claude Code to drive the full
+release cycle: detect or draft the next plan, enforce vision rules, implement,
+run the full gate suite, write all required documentation, commit, tag, push,
+and create the GitHub release.
+
+The skill is the canonical release procedure. `ops/release-checklist.md`
+documents the same steps for manual reference.
+
+---
+
 ## Agent Behavior Rules
 
 When acting as an AI coding agent in this repository:
@@ -507,6 +520,7 @@ When acting as an AI coding agent in this repository:
    portable trust works.
 10. Never weaken signature, revocation, or trust checks to make a demo pass.
 11. Never skip pre-commit hooks. If a hook fails, fix the underlying issue.
+12. Use `/ship` for all releases. Do not invent an ad-hoc release process.
 12. If a shortcut is needed, mark it clearly as temporary and isolate it from
     core logic.
 13. Confirm before destructive operations (force-push, branch deletion, schema

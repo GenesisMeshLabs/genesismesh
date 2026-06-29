@@ -95,7 +95,18 @@ The plan file must exist before any implementation is written.
 
 ## 8. Release process
 
-See `ops/release-checklist.md` for the step-by-step release procedure.
+The project ships releases using the `/ship` Claude Code skill, located at
+`.claude/commands/ship.md`. It drives the full cycle automatically: plan
+detection, vision enforcement, implementation, gate suite, documentation,
+commit, tag, push, and GitHub release.
+
+To use it, open this repository in Claude Code and run `/ship`. The skill
+reads the next unimplemented plan from `ops/plan-v*.md`, implements it, runs
+all gates, writes required documentation (worked example, CLI reference,
+history narrative, phase doc, examples index), and creates the release.
+
+For manual releases, see `ops/release-checklist.md` for the step-by-step
+procedure.
 
 Releases are tagged on `main`. Version numbers follow
 [Semantic Versioning](https://semver.org/). The project is pre-1.0; breaking

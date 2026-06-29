@@ -1,5 +1,9 @@
 # Release Checklist
 
+> **Preferred path:** run `/ship` in Claude Code. It executes every item below
+> automatically, including documentation, gating, commit, tag, and GitHub
+> release. Use this checklist only for manual releases or to audit a `/ship` run.
+
 Use this checklist for every tagged release. Complete every item before
 pushing the tag.
 
