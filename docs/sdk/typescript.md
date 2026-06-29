@@ -1,4 +1,4 @@
-﻿# TypeScript SDK
+# TypeScript SDK
 
 > **Added in v0.53.0** · Package: `genesis-mesh-sdk` · Source: `sdk-typescript/`
 

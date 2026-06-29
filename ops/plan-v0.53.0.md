@@ -1,4 +1,4 @@
-﻿# v0.53.0 Plan -- TypeScript SDK
+# v0.53.0 Plan -- TypeScript SDK
 
 ## Positioning
 

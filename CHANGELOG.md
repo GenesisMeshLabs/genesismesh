@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 ## v0.53.0 - TypeScript SDK
 

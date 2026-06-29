@@ -1,4 +1,4 @@
-﻿# SDK Clients
+# SDK Clients
 
 Genesis Mesh ships client libraries for all major server-side runtimes. Every
 SDK wraps the same Network Authority HTTP API — the surface documented in
