@@ -1,8 +1,15 @@
-"""Data usage routes — policy (admin), intent (admin), policy GET, verify."""
+"""Data usage routes — policy (admin), intent (admin), policy GET, verify.
+
+Note: DataLicensePolicy objects are stored in process memory.
+In multi-instance deployments, each instance maintains its own policy store;
+policies are lost on process restart. Re-POST to /admin/data-usage/policy
+after restart or use the response body to persist the signed policy externally.
+"""
 
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -28,15 +35,18 @@ from ..errors import (
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
 
+logger = logging.getLogger(__name__)
+
 
 def _j(model) -> dict:
     return json.loads(model.model_dump_json())
 
 
 def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint:
+    """Create data usage policy routes — policy (admin), intent (admin), policy GET, verify."""
     bp = Blueprint("data_usage", __name__)
 
-    # In-memory policy store keyed by policy_id. Active policy is the latest.
+    # In-memory policy store keyed by policy_id. Volatile — see module docstring.
     _policies: dict[str, DataLicensePolicy] = {}
     _active_policy_id: list[str] = []  # single-element list as mutable cell
 
@@ -51,13 +61,15 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         sig = sign_model(p, service.na_private_key, service.key_id)
         return p.model_copy(update={"signature": sig})
 
+    def _rate_key(prefix: str) -> str:
+        return f"{prefix}:{request.remote_addr or 'unknown'}"
+
     # ── Admin routes ──────────────────────────────────────────────────────────
 
     @bp.route("/admin/data-usage/policy", methods=["POST"])
     def create_policy():
         """Create and sign a DataLicensePolicy as licensor (NA)."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -81,6 +93,11 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 code="invalid_timestamps",
             ) from exc
 
+        if valid_from >= valid_until:
+            raise BadRequestError(
+                "valid_from must be before valid_until", code="invalid_timestamp_order"
+            )
+
         policy = DataLicensePolicy(
             policy_id=str(uuid.uuid4()),
             licensor_sovereign_id=service.genesis_block.network_name,
@@ -95,18 +112,28 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         try:
             policy = _sign_policy(policy)
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="policy_sign_failed") from exc
+            logger.warning("data license policy signing failed: %s", exc)
+            raise RequestValidationError(
+                "Could not sign data license policy",
+                code="policy_sign_failed",
+            ) from exc
 
         _policies[policy.policy_id] = policy
         _active_policy_id.clear()
         _active_policy_id.append(policy.policy_id)
+
+        service.db.add_audit_event("data_license_policy_created", {
+            "policy_id": policy.policy_id,
+            "licensor_sovereign_id": service.genesis_block.network_name,
+            "licensee_sovereign_id": licensee,
+            "allowed_access_types": allowed_types,
+        })
         return jsonify(_j(policy)), 201
 
     @bp.route("/admin/data-usage/intent", methods=["POST"])
     def create_intent():
         """Create and sign a DataAccessIntent as agent (NA)."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -136,15 +163,28 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="intent_create_failed") from exc
+            logger.warning("create_data_access_intent failed: %s", exc)
+            raise RequestValidationError(
+                "Could not create data access intent",
+                code="intent_create_failed",
+            ) from exc
 
+        service.db.add_audit_event("data_access_intent_created", {
+            "intent_id": intent.intent_id,
+            "agent_sovereign_id": service.genesis_block.network_name,
+            "decision_id": intent.decision_id,
+            "declared_access_types": access_types,
+            "source_count": len(sources),
+        })
         return jsonify(_j(intent)), 201
 
-    # ── Public routes ─────────────────────────────────────────────────────────
+    # ── Public routes (rate-limited) ──────────────────────────────────────────
 
     @bp.route("/data-usage/policy", methods=["GET"])
     def get_policy():
         """Return the currently active DataLicensePolicy."""
+        if not service.rate_limiter.allow(_rate_key("data_usage_policy"), 120, 60):
+            raise RateLimitError()
         if not _active_policy_id:
             raise NotFoundError("No active data usage policy", code="no_policy")
         policy = _policies.get(_active_policy_id[0])
@@ -155,6 +195,8 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/data-usage/verify", methods=["POST"])
     def verify():
         """Verify a DataAccessIntent against a DataLicensePolicy."""
+        if not service.rate_limiter.allow(_rate_key("data_usage_verify"), 60, 60):
+            raise RateLimitError()
         data = request_json_object()
         raw_intent = data.get("intent")
         raw_policy = data.get("policy")
@@ -176,6 +218,11 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
             agent_public_keys=agent_keys,
             at_time=datetime.now(timezone.utc),
         )
+        service.db.add_audit_event("data_access_intent_verified", {
+            "intent_id": intent.intent_id,
+            "valid": valid,
+            "violation_count": len(violations),
+        })
         return jsonify({
             "valid": valid,
             "violation_reason": violation_reason if violation_reason else None,

@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.52.1 - Trust API production hardening + `/ship` release skill
+
+### Fixed
+
+- Rate limiting added to all 6 unauthenticated verify/prove routes (60 req/60 s)
+  and the `GET /data-usage/policy` route (120 req/60 s). Previously only admin
+  routes were guarded.
+- Exception strings no longer appear in API error responses. Internal details are
+  logged server-side; clients receive a stable `code` string and a descriptive
+  message only.
+- Verdict value validated against `{"allow","warn","block","escalate"}` before
+  the trust library call in `POST /admin/trust-evidence`.
+- Incorrect `valid_until < expires_at` timestamp assertion removed from
+  `POST /admin/agreements/offer`; `expires_at` is the offer-open window and is
+  semantically independent of the agreement term.
+- Dead `import uuid` removed from `agreement.py`.
+
+### Added
+
+- `service.db.add_audit_event(...)` calls on all signing and verification
+  operations across all 6 route blueprints (14 new event types).
+- 15 Trust API model types added to `genesis_mesh/models/__init__.py` and
+  `__all__`: `AgreementRecord`, `AgreementTerms`, `CapabilityCounter`,
+  `CapabilityOffer`, `CapabilityCommitment`, `CapabilityMembershipProof`,
+  `CapabilityNullifier`, `ContextRecord`, `ConsensusProof`, `DataAccessIntent`,
+  `DataLicensePolicy`, `DataSourceDescriptor`, `JustificationProof`,
+  `TrustEvidence`, `ValidatorVote`.
+- Module docstring on `data_usage.py` documenting in-memory policy volatility
+  and the multi-instance caveat.
+- `docs/api/trust-http.md`: rate limit table, error-sanitization note, and
+  in-memory policy storage warning for `POST /admin/data-usage/policy`.
+- `README.md`: Trust API section pointing to `docs/api/trust-http.md`.
+- `.claude/commands/ship.md`: `/ship` project skill encoding the full release
+  process — pre-flight, vision enforcement, gate suite, commit, tag, GitHub
+  release, and memory update.
+
+---
+
 ## v0.52.0 - Trust API Surface (NA HTTP Endpoints)
 
 ### Added

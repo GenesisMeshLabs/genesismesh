@@ -58,7 +58,7 @@ Ten phases, each answering one open question.
 | G | v0.22.0 – v0.25.0 | Application Layer | {doc}`phases/phase-g` |
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
-| J | v0.38.0 – v0.52.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| J | v0.38.0 – v0.52.1 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
 proved it carries real workloads and crosses real cloud boundaries.
@@ -115,7 +115,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.52.0:
+As of v0.52.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -166,7 +166,7 @@ As of v0.52.0:
   consensus, data usage), with a full HTTP reference at
   `docs/api/trust-http.md`.
 
-As of v0.52.0, the following are *not* yet true:
+As of v0.52.1, the following are *not* yet true:
 
 - Genesis Mesh does not yet have TypeScript, Go, or C# SDKs.
 - A second independent implementation has not yet been built.

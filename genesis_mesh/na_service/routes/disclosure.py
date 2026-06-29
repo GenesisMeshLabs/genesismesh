@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -29,12 +30,15 @@ from ..errors import (
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
 
+logger = logging.getLogger(__name__)
+
 
 def _j(model) -> dict:
     return json.loads(model.model_dump_json())
 
 
 def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint:
+    """Create selective disclosure routes — commit, prove, verify, nullifier."""
     bp = Blueprint("disclosure", __name__)
 
     def _pub_b64() -> str:
@@ -43,13 +47,15 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
             encoder=nacl.encoding.Base64Encoder
         ).decode()
 
+    def _rate_key(prefix: str) -> str:
+        return f"{prefix}:{request.remote_addr or 'unknown'}"
+
     # ── Signing routes (admin-authenticated) ─────────────────────────────────
 
     @bp.route("/admin/disclosure/commit", methods=["POST"])
     def commit():
         """Commit to a list of capabilities under an AgreementRecord, signed by the NA."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -77,15 +83,23 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="commit_failed") from exc
+            logger.warning("commit_capabilities failed for agreement %s: %s", agreement.agreement_id, exc)
+            raise RequestValidationError(
+                "Could not create capability commitment",
+                code="commit_failed",
+            ) from exc
 
+        service.db.add_audit_event("capability_commitment_created", {
+            "commitment_id": commitment.commitment_id,
+            "agreement_id": agreement.agreement_id,
+            "capability_count": len(capabilities),
+        })
         return jsonify(_j(commitment)), 201
 
     @bp.route("/admin/disclosure/nullifier", methods=["POST"])
     def nullifier():
         """Issue a one-time nullifier for a capability membership proof, signed by the NA."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -108,15 +122,26 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="nullifier_failed") from exc
+            logger.warning("issue_nullifier failed for proof %s: %s", proof.proof_id, exc)
+            raise RequestValidationError(
+                "Could not issue nullifier",
+                code="nullifier_failed",
+            ) from exc
 
+        service.db.add_audit_event("capability_nullifier_issued", {
+            "nullifier_id": null.nullifier_id,
+            "proof_id": proof.proof_id,
+            "commitment_id": proof.commitment_id,
+        })
         return jsonify(_j(null)), 201
 
-    # ── Unauthenticated routes ────────────────────────────────────────────────
+    # ── Unauthenticated routes (rate-limited) ─────────────────────────────────
 
     @bp.route("/disclosure/prove", methods=["POST"])
     def prove():
         """Generate a Merkle membership proof from caller-supplied data (no NA state used)."""
+        if not service.rate_limiter.allow(_rate_key("disclosure_prove"), 60, 60):
+            raise RateLimitError()
         data = request_json_object()
         capability = data.get("capability")
         capabilities = data.get("capabilities")
@@ -141,13 +166,19 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="prove_failed") from exc
+            logger.warning("prove_capability_membership failed: %s", exc)
+            raise RequestValidationError(
+                "Could not generate proof — verify the capability is in the committed set",
+                code="prove_failed",
+            ) from exc
 
         return jsonify(_j(proof)), 200
 
     @bp.route("/disclosure/verify", methods=["POST"])
     def verify():
         """Verify a CapabilityMembershipProof against its commitment."""
+        if not service.rate_limiter.allow(_rate_key("disclosure_verify"), 60, 60):
+            raise RateLimitError()
         data = request_json_object()
         raw_proof = data.get("proof")
         raw_commitment = data.get("commitment")
@@ -168,6 +199,10 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
             commitment=commitment,
             issuer_public_keys=issuer_keys,
         )
+        service.db.add_audit_event("capability_proof_verified", {
+            "commitment_id": result.commitment_id,
+            "valid": result.valid,
+        })
         return jsonify({
             "valid": result.valid,
             "reason": result.reason,

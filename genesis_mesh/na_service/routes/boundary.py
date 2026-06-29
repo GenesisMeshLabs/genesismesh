@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -24,12 +25,15 @@ from ..errors import (
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
 
+logger = logging.getLogger(__name__)
+
 
 def _j(model) -> dict:
     return json.loads(model.model_dump_json())
 
 
 def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
+    """Create boundary decision routes — decide, verify."""
     bp = Blueprint("boundary", __name__)
 
     def _pub_b64() -> str:
@@ -38,11 +42,13 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             encoder=nacl.encoding.Base64Encoder
         ).decode()
 
+    def _rate_key(prefix: str) -> str:
+        return f"{prefix}:{request.remote_addr or 'unknown'}"
+
     @bp.route("/admin/boundary/decide", methods=["POST"])
     def decide():
         """Evaluate a ContextRecord against an AgreementRecord and sign the decision."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -77,7 +83,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 context_freshness_seq=ctx_data.get("context_freshness_seq") or 0,
             )
         except Exception as exc:
-            raise BadRequestError(str(exc), code="invalid_context") from exc
+            raise BadRequestError("Invalid context record", code="invalid_context") from exc
 
         engine = BoundaryEngine(operator_sovereign_id=service.genesis_block.network_name)
         try:
@@ -89,13 +95,26 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="boundary_eval_failed") from exc
+            logger.warning("boundary evaluation failed for capability %s: %s", capability, exc)
+            raise RequestValidationError(
+                "Boundary evaluation failed — check that the agreement is valid and not expired",
+                code="boundary_eval_failed",
+            ) from exc
 
+        service.db.add_audit_event("boundary_decision_made", {
+            "decision_id": decision.decision_id,
+            "context_id": context.context_id,
+            "agreement_id": agreement.agreement_id,
+            "requested_capability": capability,
+            "authorized": decision.authorized,
+        })
         return jsonify(_j(decision)), 201
 
     @bp.route("/boundary/verify", methods=["POST"])
     def verify():
         """Verify a signed BoundaryDecision."""
+        if not service.rate_limiter.allow(_rate_key("boundary_verify"), 60, 60):
+            raise RateLimitError()
         data = request_json_object()
         raw = data.get("decision")
         if not raw:
@@ -111,6 +130,10 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             operator_public_keys=operator_keys,
             now=datetime.now(timezone.utc),
         )
+        service.db.add_audit_event("boundary_decision_verified", {
+            "decision_id": result.decision_id,
+            "accepted": result.accepted,
+        })
         return jsonify({
             "accepted": result.accepted,
             "authorized": result.authorized,

@@ -10,6 +10,14 @@ They are served by the Network Authority (NA).
 **Auth** — admin routes require operator-signed headers (same scheme as
 `/admin/recognition-treaties`). Verification routes are unauthenticated.
 
+**Rate limits** — admin routes: 30 requests per 60 seconds per IP.
+Unauthenticated verify/prove routes: 60 requests per 60 seconds per IP.
+`GET /data-usage/policy`: 120 requests per 60 seconds per IP.
+
+**Error sanitization** — internal exception details are never included in API
+error responses; they are written to the server log. Clients receive a
+human-readable message and a stable `code` string only.
+
 ---
 
 ## Agreement negotiation
@@ -415,7 +423,13 @@ Verify a `ConsensusProof`. Unauthenticated.
 ### `POST /admin/data-usage/policy`
 
 Create and sign a `DataLicensePolicy` as licensor (NA). The policy is stored
-in memory and becomes the active policy returned by `GET /data-usage/policy`.
+in process memory and becomes the active policy returned by
+`GET /data-usage/policy`.
+
+> **Warning: ephemeral storage.** Policies are held in process memory and are
+> lost on process restart. Re-POST after restart, or store the signed response
+> body externally. Multi-instance deployments require coordinated re-posting to
+> each instance. Database persistence is planned for a future release.
 
 **Auth** — operator signature required.
 

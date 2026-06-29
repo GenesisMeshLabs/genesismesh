@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -27,12 +28,15 @@ from ..errors import (
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
 
+logger = logging.getLogger(__name__)
+
 
 def _j(model) -> dict:
     return json.loads(model.model_dump_json())
 
 
 def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
+    """Create consensus voting routes — vote, proof, verify."""
     bp = Blueprint("consensus", __name__)
 
     def _pub_b64() -> str:
@@ -41,13 +45,15 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             encoder=nacl.encoding.Base64Encoder
         ).decode()
 
+    def _rate_key(prefix: str) -> str:
+        return f"{prefix}:{request.remote_addr or 'unknown'}"
+
     # ── Signing routes (admin-authenticated) ─────────────────────────────────
 
     @bp.route("/admin/consensus/vote", methods=["POST"])
     def vote():
         """Cast a ValidatorVote signed by the NA as validator."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -78,15 +84,24 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="vote_failed") from exc
+            logger.warning("cast_validator_vote failed for proof %s: %s", j_proof.proof_id, exc)
+            raise RequestValidationError(
+                "Could not cast validator vote",
+                code="vote_failed",
+            ) from exc
 
+        service.db.add_audit_event("validator_vote_cast", {
+            "vote_id": v.vote_id,
+            "proof_id": j_proof.proof_id,
+            "decision_id": j_proof.decision_id,
+            "vote": vote_val,
+        })
         return jsonify(_j(v)), 201
 
     @bp.route("/admin/consensus/proof", methods=["POST"])
     def proof():
         """Assemble a ConsensusProof from votes, signed by the NA as assembler."""
-        remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -97,7 +112,12 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         raw_votes = data.get("votes")
         required_threshold = data.get("required_threshold")
         validator_ids = data.get("validator_sovereign_ids")
-        if not raw_proof or not isinstance(raw_votes, list) or required_threshold is None or not isinstance(validator_ids, list):
+        if (
+            not raw_proof
+            or not isinstance(raw_votes, list)
+            or required_threshold is None
+            or not isinstance(validator_ids, list)
+        ):
             raise BadRequestError(
                 "justification_proof, votes[], required_threshold, and validator_sovereign_ids[] are required",
                 code="missing_proof_fields",
@@ -119,15 +139,27 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 now=datetime.now(timezone.utc),
             )
         except Exception as exc:
-            raise RequestValidationError(str(exc), code="proof_assembly_failed") from exc
+            logger.warning("assemble_consensus_proof failed for proof %s: %s", j_proof.proof_id, exc)
+            raise RequestValidationError(
+                "Could not assemble consensus proof — check that enough valid votes are provided",
+                code="proof_assembly_failed",
+            ) from exc
 
+        service.db.add_audit_event("consensus_proof_assembled", {
+            "consensus_id": cp.consensus_id,
+            "proof_id": j_proof.proof_id,
+            "vote_count": len(votes),
+            "required_threshold": int(required_threshold),
+        })
         return jsonify(_j(cp)), 201
 
-    # ── Verification route (unauthenticated) ─────────────────────────────────
+    # ── Verification route (unauthenticated, rate-limited) ───────────────────
 
     @bp.route("/consensus/verify", methods=["POST"])
     def verify():
         """Verify a ConsensusProof signature and threshold."""
+        if not service.rate_limiter.allow(_rate_key("consensus_verify"), 60, 60):
+            raise RateLimitError()
         data = request_json_object()
         raw = data.get("proof")
         if not raw:
@@ -145,6 +177,10 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             assembler_public_keys=assembler_keys,
             at_time=datetime.now(timezone.utc),
         )
+        service.db.add_audit_event("consensus_proof_verified", {
+            "consensus_id": result.consensus_id,
+            "valid": result.valid,
+        })
         return jsonify({
             "valid": result.valid,
             "reason": result.reason,

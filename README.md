@@ -47,6 +47,15 @@ Or run the full local smoke test in one command:
 genesis-mesh dev up
 ```
 
+## Trust API (v0.52.0+)
+
+The Network Authority exposes all stable protocol operations over HTTP — agreement
+negotiation, boundary decisions, trust evidence, selective disclosure, consensus
+proofs, and data-usage intents. SDK clients use these endpoints rather than
+reimplementing the cryptography.
+
+Full HTTP reference: [docs/api/trust-http.md](docs/api/trust-http.md)
+
 ## Documentation
 
 Full documentation, operator guides, protocol RFCs, and example walkthroughs:

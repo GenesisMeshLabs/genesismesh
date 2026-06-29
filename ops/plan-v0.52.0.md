@@ -189,19 +189,19 @@ operators use this page instead of reading source.
 
 ## Success Criteria
 
-- [ ] 6 new route files under `genesis_mesh/na_service/routes/`
-- [ ] All routes registered in `server.py`
-- [ ] All admin routes verified with `verify_admin_request`
-- [ ] All verification routes unauthenticated
-- [ ] `docs/api/trust-http.md` with route, auth, request, response, error codes, curl example for every endpoint
-- [ ] Tests in `genesis_mesh/tests/test_na_trust_api.py`: >= 30 tests, all pass
-- [ ] Full pytest suite passes (1043 + new tests)
-- [ ] Sphinx build clean with `-W`
+- [x] 6 new route files under `genesis_mesh/na_service/routes/`
+- [x] All routes registered in `server.py`
+- [x] All admin routes verified with `verify_admin_request`
+- [x] All verification routes unauthenticated
+- [x] `docs/api/trust-http.md` with route, auth, request, response, error codes, curl example for every endpoint
+- [x] Tests in `genesis_mesh/tests/test_na_trust_api.py`: >= 30 tests, all pass
+- [x] Full pytest suite passes (1043 + new tests)
+- [x] Sphinx build clean with `-W`
 
 ## Release Gate
 
-- [ ] Version bumped to `0.52.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/development/history.md` updated
-- [ ] All tests pass
-- [ ] Tag `v0.52.0`, push, GitHub release created
+- [x] Version bumped to `0.52.0`
+- [x] CHANGELOG entry
+- [x] `docs/development/history.md` updated
+- [x] All tests pass
+- [x] Tag `v0.52.0`, push, GitHub release created
