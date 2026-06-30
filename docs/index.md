@@ -127,28 +127,28 @@ Stand up a sovereign, verify independent operator control, and run
 recognition proofs.
 :::
 
-:::{grid-item-card} Operations
+:::{grid-item-card} Infrastructure
 :link: operations/deployment-index
 :link-type: doc
 
-Deployment and day-to-day operations: VM bootstrap, Terraform,
-Kubernetes, monitoring, audit, incident response, backup.
-:::
-
-:::{grid-item-card} Examples
-:link: examples/overview-and-demos-index
-:link-type: doc
-
-Working demonstrations: trust thesis, agent capability orchestration,
-adoption walkthroughs, and use-case scenarios.
+Deployment runbooks: VM bootstrap, Terraform, Kubernetes, monitoring,
+audit, incident response, backup.
 :::
 
 :::{grid-item-card} SDK Clients
 :link: sdk/index
 :link-type: doc
 
-TypeScript, Go, and C# clients for the NA HTTP API — standalone packages
-with typed errors and dual-mode admin auth.
+TypeScript, Go, and C# (.NET) clients for the NA HTTP API — typed
+errors and dual-mode Ed25519 admin auth.
+:::
+
+:::{grid-item-card} Examples
+:link: examples/overview-and-demos-index
+:link-type: doc
+
+25 runnable demos: trust thesis, agent orchestration, capacity
+baselines, and packaging smoke tests.
 :::
 
 :::{grid-item-card} Development
@@ -167,6 +167,9 @@ policy.
 
 quickstart
 installation
+stability
+changelog
+tutorial
 ```
 
 ```{toctree}
@@ -183,16 +186,7 @@ concepts/trust-model
 concepts/security-model
 concepts/certificate-lifecycle
 concepts/routing
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Reference
-
-reference/cli
-reference/network-authority-api
-reference/configuration
-api/trust-http
+concepts/glossary
 ```
 
 ```{toctree}
@@ -221,7 +215,7 @@ operators/proof-bundle-schema
 
 ```{toctree}
 :maxdepth: 2
-:caption: Operations
+:caption: Infrastructure
 
 operations/deployment-index
 operations/runbooks-index
@@ -229,22 +223,12 @@ operations/runbooks-index
 
 ```{toctree}
 :maxdepth: 2
-:caption: Development
+:caption: Reference
 
-development/history
-development/phases/index
-development/strategy
-stability
-development/roadmap
-development/phase-1-rollout-closure
-development/phase-2-externalization
-development/rfc-program
-development/atlas
-development/governance
-development/contributing
-development/module-structure
-development/testing
-development/security-policy
+reference/cli
+reference/network-authority-api
+reference/configuration
+api/trust-http
 ```
 
 ```{toctree}
@@ -252,6 +236,31 @@ development/security-policy
 :caption: Protocol RFCs
 
 rfcs/index
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Contributing
+
+development/contributing
+development/module-structure
+development/testing
+development/security-policy
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Project
+
+development/history
+development/phases/index
+development/strategy
+development/roadmap
+development/phase-1-rollout-closure
+development/phase-2-externalization
+development/rfc-program
+development/atlas
+development/governance
 ```
 
 ```{toctree}

@@ -9,6 +9,8 @@ want capacity numbers behind any of the demo claims.
 :hidden:
 
 demos
+demos-capability
+demos-packaging
 capacity-baseline
 ```
 

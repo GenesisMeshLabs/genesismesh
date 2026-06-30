@@ -68,11 +68,13 @@ authorization, and sovereign control need to be designed together.
 
 ## Current Maturity
 
-The implementation is under active hardening. Core models, signing, Network
-Authority endpoints, invite-token enrollment, SQLite persistence, Noise-based
-peer handshakes, and runtime tests exist. Some production hardening work remains
-open, including broader multi-node integration coverage, complete route
-revocation enforcement, and deployment verification.
+Genesis Mesh v0.52.1 has completed three trust cycles of protocol work covering
+Phases A through J. The core protocol is verified: 1,088+ passing tests, Tamarin
+formal verification of key security lemmas, and three language SDKs (TypeScript,
+Go, .NET) each implementing the complete Trust API HTTP surface.
 
-Use [](../development/roadmap.md) to understand current status before deploying
-Genesis Mesh outside a controlled environment.
+Phase 2 (Externalization) is now the focus. The goals are external operator
+adoption, Atlas (the sovereign explorer), RFC ratification, and conformance
+validation across SDK implementations. See [](../development/roadmap.md) for
+current open work and [](../development/phase-2-externalization.md) for the
+Phase 2 plan.
