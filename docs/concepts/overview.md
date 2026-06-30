@@ -76,5 +76,5 @@ Go, .NET) each implementing the complete Trust API HTTP surface.
 Phase 2 (Externalization) is now the focus. The goals are external operator
 adoption, Atlas (the sovereign explorer), RFC ratification, and conformance
 validation across SDK implementations. See [](../development/roadmap.md) for
-current open work and [](../development/phase-2-externalization.md) for the
+current open work and [](../development/externalization.md) for the
 Phase 2 plan.

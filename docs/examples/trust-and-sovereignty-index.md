@@ -9,39 +9,15 @@ Read this section if you want to understand or demonstrate how trust travels
 across sovereign boundaries without a central authority.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 :hidden:
 
-sovereign-attestations
-recognition-treaties
-cross-sovereign-revocation
-connectome
-independent-sovereigns
-trust-evidence
-atlas
-relationship-agreement
-delegation-chain
-relationship-context
-execution-evidence-chain
-freshness-proofs
-formal-verification
-invocation-bound-tokens
-justification-proofs
-human-oversight
-selective-disclosure
-distributed-consensus
-peer-risk-signals
-cascade-resilient-consensus
-adversarial-seed-isolation
-verifiable-logic-attestation
-context-injection-defense
-ephemeral-identity-purge
-communication-privacy
-sovereign-overlay-discovery
-process-level-mediation
-trust-path-performance
-data-usage-attestation
-formal-risk-signal-verification
+trust-core
+trust-relationships
+trust-evidence-audit
+trust-authorization
+trust-consensus-risk
+trust-security
 ```
 
 ## Start Here

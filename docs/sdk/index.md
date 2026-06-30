@@ -1,4 +1,4 @@
-# SDK Clients
+# Overview
 
 Genesis Mesh ships client libraries for all major server-side runtimes. Every
 SDK wraps the same Network Authority HTTP API — the surface documented in
@@ -39,7 +39,7 @@ headers). Public verification routes are unauthenticated. The transport layer
 handles the distinction — callers just use the right sub-client method.
 
 ```{toctree}
-:maxdepth: 2
+:hidden:
 
 typescript/index
 go/index

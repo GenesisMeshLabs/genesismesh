@@ -1,4 +1,4 @@
-# Phase 2 Externalization
+# Externalization
 
 **Baseline date:** 2026-06-08
 **Baseline release:** v0.20.0 ecosystem baseline

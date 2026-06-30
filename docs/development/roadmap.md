@@ -10,7 +10,7 @@ The current baseline is:
 - **Baseline release:** v0.20.0 ecosystem baseline
 - **Current phase:** Phase 2 - Externalization
 
-For the detailed Phase 2 plan, see {doc}`phase-2-externalization`.
+For the detailed Phase 2 plan, see {doc}`externalization`.
 
 ## Current position
 

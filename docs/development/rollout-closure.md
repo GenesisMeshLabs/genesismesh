@@ -1,4 +1,4 @@
-# Phase 1 Rollout Closure
+# Rollout Closure
 
 **Status:** Phase 1 / rollout closure marker
 **Closure date:** 2026-06-08

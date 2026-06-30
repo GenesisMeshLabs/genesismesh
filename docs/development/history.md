@@ -321,7 +321,7 @@ As of v0.55.0, the following are *not* yet true:
 - Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`
 - Architecture and design philosophy: {doc}`strategy`
 - Per-release plans: `ops/plan-v0.*.md`
-- Phase 2 externalization plan: {doc}`phase-2-externalization`
+- Phase 2 externalization plan: {doc}`externalization`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 

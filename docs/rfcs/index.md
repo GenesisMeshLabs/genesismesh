@@ -7,7 +7,7 @@ protocol without reverse-engineering the Python reference implementation.
 
 The program goals, principles, template, and acceptance bar are described in
 {doc}`/development/rfc-program`. The strategic context is in
-{doc}`/development/phase-2-externalization`.
+{doc}`/development/externalization`.
 
 ## Status of this batch
 

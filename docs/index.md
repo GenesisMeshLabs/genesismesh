@@ -176,17 +176,9 @@ tutorial
 :maxdepth: 2
 :caption: Concepts
 
-concepts/overview
-concepts/design-goals
-concepts/use-cases
-concepts/comparison
-concepts/deployment-scenarios
-concepts/architecture
-concepts/trust-model
-concepts/security-model
-concepts/certificate-lifecycle
-concepts/routing
-concepts/glossary
+concepts/introduction
+concepts/protocol
+concepts/context
 ```
 
 ```{toctree}
@@ -194,23 +186,19 @@ concepts/glossary
 :caption: SDK Clients
 
 sdk/index
+sdk/typescript/index
+sdk/go/index
+sdk/dotnet/index
 ```
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 :caption: Operators
 
 operators/index
-operators/quickstart
-operators/maintainer-operated-sovereigns
-operators/security-checklist
-operators/federation-bootstrap
-operators/external-operator-proof
-operators/trust-bundle-exchange
-operators/treaty-lifecycle
-operators/sovereign-dashboard
-operators/recognition-playbook
-operators/proof-bundle-schema
+operators/setup
+operators/federation
+operators/reference
 ```
 
 ```{toctree}
@@ -256,8 +244,7 @@ development/history
 development/phases/index
 development/strategy
 development/roadmap
-development/phase-1-rollout-closure
-development/phase-2-externalization
+development/milestones
 development/rfc-program
 development/atlas
 development/governance
