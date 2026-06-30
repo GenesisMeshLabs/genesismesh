@@ -220,6 +220,102 @@ As of v0.53.0, the following are *not* yet true:
 
 ---
 
+### Phase L — v0.54.0: Go SDK (June 2026)
+
+**Question this phase answered:** Can a Go developer issue trust decisions,
+build membership attestations, and verify boundary authorization against a
+Genesis Mesh Network Authority using idiomatic Go — no Python, no CGO, no
+third-party dependencies?
+
+**What changed:**
+
+A standalone Go SDK was created at `sdk-go/` (module path
+`github.com/GenesisMeshLabs/sdk-go/genesismesh`). The SDK is stdlib-only and
+passes the Go race detector.
+
+- **`Client`** facade with 7 sub-clients covering the complete stable HTTP
+  surface: `Agreement`, `Attestation`, `Boundary`, `Consensus`, `DataUsage`,
+  `Disclosure`, `Evidence`.
+- **`auth.go`** — pure Go implementation of canonical JSON (byte-for-byte
+  compatible with the Python and TypeScript implementations), Ed25519 signing
+  via `crypto/ed25519`, and `BuildAdminHeaders` producing the four
+  `X-Admin-*` headers consumed by all admin NA routes.
+- **`types.go`** — 20+ Go structs with `json` tags mirroring the Pydantic
+  models for all stable protocol objects.
+- **`errors.go`** — typed error hierarchy: `APIError`, `UnauthorizedError`,
+  `ValidationError`, `NotFoundError`, `RateLimitError`, `ServerError`,
+  `NetworkError`.
+- **19 unit tests** passing with `-race`, using `httptest.Server` for mock
+  HTTP — no running NA required.
+- Zero runtime dependencies — stdlib only (`crypto/ed25519`, `encoding/json`,
+  `net/http`).
+
+**What became possible:**
+
+- Go developers can interact with any Genesis Mesh NA without a Python
+  environment.
+- The Go SDK is `go get`-able: `go get github.com/GenesisMeshLabs/sdk-go`.
+- Admin operations and verify operations are idiomatic Go — typed return
+  values, error values (no panics), context propagation.
+- Proves that canonical JSON and the Ed25519 admin auth protocol can be
+  implemented cleanly in a compiled, statically-typed language.
+
+As of v0.54.0, the following are *not* yet true:
+
+- Genesis Mesh does not yet have a C# SDK.
+- No external operator has yet run a sovereign with their own
+  infrastructure account, keys, policy, endpoint, and continuity
+  responsibilities.
+
+---
+
+### Phase M — v0.55.0: .NET SDK (June 2026)
+
+**Question this phase answered:** Can a .NET 8 / C# developer use Genesis
+Mesh trust primitives from an idiomatic async/await API published to NuGet,
+with no Python knowledge required?
+
+**What changed:**
+
+A standalone .NET SDK was created at `sdk-dotnet/` (NuGet package ID
+`genesismesh-sdk-dotnet`, targeting `net8.0`). Published to NuGet.org via
+GitHub Actions Trusted Publishing.
+
+- **`GenesisMeshClient`** facade with 7 sub-clients:
+  `Agreement`, `Attestation`, `Boundary`, `Consensus`, `DataUsage`,
+  `Disclosure`, `Evidence`.
+- **`Auth.cs`** — `CanonicalJson` that sorts keys and skips HTML-escaping
+  (byte-for-byte compatible with Python and TypeScript), Ed25519 signing via
+  `NSec.Cryptography 25.4.0`, `BuildAdminHeaders` producing the four
+  `X-Admin-*` headers.
+- **`Models.cs`** — 25+ C# records with `[JsonPropertyName]` attributes
+  mapping PascalCase properties to snake_case JSON keys.
+- **`Errors.cs`** — typed exception hierarchy: `GenesisMeshException`,
+  `UnauthorizedException`, `ValidationException`, `NotFoundException`,
+  `RateLimitException`, `ServerException`, `NetworkException`.
+- **20 xUnit tests** passing, using `HttpMessageHandler` injection for
+  mock HTTP — no running NA required.
+- `HttpHandler` injection on `ClientOptions` enables pure unit-test coverage
+  without a live network.
+
+**What became possible:**
+
+- .NET developers can add `genesismesh-sdk-dotnet` from NuGet and interact
+  with any Genesis Mesh NA.
+- All three major non-Python ecosystems (TypeScript/Node, Go, .NET) now have
+  typed, well-tested SDK clients.
+- Proves that the Genesis Mesh Trust API is a genuine cross-language protocol,
+  not a Python-only library.
+
+As of v0.55.0, the following are *not* yet true:
+
+- No external operator has yet run a sovereign with their own
+  infrastructure account, keys, policy, endpoint, and continuity
+  responsibilities.
+- Atlas (the public sovereign explorer) has not yet been built.
+
+---
+
 ## 5. Where to Read More
 
 - Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`

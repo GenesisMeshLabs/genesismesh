@@ -343,9 +343,9 @@ Genesis Mesh is not:
 These may be built on top of the protocol later. They should not be confused
 with the protocol itself.
 
-## Current State (v0.49.0)
+## Current State (v0.55.0)
 
-Three complete trust cycles have shipped.
+Three complete trust cycles and the first SDK generation have shipped.
 
 **Phase H (v0.26–v0.31) — Governed Relationships.** Dual-signed agreements,
 attenuable delegation chains, gated boundary decisions, tamper-evident execution
@@ -364,6 +364,12 @@ process-level execution mediation, trust path performance and atlas pruning, dat
 usage attestation, formal Tamarin verification of the PeerRiskSignal state machine,
 25 animated terminal demos across all protocol features, and a documentation
 restructure that splits the full project history into 10 per-phase pages.
+
+**Phase K–M (v0.53–v0.55) — SDK Generation.** TypeScript SDK (v0.53.0),
+Go SDK (v0.54.0), and .NET SDK (v0.55.0) shipped as independent, decoupled
+packages. All three implement the complete stable HTTP surface with typed
+clients, Ed25519 admin auth, and canonical JSON — proving Genesis Mesh is a
+cross-language protocol, not a Python library.
 
 The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
 logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.

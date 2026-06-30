@@ -32,14 +32,18 @@ genesis_mesh/
   cli/           genesis-mesh CLI entry point and subcommands
   crypto/        Ed25519 keys, signing, verification
   gossip/        peer gossip and CRL propagation
+  guard/         process-level execution mediation (daemon, policy enforcement)
+  interop/       JOSE, SPIFFE, and W3C Verifiable Credential bridges
   models/        Pydantic domain models (certificates, revocation, discovery)
   monitoring/    health and telemetry
   na_service/    Network Authority (Flask app, routes, db, migrations)
   node/          node runtime, peer manager, cert manager, discovery client
+  observability/ structured observability (separate from monitoring/)
   routing/       distance-vector routing, envelopes, provenance
   tests/         unit + integration; pytest entry point
   transport/     Noise XX peer transport
   trust/         trust evaluation primitives
+  workflows/     multi-step orchestration (federation, proof, trust_bundle)
 
 docs/            Sphinx documentation source
 examples/        agent-network reference applications
