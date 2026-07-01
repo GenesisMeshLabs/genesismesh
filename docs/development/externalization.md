@@ -25,7 +25,7 @@ responsibilities.
 The rollout closure marker adds the final Phase 1 proof shape: a sovereign
 operator can move from evidence collection to structured accountability, direct
 institutional notice, and escalation readiness without surrendering control of
-identity or records. See {doc}`phase-1-rollout-closure`.
+identity or records. See {doc}`rollout-closure`.
 
 Phase 2 asks a different question:
 

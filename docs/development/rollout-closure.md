@@ -168,5 +168,5 @@ Related documents:
 
 - {doc}`history`
 - {doc}`roadmap`
-- {doc}`phase-2-externalization`
+- {doc}`externalization`
 - {doc}`governance`

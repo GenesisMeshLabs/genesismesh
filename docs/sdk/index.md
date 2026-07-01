@@ -37,11 +37,3 @@ stable `.code` string matching the NA's `code` field.
 **Dual-mode auth.** Admin routes are signed with Ed25519 (four `X-Admin-*`
 headers). Public verification routes are unauthenticated. The transport layer
 handles the distinction — callers just use the right sub-client method.
-
-```{toctree}
-:hidden:
-
-typescript/index
-go/index
-dotnet/index
-```
