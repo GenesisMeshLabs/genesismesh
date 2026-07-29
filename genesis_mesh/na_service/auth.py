@@ -130,7 +130,10 @@ def verify_node_request_signature(
             "node_auth_failed",
             {"scope": nonce_scope, "reason": "signature_error"},
         )
-        return False, f"Signature verification error: {exc}"
+        # Keep the caller-facing message identical to a plain bad signature;
+        # the underlying exception stays server-side only.
+        logger.warning("Signature verification raised for scope %s: %s", nonce_scope, exc)
+        return False, "Invalid signature"
 
     try:
         service.db.add_nonce(nonce_scope, nonce, now)

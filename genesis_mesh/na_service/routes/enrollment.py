@@ -73,24 +73,6 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 raise BadRequestError("node_public_key required", code="missing_node_public_key")
             if not invite_token:
                 raise ForbiddenError("invite_token required", code="missing_invite_token")
-            for prior in service.db.get_certs_by_node_key(node_public_key):
-                if (
-                    prior.get("status") == "revoked"
-                    and prior.get("revocation_reason") == "key_compromise"
-                ):
-                    service.db.add_audit_event(
-                        "join_rejected",
-                        {
-                            "reason": "key_compromise",
-                            "node_public_key": node_public_key,
-                            "prior_cert_id": prior.get("cert_id"),
-                            "remote_addr": remote_addr,
-                        },
-                    )
-                    raise ForbiddenError(
-                        "Node public key has been compromised",
-                        code="node_key_compromised",
-                    )
 
             available_token = service.db.get_available_invite_token(invite_token)
             if available_token is None:
@@ -109,6 +91,28 @@ def create_enrollment_blueprint(service) -> Blueprint:
             if not auth_ok:
                 logger.warning("Join proof-of-possession failed for node key %s...: %s", node_public_key[:8], auth_err)
                 raise UnauthorizedError(auth_err or "Unauthorized", code="node_auth_failed")
+
+            # Key-compromise status is only disclosed after the caller has
+            # presented a valid invite and proven possession of the key,
+            # so /join cannot be used as an unauthenticated status oracle.
+            for prior in service.db.get_certs_by_node_key(node_public_key):
+                if (
+                    prior.get("status") == "revoked"
+                    and prior.get("revocation_reason") == "key_compromise"
+                ):
+                    service.db.add_audit_event(
+                        "join_rejected",
+                        {
+                            "reason": "key_compromise",
+                            "node_public_key": node_public_key,
+                            "prior_cert_id": prior.get("cert_id"),
+                            "remote_addr": remote_addr,
+                        },
+                    )
+                    raise ForbiddenError(
+                        "Node public key has been compromised",
+                        code="node_key_compromised",
+                    )
 
             token = service.db.use_invite_token(invite_token, node_public_key)
             if token is None:

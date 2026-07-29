@@ -22,6 +22,11 @@ def _error_message(resp_or_payload) -> str:
     return payload["error"]["message"]
 
 
+def _error_code(resp_or_payload) -> str:
+    payload = resp_or_payload if isinstance(resp_or_payload, dict) else resp_or_payload.get_json()
+    return payload["error"]["code"]
+
+
 def test_join_valid_roles(client, node_keypair):
     """Join with valid roles succeeds."""
     resp, data, _ = join_node(client, keypair=node_keypair, roles=["role:client"])
@@ -172,6 +177,55 @@ def test_non_compromise_revocation_allows_rejoin_with_same_public_key(client, no
 
     second = join_node(client, keypair=kp, roles=["role:client"])
     assert second[0].status_code == 201
+
+
+def test_unauthenticated_join_probe_does_not_reveal_key_compromise(client, node_keypair):
+    """An unauthenticated /join probe is indistinguishable for compromised vs clean keys (F-15)."""
+    _, join_data, kp = join_node(client, keypair=node_keypair, roles=["role:client"])
+    assert revoke_cert(client, join_data["cert_id"], reason="key_compromise").status_code == 200
+
+    probe_compromised = client.post(
+        "/join",
+        json={"node_public_key": kp.public_key_b64, "invite_token": "junk-not-real"},
+    )
+    probe_clean = client.post(
+        "/join",
+        json={"node_public_key": generate_keypair().public_key_b64, "invite_token": "junk-not-real"},
+    )
+
+    assert probe_compromised.status_code == probe_clean.status_code == 403
+    assert _error_code(probe_compromised) == _error_code(probe_clean) == "invalid_invite_token"
+
+
+def test_authenticated_join_with_compromised_key_still_rejected(na_service, client, node_keypair):
+    """A fully-signed join with a valid invite still refuses a key-compromised key (F-15)."""
+    _, join_data, kp = join_node(client, keypair=node_keypair, roles=["role:client"])
+    assert revoke_cert(client, join_data["cert_id"], reason="key_compromise").status_code == 200
+
+    resp, _, _ = join_node(client, keypair=kp, roles=["role:client"])
+
+    assert resp.status_code == 403
+    assert _error_code(resp) == "node_key_compromised"
+    event = na_service.db.list_audit_events()[-1]
+    assert event["event_type"] == "join_rejected"
+    assert event["details"]["reason"] == "key_compromise"
+
+
+def test_signature_error_response_is_generic(client):
+    """A malformed node key yields a generic auth error, not internal exception text (F-15)."""
+    invite = create_invite(client, roles=["role:client"])
+    assert invite.status_code == 201
+    payload = {
+        "node_public_key": "AAAA",  # decodes, but not a valid Ed25519 key
+        "invite_token": invite.get_json()["token_id"],
+    }
+    payload = sign_payload(payload, generate_keypair().private_key)
+
+    resp = client.post("/join", json=payload)
+
+    assert resp.status_code == 401
+    assert _error_message(resp) == "Invalid signature"
+    assert "verification error" not in _error_message(resp).lower()
 
 
 def test_valid_renewal_preserves_roles(client, node_keypair):
