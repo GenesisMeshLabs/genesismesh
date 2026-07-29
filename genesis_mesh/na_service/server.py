@@ -86,6 +86,8 @@ class NetworkAuthorityService:
         self.rate_limiter = RateLimiter()
         self.connected_nodes: dict[str, dict] = {}
         self._nonce_max_age = 300.0
+        # In-process counter (not DB-backed: it must survive audit-store outages).
+        self.audit_write_failures = 0
 
         na_pub_b64 = genesis_block.network_authority.public_key
         our_pub_b64 = self.na_private_key.verify_key.encode(

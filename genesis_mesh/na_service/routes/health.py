@@ -98,6 +98,9 @@ def create_health_blueprint(service) -> Blueprint:
             "# HELP genesis_mesh_na_policy_versions_total Persisted policy versions.",
             "# TYPE genesis_mesh_na_policy_versions_total gauge",
             f"genesis_mesh_na_policy_versions_total {policy_versions}",
+            "# HELP genesis_mesh_na_audit_write_failures_total Auth-failure audit events that could not be persisted.",
+            "# TYPE genesis_mesh_na_audit_write_failures_total counter",
+            f"genesis_mesh_na_audit_write_failures_total {service.audit_write_failures}",
         ]
         return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
 
