@@ -169,3 +169,36 @@ def test_save_keypair_tolerates_filesystems_without_chmod(tmp_path, monkeypatch)
 
     assert private_path.exists()
     assert public_path.exists()
+
+
+def test_save_keypair_warns_when_private_key_cannot_be_restricted(tmp_path, monkeypatch, caplog):
+    """A refused chmod on the private key emits a loud warning instead of silence (F-09)."""
+    keypair = generate_keypair()
+
+    def chmod_raises(self, mode):
+        raise PermissionError("chmod unsupported")
+
+    monkeypatch.setattr("pathlib.Path.chmod", chmod_raises)
+
+    with caplog.at_level("WARNING", logger="genesis_mesh.crypto.keys"):
+        private_path, public_path = save_keypair(keypair, str(tmp_path / "node"), "node-test")
+
+    assert private_path.exists()
+    assert public_path.exists()
+    warnings = [r for r in caplog.records if r.name == "genesis_mesh.crypto.keys"]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert str(private_path) in message
+    assert "could not be restricted" in message
+    assert "chmod failed" in message
+
+
+def test_save_keypair_silent_when_chmod_succeeds(tmp_path, caplog):
+    """A normal save restricts the key to owner-only and emits no warning (F-09)."""
+    keypair = generate_keypair()
+
+    with caplog.at_level("WARNING", logger="genesis_mesh.crypto.keys"):
+        private_path, _ = save_keypair(keypair, str(tmp_path / "node"), "node-test")
+
+    assert private_path.stat().st_mode & 0o777 == 0o600
+    assert not [r for r in caplog.records if r.name == "genesis_mesh.crypto.keys"]
