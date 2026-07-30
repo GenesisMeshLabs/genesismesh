@@ -23,6 +23,7 @@ class EnrollmentStoreMixin:
         assigned_roles: list[str],
         max_validity_hours: int,
         token_expiry_hours: int,
+        recipient_public_key: Optional[str] = None,
     ) -> InviteToken:
         """Create and persist a single-use invite token."""
         now = datetime.now(timezone.utc)
@@ -32,14 +33,16 @@ class EnrollmentStoreMixin:
             max_validity_hours=max_validity_hours,
             created_at=now,
             expires_at=now + timedelta(hours=token_expiry_hours),
+            recipient_public_key=recipient_public_key,
         )
         with self.conn:
             self.conn.execute(
                 """
                 INSERT INTO invite_tokens (
                     token_id, assigned_roles_json, max_validity_hours,
-                    created_at, expires_at, used_at, used_by_key
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    created_at, expires_at, used_at, used_by_key,
+                    recipient_public_key
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     token.token_id,
@@ -49,6 +52,7 @@ class EnrollmentStoreMixin:
                     token.expires_at.isoformat(),
                     None,
                     None,
+                    token.recipient_public_key,
                 ),
             )
         return token
@@ -66,6 +70,8 @@ class EnrollmentStoreMixin:
 
                 token = self._invite_from_row(row)
                 if token.used_at or token.expires_at < now:
+                    return None
+                if token.recipient_public_key and token.recipient_public_key != node_key:
                     return None
 
                 updated = self.conn.execute(
@@ -195,4 +201,5 @@ class EnrollmentStoreMixin:
             expires_at=datetime.fromisoformat(row["expires_at"]),
             used_at=datetime.fromisoformat(row["used_at"]) if row["used_at"] else None,
             used_by_key=row["used_by_key"],
+            recipient_public_key=row["recipient_public_key"],
         )

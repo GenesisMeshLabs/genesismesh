@@ -146,6 +146,79 @@ def test_join_expired_invite_token_rejected_cleanly(na_service, client, node_key
     assert _error_message(resp) == "Invalid, expired, or used invite token"
 
 
+def test_bound_invite_rejects_other_key_and_stays_redeemable(client, node_keypair):
+    """A recipient-bound invite cannot be redeemed by a different key (F-08)."""
+    invite_resp = create_invite(
+        client,
+        roles=["role:client"],
+        recipient_public_key=node_keypair.public_key_b64,
+    )
+    assert invite_resp.status_code == 201
+    token_id = invite_resp.get_json()["token_id"]
+
+    attacker = generate_keypair()
+    attacker_payload = sign_payload(
+        {
+            "node_public_key": attacker.public_key_b64,
+            "invite_token": token_id,
+        },
+        attacker.private_key,
+    )
+    attacker_resp = client.post("/join", json=attacker_payload)
+    assert attacker_resp.status_code == 403
+    assert _error_code(attacker_resp) == "invalid_invite_token"
+    assert _error_message(attacker_resp) == "Invalid, expired, or used invite token"
+
+    victim_payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": token_id,
+        },
+        node_keypair.private_key,
+    )
+    victim_resp = client.post("/join", json=victim_payload)
+    assert victim_resp.status_code == 201
+    assert victim_resp.get_json()["node_public_key"] == node_keypair.public_key_b64
+
+
+def test_bound_invite_redeemable_by_named_key(client, node_keypair):
+    """A recipient-bound invite works normally for the named key (F-08)."""
+    invite_resp = create_invite(
+        client,
+        roles=["role:client"],
+        recipient_public_key=node_keypair.public_key_b64,
+    )
+    assert invite_resp.status_code == 201
+
+    payload = sign_payload(
+        {
+            "node_public_key": node_keypair.public_key_b64,
+            "invite_token": invite_resp.get_json()["token_id"],
+        },
+        node_keypair.private_key,
+    )
+    resp = client.post("/join", json=payload)
+    assert resp.status_code == 201
+    assert resp.get_json()["roles"] == ["role:client"]
+
+
+def test_unbound_invite_still_redeemable_by_any_key(client):
+    """An invite created without a recipient keeps pre-F-08 bearer behavior."""
+    invite_resp = create_invite(client, roles=["role:client"])
+    assert invite_resp.status_code == 201
+
+    keypair = generate_keypair()
+    payload = sign_payload(
+        {
+            "node_public_key": keypair.public_key_b64,
+            "invite_token": invite_resp.get_json()["token_id"],
+        },
+        keypair.private_key,
+    )
+    resp = client.post("/join", json=payload)
+    assert resp.status_code == 201
+
+
 def test_join_rate_limit_returns_429(client):
     """Join endpoint returns 429 after the configured request burst."""
     last_resp = None

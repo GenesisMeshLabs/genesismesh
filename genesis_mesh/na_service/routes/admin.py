@@ -47,6 +47,12 @@ def create_admin_blueprint(service) -> Blueprint:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
             roles = data.get("roles", ["role:client"])
+            recipient_public_key = data.get("recipient_public_key") or None
+            if recipient_public_key is not None and not isinstance(recipient_public_key, str):
+                raise BadRequestError(
+                    "recipient_public_key must be a string",
+                    code="invalid_recipient_public_key",
+                )
             max_validity_hours = positive_int_field(
                 data,
                 "max_validity_hours",
@@ -70,12 +76,14 @@ def create_admin_blueprint(service) -> Blueprint:
                 assigned_roles=roles,
                 max_validity_hours=max_validity_hours,
                 token_expiry_hours=token_expiry_hours,
+                recipient_public_key=recipient_public_key,
             )
             service.db.add_audit_event(
                 "invite_created",
                 {
                     "token_fingerprint": _token_fingerprint(token.token_id),
                     "roles": roles,
+                    "recipient_public_key": recipient_public_key,
                     "remote_addr": remote_addr,
                 },
             )

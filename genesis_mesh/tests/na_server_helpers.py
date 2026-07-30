@@ -51,6 +51,7 @@ def create_invite(
     roles=None,
     max_validity_hours=168,
     token_expiry_hours=24,
+    recipient_public_key=None,
 ):
     """Create an operator-authorized invite token through the admin API."""
     body = {
@@ -58,6 +59,8 @@ def create_invite(
         "max_validity_hours": max_validity_hours,
         "token_expiry_hours": token_expiry_hours,
     }
+    if recipient_public_key is not None:
+        body["recipient_public_key"] = recipient_public_key
     return client.post("/admin/invite", json=body, headers=admin_headers(client, body))
 
 
