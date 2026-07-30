@@ -11,15 +11,23 @@ if [ "$ROLE" = "na" ]; then
     DB_PATH=${DB_PATH:-genesis_mesh_na.db}
     PORT=${PORT:-8443}
 
+    # Env-injected secrets go into a fresh mktemp dir (unpredictable name,
+    # mode 0700) and are created 0600 via umask — never at a fixed path,
+    # never world-readable, not even briefly.
+    SECRETS_DIR=""
+    if { [ ! -f "$GENESIS_FILE" ] && [ -n "${GENESIS_JSON:-}" ]; } \
+        || { [ ! -f "$NA_PRIVATE_KEY_FILE" ] && [ -n "${NA_PRIVATE_KEY:-}" ]; }; then
+        SECRETS_DIR="$(mktemp -d)"
+    fi
+
     if [ ! -f "$GENESIS_FILE" ] && [ -n "${GENESIS_JSON:-}" ]; then
-        GENESIS_FILE="/tmp/genesis.signed.json"
-        printf '%s' "$GENESIS_JSON" > "$GENESIS_FILE"
+        GENESIS_FILE="$SECRETS_DIR/genesis.signed.json"
+        (umask 077; printf '%s' "$GENESIS_JSON" > "$GENESIS_FILE")
     fi
 
     if [ ! -f "$NA_PRIVATE_KEY_FILE" ] && [ -n "${NA_PRIVATE_KEY:-}" ]; then
-        NA_PRIVATE_KEY_FILE="/tmp/na.key"
-        printf '%s' "$NA_PRIVATE_KEY" > "$NA_PRIVATE_KEY_FILE"
-        chmod 600 "$NA_PRIVATE_KEY_FILE"
+        NA_PRIVATE_KEY_FILE="$SECRETS_DIR/na.key"
+        (umask 077; printf '%s' "$NA_PRIVATE_KEY" > "$NA_PRIVATE_KEY_FILE")
     fi
 
     if [ ! -f "$GENESIS_FILE" ] || [ ! -f "$NA_PRIVATE_KEY_FILE" ]; then
