@@ -291,6 +291,24 @@ def test_verify_undeclared_segment() -> None:
     assert undeclared.segment_id in report.observed_value
 
 
+def test_verify_segment_provenance_mismatch() -> None:
+    sk = _sk()
+    seg = _segment("tool_result", max_tokens=100)
+    rec = _record(sk, segments=[seg])
+    # Observe same segment ID, within token budget, but content swapped
+    swapped = seg.model_copy(
+        update={"provenance_digest": "PROV-TAMPERED", "actual_tokens": 40}
+    )
+    passed, reason, report = verify_context_integrity(
+        rec, _base_tree(), [swapped], [_pub_b64(sk)], at_time=_NOW
+    )
+    assert passed is False
+    assert reason == "segment_provenance_mismatch"
+    assert report is not None
+    assert report.committed_value == seg.provenance_digest
+    assert report.observed_value == "PROV-TAMPERED"
+
+
 def test_verify_segment_token_exceeded() -> None:
     sk = _sk()
     seg = _segment("tool_result", max_tokens=100)
@@ -373,6 +391,17 @@ def test_gate_blocks_segment_token_exceeded() -> None:
     result = gate(None, None)  # type: ignore[attr-defined]
     assert result.passed is False  # type: ignore[attr-defined]
     assert "segment_token_exceeded" in result.detail  # type: ignore[attr-defined]
+
+
+def test_gate_blocks_segment_provenance_mismatch() -> None:
+    sk = _sk()
+    seg = _segment("tool_result", max_tokens=100)
+    rec = _record(sk, segments=[seg])
+    swapped = seg.model_copy(update={"provenance_digest": "PROV-TAMPERED"})
+    gate = ContextInjectionGate(rec, _base_tree(), [swapped], [_pub_b64(sk)])
+    result = gate(None, None)  # type: ignore[attr-defined]
+    assert result.passed is False  # type: ignore[attr-defined]
+    assert "segment_provenance_mismatch" in result.detail  # type: ignore[attr-defined]
 
 
 def test_gate_blocks_base_context_tampered() -> None:
