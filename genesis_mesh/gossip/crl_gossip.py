@@ -130,20 +130,22 @@ class CRLGossip:
         """
         peer_sequence = message.payload.get("sequence", 0)
         peer_crl_id = message.payload.get("crl_id")
+        # Address the reply to the authenticated peer, not the self-declared sender_id.
+        peer_id = connection.peer_id
 
         if not self.current_crl:
             # We don't have a CRL, request it
-            await self._request_crl(message.sender_id, connection)
+            await self._request_crl(peer_id, connection)
             return
 
         if peer_sequence > self.current_crl.sequence:
             # Peer has newer CRL, request it
-            logger.info(f"Peer {message.sender_id} has newer CRL (seq {peer_sequence} > {self.current_crl.sequence})")
-            await self._request_crl(message.sender_id, connection)
+            logger.info(f"Peer {peer_id} has newer CRL (seq {peer_sequence} > {self.current_crl.sequence})")
+            await self._request_crl(peer_id, connection)
         elif peer_sequence < self.current_crl.sequence:
             # We have newer CRL, send it to peer
-            logger.info(f"Sending newer CRL to {message.sender_id}")
-            await self._send_crl(message.sender_id, connection)
+            logger.info(f"Sending newer CRL to {peer_id}")
+            await self._send_crl(peer_id, connection)
 
     async def _request_crl(self, peer_id: str, connection):
         """Request CRL from peer."""
@@ -189,8 +191,9 @@ class CRLGossip:
             message: CRL request message
             connection: Connection that sent request
         """
-        logger.debug(f"Received CRL request from {message.sender_id}")
-        await self._send_crl(message.sender_id, connection)
+        # Serve the authenticated peer, not the self-declared sender_id.
+        logger.debug(f"Received CRL request from {connection.peer_id}")
+        await self._send_crl(connection.peer_id, connection)
 
     async def handle_crl_data(self, message: MeshMessage) -> bool:
         """

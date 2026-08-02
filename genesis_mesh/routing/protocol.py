@@ -147,18 +147,23 @@ class RoutingProtocol:
         except Exception as e:
             logger.error(f"Failed to announce routes: {e}")
 
-    async def handle_route_announce(self, message: MeshMessage):
+    async def handle_route_announce(self, message: MeshMessage, peer_id: str):
         """
         Handle incoming route announcement.
 
+        Routes are attributed to ``peer_id`` — the authenticated identity of the
+        peer that delivered the frame — never to the self-declared
+        ``message.sender_id``, which any neighbor can set to another node's ID.
+
         Args:
             message: Route announcement message
+            peer_id: Authenticated node ID of the peer this frame arrived from
         """
         routes_data = message.payload.get("routes", [])
-        logger.debug(f"Received {len(routes_data)} routes from {message.sender_id}")
+        logger.debug(f"Received {len(routes_data)} routes from {peer_id}")
 
-        if self.is_revoked_sender(message.sender_id):
-            logger.warning("Ignoring routes from revoked sender %s", message.sender_id)
+        if self.is_revoked_sender(peer_id):
+            logger.warning("Ignoring routes from revoked sender %s", peer_id)
             return
 
         updated_count = 0
@@ -179,7 +184,7 @@ class RoutingProtocol:
                     logger.warning(
                         "Ignoring invalid route to %s from %s: metric=%s",
                         route_info.destination,
-                        message.sender_id,
+                        peer_id,
                         route_info.metric,
                     )
                     continue
@@ -187,10 +192,10 @@ class RoutingProtocol:
                 # Update routing table
                 updated = await self.routing_table.update_route(
                     destination=route_info.destination,
-                    next_hop=message.sender_id,  # Sender is the next hop
+                    next_hop=peer_id,  # Authenticated peer is the next hop
                     metric=route_info.metric,
                     sequence=route_info.sequence,
-                    learned_from=message.sender_id
+                    learned_from=peer_id
                 )
 
                 if updated:
@@ -200,29 +205,34 @@ class RoutingProtocol:
                 logger.error(f"Error processing route: {e}")
 
         if updated_count > 0:
-            logger.info(f"Updated {updated_count} routes from {message.sender_id}")
+            logger.info(f"Updated {updated_count} routes from {peer_id}")
 
-    async def handle_route_update(self, message: MeshMessage):
+    async def handle_route_update(self, message: MeshMessage, peer_id: str):
         """Handle route update message."""
         # Same logic as route announce for now
-        await self.handle_route_announce(message)
+        await self.handle_route_announce(message, peer_id)
 
-    async def handle_route_withdraw(self, message: MeshMessage):
+    async def handle_route_withdraw(self, message: MeshMessage, peer_id: str):
         """
         Handle route withdrawal.
 
+        A peer may only withdraw routes this node learned from that same
+        authenticated peer, so a neighbor cannot evict another node's routes by
+        claiming its identity in ``message.sender_id``.
+
         Args:
             message: Route withdraw message
+            peer_id: Authenticated node ID of the peer this frame arrived from
         """
         destinations = message.payload.get("destinations", [])
-        logger.info(f"Received route withdraw for {len(destinations)} destinations from {message.sender_id}")
+        logger.info(f"Received route withdraw for {len(destinations)} destinations from {peer_id}")
 
         # Remove routes learned from this peer
         for destination in destinations:
             route = self.routing_table.get_route(destination)
-            if route and route.learned_from == message.sender_id:
+            if route and route.learned_from == peer_id:
                 await self.routing_table.remove_route(destination)
-                logger.debug(f"Route to {destination} via {message.sender_id} withdrawn")
+                logger.debug(f"Route to {destination} via {peer_id} withdrawn")
 
         await self.trigger_update()
 

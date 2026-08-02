@@ -205,7 +205,9 @@ class PeerDiscovery:
             message: Peer request message
             connection: Connection that sent the request
         """
-        logger.debug(f"Received peer request from {message.sender_id}")
+        # Address the reply to the authenticated peer, not the self-declared sender_id.
+        peer_id = connection.peer_id
+        logger.debug(f"Received peer request from {peer_id}")
 
         peers_to_share = self._peers_to_share()
 
@@ -213,13 +215,13 @@ class PeerDiscovery:
         response = MeshMessage(
             message_type=MessageType.PEER_RESPONSE,
             sender_id=self.node_id,
-            recipient_id=message.sender_id,
+            recipient_id=peer_id,
             payload={"peers": [p.model_dump() for p in peers_to_share]}
         )
 
         try:
             await connection.send_message(response)
-            logger.debug(f"Sent {len(peers_to_share)} peers to {message.sender_id}")
+            logger.debug(f"Sent {len(peers_to_share)} peers to {peer_id}")
         except Exception as e:
             logger.error(f"Failed to send peer response: {e}")
 
