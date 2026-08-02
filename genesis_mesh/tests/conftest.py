@@ -8,9 +8,18 @@ import nacl.encoding
 import nacl.signing
 import pytest
 
+from genesis_mesh.audit import logger as audit_logger_module
 from genesis_mesh.crypto import generate_keypair
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.na_service.server import NetworkAuthorityService
+
+
+@pytest.fixture(autouse=True)
+def _audit_logs_to_tmp(tmp_path, monkeypatch):
+    """Keep default-on audit logs (F-03) out of the real ~/.genesis-mesh."""
+    monkeypatch.setattr(
+        audit_logger_module, "DEFAULT_AUDIT_DIR", tmp_path / "audit"
+    )
 
 
 @pytest.fixture
