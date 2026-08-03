@@ -10,7 +10,8 @@ Verification order for verify_invocation_token:
   4. expired            — expires_at < at_time
   5. capability_not_granted — requested capability not in token.capabilities
   6. budget_exhausted   — use_records count ≥ max_invocations (when set)
-  7. policy_violated    — a policy constraint is not satisfied
+  7. policy_violated    — a policy constraint is not satisfied, or the token
+                          carries a constraint this verifier does not recognise
   8. valid
 
 Based on: arXiv:2603.24775 (AIP — Agent Identity Protocol)
@@ -18,6 +19,7 @@ Based on: arXiv:2603.24775 (AIP — Agent Identity Protocol)
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -28,6 +30,15 @@ from ..crypto import sign_model, verify_model_signature
 from ..models.agreement import AgreementRecord
 from ..models.delegation import DelegatedAgreementRecord
 from ..models.invocation_token import InvocationToken, InvocationUseRecord
+
+logger = logging.getLogger(__name__)
+
+# Policy predicates this build understands. A constraint whose prefix is not in
+# this tuple is REJECTED at verification (fail closed) — see
+# _check_policy_constraints. Extending the vocabulary means adding the prefix
+# here and a matching branch below, and noting it in the changelog: a verifier
+# older than the token that carries the new predicate will refuse the token.
+_KNOWN_CONSTRAINT_PREFIXES: tuple[str, ...] = ("not_before:", "peer_sovereign:")
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +129,9 @@ def issue_invocation_token(
         valid_for_seconds: Token lifetime in seconds (default 300 = 5 min).
         max_invocations: Maximum number of uses; None means unlimited.
         policy_constraints: Optional list of structured policy predicates.
+            Understood predicates are ``not_before:`` and ``peer_sovereign:``;
+            anything else is accepted here (with a warning) but rejected by
+            verifiers of this version.
         delegation: When the token is derived from a delegation hop rather than
             the root agreement, provide the DelegatedAgreementRecord for scope
             validation.
@@ -127,6 +141,19 @@ def issue_invocation_token(
         ValueError: If any requested capability is outside the source scope.
     """
     ts = _now(now)
+
+    # Warn (do not reject) on predicates this build cannot evaluate: minting a
+    # constraint for a newer verifier stays legal, but a typo is surfaced here
+    # rather than as an opaque policy_violated at use time.
+    for constraint in policy_constraints or []:
+        if not constraint.startswith(_KNOWN_CONSTRAINT_PREFIXES):
+            logger.warning(
+                "Issuing InvocationToken with policy constraint %r that this build "
+                "does not recognise (understood: %s); verifiers of this version "
+                "will reject the token",
+                constraint,
+                ", ".join(_KNOWN_CONSTRAINT_PREFIXES),
+            )
 
     # Determine the allowed source scope
     if delegation is not None:
@@ -181,7 +208,13 @@ def _check_policy_constraints(
     bearer_sovereign_id: str,
     at_time: datetime,
 ) -> bool:
-    """Return True if all policy constraints are satisfied."""
+    """Return True if all policy constraints are satisfied.
+
+    Fails closed: a constraint whose prefix is not in
+    ``_KNOWN_CONSTRAINT_PREFIXES`` cannot be evaluated, so it cannot be treated
+    as satisfied. An issuer that writes a constraint expects it to be enforced;
+    silently ignoring it would grant more than the issuer authorised.
+    """
     for constraint in token.policy_constraints:
         if constraint.startswith("not_before:"):
             not_before_str = constraint[len("not_before:"):]
@@ -199,7 +232,19 @@ def _check_policy_constraints(
             required_peer = constraint[len("peer_sovereign:"):]
             if bearer_sovereign_id != required_peer:
                 return False
-        # Unknown constraints are passed through without validation failure.
+        else:
+            # Unrecognised predicate: this verifier cannot evaluate it, so it
+            # cannot certify that it holds. Reject, and say which one it was —
+            # a token minted by a newer issuer will land here, and the operator
+            # needs to see the predicate name to tell that apart from a bad token.
+            logger.warning(
+                "Rejecting InvocationToken %s: unrecognised policy constraint %r "
+                "(this build understands %s)",
+                token.token_id,
+                constraint,
+                ", ".join(_KNOWN_CONSTRAINT_PREFIXES),
+            )
+            return False
     return True
 
 

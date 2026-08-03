@@ -54,7 +54,7 @@ def run_demo() -> list[str]:
         issued_by="org-a-issuer",
         valid_for_seconds=600,
         max_invocations=4,
-        policy_constraints=["audit_log_required"],
+        policy_constraints=["peer_sovereign:partner-x"],
         now=_NOW,
     )
     step(f"    token_id        : {token.token_id}")

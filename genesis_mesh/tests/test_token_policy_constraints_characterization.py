@@ -1,20 +1,21 @@
-"""Characterization tests for InvocationToken policy constraints (finding F-19).
+"""Characterization + regression tests for InvocationToken policy constraints
+(finding F-19).
 
-Pins the CURRENT constraint-evaluation behavior of
-``trust/invocation_token.py::_check_policy_constraints`` (:179-203) before
-the F-19 remediation flips unknown predicates from fail-OPEN to fail-CLOSED.
+Originally pinned the fail-OPEN behavior of
+``trust/invocation_token.py::_check_policy_constraints``. The F-19 remediation
+flipped unknown predicates from fail-OPEN to fail-CLOSED, and the four tests
+below that were marked "DEFECT PIN" have been updated accordingly — they now
+assert the defended behavior and serve as the F-19 regression tests.
 
 The complete predicate inventory understood today (this list is the point —
-the fix must keep exactly these working while rejecting everything else):
+the fix keeps exactly these working while rejecting everything else):
 
   * ``not_before:<iso-datetime>``   — enforced; malformed date fails closed
   * ``peer_sovereign:<sovereign>``  — enforced against the bearer id
 
 Anything else — including misspellings, prefix near-misses, and strings that
-LOOK like restrictions (``not_after:...``) — is silently treated as satisfied
-(invocation_token.py:202). Tests marked "DEFECT PIN" assert that fail-open
-behavior on purpose; the F-19 fix is EXPECTED to flip them to
-``policy_violated`` and they must be updated deliberately, not deleted.
+LOOK like restrictions (``not_after:...``) — is now rejected with
+``policy_violated`` rather than silently treated as satisfied.
 
 All verification here injects ``at_time=_NOW`` (frozen clock), so these tests
 are immune to the wall-clock expiry that breaks the two CLI tests in
@@ -22,6 +23,7 @@ test_invocation_tokens.py (see remediation-log/_baseline-test-run.md).
 """
 
 import base64
+import logging
 from datetime import datetime, timedelta, timezone
 
 import nacl.signing
@@ -106,44 +108,66 @@ def test_peer_sovereign_violated():
     assert result.reason == "policy_violated"
 
 
-# ── DEFECT PINS: everything unrecognized passes today (fail-open) ──
+# ── F-19 REGRESSION: everything unrecognized is now rejected (fail-closed) ──
+#
+# These four were "DEFECT PIN" tests asserting valid is True before the fix.
 
 
-def test_unknown_restriction_lookalike_passes():
-    """DEFECT PIN (F-19): a constraint that clearly INTENDS to restrict use
-    ('not_after' — expired in 2020) is silently ignored and the token
-    verifies. After F-19 this must become policy_violated; update
-    deliberately then."""
+def test_unknown_restriction_lookalike_rejected():
+    """F-19 regression: a constraint that clearly INTENDS to restrict use
+    ('not_after' — expired in 2020) is no longer silently ignored."""
     result = _verify_with_constraints(["not_after:2020-01-01T00:00:00+00:00"])
-    assert result.valid is True
-    assert result.reason == "valid"
+    assert result.valid is False
+    assert result.reason == "policy_violated"
 
 
-def test_misspelled_known_predicate_passes():
-    """DEFECT PIN (F-19): 'notbefore:' (no underscore) misses the
-    'not_before:' prefix match and falls through to fail-open."""
+def test_misspelled_known_predicate_rejected():
+    """F-19 regression: 'notbefore:' (no underscore) misses the 'not_before:'
+    prefix match; a near-miss must not be read as 'no constraint'."""
     result = _verify_with_constraints(["notbefore:2099-01-01T00:00:00+00:00"])
-    assert result.valid is True
+    assert result.valid is False
+    assert result.reason == "policy_violated"
 
 
-def test_prefixless_peer_sovereign_passes():
-    """DEFECT PIN (F-19): 'peer_sovereign' without the colon is not matched
-    by the 'peer_sovereign:' prefix check and falls through to fail-open."""
+def test_prefixless_peer_sovereign_rejected():
+    """F-19 regression: 'peer_sovereign' without the colon is not matched by
+    the 'peer_sovereign:' prefix check, so it is unevaluable → rejected."""
     result = _verify_with_constraints(["peer_sovereign"])
-    assert result.valid is True
+    assert result.valid is False
+    assert result.reason == "policy_violated"
 
 
-def test_empty_and_arbitrary_constraints_pass():
-    """DEFECT PIN (F-19): empty strings and arbitrary text are 'satisfied'."""
+def test_empty_and_arbitrary_constraints_rejected():
+    """F-19 regression: empty strings and arbitrary text are not 'satisfied'."""
     result = _verify_with_constraints(["", "totally-made-up-rule:xyz"])
-    assert result.valid is True
+    assert result.valid is False
+    assert result.reason == "policy_violated"
+
+
+def test_nf10_poc_unknown_predicates_rejected():
+    """F-19 regression, replaying the exact Phase-1 PoC payload from
+    verification/evidence/NF-10.log: an issuer writes 'geo:eu-only' and
+    'max_amount:100' believing they are enforced. Baseline verdict was
+    valid=True reason='valid' (VULN-CONFIRMED); must now be policy_violated."""
+    result = _verify_with_constraints(["geo:eu-only", "max_amount:100"])
+    assert result.valid is False
+    assert result.reason == "policy_violated"
+
+
+def test_nf10_poc_recognized_constraint_control():
+    """The NF-10 control leg: a RECOGNIZED constraint that fails must still be
+    rejected for the same reason — proving the fix did not simply reject
+    everything."""
+    result = _verify_with_constraints(["peer_sovereign:someone-else"])
+    assert result.valid is False
+    assert result.reason == "policy_violated"
 
 
 def test_issuer_accepts_unknown_constraint_strings():
-    """Issue-side pin: issuance performs no predicate validation either
-    (invocation_token.py:163) — an unknown constraint is stored verbatim.
-    Relevant to the Bucket-B watch-item on cross-version tokens: today an
-    older issuer can mint constraints a newer verifier must decide about."""
+    """Issue-side pin: issuance still performs no predicate REJECTION — an
+    unknown constraint is stored verbatim (it may be intended for a newer
+    verifier); F-19 only added a warning on this path. Relevant to the
+    Bucket-B watch-item on cross-version tokens."""
     agreement, sk = _make_agreement()
     tok = issue_invocation_token(
         agreement, "agent-b", ["transactions.read"], sk,
@@ -152,3 +176,29 @@ def test_issuer_accepts_unknown_constraint_strings():
         now=_NOW,
     )
     assert tok.policy_constraints == ["future_predicate_v99:whatever"]
+
+
+def test_issuer_warns_on_unknown_constraint(caplog):
+    """F-19: the issuance-side warning names the predicate, so a typo'd
+    --constraint surfaces at mint time instead of as an opaque
+    policy_violated at use time."""
+    agreement, sk = _make_agreement()
+    with caplog.at_level(logging.WARNING, logger="genesis_mesh.trust.invocation_token"):
+        issue_invocation_token(
+            agreement, "agent-b", ["transactions.read"], sk,
+            issued_by="op",
+            policy_constraints=["geo:eu-only"],
+            now=_NOW,
+        )
+    assert "geo:eu-only" in caplog.text
+
+
+def test_verifier_warns_naming_the_unrecognized_predicate(caplog):
+    """F-19 / Bucket-B watch-item: a cross-version rejection must be
+    diagnosable — the log has to say WHICH predicate this build didn't know,
+    not just 'policy_violated'."""
+    with caplog.at_level(logging.WARNING, logger="genesis_mesh.trust.invocation_token"):
+        result = _verify_with_constraints(["geo:eu-only"])
+    assert result.reason == "policy_violated"
+    assert "geo:eu-only" in caplog.text
+    assert "not_before:" in caplog.text  # tells the operator what IS understood

@@ -57,7 +57,9 @@ class InvocationToken(BaseModel):
         default_factory=list,
         description=(
             "Structured policy predicates enforced at verification time. "
-            "Supported: 'not_before:ISO8601', 'peer_sovereign:sovereign_id'"
+            "Supported: 'not_before:ISO8601', 'peer_sovereign:sovereign_id'. "
+            "A predicate outside that set cannot be evaluated and is rejected "
+            "(policy_violated) rather than ignored."
         ),
     )
     signature: Signature | None = None
