@@ -135,6 +135,17 @@ class EnrollmentStoreMixin:
                     renewed_from,
                 ),
             )
+    def mark_superseded(self, cert_id: str, revoke_after: datetime) -> None:
+        """Schedule a renewed-from certificate for revocation at ``revoke_after``.
+
+        F-20: the predecessor keeps its ``issued`` status until that instant, so a
+        node whose renewal response was lost can still heartbeat and retry.
+        """
+        with self.conn:
+            self.conn.execute(
+                "UPDATE issued_certs SET revoke_after = ? WHERE cert_id = ?",
+                (revoke_after.isoformat(), cert_id),
+            )
     def get_cert(self, cert_id: str) -> Optional[dict]:
         """Return a persisted certificate row by certificate ID."""
         row = self.conn.execute(
