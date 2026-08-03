@@ -13,5 +13,39 @@ ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --na https://na.genesism
 Restart=on-failure
 RestartSec=10
 
+# OS-level sandboxing. ReadWritePaths must list every directory this service
+# writes to. A router writes two, both under $HOME:
+#   - the --config home above (config.toml, node.cert.json, policy.json,
+#     keys/node.key — rewritten on every start by genesis_mesh/cli/ops.py)
+#   - ~/.genesis-mesh/audit/ (the tamper-evident audit log; the path comes from
+#     DEFAULT_AUDIT_DIR in genesis_mesh/audit/logger.py)
+# Both directories must exist before this unit starts. ProtectHome is
+# "read-only" and not "true"/"tmpfs" because the latter replace the home
+# directory outright, which ReadWritePaths cannot reach back into.
+# See infrastructure/systemd/README.md for what is deliberately not set.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/azureuser/.genesis-mesh-node-d /home/azureuser/.genesis-mesh
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
 [Install]
 WantedBy=multi-user.target

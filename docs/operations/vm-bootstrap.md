@@ -259,6 +259,17 @@ genesis-mesh join \
   --config ~/.genesis-mesh-node-d/config.toml
 ```
 
+The router units are sandboxed (`ProtectSystem=strict`), so every directory they
+write to has to exist and be listed in their `ReadWritePaths=`. Enrolment above
+creates the two config homes; the audit-log directory is only created on the
+first *persistent* run, which is the sandboxed unit itself — so create it now:
+
+```bash
+sudo install -d -o azureuser -g azureuser -m 0700 \
+  /home/azureuser/.genesis-mesh \
+  /home/azureuser/.genesis-mesh/audit
+```
+
 Install both unit files:
 
 ```bash
@@ -268,6 +279,10 @@ sudo cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now genesis-mesh-node genesis-mesh-node-d
 ```
+
+If a router fails to start with a namespace or mount error, one of its
+`ReadWritePaths=` directories is missing. The `infrastructure/systemd/README.md`
+file in the repo lists the full writable-path contract for each unit.
 
 ## 8. Healthchecks.io probe
 
@@ -309,6 +324,7 @@ curl -fsS https://na.genesismesh.connectorzzz.com/nodes | python3 -m json.tool
 | `/etc/genesis-mesh/keys/na.key` | NA private key |
 | `/etc/genesis-mesh/operator-keys.env` | Operator public keys for admin auth |
 | `/var/lib/genesis-mesh/na.db` | SQLite database |
+| `/home/azureuser/.genesis-mesh/audit/` | Router audit logs (allow-listed in the router units) |
 | `/etc/systemd/system/genesis-mesh-na.service` | NA service unit |
 | `/etc/systemd/system/genesis-mesh-na.service.d/override.conf` | Operator-keys drop-in |
 | `/etc/systemd/system/genesis-mesh-node*.service` | Router service units |

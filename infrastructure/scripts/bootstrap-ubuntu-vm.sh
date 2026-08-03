@@ -28,6 +28,10 @@ ROUTER_B_CONFIG="${ROUTER_B_CONFIG:-/home/${GENESIS_USER}/.genesis-mesh-demo-nod
 ROUTER_B_PORT="${ROUTER_B_PORT:-7443}"
 ROUTER_D_CONFIG="${ROUTER_D_CONFIG:-/home/${GENESIS_USER}/.genesis-mesh-node-d/config.toml}"
 ROUTER_D_PORT="${ROUTER_D_PORT:-7444}"
+# Router audit-log directory (DEFAULT_AUDIT_DIR in genesis_mesh/audit/logger.py).
+# It is allow-listed in the router units' ReadWritePaths, so it must exist
+# before they start.
+ROUTER_AUDIT_DIR="${ROUTER_AUDIT_DIR:-/home/${GENESIS_USER}/.genesis-mesh}"
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -147,6 +151,16 @@ prepare_directories() {
   chmod 0755 "$(dirname "$GENESIS_FILE")"
   chmod 0750 "$(dirname "$NA_PRIVATE_KEY_FILE")" "$(dirname "$DB_PATH")"
 
+  if role_includes "router"; then
+    # Allow-listed in the router units' ReadWritePaths; a missing directory
+    # makes the sandboxed unit refuse to start.
+    install -d -o "$GENESIS_USER" -g "$GENESIS_USER" -m 0700 \
+      "$ROUTER_AUDIT_DIR" \
+      "$ROUTER_AUDIT_DIR/audit" \
+      "$(dirname "$ROUTER_B_CONFIG")" \
+      "$(dirname "$ROUTER_D_CONFIG")"
+  fi
+
   if [ -n "$OPERATOR_PUBLIC_KEYS_JSON" ]; then
     log "Writing operator public-key environment"
     cat >/etc/genesis-mesh/operator-keys.env <<EOF
@@ -182,6 +196,35 @@ ExecStart=${GENESIS_HOME}/.venv/bin/gunicorn --workers 4 --worker-class sync --t
 Restart=always
 RestartSec=5
 
+# OS-level sandboxing. ReadWritePaths must list every directory this service
+# writes to: the NA writes only the SQLite database (DB_PATH above, plus its
+# -wal/-journal/-shm siblings), logs to stderr rather than a file, and touches
+# nothing under \$HOME — hence ProtectHome=true is safe here.
+# See infrastructure/systemd/README.md for what is deliberately not set.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$(dirname "$DB_PATH")
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -207,6 +250,41 @@ WorkingDirectory=${GENESIS_HOME}
 ExecStart=${GENESIS_HOME}/.venv/bin/genesis-mesh join --na ${NA_ENDPOINT} --config ${config} --persistent --listen-port ${port}
 Restart=on-failure
 RestartSec=10
+
+# OS-level sandboxing. ReadWritePaths must list every directory this service
+# writes to. A router writes two, both under \$HOME:
+#   - the --config home above (config.toml, node.cert.json, policy.json,
+#     keys/node.key — rewritten on every start by genesis_mesh/cli/ops.py)
+#   - ${ROUTER_AUDIT_DIR}/audit (the tamper-evident audit log; the path comes
+#     from DEFAULT_AUDIT_DIR in genesis_mesh/audit/logger.py)
+# Both directories must exist before this unit starts; prepare_directories()
+# creates them. ProtectHome is "read-only" and not "true"/"tmpfs" because the
+# latter replace the home directory outright, which ReadWritePaths cannot reach
+# back into.
+# See infrastructure/systemd/README.md for what is deliberately not set.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$(dirname "$config") ${ROUTER_AUDIT_DIR}
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

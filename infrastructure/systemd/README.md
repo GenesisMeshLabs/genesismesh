@@ -20,11 +20,43 @@ All three units include:
 - `Restart=always` (NA) / `Restart=on-failure` (routers)
 - `RestartSec=5` (NA) / `RestartSec=10` (routers)
 - `StartLimitIntervalSec=60` + `StartLimitBurst=5` (crash-loop bound)
+- OS-level sandboxing: `NoNewPrivileges`, `ProtectSystem=strict`,
+  `ProtectHome`, `PrivateTmp`, `PrivateDevices`, the `Protect*`/`Restrict*`
+  set, an empty `CapabilityBoundingSet`, `SystemCallFilter=@system-service`,
+  and `UMask=0077`.
 
-Filesystem isolation (`ProtectSystem=strict`, `NoNewPrivileges=true`, etc.) is
-**deferred to v0.6.0 Part 1**. Adding those directives without a baseline drill
-risks breaking SQLite writes; the plan at `ops/plan-v0.6.md` covers them
-explicitly.
+`ProtectSystem=strict` mounts the entire filesystem read-only, so **every
+directory a service writes to must be listed in its `ReadWritePaths=`**. A
+missing entry stops the unit from starting.
+
+### The `ReadWritePaths` contract
+
+| Unit | Writable paths | Why |
+|---|---|---|
+| `genesis-mesh-na.service` | `/var/lib/genesis-mesh` | SQLite DB (`DB_PATH`) plus its `-wal`/`-journal`/`-shm` siblings. The NA logs to stderr, not a file, and writes nothing under `$HOME` — so it uses `ProtectHome=true`. |
+| `genesis-mesh-node.service` | `/home/azureuser/.genesis-mesh-demo-node`, `/home/azureuser/.genesis-mesh` | The `--config` home (`config.toml`, `node.cert.json`, `policy.json`, `keys/node.key` — rewritten on every start by `genesis_mesh/cli/ops.py`), and the audit log under `DEFAULT_AUDIT_DIR` (`genesis_mesh/audit/logger.py`). |
+| `genesis-mesh-node-d.service` | `/home/azureuser/.genesis-mesh-node-d`, `/home/azureuser/.genesis-mesh` | Same, with node D's own config home. |
+
+Routers use `ProtectHome=read-only` rather than `true` or `tmpfs`: those two
+replace the home directory outright, and `ReadWritePaths=` cannot reach back
+into a replaced mount. Both router directories must exist before the unit
+starts — `infrastructure/scripts/bootstrap-ubuntu-vm.sh` creates them, and the
+manual install below does the same.
+
+**If you change where the code writes, update the units in the same commit.**
+`genesis_mesh/tests/test_systemd_hardening.py` cross-checks these units against
+the paths in the code and fails if they drift apart.
+
+### Deliberately not set
+
+| Directive | Why |
+|---|---|
+| `MemoryDenyWriteExecute=` | PyNaCl goes through cffi; libffi closures need `W\|X` pages. |
+| `ProcSubset=pid` | Hides `/proc/meminfo` and `/proc/cpuinfo`, which Python libraries read. `ProtectProc=invisible` is the safe half. |
+| `PrivateUsers=` | UID mapping changes ownership semantics for `/var/lib/genesis-mesh` and the router-owned home directories. |
+| `DynamicUser=` | Would break the existing `User=`-owned `/etc/genesis-mesh` and `/var/lib/genesis-mesh`. |
+| `PrivateNetwork=`, `IPAddressDeny=` | These are network services serving arbitrary clients. |
+| `AF_NETLINK` *(kept in the allow-list)* | glibc `getaddrinfo()` opens a netlink socket to enumerate interfaces; routers resolve the NA hostname. |
 
 ## Install on a fresh VM
 
@@ -34,7 +66,13 @@ sudo cp genesis-mesh-na.service /etc/systemd/system/
 sudo mkdir -p /etc/systemd/system/genesis-mesh-na.service.d/
 sudo cp genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
 
-# Routers
+# Routers — the sandboxed units refuse to start if these are missing
+sudo install -d -o azureuser -g azureuser -m 0700 \
+  /home/azureuser/.genesis-mesh \
+  /home/azureuser/.genesis-mesh/audit \
+  /home/azureuser/.genesis-mesh-demo-node \
+  /home/azureuser/.genesis-mesh-node-d
+
 sudo cp genesis-mesh-node.service   /etc/systemd/system/
 sudo cp genesis-mesh-node-d.service /etc/systemd/system/
 
