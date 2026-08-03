@@ -18,7 +18,7 @@ from pathlib import Path
 import nacl.encoding
 import nacl.signing
 
-from genesis_mesh.crypto import KeyPair, generate_keypair, sign_data
+from genesis_mesh.crypto import KeyPair, generate_keypair, sign_data, sign_model
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
@@ -75,6 +75,7 @@ def _new_sovereign(name: str, db_path: Path) -> tuple[NetworkAuthorityService, K
         ),
         policy_manifest=PolicyManifestRef(hash="sha256:demo", url=None),
     )
+    genesis.signatures.append(sign_model(genesis, na_key, "root"))
     service = NetworkAuthorityService(
         genesis_block=genesis,
         na_private_key=na_key,

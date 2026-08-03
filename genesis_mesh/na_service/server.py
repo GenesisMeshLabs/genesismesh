@@ -10,7 +10,12 @@ from flask import Flask
 import nacl.encoding
 import nacl.signing
 
-from ..crypto import load_private_key, sign_model
+from ..crypto import (
+    load_private_key,
+    public_key_from_b64,
+    sign_model,
+    verify_model_signature,
+)
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
@@ -88,6 +93,17 @@ class NetworkAuthorityService:
         self._nonce_max_age = 300.0
         # In-process counter (not DB-backed: it must survive audit-store outages).
         self.audit_write_failures = 0
+
+        # F-11: verify genesis signatures before trusting the block, mirroring
+        # the node-side check (node/node.py:_verify_genesis_block).
+        if not genesis_block.signatures:
+            logger.error("Genesis block has no signatures")
+            raise ValueError("Genesis block signature verification failed")
+        root_public_key = public_key_from_b64(genesis_block.root_public_key)
+        for sig in genesis_block.signatures:
+            if not verify_model_signature(genesis_block, sig, root_public_key):
+                logger.error("Invalid genesis signature from key %s", sig.key_id)
+                raise ValueError("Genesis block signature verification failed")
 
         na_pub_b64 = genesis_block.network_authority.public_key
         our_pub_b64 = self.na_private_key.verify_key.encode(

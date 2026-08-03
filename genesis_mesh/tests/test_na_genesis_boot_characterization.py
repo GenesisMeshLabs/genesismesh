@@ -1,25 +1,15 @@
-"""Characterization tests for NA boot-time genesis handling (finding F-11).
+"""Regression tests for NA boot-time genesis verification (finding F-11).
 
-These tests pin the CURRENT asymmetry the F-11 remediation will close
-(assessment report F-11, evidence ``na_service/server.py:90-95`` vs
-``node/node.py:64-83``):
+Originally these pinned the pre-fix asymmetry: the NA booted from a genesis
+block without verifying its ``signatures[]`` (key-match only), while the mesh
+node verified every signature against ``root_public_key``.
 
-  * The Network Authority service boots from a genesis block WITHOUT
-    verifying its ``signatures[]`` — it only checks that its own private key
-    matches ``genesis.network_authority.public_key``.
-  * The mesh node DOES verify every genesis signature against
-    ``root_public_key`` and refuses to construct otherwise.
-
-Tests marked "DEFECT PIN" assert the NA-side non-verification on purpose;
-the F-11 fix is EXPECTED to flip them (unsigned / badly-signed genesis must
-then fail NA boot), and they must be updated deliberately as part of that
-fix. The properly-signed-genesis test and the key-match test must KEEP
-passing after the fix.
-
-NOTE for the F-11 implementer: the shared ``na_service`` fixture in
-``conftest.py`` builds an UNSIGNED genesis, so enabling verification will
-break every test that uses it until that fixture signs its genesis. The
-helper below shows the shape of a correctly signed fixture.
+The F-11 fix closed that gap — ``NetworkAuthorityService.__init__`` now runs
+the same verification as ``node/node.py:_verify_genesis_block`` before the
+key-match. The former "DEFECT PIN" tests below are flipped accordingly and now
+assert that an unsigned, garbage-signed, or wrong-key-signed genesis REFUSES
+to boot the NA; the properly-signed-genesis and key-match tests are unchanged
+from the pre-fix characterization run.
 """
 
 import nacl.encoding
@@ -68,53 +58,52 @@ def _boot_na(genesis: GenesisBlock, na_sk: nacl.signing.SigningKey) -> NetworkAu
     )
 
 
-# ── DEFECT PINS: the NA does not verify genesis signatures at boot ──
+# ── F-11 regression tests: the NA verifies genesis signatures at boot ──
 
 
-def test_na_boots_with_completely_unsigned_genesis():
-    """DEFECT PIN (F-11): a genesis with an EMPTY signatures[] list boots the
-    NA today. After the F-11 fix this must raise instead — update this test
-    deliberately (and sign the conftest.py fixture genesis) when it does."""
+def test_na_rejects_completely_unsigned_genesis():
+    """F-11 regression: a genesis with an EMPTY signatures[] list must not
+    boot the NA (pre-fix DEFECT PIN, flipped with the fix)."""
     root_kp = generate_keypair()
     na_sk, na_pub = _na_signing_key()
     genesis = _make_genesis(root_kp.public_key_b64, na_pub)
     assert genesis.signatures == []
 
-    service = _boot_na(genesis, na_sk)
-    assert service.genesis_block is genesis
+    with pytest.raises(ValueError, match="Genesis block signature verification failed"):
+        _boot_na(genesis, na_sk)
 
 
-def test_na_boots_with_garbage_signature_on_genesis():
-    """DEFECT PIN (F-11): a syntactically valid but cryptographically bogus
-    signature is never checked on the NA path — boot succeeds today."""
+def test_na_rejects_garbage_signature_on_genesis():
+    """F-11 regression: a syntactically valid but cryptographically bogus
+    signature must not boot the NA (pre-fix DEFECT PIN, flipped with the fix)."""
     root_kp = generate_keypair()
     na_sk, na_pub = _na_signing_key()
     genesis = _make_genesis(root_kp.public_key_b64, na_pub)
     genesis.signatures.append(Signature(key_id="root", sig="Zm9yZ2VkLXNpZ25hdHVyZQ=="))
 
-    service = _boot_na(genesis, na_sk)
-    assert service.genesis_block is genesis
+    with pytest.raises(ValueError, match="Genesis block signature verification failed"):
+        _boot_na(genesis, na_sk)
 
 
-def test_na_boots_with_genesis_signed_by_wrong_key():
-    """DEFECT PIN (F-11): a genesis signed by a key that is NOT the root key
-    also boots the NA today — the signer's identity is never checked."""
+def test_na_rejects_genesis_signed_by_wrong_key():
+    """F-11 regression: a genesis signed by a key that is NOT the root key
+    must not boot the NA (pre-fix DEFECT PIN, flipped with the fix)."""
     root_kp = generate_keypair()
     interloper_kp = generate_keypair()
     na_sk, na_pub = _na_signing_key()
     genesis = _make_genesis(root_kp.public_key_b64, na_pub)
     genesis.signatures.append(sign_model(genesis, interloper_kp.private_key, "root"))
 
-    service = _boot_na(genesis, na_sk)
-    assert service.genesis_block is genesis
+    with pytest.raises(ValueError, match="Genesis block signature verification failed"):
+        _boot_na(genesis, na_sk)
 
 
-# ── Behavior that must SURVIVE the F-11 fix ──
+# ── Behavior that survived the F-11 fix unchanged ──
 
 
 def test_na_boots_with_properly_root_signed_genesis():
-    """A genesis correctly signed by the root key boots the NA — this is the
-    target state and must keep passing unchanged after the F-11 fix."""
+    """A genesis correctly signed by the root key boots the NA — the target
+    state; passing unchanged since the pre-fix characterization run."""
     root_kp = generate_keypair()
     na_sk, na_pub = _na_signing_key()
     genesis = _make_genesis(root_kp.public_key_b64, na_pub)
@@ -125,23 +114,25 @@ def test_na_boots_with_properly_root_signed_genesis():
 
 
 def test_na_rejects_private_key_not_matching_genesis():
-    """The one boot-time check the NA DOES perform today: its private key
-    must match genesis.network_authority.public_key. Must survive F-11."""
+    """The key-match check that predates F-11: the NA private key must match
+    genesis.network_authority.public_key. The genesis is properly root-signed
+    here because signature verification now runs first (F-11)."""
     root_kp = generate_keypair()
     _, na_pub = _na_signing_key()
     other_sk, _ = _na_signing_key()
     genesis = _make_genesis(root_kp.public_key_b64, na_pub)
+    genesis.signatures.append(sign_model(genesis, root_kp.private_key, "root"))
 
     with pytest.raises(ValueError, match="NA private key does not match genesis block"):
         _boot_na(genesis, other_sk)
 
 
-# ── The node-side contrast (the logic F-11 will mirror onto the NA path) ──
+# ── The node-side check (the logic the F-11 fix mirrors onto the NA path) ──
 
 
 def test_node_rejects_unsigned_genesis():
     """MeshNode refuses an unsigned genesis (node/node.py:64-83) — the
-    verification behavior the NA path lacks."""
+    verification behavior the NA path now mirrors."""
     root_kp = generate_keypair()
     na_kp = generate_keypair()
     genesis = _make_genesis(root_kp.public_key_b64, na_kp.public_key_b64)

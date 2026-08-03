@@ -264,6 +264,7 @@ def _new_service(db_path):
         ),
         policy_manifest=PolicyManifestRef(hash="sha256:test", url=None),
     )
+    genesis.signatures.append(sign_model(genesis, na_key, "managed-test-root"))
     return NetworkAuthorityService(
         genesis_block=genesis,
         na_private_key=na_key,
