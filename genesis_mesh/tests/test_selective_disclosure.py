@@ -50,19 +50,7 @@ from genesis_mesh.trust.selective_disclosure import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-# TIME BOMB — this frozen clock expires and turns the suite red on its own.
-# `test_nullifier_already_used` issues a nullifier at _NOW with a 1-hour life
-# (`:311`) but `verify_capability_proof` has no `now=` parameter and reads the
-# wall clock (`trust/selective_disclosure.py:239`), checking `nullifier_expired`
-# *before* `nullifier_already_used` (`:267-270`). Once real time passes
-# _NOW + 1h the test gets the wrong reason and fails, on any code.
-#
-# Previous value 2026-08-01T10:00Z armed on 2026-08-01T11:00Z. Bumped to buy
-# time, NOT fixed: this re-arms at **2026-09-01T11:00Z**.
-# Permanent fix (one line, no product code): make `:311` issue its nullifier
-# against `datetime.now(timezone.utc)`, as `test_nullifier_expired` already
-# does at `:293`, and leave _NOW frozen for everything else.
-_NOW = datetime(2026, 9, 1, 10, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 1, 10, 0, 0, tzinfo=timezone.utc)
 _CAPS = ["transactions.send", "balances.read", "config.write", "audit.read"]
 
 
@@ -324,7 +312,7 @@ class TestVerifyCapabilityProof:
         used = {nullifier.nullifier_id}
         result = verify_capability_proof(
             proof, commitment, [_pub_b64(sk)],
-            nullifier=nullifier, used_nullifiers=used,
+            nullifier=nullifier, used_nullifiers=used, now=_NOW,
         )
         assert result.valid is False
         assert result.reason == "nullifier_already_used"

@@ -222,8 +222,13 @@ def verify_capability_proof(
     *,
     nullifier: CapabilityNullifier | None = None,
     used_nullifiers: set[str] | None = None,
+    now: datetime | None = None,
 ) -> CapabilityProofVerificationResult:
     """Verify a CapabilityMembershipProof against its commitment.
+
+    ``now`` overrides the reference clock used for the nullifier expiry check,
+    matching ``commit_capabilities`` / ``prove_capability_membership`` /
+    ``issue_nullifier``; it defaults to the current UTC time.
 
     Verification order:
     1. commitment_not_signed
@@ -236,7 +241,7 @@ def verify_capability_proof(
     8. valid
     """
     cid = commitment.commitment_id
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
 
     # 1. Commitment must be signed.
     if commitment.signature is None:
