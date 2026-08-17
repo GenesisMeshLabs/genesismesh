@@ -1189,8 +1189,15 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
-    --command-allowlist python,node
+    --command-allowlist 'python --version' \
+    --command-allowlist 'python /opt/report.py ...'
 ```
+
+`--command-allowlist` is **required** and repeatable. Each entry is a full
+command line matched against the whole command, not the program name; a
+trailing `...` allows a variable tail. The guard refuses to start without it.
+See [Process-Level Mediation](../examples/process-level-mediation.md) for the
+entry format.
 
 ### `genesis-mesh trust guard request`
 

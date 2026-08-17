@@ -72,12 +72,16 @@ def run_demo() -> list[str]:
     step()
 
     step("==> Step 3: Validate mediation request -- authorized")
+    allowlist = ["fetch_transactions --account ..."]
     ok, rejection = validate_mediation_request(
         request=request,
         boundary_decision=decision,
         agent_public_keys=[kp_agent.public_key_b64],
+        operator_public_keys=[kp_op.public_key_b64],
+        command_allowlist=allowlist,
         at_time=_NOW,
     )
+    step(f"    allowlist      : {allowlist}")
     step(f"    valid          : {ok}")
     step(f"    rejection      : {rejection}")
     step()
@@ -98,15 +102,19 @@ def run_demo() -> list[str]:
     step()
 
     step("==> Step 5: Denied case -- command not in allowlist")
+    step("    The allowlist is matched against the WHOLE command, so an entry")
+    step("    naming the same program with different arguments does not match.")
+    denied_allowlist = ["fetch_transactions --account acc-999"]
     ok_denied, rejection_denied = validate_mediation_request(
         request=request,
         boundary_decision=decision,
         agent_public_keys=[kp_agent.public_key_b64],
-        command_allowlist=["safe_export"],
+        operator_public_keys=[kp_op.public_key_b64],
+        command_allowlist=denied_allowlist,
         at_time=_NOW,
     )
-    step(f"    command        : {request.subprocess_command[0]!r}")
-    step(f"    allowlist      : ['safe_export']")
+    step(f"    command        : {request.subprocess_command!r}")
+    step(f"    allowlist      : {denied_allowlist}")
     step(f"    valid          : {ok_denied}")
     step(f"    rejection      : {rejection_denied}")
     step()

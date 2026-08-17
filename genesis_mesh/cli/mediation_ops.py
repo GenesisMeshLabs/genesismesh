@@ -151,24 +151,29 @@ def _fail(fmt: str, reason: str) -> None:
 @click.option("--signing-key", "key_path", required=True, type=click.Path(exists=True))
 @click.option("--port", "port", type=int, default=0)
 @click.option("--host", "host", default="127.0.0.1")
-@click.option("--command-allowlist", "allowlist", default=None,
-              help="Comma-separated list of allowed executable names.")
+@click.option("--command-allowlist", "allowlist", multiple=True, required=True,
+              help="Allowed command line (pass once per command). Matched against the "
+                   "whole command, not the program name. End an entry with '...' to "
+                   "allow a variable tail, e.g. 'python /opt/report.py ...'.")
 def start_cmd(guard_id: str, key_path: str, port: int, host: str,
-              allowlist: str | None) -> None:
+              allowlist: tuple[str, ...]) -> None:
     """Start GenesisGuard daemon (foreground; Ctrl-C to stop)."""
     from ..guard.daemon import GenesisGuardDaemon  # noqa: PLC0415
 
     sk = load_private_key(key_path)
-    cmd_list = allowlist.split(",") if allowlist else None
-    daemon = GenesisGuardDaemon(
-        guard_sovereign_id=guard_id,
-        signing_key=sk,
-        decision_store={},
-        agent_public_keys={},
-        command_allowlist=cmd_list,
-        host=host,
-        port=port,
-    )
+    try:
+        daemon = GenesisGuardDaemon(
+            guard_sovereign_id=guard_id,
+            signing_key=sk,
+            decision_store={},
+            agent_public_keys={},
+            command_allowlist=list(allowlist),
+            host=host,
+            port=port,
+        )
+    except ValueError as exc:
+        click.echo(f"[FAIL] {exc}", err=True)
+        raise SystemExit(1) from exc
     daemon.start()
     click.echo(f"[OK] GenesisGuard listening on {host}:{daemon.port}")
     click.echo("     Press Ctrl-C to stop.")

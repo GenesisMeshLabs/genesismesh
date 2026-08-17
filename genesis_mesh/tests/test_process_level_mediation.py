@@ -42,6 +42,11 @@ def _pub_b64(sk: nacl.signing.SigningKey) -> str:
     return base64.b64encode(bytes(sk.verify_key)).decode()
 
 
+# Default allowlist for tests whose subject is not the allowlist itself.
+# Entries are full command lines (F-01): "python" alone would not match.
+_ALLOWLIST = ["python --version"]
+
+
 def _decision(
     sk: nacl.signing.SigningKey,
     authorized: bool = True,
@@ -108,7 +113,10 @@ def test_valid_request_passes() -> None:
     decision = _decision(op_sk)
     req = _request(agent_sk, decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
-        req, decision, [_pub_b64(agent_sk)], at_time=_NOW
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
     )
     assert ok
     assert reason is None
@@ -124,7 +132,10 @@ def test_invalid_signature_rejected() -> None:
     bad_sig = sign_model(req, other_sk, "agent-a")
     req = req.model_copy(update={"signature": bad_sig})
     ok, reason = validate_mediation_request(
-        req, decision, [_pub_b64(agent_sk)], at_time=_NOW
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
     )
     assert not ok
     assert reason == "invalid_request_signature"
@@ -137,7 +148,10 @@ def test_missing_signature_rejected() -> None:
     req = _request(agent_sk, decision_id=decision.decision_id)
     req = req.model_copy(update={"signature": None})
     ok, reason = validate_mediation_request(
-        req, decision, [_pub_b64(agent_sk)], at_time=_NOW
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
     )
     assert not ok
     assert reason == "invalid_request_signature"
@@ -160,7 +174,10 @@ def test_decision_expired() -> None:
     decision = _decision(op_sk, valid_until=past + timedelta(hours=1))
     req = _request(agent_sk, decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
-        req, decision, [_pub_b64(agent_sk)], at_time=past + timedelta(hours=2)
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=past + timedelta(hours=2),
     )
     assert not ok
     assert reason == "decision_expired"
@@ -172,7 +189,10 @@ def test_decision_not_authorized() -> None:
     decision = _decision(op_sk, authorized=False)
     req = _request(agent_sk, decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
-        req, decision, [_pub_b64(agent_sk)], at_time=_NOW
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
     )
     assert not ok
     assert reason == "capability_not_authorized"
@@ -186,7 +206,9 @@ def test_capability_not_in_token() -> None:
     req = _request(agent_sk, capability="run-python", decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
-        token=token, at_time=_NOW
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        token=token, at_time=_NOW,
     )
     assert not ok
     assert reason == "capability_not_authorized"
@@ -201,7 +223,9 @@ def test_token_expired() -> None:
     req = _request(agent_sk, decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
-        token=token, at_time=_NOW
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        token=token, at_time=_NOW,
     )
     assert not ok
     assert reason == "token_expired"
@@ -215,7 +239,9 @@ def test_token_budget_exhausted() -> None:
     req = _request(agent_sk, decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
-        token=token, use_count=3, at_time=_NOW
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        token=token, use_count=3, at_time=_NOW,
     )
     assert not ok
     assert reason == "token_budget_exhausted"
@@ -228,7 +254,8 @@ def test_command_not_in_allowlist() -> None:
     req = _request(agent_sk, command=["bash", "-c", "whoami"], decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
-        command_allowlist=["python", "node"],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=["python --version", "node --version"],
         at_time=_NOW,
     )
     assert not ok
@@ -242,10 +269,183 @@ def test_command_in_allowlist_passes() -> None:
     req = _request(agent_sk, command=["python", "--version"], decision_id=decision.decision_id)
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
-        command_allowlist=["python", "node"],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=["python --version", "node --version"],
         at_time=_NOW,
     )
     assert ok
+
+
+# ---------------------------------------------------------------------------
+# F-01 regression — fail-closed allowlist, full-command matching,
+# decision-signature verification.  Gap 4 (binding the decision to the
+# requesting agent/capability) is NOT covered here; it is still open.
+# ---------------------------------------------------------------------------
+
+
+def test_missing_allowlist_denies() -> None:
+    """F-01 gap 1: an absent allowlist used to skip the check; it now denies."""
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk)
+    req = _request(agent_sk, decision_id=decision.decision_id)
+    for allowlist in (None, []):
+        ok, reason = validate_mediation_request(
+            req, decision, [_pub_b64(agent_sk)],
+            operator_public_keys=[_pub_b64(op_sk)],
+            command_allowlist=allowlist,
+            at_time=_NOW,
+        )
+        assert not ok
+        assert reason == "command_not_in_allowlist"
+
+
+def test_daemon_refuses_to_start_without_allowlist() -> None:
+    """F-01 gap 1: the guard must refuse to start rather than allow everything."""
+    for allowlist in (None, []):
+        with pytest.raises(ValueError, match="without a command allowlist"):
+            GenesisGuardDaemon(
+                guard_sovereign_id="guard-a",
+                signing_key=_sk(),
+                decision_store={},
+                agent_public_keys={},
+                command_allowlist=allowlist,
+            )
+
+
+def test_allowlist_matches_full_command_not_just_program() -> None:
+    """F-01 gap 2: allowing 'python --version' must not allow 'python -c ...'."""
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk)
+    req = _request(
+        agent_sk,
+        command=["python", "-c", "import os; os.system('id')"],
+        decision_id=decision.decision_id,
+    )
+    ok, reason = validate_mediation_request(
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=["python --version"],
+        at_time=_NOW,
+    )
+    assert not ok
+    assert reason == "command_not_in_allowlist"
+
+
+def test_prefix_rule_allows_variable_tail() -> None:
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk)
+    req = _request(
+        agent_sk,
+        command=["python", "/opt/report.py", "--date", "2026-08-17"],
+        decision_id=decision.decision_id,
+    )
+    ok, reason = validate_mediation_request(
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=["python /opt/report.py ..."],
+        at_time=_NOW,
+    )
+    assert ok, reason
+
+
+def test_prefix_rule_still_rejects_different_program_or_script() -> None:
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk)
+    for command in (
+        ["python", "/opt/other.py"],            # different script
+        ["python"],                             # shorter than the fixed part
+        ["node", "/opt/report.py", "--date"],   # different program
+    ):
+        req = _request(agent_sk, command=command, decision_id=decision.decision_id)
+        ok, reason = validate_mediation_request(
+            req, decision, [_pub_b64(agent_sk)],
+            operator_public_keys=[_pub_b64(op_sk)],
+            command_allowlist=["python /opt/report.py ..."],
+            at_time=_NOW,
+        )
+        assert not ok, command
+        assert reason == "command_not_in_allowlist"
+
+
+def test_daemon_rejects_single_token_prefix_rule() -> None:
+    """A prefix rule must not be allowed to degrade into first-word matching."""
+    with pytest.raises(ValueError, match="fewer than two"):
+        GenesisGuardDaemon(
+            guard_sovereign_id="guard-a",
+            signing_key=_sk(),
+            decision_store={},
+            agent_public_keys={},
+            command_allowlist=["python ..."],
+        )
+
+
+def test_unsigned_decision_rejected() -> None:
+    """F-01 gap 3: an unsigned BoundaryDecision must not authorise anything."""
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk).model_copy(update={"signature": None})
+    req = _request(agent_sk, decision_id=decision.decision_id)
+    ok, reason = validate_mediation_request(
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
+    )
+    assert not ok
+    assert reason == "invalid_decision_signature"
+
+
+def test_decision_signed_by_unknown_key_rejected() -> None:
+    """F-01 gap 3: a decision signed by anyone but the known operator is refused."""
+    agent_sk = _sk()
+    op_sk = _sk()
+    impostor_sk = _sk()
+    decision = _decision(impostor_sk)
+    req = _request(agent_sk, decision_id=decision.decision_id)
+    ok, reason = validate_mediation_request(
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=[_pub_b64(op_sk)],
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
+    )
+    assert not ok
+    assert reason == "invalid_decision_signature"
+
+    # No operator keys supplied at all is also a denial, not a skipped check.
+    ok, reason = validate_mediation_request(
+        req, decision, [_pub_b64(agent_sk)],
+        operator_public_keys=None,
+        command_allowlist=_ALLOWLIST,
+        at_time=_NOW,
+    )
+    assert not ok
+    assert reason == "invalid_decision_signature"
+
+
+def test_daemon_rejects_decision_from_unknown_operator() -> None:
+    """F-01 gap 3 at the daemon layer: keys are looked up by the claimed operator."""
+    guard_sk = _sk()
+    agent_sk = _sk()
+    op_sk = _sk()
+    decision = _decision(op_sk)
+
+    daemon = GenesisGuardDaemon(
+        guard_sovereign_id="guard-a",
+        signing_key=guard_sk,
+        decision_store={decision.decision_id: decision},
+        agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
+        operator_public_keys={"someone-else": [_pub_b64(op_sk)]},
+        command_allowlist=["python --version"],
+    )
+    req = _request(agent_sk, command=["python", "--version"],
+                   decision_id=decision.decision_id)
+    result = daemon.handle_request(req)
+    assert isinstance(result, MediationRejection)
+    assert result.reason == "invalid_decision_signature"
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +502,7 @@ def test_daemon_rejects_invalid_decision() -> None:
         signing_key=guard_sk,
         decision_store={},  # empty
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
+        command_allowlist=_ALLOWLIST,
     )
     req = _request(agent_sk)
     result = daemon.handle_request(req)
@@ -320,7 +521,8 @@ def test_daemon_issues_receipt_for_valid_request() -> None:
         signing_key=guard_sk,
         decision_store={decision.decision_id: decision},
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
-        command_allowlist=["python"],
+        operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
+        command_allowlist=["python --version"],
     )
     req = _request(agent_sk, command=["python", "--version"],
                    decision_id=decision.decision_id)
@@ -341,7 +543,8 @@ def test_daemon_rejects_command_not_in_allowlist() -> None:
         signing_key=guard_sk,
         decision_store={decision.decision_id: decision},
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
-        command_allowlist=["node"],
+        operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
+        command_allowlist=["node --version"],
     )
     req = _request(agent_sk, command=["python", "--version"],
                    decision_id=decision.decision_id)
@@ -362,7 +565,8 @@ def test_daemon_socket_integration() -> None:
         signing_key=guard_sk,
         decision_store={decision.decision_id: decision},
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
-        command_allowlist=["python"],
+        operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
+        command_allowlist=["python --version"],
         host="127.0.0.1",
         port=0,
     )

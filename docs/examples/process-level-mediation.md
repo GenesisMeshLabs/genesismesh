@@ -70,7 +70,7 @@ GenesisGuard provides enforcement **below the agent process, above the OS**.
 | Application gate (BoundaryEngine) | Yes — validated before spawn |
 | IBCT budget + expiry | Yes — validated before spawn |
 | Subprocess environment | Yes — only `allowed_env_vars` inherited |
-| Command allowlist | Yes — only listed executables may run |
+| Command allowlist | Yes — required, and matched against the whole command |
 | OS kernel hooks | **No** — requires eBPF/kernel module outside this scope |
 | Hardware attestation | **No** — requires TPM/TEE, outside this scope |
 | Agent source code verification | **No** — attestation handled by v0.40 |
@@ -84,7 +84,8 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
-    --command-allowlist python,node
+    --command-allowlist 'python --version' \
+    --command-allowlist 'python /opt/report.py ...'
 ```
 
 ```text
@@ -94,6 +95,35 @@ genesis-mesh trust guard start \
 
 In production, run as a systemd service or OS-managed process. The guard
 process itself must not be spawnable by agent code.
+
+### The command allowlist is mandatory
+
+`--command-allowlist` is required and may be given more than once. **The guard
+refuses to start without it** — there is no "allow everything" default, and an
+empty allowlist denies every request rather than permitting them.
+
+Each entry is a **full command line**, not a program name, and is matched
+against the whole `subprocess_command`:
+
+| Entry | Matches |
+|-------|---------|
+| `python --version` | exactly `["python", "--version"]` |
+| `python /opt/report.py ...` | `["python", "/opt/report.py", …]` with any tail |
+| `python` | exactly `["python"]` — **not** `python -c '…'` |
+
+A trailing `...` makes the entry a **prefix rule**: the fixed tokens must match
+the head of the command and the remaining arguments are unconstrained. A prefix
+rule must carry at least two fixed tokens; `python ...` is rejected at start-up
+because matching a program name alone is precisely what this check exists to
+prevent.
+
+> **Warning.** A prefix rule whose fixed part ends in an interpreter's
+> code-taking flag — `python -c ...`, `sh -c ...` — permits arbitrary code
+> through that interpreter. The guard logs a warning when it sees one. Name the
+> script instead.
+
+An entry cannot express a literal trailing `...` argument; quoting does not
+distinguish it from the sentinel.
 
 ---
 
@@ -146,7 +176,8 @@ daemon = GenesisGuardDaemon(
     signing_key=guard_signing_key,
     decision_store={decision.decision_id: decision},
     agent_public_keys={"agent-a": [agent_pub_key_b64]},
-    command_allowlist=["python", "node"],
+    operator_public_keys={"operator-a": [operator_pub_key_b64]},
+    command_allowlist=["python --version"],
     host="127.0.0.1",
     port=8700,
 )
@@ -166,11 +197,12 @@ if isinstance(result, MediatedExecutionReceipt):
 |--------|-------|
 | `invalid_request_signature` | Ed25519 verification failed for the request |
 | `decision_not_found` | `decision_id` not in guard's store |
+| `invalid_decision_signature` | Decision unsigned, or not signed by a key the guard holds for its `operator_sovereign_id` |
 | `decision_expired` | `decision_valid_until` is in the past |
 | `capability_not_authorized` | Decision `authorized=False`, or capability not in IBCT |
 | `token_expired` | IBCT `expires_at` is in the past |
 | `token_budget_exhausted` | IBCT `max_invocations` reached |
-| `command_not_in_allowlist` | `subprocess_command[0]` not in guard's allowlist |
+| `command_not_in_allowlist` | The full `subprocess_command` matches no allowlist entry (also returned when no allowlist is configured) |
 | `subprocess_blocked` | Spawn failed (timeout, OS error, etc.) |
 
 ---
