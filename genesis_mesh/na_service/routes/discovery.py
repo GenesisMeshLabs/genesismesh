@@ -135,9 +135,16 @@ def create_discovery_blueprint(service) -> Blueprint:
 
     @bp.route("/agents", methods=["GET"])
     def list_agents():
-        """List live agent registrations, optionally filtered by capability."""
+        """Discover agents by capability. The unfiltered form returns counts only.
+
+        Capability-filtered lookup is part of the peer discovery protocol and
+        stays public: a peer already knows the one capability it needs. Listing
+        every registration is not — it hands out the whole agent inventory.
+        """
         capability = request.args.get("capability") or None
         descriptors = service.db.list_agent_registrations(capability=capability)
+        if capability is None:
+            return jsonify({"count": len(descriptors), "capability": None})
         return jsonify(
             {
                 "count": len(descriptors),

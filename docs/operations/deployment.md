@@ -40,7 +40,11 @@ Two enrolled nodes from separate IP addresses with active heartbeats.
 
 ![Network Authority operator console](../examples/assets/images/na-operator-console.png)
 
-![/nodes endpoint showing two enrolled nodes with different remote addresses](../examples/assets/images/na-nodes.png)
+![/nodes endpoint returning the operator-authenticated node roster](../examples/assets/images/na-nodes.png)
+
+The roster shown above requires operator authentication. Without admin headers
+`/nodes` returns the active count only — see
+[the public read surface](../reference/network-authority-api.md#the-public-read-surface).
 
 ---
 

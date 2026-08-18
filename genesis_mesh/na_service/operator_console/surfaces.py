@@ -24,6 +24,8 @@ class Surface:
     clickable: bool = False
     curated: bool = False
     query_hint: str | None = None
+    rate_limit: str | None = None
+    """Documented request limit for this surface, e.g. "60/min per IP"."""
 
     @property
     def is_http(self) -> bool:
@@ -35,12 +37,12 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("GET", "/health", "Health summary", "Expanded service health summary.", "safe", "browser_safe", "None", True),
     Surface("GET", "/healthz", "Liveness", "Process-level health probe.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/readyz", "Readiness", "Database and migration readiness.", "safe", "browser_safe", "None", True, True),
-    Surface("GET", "/metrics", "Metrics", "Prometheus-compatible runtime metrics.", "safe", "browser_safe", "None", True),
+    Surface("GET", "/metrics", "Metrics", "Prometheus-compatible runtime metrics. Internal: bind to the management interface, do not expose publicly.", "safe", "browser_safe", "Internal network only", True),
     Surface("GET", "/sovereign.json", "Sovereign metadata", "Operator-safe public trust material.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/genesis", "Genesis", "Signed network trust root.", "safe", "browser_safe", "None", True),
     Surface("GET", "/policy", "Policy", "Active DB-backed policy manifest.", "safe", "browser_safe", "None", True),
     Surface("GET", "/crl", "Revocation list", "Current signed certificate revocation list.", "safe", "browser_safe", "None", True),
-    Surface("GET", "/nodes", "Nodes", "Recently active node inventory.", "safe", "browser_safe", "None", True),
+    Surface("GET", "/nodes", "Nodes", "Active node count. The per-node roster (keys, roles, remote addresses) requires operator authentication.", "safe", "browser_safe", "None for counts; operator signature for the roster", True),
     Surface("GET", "/dashboard", "Sovereign dashboard", "Read-only sovereign health and trust view.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/dashboard.json", "Dashboard JSON", "Machine-readable sovereign health and trust summary.", "safe", "browser_safe", "None", True),
     Surface("GET", "/connectome", "Connectome", "Human-readable recognition and revocation view.", "safe", "browser_safe", "None", True, True),
@@ -64,7 +66,18 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("GET", "/recognition-policy", "Recognition policy", "Current portable-trust acceptance policy.", "safe", "browser_safe", "None", True),
     Surface("GET", "/sovereign-revocation-feed", "Sovereign revocation feed", "Export revocations issued by a sovereign.", "safe", "browser_safe", "None", True),
     Surface("GET", "/attestations", "Membership attestations", "List issued portable membership attestations.", "safe", "browser_safe", "None", True),
-    Surface("GET", "/agents", "Agent discovery", "List registered agent descriptors.", "safe", "browser_safe", "None", True, True),
+    Surface(
+        "GET",
+        "/agents",
+        "Agent discovery",
+        "Discover agent descriptors by capability. Without a capability filter, returns a count only.",
+        "safe",
+        "browser_safe",
+        "None",
+        True,
+        True,
+        "Pass capability= to receive descriptors; the unfiltered form does not enumerate the registry.",
+    ),
     Surface("GET", "/agents/{node_public_key}", "Agent lookup", "Read one agent descriptor.", "safe", "browser_safe", "None"),
     Surface("GET", "/swagger.json", "OpenAPI metadata", "Generated HTTP protocol surface metadata.", "safe", "browser_safe", "None", True),
     Surface("GET", "/api-reference", "API reference", "Read-only HTTP API reference.", "safe", "browser_safe", "None", True, True),
@@ -85,9 +98,20 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("POST", "/admin/recognition-treaties", "Issue treaty", "Create a direct-recognition treaty for another sovereign.", "operator", "operator_signed", "Operator signature", curated=True),
     Surface("POST", "/admin/recognition-treaties/{treaty_id}/revoke", "Revoke treaty", "End a persisted recognition treaty.", "operator", "operator_signed", "Operator signature"),
     Surface("POST", "/admin/sovereign-revocation-feeds/import", "Import revocation feed", "Import revoked trust material from a recognized sovereign.", "operator", "operator_signed", "Operator signature", curated=True),
-    Surface("POST", "/recognition-treaties/verify", "Verify treaty", "Verify a signed recognition treaty.", "operator", "operator_signed", "Signed HTTP client"),
-    Surface("POST", "/attestations/verify", "Verify attestation", "Verify a signed membership attestation.", "operator", "operator_signed", "Signed HTTP client"),
-    Surface("POST", "/attestations/verify-with-treaty", "Verify with treaty", "Verify an attestation using a recognition treaty.", "operator", "operator_signed", "Signed HTTP client"),
+    # Verification surfaces. These are public by protocol design: anyone may ask
+    # this Network Authority to check a signature they already hold. They are
+    # stateless, disclose no inventory, and are rate limited per source address.
+    # They were previously declared operator-signed, which the routes never
+    # enforced; the classification below matches what the code actually does.
+    Surface("POST", "/consensus/verify", "Verify consensus proof", "Verify a K-of-N consensus proof.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/agreements/verify", "Verify agreement", "Verify signatures on a relationship agreement.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/disclosure/verify", "Verify disclosure", "Verify a selective-disclosure capability proof.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/trust-evidence/verify", "Verify trust evidence", "Verify a signed TrustEvidence record.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/boundary/verify", "Verify boundary decision", "Verify a signed BoundaryDecision.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/data-usage/verify", "Verify data usage", "Verify a signed data-usage record.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/recognition-treaties/verify", "Verify treaty", "Verify a signed recognition treaty.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/attestations/verify", "Verify attestation", "Verify a signed membership attestation.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
+    Surface("POST", "/attestations/verify-with-treaty", "Verify with treaty", "Verify an attestation using a recognition treaty.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
 )
 
 

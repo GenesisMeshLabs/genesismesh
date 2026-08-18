@@ -209,6 +209,10 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/recognition-treaties/verify", methods=["POST"])
     def verify_treaty():
         """Verify a signed recognition treaty."""
+        remote_addr = request.remote_addr or "unknown"
+        if not service.rate_limiter.allow(f"treaties_verify:{remote_addr}", 60, 60):
+            raise RateLimitError()
+
         data = request_json_object()
         try:
             treaty = RecognitionTreaty.model_validate(data.get("treaty"))
@@ -246,6 +250,10 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/attestations/verify-with-treaty", methods=["POST"])
     def verify_attestation_with_treaty_route():
         """Verify a membership attestation using a recognition treaty."""
+        remote_addr = request.remote_addr or "unknown"
+        if not service.rate_limiter.allow(f"attestations_verify_with_treaty:{remote_addr}", 60, 60):
+            raise RateLimitError()
+
         data = request_json_object()
         try:
             attestation = MembershipAttestation.model_validate(data.get("attestation"))

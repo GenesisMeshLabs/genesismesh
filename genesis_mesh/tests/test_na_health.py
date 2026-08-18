@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from genesis_mesh.crypto import sign_model
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
+from .na_server_helpers import admin_headers
+
 
 def test_readyz_returns_503_when_db_check_fails(na_service):
     """Readiness should fail closed when the database cannot be queried."""
@@ -83,8 +85,30 @@ def test_na_restart_preserves_persisted_state(tmp_path, na_service, node_keypair
     assert second.db.has_nonce("node:test", "nonce-1") is True
 
 
-def test_nodes_endpoint_reads_persisted_certificate_state(na_service, node_keypair):
-    """Node observability should survive beyond the in-memory compatibility mirror."""
+def test_nodes_endpoint_reads_persisted_certificate_state(client, na_service, node_keypair):
+    """Node observability should survive beyond the in-memory compatibility mirror.
+
+    The roster is operator-authenticated (F-04); the count stays public.
+    """
+    cert = na_service._issue_join_certificate(
+        node_public_key=node_keypair.public_key_b64,
+        roles=["role:anchor"],
+        validity_hours=24,
+    )
+    na_service.db.issue_cert(cert, "127.0.0.1")
+    na_service.connected_nodes.clear()
+
+    resp = client.get("/nodes", headers=admin_headers(client, {}))
+
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["count"] == 1
+    assert payload["nodes"][cert.cert_id]["status"] == "joined"
+    assert payload["nodes"][cert.cert_id]["roles"] == ["role:anchor"]
+
+
+def test_nodes_endpoint_hides_roster_from_unauthenticated_callers(na_service, node_keypair):
+    """F-04: an anonymous caller gets a count, never the node inventory."""
     cert = na_service._issue_join_certificate(
         node_public_key=node_keypair.public_key_b64,
         roles=["role:anchor"],
@@ -97,9 +121,29 @@ def test_nodes_endpoint_reads_persisted_certificate_state(na_service, node_keypa
 
     assert resp.status_code == 200
     payload = resp.get_json()
-    assert payload["count"] == 1
-    assert payload["nodes"][cert.cert_id]["status"] == "joined"
-    assert payload["nodes"][cert.cert_id]["roles"] == ["role:anchor"]
+    assert payload == {"count": 1}
+    # No public keys, roles, or remote addresses anywhere in the response.
+    assert "nodes" not in payload
+    assert node_keypair.public_key_b64 not in resp.get_data(as_text=True)
+    assert "127.0.0.1" not in resp.get_data(as_text=True)
+
+
+def test_nodes_endpoint_rejects_bad_operator_signature(client, na_service, node_keypair):
+    """F-04: presenting admin headers that do not verify is a 401, not a fallback."""
+    cert = na_service._issue_join_certificate(
+        node_public_key=node_keypair.public_key_b64,
+        roles=["role:anchor"],
+        validity_hours=24,
+    )
+    na_service.db.issue_cert(cert, "127.0.0.1")
+
+    headers = admin_headers(client, {})
+    headers["X-Admin-Signature"] = "not-a-valid-signature"
+
+    resp = client.get("/nodes", headers=headers)
+
+    assert resp.status_code == 401
+    assert "nodes" not in (resp.get_json() or {})
 
 
 def test_metrics_endpoint_exposes_network_authority_counters(na_service, node_keypair):

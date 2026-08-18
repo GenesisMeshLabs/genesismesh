@@ -28,6 +28,44 @@ flowchart TB
     sovereign --> connectome
 ```
 
+## The public read surface
+
+This is the authoritative classification of what this service answers to an
+unauthenticated caller. The same classification is generated into the live
+`/api-reference` page and `/swagger.json` from
+`genesis_mesh/na_service/operator_console/surfaces.py`, so it cannot drift from
+what the service actually exposes.
+
+| Class | Meaning |
+|---|---|
+| **Public** | Answers any caller. Discloses no membership inventory. |
+| **Internal** | Not gated in code; must be restricted by deployment (management interface or firewall). |
+| **Operator** | Requires operator signature headers. |
+| **Node** | Requires node proof-of-possession. |
+
+| Surface | Class | Rate limit | Notes |
+|---|---|---|---|
+| `GET /healthz`, `/readyz`, `/health` | Public | — | Liveness and readiness only. |
+| `GET /metrics` | **Internal** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. |
+| `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. |
+| `GET /agents?capability=` | Public | — | Peer discovery protocol. Returns matching descriptors. |
+| `GET /agents` (unfiltered) | Public (count) | — | Does not enumerate the registry. |
+| `GET /genesis`, `/policy`, `/crl`, `/sovereign.json` | Public | — | Signed trust material, public by design. |
+| `POST /*/verify` (nine endpoints) | Public | **60/min per IP** | Stateless signature checking. Public by protocol design; see below. |
+| `POST /join`, `/heartbeat`, `/renew`, `/agents` | Node | varies | Node-signed. |
+| `POST /admin/*` | Operator | 30/min per IP | Operator-signed. |
+
+### Why the verification endpoints are public
+
+The nine `*/verify` endpoints — `/consensus/verify`, `/agreements/verify`,
+`/disclosure/verify`, `/trust-evidence/verify`, `/boundary/verify`,
+`/data-usage/verify`, `/attestations/verify`, `/recognition-treaties/verify` and
+`/attestations/verify-with-treaty` — let any party check a signature on material
+they already hold. That is deliberately open: verification is a protocol
+service, it is stateless, and it discloses no inventory. Because they are open,
+each is rate limited to **60 requests per minute per source address** so they
+cannot be used as a free oracle or a traffic amplifier.
+
 ## Error Responses
 
 All JSON API failures use one shared envelope. Routes raise typed business
@@ -94,15 +132,36 @@ Readiness probe. Verifies database connectivity and migration state.
 
 ### `GET /nodes`
 
-Returns recently active, non-revoked nodes from persisted certificate state.
-Rows are considered active when their latest join or heartbeat timestamp is
-within the Network Authority active-node window.
+Returns the number of recently active, non-revoked nodes. Rows are considered
+active when their latest join or heartbeat timestamp is within the Network
+Authority active-node window.
+
+```json
+{ "count": 2 }
+```
+
+The per-node roster — public keys, roles, heartbeat status, **the address each
+node connected from**, and certificate expiry — is **operator-authenticated**.
+Send the standard admin headers (`X-Admin-Key-Id`, `X-Admin-Timestamp`,
+`X-Admin-Nonce`, `X-Admin-Signature`, signed over an empty body) to receive it:
+
+```json
+{ "count": 2, "nodes": { "<cert_id>": { "node_public_key": "...", "roles": ["role:anchor"], "remote_addr": "..." } } }
+```
+
+Presenting admin headers that do not verify returns `401`; it does not fall back
+to the public response.
 
 ### `GET /metrics`
 
 Returns Prometheus text metrics for Network Authority operations. The endpoint
 includes counters and gauges for issued certificates, recently active nodes,
 revoked certificates, active CRL sequence, and persisted policy versions.
+
+**Classification: internal.** These are aggregate counters with no per-node
+detail, and Prometheus cannot perform this service's signed-envelope
+authentication, so the endpoint is not gated in code. Bind it to the management
+interface or firewall it; do not expose it to untrusted networks.
 
 ## Public Network Data
 
@@ -307,12 +366,25 @@ Success response:
 
 ### `GET /agents`
 
-Returns all live agent registrations. Supports an optional `capability` query
-parameter for filtering. Expired entries are evicted before the query runs.
+Capability discovery. Expired entries are evicted before the query runs.
+
+Pass `capability` to receive the matching descriptors. This is the peer
+discovery operation and is public by design — a peer already knows the one
+capability it is looking for.
 
 ```
 GET /agents?capability=llm:chat
 ```
+
+**Without a `capability` filter the endpoint returns a count only** and does not
+enumerate the registry:
+
+```json
+{ "count": 12, "capability": null }
+```
+
+Listing every registered agent and its capabilities would hand any caller a map
+of what the network can do and which key provides it.
 
 Response:
 

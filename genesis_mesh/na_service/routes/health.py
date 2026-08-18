@@ -3,9 +3,9 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 
-from ..errors import ServiceUnavailableError
+from ..errors import ServiceUnavailableError, UnauthorizedError
 
 
 def _recent_active_nodes(service) -> dict:
@@ -67,8 +67,23 @@ def create_health_blueprint(service) -> Blueprint:
 
     @bp.route("/nodes", methods=["GET"])
     def list_nodes():
-        """Return recently heartbeating nodes from persisted certificate state."""
+        """Return the active node count; the full roster requires operator auth.
+
+        The per-node roster carries public keys, roles and the address each node
+        connected from — a live map of the network to any caller. Unauthenticated
+        callers get the count only; operators get the detail.
+        """
         active_nodes = _recent_active_nodes(service)
+
+        # Only attempt admin verification when admin headers are actually
+        # present: a plain public GET is not an auth failure and must not be
+        # recorded as one.
+        if not request.headers.get("X-Admin-Key-Id"):
+            return jsonify({"count": len(active_nodes)})
+
+        ok, error = service._verify_admin_request({})
+        if not ok:
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         return jsonify({"count": len(active_nodes), "nodes": active_nodes})
 

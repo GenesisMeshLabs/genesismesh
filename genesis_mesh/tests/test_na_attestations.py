@@ -192,3 +192,22 @@ def test_attestation_issue_requires_operator_signature(client):
     )
 
     assert resp.status_code == 401
+
+
+def test_public_verify_endpoints_are_rate_limited(client):
+    """F-04: the three public verify surfaces enforce the documented 60/min limit.
+
+    These stay unauthenticated by protocol design, so the rate limit is the
+    control that stops them being used as a free oracle or an amplifier.
+    """
+    for path in (
+        "/attestations/verify",
+        "/recognition-treaties/verify",
+        "/attestations/verify-with-treaty",
+    ):
+        last_resp = None
+        for _ in range(61):
+            last_resp = client.post(path, json={})
+
+        assert last_resp is not None, path
+        assert last_resp.status_code == 429, f"{path} is not rate limited"

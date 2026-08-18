@@ -81,7 +81,8 @@ Config: ~/.genesis-mesh/config.toml
 - Token consumption is atomic and single-use
 - NA-signed join certificate issued with operator-defined role and validity
 - Heartbeat path active immediately after enrollment
-- `/nodes` reflects the new identity within one heartbeat cycle
+- The `/nodes` active count rises within one heartbeat cycle (the per-node
+  roster requires operator authentication)
 
 ### Reusing the same token fails
 
