@@ -83,7 +83,7 @@ def inspect_treaty(na_endpoint: str, treaty_id: str, output_format: str) -> None
     treaty_body = row["treaty"]
     scope = treaty_body.get("scope", {})
     click.echo("  scope:")
-    click.echo(f"    roles:             {', '.join(scope.get('allowed_roles') or []) or '<any>'}")
+    click.echo(f"    roles:             {', '.join(scope.get('allowed_roles') or []) or '<none>'}")
     click.echo(f"    accepted statuses: {', '.join(scope.get('accepted_statuses') or [])}")
     click.echo(f"    claims:            {scope.get('claims') or {}}")
     click.echo(f"  subject keys: {len(treaty_body.get('subject_public_keys') or [])}")
@@ -330,6 +330,6 @@ def _echo_treaty_row(row: dict[str, Any]) -> None:
     click.echo(f"    from/to:    {treaty_body['issuer_sovereign_id']} -> {treaty_body['subject_sovereign_id']}")
     click.echo(f"    status:     {row.get('status')} / {lifecycle.get('state', 'unknown')}")
     click.echo(f"    expiry:     {lifecycle.get('expiry_risk', 'unknown')} at {treaty_body.get('expires_at')}")
-    click.echo(f"    roles:      {', '.join(scope.get('allowed_roles') or []) or '<any>'}")
+    click.echo(f"    roles:      {', '.join(scope.get('allowed_roles') or []) or '<none>'}")
     click.echo(f"    revoked_at: {row.get('revoked_at') or '-'}")
     click.echo(f"    reason:     {row.get('revocation_reason') or '-'}")

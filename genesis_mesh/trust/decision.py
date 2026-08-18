@@ -98,8 +98,12 @@ def _scope_signals(
 ) -> list[TrustSignal]:
     """Block roles not permitted at every hop on the trust path.
 
-    An empty ``allowed_roles`` list on a treaty means "any role is permitted",
-    matching the ``RecognitionTreatyScope.allows_roles`` contract.
+    An empty ``allowed_roles`` list on a treaty grants **no** roles, matching the
+    ``RecognitionTreatyScope.allows_roles`` contract: a hop with a blank scope
+    blocks every requested role rather than waving them all through.
+
+    Callers asking only "is there a path?" pass no ``requested_roles``; that
+    question is not a scope question, so it is answered before this check.
     """
     if not requested_roles:
         return []
@@ -109,7 +113,7 @@ def _scope_signals(
         for edge in path:
             scope = scopes.get(str(edge.get("treaty_id", "")), {})
             allowed = scope.get("allowed_roles") or []
-            if allowed and role not in allowed:
+            if not allowed or role not in allowed:
                 blocked.append(role)
                 break
 
