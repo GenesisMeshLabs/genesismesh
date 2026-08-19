@@ -290,7 +290,10 @@ class TestVerifyConsensusProof:
         from genesis_mesh.crypto import sign_model
         sig = sign_model(tampered, asm_sk, _ASSEMBLER)
         tampered = tampered.model_copy(update={"signature": sig})
-        result = verify_consensus_proof(tampered, {}, [_pub_b64(asm_sk)], at_time=_NOW)
+        # Validator keys must be supplied: F-06 rejects a counted vote whose
+        # validator has no key, so an empty map would mask threshold_not_met.
+        val_keys = {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk), _V3: _pub_b64(v3_sk)}
+        result = verify_consensus_proof(tampered, val_keys, [_pub_b64(asm_sk)], at_time=_NOW)
         assert result.reason == "threshold_not_met"
 
     def test_vote_not_in_validator_set(self) -> None:
@@ -641,3 +644,141 @@ class TestConsensusCLI:
         ])
         assert result.exit_code == 0, result.output
         assert "[OK]" in result.output
+
+
+# ---------------------------------------------------------------------------
+# F-06 regression — consensus proofs must be validator-attested, not
+# assembler-attested. Covers the two halves of the finding: votes must be
+# cryptographically attributable, and K-of-N must mean K *distinct* validators.
+# ---------------------------------------------------------------------------
+
+
+class TestF06ValidatorAttestation:
+    def test_unsigned_counted_vote_is_rejected(self) -> None:
+        """The Phase-1 attack: a proof whose approve votes carry no signature."""
+        jp, _, _ = _make_justification_proof()
+        v1_sk, v2_sk, asm_sk = _sk(), _sk(), _sk()
+
+        # Signed votes so the proof can be assembled, then stripped and re-signed
+        # by the assembler — exactly what a malicious assembler would produce.
+        v1 = cast_validator_vote(jp, _V1, True, v1_sk, now=_NOW)
+        v2 = cast_validator_vote(jp, _V2, True, v2_sk, now=_NOW + timedelta(seconds=30))
+        cp = assemble_consensus_proof(
+            jp, [v1, v2], 2, [_V1, _V2], asm_sk, issued_by=_ASSEMBLER, now=_NOW,
+        )
+        stripped = cp.model_copy(update={
+            "votes": [v.model_copy(update={"signature": None}) for v in cp.votes],
+        })
+        from genesis_mesh.crypto import sign_model
+        stripped = stripped.model_copy(
+            update={"signature": sign_model(stripped, asm_sk, _ASSEMBLER)}
+        )
+
+        result = verify_consensus_proof(
+            stripped,
+            {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk)},
+            [_pub_b64(asm_sk)],
+            at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "invalid_vote_signature"
+
+    def test_counted_vote_with_no_supplied_key_is_rejected(self) -> None:
+        """A named approve vote whose validator has no key must not be skipped."""
+        jp, _, _ = _make_justification_proof()
+        v1_sk, v2_sk, v3_sk, asm_sk = _sk(), _sk(), _sk(), _sk()
+        cp = _make_consensus_proof(v1_sk, v2_sk, v3_sk, asm_sk, jp, threshold=2)
+
+        # V2's key deliberately omitted.
+        result = verify_consensus_proof(
+            cp, {_V1: _pub_b64(v1_sk)}, [_pub_b64(asm_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "unknown_validator_key"
+
+    def test_one_validator_cannot_satisfy_the_threshold_alone(self) -> None:
+        """K-of-N means K DISTINCT validators — ballot stuffing must not work.
+
+        Each ValidatorVote carries a fresh vote_id, so one validator can produce
+        any number of individually valid approve votes. Counting votes rather
+        than validators would let a single key meet the whole threshold.
+        """
+        jp, _, _ = _make_justification_proof()
+        v1_sk, asm_sk = _sk(), _sk()
+
+        # Three genuinely-signed approve votes, all from validator-1.
+        stuffed = [
+            cast_validator_vote(jp, _V1, True, v1_sk, now=_NOW + timedelta(seconds=30 * i))
+            for i in range(3)
+        ]
+        assert len({v.vote_id for v in stuffed}) == 3
+        assert all(v.signature is not None for v in stuffed)
+
+        # Assembly must refuse: three votes, but only one distinct validator.
+        with pytest.raises(ValueError, match="threshold not met"):
+            assemble_consensus_proof(
+                jp, stuffed, 3, [_V1, _V2, _V3], asm_sk,
+                issued_by=_ASSEMBLER, now=_NOW,
+            )
+
+        # And verification must refuse a proof built to contain them.
+        from genesis_mesh.crypto import sign_model
+        cp = ConsensusProof(
+            proof_id=jp.proof_id, decision_id=jp.decision_id,
+            required_threshold=3, validator_sovereign_ids=[_V1, _V2, _V3],
+            votes=stuffed, reached_at=_NOW,
+            expires_at=_NOW + timedelta(minutes=5),
+        )
+        cp = cp.model_copy(update={"signature": sign_model(cp, asm_sk, _ASSEMBLER)})
+
+        result = verify_consensus_proof(
+            cp, {_V1: _pub_b64(v1_sk)}, [_pub_b64(asm_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "threshold_not_met"
+
+    def test_approving_validators_counts_identities_not_votes(self) -> None:
+        jp, _, _ = _make_justification_proof()
+        v1_sk, asm_sk = _sk(), _sk()
+        votes = [
+            cast_validator_vote(jp, _V1, True, v1_sk, now=_NOW + timedelta(seconds=30 * i))
+            for i in range(3)
+        ]
+        cp = ConsensusProof(
+            proof_id=jp.proof_id, decision_id=jp.decision_id,
+            required_threshold=3, validator_sovereign_ids=[_V1, _V2, _V3],
+            votes=votes, reached_at=_NOW, expires_at=_NOW + timedelta(minutes=5),
+        )
+        assert len(cp.approvals()) == 3          # three approve votes...
+        assert cp.approving_validators() == {_V1}  # ...from one validator
+        assert cp.threshold_met() is False
+
+    def test_assembly_refuses_to_count_an_unsigned_vote(self) -> None:
+        jp, _, _ = _make_justification_proof()
+        v1_sk, asm_sk = _sk(), _sk()
+        signed = cast_validator_vote(jp, _V1, True, v1_sk, now=_NOW)
+        unsigned = ValidatorVote(
+            proof_id=jp.proof_id, decision_id=jp.decision_id,
+            validator_sovereign_id=_V2, vote=True, voted_at=_NOW,
+        )
+        with pytest.raises(ValueError, match="threshold not met"):
+            assemble_consensus_proof(
+                jp, [signed, unsigned], 2, [_V1, _V2], asm_sk,
+                issued_by=_ASSEMBLER, now=_NOW,
+            )
+
+    def test_genuine_multi_validator_proof_still_verifies(self) -> None:
+        """Negative control: the fix must not break real consensus."""
+        jp, _, _ = _make_justification_proof()
+        v1_sk, v2_sk, v3_sk, asm_sk = _sk(), _sk(), _sk(), _sk()
+        cp = _make_consensus_proof(v1_sk, v2_sk, v3_sk, asm_sk, jp, threshold=2)
+
+        result = verify_consensus_proof(
+            cp,
+            {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk), _V3: _pub_b64(v3_sk)},
+            [_pub_b64(asm_sk)],
+            justification_proof=jp,
+            at_time=_NOW,
+        )
+        assert result.valid is True
+        assert result.reason == "valid"

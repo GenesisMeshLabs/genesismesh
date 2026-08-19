@@ -517,3 +517,74 @@ def test_data_usage_verify_reports_violations(client, na_service):
     data = resp.get_json()
     assert data["valid"] is False
     assert data["violation_count"] > 0
+
+
+# ── F-06: /consensus/verify must not default validator keys to the NA's own ──
+
+
+def _minimal_consensus_proof_payload() -> dict:
+    """A syntactically valid ConsensusProof with no validator signatures.
+
+    This is the shape the Phase-1 PoC submitted: the route used to default the
+    validator key map to the NA's own key, so every genuine validator was an
+    unrecognised key, every vote was skipped, and the proof verified as valid.
+    """
+    now = datetime.now(timezone.utc)
+    return {
+        "consensus_id": "con-1",
+        "proof_id": "jp-1",
+        "decision_id": "dec-1",
+        "required_threshold": 2,
+        "validator_sovereign_ids": ["validator-1", "validator-2"],
+        "votes": [
+            {
+                "vote_id": f"vote-{i}",
+                "proof_id": "jp-1",
+                "decision_id": "dec-1",
+                "validator_sovereign_id": f"validator-{i}",
+                "vote": True,
+                "voted_at": now.isoformat(),
+                "context_digest": f"digest-{i}",
+                "signature": None,
+            }
+            for i in (1, 2)
+        ],
+        "reached_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "signature": None,
+    }
+
+
+def test_consensus_verify_requires_validator_public_keys(client):
+    """F-06: the caller must supply validator keys; no silent NA-key default."""
+    resp = client.post("/consensus/verify", json={"proof": _minimal_consensus_proof_payload()})
+
+    assert resp.status_code == 400
+    body = resp.get_json()
+    assert body["error"]["code"] == "missing_validator_public_keys"
+
+
+def test_consensus_verify_rejects_empty_validator_public_keys(client):
+    """An empty map is not a licence to skip the check either."""
+    resp = client.post(
+        "/consensus/verify",
+        json={"proof": _minimal_consensus_proof_payload(), "validator_public_keys": {}},
+    )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"]["code"] == "missing_validator_public_keys"
+
+
+def test_consensus_verify_does_not_accept_unsigned_votes(client):
+    """The Phase-1 attack: zero validator signatures must not verify as valid."""
+    resp = client.post(
+        "/consensus/verify",
+        json={
+            "proof": _minimal_consensus_proof_payload(),
+            "validator_public_keys": {"validator-1": "AAAA", "validator-2": "BBBB"},
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["valid"] is False

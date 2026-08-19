@@ -19,6 +19,7 @@ ConsensusProofVerificationReason = Literal[
     "invalid_assembler_signature",
     "threshold_not_met",
     "invalid_vote_signature",
+    "unknown_validator_key",
     "vote_not_in_validator_set",
     "expired",
     "proof_id_mismatch",
@@ -61,11 +62,20 @@ def assemble_consensus_proof(
     now = now or datetime.now(timezone.utc)
 
     named_votes = [v for v in votes if v.validator_sovereign_id in validator_sovereign_ids]
-    approve_count = sum(1 for v in named_votes if v.vote)
+    # Count DISTINCT validators who approved and actually signed.  The signatures
+    # are verified at verification time, where the keys live; refusing to count
+    # an unsigned vote here just stops an operator assembling a proof that could
+    # never verify.
+    approving = {
+        v.validator_sovereign_id
+        for v in named_votes
+        if v.vote and v.signature is not None
+    }
+    approve_count = len(approving)
     if approve_count < required_threshold:
         raise ValueError(
-            f"consensus threshold not met: {approve_count} approvals, "
-            f"need {required_threshold}"
+            f"consensus threshold not met: {approve_count} signed approvals from "
+            f"distinct validators, need {required_threshold}"
         )
 
     assessment, cascade_reason = assess_cascade_risk(
@@ -113,13 +123,14 @@ def verify_consensus_proof(
     1. missing_signature
     2. invalid_assembler_signature
     3. proof_id_mismatch (when justification_proof provided)
-    4. invalid_vote_signature
-    5. vote_not_in_validator_set
-    6. threshold_not_met
-    7. missing_context_digest (any named approve vote lacks context_digest)
-    8. cascade_detected (re-assessed; cascade_threshold=0.0 to skip)
-    9. expired
-    10. valid
+    4. invalid_vote_signature (a counted vote is unsigned, or a signature fails)
+    5. unknown_validator_key (a counted vote's validator has no supplied key)
+    6. vote_not_in_validator_set
+    7. threshold_not_met (counts DISTINCT approving validators, not votes)
+    8. missing_context_digest (any named approve vote lacks context_digest)
+    9. cascade_detected (re-assessed; cascade_threshold=0.0 to skip)
+    10. expired
+    11. valid
     """
     at_time = at_time or datetime.now(timezone.utc)
     cid = proof.consensus_id
@@ -133,11 +144,25 @@ def verify_consensus_proof(
     if justification_proof is not None and proof.proof_id != justification_proof.proof_id:
         return _reject("proof_id_mismatch", cid)
 
+    # Every vote that can grant authority must be cryptographically attributable
+    # to a named validator.  Unsigned votes and votes from validators the caller
+    # supplied no key for used to be skipped, which is what let a proof carrying
+    # zero validator signatures verify as valid.
     for v in proof.votes:
-        if v.signature is None:
-            continue
+        counts_toward_threshold = (
+            v.vote and v.validator_sovereign_id in proof.validator_sovereign_ids
+        )
         pub = validator_public_keys.get(v.validator_sovereign_id)
-        if pub is not None and not verify_model_signature(v, v.signature, pub):
+
+        if v.signature is None:
+            if counts_toward_threshold:
+                return _reject("invalid_vote_signature", cid)
+            continue
+        if pub is None:
+            if counts_toward_threshold:
+                return _reject("unknown_validator_key", cid)
+            continue
+        if not verify_model_signature(v, v.signature, pub):
             return _reject("invalid_vote_signature", cid)
 
     for v in proof.votes:
