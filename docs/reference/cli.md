@@ -1616,7 +1616,9 @@ genesis-mesh trust oversight propose \
 ### `genesis-mesh trust oversight approve`
 
 Human custodian countersigns the request and produces a `DualSignedCommitment`
-with both the agent signature (from the request) and the human signature.
+carrying the agent's `CommitmentCore` signature (taken from the request) and the
+human's signature over the commitment body. Fails if the request predates the
+self-verifiable format and so carries no `commitment_core_signature`.
 
 ```bash
 genesis-mesh trust oversight approve \
@@ -1640,7 +1642,10 @@ genesis-mesh trust oversight reject \
 
 ### `genesis-mesh trust oversight verify`
 
-Verify both signatures on a `DualSignedCommitment`.
+Verify both signatures on a `DualSignedCommitment`. Both are checked from the
+commitment alone; `--request` is an optional extra cross-check that additionally
+confirms the request's fingerprint matches, and is no longer needed for the
+agent's signature to be verified.
 
 ```bash
 genesis-mesh trust oversight verify \

@@ -6,10 +6,20 @@ The oversight layer sits between authorization (can the agent?) and execution
 Signing invariants
 ------------------
 - HumanOversightPolicy.to_canonical_json() excludes `signature`
-- HumanApprovalRequest.to_canonical_json() excludes `agent_signature`
+- HumanApprovalRequest.to_canonical_json() excludes `agent_signature` and
+  `commitment_core_signature`
 - HumanApprovalResponse.to_canonical_json() excludes `human_signature`
 - DualSignedCommitment.to_canonical_json() excludes BOTH `agent_signature`
-  and `human_signature`; both parties sign the same canonical form.
+  and `human_signature`.
+
+The two parties do NOT sign the same bytes, and it matters:
+
+- the human signs the DualSignedCommitment's canonical form;
+- the agent signs a CommitmentCore — the subset of the commitment that is fixed
+  at request time — which a verifier can rebuild from the commitment alone.
+
+That asymmetry is what makes the commitment self-verifiable without also
+shipping the original HumanApprovalRequest alongside it.
 """
 
 from __future__ import annotations
@@ -89,10 +99,21 @@ class HumanApprovalRequest(BaseModel):
     )
     requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime = Field(..., description="Agent must receive approval before this time")
-    agent_signature: Signature | None = Field(default=None)
+    agent_signature: Signature | None = Field(
+        default=None,
+        description="Agent's Ed25519 signature over this request's canonical form",
+    )
+    commitment_core_signature: Signature | None = Field(
+        default=None,
+        description="Agent's Ed25519 signature over the CommitmentCore for this "
+                    "request.  Copied into DualSignedCommitment.agent_signature so "
+                    "the commitment can be verified without this request.",
+    )
 
     def to_canonical_json(self) -> str:
-        data = self.model_dump(exclude={"agent_signature"}, mode="json")
+        data = self.model_dump(
+            exclude={"agent_signature", "commitment_core_signature"}, mode="json"
+        )
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
 
     def digest(self) -> str:
@@ -118,11 +139,41 @@ class HumanApprovalResponse(BaseModel):
         return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()
 
 
+class CommitmentCore(BaseModel):
+    """The agent's attestation, reconstructible from a DualSignedCommitment.
+
+    The agent signs this at request time, when all four fields are already
+    known.  Every field is also carried on the finished DualSignedCommitment, so
+    a verifier can rebuild this object from the commitment alone and check the
+    agent's signature without holding the original HumanApprovalRequest.
+
+    proposed_action is included deliberately rather than relying on
+    request_digest to cover it.  If the core bound only the digest, a party
+    holding the human key could lift a genuine (digest, signature) pair onto a
+    commitment carrying a different action, and a verifier without the request
+    could not detect the swap.
+    """
+
+    request_id: str = Field(..., description="HumanApprovalRequest being attested")
+    acting_sovereign_id: str = Field(..., description="Agent proposing the action")
+    proposed_action: dict[str, Any] = Field(..., description="Action the agent proposed")
+    request_digest: str = Field(..., description="SHA-256 of the agent-signed request")
+
+    def to_canonical_json(self) -> str:
+        data = self.model_dump(mode="json")
+        return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()
+
+
 class DualSignedCommitment(BaseModel):
     """Commitment that requires both the agent key and the human custodian key.
 
-    Both parties sign the same canonical form (excluding both signatures).
-    The commitment cannot be forged by either party alone.
+    The two parties sign different bytes: the human signs this commitment's
+    canonical form, and the agent signs the CommitmentCore (which this
+    commitment can reproduce).  Neither party can produce a valid commitment
+    alone, and it verifies without the original request.
     """
 
     commitment_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -132,20 +183,46 @@ class DualSignedCommitment(BaseModel):
     acting_sovereign_id: str = Field(..., description="Agent performing the action")
     human_sovereign_id: str = Field(..., description="Human custodian who approved")
     proposed_action: dict[str, Any] = Field(..., description="The approved action (copied from request)")
+    request_digest: str | None = Field(
+        default=None,
+        description="SHA-256 of the agent-signed HumanApprovalRequest.  Part of "
+                    "the CommitmentCore the agent signed and of the body the human "
+                    "signed, so both parties are bound to one specific request.  "
+                    "None only on commitments predating the self-verifiable format, "
+                    "which no longer verify.",
+    )
     committed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime = Field(..., description="Commitment validity ceiling")
     agent_signature: Signature | None = Field(
         default=None,
-        description="Acting sovereign's Ed25519 signature over canonical form",
+        description="Acting sovereign's Ed25519 signature over the CommitmentCore "
+                    "(NOT over this commitment's canonical form)",
     )
     human_signature: Signature | None = Field(
         default=None,
-        description="Human custodian's Ed25519 signature over canonical form",
+        description="Human custodian's Ed25519 signature over this commitment's "
+                    "canonical form",
     )
 
     def to_canonical_json(self) -> str:
         data = self.model_dump(exclude={"agent_signature", "human_signature"}, mode="json")
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    def core(self) -> "CommitmentCore | None":
+        """Rebuild the CommitmentCore the agent signed, from this commitment.
+
+        Returns None for a commitment with no request_digest — i.e. one issued
+        before the self-verifiable format, whose agent signature covers the
+        request rather than the core and therefore cannot be checked here.
+        """
+        if self.request_digest is None:
+            return None
+        return CommitmentCore(
+            request_id=self.request_id,
+            acting_sovereign_id=self.acting_sovereign_id,
+            proposed_action=self.proposed_action,
+            request_digest=self.request_digest,
+        )
 
     def digest(self) -> str:
         return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()

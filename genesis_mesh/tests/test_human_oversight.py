@@ -24,6 +24,8 @@ import pytest
 from click.testing import CliRunner
 
 from genesis_mesh.cli.decision_ops import trust
+from genesis_mesh.crypto import sign_model
+from genesis_mesh.models.genesis import Signature
 from genesis_mesh.models.oversight import (
     DualSignedCommitment,
     HumanApprovalRequest,
@@ -582,3 +584,163 @@ class TestOversightCLI:
         data = json.loads(result.output)
         assert data["valid"] is True
         assert data["reason"] == "valid"
+
+
+# ---------------------------------------------------------------------------
+# F-07 regression — the commitment must verify BOTH signatures on its own.
+#
+# Note none of the pre-existing tests above failed when this fix landed: they
+# either supplied the request (so the agent signature was checked) or asserted a
+# reason code reached after it. The vulnerability lived precisely in the case
+# none of them exercised — the portable artifact, verified with request=None.
+# ---------------------------------------------------------------------------
+
+
+class TestF07SelfVerifiableCommitment:
+    def _make(self):
+        policy = _make_policy()
+        action = _make_action(irreversible=True)
+        agent_sk, human_sk = _agent_sk(), _human_sk()
+        request, _ = propose_commitment(
+            policy, action, _AGENT_ID, agent_sk, issued_by="agent-key", now=_NOW,
+        )
+        _, commitment = approve_commitment(
+            request, policy, human_sk, issued_by="human-key", now=_NOW,
+        )
+        return commitment, request, agent_sk, human_sk, policy
+
+    def test_forged_agent_signature_rejected_without_the_request(self) -> None:
+        """The Phase-1 attack: forged agent signature + request omitted."""
+        commitment, _, agent_sk, human_sk, _ = self._make()
+        forged = commitment.model_copy(update={
+            "agent_signature": Signature(key_id=_AGENT_ID, sig="Zm9yZ2VkLXNpZ25hdHVyZQ=="),
+        })
+        # Re-sign with the human key so only the agent signature is bogus —
+        # exactly what a malicious custodian would produce.
+        human_sig = sign_model(forged, human_sk, "human-key")
+        forged = forged.model_copy(update={"human_signature": human_sig})
+
+        result = verify_dual_signed_commitment(
+            forged, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "invalid_agent_signature"
+
+    def test_human_key_alone_cannot_mint_a_commitment(self) -> None:
+        """Dual control: holding the human key must not be enough."""
+        _, request, agent_sk, human_sk, policy = self._make()
+        attacker_action = {"capability": "payments.send", "value": 1_000_000}
+        rogue = DualSignedCommitment(
+            request_id=request.request_id,
+            response_id="resp-rogue",
+            agreement_id=_AGREEMENT_ID,
+            acting_sovereign_id=_AGENT_ID,
+            human_sovereign_id=_HUMAN_ID,
+            proposed_action=attacker_action,
+            request_digest=request.digest(),
+            committed_at=_NOW,
+            expires_at=_NOW + timedelta(minutes=10),
+            agent_signature=Signature(key_id=_AGENT_ID, sig="Zm9yZ2VkLXNpZ25hdHVyZQ=="),
+        )
+        rogue = rogue.model_copy(
+            update={"human_signature": sign_model(rogue, human_sk, "human-key")}
+        )
+
+        result = verify_dual_signed_commitment(
+            rogue, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "invalid_agent_signature"
+
+    def test_altered_proposed_action_rejected(self) -> None:
+        """The core binds the action, not merely the request id.
+
+        A genuine agent signature must not be transplantable onto a commitment
+        that swaps the action for something the agent never proposed.
+        """
+        commitment, _, agent_sk, human_sk, _ = self._make()
+        swapped = commitment.model_copy(update={
+            "proposed_action": {"capability": "payments.send", "value": 999_999},
+        })
+        swapped = swapped.model_copy(
+            update={"human_signature": sign_model(swapped, human_sk, "human-key")}
+        )
+
+        result = verify_dual_signed_commitment(
+            swapped, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "invalid_agent_signature"
+
+    def test_legacy_commitment_gets_a_distinct_reason(self) -> None:
+        """An old-format commitment fails as a migration problem, not a forgery."""
+        commitment, _, agent_sk, human_sk, _ = self._make()
+        legacy = commitment.model_copy(update={"request_digest": None})
+        legacy = legacy.model_copy(
+            update={"human_signature": sign_model(legacy, human_sk, "human-key")}
+        )
+
+        result = verify_dual_signed_commitment(
+            legacy, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "legacy_unverifiable_format"
+
+    def test_mismatched_request_digest_rejected(self) -> None:
+        """Supplying a different request is caught by the fingerprint check."""
+        commitment, _, agent_sk, human_sk, policy = self._make()
+        # A genuinely different request: the value differs, so its canonical
+        # form — and therefore its digest — differs from the committed one.
+        other_request, _ = propose_commitment(
+            policy, _make_action(irreversible=True, value=777.0), _AGENT_ID, _agent_sk(),
+            issued_by="agent-key", now=_NOW,
+        )
+        # Same request_id so the earlier request_response_mismatch check does
+        # not fire first and mask the digest check under test.
+        other_request = other_request.model_copy(
+            update={"request_id": commitment.request_id}
+        )
+        assert other_request.digest() != commitment.request_digest
+
+        result = verify_dual_signed_commitment(
+            commitment, [_pub_b64(agent_sk)], [_pub_b64(human_sk)],
+            request=other_request, at_time=_NOW,
+        )
+        assert result.valid is False
+        assert result.reason == "request_digest_mismatch"
+
+    def test_approve_rejects_a_request_without_a_core_signature(self) -> None:
+        """A pre-format request cannot produce a verifiable commitment."""
+        _, request, _, human_sk, policy = self._make()
+        legacy_request = request.model_copy(update={"commitment_core_signature": None})
+        with pytest.raises(ValueError, match="commitment_core_signature"):
+            approve_commitment(legacy_request, policy, human_sk,
+                               issued_by="human-key", now=_NOW)
+
+    def test_genuine_commitment_verifies_standalone(self) -> None:
+        """Negative control: the portable artifact must still work."""
+        commitment, request, agent_sk, human_sk, _ = self._make()
+
+        standalone = verify_dual_signed_commitment(
+            commitment, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert standalone.valid is True, standalone.reason
+        assert standalone.reason == "valid"
+
+        with_request = verify_dual_signed_commitment(
+            commitment, [_pub_b64(agent_sk)], [_pub_b64(human_sk)],
+            request=request, at_time=_NOW,
+        )
+        assert with_request.valid is True, with_request.reason
+
+    def test_human_signature_now_covers_the_request_digest(self) -> None:
+        """Tampering with the fingerprint invalidates the human signature too."""
+        commitment, _, agent_sk, human_sk, _ = self._make()
+        tampered = commitment.model_copy(update={"request_digest": "0" * 64})
+
+        result = verify_dual_signed_commitment(
+            tampered, [_pub_b64(agent_sk)], [_pub_b64(human_sk)], at_time=_NOW,
+        )
+        assert result.valid is False
+        # The agent check fires first because the core also carries the digest.
+        assert result.reason in ("invalid_agent_signature", "invalid_human_signature")

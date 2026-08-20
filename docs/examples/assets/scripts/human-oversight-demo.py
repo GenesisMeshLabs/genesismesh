@@ -116,13 +116,24 @@ def run_demo() -> list[str]:
     step()
 
     step("==> Step 5: Verify dual-signed commitment offline")
+    step("    The commitment is self-verifiable: both signatures check out")
+    step("    with nothing but the commitment itself -- no request needed.")
     vr = verify_dual_signed_commitment(
+        commitment=commitment,
+        agent_public_keys=[kp_agent.public_key_b64],
+        human_public_keys=[kp_human.public_key_b64],
+        request=None,
+        at_time=_NOW,
+    )
+    step(f"    standalone   : {vr.valid} ({vr.reason})")
+    vr_with_request = verify_dual_signed_commitment(
         commitment=commitment,
         agent_public_keys=[kp_agent.public_key_b64],
         human_public_keys=[kp_human.public_key_b64],
         request=request,
         at_time=_NOW,
     )
+    step(f"    with request : {vr_with_request.valid} (fingerprint cross-checked)")
     step(f"    valid  : {vr.valid}")
     step(f"    reason : {vr.reason}")
     step()
