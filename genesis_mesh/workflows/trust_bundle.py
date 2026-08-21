@@ -1,4 +1,21 @@
-"""Trust bundle export, validation, and loading workflows."""
+"""Trust bundle export, validation, and loading workflows.
+
+A trust bundle is **unverified review material**, not a credential.
+
+`validate_trust_bundle` checks structure, internal consistency and redaction. It
+verifies **no signatures** — not the embedded genesis, not the recognition
+policy, not the revocation feed — and consults nothing outside the bundle. A
+bundle authored entirely by one party therefore passes every check by
+construction, because that party wrote both of the things being compared.
+
+Bundle content **must not** be loaded into a trust store, a revocation state, or
+a recognition policy. Granting trust is a separate, explicit act (issuing a
+treaty under RFC-002), and the key a treaty is issued against should come from a
+live query to the subject's own endpoint — as `workflows/federation.py` does —
+not from a bundle.
+
+See docs/rfcs/rfc-003-trust-bundles.md.
+"""
 
 from __future__ import annotations
 
@@ -107,7 +124,13 @@ def validate_trust_bundle(
     *,
     live_material: dict[str, Any] | None = None,
 ) -> dict[str, list[str]]:
-    """Validate bundle structure, consistency, and optional live endpoint parity."""
+    """Validate bundle structure, consistency, and optional live endpoint parity.
+
+    This does **not** verify any signature and does not consult any authority
+    outside the bundle (other than the optional `live_material` parity check).
+    An empty error list means "well-formed and self-consistent", never
+    "authentic": a bundle written end-to-end by one party passes.
+    """
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -125,6 +148,15 @@ def validate_trust_bundle(
     if metadata and genesis:
         _validate_identity_consistency(metadata, genesis, errors)
         _validate_public_key_consistency(metadata, genesis, errors)
+        # Report — do not verify. Signatures in a bundle are not checked at all
+        # (see the module docstring), but a genesis carrying none is an
+        # observable fact worth surfacing rather than passing over in silence.
+        if not genesis.get("signatures"):
+            warnings.append(
+                "embedded genesis carries no signatures; nothing in this bundle "
+                "attests to it. Verify the subject's genesis against a root key "
+                "obtained independently of this bundle."
+            )
 
     if _contains_forbidden_key(bundle):
         errors.append("bundle contains private key, token, bearer, or credential-shaped fields")

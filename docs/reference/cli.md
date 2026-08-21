@@ -278,6 +278,15 @@ genesis-mesh trust-bundle validate \
 
 Use live validation before feeding a bundle into federation bootstrap.
 
+```{warning}
+Validation checks structure and internal consistency. It verifies **no
+signatures** and consults nothing outside the bundle, so a bundle written
+entirely by one party passes by construction. `validation: ok` means
+"well-formed and self-consistent", not "genuine". Verify the subject's genesis
+against a root key obtained independently — the `--na` live comparison above is
+the easiest way — before relying on any bundle content.
+```
+
 ### `genesis-mesh trust-bundle import`
 
 Imports a bundle into local review evidence without granting trust:
@@ -291,6 +300,11 @@ genesis-mesh trust-bundle import \
 
 The receipt records `trust_granted: false`. Trust is created only by an explicit
 operator-signed federation bootstrap or treaty issue.
+
+"Import" here means *filed as review evidence* — it does not load anything into
+trust state, and it must not be used to. Bundle content is unverified: never
+copy its keys, recognition policy, treaties, or revocation feed into a trust
+store. See [RFC-003](../rfcs/rfc-003-trust-bundles.md).
 
 ### `genesis-mesh treaty list`
 
