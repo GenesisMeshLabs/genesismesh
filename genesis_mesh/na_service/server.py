@@ -20,6 +20,7 @@ from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from .auth import (
+    OperatorTier,
     load_operator_public_keys,
     load_operator_key_tiers,
     validate_operator_key_tiers,
@@ -175,7 +176,7 @@ class NetworkAuthorityService:
         return verify_node_request_signature(self, data, node_public_key, scope)
 
     def _verify_admin_request(
-        self, data: dict, required_tier: str = "standard"
+        self, data: dict, required_tier: OperatorTier = "standard"
     ) -> tuple[bool, str | None]:
         """Verify an admin request for compatibility with existing callers."""
         return verify_admin_request(self, data, required_tier)

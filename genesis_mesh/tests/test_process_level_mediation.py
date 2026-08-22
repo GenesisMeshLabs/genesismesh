@@ -289,6 +289,7 @@ def test_missing_allowlist_denies() -> None:
     op_sk = _sk()
     decision = _decision(op_sk)
     req = _request(agent_sk, decision_id=decision.decision_id)
+    allowlist: list[str] | None
     for allowlist in (None, []):
         ok, reason = validate_mediation_request(
             req, decision, [_pub_b64(agent_sk)],
@@ -302,6 +303,7 @@ def test_missing_allowlist_denies() -> None:
 
 def test_daemon_refuses_to_start_without_allowlist() -> None:
     """F-01 gap 1: the guard must refuse to start rather than allow everything."""
+    allowlist: list[str] | None
     for allowlist in (None, []):
         with pytest.raises(ValueError, match="without a command allowlist"):
             GenesisGuardDaemon(
