@@ -89,6 +89,7 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("DELETE", "/agents/{node_public_key}", "Remove agent", "Delete an authenticated descriptor.", "node_agent", "node_signed", "Node PoP"),
     Surface("POST", "/admin/invite", "Invite", "Create a scoped enrollment token.", "operator", "operator_signed", "Operator signature", curated=True),
     Surface("POST", "/admin/revoke", "Revoke", "Publish a new signed CRL.", "operator", "operator_signed", "Operator signature", curated=True),
+    Surface("POST", "/admin/operator-keys/{key_id}/revoke", "Revoke operator key", "Switch an operator key off at runtime without restarting. Terminal; refuses the last usable key.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
     Surface("POST", "/admin/policy", "Policy publish", "Activate a signed policy version.", "operator", "operator_signed", "Operator signature"),
     Surface("GET", "/admin/policy/history", "Policy history", "Inspect persisted policy versions.", "operator", "operator_signed", "Operator signature"),
     Surface("POST", "/admin/policy/rollback", "Policy rollback", "Reactivate a previous policy.", "operator", "operator_signed", "Operator signature"),

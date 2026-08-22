@@ -295,6 +295,35 @@ Revokes a certificate and publishes a new CRL.
 Allowed reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
 
+### `POST /admin/operator-keys/{key_id}/revoke`
+
+Switches an **operator** key off at runtime. The key stops authenticating on the
+next request; no restart and no configuration edit is required.
+
+```json
+{ "reason": "key_compromise" }
+```
+
+The check runs before signature verification and before the nonce is consumed,
+so a revoked key cannot perform any admin action — including revoking other
+operators.
+
+**Terminal.** There is no un-revoke endpoint; a revoked `key_id` stays revoked
+for the life of the deployment. Restoring one means editing configuration and
+restarting, deliberately.
+
+| Response | Meaning |
+|---|---|
+| `200` | Revoked. `already_revoked: true` when it was already off (idempotent). |
+| `404 unknown_operator_key` | No such key in the configured operator key map. |
+| `409 last_active_operator_key` | Refused: revoking would leave zero usable operator keys and make the service unmanageable without a restart. Configure another operator key first. |
+
+A caller presenting a revoked key receives `401` with `Unknown admin key` —
+identical to an unrecognised key, so a stolen key reveals nothing about whether
+its compromise was detected. The audit log records the true reason
+(`admin_auth_failed` with `reason: revoked_key`) plus an `operator_key_revoked`
+event naming who performed it.
+
 ### `POST /admin/policy`
 
 Publishes and activates a signed policy version.

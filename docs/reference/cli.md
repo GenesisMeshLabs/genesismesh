@@ -124,6 +124,37 @@ genesis-mesh admin revoke <cert-id> --reason key_compromise
 Useful reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
 
+### `genesis-mesh admin revoke-operator-key`
+
+Switches an **operator** key off immediately, without restarting the Network
+Authority. Use this when an operator key is lost or stolen.
+
+```bash
+genesis-mesh admin revoke-operator-key operator-alice --reason key_compromise
+```
+
+The key stops authenticating on the next request — no restart, no config edit.
+Rejection happens before the signature is checked and before the nonce is
+consumed, so a revoked key cannot act at all, including revoking other
+operators.
+
+```{warning}
+Revocation is **terminal** for the life of the deployment. There is no
+un-revoke endpoint: restoring a key means editing configuration and restarting,
+deliberately, so that a stolen key cannot be brought back by calling the wrong
+endpoint.
+```
+
+The service **refuses to revoke the last usable operator key**
+(`409 last_active_operator_key`) — otherwise this command could cause exactly
+the outage it exists to avoid. Configure a second operator key first.
+
+A caller presenting a revoked key is told only `Unknown admin key`, identical to
+an unrecognised key: whoever holds a stolen key learns nothing about whether the
+compromise was noticed. The real reason is recorded in the audit log as
+`admin_auth_failed` with `reason: revoked_key`, alongside the
+`operator_key_revoked` event.
+
 ### `genesis-mesh sovereign inspect`
 
 Fetches operator-safe public metadata from a Network Authority.

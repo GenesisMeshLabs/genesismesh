@@ -164,12 +164,23 @@ def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
         )
         return False, "Missing admin authentication headers"
 
+    # F-21: a key revoked at runtime is refused here, before its signature is
+    # verified and before its nonce is consumed. A revoked key therefore cannot
+    # perform any admin action -- including revoking other operators -- and
+    # cannot burn nonces.
+    #
+    # The caller is told only "Unknown admin key" either way: whoever holds a
+    # stolen key learns nothing about whether the compromise was noticed. The
+    # audit event carries the real reason.
     public_key = service.operator_public_keys.get(key_id)
-    if not public_key:
+    if not public_key or service.db.is_operator_key_revoked(key_id):
         _audit_auth_failure(
             service,
             "admin_auth_failed",
-            {"key_id": key_id, "reason": "unknown_key"},
+            {
+                "key_id": key_id,
+                "reason": "revoked_key" if public_key else "unknown_key",
+            },
         )
         return False, "Unknown admin key"
 
