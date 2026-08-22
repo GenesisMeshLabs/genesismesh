@@ -295,6 +295,41 @@ Revokes a certificate and publishes a new CRL.
 Allowed reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
 
+## Operator tiers
+
+Every configured operator key declares a tier. **The Network Authority refuses to
+start if any key has no tier** — there is deliberately no default, because
+defaulting to privileged would leave every key all-powerful and defaulting to
+standard would silently strip revocation from the keys an operator reaches for
+during an incident.
+
+| Tier | May do |
+|---|---|
+| `standard` | Day-to-day work: invitations, reads, and routine operations. |
+| `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
+
+Privileged satisfies a standard requirement; the reverse is not true.
+
+**Privileged routes** — `POST /admin/revoke`,
+`POST /admin/operator-keys/{key_id}/revoke`, `POST /admin/policy`,
+`POST /admin/policy/rollback`, `POST /admin/attestations`,
+`POST /admin/attestations/{id}/revoke`, `POST /admin/recognition-treaties`,
+`POST /admin/recognition-treaties/{id}/revoke`,
+`POST /admin/recognition-policy`,
+`POST /admin/sovereign-revocation-feeds/import`.
+
+Every other admin route requires `standard`.
+
+A key that authenticates but lacks the tier receives **`403
+insufficient_operator_tier`** — deliberately distinct from the `401` an unknown
+or revoked key receives, so that "who are you?" and "you may not do that" stay
+separable in an incident log. Denials are audited as `admin_authz_denied` with
+the holder and required tiers.
+
+Configure tiers with `--operator-key-tier key-id=standard|privileged` or the
+`OPERATOR_KEY_TIERS_JSON` environment variable, alongside the existing key
+configuration.
+
 ### `POST /admin/operator-keys/{key_id}/revoke`
 
 Switches an **operator** key off at runtime. The key stops authenticating on the

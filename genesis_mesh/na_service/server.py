@@ -21,6 +21,8 @@ from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from .auth import (
     load_operator_public_keys,
+    load_operator_key_tiers,
+    validate_operator_key_tiers,
     verify_admin_request,
     verify_node_request_signature,
 )
@@ -71,6 +73,7 @@ class NetworkAuthorityService:
         key_id: str = "na-2025-q1",
         db_path: str = ":memory:",
         operator_public_keys: Optional[dict[str, str]] = None,
+        operator_key_tiers: Optional[dict[str, str]] = None,
         renewal_grace_seconds: int = 900,
     ):
         """
@@ -82,6 +85,8 @@ class NetworkAuthorityService:
             key_id: Key identifier used in signatures.
             db_path: SQLite database path.
             operator_public_keys: Mapping of operator key IDs to public keys.
+            operator_key_tiers: Mapping of operator key IDs to "standard" or
+                "privileged". Required for every configured key (F-21).
             renewal_grace_seconds: How long a renewed certificate's predecessor
                 stays usable before it is rejected and published in the CRL
                 (F-20). Must outlast the node's renewal-retry backoff and CRL
@@ -93,6 +98,11 @@ class NetworkAuthorityService:
         self.db = NADatabase(db_path)
         self.db.migrate()
         self.operator_public_keys = operator_public_keys or {}
+        # F-21: every configured operator key must declare a tier. Raising
+        # here means a misconfigured deployment never starts, rather than
+        # discovering the problem mid-incident.
+        self.operator_key_tiers = operator_key_tiers or {}
+        validate_operator_key_tiers(self.operator_public_keys, self.operator_key_tiers)
         self.rate_limiter = RateLimiter()
         self.connected_nodes: dict[str, dict] = {}
         self._nonce_max_age = 300.0
@@ -164,9 +174,11 @@ class NetworkAuthorityService:
         """Verify a signed node request for compatibility with existing callers."""
         return verify_node_request_signature(self, data, node_public_key, scope)
 
-    def _verify_admin_request(self, data: dict) -> tuple[bool, str | None]:
+    def _verify_admin_request(
+        self, data: dict, required_tier: str = "standard"
+    ) -> tuple[bool, str | None]:
         """Verify an admin request for compatibility with existing callers."""
-        return verify_admin_request(self, data)
+        return verify_admin_request(self, data, required_tier)
 
     def _cleanup_nonces(self) -> None:
         """Remove expired nonces from replay protection storage."""
@@ -263,6 +275,7 @@ def create_app(
     db_path: str = "genesis_mesh_na.db",
     key_id: str = "na-2025-q1",
     operator_public_keys: Optional[dict[str, str]] = None,
+    operator_key_tiers: Optional[dict[str, str]] = None,
     renewal_grace_seconds: int = 900,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
@@ -272,6 +285,7 @@ def create_app(
         key_id=key_id,
         db_path=db_path,
         operator_public_keys=operator_public_keys,
+        operator_key_tiers=operator_key_tiers,
         renewal_grace_seconds=renewal_grace_seconds,
     )
     return service.app
@@ -291,6 +305,12 @@ def main():
         default=[],
         help="Operator admin key as key-id=base64-public-key or key-id=path",
     )
+    parser.add_argument(
+        "--operator-key-tier",
+        action="append",
+        default=[],
+        help="Operator key tier as key-id=standard|privileged (required per key)",
+    )
     parser.add_argument("--db-path", default="genesis_mesh_na.db", help="SQLite database path")
     args = parser.parse_args()
 
@@ -305,6 +325,7 @@ def main():
         key_id=args.key_id,
         db_path=args.db_path,
         operator_public_keys=load_operator_public_keys(args.operator_public_key),
+        operator_key_tiers=load_operator_key_tiers(args.operator_key_tier),
     )
     raise SystemExit(
         "Network Authority app factory validated. Start production service with "

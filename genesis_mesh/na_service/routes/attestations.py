@@ -68,7 +68,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
@@ -131,7 +131,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
@@ -153,7 +153,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 

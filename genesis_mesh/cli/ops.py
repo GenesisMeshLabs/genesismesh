@@ -117,6 +117,9 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
         key_id=key_id,
         db_path=database_path,
         operator_public_keys=load_operator_public_keys([f"{operator_key_id}={operator_public_key_path}"]),
+        # F-21: a locally started NA has one operator; give it the privileged
+        # tier so this path retains the access it had before tiering.
+        operator_key_tiers={operator_key_id: "privileged"},
     )
     logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
     logger.warning(

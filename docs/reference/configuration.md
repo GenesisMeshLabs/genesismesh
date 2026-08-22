@@ -59,6 +59,7 @@ Private-key paths in this file are local secrets and must not be committed.
 | `PORT` | no | HTTP bind port. Defaults to `8443`. |
 | `WEB_CONCURRENCY` | no | Gunicorn worker count. Defaults to `4`. |
 | `OPERATOR_PUBLIC_KEYS_JSON` | yes for admin APIs | JSON object mapping operator key IDs to base64 public keys. |
+| `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
 
 `start.sh` refuses to start the Network Authority when `GENESIS_FILE` or
 `NA_PRIVATE_KEY_FILE` is missing.

@@ -78,6 +78,7 @@ def _new_sovereign(name: str, db_path: Path) -> tuple[NetworkAuthorityService, K
         key_id=f"{name}-na-key",
         db_path=str(db_path),
         operator_public_keys={f"{name}-operator": operator_keypair.public_key_b64},
+        operator_key_tiers={f"{name}-operator": "privileged"},
     )
     service.app.config["TESTING"] = True
     return service, operator_keypair

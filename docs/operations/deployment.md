@@ -75,6 +75,7 @@ docker run --rm \
   -e GENESIS_FILE=/run/secrets/genesis.signed.json \
   -e NA_PRIVATE_KEY_FILE=/run/secrets/na.key \
   -e OPERATOR_PUBLIC_KEYS_JSON='{"operator-local":"<base64-public-key>"}' \
+  -e OPERATOR_KEY_TIERS_JSON='{"operator-local":"privileged"}' \
   -e DB_PATH=/data/genesis_mesh_na.db \
   -p 8443:8443 \
   genesis-mesh:local

@@ -47,6 +47,7 @@ def test_na_restart_preserves_persisted_state(tmp_path, na_service, node_keypair
         key_id=na_service.key_id,
         db_path=str(db_path),
         operator_public_keys=na_service.operator_public_keys,
+        operator_key_tiers=na_service.operator_key_tiers,
     )
 
     invite = first.db.create_invite_token(["role:client"], 24, 1)
@@ -73,6 +74,7 @@ def test_na_restart_preserves_persisted_state(tmp_path, na_service, node_keypair
         key_id=na_service.key_id,
         db_path=str(db_path),
         operator_public_keys=na_service.operator_public_keys,
+        operator_key_tiers=na_service.operator_key_tiers,
     )
 
     assert second.db.conn.execute(

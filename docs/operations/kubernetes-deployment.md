@@ -106,7 +106,16 @@ env:
       secretKeyRef:
         name: genesis-mesh-operators
         key: operator-public-keys.json
+  - name: OPERATOR_KEY_TIERS_JSON
+    valueFrom:
+      secretKeyRef:
+        name: genesis-mesh-operators
+        key: operator-key-tiers.json
 ```
+
+`OPERATOR_KEY_TIERS_JSON` maps each operator key ID to `standard` or
+`privileged`. Every configured key must appear in it — the pod will fail to
+start otherwise, by design.
 
 ## Probes
 

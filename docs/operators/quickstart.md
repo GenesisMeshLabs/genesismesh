@@ -48,6 +48,7 @@ keys. Put the public key in the systemd environment file:
 ```bash
 PUB=$(grep -v '^#' /etc/genesis-mesh/operator.pub | tr -d '\r\n')
 printf 'OPERATOR_PUBLIC_KEYS_JSON={"operator-local":"%s"}\n' "$PUB" \
+  && printf 'OPERATOR_KEY_TIERS_JSON={"operator-local":"privileged"}\n' \
   | sudo tee /etc/genesis-mesh/operator-keys.env > /dev/null
 sudo chmod 0640 /etc/genesis-mesh/operator-keys.env
 ```

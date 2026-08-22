@@ -51,6 +51,8 @@ install -o root -g "$GENESIS_USER" -m 0640 /tmp/miraos-upload/operator.pub /etc/
 chown -R "$GENESIS_USER:$GENESIS_USER" /var/lib/genesis-mesh
 mira_pub="$(grep -v '^#' /tmp/miraos-upload/operator.pub | tr -d '\r\n')"
 printf 'OPERATOR_PUBLIC_KEYS_JSON={"operator-local":"%s"}\n' "$mira_pub" >/etc/genesis-mesh/miraos-na/operator-keys.env
+# F-21: every operator key must declare a tier or the service refuses to start.
+printf 'OPERATOR_KEY_TIERS_JSON={"operator-local":"privileged"}\n' >>/etc/genesis-mesh/miraos-na/operator-keys.env
 chown root:"$GENESIS_USER" /etc/genesis-mesh/miraos-na/operator-keys.env
 chmod 0640 /etc/genesis-mesh/miraos-na/operator-keys.env
 

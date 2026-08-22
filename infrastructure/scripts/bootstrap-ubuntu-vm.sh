@@ -18,6 +18,9 @@ DB_PATH="${DB_PATH:-/var/lib/genesis-mesh/na.db}"
 NA_PORT="${NA_PORT:-8443}"
 NA_ENDPOINT="${NA_ENDPOINT:-http://127.0.0.1:${NA_PORT}}"
 OPERATOR_PUBLIC_KEYS_JSON="${OPERATOR_PUBLIC_KEYS_JSON:-}"
+# F-21: each operator key must declare a tier (standard|privileged) or the
+# Network Authority refuses to start.
+OPERATOR_KEY_TIERS_JSON="${OPERATOR_KEY_TIERS_JSON:-}"
 
 START_SERVICES="${START_SERVICES:-true}"
 ENABLE_NGINX="${ENABLE_NGINX:-false}"
@@ -165,11 +168,12 @@ prepare_directories() {
     log "Writing operator public-key environment"
     cat >/etc/genesis-mesh/operator-keys.env <<EOF
 OPERATOR_PUBLIC_KEYS_JSON=${OPERATOR_PUBLIC_KEYS_JSON}
+OPERATOR_KEY_TIERS_JSON=${OPERATOR_KEY_TIERS_JSON}
 EOF
     chmod 0640 /etc/genesis-mesh/operator-keys.env
     chown root:"$GENESIS_USER" /etc/genesis-mesh/operator-keys.env
   elif [ ! -f /etc/genesis-mesh/operator-keys.env ]; then
-    warn "OPERATOR_PUBLIC_KEYS_JSON was not provided; admin endpoints will reject operator requests until configured"
+    warn "OPERATOR_PUBLIC_KEYS_JSON/OPERATOR_KEY_TIERS_JSON were not provided; the Network Authority will refuse to start if keys are configured without tiers"
   fi
 }
 

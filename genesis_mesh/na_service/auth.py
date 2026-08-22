@@ -4,11 +4,12 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from flask import request
 
 from ..crypto import verify_signature
+from .errors import ForbiddenError
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,72 @@ def _audit_auth_failure(service, event_type: str, details: dict) -> None:
             event_type,
             details.get("reason"),
             exc,
+        )
+
+
+OperatorTier = Literal["standard", "privileged"]
+
+OPERATOR_TIERS: tuple[str, ...] = ("standard", "privileged")
+
+# A privileged key satisfies a standard requirement; the reverse is not true.
+_TIER_RANK: dict[str, int] = {"standard": 0, "privileged": 1}
+
+
+def load_operator_key_tiers(specs: Optional[list[str]]) -> dict[str, str]:
+    """Load operator key tiers from ``key-id=tier`` CLI specifications."""
+    tiers: dict[str, str] = {}
+    for spec in specs or []:
+        if "=" not in spec:
+            raise ValueError("Operator key tier must use key-id=tier format")
+        key_id, tier = spec.split("=", 1)
+        key_id = key_id.strip()
+        tier = tier.strip()
+        if not key_id or not tier:
+            raise ValueError("Operator key id and tier must be non-empty")
+        if tier not in OPERATOR_TIERS:
+            raise ValueError(
+                f"Unknown operator tier {tier!r} for key {key_id!r}; "
+                f"expected one of {', '.join(OPERATOR_TIERS)}"
+            )
+        tiers[key_id] = tier
+    return tiers
+
+
+def validate_operator_key_tiers(
+    operator_public_keys: dict[str, str], operator_key_tiers: dict[str, str]
+) -> None:
+    """Raise unless every configured operator key declares a valid tier (F-21).
+
+    Called at service construction so a misconfigured deployment fails loudly at
+    boot rather than at 3am with an unexpected 403.  There is deliberately no
+    default tier: defaulting to privileged would leave every existing key
+    all-powerful (the flat model this fix exists to end), and defaulting to
+    standard would silently strip revocation and policy publication from the
+    very keys an operator reaches for during an incident.
+    """
+    missing = sorted(k for k in operator_public_keys if k not in operator_key_tiers)
+    if missing:
+        raise ValueError(
+            "operator keys have no tier: "
+            + ", ".join(repr(k) for k in missing)
+            + f". Declare each as one of {', '.join(OPERATOR_TIERS)}."
+        )
+
+    bad = sorted(
+        (k, v) for k, v in operator_key_tiers.items() if v not in OPERATOR_TIERS
+    )
+    if bad:
+        raise ValueError(
+            "operator keys have an unknown tier: "
+            + ", ".join(f"{k!r}={v!r}" for k, v in bad)
+            + f". Expected one of {', '.join(OPERATOR_TIERS)}."
+        )
+
+    unknown = sorted(k for k in operator_key_tiers if k not in operator_public_keys)
+    if unknown:
+        raise ValueError(
+            "operator key tiers reference unconfigured keys: "
+            + ", ".join(repr(k) for k in unknown)
         )
 
 
@@ -149,8 +216,15 @@ def verify_node_request_signature(
     return True, None
 
 
-def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
-    """Verify operator-key authentication headers for admin endpoints."""
+def verify_admin_request(
+    service, data: dict, required_tier: OperatorTier = "standard"
+) -> tuple[bool, str | None]:
+    """Verify operator-key authentication and authorisation for admin endpoints.
+
+    Returns (False, message) for authentication failures, which callers turn
+    into 401. Raises ForbiddenError (403) when the key authenticates but its
+    tier does not permit the operation.
+    """
     key_id = request.headers.get("X-Admin-Key-Id")
     signature_b64 = request.headers.get("X-Admin-Signature")
     timestamp_str = request.headers.get("X-Admin-Timestamp")
@@ -240,4 +314,29 @@ def verify_admin_request(service, data: dict) -> tuple[bool, str | None]:
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
         )
         return False, "Admin nonce already used"
+
+    # F-21: authorisation, after authentication has succeeded. The request is
+    # genuine, so its nonce stays spent -- it simply asks for more than this key
+    # is allowed. That is a 403, not a 401, and is raised rather than returned:
+    # every caller turns a False return into 401, and conflating "who are you?"
+    # with "you may not do that" would lose a distinction that matters during an
+    # incident.
+    holder_tier = service.operator_key_tiers.get(key_id)
+    if _TIER_RANK.get(holder_tier or "", -1) < _TIER_RANK[required_tier]:
+        _audit_auth_failure(
+            service,
+            "admin_authz_denied",
+            {
+                "key_id": key_id,
+                "scope": scope,
+                "holder_tier": holder_tier,
+                "required_tier": required_tier,
+                "reason": "insufficient_operator_tier",
+            },
+        )
+        raise ForbiddenError(
+            f"This operation requires the {required_tier} operator tier.",
+            code="insufficient_operator_tier",
+        )
+
     return True, None

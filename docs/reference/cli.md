@@ -133,6 +133,9 @@ Authority. Use this when an operator key is lost or stolen.
 genesis-mesh admin revoke-operator-key operator-alice --reason key_compromise
 ```
 
+This is a **privileged-tier** operation: a standard operator key receives
+`403 insufficient_operator_tier`.
+
 The key stops authenticating on the next request — no restart, no config edit.
 Rejection happens before the signature is checked and before the nonce is
 consumed, so a revoked key cannot act at all, including revoking other

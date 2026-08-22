@@ -110,7 +110,7 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -158,7 +158,7 @@ def create_admin_blueprint(service) -> Blueprint:
         """Activate a previously persisted policy version."""
         try:
             data = request_json_object()
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -185,7 +185,7 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -273,7 +273,7 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
