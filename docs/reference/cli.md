@@ -1237,6 +1237,7 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
+    --token-issuer-key 'operator-a=keys/operator.pub.b64' \
     --command-allowlist 'python --version' \
     --command-allowlist 'python /opt/report.py ...'
 ```
@@ -1247,6 +1248,12 @@ trailing `...` allows a variable tail. The guard refuses to start without it.
 See [Process-Level Mediation](../examples/process-level-mediation.md) for the
 entry format.
 
+`--token-issuer-key` is repeatable and takes `issuer-id=base64-public-key` or
+`issuer-id=path-to-key-file`. Every request must carry the requesting agent's
+signed `InvocationToken`; a token whose `issuer_sovereign_id` has no key here is
+rejected with `unknown_token_issuer`, so without this flag the guard starts but
+mediates nothing.
+
 ### `genesis-mesh trust guard request`
 
 Submit an `ExecutionMediationRequest` to a running daemon and write the
@@ -1256,12 +1263,20 @@ response (receipt or rejection) to a file.
 genesis-mesh trust guard request \
     --capability run-python \
     --decision decision.json \
+    --token invocation-token.json \
     --command python -- script.py \
     --signing-key keys/agent.key \
     --socket-host 127.0.0.1 \
     --socket-port 8700 \
     --output receipt.json
 ```
+
+`--token` is the agent's signed `InvocationToken` and is **required** in
+practice: the whole token is attached to the request (the agent's signature
+covers it), and the guard rejects a request without one as
+`missing_invocation_token`. The token names its bearer, which is how the guard
+knows the request comes from the agent it was issued to — a `BoundaryDecision`
+names no agent at all.
 
 ### `genesis-mesh trust guard verify`
 

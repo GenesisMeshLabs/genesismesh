@@ -60,6 +60,7 @@ class GenesisGuardDaemon:
         agent_public_keys: dict[str, list[str]],
         *,
         operator_public_keys: dict[str, list[str]] | None = None,
+        token_issuer_public_keys: dict[str, list[str]] | None = None,
         command_allowlist: list[str] | None = None,
         host: str = "127.0.0.1",
         port: int = 0,
@@ -82,7 +83,13 @@ class GenesisGuardDaemon:
         self.decision_store = decision_store
         self.agent_public_keys = agent_public_keys
         self.operator_public_keys = operator_public_keys or {}
+        self.token_issuer_public_keys = token_issuer_public_keys or {}
         self.command_allowlist = command_allowlist
+        # F-01: invocation-token use counts, keyed by token_id.  In-process
+        # only: the guard has no durable store, so a token's max_invocations
+        # budget is enforced for this guard's lifetime and the count resets
+        # when it restarts.  Documented, not silently ignored.
+        self._token_use_counts: dict[str, int] = {}
         self.host = host
         self.port = port
         self._server: socket.socket | None = None
@@ -153,12 +160,17 @@ class GenesisGuardDaemon:
             else []
         )
 
+        token = request.invocation_token
+        use_count = self._token_use_counts.get(token.token_id, 0) if token else 0
+
         ok, reason = validate_mediation_request(
             request,
             decision,
             agent_keys,
             operator_public_keys=operator_keys,
+            token_issuer_public_keys=self.token_issuer_public_keys,
             command_allowlist=self.command_allowlist,
+            use_count=use_count,
             at_time=now,
         )
 
@@ -175,6 +187,12 @@ class GenesisGuardDaemon:
                 rejected_at=now,
                 reason=reason or "subprocess_blocked",
             )
+
+        # The request is authorised, so this counts against the token's budget.
+        # Counted here rather than after the spawn: a command that starts and
+        # then fails has still consumed an invocation.
+        if token is not None:
+            self._token_use_counts[token.token_id] = use_count + 1
 
         # Build constrained environment
         allowed = set(request.allowed_env_vars)

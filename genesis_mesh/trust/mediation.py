@@ -15,7 +15,6 @@ import nacl.signing
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.context import BoundaryDecision
-from ..models.invocation_token import InvocationToken
 from ..models.mediation import (
     ExecutionMediationRequest,
     MediatedExecutionReceipt,
@@ -28,11 +27,30 @@ MediationRejectionReason = Literal[
     "invalid_decision_signature",
     "decision_expired",
     "capability_not_authorized",
+    "missing_invocation_token",
+    "token_id_mismatch",
+    "unknown_token_issuer",
+    "invalid_token_signature",
+    "token_bearer_mismatch",
+    "token_policy_violated",
+    "token_agreement_mismatch",
     "token_budget_exhausted",
     "token_expired",
     "command_not_in_allowlist",
     "subprocess_blocked",
 ]
+
+# verify_invocation_token() has its own reason vocabulary; map it onto ours so
+# the guard reports one consistent set of codes.
+_TOKEN_REASONS: dict[str, MediationRejectionReason] = {
+    "missing_signature": "invalid_token_signature",
+    "invalid_signature": "invalid_token_signature",
+    "bearer_mismatch": "token_bearer_mismatch",
+    "expired": "token_expired",
+    "capability_not_granted": "capability_not_authorized",
+    "budget_exhausted": "token_budget_exhausted",
+    "policy_violated": "token_policy_violated",
+}
 
 # A trailing '...' token marks an allowlist entry as a prefix rule.
 _PREFIX_SENTINEL = "..."
@@ -112,7 +130,7 @@ def validate_mediation_request(
     agent_public_keys: list[str],
     *,
     operator_public_keys: list[str] | None = None,
-    token: InvocationToken | None = None,
+    token_issuer_public_keys: dict[str, list[str]] | None = None,
     command_allowlist: list[str] | None = None,
     use_count: int = 0,
     at_time: datetime | None = None,
@@ -123,13 +141,16 @@ def validate_mediation_request(
     1. Request signature valid (agent key)
     2. BoundaryDecision present and signed by a known operator key
     3. BoundaryDecision authorized=True, not expired
-    4. requested_capability in IBCT capabilities (when token provided)
-    5. Token not expired; budget not exhausted (when token provided)
+    4. The request's InvocationToken is present, issued by a known issuer, and
+       verifies: signature, bearer == requesting agent, capability granted,
+       not expired, budget, policy constraints
+    5. Token and decision describe the same agreement
     6. Full subprocess_command matches command_allowlist
 
-    Fails closed: a missing operator key set or a missing/empty allowlist
-    denies the request.  Omitting either is a configuration error, never a
-    licence to skip the check.
+    Fails closed throughout.  A missing operator key set, a missing token, an
+    unknown token issuer, or a missing/empty allowlist all deny the request.
+    Omitting any of them is a configuration error, never a licence to skip the
+    check.
     """
     import base64  # noqa: PLC0415
 
@@ -171,14 +192,50 @@ def validate_mediation_request(
     if t > boundary_decision.decision_valid_until:
         return False, "decision_expired"
 
-    # 4+5. Token checks
-    if token is not None:
-        if request.requested_capability not in token.capabilities:
-            return False, "capability_not_authorized"
-        if t > token.expires_at:
-            return False, "token_expired"
-        if token.max_invocations is not None and use_count >= token.max_invocations:
-            return False, "token_budget_exhausted"
+    # 4. Invocation token (F-01 gap 4).
+    #
+    #    This is what binds the request to an identity.  The BoundaryDecision
+    #    names no agent and no capability, so on its own it cannot distinguish
+    #    the agent it was issued for from any other agent holding a copy.  The
+    #    token does: it names its bearer and the capabilities it grants.
+    #
+    #    Required, not optional.  An optional token would let an attacker simply
+    #    omit it and put us back where we started.
+    token = request.invocation_token
+    if token is None:
+        return False, "missing_invocation_token"
+    if request.token_id is not None and request.token_id != token.token_id:
+        return False, "token_id_mismatch"
+
+    issuer_keys = (token_issuer_public_keys or {}).get(token.issuer_sovereign_id)
+    if not issuer_keys:
+        return False, "unknown_token_issuer"
+
+    #    Reuses verify_invocation_token(), which already checks the signature,
+    #    the bearer, expiry, capability grant, budget and policy constraints.
+    from .invocation_token import verify_invocation_token  # noqa: PLC0415
+
+    token_check = verify_invocation_token(
+        token,
+        list(issuer_keys),
+        requested_capability=request.requested_capability,
+        bearer_sovereign_id=request.agent_sovereign_id,
+        use_records=None,
+        at_time=t,
+    )
+    if not token_check.valid:
+        return False, _TOKEN_REASONS.get(token_check.reason, "invalid_token_signature")
+
+    #    The budget is enforced by the caller, which is the only party that knows
+    #    how many times this guard has already honoured the token.
+    if token.max_invocations is not None and use_count >= token.max_invocations:
+        return False, "token_budget_exhausted"
+
+    # 5. The token and the decision must describe the same agreement.  Without
+    #    this an agent could pair its own valid token with an unrelated valid
+    #    decision issued for someone else.
+    if token.agreement_id != boundary_decision.agreement_id:
+        return False, "token_agreement_mismatch"
 
     # 6. Command allowlist — fail closed: no allowlist means nothing is permitted,
     #    and the whole command is matched, not just the program name.

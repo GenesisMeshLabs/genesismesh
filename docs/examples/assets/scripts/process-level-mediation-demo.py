@@ -7,7 +7,7 @@ Run from repository root:
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -24,6 +24,7 @@ _NOW = datetime(2026, 6, 28, 12, 0, 0, tzinfo=timezone.utc)
 
 def run_demo() -> list[str]:
     from genesis_mesh.crypto import generate_keypair, sign_model
+    from genesis_mesh.models.invocation_token import InvocationToken
     from genesis_mesh.models.mediation import ExecutionMediationRequest
     from genesis_mesh.trust.mediation import (
         create_mediated_execution_receipt,
@@ -56,10 +57,25 @@ def run_demo() -> list[str]:
     step()
 
     step("==> Step 2: Agent creates signed ExecutionMediationRequest")
+    step("    The agent carries its signed InvocationToken with the request: the")
+    step("    token names the bearer, which is how the guard knows whose authority")
+    step("    is being presented. A BoundaryDecision names no agent at all.")
+    token = InvocationToken(
+        issued_at=_NOW,
+        expires_at=_NOW + timedelta(hours=1),
+        issuer_sovereign_id="org-a-op",
+        bearer_sovereign_id="org-a",
+        agreement_id=decision.agreement_id,
+        capabilities=["transactions.read"],
+    )
+    token = token.model_copy(
+        update={"signature": sign_model(token, kp_op.private_key, "org-a-op")}
+    )
     request = ExecutionMediationRequest(
         agent_sovereign_id="org-a",
         requested_capability="transactions.read",
         decision_id=decision.decision_id,
+        invocation_token=token,
         subprocess_command=["fetch_transactions", "--account", "acc-001"],
         allowed_env_vars=["GM_API_KEY"],
         requested_at=_NOW,
@@ -78,6 +94,7 @@ def run_demo() -> list[str]:
         boundary_decision=decision,
         agent_public_keys=[kp_agent.public_key_b64],
         operator_public_keys=[kp_op.public_key_b64],
+        token_issuer_public_keys={"org-a-op": [kp_op.public_key_b64]},
         command_allowlist=allowlist,
         at_time=_NOW,
     )
@@ -110,6 +127,7 @@ def run_demo() -> list[str]:
         boundary_decision=decision,
         agent_public_keys=[kp_agent.public_key_b64],
         operator_public_keys=[kp_op.public_key_b64],
+        token_issuer_public_keys={"org-a-op": [kp_op.public_key_b64]},
         command_allowlist=denied_allowlist,
         at_time=_NOW,
     )

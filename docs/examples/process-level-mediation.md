@@ -68,6 +68,7 @@ GenesisGuard provides enforcement **below the agent process, above the OS**.
 | Layer | Covered by GenesisGuard |
 |-------|------------------------|
 | Application gate (BoundaryEngine) | Yes — validated before spawn |
+| Agent identity (IBCT bearer) | Yes — the request must carry the agent's signed token |
 | IBCT budget + expiry | Yes — validated before spawn |
 | Subprocess environment | Yes — only `allowed_env_vars` inherited |
 | Command allowlist | Yes — required, and matched against the whole command |
@@ -84,6 +85,7 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
+    --token-issuer-key 'operator-a=keys/operator.pub.b64' \
     --command-allowlist 'python --version' \
     --command-allowlist 'python /opt/report.py ...'
 ```
@@ -125,6 +127,30 @@ prevent.
 An entry cannot express a literal trailing `...` argument; quoting does not
 distinguish it from the sentinel.
 
+### The invocation token is mandatory
+
+`--token-issuer-key` maps an `issuer_sovereign_id` to the public key(s) that
+issuer signs invocation tokens with, and may be given more than once. A token
+whose `issuer_sovereign_id` has no entry is rejected with
+`unknown_token_issuer` — an unknown issuer is never trusted by default.
+
+This is what tells the guard **whose** request it is holding. A
+`BoundaryDecision` carries no agent field and no capability field: on its own it
+proves that *some* execution was approved, not that *this* agent was the one
+approved. The `InvocationToken` names its bearer and its capabilities, so the
+guard rejects a request whose token was issued to someone else with
+`token_bearer_mismatch`.
+
+The token and the decision must also name the same `agreement_id`, or the
+request is rejected with `token_agreement_mismatch`. Without that check an agent
+could pair its own valid token with an unrelated valid decision.
+
+> **The budget is per guard process.** `max_invocations` is counted in memory,
+> keyed by `token_id`, and the count resets when the guard restarts. The guard
+> makes no network calls by design, so it also **cannot see revocations**: a
+> revoked token remains usable until its `expires_at` passes. Keep token
+> lifetimes short.
+
 ---
 
 ## Step 2 — Request mediated execution (agent side)
@@ -133,6 +159,7 @@ distinguish it from the sentinel.
 genesis-mesh trust guard request \
     --capability run-python \
     --decision boundary-decision.json \
+    --token invocation-token.json \
     --command python -- analyze.py \
     --signing-key keys/agent.key \
     --socket-host 127.0.0.1 \
@@ -177,6 +204,7 @@ daemon = GenesisGuardDaemon(
     decision_store={decision.decision_id: decision},
     agent_public_keys={"agent-a": [agent_pub_key_b64]},
     operator_public_keys={"operator-a": [operator_pub_key_b64]},
+    token_issuer_public_keys={"operator-a": [operator_pub_key_b64]},
     command_allowlist=["python --version"],
     host="127.0.0.1",
     port=8700,
@@ -200,8 +228,15 @@ if isinstance(result, MediatedExecutionReceipt):
 | `invalid_decision_signature` | Decision unsigned, or not signed by a key the guard holds for its `operator_sovereign_id` |
 | `decision_expired` | `decision_valid_until` is in the past |
 | `capability_not_authorized` | Decision `authorized=False`, or capability not in IBCT |
+| `missing_invocation_token` | The request carried no `invocation_token` — the token is required |
+| `token_id_mismatch` | The request's legacy `token_id` field disagrees with the carried token |
+| `unknown_token_issuer` | No key held for the token's `issuer_sovereign_id` |
+| `invalid_token_signature` | Token unsigned, or not signed by a key the guard holds for its issuer |
+| `token_bearer_mismatch` | The token's `bearer_sovereign_id` is not the requesting agent |
+| `token_agreement_mismatch` | Token and decision name different `agreement_id`s |
+| `token_policy_violated` | A token policy constraint (e.g. time window) was not met |
 | `token_expired` | IBCT `expires_at` is in the past |
-| `token_budget_exhausted` | IBCT `max_invocations` reached |
+| `token_budget_exhausted` | IBCT `max_invocations` reached for this guard process |
 | `command_not_in_allowlist` | The full `subprocess_command` matches no allowlist entry (also returned when no allowlist is configured) |
 | `subprocess_blocked` | Spawn failed (timeout, OS error, etc.) |
 
