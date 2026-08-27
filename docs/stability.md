@@ -115,7 +115,7 @@ All subcommands reachable from `genesis-mesh` and `genesis-mesh-na`.
 | `CapabilityMembershipProof` | v0.33.0 |
 | `commit_capabilities(capabilities, agreement, signing_key, *, issued_by, now)` | v0.33.0 |
 | `prove_capability_membership(capability, capabilities, commitment, prover_sovereign_id, *, now)` | v0.33.0 |
-| `verify_capability_proof(proof, commitment, issuer_public_keys, *, nullifier, used_nullifiers)` | v0.33.0 |
+| `verify_capability_proof(proof, commitment, issuer_public_keys, *, nullifier, used_nullifiers, now)` | v0.33.0 |
 | `issue_nullifier(proof, signing_key, *, issued_by, now)` | v0.33.0 |
 
 ### `genesis_mesh.trust.justification`

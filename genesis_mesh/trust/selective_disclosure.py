@@ -222,8 +222,13 @@ def verify_capability_proof(
     *,
     nullifier: CapabilityNullifier | None = None,
     used_nullifiers: set[str] | None = None,
+    now: datetime | None = None,
 ) -> CapabilityProofVerificationResult:
     """Verify a CapabilityMembershipProof against its commitment.
+
+    ``now`` overrides the reference clock used for the nullifier expiry check,
+    matching ``commit_capabilities`` / ``prove_capability_membership`` /
+    ``issue_nullifier``; it defaults to the current UTC time.
 
     Verification order:
     1. commitment_not_signed
@@ -236,7 +241,7 @@ def verify_capability_proof(
     8. valid
     """
     cid = commitment.commitment_id
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
 
     # 1. Commitment must be signed.
     if commitment.signature is None:
@@ -311,6 +316,7 @@ class SelectiveDisclosureGate:
     The gate passes only when:
     - The commitment signature is valid.
     - The Merkle proof reconstructs the committed root.
+    - ``commitment.agreement_id == context.agreement_id``.
     - ``proof.revealed_capability == context.requested_capability``.
     """
 
@@ -341,8 +347,20 @@ class SelectiveDisclosureGate:
 
         if isinstance(context, ContextRecord):
             requested: str | None = context.requested_capability
+            request_agreement_id: str | None = context.agreement_id
         else:
             requested = getattr(context, "requested_capability", None)
+            request_agreement_id = getattr(context, "agreement_id", None)
+
+        if request_agreement_id != self._commitment.agreement_id:
+            return GateResult(
+                gate_name="selective_disclosure",
+                passed=False,
+                detail=(
+                    f"commitment agreement '{self._commitment.agreement_id}' "
+                    f"!= request agreement '{request_agreement_id}'"
+                ),
+            )
 
         if requested != self._proof.revealed_capability:
             return GateResult(

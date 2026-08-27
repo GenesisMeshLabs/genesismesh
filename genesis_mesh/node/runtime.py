@@ -3,13 +3,14 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 import requests
 import websockets
 
-from ..audit.logger import AuditLogger
+from ..audit.logger import AuditLogger, default_audit_log_path
 from ..crypto import verify_model_signature
 from ..gossip.crl_gossip import CRLGossip
 from ..models.certificates import JoinCertificate
@@ -76,6 +77,7 @@ class MeshNodeRuntime:
         bootstrap_peers: list[str] | None = None,
         on_data_received=None,
         max_peer_connections: int = 50,
+        audit_log_file: Path | None = None,
     ):
         """Create a runtime around a joined `MeshNode`.
 
@@ -133,7 +135,11 @@ class MeshNodeRuntime:
             sign_peer_info=self._sign_peer_info,
             verify_peer_info=self._verify_peer_info,
         )
-        self.audit_logger = AuditLogger(self.node_id)
+        self.audit_logger = AuditLogger(
+            self.node_id,
+            log_file=audit_log_file or default_audit_log_path(self.node_id),
+            signing_key=self.node.node_keypair.private_key,
+        )
         self.metrics = MetricsCollector(
             self.node_id,
             self.node.genesis_block.network_name,

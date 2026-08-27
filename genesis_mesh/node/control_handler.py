@@ -95,7 +95,6 @@ class ControlMessageHandler:
         async with self._replay_lock:
             if message.message_id in self._processed_messages:
                 return False, "Control message already processed (replay attack?)"
-            self._processed_messages[message.message_id] = time.time()
 
         public_key = self.get_public_key(message.issuer)
         if not public_key:
@@ -108,6 +107,19 @@ class ControlMessageHandler:
         if not is_valid:
             logger.warning("Invalid control message: %s", error)
             return False, error
+
+        # Record the ID only after verification, so unverified senders cannot
+        # seed the replay cache. The entry must outlive the message's validity
+        # window: once expires_at passes, the RBAC expiry check rejects any
+        # replay, so the entry can be dropped.
+        if message.expires_at:
+            retain_until = message.expires_at.timestamp()
+        else:
+            retain_until = time.time() + 86400.0
+        async with self._replay_lock:
+            if message.message_id in self._processed_messages:
+                return False, "Control message already processed (replay attack?)"
+            self._processed_messages[message.message_id] = retain_until
 
         handler = self._handlers.get(message.command)
         if not handler:
@@ -161,10 +173,7 @@ class ControlMessageHandler:
             while self._running:
                 try:
                     await asyncio.sleep(300)
-                    await self.cleanup_processed_messages(max_age=3600.0)
-
-                    if len(self._processed_messages) > 10000:
-                        await self._trim_replay_cache(max_entries=5000)
+                    await self.cleanup_processed_messages()
                 except asyncio.CancelledError:
                     break
                 except Exception:
@@ -173,14 +182,14 @@ class ControlMessageHandler:
         except asyncio.CancelledError:
             pass
 
-    async def cleanup_processed_messages(self, max_age: float = 3600.0) -> None:
-        """Remove processed message IDs older than `max_age` seconds."""
+    async def cleanup_processed_messages(self) -> None:
+        """Remove replay-cache entries whose message validity window has passed."""
         async with self._replay_lock:
             now = time.time()
             stale_ids = [
                 msg_id
-                for msg_id, timestamp in self._processed_messages.items()
-                if (now - timestamp) > max_age
+                for msg_id, retain_until in self._processed_messages.items()
+                if now > retain_until
             ]
 
             for msg_id in stale_ids:
@@ -188,20 +197,6 @@ class ControlMessageHandler:
 
             if stale_ids:
                 logger.debug("Cleaned up %s processed message IDs", len(stale_ids))
-
-    async def _trim_replay_cache(self, max_entries: int) -> None:
-        """Keep only the newest `max_entries` replay-cache entries."""
-        async with self._replay_lock:
-            if len(self._processed_messages) <= max_entries:
-                return
-
-            sorted_items = sorted(
-                self._processed_messages.items(),
-                key=lambda item: item[1],
-                reverse=True,
-            )
-            self._processed_messages = dict(sorted_items[:max_entries])
-            logger.info("Trimmed replay cache to %s entries", max_entries)
 
     async def _load_replay_cache(self) -> None:
         """Load a persisted replay cache from disk."""

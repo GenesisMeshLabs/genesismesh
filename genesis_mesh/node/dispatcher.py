@@ -28,11 +28,17 @@ class RuntimeMessageDispatcher:
         elif message.message_type == MessageType.PEER_ANNOUNCE:
             await self.runtime.peer_discovery.handle_peer_announce(message)
         elif message.message_type == MessageType.ROUTE_ANNOUNCE:
-            await self.runtime.routing_protocol.handle_route_announce(message)
+            await self.runtime.routing_protocol.handle_route_announce(
+                message, connection.peer_id
+            )
         elif message.message_type == MessageType.ROUTE_UPDATE:
-            await self.runtime.routing_protocol.handle_route_update(message)
+            await self.runtime.routing_protocol.handle_route_update(
+                message, connection.peer_id
+            )
         elif message.message_type == MessageType.ROUTE_WITHDRAW:
-            await self.runtime.routing_protocol.handle_route_withdraw(message)
+            await self.runtime.routing_protocol.handle_route_withdraw(
+                message, connection.peer_id
+            )
         elif message.message_type == MessageType.DATA:
             await self.runtime.router.route_message(message)
         elif message.message_type == MessageType.CONTROL_MESSAGE:

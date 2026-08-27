@@ -19,3 +19,7 @@ class InviteToken(BaseModel):
     expires_at: datetime = Field(..., description="Invite expiration time")
     used_at: Optional[datetime] = Field(None, description="Token redemption time")
     used_by_key: Optional[str] = Field(None, description="Redeeming node public key")
+    recipient_public_key: Optional[str] = Field(
+        None,
+        description="If set, only this node public key may redeem the token",
+    )

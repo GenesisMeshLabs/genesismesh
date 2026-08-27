@@ -45,6 +45,7 @@ def _new_service(db_path: Path) -> NetworkAuthorityService:
         ),
         policy_manifest=PolicyManifestRef(hash="sha256:demo", url=None),
     )
+    genesis.signatures.append(sign_model(genesis, na_key, "managed-demo-root"))
     service = NetworkAuthorityService(
         genesis_block=genesis,
         na_private_key=na_key,

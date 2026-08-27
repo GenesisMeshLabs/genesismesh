@@ -14,6 +14,8 @@ Key invariants
 - ``delegated_terms.capabilities ⊆ parent.agreed_terms.capabilities``
 - ``expires_at ≤ parent.expires_at``
 - ``parent_terms_digest == terms_digest(parent.agreed_terms)``
+- Each hop's delegator held what it passes on: a party to the root agreement at
+  hop 1, the previous hop's delegate thereafter.
 - Both delegator and delegate sign the same canonical form.
 - The chain root is always an ``AgreementRecord``.
 """
@@ -50,6 +52,7 @@ DelegationChainVerificationReason = Literal[
     "root_agreement_invalid",
     "empty_chain",
     "parent_id_mismatch",
+    "delegator_not_authorized",
 ]
 
 
@@ -138,6 +141,17 @@ def _parent_kind(parent: AgreementRecord | DelegatedAgreementRecord) -> str:
     if isinstance(parent, AgreementRecord):
         return "agreement"
     return "delegation"
+
+
+def _authorized_delegators(parent: AgreementRecord | DelegatedAgreementRecord) -> set[str]:
+    """Sovereigns entitled to delegate *from* this record.
+
+    Root agreement: either party. Prior hop: only its delegate — authority
+    flows forward, so hop N's delegator must be hop N-1's delegate.
+    """
+    if isinstance(parent, AgreementRecord):
+        return {parent.offerer_sovereign_id, parent.responder_sovereign_id}
+    return {parent.delegate_sovereign_id}
 
 
 # ---------------------------------------------------------------------------
@@ -279,10 +293,12 @@ def verify_delegation_chain(
     2. For each hop (in order):
        a. ``parent_id`` matches the prior record's ID.
        b. ``parent_terms_digest`` matches terms_digest(parent.agreed_terms).
-       c. ``delegated_terms.capabilities ⊆ parent.agreed_terms.capabilities``.
-       d. ``expires_at ≤ parent.expires_at``.
-       e. At least one valid delegator signature.
-       f. At least one valid delegate signature.
+       c. ``delegator_sovereign_id`` is entitled to delegate from the parent —
+          a root party for hop 1, the prior hop's delegate thereafter.
+       d. ``delegated_terms.capabilities ⊆ parent.agreed_terms.capabilities``.
+       e. ``expires_at ≤ parent.expires_at``.
+       f. At least one valid delegator signature.
+       g. At least one valid delegate signature.
 
     Args:
         chain: DelegationChain (root + ordered hops).
@@ -325,6 +341,10 @@ def verify_delegation_chain(
         expected_digest = terms_digest(_parent_agreed_terms(prev))
         if hop.parent_terms_digest != expected_digest:
             return _reject("terms_digest_mismatch", n, hop_num)
+
+        # Delegator continuity: you can only pass on authority you were actually given.
+        if hop.delegator_sovereign_id not in _authorized_delegators(prev):
+            return _reject("delegator_not_authorized", n, hop_num)
 
         # Scope enforcement
         parent_caps = _parent_agreed_terms(prev).capabilities

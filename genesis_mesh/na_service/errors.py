@@ -236,6 +236,22 @@ def _render_api_error(error: ApiError):
     return response
 
 
+# Every operator-console resource is same-origin (styles.css, console.js,
+# logo/favicons); no served page uses inline scripts or styles, so no
+# 'unsafe-inline' carve-outs. (The inline-<style> Trust Atlas variant is the
+# CLI's local-file export, not an NA response.)
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; "
+        "img-src 'self'; object-src 'none'; frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'"
+    ),
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-store",
+}
+
+
 def register_error_handlers(app: Flask) -> None:
     """Register shared API error handlers on a Flask app."""
 
@@ -247,6 +263,8 @@ def register_error_handlers(app: Flask) -> None:
     @app.after_request
     def _attach_request_id_and_log_access(response):
         response.headers.setdefault("X-Request-ID", current_request_id())
+        for header, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(header, value)
         started_at = getattr(g, "request_started_at", None)
         duration_ms = 0.0
         if started_at is not None:

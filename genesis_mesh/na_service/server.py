@@ -10,7 +10,12 @@ from flask import Flask
 import nacl.encoding
 import nacl.signing
 
-from ..crypto import load_private_key, sign_model
+from ..crypto import (
+    load_private_key,
+    public_key_from_b64,
+    sign_model,
+    verify_model_signature,
+)
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
@@ -66,6 +71,7 @@ class NetworkAuthorityService:
         key_id: str = "na-2025-q1",
         db_path: str = ":memory:",
         operator_public_keys: Optional[dict[str, str]] = None,
+        renewal_grace_seconds: int = 900,
     ):
         """
         Initialize the Network Authority service.
@@ -76,6 +82,10 @@ class NetworkAuthorityService:
             key_id: Key identifier used in signatures.
             db_path: SQLite database path.
             operator_public_keys: Mapping of operator key IDs to public keys.
+            renewal_grace_seconds: How long a renewed certificate's predecessor
+                stays usable before it is rejected and published in the CRL
+                (F-20). Must outlast the node's renewal-retry backoff and CRL
+                propagation; 0 revokes the predecessor immediately.
         """
         self.genesis_block = genesis_block
         self.na_private_key = na_private_key
@@ -86,6 +96,20 @@ class NetworkAuthorityService:
         self.rate_limiter = RateLimiter()
         self.connected_nodes: dict[str, dict] = {}
         self._nonce_max_age = 300.0
+        self.renewal_grace_seconds = renewal_grace_seconds
+        # In-process counter (not DB-backed: it must survive audit-store outages).
+        self.audit_write_failures = 0
+
+        # F-11: verify genesis signatures before trusting the block, mirroring
+        # the node-side check (node/node.py:_verify_genesis_block).
+        if not genesis_block.signatures:
+            logger.error("Genesis block has no signatures")
+            raise ValueError("Genesis block signature verification failed")
+        root_public_key = public_key_from_b64(genesis_block.root_public_key)
+        for sig in genesis_block.signatures:
+            if not verify_model_signature(genesis_block, sig, root_public_key):
+                logger.error("Invalid genesis signature from key %s", sig.key_id)
+                raise ValueError("Genesis block signature verification failed")
 
         na_pub_b64 = genesis_block.network_authority.public_key
         our_pub_b64 = self.na_private_key.verify_key.encode(
@@ -196,8 +220,30 @@ class NetworkAuthorityService:
         policy.signatures.append(sign_model(policy, self.na_private_key, self.key_id))
         return policy
 
+    def _publish_superseded_revocations(self) -> Optional[CertificateRevocationList]:
+        """Publish a signed CRL for renewal-superseded certs past their grace (F-20).
+
+        Returns the newly published CRL, or None when nothing had matured. Called
+        from the CRL read path so a booting node always fetches a swept list.
+        """
+        crl = self.db.sweep_superseded_certs(issuer=self.key_id)
+        if crl is None:
+            return None
+        crl.signatures.append(sign_model(crl, self.na_private_key, self.key_id))
+        self.db.save_crl(crl, active=True)
+        logger.info(
+            "Published CRL sequence %s with %s revocation(s) after renewal grace",
+            crl.sequence,
+            len(crl.revoked_certificates),
+        )
+        return crl
+
     def _get_or_create_active_crl(self) -> CertificateRevocationList:
         """Return the active CRL, creating a signed empty one if needed."""
+        published = self._publish_superseded_revocations()
+        if published is not None:
+            return published
+
         crl = self.db.get_active_crl()
         if crl is not None:
             return crl
@@ -217,6 +263,7 @@ def create_app(
     db_path: str = "genesis_mesh_na.db",
     key_id: str = "na-2025-q1",
     operator_public_keys: Optional[dict[str, str]] = None,
+    renewal_grace_seconds: int = 900,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -225,6 +272,7 @@ def create_app(
         key_id=key_id,
         db_path=db_path,
         operator_public_keys=operator_public_keys,
+        renewal_grace_seconds=renewal_grace_seconds,
     )
     return service.app
 

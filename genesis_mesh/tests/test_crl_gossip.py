@@ -72,6 +72,8 @@ async def test_crl_announcement_requests_newer_crl_from_peer():
     class Connection:
         """Minimal connection stub recording messages."""
 
+        peer_id = "node-b"
+
         async def send_message(self, message):
             """Record a sent message."""
             sent.append(message)
@@ -100,6 +102,8 @@ async def test_crl_announcement_sends_newer_local_crl_to_peer():
     class Connection:
         """Minimal connection stub recording messages."""
 
+        peer_id = "node-b"
+
         async def send_message(self, message):
             """Record a sent message."""
             sent.append(message)
@@ -119,3 +123,31 @@ async def test_crl_announcement_sends_newer_local_crl_to_peer():
     assert sent[0].recipient_id == "node-b"
     assert sent[0].payload["action"] == "crl_data"
     assert sent[0].payload["crl"]["sequence"] == 3
+
+
+@pytest.mark.asyncio
+async def test_crl_reply_addresses_authenticated_peer_not_forged_sender():
+    """F-02: a forged sender_id cannot redirect the CRL reply's recipient label."""
+    sent = []
+
+    class Connection:
+        """Minimal connection stub with an authenticated peer identity."""
+
+        peer_id = "M-attacker"
+
+        async def send_message(self, message):
+            """Record a sent message."""
+            sent.append(message)
+
+    gossip = CRLGossip("node-a", lambda key_id: None, lambda message: None)
+    gossip.set_crl(CertificateRevocationList.create_empty("na-test", sequence=1))
+    announce = MeshMessage(
+        message_type=MessageType.REVOCATION,
+        sender_id="P-victim",  # forged; the frame really arrived from M-attacker
+        payload={"action": "announce_sequence", "sequence": 2, "crl_id": "crl-2"},
+    )
+
+    await gossip.handle_crl_announce(announce, Connection())
+
+    assert len(sent) == 1
+    assert sent[0].recipient_id == "M-attacker"

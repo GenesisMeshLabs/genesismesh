@@ -99,27 +99,76 @@ async def test_different_message_ids_both_accepted():
     assert ok2 is True
 
 
+# ── Replay cache seeded only after verification (F-13a) ──────────────
+
+
+@pytest.mark.asyncio
+async def test_unknown_issuer_does_not_seed_replay_cache():
+    """A message failing issuer lookup must not reserve its message_id."""
+    handler = _make_handler()
+    handler.get_public_key = lambda key_id: None
+    msg = _make_control_message(handler, message_id="seed-1")
+
+    ok, err = await handler.handle_control_message(msg)
+
+    assert ok is False
+    assert "Unknown issuer" in err
+    assert "seed-1" not in handler._processed_messages
+
+
+@pytest.mark.asyncio
+async def test_invalid_signature_does_not_seed_replay_cache():
+    """A message failing signature validation must not reserve its message_id."""
+    handler = _make_handler()
+    msg = _make_control_message(handler, message_id="seed-2")
+    msg.signatures.clear()
+
+    ok, _ = await handler.handle_control_message(msg)
+
+    assert ok is False
+    assert "seed-2" not in handler._processed_messages
+
+
+@pytest.mark.asyncio
+async def test_legit_message_executes_after_failed_seeding_attempt():
+    """The F-13 PoC scenario: an unauthenticated message with a chosen ID no
+    longer suppresses a later legitimate message using the same ID."""
+    handler = _make_handler()
+    real_lookup = handler.get_public_key
+
+    handler.get_public_key = lambda key_id: None
+    attack = _make_control_message(handler, message_id="PREDICTED-ID-123")
+    ok1, _ = await handler.handle_control_message(attack)
+    assert ok1 is False
+
+    handler.get_public_key = real_lookup
+    legit = _make_control_message(handler, message_id="PREDICTED-ID-123")
+    ok2, err2 = await handler.handle_control_message(legit)
+
+    assert ok2 is True, f"legitimate message was suppressed: {err2}"
+
+
 # ── Cleanup: lock-protected deletion ─────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_cleanup_removes_old_entries():
-    """cleanup_processed_messages removes entries older than max_age."""
+async def test_cleanup_removes_expired_entries():
+    """cleanup_processed_messages removes entries whose validity has passed."""
     handler = _make_handler()
 
-    # Manually insert old entries
+    # Entries store the message's retain-until (expiry) timestamp
     now = time.time()
     handler._processed_messages = {
-        "old-1": now - 7200,  # 2 hours ago
-        "old-2": now - 3700,  # ~1 hour ago
-        "fresh-1": now - 10,  # 10 seconds ago
+        "expired-1": now - 7200,  # validity ended 2 hours ago
+        "expired-2": now - 100,   # validity just ended
+        "valid-1": now + 3600,    # still valid for an hour
     }
 
-    await handler.cleanup_processed_messages(max_age=3600.0)
+    await handler.cleanup_processed_messages()
 
-    assert "old-1" not in handler._processed_messages
-    assert "old-2" not in handler._processed_messages
-    assert "fresh-1" in handler._processed_messages
+    assert "expired-1" not in handler._processed_messages
+    assert "expired-2" not in handler._processed_messages
+    assert "valid-1" in handler._processed_messages
 
 
 @pytest.mark.asyncio
@@ -134,7 +183,7 @@ async def test_cleanup_concurrent_with_message_handling():
     msg = _make_control_message(handler, message_id="new-msg")
 
     # Run cleanup and message handling concurrently
-    cleanup_task = handler.cleanup_processed_messages(max_age=3600.0)
+    cleanup_task = handler.cleanup_processed_messages()
     handle_task = handler.handle_control_message(msg)
 
     results = await asyncio.gather(cleanup_task, handle_task)
@@ -144,24 +193,37 @@ async def test_cleanup_concurrent_with_message_handling():
     assert "new-msg" in handler._processed_messages
 
 
-# ── Trim: lock-protected trimming ────────────────────────────────────
+# ── Retention: bound by message validity, not count (F-13b) ──────────
 
 
 @pytest.mark.asyncio
-async def test_trim_keeps_newest_entries():
-    """_trim_replay_cache keeps only the newest entries."""
+async def test_valid_entries_survive_cleanup_regardless_of_count():
+    """A still-valid ID is never evicted, no matter how full the cache is."""
     handler = _make_handler()
     now = time.time()
+    # More entries than the old 10000-count trigger, all still valid
     handler._processed_messages = {
-        f"msg-{i}": now - (1000 - i) for i in range(20)
+        f"msg-{i}": now + 3600 for i in range(10050)
     }
 
-    await handler._trim_replay_cache(max_entries=5)
+    await handler.cleanup_processed_messages()
 
-    assert len(handler._processed_messages) == 5
-    # The 5 newest should be kept (highest timestamps = msg-15..msg-19)
-    for i in range(15, 20):
-        assert f"msg-{i}" in handler._processed_messages
+    assert len(handler._processed_messages) == 10050
+    assert not hasattr(handler, "_trim_replay_cache")
+
+
+@pytest.mark.asyncio
+async def test_verified_id_retained_until_message_expiry():
+    """A verified message's ID is stored with the message's own expiry."""
+    handler = _make_handler()
+    msg = _make_control_message(handler, message_id="retained-1")
+
+    ok, _ = await handler.handle_control_message(msg)
+
+    assert ok is True
+    assert handler._processed_messages["retained-1"] == pytest.approx(
+        msg.expires_at.timestamp()
+    )
 
 
 # ── Load replay cache: validation ────────────────────────────────────

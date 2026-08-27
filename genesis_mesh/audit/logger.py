@@ -9,8 +9,30 @@ from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import nacl.signing
+
+from ..crypto.signing import sign_data, verify_signature
+
 
 logger = logging.getLogger(__name__)
+
+# On-disk record format version. v2 (F-03): records carry their own chain hash
+# ("event_hash") and, when a signing key is configured, an Ed25519 signature
+# over it. v1 records (no "event_hash") cannot be verified and are rejected by
+# verify_chain.
+AUDIT_LOG_SCHEMA_VERSION = 2
+
+DEFAULT_AUDIT_DIR = Path.home() / ".genesis-mesh" / "audit"
+
+
+def default_audit_log_path(node_id: str) -> Path:
+    """Default per-node audit log location.
+
+    node_id is a base64 public key and may contain path separators, so the
+    filename uses a digest of it instead.
+    """
+    safe_id = hashlib.sha256(node_id.encode()).hexdigest()[:16]
+    return DEFAULT_AUDIT_DIR / f"node-{safe_id}.jsonl"
 
 
 class EventType(str, Enum):
@@ -68,10 +90,12 @@ class AuditEvent:
     details: Dict[str, Any] = field(default_factory=dict)
     previous_hash: Optional[str] = None
     event_hash: Optional[str] = None
+    signature: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
+            "schema": AUDIT_LOG_SCHEMA_VERSION,
             "event_id": self.event_id,
             "event_type": self.event_type.value,
             "timestamp": self.timestamp.isoformat(),
@@ -82,13 +106,16 @@ class AuditEvent:
             "result": self.result,
             "details": self.details,
             "previous_hash": self.previous_hash,
+            "event_hash": self.event_hash,
+            "signature": self.signature,
         }
 
     def compute_hash(self) -> str:
         """Compute event hash for chaining."""
         data = self.to_dict()
-        # Exclude event_hash itself
+        # Exclude event_hash itself and the signature (computed over the hash)
         data.pop("event_hash", None)
+        data.pop("signature", None)
         canonical = json.dumps(data, sort_keys=True)
         return hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -105,7 +132,8 @@ class AuditLogger:
         self,
         node_id: str,
         log_file: Optional[Path] = None,
-        enable_chaining: bool = True
+        enable_chaining: bool = True,
+        signing_key: Optional[nacl.signing.SigningKey] = None,
     ):
         """
         Initialize audit logger.
@@ -114,21 +142,31 @@ class AuditLogger:
             node_id: Local node ID
             log_file: Path to audit log file (optional)
             enable_chaining: Enable hash chaining for tamper detection
+            signing_key: Ed25519 key used to sign each record's chain hash;
+                verify_chain then also checks signatures
         """
         self.node_id = node_id
         self.log_file = log_file
         self.enable_chaining = enable_chaining
+        self.signing_key = signing_key
+        self._verify_key: Optional[nacl.signing.VerifyKey] = (
+            signing_key.verify_key if signing_key else None
+        )
 
         self._last_hash: Optional[str] = None
         self._event_count = 0
 
-        # Setup file logging if specified
+        # Setup file logging if specified. An unwritable location must not
+        # stop the node from booting: log loudly and fall back to no file.
         if self.log_file:
-            self.log_file.parent.mkdir(parents=True, exist_ok=True)
-            self._file_handler = logging.FileHandler(self.log_file)
-            self._file_handler.setFormatter(
-                logging.Formatter('%(message)s')
-            )
+            try:
+                self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                logger.error(
+                    f"AUDIT DISABLED: cannot create audit log directory "
+                    f"{self.log_file.parent}: {e} — events will NOT be persisted"
+                )
+                self.log_file = None
 
     def log_event(
         self,
@@ -173,6 +211,10 @@ class AuditLogger:
         if self.enable_chaining:
             event.event_hash = event.compute_hash()
             self._last_hash = event.event_hash
+            if self.signing_key is not None:
+                event.signature = sign_data(
+                    event.event_hash.encode(), self.signing_key
+                )
 
         self._event_count += 1
 
@@ -342,13 +384,21 @@ class AuditLogger:
             details={"sequence": sequence, "revoked_count": revoked_count}
         )
 
-    def verify_chain(self, start_event: int = 0, end_event: Optional[int] = None) -> bool:
+    def verify_chain(
+        self,
+        start_event: int = 0,
+        end_event: Optional[int] = None,
+        expected_head_hash: Optional[str] = None,
+    ) -> bool:
         """
         Verify audit log chain integrity.
 
         Args:
             start_event: Start event number
             end_event: End event number (None for all)
+            expected_head_hash: If given, the last verified record's hash must
+                equal it (detects tail truncation, which a file alone cannot
+                prove; obtain it out-of-band, e.g. from get_last_hash())
 
         Returns:
             True if chain is intact, False if tampered
@@ -363,22 +413,60 @@ class AuditLogger:
             if end_event is None:
                 end_event = len(events)
 
+            # When verifying a suffix, chain from the record just before it.
             previous_hash = None
+            if start_event > 0:
+                previous_hash = events[start_event - 1].get("event_hash")
+
+            last_hash = None
             for i in range(start_event, end_event):
                 event_data = events[i]
+
+                stored_hash = event_data.get("event_hash")
+                if not stored_hash:
+                    logger.error(
+                        f"Unverifiable record at event {i}: no event_hash "
+                        f"(pre-v{AUDIT_LOG_SCHEMA_VERSION} record or stripped)"
+                    )
+                    return False
 
                 # Check previous hash matches
                 if event_data.get("previous_hash") != previous_hash:
                     logger.error(f"Chain break at event {i}")
                     return False
 
-                # Compute expected hash
+                # Recompute the hash and compare it to the stored one
                 event_data_copy = event_data.copy()
-                event_hash = event_data_copy.pop("event_hash", None)
+                event_data_copy.pop("event_hash", None)
+                record_signature = event_data_copy.pop("signature", None)
                 canonical = json.dumps(event_data_copy, sort_keys=True)
                 expected_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
-                previous_hash = event_hash
+                if expected_hash != stored_hash:
+                    logger.error(
+                        f"Tampering detected at event {i}: content does not "
+                        f"match its recorded hash"
+                    )
+                    return False
+
+                if self._verify_key is not None:
+                    if not record_signature or not verify_signature(
+                        stored_hash.encode(), record_signature, self._verify_key
+                    ):
+                        logger.error(
+                            f"Invalid or missing signature at event {i}"
+                        )
+                        return False
+
+                previous_hash = stored_hash
+                last_hash = stored_hash
+
+            if expected_head_hash is not None and last_hash != expected_head_hash:
+                logger.error(
+                    "Chain head does not match expected head hash "
+                    "(possible tail truncation)"
+                )
+                return False
 
             return True
 

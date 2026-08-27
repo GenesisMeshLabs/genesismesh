@@ -142,6 +142,30 @@ Two constraint types are supported:
 | `not_before:ISO8601` | `not_before:2026-07-01T00:00:00Z` | Token is not valid before this time |
 | `peer_sovereign:id` | `peer_sovereign:agent-b` | Additional check that bearer matches |
 
+### Unrecognised constraints are rejected
+
+Verification **fails closed**. A constraint outside the table above cannot be
+evaluated, so the verifier does not treat it as satisfied — it returns
+`policy_violated` and logs a warning naming the predicate:
+
+```
+WARNING genesis_mesh.trust.invocation_token: Rejecting InvocationToken <id>:
+unrecognised policy constraint 'geo:eu-only' (this build understands
+not_before:, peer_sovereign:)
+```
+
+Issuing a token with such a constraint is still allowed (it may be intended for
+a newer verifier), but it logs a warning at issuance too.
+
+> **Version-compatibility note.** The set of understood predicates is a property
+> of the *verifier's* build, not of the token. A token minted by a newer issuer
+> that carries a predicate an older verifier does not know will be **rejected**
+> by that older verifier — the safe direction, but a real failure mode. When a
+> new predicate is added to the vocabulary, roll verifiers out **before**
+> issuers begin minting tokens that use it, and record the addition in the
+> changelog. Within a single version there is no compatibility question: both
+> supported predicates behave exactly as the table describes.
+
 ```bash
 genesis-mesh trust token issue \
     --agreement agreement.json \
@@ -186,7 +210,7 @@ The capabilities are validated against `delegation.delegated_terms.capabilities`
 | `expired` | `expires_at` < verification time |
 | `capability_not_granted` | Requested capability not in `capabilities` list |
 | `budget_exhausted` | `len(use_records) ≥ max_invocations` |
-| `policy_violated` | A `policy_constraint` is not satisfied |
+| `policy_violated` | A `policy_constraint` is not satisfied, or is not recognised by this verifier |
 
 ---
 

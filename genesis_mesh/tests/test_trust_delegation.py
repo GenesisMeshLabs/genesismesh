@@ -26,7 +26,7 @@ from click.testing import CliRunner
 import nacl.signing
 
 from genesis_mesh.cli.delegation_ops import delegate
-from genesis_mesh.crypto import generate_keypair
+from genesis_mesh.crypto import generate_keypair, sign_model
 from genesis_mesh.models.agreement import AgreementRecord, AgreementTerms
 from genesis_mesh.models.delegation import DelegatedAgreementRecord, DelegationChain, terms_digest
 from genesis_mesh.trust.agreement import accept_counter, build_counter, build_offer, cosign_agreement, accept_offer
@@ -358,6 +358,189 @@ class TestTwoHopChain:
         )
         assert hop1.parent_terms_digest == terms_digest(agreement.agreed_terms)
         assert hop2.parent_terms_digest == terms_digest(hop1.delegated_terms)
+
+
+# ---------------------------------------------------------------------------
+# Delegator continuity (F-05 regression)
+# ---------------------------------------------------------------------------
+
+
+def _splice_hop(
+    parent: AgreementRecord | DelegatedAgreementRecord,
+    delegator_id: str,
+    delegate_id: str,
+    delegator_key,
+    delegate_key,
+    caps: list[str],
+    *,
+    now: datetime,
+    days: int = 10,
+) -> DelegatedAgreementRecord:
+    """Hand-craft a correctly-attenuated, dual-signed hop with an arbitrary delegator.
+
+    ``build_delegation`` refuses a non-party delegator, so a spliced hop can only
+    be produced by constructing the record directly — exactly what an attacker
+    does. Parent linkage, terms digest, scope and validity are all kept valid so
+    the *only* thing wrong with the result is who claims to be delegating.
+    """
+    if isinstance(parent, AgreementRecord):
+        parent_terms = parent.agreed_terms
+        parent_id = parent.agreement_id
+        parent_kind = "agreement"
+    else:
+        parent_terms = parent.delegated_terms
+        parent_id = parent.delegation_id
+        parent_kind = "delegation"
+
+    hop = DelegatedAgreementRecord(
+        parent_id=parent_id,
+        parent_kind=parent_kind,
+        parent_terms_digest=terms_digest(parent_terms),
+        delegator_sovereign_id=delegator_id,
+        delegate_sovereign_id=delegate_id,
+        delegated_terms=AgreementTerms(
+            capabilities=caps,
+            scope={"delegation": False},
+            valid_from=now,
+            valid_until=now + timedelta(days=days),
+            freshness_commitment=0,
+        ),
+        delegator_evidence={"note": "hand-crafted"},
+        delegate_evidence={"note": "hand-crafted"},
+        graph_digest="deadbeef",
+        established_at=now,
+        expires_at=now + timedelta(days=days),
+    )
+    sigs = [
+        sign_model(hop, delegator_key, delegator_id),
+        sign_model(hop, delegate_key, delegate_id),
+    ]
+    return hop.model_copy(update={"signatures": sigs})
+
+
+class TestDelegatorContinuity:
+    """F-05: a hop's delegator must actually have held the authority it passes on."""
+
+    def test_spliced_hop_by_non_party_rejected(self):
+        """A stranger splices onto a genuine alpha<->beta agreement.
+
+        Mirrors the Phase-1 PoC (verification/tests/t_nf07_13.py::nf07).
+        """
+        agreement, _, offerer_pub, _, responder_pub = _make_agreement()
+        mallory = generate_keypair()
+        friend = generate_keypair()
+
+        hop = _splice_hop(
+            agreement, "mallory", "mallory-friend",
+            mallory.private_key, friend.private_key,
+            caps=["transactions.read"], now=_now(),
+        )
+
+        result = verify_delegation_chain(
+            DelegationChain(root=agreement, hops=[hop]),
+            root_offerer_public_keys=[offerer_pub],
+            root_responder_public_keys=[responder_pub],
+            per_hop_keys={
+                "mallory": [mallory.public_key_b64],
+                "mallory-friend": [friend.public_key_b64],
+            },
+        )
+        assert not result.accepted
+        assert result.reason == "delegator_not_authorized"
+        assert result.failed_at_hop == 1
+
+    def test_root_responder_may_delegate(self):
+        """Either root party can open a chain — offerer OR responder."""
+        agreement, _, offerer_pub, responder_sk, responder_pub = _make_agreement()
+        delegate_kp = generate_keypair()
+
+        finalized = _make_delegation(
+            agreement, "beta", "delegate-x",
+            responder_sk, delegate_kp.private_key,
+            responder_pub, delegate_kp.public_key_b64,
+        )
+        result = verify_delegation_chain(
+            DelegationChain(root=agreement, hops=[finalized]),
+            root_offerer_public_keys=[offerer_pub],
+            root_responder_public_keys=[responder_pub],
+            per_hop_keys={
+                "beta": [responder_pub],
+                "delegate-x": [delegate_kp.public_key_b64],
+            },
+        )
+        assert result.accepted, f"Expected accepted, got {result.reason}"
+
+    def test_hop2_delegator_must_be_hop1_delegate(self):
+        """A stranger splices at depth 2, onto a genuine first hop."""
+        agreement, offerer_sk, offerer_pub, _, responder_pub = _make_agreement()
+        hop1_kp = generate_keypair()
+        mallory = generate_keypair()
+        friend = generate_keypair()
+        ts = _now()
+
+        hop1 = _make_delegation(
+            agreement, "alpha", "delegate-x",
+            offerer_sk, hop1_kp.private_key,
+            offerer_pub, hop1_kp.public_key_b64,
+            caps=["transactions.read"], days=20, now=ts,
+        )
+        hop2 = _splice_hop(
+            hop1, "mallory", "mallory-friend",
+            mallory.private_key, friend.private_key,
+            caps=["transactions.read"], now=ts, days=10,
+        )
+
+        result = verify_delegation_chain(
+            DelegationChain(root=agreement, hops=[hop1, hop2]),
+            root_offerer_public_keys=[offerer_pub],
+            root_responder_public_keys=[responder_pub],
+            per_hop_keys={
+                "alpha": [offerer_pub],
+                "delegate-x": [hop1_kp.public_key_b64],
+                "mallory": [mallory.public_key_b64],
+                "mallory-friend": [friend.public_key_b64],
+            },
+        )
+        assert not result.accepted
+        assert result.reason == "delegator_not_authorized"
+        assert result.failed_at_hop == 2
+
+    def test_hop2_delegator_cannot_be_hop1_delegator(self):
+        """Authority flows forward only: the party that granted hop 1 cannot also
+        grant hop 2 off it. That shape is a fork, not a chain — ``build_delegation``
+        permits it (it accepts either party of a delegation parent), so verification
+        is deliberately the stricter side."""
+        agreement, offerer_sk, offerer_pub, _, responder_pub = _make_agreement()
+        hop1_kp = generate_keypair()
+        other_kp = generate_keypair()
+        ts = _now()
+
+        hop1 = _make_delegation(
+            agreement, "alpha", "delegate-x",
+            offerer_sk, hop1_kp.private_key,
+            offerer_pub, hop1_kp.public_key_b64,
+            caps=["transactions.read"], days=20, now=ts,
+        )
+        # 'alpha' delegated hop 1 away; it is not hop 1's delegate.
+        hop2 = _splice_hop(
+            hop1, "alpha", "delegate-z",
+            offerer_sk, other_kp.private_key,
+            caps=["transactions.read"], now=ts, days=10,
+        )
+
+        result = verify_delegation_chain(
+            DelegationChain(root=agreement, hops=[hop1, hop2]),
+            root_offerer_public_keys=[offerer_pub],
+            root_responder_public_keys=[responder_pub],
+            per_hop_keys={
+                "alpha": [offerer_pub],
+                "delegate-x": [hop1_kp.public_key_b64],
+                "delegate-z": [other_kp.public_key_b64],
+            },
+        )
+        assert not result.accepted
+        assert result.reason == "delegator_not_authorized"
+        assert result.failed_at_hop == 2
 
 
 # ---------------------------------------------------------------------------

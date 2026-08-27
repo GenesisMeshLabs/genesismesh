@@ -466,8 +466,13 @@ def test_cli_token_issue():
 def test_cli_token_verify():
     runner = CliRunner()
     agreement, sk = _make_agreement()
+    # The CLI `trust token verify` path checks expiry against the real wall
+    # clock, so this token must be issued against the real clock too — issuing
+    # at the module's frozen _NOW makes the test fail with `expired` on any run
+    # after 2026-07-01 regardless of the code under test.
     tok = issue_invocation_token(
-        agreement, "agent-b", ["transactions.read"], sk, issued_by="op", now=_NOW,
+        agreement, "agent-b", ["transactions.read"], sk, issued_by="op",
+        now=datetime.now(timezone.utc),
     )
     tok_path = _write_tmp(tok)
     pub_path = _write_pub(sk)
@@ -486,8 +491,11 @@ def test_cli_token_verify():
 def test_cli_token_verify_fails_wrong_cap():
     runner = CliRunner()
     agreement, sk = _make_agreement(["transactions.read"])
+    # Real clock: see test_cli_token_verify. Issuing at _NOW made this token
+    # expire before the capability check it means to assert was ever reached.
     tok = issue_invocation_token(
-        agreement, "agent-b", ["transactions.read"], sk, issued_by="op", now=_NOW,
+        agreement, "agent-b", ["transactions.read"], sk, issued_by="op",
+        now=datetime.now(timezone.utc),
     )
     tok_path = _write_tmp(tok)
     pub_path = _write_pub(sk)

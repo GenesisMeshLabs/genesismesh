@@ -312,7 +312,7 @@ class TestVerifyCapabilityProof:
         used = {nullifier.nullifier_id}
         result = verify_capability_proof(
             proof, commitment, [_pub_b64(sk)],
-            nullifier=nullifier, used_nullifiers=used,
+            nullifier=nullifier, used_nullifiers=used, now=_NOW,
         )
         assert result.valid is False
         assert result.reason == "nullifier_already_used"
@@ -382,6 +382,26 @@ class TestSelectiveDisclosureGate:
             requester_sovereign_id=agreement.offerer_sovereign_id,
             provider_sovereign_id=agreement.responder_sovereign_id,
             requested_capability=_CAPS[1],  # mismatch with disclosed cap
+            context_freshness_seq=0,
+            requested_at=_NOW,
+        )
+        decision = engine.evaluate(ctx, agreement, sk, issued_by="operator")
+        assert decision.authorized is False
+
+    def test_agreement_mismatch_fails(self) -> None:
+        commitment, sk, agreement = _make_commitment(_CAPS)
+        # Proof/commitment issued under agreement A, request made under agreement B
+        proof = prove_capability_membership(_CAPS[0], _CAPS, commitment, "prover", now=_NOW)
+        gate = SelectiveDisclosureGate(commitment, proof, [_pub_b64(sk)])
+
+        engine = BoundaryEngine("operator")
+        engine._gates = [gate]  # type: ignore[attr-defined]
+
+        ctx = ContextRecord(
+            agreement_id="a-different-agreement",
+            requester_sovereign_id=agreement.offerer_sovereign_id,
+            provider_sovereign_id=agreement.responder_sovereign_id,
+            requested_capability=_CAPS[0],
             context_freshness_seq=0,
             requested_at=_NOW,
         )

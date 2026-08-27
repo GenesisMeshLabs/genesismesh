@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 
@@ -39,6 +39,14 @@ def _certificate_time_rejection(existing: dict) -> tuple[str, str] | None:
         return "Certificate is not yet valid", "certificate_not_yet_valid"
     if expires_at <= now:
         return "Certificate expired; re-enrollment required", "certificate_expired"
+    # F-20: a renewed certificate's predecessor stays usable for a grace window,
+    # then stops being accepted here at the same instant it enters the CRL.
+    revoke_after = existing.get("revoke_after")
+    if revoke_after and _parse_db_datetime(revoke_after) <= now:
+        return (
+            "Certificate superseded by renewal; use the renewed certificate",
+            "certificate_superseded",
+        )
     return None
 
 
@@ -73,24 +81,6 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 raise BadRequestError("node_public_key required", code="missing_node_public_key")
             if not invite_token:
                 raise ForbiddenError("invite_token required", code="missing_invite_token")
-            for prior in service.db.get_certs_by_node_key(node_public_key):
-                if (
-                    prior.get("status") == "revoked"
-                    and prior.get("revocation_reason") == "key_compromise"
-                ):
-                    service.db.add_audit_event(
-                        "join_rejected",
-                        {
-                            "reason": "key_compromise",
-                            "node_public_key": node_public_key,
-                            "prior_cert_id": prior.get("cert_id"),
-                            "remote_addr": remote_addr,
-                        },
-                    )
-                    raise ForbiddenError(
-                        "Node public key has been compromised",
-                        code="node_key_compromised",
-                    )
 
             available_token = service.db.get_available_invite_token(invite_token)
             if available_token is None:
@@ -109,6 +99,28 @@ def create_enrollment_blueprint(service) -> Blueprint:
             if not auth_ok:
                 logger.warning("Join proof-of-possession failed for node key %s...: %s", node_public_key[:8], auth_err)
                 raise UnauthorizedError(auth_err or "Unauthorized", code="node_auth_failed")
+
+            # Key-compromise status is only disclosed after the caller has
+            # presented a valid invite and proven possession of the key,
+            # so /join cannot be used as an unauthenticated status oracle.
+            for prior in service.db.get_certs_by_node_key(node_public_key):
+                if (
+                    prior.get("status") == "revoked"
+                    and prior.get("revocation_reason") == "key_compromise"
+                ):
+                    service.db.add_audit_event(
+                        "join_rejected",
+                        {
+                            "reason": "key_compromise",
+                            "node_public_key": node_public_key,
+                            "prior_cert_id": prior.get("cert_id"),
+                            "remote_addr": remote_addr,
+                        },
+                    )
+                    raise ForbiddenError(
+                        "Node public key has been compromised",
+                        code="node_key_compromised",
+                    )
 
             token = service.db.use_invite_token(invite_token, node_public_key)
             if token is None:
@@ -356,12 +368,23 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 renewed_from=cert_id,
                 max_validity_hours=int(max_validity_hours),
             )
+            # F-20: schedule the predecessor's revocation instead of revoking it
+            # outright. The grace window lets the node adopt the new certificate
+            # (and retry a renewal whose response was lost) and lets peers refresh
+            # their cached certificate before the CRL entry reaches them.
+            revoke_after = datetime.now(timezone.utc) + timedelta(
+                seconds=service.renewal_grace_seconds
+            )
+            service.db.mark_superseded(cert_id, revoke_after)
+            service._publish_superseded_revocations()
+
             service.db.add_audit_event(
                 "certificate_renewed",
                 {
                     "old_cert_id": cert_id,
                     "new_cert_id": new_cert.cert_id,
                     "node_public_key": node_public_key,
+                    "predecessor_revoke_after": revoke_after.isoformat(),
                 },
             )
 

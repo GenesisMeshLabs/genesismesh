@@ -39,6 +39,7 @@ ContextIntegrityReason = Literal[
     "invalid_signature",
     "expired",
     "undeclared_segment",
+    "segment_provenance_mismatch",
     "segment_token_exceeded",
     "total_token_exceeded",
     "base_context_tampered",
@@ -120,7 +121,7 @@ def verify_context_integrity(
 
     Checks run in order:
     signature → expiry → base_context_tampered → undeclared_segment
-    → segment_token_exceeded → total_token_exceeded.
+    → segment_provenance_mismatch → segment_token_exceeded → total_token_exceeded.
 
     Returns (passed, reason, violation_report). Report is None on success.
     """
@@ -171,8 +172,18 @@ def verify_context_integrity(
 
     declared_by_id = {s.segment_id: s for s in record.declared_append_segments}
     for obs in observed_segments:
+        decl = declared_by_id[obs.segment_id]
+        if obs.provenance_digest != decl.provenance_digest:
+            return (
+                False,
+                "segment_provenance_mismatch",
+                _v(
+                    "segment_provenance_mismatch",
+                    decl.provenance_digest,
+                    obs.provenance_digest,
+                ),
+            )
         if obs.actual_tokens is not None:
-            decl = declared_by_id[obs.segment_id]
             if obs.actual_tokens > decl.max_tokens:
                 return (
                     False,

@@ -31,6 +31,7 @@ app = create_app(
     db_path=os.environ.get("DB_PATH", "genesis_mesh_na.db"),
     key_id=os.environ.get("NA_KEY_ID", "na-2025-q1"),
     operator_public_keys=_load_operator_public_keys(),
+    renewal_grace_seconds=int(os.environ.get("RENEWAL_GRACE_SECONDS", "900")),
 )
 
 # Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.

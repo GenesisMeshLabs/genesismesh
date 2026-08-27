@@ -77,6 +77,35 @@ ExecStart=${GENESIS_HOME}/.venv/bin/gunicorn --workers 2 --worker-class sync --t
 Restart=always
 RestartSec=5
 
+# OS-level sandboxing. ReadWritePaths must list every directory this service
+# writes to: the NA writes only the SQLite database (DB_PATH above, plus its
+# -wal/-journal/-shm siblings), logs to stderr rather than a file, and touches
+# nothing under \$HOME — hence ProtectHome=true is safe here.
+# See infrastructure/systemd/README.md for what is deliberately not set.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/genesis-mesh
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
 [Install]
 WantedBy=multi-user.target
 EOF

@@ -37,6 +37,28 @@ def test_invite_token_is_single_use(client, node_keypair):
     assert second.status_code == 403
 
 
+def test_admin_invite_with_recipient_binding_is_audited(na_service, client, node_keypair):
+    """Creating a recipient-bound invite persists and audits the binding (F-08)."""
+    invite_resp = create_invite(
+        client,
+        roles=["role:client"],
+        recipient_public_key=node_keypair.public_key_b64,
+    )
+    assert invite_resp.status_code == 201
+    token_id = invite_resp.get_json()["token_id"]
+
+    stored = na_service.db.get_available_invite_token(token_id)
+    assert stored is not None
+    assert stored.recipient_public_key == node_keypair.public_key_b64
+
+    events = [
+        event for event in na_service.db.list_audit_events()
+        if event["event_type"] == "invite_created"
+    ]
+    assert events, "expected an invite_created audit event"
+    assert events[-1]["details"]["recipient_public_key"] == node_keypair.public_key_b64
+
+
 def test_invite_token_concurrent_use_is_atomic(na_service):
     """Concurrent token use can succeed for only one caller."""
     token = na_service.db.create_invite_token(["role:client"], 168, 24)

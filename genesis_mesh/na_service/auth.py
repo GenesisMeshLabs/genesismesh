@@ -1,6 +1,7 @@
 """Authentication helpers for Network Authority HTTP requests."""
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,8 @@ from typing import Optional
 from flask import request
 
 from ..crypto import verify_signature
+
+logger = logging.getLogger(__name__)
 
 
 def _audit_auth_failure(service, event_type: str, details: dict) -> None:
@@ -20,9 +23,17 @@ def _audit_auth_failure(service, event_type: str, details: dict) -> None:
                 "remote_addr": request.remote_addr or "unknown",
             },
         )
-    except Exception:
-        # Authentication must fail closed even if audit persistence is unavailable.
-        pass
+    except Exception as exc:
+        # Authentication must fail closed even if audit persistence is
+        # unavailable, but the lost event must stay observable: count it and
+        # log event_type/reason only (never signed bodies or nonces).
+        service.audit_write_failures += 1
+        logger.error(
+            "Failed to persist %s audit event (reason=%s): %s",
+            event_type,
+            details.get("reason"),
+            exc,
+        )
 
 
 def load_operator_public_keys(specs: Optional[list[str]]) -> dict[str, str]:
@@ -119,7 +130,10 @@ def verify_node_request_signature(
             "node_auth_failed",
             {"scope": nonce_scope, "reason": "signature_error"},
         )
-        return False, f"Signature verification error: {exc}"
+        # Keep the caller-facing message identical to a plain bad signature;
+        # the underlying exception stays server-side only.
+        logger.warning("Signature verification raised for scope %s: %s", nonce_scope, exc)
+        return False, "Invalid signature"
 
     try:
         service.db.add_nonce(nonce_scope, nonce, now)

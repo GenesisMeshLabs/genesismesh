@@ -144,6 +144,12 @@ def admin() -> None:
 @click.option("--role", "roles", multiple=True, default=["client"], help="Role to assign.")
 @click.option("--validity-hours", default=168, type=int, help="Maximum certificate validity.")
 @click.option("--token-expiry-hours", default=24, type=int, help="Invite validity.")
+@click.option(
+    "--recipient-key",
+    "recipient_public_key",
+    default=None,
+    help="Bind the invite to this node public key; only that key may redeem it.",
+)
 def admin_invite(
     config_path: str | None,
     na_endpoint: str | None,
@@ -152,6 +158,7 @@ def admin_invite(
     roles: tuple[str, ...],
     validity_hours: int,
     token_expiry_hours: int,
+    recipient_public_key: str | None,
 ) -> None:
     """Create a single-use invite token and print it."""
     config = _load_cli_config(config_path, required=operator_key is None)
@@ -166,6 +173,8 @@ def admin_invite(
         "max_validity_hours": validity_hours,
         "token_expiry_hours": token_expiry_hours,
     }
+    if recipient_public_key:
+        body["recipient_public_key"] = recipient_public_key
     payload = _request_json(
         requests.Session(),
         "POST",
