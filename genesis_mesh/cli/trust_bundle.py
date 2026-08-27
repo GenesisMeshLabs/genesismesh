@@ -130,6 +130,9 @@ def inspect_bundle(bundle_path: str, output_format: str) -> None:
     click.echo(f"  hash:       {result['bundle_hash']}")
     _echo_bundle_summary(bundle)
     _echo_validation_report(report)
+    # Offline inspection cannot even do the live-endpoint comparison that
+    # `validate --na` offers, so the caveat matters most here.
+    _echo_unverified_caveat()
 
 
 @trust_bundle.command("validate")
@@ -167,6 +170,7 @@ def validate_bundle(bundle_path: str, na_endpoint: str | None, output_format: st
         click.echo(f"  hash:       {result['bundle_hash']}")
         _echo_bundle_summary(bundle)
         _echo_validation_report(report)
+        _echo_unverified_caveat()
 
     if report["errors"]:
         raise click.ClickException("Trust bundle validation failed")
@@ -238,11 +242,29 @@ def import_bundle(
         click.echo(f"  receipt:       {receipt['receipt_path']}")
     _echo_bundle_summary(bundle)
     _echo_validation_report(report)
+    _echo_unverified_caveat()
 
 
 # ---------------------------------------------------------------------------
 # Display helpers (click.echo — belong in the CLI layer)
 # ---------------------------------------------------------------------------
+
+
+def _echo_unverified_caveat() -> None:
+    """State what validation did not do.
+
+    Printed separately from the validation report on purpose: this is a standing
+    property of the bundle format, not a finding about the bundle in hand, so it
+    does not belong in the per-bundle warnings list.
+    """
+    click.echo("")
+    click.echo("  NOTE: bundle contents are UNVERIFIED review material.")
+    click.echo("        No signature in this bundle was checked, and nothing")
+    click.echo("        outside it was consulted. A bundle written entirely by")
+    click.echo("        one party passes validation by construction.")
+    click.echo("        Do not load bundle content into a trust store, a")
+    click.echo("        revocation state, or a recognition policy. Granting")
+    click.echo("        trust is a separate, explicit act.")
 
 
 def _echo_bundle_summary(bundle: dict[str, Any]) -> None:

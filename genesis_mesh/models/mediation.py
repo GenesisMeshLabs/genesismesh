@@ -18,6 +18,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from .genesis import Signature
+from .invocation_token import InvocationToken
 
 
 class ExecutionMediationRequest(BaseModel):
@@ -27,7 +28,19 @@ class ExecutionMediationRequest(BaseModel):
     agent_sovereign_id: str
     requested_capability: str
     decision_id: str
-    token_id: str | None = Field(default=None)
+    token_id: str | None = Field(
+        default=None,
+        description="Redundant with invocation_token.token_id; kept for "
+                    "compatibility.  When both are present they must agree.",
+    )
+    invocation_token: InvocationToken | None = Field(
+        default=None,
+        description="The agent's signed InvocationToken, carried with the request "
+                    "(F-01 gap 4).  It names the bearer and the capabilities it "
+                    "grants, which is what lets the guard tell whose authority is "
+                    "being presented.  Covered by this request's signature, so it "
+                    "cannot be swapped in transit.",
+    )
     subprocess_command: list[str] = Field(
         ...,
         description="Command + args. No shell expansion occurs.",

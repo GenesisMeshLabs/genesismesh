@@ -194,6 +194,39 @@ class EnrollmentStoreMixin:
             (scope, nonce),
         ).fetchone()
         return row is not None
+    def revoke_operator_key(
+        self, key_id: str, reason: str, revoked_by: str, revoked_at: datetime
+    ) -> None:
+        """Switch an operator key off for the life of the deployment (F-21).
+
+        Idempotent and terminal: key_id is the primary key, so revoking twice is
+        a no-op and there is no un-revoke path. Restoring a key means editing
+        configuration and restarting, which is deliberate.
+        """
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO revoked_operator_keys"
+                "(key_id, revoked_at, reason, revoked_by) VALUES (?, ?, ?, ?)",
+                (key_id, revoked_at.isoformat(), reason, revoked_by),
+            )
+
+    def is_operator_key_revoked(self, key_id: str) -> bool:
+        """Return whether an operator key has been revoked at runtime."""
+        row = self.conn.execute(
+            "SELECT 1 FROM revoked_operator_keys WHERE key_id = ?",
+            (key_id,),
+        ).fetchone()
+        return row is not None
+
+    def list_revoked_operator_keys(self) -> list[str]:
+        """Return every revoked operator key id."""
+        return [
+            row["key_id"]
+            for row in self.conn.execute(
+                "SELECT key_id FROM revoked_operator_keys ORDER BY revoked_at"
+            )
+        ]
+
     def cleanup_expired_nonces(self, max_age_secs: int) -> None:
         """Delete nonce records older than the configured replay window."""
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_secs)

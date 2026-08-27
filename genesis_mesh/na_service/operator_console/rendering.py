@@ -75,6 +75,7 @@ def render_surface_table(surfaces: list[Surface]) -> str:
                 {f'<br><span class="muted">{escape(surface.query_hint)}</span>' if surface.query_hint else ''}
             </td>
             <td><span class="muted">{escape(surface.auth_hint)}</span></td>
+            <td><span class="muted">{escape(surface.rate_limit) if surface.rate_limit else '&mdash;'}</span></td>
         </tr>
         """
         for surface in surfaces
@@ -88,6 +89,7 @@ def render_surface_table(surfaces: list[Surface]) -> str:
                     <th>Surface</th>
                     <th>Purpose</th>
                     <th>Access</th>
+                    <th>Rate limit</th>
                 </tr>
             </thead>
             <tbody>{rows}</tbody>

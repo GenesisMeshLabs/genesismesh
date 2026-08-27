@@ -2,6 +2,7 @@
 
 Status: Draft
 Created: 2026-06-08
+Updated: 2026-08-18
 Authors: Genesis Mesh contributors
 Requires: RFC-001, RFC-002, RFC-004
 
@@ -85,16 +86,55 @@ The reference implementation builds the bundle in
 
 1. A reviewer **MUST** treat bundle contents as claims to be checked, not as
    trust. Signatures inside embedded objects (genesis, attestations, treaties,
-   feeds) are verified under their own RFCs.
+   feeds) are defined by their own RFCs — but **bundle validation does not check
+   any of them**, and nothing in the bundle tooling does. Verifying them is the
+   reviewer's responsibility, using key material obtained independently of the
+   bundle.
 2. Validation of a bundle proves only that the public material is internally
    consistent and well-formed at fetch time. It does **NOT** prove the subject
-   is honest, available, or worthy of recognition.
-3. `endpoint_checks` reflect liveness at assembly time and **MUST NOT** be
+   is honest, available, or worthy of recognition, and it does **NOT** prove the
+   bundle is authentic.
+3. **A bundle authored entirely by one party passes validation by
+   construction.** Every consistency check compares one part of the bundle
+   against another, so a party who wrote both sides satisfies all of them. An
+   empty error list means "well-formed and self-consistent", never "genuine".
+4. Before relying on any bundle content, a reviewer **MUST** verify the
+   subject's genesis against a root key obtained from somewhere other than the
+   bundle — a live query to the subject's own endpoint, or an out-of-band
+   channel.
+5. Bundle content **MUST NOT** be loaded into a trust store, a revocation state,
+   or a recognition policy. A bundle is an unverified hint used to decide
+   whether to begin a trust process, never an input to trust state itself.
+6. `endpoint_checks` reflect liveness at assembly time and **MUST NOT** be
    treated as a continuing guarantee.
-4. An importer **SHOULD** record an import receipt that links the bundle hash to
+7. An importer **SHOULD** record an import receipt that links the bundle hash to
    the subsequent trust decision so the decision is auditable.
 
 ## Security considerations
+
+### The bundle is self-attested
+
+A bundle carries no signature of its own, and its validation consults nothing
+outside itself. Every check compares one part of the bundle to another, so an
+attacker who authors the whole bundle passes all of them — they wrote both
+sides. A bundle therefore proves **nothing about who assembled it**.
+
+The practical consequences:
+
+- A bundle **MUST** be treated as an unverified hint that helps an operator
+  decide whether to *begin* a trust process, never as evidence within one.
+- Bundle content **MUST NOT** be imported into trust state. A malicious bundle
+  can otherwise inject forged recognition relationships, a treaty that does not
+  exist, or a revocation feed with inconvenient revocations quietly removed.
+- The key a treaty is issued against **MUST** come from a live query to the
+  subject's own endpoint or an out-of-band channel, not from the bundle. The
+  federation tooling already works this way.
+
+This weakness is **accepted, not fixed**: promoting the bundle to a signed
+protocol artifact is a federation-design change, tracked under Open questions
+below.
+
+### Redaction rules
 
 A trust bundle **MUST NOT** include any of the following (the redaction rules,
 mirrored from the proof-bundle schema):
@@ -130,6 +170,9 @@ convincing, the proof is not ready to share.*
 
 - Should the bundle carry a detached signature by the assembling operator to
   bind `created_at` and `source_endpoint`, or is the recorded bundle hash plus
-  import receipt sufficient?
+  import receipt sufficient? **This is the open fix for the self-attestation
+  weakness in Security considerations.** Until it is answered, a bundle proves
+  nothing about who assembled it, and the mitigation is procedural: treat the
+  bundle as an unverified hint and verify the subject's genesis independently.
 - Should bundles support incremental/delta refresh rather than full re-fetch for
   continuity checks (RFC-007)?

@@ -142,8 +142,37 @@ def test_get_agents_filters_by_capability(client, na_service):
     assert matching_kb["count"] == 1
     assert matching_kb["agents"][0]["node_public_key"] == keypair_b.public_key_b64
 
+    # F-04: the unfiltered form reports how many are registered but does not
+    # enumerate them — bulk discovery of the agent inventory is not public.
     all_agents = client.get("/agents").get_json()
     assert all_agents["count"] == 2
+    assert "agents" not in all_agents
+    assert all_agents["capability"] is None
+
+
+def test_unfiltered_agents_listing_does_not_enumerate_the_registry(client, na_service):
+    """F-04: GET /agents must not hand out descriptors without a capability filter."""
+    keypair = generate_keypair()
+    _enroll(client, keypair)
+    descriptor = _build_signed_descriptor(
+        keypair,
+        network_name=na_service.genesis_block.network_name,
+        capabilities=["kb:security"],
+    )
+    client.post("/agents", json=descriptor.model_dump(mode="json"))
+
+    resp = client.get("/agents")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert resp.get_json()["count"] == 1
+    assert keypair.public_key_b64 not in body
+    assert "kb:security" not in body
+
+    # ...but capability-filtered discovery, which peers depend on, still works.
+    filtered = client.get("/agents?capability=kb:security").get_json()
+    assert filtered["count"] == 1
+    assert filtered["agents"][0]["node_public_key"] == keypair.public_key_b64
 
 
 def test_revoke_evicts_agent_registration_for_capability_discovery(client, na_service):

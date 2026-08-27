@@ -12,6 +12,7 @@ from ...models import PolicyManifest
 from ..errors import (
     ApiError,
     BadRequestError,
+    ConflictError,
     InternalServerError,
     NotFoundError,
     RateLimitError,
@@ -109,7 +110,7 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -157,7 +158,7 @@ def create_admin_blueprint(service) -> Blueprint:
         """Activate a previously persisted policy version."""
         try:
             data = request_json_object()
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -184,7 +185,7 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -251,6 +252,80 @@ def create_admin_blueprint(service) -> Blueprint:
                 {
                     "crl_sequence": crl.sequence,
                     "revoked_count": len(crl.revoked_certificates),
+                }
+            )
+        except ApiError:
+            raise
+        except Exception as exc:
+            raise InternalServerError() from exc
+
+    @bp.route("/admin/operator-keys/<key_id>/revoke", methods=["POST"])
+    def revoke_operator_key(key_id: str):
+        """Switch an operator key off without restarting the service (F-21).
+
+        Revocation is terminal for the life of the deployment. Refuses to revoke
+        the last usable key: an incident-response tool must not be able to cause
+        the very outage it exists to avoid.
+        """
+        try:
+            data = request_json_object()
+            remote_addr = request.remote_addr or "unknown"
+            if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+                raise RateLimitError()
+
+            auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
+            if not auth_ok:
+                raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
+
+            if key_id not in service.operator_public_keys:
+                raise NotFoundError("Unknown operator key", code="unknown_operator_key")
+
+            revoked = set(service.db.list_revoked_operator_keys())
+            if key_id in revoked:
+                # Idempotent: already off, nothing to do and nothing to report.
+                return jsonify({"key_id": key_id, "revoked": True, "already_revoked": True})
+
+            remaining = [
+                k for k in service.operator_public_keys if k != key_id and k not in revoked
+            ]
+            if not remaining:
+                raise ConflictError(
+                    "Refusing to revoke the last usable operator key: the service "
+                    "would become unmanageable without a restart. Configure another "
+                    "operator key first.",
+                    code="last_active_operator_key",
+                )
+
+            reason = data.get("reason", "unspecified")
+            now = datetime.now(timezone.utc)
+            service.db.revoke_operator_key(
+                key_id=key_id,
+                reason=reason,
+                revoked_by=request.headers.get("X-Admin-Key-Id") or "unknown",
+                revoked_at=now,
+            )
+            service.db.add_audit_event(
+                "operator_key_revoked",
+                {
+                    "key_id": key_id,
+                    "reason": reason,
+                    "revoked_by": request.headers.get("X-Admin-Key-Id") or "unknown",
+                    "remote_addr": remote_addr,
+                },
+            )
+            logger.warning(
+                "Operator key %s revoked by %s (reason=%s)",
+                key_id,
+                request.headers.get("X-Admin-Key-Id"),
+                reason,
+            )
+            return jsonify(
+                {
+                    "key_id": key_id,
+                    "revoked": True,
+                    "revoked_at": now.isoformat(),
+                    "reason": reason,
+                    "remaining_active_keys": len(remaining),
                 }
             )
         except ApiError:

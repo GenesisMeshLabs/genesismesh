@@ -52,6 +52,9 @@ def na_service():
         na_private_key=signing_key,
         key_id="test-key",
         operator_public_keys={"operator-test": operator_keypair.public_key_b64},
+        # F-21: every operator key must declare a tier. Fixtures use
+        # privileged so existing tests keep the access they had.
+        operator_key_tiers={"operator-test": "privileged"},
     )
     setattr(service, "_test_operator_keypair", operator_keypair)
     return service

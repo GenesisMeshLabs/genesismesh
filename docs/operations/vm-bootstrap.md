@@ -35,6 +35,7 @@ sudo GENESIS_ROLE=na \
   GENESIS_DOMAIN=nb.genesismesh.connectorzzz.com \
   LETSENCRYPT_EMAIL=ops@example.com \
   OPERATOR_PUBLIC_KEYS_JSON='{"operator-local":"<BASE64_OPERATOR_PUBLIC_KEY>"}' \
+  OPERATOR_KEY_TIERS_JSON='{"operator-local":"privileged"}' \
   bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
 ```
 
@@ -160,6 +161,7 @@ sudo chown azureuser:azureuser /etc/genesis-mesh/keys/na.key /var/lib/genesis-me
 sudo mkdir -p /etc/genesis-mesh
 sudo tee /etc/genesis-mesh/operator-keys.env > /dev/null <<'EOF'
 OPERATOR_PUBLIC_KEYS_JSON={"operator-local":"<BASE64_OPERATOR_PUBLIC_KEY>"}
+OPERATOR_KEY_TIERS_JSON={"operator-local":"privileged"}
 EOF
 sudo chmod 0640 /etc/genesis-mesh/operator-keys.env
 ```

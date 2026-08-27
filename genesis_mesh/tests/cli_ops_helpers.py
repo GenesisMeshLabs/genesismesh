@@ -31,6 +31,8 @@ def _running_na_from_config(config_path: Path, db_path: Path):
         operator_public_keys=load_operator_public_keys(
             [f"{config['operator']['key_id']}={config['paths']['operator_public_key']}"]
         ),
+        # F-21: the single local operator is privileged.
+        operator_key_tiers={config['operator']['key_id']: "privileged"},
     )
     server = make_server("127.0.0.1", 0, app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

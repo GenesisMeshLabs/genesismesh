@@ -197,12 +197,35 @@ class TestEvaluateTrustDecision:
                                     requested_roles=["role:service:maintainer"])
         assert d.verdict == "allow"
 
-    def test_allow_when_scope_is_open(self):
-        """Empty allowed_roles means any role is permitted."""
+    def test_block_when_scope_is_empty(self):
+        """F-10: empty allowed_roles grants NO role, it is not a wildcard.
+
+        This test previously asserted the opposite (``test_allow_when_scope_is_open``)
+        and encoded the vulnerability: a treaty issued without explicit roles
+        admitted every role.
+        """
         g = _scoped_graph([])
         d = evaluate_trust_decision(g, "sovereign-a", "sovereign-b",
                                     requested_roles=["role:anything"])
+        assert d.verdict == "block"
+        assert any(s.code == "scope_not_in_treaty" for s in d.signals)
+
+    def test_empty_scope_blocks_every_requested_role(self):
+        """F-10: a blank hop blocks all requested roles, not just unknown ones."""
+        g = _scoped_graph([])
+        d = evaluate_trust_decision(g, "sovereign-a", "sovereign-b",
+                                    requested_roles=["role:service:maintainer", "role:client"])
+        assert d.verdict == "block"
+        blocking = [s for s in d.signals if s.code == "scope_not_in_treaty"]
+        assert blocking
+        assert "role:service:maintainer" in blocking[0].detail
+        assert "role:client" in blocking[0].detail
+
+    def test_empty_scope_does_not_affect_path_only_queries(self):
+        """A query with no requested roles asks 'is there a path?', not 'may they act as X'."""
+        d = evaluate_trust_decision(_scoped_graph([]), "sovereign-a", "sovereign-b")
         assert d.verdict == "allow"
+        assert not any(s.code == "scope_not_in_treaty" for s in d.signals)
 
     def test_block_beats_warn(self):
         """Scope block on an expiring treaty: block wins."""

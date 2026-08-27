@@ -117,6 +117,9 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
         key_id=key_id,
         db_path=database_path,
         operator_public_keys=load_operator_public_keys([f"{operator_key_id}={operator_public_key_path}"]),
+        # F-21: a locally started NA has one operator; give it the privileged
+        # tier so this path retains the access it had before tiering.
+        operator_key_tiers={operator_key_id: "privileged"},
     )
     logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
     logger.warning(
@@ -214,6 +217,43 @@ def admin_revoke(
         "POST",
         f"{endpoint}/admin/revoke",
         label="certificate revocation",
+        json=body,
+        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
+    )
+    click.echo(json.dumps(payload, indent=2))
+
+
+@admin.command("revoke-operator-key")
+@click.argument("target_key_id")
+@click.option("--config", "config_path", default=None, help="Config path.")
+@click.option("--na", "na_endpoint", default=None, help="Network Authority URL.")
+@click.option("--operator-key", default=None, help="Operator private key.")
+@click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
+@click.option("--reason", default="unspecified", help="Revocation reason.")
+def admin_revoke_operator_key(
+    config_path: str | None,
+    na_endpoint: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+    target_key_id: str,
+    reason: str,
+) -> None:
+    """Switch an operator key off immediately, without restarting the service.
+
+    Terminal: a revoked key stays revoked for the life of the deployment.
+    Refuses to revoke the last usable operator key.
+    """
+    config = _load_cli_config(config_path, required=operator_key is None)
+    endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
+    if not endpoint_value:
+        raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
+    endpoint = endpoint_value.rstrip("/")
+    body = {"reason": reason}
+    payload = _request_json(
+        requests.Session(),
+        "POST",
+        f"{endpoint}/admin/operator-keys/{target_key_id}/revoke",
+        label="operator key revocation",
         json=body,
         headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
     )

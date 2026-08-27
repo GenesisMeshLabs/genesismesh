@@ -36,6 +36,26 @@ sequenceDiagram
 - `federation bootstrap --issuer-bundle` uses the bundle to seed review while
   still requiring explicit operator signing for real trust.
 
+## What This Does Not Prove
+
+A trust bundle is **unverified review material**. Validation checks that the
+bundle is well-formed and internally consistent; it verifies no signatures and
+consults nothing outside the bundle, so a bundle authored end-to-end by one
+party passes every check by construction.
+
+- `validation: ok` means "well-formed and self-consistent", **not** "genuine".
+- The bundle proves nothing about who assembled it.
+- Never load bundle content — keys, recognition policy, treaties, or the
+  revocation feed — into trust state. A malicious bundle could otherwise inject
+  forged recognition relationships or a revocation feed with revocations
+  removed.
+- Verify the subject's genesis against a root key obtained independently of the
+  bundle. The `--na` live comparison in `validate` is the easiest way, and
+  federation bootstrap already takes the partner's key from a live query to
+  their own endpoint rather than from the bundle.
+
+See [RFC-003](../rfcs/rfc-003-trust-bundles.md) for the normative rules.
+
 ## Live Recording
 
 ```{image} assets/images/genesis-mesh-operator-onboarding-exchange.gif

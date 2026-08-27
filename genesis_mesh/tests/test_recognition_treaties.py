@@ -167,6 +167,45 @@ def test_attestation_role_outside_treaty_scope_is_rejected():
     assert result.reason == "attestation_role_not_allowed"
 
 
+def test_treaty_with_empty_scope_grants_no_roles():
+    """F-10: a treaty issued without explicit roles grants nothing, not everything.
+
+    Exercised end-to-end through verify_attestation_with_treaty so this proves the
+    real treaty path is fixed, not just the model method. Note the scope is set
+    after construction: the _treaty helper's ``roles or [...]`` default would
+    otherwise substitute a populated scope for an empty one.
+    """
+    treaty_issuer_key = generate_keypair()
+    subject_key = generate_keypair()
+    treaty = _treaty(subject_public_key=subject_key.public_key_b64)
+    treaty = treaty.model_copy(update={"scope": RecognitionTreatyScope(allowed_roles=[])})
+    treaty.signatures.clear()
+    treaty.signatures.append(sign_model(treaty, treaty_issuer_key.private_key, "a"))
+
+    # The very role the populated treaty would have granted.
+    attestation = _attestation(roles=["role:service:maintainer"])
+    attestation.signatures.append(sign_model(attestation, subject_key.private_key, "b"))
+
+    result = verify_attestation_with_treaty(
+        attestation,
+        treaty,
+        [treaty_issuer_key.public_key_b64],
+    )
+
+    assert result.accepted is False
+    assert result.reason == "attestation_role_not_allowed"
+
+
+def test_treaty_scope_allows_roles_is_not_a_wildcard_when_empty():
+    """F-10: the published RecognitionTreatyScope contract also fails closed."""
+    assert RecognitionTreatyScope(allowed_roles=[]).allows_roles(["role:admin"]) is False
+    assert RecognitionTreatyScope(allowed_roles=[]).allows_roles([]) is False
+    # Negative control: a populated scope is unchanged.
+    populated = RecognitionTreatyScope(allowed_roles=["role:client"])
+    assert populated.allows_roles(["role:client"]) is True
+    assert populated.allows_roles(["role:admin"]) is False
+
+
 def test_revoked_treaty_blocks_attestation_verification():
     """Local treaty revocation prevents treaty-backed attestation acceptance."""
     treaty_issuer_key = generate_keypair()

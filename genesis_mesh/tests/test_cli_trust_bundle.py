@@ -246,3 +246,95 @@ def test_federation_bootstrap_accepts_issuer_bundle(tmp_path):
             assert evidence["issuer"]["sovereign_id"] == "USG-B"
             assert evidence["issuer_bundle"]["bundle_version"] == "v1"
             assert evidence["issuer_bundle"]["validation"]["errors"] == []
+
+
+# ---------------------------------------------------------------------------
+# F-18 regression — a trust bundle is unverified review material.
+#
+# Note these assert on DISCLOSURE, not on blocking. Per the recorded product
+# decision the bundle stays unsigned and an attacker-authored bundle still
+# passes; what must not happen is that it passes in silence.
+# ---------------------------------------------------------------------------
+
+
+def _attacker_bundle(sovereign_id: str = "evil-corp") -> dict:
+    """A self-consistent bundle written entirely by one party, genesis unsigned."""
+    return {
+        "bundle_type": "genesis-mesh.trust-bundle",
+        "bundle_version": "v1",
+        "created_at": "2026-08-18T00:00:00+00:00",
+        "source_endpoint": "https://evil.example.org",
+        "sovereign_id": sovereign_id,
+        "network_version": "v1",
+        "sovereign_metadata": {
+            "sovereign_id": sovereign_id,
+            "network_version": "v1",
+            "root_public_key": "QUFBQQ==",
+            "network_authority": {"public_key": "QUFBQQ=="},
+        },
+        "genesis": {
+            "network_name": sovereign_id,
+            "network_version": "v1",
+            "root_public_key": "QUFBQQ==",
+            "network_authority": {"public_key": "QUFBQQ=="},
+            "signatures": [],
+        },
+        "recognition_policy": {"status": "skipped"},
+        "revocation_feed": {"status": "skipped"},
+        "connectome": {},
+        "endpoint_checks": {},
+    }
+
+
+def test_unsigned_genesis_is_reported_not_silent(tmp_path):
+    """F-18: the Phase-1 artifact passed with errors=[] AND warnings=[]."""
+    from genesis_mesh.workflows.trust_bundle import validate_trust_bundle
+
+    report = validate_trust_bundle(_attacker_bundle())
+
+    # Still accepted — the bundle format stays unsigned by decision.
+    assert report["errors"] == []
+    # But no longer silent about what was not checked.
+    assert any("no signatures" in w for w in report["warnings"]), report["warnings"]
+
+
+def test_validate_prints_the_unverified_caveat(tmp_path):
+    """The caveat reaches the operator, not just the RFC."""
+    bundle_path = tmp_path / "attacker-bundle.json"
+    bundle_path.write_text(json.dumps(_attacker_bundle()), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli, ["trust-bundle", "validate", "--bundle", str(bundle_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "UNVERIFIED" in result.output
+    assert "one party passes validation by construction" in result.output
+    assert "Do not load bundle content into a trust store" in result.output
+
+
+def test_import_prints_the_unverified_caveat(tmp_path):
+    """The same caveat appears on the import path."""
+    bundle_path = tmp_path / "attacker-bundle.json"
+    bundle_path.write_text(json.dumps(_attacker_bundle()), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli, ["trust-bundle", "import", "--bundle", str(bundle_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Trust bundle imported for review" in result.output
+    assert "UNVERIFIED" in result.output
+
+
+def test_signed_genesis_bundle_still_reports_validation_ok(tmp_path):
+    """Negative control: the warning is a real signal, not noise on every bundle."""
+    from genesis_mesh.workflows.trust_bundle import validate_trust_bundle
+
+    bundle = _attacker_bundle()
+    bundle["genesis"]["signatures"] = [{"key_id": "root", "sig": "QUFBQQ=="}]
+
+    report = validate_trust_bundle(bundle)
+
+    assert report["errors"] == []
+    assert report["warnings"] == []

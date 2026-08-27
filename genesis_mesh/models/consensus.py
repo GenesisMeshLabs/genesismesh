@@ -99,12 +99,28 @@ class ConsensusProof(BaseModel):
         return hashlib.sha256(self.to_canonical_json().encode()).hexdigest()
 
     def approvals(self) -> list[ValidatorVote]:
-        """Votes that are True (approve) from named validators."""
+        """Votes that are True (approve) from named validators.
+
+        NOT a security check.  This model holds no keys, so it cannot tell a
+        signed vote from an unsigned one, and it may return several votes from
+        the same validator.  ``verify_consensus_proof`` is the authority on
+        whether a proof is trustworthy.
+        """
         return [v for v in self.votes
                 if v.vote and v.validator_sovereign_id in self.validator_sovereign_ids]
 
+    def approving_validators(self) -> set[str]:
+        """Distinct named validators that approved.
+
+        K-of-N means K *different* validators.  Each ValidatorVote carries a
+        fresh vote_id, so one validator can produce any number of individually
+        well-formed approve votes; counting votes rather than validators would
+        let a single key satisfy the whole threshold.
+        """
+        return {v.validator_sovereign_id for v in self.approvals()}
+
     def threshold_met(self) -> bool:
-        return len(self.approvals()) >= self.required_threshold
+        return len(self.approving_validators()) >= self.required_threshold
 
 
 class EphemeralExecutionIdentity(BaseModel):

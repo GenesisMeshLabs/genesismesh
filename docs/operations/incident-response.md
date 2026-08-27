@@ -8,11 +8,34 @@ what changed.
 
 Use this when an operator signing key may have been exposed.
 
-1. Remove the compromised key from `OPERATOR_PUBLIC_KEYS_JSON` or the operator
-   key environment file.
-2. Restart the Network Authority.
-3. Confirm old-key admin requests fail.
-4. Rotate to a new operator key and record the new key ID.
+1. **Revoke the key on the running service — no restart required:**
+
+   ```bash
+   genesis-mesh admin revoke-operator-key <compromised-key-id> \
+     --na https://na.example.org \
+     --operator-key keys/other-operator.key \
+     --operator-key-id <another-privileged-key-id> \
+     --reason key_compromise
+   ```
+
+   The key stops authenticating on the very next request. Rejection happens
+   before its signature is checked and before its nonce is consumed, so it
+   cannot act at all — including revoking other operators.
+
+   This requires a **privileged**-tier key, and the service refuses to revoke
+   the last usable operator key (`409 last_active_operator_key`). Configure a
+   second operator key *before* an incident so this path is available.
+
+2. Confirm old-key admin requests now fail with `401 Unknown admin key`. The
+   audit log records the true reason (`admin_auth_failed` with
+   `reason: revoked_key`) plus an `operator_key_revoked` event naming who
+   performed the revocation.
+3. Rotate to a new operator key and record the new key ID. Adding a key still
+   requires updating `OPERATOR_PUBLIC_KEYS_JSON` (and `OPERATOR_KEY_TIERS_JSON`)
+   and restarting — only *removal* is live.
+4. Revocation is **terminal**: a revoked key ID cannot be restored on the
+   running service. Bringing it back means editing configuration and
+   restarting, deliberately.
 5. Export audit events around the compromise window:
 
    ```bash

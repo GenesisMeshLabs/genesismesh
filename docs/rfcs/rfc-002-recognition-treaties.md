@@ -2,8 +2,17 @@
 
 Status: Draft
 Created: 2026-06-08
+Updated: 2026-08-18
 Authors: Genesis Mesh contributors
 Requires: RFC-001
+
+> **Normative change, 2026-08-18 (security remediation F-10).** An empty
+> `scope.allowed_roles` previously meant *"any role"*. It now grants **no**
+> roles. This reverses the meaning of a blank scope: a treaty issued without
+> explicit roles used to be the broadest possible grant and is now the narrowest.
+> Implementations written against the earlier text **MUST** be updated; treaties
+> already issued with a blank scope now grant nothing and need to be reissued
+> with explicit roles.
 
 ## Abstract
 
@@ -55,7 +64,9 @@ withdrawn.
 7. An accepting implementation **MUST** be able to evaluate a treaty against an
    expected issuer and an expected subject and reject mismatches.
 8. Treaty scope **MUST** be honored: an attestation carrying a role outside
-   `scope.allowed_roles` (when that list is non-empty) **MUST** be rejected.
+   `scope.allowed_roles` **MUST** be rejected. An empty `scope.allowed_roles`
+   grants no roles, so an attestation verified under an empty scope **MUST** be
+   rejected. An empty list **MUST NOT** be interpreted as a wildcard.
 9. Every accept-or-reject decision **MUST** produce a stable machine-readable
    reason code (see Verification rules) that does not leak attestation payload
    contents.
@@ -87,8 +98,9 @@ The reference implementation defines `RecognitionTreaty` and
 ```
 
 `status` is one of `active`, `suspended`, or `revoked`. An empty
-`scope.allowed_roles` means "any role"; an empty list is therefore broader than
-a populated one.
+`scope.allowed_roles` grants **no** roles; an empty list is therefore the
+narrowest possible scope, not the broadest. A treaty is only useful once its
+scope names at least one role.
 
 ## Verification rules
 
@@ -118,9 +130,11 @@ decision reports `treaty_<reason>` when the treaty fails and
 - The issuer's keys, not the subject's, decide whether a treaty is authentic.
   An accepting implementation **MUST** verify treaty signatures against issuer
   public keys it already trusts via RFC-001.
-- Treaty scope is a containment boundary. Granting an empty `allowed_roles`
-  accepts any role from the subject and **SHOULD** be a deliberate operator
-  decision.
+- Treaty scope is a containment boundary, and it fails closed. An empty
+  `allowed_roles` grants nothing: every role from the subject is rejected. Scope
+  is therefore safe to omit — omission narrows trust rather than widening it, so
+  a treaty issued by an integration that forgot to set roles grants no authority
+  instead of granting all of it.
 - Reason codes are intentionally coarse so that rejection does not reveal
   whether a specific attestation exists or what it claims.
 - Suspension (`status: suspended`) is reversible; revocation is terminal for the

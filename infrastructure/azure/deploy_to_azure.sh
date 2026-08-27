@@ -24,6 +24,9 @@ NA_PRIVATE_KEY_FILE="${NA_PRIVATE_KEY_FILE:-keys/na.key}"
 DB_PATH="${DB_PATH:-genesis_mesh_na.db}"
 PORT="${PORT:-8443}"
 OPERATOR_PUBLIC_KEYS_JSON="${OPERATOR_PUBLIC_KEYS_JSON:-{}}"
+# F-21: each operator key needs a tier (standard|privileged); the NA refuses
+# to start if a configured key has none.
+OPERATOR_KEY_TIERS_JSON="${OPERATOR_KEY_TIERS_JSON:-{}}"
 
 echo "=== Starting Deployment for $APP_NAME ==="
 echo "Location: $LOCATION"
@@ -63,7 +66,7 @@ az containerapp create \
   --image "$ACR_NAME.azurecr.io/${APP_NAME}:${IMAGE_TAG}" \
   --target-port "$PORT" \
   --ingress external \
-  --env-vars SERVICE_ROLE=na GENESIS_FILE="$GENESIS_FILE" NA_PRIVATE_KEY_FILE="$NA_PRIVATE_KEY_FILE" DB_PATH="$DB_PATH" PORT="$PORT" OPERATOR_PUBLIC_KEYS_JSON="$OPERATOR_PUBLIC_KEYS_JSON" \
+  --env-vars SERVICE_ROLE=na GENESIS_FILE="$GENESIS_FILE" NA_PRIVATE_KEY_FILE="$NA_PRIVATE_KEY_FILE" DB_PATH="$DB_PATH" PORT="$PORT" OPERATOR_PUBLIC_KEYS_JSON="$OPERATOR_PUBLIC_KEYS_JSON" OPERATOR_KEY_TIERS_JSON="$OPERATOR_KEY_TIERS_JSON" \
   --registry-server "$ACR_NAME.azurecr.io" \
   --min-replicas 1 \
   --max-replicas 1

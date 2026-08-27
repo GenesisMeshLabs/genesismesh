@@ -408,24 +408,30 @@ class TestVerifyConsensusProofCascade:
         jp, _ = _make_justification_proof()
         v1_sk, v2_sk = _sk(), _sk()
         asm_sk = _sk()
-        # Create votes without context_digest (pre-v0.38 style)
-        v1 = ValidatorVote(
-            proof_id=jp.proof_id, decision_id=jp.decision_id,
-            validator_sovereign_id=_V1, vote=True,
-            voted_at=_NOW, context_digest=None,
-        )
-        v2 = ValidatorVote(
-            proof_id=jp.proof_id, decision_id=jp.decision_id,
-            validator_sovereign_id=_V2, vote=True,
-            voted_at=_NOW, context_digest=None,
-        )
+        # Signed votes with NO context_digest (pre-v0.38 style). Built directly
+        # rather than via cast_validator_vote, which auto-generates a digest when
+        # one is not supplied. They must be signed: F-06 makes an unsigned vote
+        # unusable, which would otherwise mask the missing_context_digest case.
+        from genesis_mesh.crypto import sign_model
+
+        def _predigest_vote(validator_id: str, sk: nacl.signing.SigningKey) -> ValidatorVote:
+            v = ValidatorVote(
+                proof_id=jp.proof_id, decision_id=jp.decision_id,
+                validator_sovereign_id=validator_id, vote=True,
+                voted_at=_NOW, context_digest=None,
+            )
+            return v.model_copy(update={"signature": sign_model(v, sk, validator_id)})
+
+        v1 = _predigest_vote(_V1, v1_sk)
+        v2 = _predigest_vote(_V2, v2_sk)
+        assert v1.context_digest is None and v1.signature is not None
         # Assemble with cascade disabled so we can get a proof
         cp = assemble_consensus_proof(
             jp, [v1, v2], 2, [_V1, _V2], asm_sk,
             issued_by=_ASSEMBLER, cascade_threshold=0.0, now=_NOW,
         )
         result = verify_consensus_proof(
-            cp, {}, [_pub_b64(asm_sk)],
+            cp, {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk)}, [_pub_b64(asm_sk)],
             cascade_threshold=0.4, at_time=_NOW,
         )
         assert not result.valid
@@ -469,7 +475,7 @@ class TestVerifyConsensusProofCascade:
             issued_by=_ASSEMBLER, cascade_threshold=0.0, now=_NOW,
         )
         result = verify_consensus_proof(
-            cp, {}, [_pub_b64(asm_sk)],
+            cp, {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk)}, [_pub_b64(asm_sk)],
             cascade_threshold=0.0, at_time=_NOW,
         )
         assert result.valid

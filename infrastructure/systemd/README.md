@@ -9,7 +9,7 @@ network names reflect the reference deployment on Azure.
 | File | Purpose |
 |---|---|
 | `genesis-mesh-na.service` | Network Authority — Gunicorn behind Nginx, restart on crash |
-| `genesis-mesh-na.override.conf` | Drop-in that mounts `OPERATOR_PUBLIC_KEYS_JSON` from `/etc/genesis-mesh/operator-keys.env` |
+| `genesis-mesh-na.override.conf` | Drop-in that mounts `OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON` from `/etc/genesis-mesh/operator-keys.env` |
 | `genesis-mesh-node.service` | Router node B — peer WebSocket on port 7443 |
 | `genesis-mesh-node-d.service` | Router node D (backup) — peer WebSocket on port 7444 |
 

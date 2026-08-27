@@ -112,7 +112,7 @@ class RecognizedIssuer(BaseModel):
     )
     allowed_roles: list[str] = Field(
         default_factory=list,
-        description="Allowed roles from this issuer; empty means any role",
+        description="Allowed roles from this issuer; empty grants no roles",
     )
     accepted_statuses: list[AttestationStatus] = Field(
         default_factory=_default_accepted_statuses,
@@ -120,8 +120,16 @@ class RecognizedIssuer(BaseModel):
     )
 
     def allows_roles(self, roles: list[str]) -> bool:
-        """Return whether all roles are allowed by this issuer policy."""
-        return not self.allowed_roles or all(role in self.allowed_roles for role in roles)
+        """Return whether all roles are allowed by this issuer policy.
+
+        An empty ``allowed_roles`` grants nothing and admits nothing — it is not
+        a wildcard. The empty case is tested explicitly because ``all()`` over an
+        empty ``roles`` list is vacuously true, which would otherwise let a
+        role-less attestation pass a policy that grants no roles at all.
+        """
+        if not self.allowed_roles:
+            return False
+        return all(role in self.allowed_roles for role in roles)
 
 
 class RecognitionPolicy(BaseModel):
@@ -150,7 +158,7 @@ class RecognitionTreatyScope(BaseModel):
 
     allowed_roles: list[str] = Field(
         default_factory=list,
-        description="Allowed roles from the subject sovereign; empty means any role",
+        description="Allowed roles from the subject sovereign; empty grants no roles",
     )
     accepted_statuses: list[AttestationStatus] = Field(
         default_factory=_default_accepted_statuses,
@@ -162,8 +170,15 @@ class RecognitionTreatyScope(BaseModel):
     )
 
     def allows_roles(self, roles: list[str]) -> bool:
-        """Return whether all attestation roles are allowed by this treaty."""
-        return not self.allowed_roles or all(role in self.allowed_roles for role in roles)
+        """Return whether all attestation roles are allowed by this treaty.
+
+        An empty ``allowed_roles`` grants nothing and admits nothing — a treaty
+        issued without explicit roles is a treaty that permits no role, not one
+        that permits every role.
+        """
+        if not self.allowed_roles:
+            return False
+        return all(role in self.allowed_roles for role in roles)
 
 
 class RecognitionTreaty(BaseModel):

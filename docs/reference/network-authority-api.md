@@ -28,6 +28,44 @@ flowchart TB
     sovereign --> connectome
 ```
 
+## The public read surface
+
+This is the authoritative classification of what this service answers to an
+unauthenticated caller. The same classification is generated into the live
+`/api-reference` page and `/swagger.json` from
+`genesis_mesh/na_service/operator_console/surfaces.py`, so it cannot drift from
+what the service actually exposes.
+
+| Class | Meaning |
+|---|---|
+| **Public** | Answers any caller. Discloses no membership inventory. |
+| **Internal** | Not gated in code; must be restricted by deployment (management interface or firewall). |
+| **Operator** | Requires operator signature headers. |
+| **Node** | Requires node proof-of-possession. |
+
+| Surface | Class | Rate limit | Notes |
+|---|---|---|---|
+| `GET /healthz`, `/readyz`, `/health` | Public | — | Liveness and readiness only. |
+| `GET /metrics` | **Internal** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. |
+| `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. |
+| `GET /agents?capability=` | Public | — | Peer discovery protocol. Returns matching descriptors. |
+| `GET /agents` (unfiltered) | Public (count) | — | Does not enumerate the registry. |
+| `GET /genesis`, `/policy`, `/crl`, `/sovereign.json` | Public | — | Signed trust material, public by design. |
+| `POST /*/verify` (nine endpoints) | Public | **60/min per IP** | Stateless signature checking. Public by protocol design; see below. |
+| `POST /join`, `/heartbeat`, `/renew`, `/agents` | Node | varies | Node-signed. |
+| `POST /admin/*` | Operator | 30/min per IP | Operator-signed. |
+
+### Why the verification endpoints are public
+
+The nine `*/verify` endpoints — `/consensus/verify`, `/agreements/verify`,
+`/disclosure/verify`, `/trust-evidence/verify`, `/boundary/verify`,
+`/data-usage/verify`, `/attestations/verify`, `/recognition-treaties/verify` and
+`/attestations/verify-with-treaty` — let any party check a signature on material
+they already hold. That is deliberately open: verification is a protocol
+service, it is stateless, and it discloses no inventory. Because they are open,
+each is rate limited to **60 requests per minute per source address** so they
+cannot be used as a free oracle or a traffic amplifier.
+
 ## Error Responses
 
 All JSON API failures use one shared envelope. Routes raise typed business
@@ -94,15 +132,36 @@ Readiness probe. Verifies database connectivity and migration state.
 
 ### `GET /nodes`
 
-Returns recently active, non-revoked nodes from persisted certificate state.
-Rows are considered active when their latest join or heartbeat timestamp is
-within the Network Authority active-node window.
+Returns the number of recently active, non-revoked nodes. Rows are considered
+active when their latest join or heartbeat timestamp is within the Network
+Authority active-node window.
+
+```json
+{ "count": 2 }
+```
+
+The per-node roster — public keys, roles, heartbeat status, **the address each
+node connected from**, and certificate expiry — is **operator-authenticated**.
+Send the standard admin headers (`X-Admin-Key-Id`, `X-Admin-Timestamp`,
+`X-Admin-Nonce`, `X-Admin-Signature`, signed over an empty body) to receive it:
+
+```json
+{ "count": 2, "nodes": { "<cert_id>": { "node_public_key": "...", "roles": ["role:anchor"], "remote_addr": "..." } } }
+```
+
+Presenting admin headers that do not verify returns `401`; it does not fall back
+to the public response.
 
 ### `GET /metrics`
 
 Returns Prometheus text metrics for Network Authority operations. The endpoint
 includes counters and gauges for issued certificates, recently active nodes,
 revoked certificates, active CRL sequence, and persisted policy versions.
+
+**Classification: internal.** These are aggregate counters with no per-node
+detail, and Prometheus cannot perform this service's signed-envelope
+authentication, so the endpoint is not gated in code. Bind it to the management
+interface or firewall it; do not expose it to untrusted networks.
 
 ## Public Network Data
 
@@ -236,6 +295,70 @@ Revokes a certificate and publishes a new CRL.
 Allowed reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
 
+## Operator tiers
+
+Every configured operator key declares a tier. **The Network Authority refuses to
+start if any key has no tier** — there is deliberately no default, because
+defaulting to privileged would leave every key all-powerful and defaulting to
+standard would silently strip revocation from the keys an operator reaches for
+during an incident.
+
+| Tier | May do |
+|---|---|
+| `standard` | Day-to-day work: invitations, reads, and routine operations. |
+| `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
+
+Privileged satisfies a standard requirement; the reverse is not true.
+
+**Privileged routes** — `POST /admin/revoke`,
+`POST /admin/operator-keys/{key_id}/revoke`, `POST /admin/policy`,
+`POST /admin/policy/rollback`, `POST /admin/attestations`,
+`POST /admin/attestations/{id}/revoke`, `POST /admin/recognition-treaties`,
+`POST /admin/recognition-treaties/{id}/revoke`,
+`POST /admin/recognition-policy`,
+`POST /admin/sovereign-revocation-feeds/import`.
+
+Every other admin route requires `standard`.
+
+A key that authenticates but lacks the tier receives **`403
+insufficient_operator_tier`** — deliberately distinct from the `401` an unknown
+or revoked key receives, so that "who are you?" and "you may not do that" stay
+separable in an incident log. Denials are audited as `admin_authz_denied` with
+the holder and required tiers.
+
+Configure tiers with `--operator-key-tier key-id=standard|privileged` or the
+`OPERATOR_KEY_TIERS_JSON` environment variable, alongside the existing key
+configuration.
+
+### `POST /admin/operator-keys/{key_id}/revoke`
+
+Switches an **operator** key off at runtime. The key stops authenticating on the
+next request; no restart and no configuration edit is required.
+
+```json
+{ "reason": "key_compromise" }
+```
+
+The check runs before signature verification and before the nonce is consumed,
+so a revoked key cannot perform any admin action — including revoking other
+operators.
+
+**Terminal.** There is no un-revoke endpoint; a revoked `key_id` stays revoked
+for the life of the deployment. Restoring one means editing configuration and
+restarting, deliberately.
+
+| Response | Meaning |
+|---|---|
+| `200` | Revoked. `already_revoked: true` when it was already off (idempotent). |
+| `404 unknown_operator_key` | No such key in the configured operator key map. |
+| `409 last_active_operator_key` | Refused: revoking would leave zero usable operator keys and make the service unmanageable without a restart. Configure another operator key first. |
+
+A caller presenting a revoked key receives `401` with `Unknown admin key` —
+identical to an unrecognised key, so a stolen key reveals nothing about whether
+its compromise was detected. The audit log records the true reason
+(`admin_auth_failed` with `reason: revoked_key`) plus an `operator_key_revoked`
+event naming who performed it.
+
 ### `POST /admin/policy`
 
 Publishes and activates a signed policy version.
@@ -307,12 +430,25 @@ Success response:
 
 ### `GET /agents`
 
-Returns all live agent registrations. Supports an optional `capability` query
-parameter for filtering. Expired entries are evicted before the query runs.
+Capability discovery. Expired entries are evicted before the query runs.
+
+Pass `capability` to receive the matching descriptors. This is the peer
+discovery operation and is public by design — a peer already knows the one
+capability it is looking for.
 
 ```
 GET /agents?capability=llm:chat
 ```
+
+**Without a `capability` filter the endpoint returns a count only** and does not
+enumerate the registry:
+
+```json
+{ "count": 12, "capability": null }
+```
+
+Listing every registered agent and its capabilities would hand any caller a map
+of what the network can do and which key provides it.
 
 Response:
 

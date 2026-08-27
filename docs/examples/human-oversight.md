@@ -114,8 +114,29 @@ genesis-mesh trust oversight approve \
     --output commitment.json
 ```
 
-Produces a `DualSignedCommitment` with both the agent signature (from the request)
-and the human custodian's countersignature. `is_fully_signed()` is `True`.
+Produces a `DualSignedCommitment` carrying a verifiable signature from each
+party, and `is_fully_signed()` is `True`.
+
+The two parties sign different bytes, which is what makes the commitment
+**self-verifiable** — it can be checked on its own, without also shipping the
+original request:
+
+- the **human** signs the commitment's canonical form, which includes
+  `request_digest` (a SHA-256 fingerprint of the agent-signed request), so the
+  approval is bound to one specific request;
+- the **agent** signs a `CommitmentCore` — `request_id`, `acting_sovereign_id`,
+  `proposed_action` and `request_digest` — produced at request time. Every one of
+  those fields is carried on the commitment, so a verifier rebuilds the core from
+  the commitment and checks the agent's signature against it.
+
+`proposed_action` is inside the signed core deliberately, not merely covered by
+the fingerprint: otherwise a genuine agent signature could be transplanted onto a
+commitment naming a different action.
+
+```{note}
+Commitments issued before this format carry no `request_digest` and no longer
+verify — they fail with `legacy_unverifiable_format` and must be reissued.
+```
 
 ### Alternatively — Human rejects
 

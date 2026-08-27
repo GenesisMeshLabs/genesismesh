@@ -114,7 +114,10 @@ def consensus_assemble(
 
     Path(output_path).write_text(cp.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] ConsensusProof {cp.consensus_id} written to {output_path}")
-    click.echo(f"     Approvals : {len(cp.approvals())}/{threshold} (threshold met)")
+    click.echo(
+        f"     Approvals : {len(cp.approving_validators())}/{threshold} "
+        f"distinct validators (threshold met)"
+    )
     click.echo(f"     Expires   : {cp.expires_at.isoformat()}")
 
 
@@ -160,7 +163,10 @@ def consensus_verify(
         click.echo(f"{status} {result.reason}")
         if result.valid:
             click.echo(f"     Consensus : {cp.consensus_id}")
-            click.echo(f"     Approvals : {len(cp.approvals())}/{cp.required_threshold}")
+            click.echo(
+                f"     Approvals : {len(cp.approving_validators())}/{cp.required_threshold} "
+                f"distinct validators"
+            )
 
     if not result.valid:
         sys.exit(1)

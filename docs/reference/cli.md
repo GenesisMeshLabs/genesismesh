@@ -124,6 +124,40 @@ genesis-mesh admin revoke <cert-id> --reason key_compromise
 Useful reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
 
+### `genesis-mesh admin revoke-operator-key`
+
+Switches an **operator** key off immediately, without restarting the Network
+Authority. Use this when an operator key is lost or stolen.
+
+```bash
+genesis-mesh admin revoke-operator-key operator-alice --reason key_compromise
+```
+
+This is a **privileged-tier** operation: a standard operator key receives
+`403 insufficient_operator_tier`.
+
+The key stops authenticating on the next request — no restart, no config edit.
+Rejection happens before the signature is checked and before the nonce is
+consumed, so a revoked key cannot act at all, including revoking other
+operators.
+
+```{warning}
+Revocation is **terminal** for the life of the deployment. There is no
+un-revoke endpoint: restoring a key means editing configuration and restarting,
+deliberately, so that a stolen key cannot be brought back by calling the wrong
+endpoint.
+```
+
+The service **refuses to revoke the last usable operator key**
+(`409 last_active_operator_key`) — otherwise this command could cause exactly
+the outage it exists to avoid. Configure a second operator key first.
+
+A caller presenting a revoked key is told only `Unknown admin key`, identical to
+an unrecognised key: whoever holds a stolen key learns nothing about whether the
+compromise was noticed. The real reason is recorded in the audit log as
+`admin_auth_failed` with `reason: revoked_key`, alongside the
+`operator_key_revoked` event.
+
 ### `genesis-mesh sovereign inspect`
 
 Fetches operator-safe public metadata from a Network Authority.
@@ -278,6 +312,15 @@ genesis-mesh trust-bundle validate \
 
 Use live validation before feeding a bundle into federation bootstrap.
 
+```{warning}
+Validation checks structure and internal consistency. It verifies **no
+signatures** and consults nothing outside the bundle, so a bundle written
+entirely by one party passes by construction. `validation: ok` means
+"well-formed and self-consistent", not "genuine". Verify the subject's genesis
+against a root key obtained independently — the `--na` live comparison above is
+the easiest way — before relying on any bundle content.
+```
+
 ### `genesis-mesh trust-bundle import`
 
 Imports a bundle into local review evidence without granting trust:
@@ -291,6 +334,11 @@ genesis-mesh trust-bundle import \
 
 The receipt records `trust_granted: false`. Trust is created only by an explicit
 operator-signed federation bootstrap or treaty issue.
+
+"Import" here means *filed as review evidence* — it does not load anything into
+trust state, and it must not be used to. Bundle content is unverified: never
+copy its keys, recognition policy, treaties, or revocation feed into a trust
+store. See [RFC-003](../rfcs/rfc-003-trust-bundles.md).
 
 ### `genesis-mesh treaty list`
 
@@ -1189,8 +1237,22 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
-    --command-allowlist python,node
+    --token-issuer-key 'operator-a=keys/operator.pub.b64' \
+    --command-allowlist 'python --version' \
+    --command-allowlist 'python /opt/report.py ...'
 ```
+
+`--command-allowlist` is **required** and repeatable. Each entry is a full
+command line matched against the whole command, not the program name; a
+trailing `...` allows a variable tail. The guard refuses to start without it.
+See [Process-Level Mediation](../examples/process-level-mediation.md) for the
+entry format.
+
+`--token-issuer-key` is repeatable and takes `issuer-id=base64-public-key` or
+`issuer-id=path-to-key-file`. Every request must carry the requesting agent's
+signed `InvocationToken`; a token whose `issuer_sovereign_id` has no key here is
+rejected with `unknown_token_issuer`, so without this flag the guard starts but
+mediates nothing.
 
 ### `genesis-mesh trust guard request`
 
@@ -1201,12 +1263,20 @@ response (receipt or rejection) to a file.
 genesis-mesh trust guard request \
     --capability run-python \
     --decision decision.json \
+    --token invocation-token.json \
     --command python -- script.py \
     --signing-key keys/agent.key \
     --socket-host 127.0.0.1 \
     --socket-port 8700 \
     --output receipt.json
 ```
+
+`--token` is the agent's signed `InvocationToken` and is **required** in
+practice: the whole token is attached to the request (the agent's signature
+covers it), and the guard rejects a request without one as
+`missing_invocation_token`. The token names its bearer, which is how the guard
+knows the request comes from the agent it was issued to — a `BoundaryDecision`
+names no agent at all.
 
 ### `genesis-mesh trust guard verify`
 
@@ -1609,7 +1679,9 @@ genesis-mesh trust oversight propose \
 ### `genesis-mesh trust oversight approve`
 
 Human custodian countersigns the request and produces a `DualSignedCommitment`
-with both the agent signature (from the request) and the human signature.
+carrying the agent's `CommitmentCore` signature (taken from the request) and the
+human's signature over the commitment body. Fails if the request predates the
+self-verifiable format and so carries no `commitment_core_signature`.
 
 ```bash
 genesis-mesh trust oversight approve \
@@ -1633,7 +1705,10 @@ genesis-mesh trust oversight reject \
 
 ### `genesis-mesh trust oversight verify`
 
-Verify both signatures on a `DualSignedCommitment`.
+Verify both signatures on a `DualSignedCommitment`. Both are checked from the
+commitment alone; `--request` is an optional extra cross-check that additionally
+confirms the request's fingerprint matches, and is no longer needed for the
+agent's signature to be verified.
 
 ```bash
 genesis-mesh trust oversight verify \

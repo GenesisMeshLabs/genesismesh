@@ -37,7 +37,9 @@ def guard() -> None:
 @guard.command("request")
 @click.option("--capability", "capability", required=True)
 @click.option("--decision", "decision_path", required=True, type=click.Path(exists=True))
-@click.option("--token", "token_path", default=None, type=click.Path(exists=True))
+@click.option("--token", "token_path", default=None, type=click.Path(exists=True),
+              help="The agent's signed InvocationToken. Required: the guard will not "
+                   "mediate a request that does not carry one.")
 @click.option("--command", "command", required=True, multiple=True,
               help="Subprocess command (pass once per arg).")
 @click.option("--allow-env", "allow_env", multiple=True,
@@ -59,19 +61,26 @@ def request_cmd(
     decision = BoundaryDecision.model_validate_json(
         Path(decision_path).read_text(encoding="utf-8")
     )
-    token_id: str | None = None
+    # F-01: the guard needs the whole signed token, not just its id -- the token
+    # is what names the bearer and the capabilities it grants.
+    token = None
     if token_path:
         from ..models.invocation_token import InvocationToken  # noqa: PLC0415
-        tok = InvocationToken.model_validate_json(
+        token = InvocationToken.model_validate_json(
             Path(token_path).read_text(encoding="utf-8")
         )
-        token_id = tok.token_id
+    else:
+        raise click.ClickException(
+            "--token is required: the guard will not mediate a request without a "
+            "signed InvocationToken naming the requesting agent as bearer."
+        )
 
     req = ExecutionMediationRequest(
-        agent_sovereign_id=decision.operator_sovereign_id,
+        agent_sovereign_id=token.bearer_sovereign_id,
         requested_capability=capability,
         decision_id=decision.decision_id,
-        token_id=token_id,
+        token_id=token.token_id,
+        invocation_token=token,
         subprocess_command=list(command),
         allowed_env_vars=list(allow_env),
         requested_at=datetime.now(timezone.utc),
@@ -146,29 +155,65 @@ def _fail(fmt: str, reason: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _parse_issuer_keys(specs: tuple[str, ...]) -> dict[str, list[str]]:
+    """Parse ``issuer-id=key-or-path`` specs into the guard's issuer-key map.
+
+    Mirrors the shape used for operator keys elsewhere; a value that names an
+    existing file is read from disk, ignoring comment lines.
+    """
+    keys: dict[str, list[str]] = {}
+    for spec in specs:
+        if "=" not in spec:
+            raise click.ClickException(
+                f"--token-issuer-key must use issuer-id=key-or-path, got {spec!r}"
+            )
+        issuer_id, value = spec.split("=", 1)
+        issuer_id, value = issuer_id.strip(), value.strip()
+        if not issuer_id or not value:
+            raise click.ClickException("--token-issuer-key id and value must be non-empty")
+        path = Path(value)
+        if path.exists():
+            value = "".join(
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")
+            )
+        keys.setdefault(issuer_id, []).append(value)
+    return keys
+
+
 @guard.command("start")
 @click.option("--guard-sovereign", "guard_id", required=True)
 @click.option("--signing-key", "key_path", required=True, type=click.Path(exists=True))
 @click.option("--port", "port", type=int, default=0)
 @click.option("--host", "host", default="127.0.0.1")
-@click.option("--command-allowlist", "allowlist", default=None,
-              help="Comma-separated list of allowed executable names.")
+@click.option("--token-issuer-key", "token_issuer_keys", multiple=True,
+              help="Invocation-token issuer key as issuer-id=base64-public-key or "
+                   "issuer-id=path. Repeatable. Required to mediate any request.")
+@click.option("--command-allowlist", "allowlist", multiple=True, required=True,
+              help="Allowed command line (pass once per command). Matched against the "
+                   "whole command, not the program name. End an entry with '...' to "
+                   "allow a variable tail, e.g. 'python /opt/report.py ...'.")
 def start_cmd(guard_id: str, key_path: str, port: int, host: str,
-              allowlist: str | None) -> None:
+              token_issuer_keys: tuple[str, ...], allowlist: tuple[str, ...]) -> None:
     """Start GenesisGuard daemon (foreground; Ctrl-C to stop)."""
     from ..guard.daemon import GenesisGuardDaemon  # noqa: PLC0415
 
     sk = load_private_key(key_path)
-    cmd_list = allowlist.split(",") if allowlist else None
-    daemon = GenesisGuardDaemon(
-        guard_sovereign_id=guard_id,
-        signing_key=sk,
-        decision_store={},
-        agent_public_keys={},
-        command_allowlist=cmd_list,
-        host=host,
-        port=port,
-    )
+    try:
+        daemon = GenesisGuardDaemon(
+            guard_sovereign_id=guard_id,
+            signing_key=sk,
+            decision_store={},
+            agent_public_keys={},
+            token_issuer_public_keys=_parse_issuer_keys(token_issuer_keys),
+            command_allowlist=list(allowlist),
+            host=host,
+            port=port,
+        )
+    except ValueError as exc:
+        click.echo(f"[FAIL] {exc}", err=True)
+        raise SystemExit(1) from exc
     daemon.start()
     click.echo(f"[OK] GenesisGuard listening on {host}:{daemon.port}")
     click.echo("     Press Ctrl-C to stop.")

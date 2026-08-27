@@ -20,6 +20,16 @@ def _load_operator_public_keys() -> dict[str, str]:
     return json.loads(raw) if raw else {}
 
 
+def _load_operator_key_tiers() -> dict[str, str]:
+    """Load operator key tiers from JSON environment configuration (F-21).
+
+    Every configured operator key must appear here as "standard" or
+    "privileged"; the service refuses to start otherwise.
+    """
+    raw = os.environ.get("OPERATOR_KEY_TIERS_JSON")
+    return json.loads(raw) if raw else {}
+
+
 with open(os.environ["GENESIS_FILE"], "r", encoding="utf-8") as f:
     genesis_block = GenesisBlock(**json.load(f))
 
@@ -31,6 +41,7 @@ app = create_app(
     db_path=os.environ.get("DB_PATH", "genesis_mesh_na.db"),
     key_id=os.environ.get("NA_KEY_ID", "na-2025-q1"),
     operator_public_keys=_load_operator_public_keys(),
+    operator_key_tiers=_load_operator_key_tiers(),
     renewal_grace_seconds=int(os.environ.get("RENEWAL_GRACE_SECONDS", "900")),
 )
 

@@ -178,6 +178,64 @@ def test_disallowed_role_is_rejected():
     assert result.reason == "role_not_allowed"
 
 
+def test_empty_allowed_roles_grants_no_roles():
+    """F-10: a blank allowed_roles list is not a wildcard.
+
+    An issuer policy left blank on roles used to admit every role, including
+    privileged ones. It now grants nothing.
+    """
+    issuer = RecognizedIssuer(
+        sovereign_id="genesis-core",
+        public_keys=["irrelevant-for-this-check"],
+        allowed_roles=[],
+    )
+
+    assert issuer.allows_roles(["role:admin"]) is False
+    assert issuer.allows_roles(["role:maintainer", "role:agent"]) is False
+    assert issuer.allows_roles(["anything-at-all"]) is False
+    # A role-less claim is also refused: a policy that grants nothing admits
+    # nothing, and all() over an empty list would otherwise be vacuously true.
+    assert issuer.allows_roles([]) is False
+
+
+def test_empty_allowed_roles_rejects_attestation_end_to_end():
+    """F-10: the blank-policy denial reaches the real verification path."""
+    issuer_key = generate_keypair()
+    attestation = _attestation(roles=["role:maintainer"])
+    attestation.signatures.append(
+        sign_model(attestation, issuer_key.private_key, "genesis-core-root")
+    )
+    blank_policy = RecognitionPolicy(
+        local_sovereign_id="ai-research",
+        recognized_issuers=[
+            RecognizedIssuer(
+                sovereign_id="genesis-core",
+                public_keys=[issuer_key.public_key_b64],
+                allowed_roles=[],
+            )
+        ],
+    )
+
+    result = verify_membership_attestation(attestation, blank_policy)
+
+    assert result.accepted is False
+    assert result.reason == "role_not_allowed"
+
+
+def test_populated_allowed_roles_still_works():
+    """Negative control: the fix must not deny roles that were granted."""
+    issuer = RecognizedIssuer(
+        sovereign_id="genesis-core",
+        public_keys=["irrelevant-for-this-check"],
+        allowed_roles=["role:maintainer", "role:agent"],
+    )
+
+    assert issuer.allows_roles(["role:maintainer"]) is True
+    assert issuer.allows_roles(["role:maintainer", "role:agent"]) is True
+    assert issuer.allows_roles(["role:admin"]) is False
+    assert issuer.allows_roles([]) is True
+
+
 def test_suspended_status_is_rejected_by_default():
     """Only active attestations are accepted unless policy says otherwise."""
     issuer_key = generate_keypair()

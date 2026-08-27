@@ -129,7 +129,7 @@ def _echo_bootstrap_result(result: dict[str, Any]) -> None:
     click.echo("Treaty preview:")
     click.echo(f"  subject:           {preview['subject_sovereign_id']}")
     click.echo(f"  subject key:       {', '.join(preview['subject_public_key_prefixes'])}...")
-    click.echo(f"  roles:             {', '.join(scope['allowed_roles']) or '<any>'}")
+    click.echo(f"  roles:             {', '.join(scope['allowed_roles']) or '<none>'}")
     click.echo(f"  accepted statuses: {', '.join(scope['accepted_statuses'])}")
     click.echo(f"  claims:            {scope['claims'] or {}}")
     click.echo(f"  validity_hours:    {preview['validity_hours']}")

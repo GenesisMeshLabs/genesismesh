@@ -31,6 +31,9 @@ def _openapi_operation(surface: Surface) -> dict[str, Any]:
     }
     if surface.query_hint:
         operation["description"] = f"{surface.purpose} {surface.query_hint}"
+    if surface.rate_limit:
+        operation["x-genesis-mesh-rate-limit"] = surface.rate_limit
+        operation["description"] = f"{operation['description']} Rate limit: {surface.rate_limit}."
     if surface.access == "operator_signed":
         operation["security"] = [{"OperatorSignature": []}]
     elif surface.access == "node_signed":

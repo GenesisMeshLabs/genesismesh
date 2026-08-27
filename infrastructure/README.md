@@ -132,7 +132,9 @@ bash infrastructure/azure/deploy_to_azure.sh
 The scripts build from the repository root and target port `8443`. Production
 deployments must provide mounted `GENESIS_FILE` and `NA_PRIVATE_KEY_FILE`
 secrets; the container startup path refuses to start without them. Operator
-admin public keys should be provided with `OPERATOR_PUBLIC_KEYS_JSON`, formatted
+admin public keys should be provided with `OPERATOR_PUBLIC_KEYS_JSON`, and each
+key's tier with `OPERATOR_KEY_TIERS_JSON` (`standard` or `privileged`; the
+service refuses to start if any key has no tier), formatted
 as a JSON object from key ID to base64 public key.
 
 ## Local Verification Script

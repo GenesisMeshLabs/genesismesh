@@ -10,6 +10,7 @@ import nacl.signing
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.oversight import (
+    CommitmentCore,
     DualSignedCommitment,
     HumanApprovalRequest,
     HumanApprovalResponse,
@@ -217,6 +218,18 @@ def propose_commitment(
     )
     sig = sign_model(request, agent_signing_key, issued_by)
     request = request.model_copy(update={"agent_signature": sig})
+
+    # Second agent signature, over the CommitmentCore.  The agent knows every
+    # core field now, so this needs no round trip later — and it is what lets
+    # the resulting commitment be verified without this request in hand.
+    core = CommitmentCore(
+        request_id=request.request_id,
+        acting_sovereign_id=request.requesting_sovereign_id,
+        proposed_action=request.proposed_action,
+        request_digest=request.digest(),
+    )
+    core_sig = sign_model(core, agent_signing_key, issued_by)
+    request = request.model_copy(update={"commitment_core_signature": core_sig})
     return request, evaluation
 
 
@@ -232,11 +245,22 @@ def approve_commitment(
 ) -> tuple[HumanApprovalResponse, DualSignedCommitment]:
     """Human custodian approves the request and produces a DualSignedCommitment.
 
-    The commitment is signed by the human key.  The agent's signature is
-    copied from the HumanApprovalRequest into the commitment so both
-    signatures are present in the resulting DualSignedCommitment.
+    The human signs the commitment body.  The agent's CommitmentCore signature
+    is copied in from the request, so the finished commitment carries a
+    verifiable signature from each party and can be checked on its own.
+
+    Raises ValueError if the request carries no commitment_core_signature —
+    a request issued before the self-verifiable format, which cannot produce a
+    verifiable commitment.
     """
     ts = now or datetime.now(timezone.utc)
+
+    if request.commitment_core_signature is None:
+        raise ValueError(
+            "request carries no commitment_core_signature: it predates the "
+            "self-verifiable commitment format and cannot produce a commitment "
+            "that verifies on its own.  Reissue the request."
+        )
 
     response = HumanApprovalResponse(
         request_id=request.request_id,
@@ -255,9 +279,10 @@ def approve_commitment(
         acting_sovereign_id=request.requesting_sovereign_id,
         human_sovereign_id=policy.human_sovereign_id,
         proposed_action=request.proposed_action,
+        request_digest=request.digest(),
         committed_at=ts,
         expires_at=ts + timedelta(seconds=commitment_valid_for_seconds),
-        agent_signature=request.agent_signature,
+        agent_signature=request.commitment_core_signature,
     )
     human_sig = sign_model(commitment, human_signing_key, issued_by)
     commitment = commitment.model_copy(update={"human_signature": human_sig})
@@ -297,6 +322,8 @@ DualSignedCommitmentVerificationReason = Literal[
     "invalid_agent_signature",
     "invalid_human_signature",
     "request_response_mismatch",
+    "request_digest_mismatch",
+    "legacy_unverifiable_format",
     "expired",
     "not_fully_signed",
 ]
@@ -330,12 +357,15 @@ def verify_dual_signed_commitment(
 
     Verification order:
       missing_agent_signature → missing_human_signature →
-      invalid_agent_signature → invalid_human_signature →
-      request_response_mismatch → expired → valid
+      request_response_mismatch → legacy_unverifiable_format →
+      invalid_agent_signature → request_digest_mismatch →
+      invalid_human_signature → expired → valid
 
-    Both parties sign the same canonical form (to_canonical_json() excludes
-    both signatures).  The agent_signature and human_signature are verified
-    independently against the same canonical body.
+    The two parties sign different bytes.  The human signs the commitment's
+    canonical form; the agent signs the CommitmentCore, which the commitment can
+    rebuild from its own fields.  Both are therefore verifiable from the
+    commitment alone — `request` is an optional extra cross-check, not a
+    precondition for checking the agent.
     """
     ts = at_time or datetime.now(timezone.utc)
 
@@ -355,16 +385,25 @@ def verify_dual_signed_commitment(
     if request is not None and commitment.request_id != request.request_id:
         return _reject("request_response_mismatch")
 
-    # Agent signed the HumanApprovalRequest (not the commitment body directly).
-    # When the request is provided, verify agent_signature against the request's
-    # canonical form.  Without it, presence is checked but crypto is skipped.
-    if request is not None:
-        agent_ok = any(
-            verify_model_signature(request, commitment.agent_signature, pub)
-            for pub in agent_public_keys
-        )
-        if not agent_ok:
-            return _reject("invalid_agent_signature")
+    # The agent signed the CommitmentCore, which this commitment can rebuild from
+    # its own fields.  This is checked unconditionally: previously it ran only
+    # when the caller supplied the request, so the portable artifact — the normal
+    # case — had its agent signature checked for presence and never validity.
+    core = commitment.core()
+    if core is None:
+        return _reject("legacy_unverifiable_format")
+
+    agent_ok = any(
+        verify_model_signature(core, commitment.agent_signature, pub)
+        for pub in agent_public_keys
+    )
+    if not agent_ok:
+        return _reject("invalid_agent_signature")
+
+    # When the request is supplied, cross-check the fingerprint too.  This is an
+    # additional check, not the basis of the agent-signature check.
+    if request is not None and request.digest() != commitment.request_digest:
+        return _reject("request_digest_mismatch")
 
     # Human signs the commitment canonical form (excluding both sigs).
     human_ok = any(

@@ -169,7 +169,20 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         except Exception as exc:
             raise BadRequestError("Invalid proof object", code="invalid_proof") from exc
 
-        validator_keys = data.get("validator_public_keys") or {service.key_id: _pub_b64()}
+        # The caller must supply the validator key map.  Defaulting it to this
+        # NA's own key made every genuine validator an unrecognised key, so every
+        # genuine vote was skipped and a proof with no validator signatures at
+        # all verified as valid.
+        validator_keys = data.get("validator_public_keys")
+        if not validator_keys or not isinstance(validator_keys, dict):
+            raise BadRequestError(
+                "validator_public_keys is required: supply a mapping of "
+                "validator_sovereign_id -> base64 public key. Consensus proofs "
+                "are verified against the validators' keys, not this service's.",
+                code="missing_validator_public_keys",
+            )
+        # The assembler default is deliberate and safe: it accepts only a proof
+        # this NA itself signed, which a third party cannot forge.
         assembler_keys = data.get("assembler_public_keys") or [_pub_b64()]
         result = verify_consensus_proof(
             proof=cp,

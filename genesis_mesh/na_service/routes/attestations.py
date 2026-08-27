@@ -68,7 +68,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
@@ -131,7 +131,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
@@ -153,7 +153,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
 
         data = request_json_object()
-        ok, error = service._verify_admin_request(data)
+        ok, error = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
@@ -245,6 +245,10 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/attestations/verify", methods=["POST"])
     def verify_attestation():
         """Verify a membership attestation against a local recognition policy."""
+        remote_addr = request.remote_addr or "unknown"
+        if not service.rate_limiter.allow(f"attestations_verify:{remote_addr}", 60, 60):
+            raise RateLimitError()
+
         data = request_json_object()
         try:
             attestation = MembershipAttestation.model_validate(data.get("attestation"))

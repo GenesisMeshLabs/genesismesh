@@ -119,6 +119,7 @@ def main():
         na_private_key=na_keypair.private_key,
         key_id="na-test",
         operator_public_keys={"operator-test": operator_keypair.public_key_b64},
+        operator_key_tiers={"operator-test": "privileged"},
     )
     na_server = make_server("127.0.0.1", 8444, na_service.app)
 

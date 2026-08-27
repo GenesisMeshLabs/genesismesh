@@ -403,10 +403,20 @@ Verify a `ConsensusProof`. Unauthenticated.
 ```json
 {
   "proof": { "<ConsensusProof>": "..." },
-  "validator_public_keys": { "na-1": "<base64>", "na-2": "<base64>" },
+  "validator_public_keys": { "validator-1": "<base64>", "validator-2": "<base64>" },
   "assembler_public_keys": ["<base64-ed25519>"]
 }
 ```
+
+`validator_public_keys` is **required**: a mapping of
+`validator_sovereign_id` → base64 public key, covering every validator whose
+approve vote counts toward the threshold. A consensus proof is verified against
+the *validators'* keys, not this service's — there is no default. A vote that is
+unsigned, or whose validator has no key in this map, is rejected rather than
+skipped.
+
+`assembler_public_keys` is optional and defaults to this Network Authority's own
+key, which only accepts a proof this service itself assembled and signed.
 
 **Response** `200`
 
@@ -414,7 +424,16 @@ Verify a `ConsensusProof`. Unauthenticated.
 { "valid": true, "reason": "valid", "consensus_id": "..." }
 ```
 
-**Errors** — `400 missing_proof`, `400 invalid_proof`.
+`reason` is one of `valid`, `missing_signature`, `invalid_assembler_signature`,
+`proof_id_mismatch`, `invalid_vote_signature`, `unknown_validator_key`,
+`vote_not_in_validator_set`, `threshold_not_met`, `missing_context_digest`,
+`cascade_detected`, `expired`.
+
+The threshold counts **distinct approving validators**, not votes: several votes
+from the same validator count once.
+
+**Errors** — `400 missing_proof`, `400 invalid_proof`,
+`400 missing_validator_public_keys`.
 
 ---
 
