@@ -27,8 +27,12 @@ exit 0
 """
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("bash") is None or shutil.which("mktemp") is None,
-    reason="requires bash and mktemp (POSIX environment)",
+    sys.platform == "win32"
+    or shutil.which("bash") is None
+    or shutil.which("mktemp") is None,
+    reason="requires a POSIX environment: start.sh is a Linux deployment script, "
+    "and the assertions check POSIX file modes that Windows does not implement "
+    "(plus bash needs POSIX paths, not C:\\... ones)",
 )
 
 

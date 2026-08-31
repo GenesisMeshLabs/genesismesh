@@ -112,7 +112,7 @@ cli/*                 = Click parsing + output only
                         No protocol rules inline in command bodies.
 
 na_service/routes/*   = HTTP adaptation only
-                        Parse request → dispatch to na_service/services/* ���
+                        Parse request → dispatch to na_service/services/* →
                         return response. No domain validation inline.
 
 na_service/services/* = NA application logic
@@ -525,9 +525,9 @@ When acting as an AI coding agent in this repository:
 10. Never weaken signature, revocation, or trust checks to make a demo pass.
 11. Never skip pre-commit hooks. If a hook fails, fix the underlying issue.
 12. Use `/ship` for all releases. Do not invent an ad-hoc release process.
-12. If a shortcut is needed, mark it clearly as temporary and isolate it from
+13. If a shortcut is needed, mark it clearly as temporary and isolate it from
     core logic.
-13. Confirm before destructive operations (force-push, branch deletion, schema
+14. Confirm before destructive operations (force-push, branch deletion, schema
     drops, mass file moves). Approval once does not generalize.
 
 ---

@@ -1,5 +1,7 @@
 """Tests for cryptographic operations."""
 
+import os
+
 import pytest
 from genesis_mesh.crypto import (
     generate_keypair,
@@ -171,6 +173,7 @@ def test_save_keypair_tolerates_filesystems_without_chmod(tmp_path, monkeypatch)
     assert public_path.exists()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Windows reports synthetic mode bits; chmod is not attempted")
 def test_save_keypair_warns_when_private_key_cannot_be_restricted(tmp_path, monkeypatch, caplog):
     """A refused chmod on the private key emits a loud warning instead of silence (F-09)."""
     keypair = generate_keypair()
@@ -200,5 +203,6 @@ def test_save_keypair_silent_when_chmod_succeeds(tmp_path, caplog):
     with caplog.at_level("WARNING", logger="genesis_mesh.crypto.keys"):
         private_path, _ = save_keypair(keypair, str(tmp_path / "node"), "node-test")
 
-    assert private_path.stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        assert private_path.stat().st_mode & 0o777 == 0o600
     assert not [r for r in caplog.records if r.name == "genesis_mesh.crypto.keys"]

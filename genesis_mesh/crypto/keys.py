@@ -2,6 +2,7 @@
 
 import base64
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -78,20 +79,24 @@ def save_keypair(keypair: KeyPair, base_path: str, key_id: Optional[str] = None)
     # reject chmod even though the key file was written successfully. The key
     # is still persisted in that case, but never silently: if the resulting
     # mode leaves the file accessible to other users, warn loudly.
-    chmod_error: Optional[PermissionError] = None
-    try:
-        private_path.chmod(0o600)
-    except PermissionError as exc:
-        chmod_error = exc
-    mode = private_path.stat().st_mode & 0o777
-    if mode & 0o077:
-        logger.warning(
-            "Private key %s could not be restricted to owner-only permissions "
-            "(mode %03o%s); it may be readable by other local users on this host",
-            private_path,
-            mode,
-            f"; chmod failed: {chmod_error}" if chmod_error else "",
-        )
+    # On Windows this whole check is skipped: chmod() there is a no-op and
+    # st_mode always reports 0o666 regardless of the actual ACLs, so the POSIX
+    # permission bits say nothing about who can read the file.
+    if os.name == "posix":
+        chmod_error: Optional[PermissionError] = None
+        try:
+            private_path.chmod(0o600)
+        except PermissionError as exc:
+            chmod_error = exc
+        mode = private_path.stat().st_mode & 0o777
+        if mode & 0o077:
+            logger.warning(
+                "Private key %s could not be restricted to owner-only permissions "
+                "(mode %03o%s); it may be readable by other local users on this host",
+                private_path,
+                mode,
+                f"; chmod failed: {chmod_error}" if chmod_error else "",
+            )
 
     return private_path, public_path
 

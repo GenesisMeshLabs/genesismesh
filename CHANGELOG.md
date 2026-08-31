@@ -1,11 +1,39 @@
 # Changelog
 
+## v0.53.1 — Security hardening + Windows platform compatibility
+
+### Fixed
+
+- **F-01, F-02, F-03 ... F-22**: Formal verification hardening suite. Security fixes covering
+  command allowlist enforcement, signature verification, token binding, revocation, consensus
+  integrity, permission scoping, sandboxing, and audit log integrity. All fixes verified
+  against 120+ test scenarios and `-race` clean on Linux.
+- **Windows platform compatibility**: Git Bash text encoding (text=True codec), subprocess
+  `$variable` handling via stdin, POSIX chmod/mode assumptions in key storage and deployment
+  scripts. All 1,303 tests pass; 4 POSIX-only tests correctly skip on Windows.
+- **Clock hermiticity**: `verify_capability_proof()` now accepts optional `now=` parameter
+  for deterministic testing instead of wall-clock race conditions. Unfroze frozen test
+  fixtures (July 1, 2026 → wall clock).
+- **Version sourcing**: `__version__` now reads from `pyproject.toml` (0.53.1) via
+  `importlib.metadata.version()` instead of stale hardcoded constant (was 0.23.0).
+- **Documentation**: Removed local filesystem path leaks from CHANGELOG; fixed mojibake
+  arrow and numbering in AGENT.md.
+
+### Verified
+
+- 1,303 test suite pass (0 failures; 4 platform-appropriate skips on Windows).
+- mypy clean on trust and crypto modules.
+- Sphinx documentation builds clean.
+
+---
+
 ## v0.54.0 — Go SDK
 
 ### Added
 
 - Go SDK at `github.com/GenesisMeshLabs/sdk-go` (v0.54.0) — full 7-domain Trust API
   coverage: Agreement, Boundary, Evidence, Attestation, Disclosure, Consensus, DataUsage.
+  The SDK lives in its own repository; this entry tracks the wire-compatible release.
 - Ed25519 admin signing (`BuildAdminHeaders`) and canonical JSON matching the Python wire format.
 - 19 tests across auth, errors, and all sub-client paths; `-race` clean on Go 1.22 and 1.23.
 - `docs/sdk/go.md` — Go SDK API reference.
@@ -15,8 +43,9 @@
 
 ### Added
 
-- `sdk-typescript/` at `C:\Source\GenesisMeshLabs\sdk-typescript\` — standalone TypeScript SDK
+- TypeScript SDK at `github.com/GenesisMeshLabs/sdk-typescript` — standalone TypeScript SDK
   for the Genesis Mesh Network Authority HTTP API, decoupled from the Python repo.
+  The SDK lives in its own repository; this entry tracks the wire-compatible release.
 - `genesis-mesh-sdk` npm package v0.53.0 with `GenesisMeshClient` and 7 sub-clients:
   `agreement`, `boundary`, `evidence`, `attestation`, `disclosure`, `consensus`,
   `dataUsage`.

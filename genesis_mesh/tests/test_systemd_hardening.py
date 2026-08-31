@@ -131,14 +131,20 @@ def _service_heredocs(script: Path) -> list[str]:
 
 def _render(body: str, setup: str) -> str:
     """Expand a heredoc body through bash exactly as the script would."""
+    # Feed the script via stdin as raw UTF-8 bytes rather than `bash -c`:
+    # on Windows the -c argument passes through MSYS2 command-line munging,
+    # which can eat $variable references before bash parses them; and bytes
+    # mode avoids both the cp1252 locale codec and text mode's \n -> \r\n
+    # translation on stdin, which bash rejects (`set: pipefail\r: ...`).
     result = subprocess.run(
-        ["bash", "-c", f"{setup}\ncat <<EOF\n{body}\nEOF\n"],
+        ["bash", "-s"],
+        input=f"{setup}\ncat <<EOF\n{body}\nEOF\n".encode("utf-8"),
         capture_output=True,
-        text=True,
         timeout=30,
     )
-    assert result.returncode == 0, f"rendering failed: {result.stderr}"
-    return result.stdout
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    assert result.returncode == 0, f"rendering failed: {stderr}"
+    return result.stdout.decode("utf-8")
 
 
 def _canonical(name: str) -> dict[str, list[str]]:
