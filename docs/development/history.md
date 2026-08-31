@@ -307,7 +307,40 @@ GitHub Actions Trusted Publishing.
 - Proves that the Genesis Mesh Trust API is a genuine cross-language protocol,
   not a Python-only library.
 
-As of v0.55.0, the following are *not* yet true:
+### v0.53.1 — Formal Verification Security Hardening + Dual-Platform Support
+
+**What shipped:**
+
+- **Formal verification hardening suite** (F-01 through F-22): Complete
+  security fixes from the formal verification process covering command
+  allowlist enforcement, signature verification on all paths, token binding
+  to decisions, certificate revocation and renewal, consensus integrity,
+  permission scoping, OS-level sandboxing, audit log chain signing, and
+  fail-closed semantics on unrecognized policies. All fixes verified against
+  120+ test scenarios and clean under Go race detector on Linux.
+
+- **Windows platform compatibility**: Git Bash text encoding (UTF-8 codec
+  instead of cp1252 locale), subprocess variable handling via stdin to
+  prevent shell-eating of `$variable` references, POSIX chmod/mode handling
+  (Windows uses ACLs), and platform-aware test assertions. All 1,303 tests
+  pass; 4 POSIX-only tests correctly skip on Windows instead of failing.
+
+- **Internal consistency fixes**: Clock hermiticity (`now=` parameter in
+  verification functions for deterministic testing), version sourcing from
+  `pyproject.toml` via `importlib.metadata`, documentation cleanup
+  (removed filesystem paths, fixed mojibake).
+
+**What became possible:**
+
+- Genesis Mesh hardened against all formally verified adversarial scenarios
+  is now deployable and testable on both Linux CI and Windows dev machines
+  without test breakage.
+- SDKs (TypeScript, Go, .NET) can run their test suites on developer
+  machines running Windows without platform-specific failures.
+
+---
+
+As of v0.53.1, the following are *not* yet true:
 
 - No external operator has yet run a sovereign with their own
   infrastructure account, keys, policy, endpoint, and continuity
