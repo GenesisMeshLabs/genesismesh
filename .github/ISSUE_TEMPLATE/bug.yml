@@ -18,9 +18,7 @@ body:
       description: Which version are you running?
       options:
         - latest (main)
-        - v0.50
-        - v0.49
-        - v0.48
+        - v0.56.x
         - earlier
     validations:
       required: true
@@ -76,6 +74,6 @@ body:
       placeholder: |
         Python: 3.12.4
         OS: Ubuntu 24.04
-        Install: pip install genesis-mesh==0.50.0
+        Install: pip install genesis-mesh==0.56.0
     validations:
       required: false

@@ -22,7 +22,7 @@ Mesh Network Authority HTTP interface.  The SDK handles:
 The SDK covers the stable surface only.  It does not expose internal or
 experimental APIs.
 
-v0.52 should prove:
+v0.53 should prove:
 
 > A TypeScript developer can verify a trust agreement, check boundary
 > authorization, and submit a data access intent against a Genesis Mesh

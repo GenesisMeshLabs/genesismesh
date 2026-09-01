@@ -16,7 +16,7 @@ authorization records Genesis Mesh produces.
 Like the TypeScript and Go SDKs, the C# SDK is a typed client over the
 stable Python API (v0.51).  It is not a protocol reimplementation.
 
-v0.54 should prove:
+v0.55 should prove:
 
 > A .NET developer can integrate Genesis Mesh boundary checks and trust
 > agreement verification into an Azure-hosted service or Semantic Kernel
@@ -185,8 +185,9 @@ before processing a request.  This demonstrates the concrete Azure use case.
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.54.0`
-- [ ] `GenesisMesh.SDK.csproj` version `0.54.0`
+This was a historical component release before the coordinated v0.56.0 train.
+
+- [ ] `src/GenesisMesh.Sdk/GenesisMesh.Sdk.csproj` version `0.55.0`
 - [ ] CHANGELOG entry (C# SDK)
 - [ ] history.md updated with v0.55.0 entry
 - [ ] All prior Python tests continue to pass

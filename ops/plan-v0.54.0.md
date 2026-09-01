@@ -17,7 +17,7 @@ Python API (v0.51).  It does not reimplement the protocol.  It makes the
 protocol's capabilities accessible to Go infrastructure engineers without
 any Python knowledge.
 
-v0.53 should prove:
+v0.54 should prove:
 
 > A Go service can perform boundary checks, verify trust agreements, and
 > submit data usage intents against a Genesis Mesh Network Authority using
@@ -172,8 +172,9 @@ demonstrates the concrete cloud-native use case.
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.53.0`
-- [ ] `sdk/go/go.mod` version set to `v0.54.0`
+This was a historical component release before the coordinated v0.56.0 train.
+
+- [ ] `sdk-go` release tagged `v0.54.0`
 - [ ] CHANGELOG entry (Go SDK)
 - [ ] history.md updated with v0.54.0 entry
 - [ ] All prior Python tests continue to pass

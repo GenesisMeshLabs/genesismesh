@@ -343,9 +343,12 @@ Genesis Mesh is not:
 These may be built on top of the protocol later. They should not be confused
 with the protocol itself.
 
-## Current State (v0.55.0)
+## Current State (v0.56.0 Release Train)
 
-Three complete trust cycles and the first SDK generation have shipped.
+Three complete trust cycles and three client SDKs have shipped. The Python
+reference implementation and official SDKs now share the v0.56.0 development
+version. The Go protocol verifier remains the release-defining deliverable for
+the coordinated v0.56.0 publication.
 
 **Phase H (v0.26–v0.31) — Governed Relationships.** Dual-signed agreements,
 attenuable delegation chains, gated boundary decisions, tamper-evident execution

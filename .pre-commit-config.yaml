@@ -27,6 +27,13 @@ repos:
   # ── Local hooks that mirror the CI workflow ─────────────────────────────────
   - repo: local
     hooks:
+      - id: release-version
+        name: release version consistency
+        entry: python scripts/check_version.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+
       - id: check-added-large-files-local
         name: check added large files
         entry: python scripts/check_added_large_files.py --maxkb 4096

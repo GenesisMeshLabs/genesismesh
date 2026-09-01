@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.56.0 - Coordinated release train (Unreleased)
+
+### Changed
+
+- Unified the Python reference implementation, TypeScript SDK, Go SDK, and
+  .NET SDK on one `0.56.0` product version.
+- Added an explicit release-version source and publishing guards so package
+  metadata must match the release tag.
+- Updated security policies and public documentation to distinguish the
+  product version from historical SDK, conformance, and network versions.
+- Corrected the stale Python package metadata carried by the v0.53.1 source
+  tag. Existing published tags remain immutable.
+
+### Release gate
+
+- The Go protocol verifier and all other v0.56.0 plan requirements must pass
+  before this section loses its Unreleased status.
+
+---
+
+## v0.55.0 - .NET SDK
+
+### Added
+
+- .NET SDK at `GenesisMeshLabs/sdk-dotnet`, with the complete seven-domain
+  Trust API surface, Ed25519 admin authentication, canonical JSON, typed
+  exceptions, unit tests, and NuGet publishing configuration.
+- This was a historical component release. All official components converge
+  on the coordinated v0.56.0 release train.
+
+---
+
 ## v0.53.1 — Security hardening + Windows platform compatibility
 
 ### Fixed
@@ -14,8 +46,10 @@
 - **Clock hermiticity**: `verify_capability_proof()` now accepts optional `now=` parameter
   for deterministic testing instead of wall-clock race conditions. Unfroze frozen test
   fixtures (July 1, 2026 → wall clock).
-- **Version sourcing**: `__version__` now reads from `pyproject.toml` (0.53.1) via
-  `importlib.metadata.version()` instead of stale hardcoded constant (was 0.23.0).
+- **Version sourcing**: `__version__` now reads installed package metadata via
+  `importlib.metadata.version()` instead of a stale hardcoded constant. The
+  v0.53.1 source tag retained `0.52.1` package metadata; v0.56.0 corrects that
+  historical packaging error without rewriting the published tag.
 - **Documentation**: Removed local filesystem path leaks from CHANGELOG; fixed mojibake
   arrow and numbering in AGENT.md.
 

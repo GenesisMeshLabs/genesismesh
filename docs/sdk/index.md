@@ -8,13 +8,21 @@ SDKs are standalone packages: they live in separate repos under
 `C:\Source\GenesisMeshLabs\sdk-*\` and are not part of the Python main repo.
 They share no runtime dependencies with the Python server.
 
-## Available
+Starting with the coordinated v0.56.0 release train, the reference
+implementation and every official SDK use the same product version. Earlier
+SDK version numbers remain in their changelogs as historical first-release
+markers.
+
+## Current release train
+
+Version 0.56.0 is the coordinated source version. Registry publication occurs
+only after the complete release gate passes in every component repository.
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.53.0 | `sdk-typescript/` |
-| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.54.0 | `sdk-go/` |
-| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.55.0 | `sdk-dotnet/` |
+| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.56.0 | `sdk-typescript/` |
+| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.56.0 | `sdk-go/` |
+| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.56.0 | `sdk-dotnet/` |
 
 ## Design principles
 

@@ -242,6 +242,7 @@ development/security-policy
 
 development/history
 development/phases/index
+development/versioning
 development/strategy
 development/roadmap
 development/milestones

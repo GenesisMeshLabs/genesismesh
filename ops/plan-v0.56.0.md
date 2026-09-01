@@ -161,8 +161,11 @@ No external HTTP dependencies.  No Python.  No cgo.
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.55.0`
-- [ ] `verifier/go/go.mod` at correct version
+- [ ] Core and all official SDK package metadata set to `0.56.0`
+- [ ] Every component `VERSION` file set to `0.56.0`
+- [ ] Core and SDK security policies support `0.56.x`
+- [ ] Release-tag consistency checks pass in every component repository
+- [ ] Go verifier included in the core `v0.56.0` tag
 - [ ] CHANGELOG entry (Go verifier -- "first independent implementation")
 - [ ] history.md updated with v0.56.0 entry
 - [ ] All prior Python tests continue to pass

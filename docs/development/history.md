@@ -349,9 +349,23 @@ As of v0.53.1, the following are *not* yet true:
 
 ---
 
+### v0.56.0 - Coordinated Release Train (In Development)
+
+The Python reference implementation and the TypeScript, Go, and .NET SDKs now
+declare one shared `0.56.0` development version. This corrects the earlier
+component-version sequence in which SDK milestones were mistaken for the
+version of Genesis Mesh as a whole.
+
+The coordinated release is not considered published until the v0.56.0 Go
+protocol verifier gate, all component tests, matching tags, and package
+publication checks are complete. Historical tags remain unchanged.
+
+---
+
 ## 5. Where to Read More
 
 - Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`
+- Coordinated product version policy: {doc}`versioning`
 - Architecture and design philosophy: {doc}`strategy`
 - Per-release plans: `ops/plan-v0.*.md`
 - Phase 2 externalization plan: {doc}`externalization`

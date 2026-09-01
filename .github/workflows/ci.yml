@@ -27,6 +27,9 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
+      - name: Verify release version
+        run: python scripts/check_version.py
+
       - name: Run unit tests
         run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
 

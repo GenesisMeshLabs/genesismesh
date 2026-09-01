@@ -68,10 +68,12 @@ authorization, and sovereign control need to be designed together.
 
 ## Current Maturity
 
-Genesis Mesh v0.52.1 has completed three trust cycles of protocol work covering
-Phases A through J. The core protocol is verified: 1,088+ passing tests, Tamarin
-formal verification of key security lemmas, and three language SDKs (TypeScript,
-Go, .NET) each implementing the complete Trust API HTTP surface.
+Genesis Mesh is converging the reference implementation and all official SDKs
+on the coordinated v0.56.0 release train. The project has completed three trust
+cycles of protocol work covering Phases A through J. The core protocol is
+verified by the automated test suite, Tamarin formal verification of key
+security lemmas, and three language SDKs (TypeScript, Go, .NET) implementing the
+complete Trust API HTTP surface.
 
 Phase 2 (Externalization) is now the focus. The goals are external operator
 adoption, Atlas (the sovereign explorer), RFC ratification, and conformance

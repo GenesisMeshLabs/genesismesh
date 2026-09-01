@@ -13,6 +13,8 @@ sys.path.insert(0, str(ROOT))
 project = "Genesis Mesh"
 author = "Genesis Mesh contributors"
 copyright = "2026, Genesis Mesh contributors"
+release = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+version = ".".join(release.split(".")[:2])
 
 extensions = [
     "myst_parser",
