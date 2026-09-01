@@ -158,7 +158,15 @@ jobs:
           set -euo pipefail
           cd /opt/genesis-mesh
           git config --global --add safe.directory /opt/genesis-mesh || true
-          git fetch --tags origin
+          git remote set-url origin https://github.com/GenesisMeshLabs/genesismesh.git
+          if git ls-remote --exit-code --heads origin "$DEPLOY_REF" >/dev/null; then
+            git fetch --prune origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$DEPLOY_REF" >/dev/null; then
+            git fetch --force origin "refs/tags/$DEPLOY_REF:refs/tags/$DEPLOY_REF"
+          else
+            echo "Unknown deployment ref: $DEPLOY_REF" >&2
+            exit 1
+          fi
           if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
             git checkout --force "tags/$DEPLOY_REF"
           elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
@@ -179,7 +187,15 @@ jobs:
             sudo -H -u "$REPO_USER" env DEPLOY_REF="$DEPLOY_REF" bash <<'REPO_SCRIPT'
           set -euo pipefail
           cd /opt/genesis-mesh
-          git fetch --tags origin
+          git remote set-url origin https://github.com/GenesisMeshLabs/genesismesh.git
+          if git ls-remote --exit-code --heads origin "$DEPLOY_REF" >/dev/null; then
+            git fetch --prune origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$DEPLOY_REF" >/dev/null; then
+            git fetch --force origin "refs/tags/$DEPLOY_REF:refs/tags/$DEPLOY_REF"
+          else
+            echo "Unknown deployment ref: $DEPLOY_REF" >&2
+            exit 1
+          fi
           if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
             git checkout --force "tags/$DEPLOY_REF"
           elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
@@ -290,13 +306,22 @@ jobs:
           else
             sudo -H -u "$REPO_USER" bash -lc "cd '$REPO_DIR' && git log -1 --oneline"
           fi
+          echo "__GENESIS_DEPLOY_SUCCESS__"
           SCRIPT
           } > /tmp/deploy-genesis-mesh.sh
 
-          az vm run-command invoke \
+          DEPLOY_OUTPUT="$(az vm run-command invoke \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_VM_NAME" \
             --command-id RunShellScript \
             --scripts @/tmp/deploy-genesis-mesh.sh \
             --query "value[].message" \
-            --output tsv
+            --output tsv)"
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          if ! grep -q "__GENESIS_DEPLOY_SUCCESS__" <<EOF
+          $DEPLOY_OUTPUT
+          EOF
+          then
+            echo "Azure Run Command did not reach the deployment success marker" >&2
+            exit 1
+          fi
