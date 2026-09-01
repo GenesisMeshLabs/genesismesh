@@ -329,22 +329,27 @@ jobs:
           echo
           curl -fsS http://127.0.0.1:8443/readyz
           echo
-          "$REPO_DIR/.venv/bin/genesis-mesh" federation --help >/tmp/genesis-mesh-federation-help.txt
-          head -n 1 /tmp/genesis-mesh-federation-help.txt
-          curl -fsS http://127.0.0.1:8443/connectome.json >/tmp/genesis-mesh-connectome.json
-          curl -fsS http://127.0.0.1:8443/dashboard.json >/tmp/genesis-mesh-dashboard.json
+          DEPLOY_TMP_DIR="$(mktemp -d)"
+          trap 'rm -rf "$DEPLOY_TMP_DIR"' EXIT
+          "$REPO_DIR/.venv/bin/genesis-mesh" federation --help >"$DEPLOY_TMP_DIR/federation-help.txt"
+          head -n 1 "$DEPLOY_TMP_DIR/federation-help.txt"
+          curl -fsS http://127.0.0.1:8443/connectome.json >"$DEPLOY_TMP_DIR/connectome.json"
+          curl -fsS http://127.0.0.1:8443/dashboard.json >"$DEPLOY_TMP_DIR/dashboard.json"
+          export DEPLOY_TMP_DIR
           "$REPO_DIR/.venv/bin/python" - <<'PY'
           import json
+          import os
           from pathlib import Path
 
-          data = json.loads(Path("/tmp/genesis-mesh-connectome.json").read_text())
+          tmp_dir = Path(os.environ["DEPLOY_TMP_DIR"])
+          data = json.loads((tmp_dir / "connectome.json").read_text())
           print(
               "connectome-ok",
               f"sovereigns={len(data.get('sovereigns', []))}",
               f"edges={len(data.get('recognition_edges', []))}",
               f"revocations={len(data.get('imported_revocations', []))}",
           )
-          dashboard = json.loads(Path("/tmp/genesis-mesh-dashboard.json").read_text())
+          dashboard = json.loads((tmp_dir / "dashboard.json").read_text())
           cycle = dashboard.get("trust_cycle_summary", {})
           if cycle.get("status") != "verified" or cycle.get("freshness") != "fresh":
               raise SystemExit(f"trust-cycle-canary-not-fresh: {cycle}")
