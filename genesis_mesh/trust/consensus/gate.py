@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from ...models.consensus import ConsensusProof
 from .proof import verify_consensus_proof
 
@@ -24,16 +26,22 @@ class ConsensusGate:
         consensus_proof: ConsensusProof,
         validator_public_keys: dict[str, str],
         assembler_public_keys: list[str],
+        *,
+        at_time: datetime | None = None,
     ) -> None:
         self._proof = consensus_proof
         self._validator_keys = validator_public_keys
         self._assembler_keys = assembler_public_keys
+        self._at_time = at_time
 
     def __call__(self, context: object, terms: object) -> object:
         from ...models.context import GateResult
 
         result = verify_consensus_proof(
-            self._proof, self._validator_keys, self._assembler_keys
+            self._proof,
+            self._validator_keys,
+            self._assembler_keys,
+            at_time=self._at_time,
         )
         if result.valid:
             return GateResult(

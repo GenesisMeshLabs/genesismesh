@@ -497,7 +497,7 @@ class TestConsensusGate:
         cp = _make_consensus_proof(v1_sk, v2_sk, v3_sk, asm_sk, jp)
 
         val_keys = {_V1: _pub_b64(v1_sk), _V2: _pub_b64(v2_sk), _V3: _pub_b64(v3_sk)}
-        gate = ConsensusGate(cp, val_keys, [_pub_b64(asm_sk)])
+        gate = ConsensusGate(cp, val_keys, [_pub_b64(asm_sk)], at_time=_NOW)
         engine = BoundaryEngine("operator")
         engine._gates = [gate, validity_window_gate]  # type: ignore[attr-defined, list-item]
 
