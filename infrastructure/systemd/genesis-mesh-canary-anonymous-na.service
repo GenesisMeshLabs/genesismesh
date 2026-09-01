@@ -1,0 +1,39 @@
+[Unit]
+Description=Genesis Mesh canary sovereign anonymous-NA
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+User=azureuser
+WorkingDirectory=/opt/genesis-mesh
+ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh na start --config /var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/genesis-mesh.toml
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -14,10 +14,12 @@ network names reflect the reference deployment on Azure.
 | `genesis-mesh-node-d.service` | Router node D (backup) — peer WebSocket on port 7444 |
 | `genesis-mesh-trust-cycle-canary.service` | Daily signed accept, revoke, import, reject proof |
 | `genesis-mesh-trust-cycle-canary.timer` | Persistent daily schedule for the proof |
+| `genesis-mesh-canary-001-na.service` | Private loopback service for the existing `001-NA` canary sovereign |
+| `genesis-mesh-canary-anonymous-na.service` | Private loopback service for the existing `anonymous-NA` canary sovereign |
 
 ## Hardening posture (current)
 
-All three units include:
+All service units include:
 
 - `Restart=always` (NA) / `Restart=on-failure` (routers)
 - `RestartSec=5` (NA) / `RestartSec=10` (routers)
@@ -38,7 +40,9 @@ missing entry stops the unit from starting.
 | `genesis-mesh-na.service` | `/var/lib/genesis-mesh` | SQLite DB (`DB_PATH`) plus its `-wal`/`-journal`/`-shm` siblings. The NA logs to stderr, not a file, and writes nothing under `$HOME` — so it uses `ProtectHome=true`. |
 | `genesis-mesh-node.service` | `/home/azureuser/.genesis-mesh-demo-node`, `/home/azureuser/.genesis-mesh` | The `--config` home (`config.toml`, `node.cert.json`, `policy.json`, `keys/node.key` — rewritten on every start by `genesis_mesh/cli/ops.py`), and the audit log under `DEFAULT_AUDIT_DIR` (`genesis_mesh/audit/logger.py`). |
 | `genesis-mesh-node-d.service` | `/home/azureuser/.genesis-mesh-node-d`, `/home/azureuser/.genesis-mesh` | Same, with node D's own config home. |
-| `genesis-mesh-trust-cycle-canary.service` | `/var/lib/genesis-mesh/trust-cycle-canary` | Dedicated operator key and latest operator-safe proof receipt. |
+| `genesis-mesh-trust-cycle-canary.service` | `/var/lib/genesis-mesh` | Signed operator-safe receipt and the primary USG audit event that exposes its safe summary. |
+| `genesis-mesh-canary-001-na.service` | `/var/lib/genesis-mesh/trust-cycle-canary/001-na` | Persistent state for the loopback-only `001-NA` sovereign. |
+| `genesis-mesh-canary-anonymous-na.service` | `/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na` | Persistent state for the loopback-only `anonymous-NA` sovereign. |
 
 Routers use `ProtectHome=read-only` rather than `true` or `tmpfs`: those two
 replace the home directory outright, and `ReadWritePaths=` cannot reach back
@@ -78,19 +82,28 @@ sudo install -d -o azureuser -g azureuser -m 0700 \
 
 sudo cp genesis-mesh-node.service   /etc/systemd/system/
 sudo cp genesis-mesh-node-d.service /etc/systemd/system/
+sudo cp genesis-mesh-canary-001-na.service /etc/systemd/system/
+sudo cp genesis-mesh-canary-anonymous-na.service /etc/systemd/system/
 sudo cp genesis-mesh-trust-cycle-canary.service /etc/systemd/system/
 sudo cp genesis-mesh-trust-cycle-canary.timer /etc/systemd/system/
-sudo /opt/genesis-mesh/.venv/bin/python \
-  infrastructure/scripts/configure-trust-cycle-canary.py
+
+# Provision each sovereign's signed genesis and NA/operator keys privately,
+# then install the public, nonsecret config templates.
+sudo install -m 0600 infrastructure/canary/001-na.toml \
+  /var/lib/genesis-mesh/trust-cycle-canary/001-na/genesis-mesh.toml
+sudo install -m 0600 infrastructure/canary/anonymous-na.toml \
+  /var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/genesis-mesh.toml
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now genesis-mesh-na genesis-mesh-node genesis-mesh-node-d
+sudo systemctl enable --now genesis-mesh-canary-001-na
+sudo systemctl enable --now genesis-mesh-canary-anonymous-na
 sudo systemctl enable --now genesis-mesh-trust-cycle-canary.timer
 ```
 
-The reference canary expects the maintainer-operated issuer on
-`127.0.0.1:18443` and its operator key under the Rayen sovereign home. Adapt
-the unit paths when installing it on a different sovereign pair.
+The reference canary expects `001-NA` on `127.0.0.1:19443` and `anonymous-NA`
+on `127.0.0.1:19444`. Their private artifacts are deliberately absent from
+this repository and must be provisioned through the deployment secret path.
 
 See [`docs/operations/vm-bootstrap.md`](../../docs/operations/vm-bootstrap.md)
 for the full from-scratch VM build, including the prerequisites the units

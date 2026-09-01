@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import tomllib
 
 from click.testing import CliRunner
 
 from genesis_mesh.cli.main import cli
+from genesis_mesh.crypto import load_public_key, verify_signature
+from genesis_mesh.na_service.db import NADatabase
 
 from .cli_ops_helpers import _running_na_from_config
 
@@ -164,3 +167,84 @@ def test_remote_adoption_proof_requires_external_operator_confirmation(tmp_path)
     assert result.exit_code != 0
     assert "--issuer-operator-type external" in result.output
     assert "Traceback" not in result.output
+
+
+def test_continuous_canary_signs_receipt_and_records_safe_audit(tmp_path):
+    """The scheduled command should prove two sovereigns and update observability."""
+    runner = CliRunner()
+    acceptor_config = tmp_path / "acceptor.toml"
+    issuer_config = tmp_path / "issuer.toml"
+    for config, home, network in (
+        (acceptor_config, tmp_path / "acceptor", "001-NA"),
+        (issuer_config, tmp_path / "issuer", "anonymous-NA"),
+    ):
+        initialized = runner.invoke(
+            cli,
+            [
+                "init",
+                "--config",
+                str(config),
+                "--home",
+                str(home),
+                "--network-name",
+                network,
+                "--force",
+            ],
+        )
+        assert initialized.exit_code == 0, initialized.output
+
+    acceptor_settings = tomllib.loads(acceptor_config.read_text(encoding="utf-8"))
+    issuer_settings = tomllib.loads(issuer_config.read_text(encoding="utf-8"))
+    receipt_path = tmp_path / "latest.signed.json"
+    audit_db_path = tmp_path / "public-dashboard.db"
+    audit_db_path.touch()
+
+    with _running_na_from_config(acceptor_config, tmp_path / "acceptor.db") as acceptor:
+        with _running_na_from_config(issuer_config, tmp_path / "issuer.db") as issuer:
+            result = runner.invoke(
+                cli,
+                [
+                    "proof",
+                    "canary",
+                    "--acceptor",
+                    acceptor,
+                    "--issuer",
+                    issuer,
+                    "--acceptor-operator-key",
+                    acceptor_settings["paths"]["operator_private_key"],
+                    "--issuer-operator-key",
+                    issuer_settings["paths"]["operator_private_key"],
+                    "--receipt-signing-key",
+                    acceptor_settings["paths"]["na_private_key"],
+                    "--receipt",
+                    str(receipt_path),
+                    "--audit-db",
+                    str(audit_db_path),
+                ],
+            )
+
+    assert result.exit_code == 0, result.output
+    assert "Continuous trust-cycle canary passed" in result.output
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    payload = receipt["payload"]
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    assert verify_signature(
+        canonical,
+        receipt["signature"]["value"],
+        load_public_key(acceptor_settings["paths"]["na_private_key"].replace(".key", ".pub")),
+    )
+    assert payload["acceptor_sovereign_id"] == "001-NA"
+    assert payload["issuer_sovereign_id"] == "anonymous-NA"
+    assert payload["pre_revocation"] == {"accepted": True, "reason": "accepted"}
+    assert payload["post_revocation"] == {
+        "accepted": False,
+        "reason": "attestation_locally_revoked",
+    }
+
+    db = NADatabase(str(audit_db_path))
+    try:
+        events = db.list_audit_events()
+    finally:
+        db.conn.close()
+    assert events[-1]["event_type"] == "trust_cycle_canary_completed"
+    assert "signature" not in json.dumps(events[-1])

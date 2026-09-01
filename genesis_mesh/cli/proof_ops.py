@@ -12,6 +12,7 @@ from ..workflows.proof import (
     cleanup_proof_state,
     connectome_artifact_errors,
     inspect_proof_bundle,
+    run_continuous_trust_cycle,
     run_remote_proof,
 )
 from .support import (
@@ -24,6 +25,69 @@ from .support import (
 @click.group()
 def proof() -> None:
     """Run and clean sovereign proof workflows."""
+
+
+@proof.command("canary")
+@click.option("--acceptor", required=True, help="Recognizing sovereign NA endpoint.")
+@click.option("--issuer", required=True, help="Subject/issuing sovereign NA endpoint.")
+@click.option(
+    "--acceptor-operator-key",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--acceptor-operator-key-id", default="operator-local")
+@click.option(
+    "--issuer-operator-key",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--issuer-operator-key-id", default="operator-local")
+@click.option(
+    "--receipt-signing-key",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--receipt-signing-key-id", default="na-local")
+@click.option("--receipt", "receipt_path", required=True, type=click.Path(dir_okay=False))
+@click.option(
+    "--audit-db",
+    "audit_db_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+def proof_canary(
+    acceptor: str,
+    issuer: str,
+    acceptor_operator_key: str,
+    acceptor_operator_key_id: str,
+    issuer_operator_key: str,
+    issuer_operator_key_id: str,
+    receipt_signing_key: str,
+    receipt_signing_key_id: str,
+    receipt_path: str,
+    audit_db_path: str,
+) -> None:
+    """Run, sign, and record a continuous cross-sovereign trust cycle."""
+    try:
+        receipt = run_continuous_trust_cycle(
+            acceptor_endpoint=acceptor,
+            issuer_endpoint=issuer,
+            acceptor_signer=(acceptor_operator_key_id, Path(acceptor_operator_key)),
+            issuer_signer=(issuer_operator_key_id, Path(issuer_operator_key)),
+            receipt_signer=(receipt_signing_key_id, Path(receipt_signing_key)),
+            receipt_path=Path(receipt_path),
+            audit_db_path=Path(audit_db_path),
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    payload = receipt["payload"]
+    click.echo("Continuous trust-cycle canary passed")
+    click.echo(f"  acceptor: {payload['acceptor_sovereign_id']}")
+    click.echo(f"  issuer:   {payload['issuer_sovereign_id']}")
+    click.echo(f"  sequence: {payload['feed_sequence']}")
+    click.echo(f"  pre:      {payload['pre_revocation']['reason']}")
+    click.echo(f"  post:     {payload['post_revocation']['reason']}")
 
 
 @proof.command("cleanup")

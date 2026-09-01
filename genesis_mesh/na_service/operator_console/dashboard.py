@@ -145,6 +145,28 @@ def _trust_cycle_summary(service) -> dict[str, Any]:
     for event in service.db.list_audit_events():
         event_type = str(event.get("event_type", ""))
         details = event.get("details") or {}
+        if event_type == "trust_cycle_canary_completed":
+            pre = details.get("pre_revocation") or {}
+            post = details.get("post_revocation") or {}
+            if (
+                pre.get("accepted") is True
+                and pre.get("reason") == "accepted"
+                and post.get("accepted") is False
+                and post.get("reason") == "attestation_locally_revoked"
+            ):
+                completed.append({
+                    "status": "verified",
+                    "completed_at": details.get("completed_at") or event.get("created_at"),
+                    "completed_at_display": _human_datetime(
+                        details.get("completed_at") or event.get("created_at")
+                    ),
+                    "attestation_id": details.get("attestation_id", ""),
+                    "treaty_id": details.get("treaty_id", ""),
+                    "issuer_sovereign_id": details.get("issuer_sovereign_id", ""),
+                    "acceptor_sovereign_id": details.get("acceptor_sovereign_id", ""),
+                    "receipt_digest": details.get("receipt_digest", ""),
+                })
+            continue
         if event_type == "sovereign_revocation_feed_imported":
             issuer = str(details.get("issuer_sovereign_id", ""))
             if issuer:
@@ -283,6 +305,12 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
             ("Sequence", "sequence"),
             ("Reason", "reason"),
         ],
+        "trust_cycle_canary_completed": [
+            ("Acceptor", "acceptor_sovereign_id"),
+            ("Issuer", "issuer_sovereign_id"),
+            ("Sequence", "feed_sequence"),
+            ("Receipt", "receipt_digest"),
+        ],
     }
     titles = {
         "recognition_treaty_issued": "Treaty issued",
@@ -291,6 +319,7 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
         "treaty_attestation_verified": "Attestation checked against treaty",
         "sovereign_revocation_feed_imported": "Revocation feed imported",
         "sovereign_revocation_feed_rejected": "Revocation feed rejected",
+        "trust_cycle_canary_completed": "Trust-cycle canary completed",
     }
     fields = []
     for label, key in detail_map.get(event_type, []):
@@ -319,7 +348,7 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
 
 def _safe_recent_changes(service) -> list[dict[str, Any]]:
     """Return recent trust-relevant audit events with human-readable details."""
-    trust_terms = ("recognition", "attestation", "revocation", "policy")
+    trust_terms = ("recognition", "attestation", "revocation", "policy", "trust_cycle")
     events = [
         event for event in service.db.list_audit_events()
         if any(term in str(event.get("event_type", "")) for term in trust_terms)

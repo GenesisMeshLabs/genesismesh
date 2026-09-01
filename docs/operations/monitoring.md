@@ -72,8 +72,9 @@ ingress, TLS, DNS, and firewall state are included in the check.
 ## Continuous Trust-Cycle Canary
 
 The Azure reference deployment runs
-`genesis-mesh-trust-cycle-canary.timer` once per day. It exercises two
-maintainer-operated sovereigns through their signed HTTP APIs:
+`genesis-mesh-trust-cycle-canary.timer` once per day. It exercises the existing
+`001-NA` and `anonymous-NA` maintainer sovereigns through their signed HTTP
+APIs. Both services bind only to loopback on the reference VM:
 
 1. the issuer creates an attestation;
 2. the acceptor creates a scoped recognition treaty;
@@ -83,9 +84,11 @@ maintainer-operated sovereigns through their signed HTTP APIs:
 6. the identical attestation is rejected as locally revoked.
 
 The timer is persistent, so a missed run executes when the host returns. The
-latest operator-safe proof receipt is written to
-`/var/lib/genesis-mesh/trust-cycle-canary/latest.json`. Private keys and request
-signatures are not written to the receipt.
+latest operator-safe proof receipt is signed by `001-NA`, verified immediately,
+and written to `/var/lib/genesis-mesh/trust-cycle-canary/latest.signed.json`.
+Its safe payload and digest are recorded as an audit event in USG observability.
+This audit event does not change USG trust decisions. Private keys and request
+signatures are never copied into the public dashboard.
 
 Verify the timer and the last completed cycle:
 

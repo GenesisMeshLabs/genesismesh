@@ -175,6 +175,41 @@ def test_dashboard_reports_complete_trust_cycle(client, na_service):
     assert summary["completed_at"]
 
 
+def test_dashboard_reports_signed_canary_receipt(client, na_service):
+    """A verified external-pair receipt should drive the canary summary."""
+    completed_at = datetime.now(timezone.utc).isoformat()
+    na_service.db.add_audit_event(
+        "trust_cycle_canary_completed",
+        {
+            "schema": "genesis-mesh/trust-cycle-canary/v1",
+            "completed_at": completed_at,
+            "acceptor_sovereign_id": "001-NA",
+            "issuer_sovereign_id": "anonymous-NA",
+            "attestation_id": "canary-attestation",
+            "treaty_id": "canary-treaty",
+            "feed_id": "canary-feed",
+            "feed_sequence": 1,
+            "pre_revocation": {"accepted": True, "reason": "accepted"},
+            "post_revocation": {
+                "accepted": False,
+                "reason": "attestation_locally_revoked",
+            },
+            "receipt_digest": "sha256:receipt",
+            "receipt_key_id": "na-local",
+        },
+    )
+
+    payload = client.get("/dashboard.json").get_json()
+    summary = payload["trust_cycle_summary"]
+
+    assert summary["status"] == "verified"
+    assert summary["freshness"] == "fresh"
+    assert summary["acceptor_sovereign_id"] == "001-NA"
+    assert summary["issuer_sovereign_id"] == "anonymous-NA"
+    assert summary["receipt_digest"] == "sha256:receipt"
+    assert payload["recent_changes"][0]["summary"]["title"] == "Trust-cycle canary completed"
+
+
 def test_dashboard_renders_treaty_and_audit_state(client, na_service):
     """Dashboard should show treaty lifecycle and sanitized trust changes."""
     body = {

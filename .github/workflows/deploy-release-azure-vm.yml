@@ -204,12 +204,39 @@ jobs:
           cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
           cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
           cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
+          cp infrastructure/systemd/genesis-mesh-canary-001-na.service /etc/systemd/system/genesis-mesh-canary-001-na.service
+          cp infrastructure/systemd/genesis-mesh-canary-anonymous-na.service /etc/systemd/system/genesis-mesh-canary-anonymous-na.service
           cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.service /etc/systemd/system/genesis-mesh-trust-cycle-canary.service
           cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.timer /etc/systemd/system/genesis-mesh-trust-cycle-canary.timer
           mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
           cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
-          "$REPO_DIR/.venv/bin/python" infrastructure/scripts/configure-trust-cycle-canary.py
+          CANARY_DIR=/var/lib/genesis-mesh/trust-cycle-canary
+          for sovereign in 001-na anonymous-na; do
+            test -f "$CANARY_DIR/$sovereign/genesis.signed.json"
+            test -f "$CANARY_DIR/$sovereign/keys/na.key"
+            test -f "$CANARY_DIR/$sovereign/keys/operator.key"
+            test -f "$CANARY_DIR/$sovereign/keys/operator.pub"
+            install -o azureuser -g azureuser -m 0600 \
+              "$REPO_DIR/infrastructure/canary/$sovereign.toml" \
+              "$CANARY_DIR/$sovereign/genesis-mesh.toml"
+            chown -R azureuser:azureuser "$CANARY_DIR/$sovereign"
+            chmod 0700 "$CANARY_DIR/$sovereign" "$CANARY_DIR/$sovereign/keys"
+            chmod 0600 "$CANARY_DIR/$sovereign/keys/na.key" \
+              "$CANARY_DIR/$sovereign/keys/operator.key"
+            chmod 0644 "$CANARY_DIR/$sovereign/genesis.signed.json" \
+              "$CANARY_DIR/$sovereign/keys/operator.pub"
+          done
           systemctl daemon-reload
+
+          echo "==> Starting private canary sovereigns"
+          systemctl enable --now genesis-mesh-canary-001-na.service
+          systemctl enable --now genesis-mesh-canary-anonymous-na.service
+          systemctl is-active --quiet genesis-mesh-canary-001-na.service
+          systemctl is-active --quiet genesis-mesh-canary-anonymous-na.service
+          curl -fsS http://127.0.0.1:19443/healthz
+          echo
+          curl -fsS http://127.0.0.1:19444/healthz
+          echo
 
           echo "==> Restarting services"
           for service in $SERVICES; do

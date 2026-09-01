@@ -1,0 +1,23 @@
+[network]
+name = "anonymous-NA"
+version = "v0.1"
+na_endpoint = "http://127.0.0.1:19444"
+
+[paths]
+home = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na"
+genesis = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/genesis.signed.json"
+na_private_key = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/keys/na.key"
+operator_private_key = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/keys/operator.key"
+operator_public_key = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/keys/operator.pub"
+node_private_key = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/keys/node.key"
+node_certificate = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/node.cert.json"
+policy = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/policy.json"
+db = "/var/lib/genesis-mesh/trust-cycle-canary/anonymous-na/na.db"
+
+[na]
+key_id = "na-local"
+host = "127.0.0.1"
+port = 19444
+
+[operator]
+key_id = "operator-local"

@@ -186,6 +186,12 @@ ROUTER_UNITS = {
 }
 
 CANARY_UNITS = {
+    "genesis-mesh-canary-001-na.service": lambda: _canonical(
+        "genesis-mesh-canary-001-na.service"
+    ),
+    "genesis-mesh-canary-anonymous-na.service": lambda: _canonical(
+        "genesis-mesh-canary-anonymous-na.service"
+    ),
     "genesis-mesh-trust-cycle-canary.service": lambda: _canonical(
         "genesis-mesh-trust-cycle-canary.service"
     ),
@@ -301,16 +307,33 @@ def test_router_unit_keeps_home_reachable(label):
     assert _one(ROUTER_UNITS[label](), "ProtectHome") == "read-only"
 
 
-def test_canary_unit_limits_writes_to_its_receipt_directory():
-    """The canary may write its proof receipt but not either authority state."""
+def test_canary_unit_can_write_receipt_and_primary_audit_database():
+    """The canary records its signed receipt in primary observability."""
     section = CANARY_UNITS["genesis-mesh-trust-cycle-canary.service"]()
     assert _one(section, "ProtectHome") == "read-only"
-    assert _one(section, "ReadWritePaths") == "/var/lib/genesis-mesh/trust-cycle-canary"
+    assert _one(section, "ReadWritePaths") == "/var/lib/genesis-mesh"
     command = _one(section, "ExecStart")
-    assert "proof remote" in command
-    assert "--acceptor http://127.0.0.1:8443" in command
-    assert "--issuer http://127.0.0.1:18443" in command
-    assert "--proof-bundle /var/lib/genesis-mesh/trust-cycle-canary/latest.json" in command
+    assert "proof canary" in command
+    assert "--acceptor http://127.0.0.1:19443" in command
+    assert "--issuer http://127.0.0.1:19444" in command
+    assert "--receipt /var/lib/genesis-mesh/trust-cycle-canary/latest.signed.json" in command
+    assert "--audit-db /var/lib/genesis-mesh/na.db" in command
+
+
+@pytest.mark.parametrize(
+    ("unit", "config"),
+    (
+        ("genesis-mesh-canary-001-na.service", "001-na"),
+        ("genesis-mesh-canary-anonymous-na.service", "anonymous-na"),
+    ),
+)
+def test_private_canary_sovereign_is_local_and_state_scoped(unit, config):
+    """Each persistent canary sovereign writes only inside its own state."""
+    section = CANARY_UNITS[unit]()
+    state = f"/var/lib/genesis-mesh/trust-cycle-canary/{config}"
+    assert _one(section, "ProtectHome") == "true"
+    assert _one(section, "ReadWritePaths") == state
+    assert _one(section, "ExecStart").endswith(f"--config {state}/genesis-mesh.toml")
 
 
 def test_canary_timer_is_daily_and_persistent():

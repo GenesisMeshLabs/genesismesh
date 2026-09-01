@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from ..cli.support import (
     _require_positive_int,
     _signed_admin_headers,
 )
+from ..crypto import load_private_key, sign_data, verify_signature
+from ..na_service.db import NADatabase
 
 
 def run_remote_proof(
@@ -169,6 +172,92 @@ def run_remote_proof(
         "trust_path": trust_path,
         "connectome_summary": connectome["summary"],
     }
+
+
+def run_continuous_trust_cycle(
+    *,
+    acceptor_endpoint: str,
+    issuer_endpoint: str,
+    acceptor_signer: tuple[str, Path],
+    issuer_signer: tuple[str, Path],
+    receipt_signer: tuple[str, Path],
+    receipt_path: Path,
+    audit_db_path: Path,
+) -> dict[str, Any]:
+    """Run, sign, and record one maintainer trust-cycle canary."""
+    bundle = run_remote_proof(
+        acceptor_endpoint=acceptor_endpoint,
+        issuer_endpoint=issuer_endpoint,
+        acceptor_signer=acceptor_signer,
+        issuer_signer=issuer_signer,
+        role="role:service:maintainer",
+        subject_id=f"trust-cycle-canary-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        subject_public_key="trust-cycle-canary-subject",
+        claims={"purpose": "continuous-verification-canary"},
+        validity_hours=25,
+        operator_evidence={
+            "acceptor": {
+                "operator_label": bundle_label(acceptor_endpoint),
+                "operator_type": "maintainer",
+            },
+            "issuer": {
+                "operator_label": bundle_label(issuer_endpoint),
+                "operator_type": "maintainer",
+                "controls_keys": True,
+                "controls_infrastructure": True,
+            },
+            "assistance_notes": [],
+            "adoption_proof": False,
+        },
+    )
+    inspection = inspect_proof_bundle(bundle)
+    if not inspection["valid"]:
+        raise ValueError(f"Trust-cycle canary proof failed inspection: {inspection['errors']}")
+
+    payload = {
+        "schema": "genesis-mesh/trust-cycle-canary/v1",
+        "completed_at": bundle["created_at"],
+        "acceptor_sovereign_id": bundle["acceptor"]["network_name"],
+        "issuer_sovereign_id": bundle["issuer"]["network_name"],
+        "attestation_id": bundle["attestation_id"],
+        "treaty_id": bundle["treaty_id"],
+        "feed_id": bundle["feed_id"],
+        "feed_sequence": bundle["feed_sequence"],
+        "pre_revocation": bundle["pre_revocation"],
+        "post_revocation": bundle["post_revocation"],
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    receipt_key_id, receipt_key_path = receipt_signer
+    signing_key = load_private_key(str(receipt_key_path))
+    signature = sign_data(canonical, signing_key)
+    if not verify_signature(canonical, signature, signing_key.verify_key):
+        raise ValueError("Trust-cycle canary receipt signature did not verify")
+    receipt = {
+        "payload": payload,
+        "signature": {"key_id": receipt_key_id, "value": signature},
+    }
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = receipt_path.with_suffix(f"{receipt_path.suffix}.tmp")
+    temporary.write_text(json.dumps(receipt, indent=2, sort_keys=True), encoding="utf-8")
+    temporary.replace(receipt_path)
+
+    receipt_digest = hashlib.sha256(canonical).hexdigest()
+    audit_db = NADatabase(str(audit_db_path))
+    try:
+        audit_db.migrate()
+        audit_db.add_audit_event("trust_cycle_canary_completed", {
+            **payload,
+            "receipt_digest": f"sha256:{receipt_digest}",
+            "receipt_key_id": receipt_key_id,
+        })
+    finally:
+        audit_db.conn.close()
+    return receipt
+
+
+def bundle_label(endpoint: str) -> str:
+    """Return a stable operator-safe label for a local canary endpoint."""
+    return endpoint.rstrip("/").rsplit(":", 1)[-1]
 
 
 def inspect_proof_bundle(
