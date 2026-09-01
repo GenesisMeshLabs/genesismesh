@@ -6,6 +6,12 @@
 
 - Unified the Python reference implementation, TypeScript SDK, Go SDK, and
   .NET SDK on one `0.56.0` product version.
+- Added a daily, signed cross-sovereign trust-cycle canary for the Azure
+  reference deployment. The canary verifies acceptance, revocation-feed
+  import, and rejection of the identical attestation.
+- Added a machine-readable trust-cycle summary to the sovereign dashboard and
+  changed feed freshness reporting to evaluate only the newest sequence from
+  each issuer.
 - Added an explicit release-version source and publishing guards so package
   metadata must match the release tag.
 - Updated security policies and public documentation to distinguish the

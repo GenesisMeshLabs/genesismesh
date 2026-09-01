@@ -12,6 +12,8 @@ network names reflect the reference deployment on Azure.
 | `genesis-mesh-na.override.conf` | Drop-in that mounts `OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON` from `/etc/genesis-mesh/operator-keys.env` |
 | `genesis-mesh-node.service` | Router node B — peer WebSocket on port 7443 |
 | `genesis-mesh-node-d.service` | Router node D (backup) — peer WebSocket on port 7444 |
+| `genesis-mesh-trust-cycle-canary.service` | Daily signed accept, revoke, import, reject proof |
+| `genesis-mesh-trust-cycle-canary.timer` | Persistent daily schedule for the proof |
 
 ## Hardening posture (current)
 
@@ -36,6 +38,7 @@ missing entry stops the unit from starting.
 | `genesis-mesh-na.service` | `/var/lib/genesis-mesh` | SQLite DB (`DB_PATH`) plus its `-wal`/`-journal`/`-shm` siblings. The NA logs to stderr, not a file, and writes nothing under `$HOME` — so it uses `ProtectHome=true`. |
 | `genesis-mesh-node.service` | `/home/azureuser/.genesis-mesh-demo-node`, `/home/azureuser/.genesis-mesh` | The `--config` home (`config.toml`, `node.cert.json`, `policy.json`, `keys/node.key` — rewritten on every start by `genesis_mesh/cli/ops.py`), and the audit log under `DEFAULT_AUDIT_DIR` (`genesis_mesh/audit/logger.py`). |
 | `genesis-mesh-node-d.service` | `/home/azureuser/.genesis-mesh-node-d`, `/home/azureuser/.genesis-mesh` | Same, with node D's own config home. |
+| `genesis-mesh-trust-cycle-canary.service` | `/var/lib/genesis-mesh/trust-cycle-canary` | Dedicated operator key and latest operator-safe proof receipt. |
 
 Routers use `ProtectHome=read-only` rather than `true` or `tmpfs`: those two
 replace the home directory outright, and `ReadWritePaths=` cannot reach back
@@ -75,10 +78,19 @@ sudo install -d -o azureuser -g azureuser -m 0700 \
 
 sudo cp genesis-mesh-node.service   /etc/systemd/system/
 sudo cp genesis-mesh-node-d.service /etc/systemd/system/
+sudo cp genesis-mesh-trust-cycle-canary.service /etc/systemd/system/
+sudo cp genesis-mesh-trust-cycle-canary.timer /etc/systemd/system/
+sudo /opt/genesis-mesh/.venv/bin/python \
+  infrastructure/scripts/configure-trust-cycle-canary.py
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now genesis-mesh-na genesis-mesh-node genesis-mesh-node-d
+sudo systemctl enable --now genesis-mesh-trust-cycle-canary.timer
 ```
+
+The reference canary expects the maintainer-operated issuer on
+`127.0.0.1:18443` and its operator key under the Rayen sovereign home. Adapt
+the unit paths when installing it on a different sovereign pair.
 
 See [`docs/operations/vm-bootstrap.md`](../../docs/operations/vm-bootstrap.md)
 for the full from-scratch VM build, including the prerequisites the units

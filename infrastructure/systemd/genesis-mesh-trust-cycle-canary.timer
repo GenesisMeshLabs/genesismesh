@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Genesis Mesh trust-cycle verification canary daily
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=1m
+Unit=genesis-mesh-trust-cycle-canary.service
+
+[Install]
+WantedBy=timers.target

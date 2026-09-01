@@ -35,6 +35,7 @@ Use the HTML page for operator review and screenshots. Use
 - Connectome counts;
 - treaty lifecycle state and expiry risk;
 - imported sovereign revocation feed freshness;
+- the newest complete accept, import, reject trust cycle;
 - recent trust-relevant audit events with sanitized details;
 - verification links to the raw JSON and generated references.
 
@@ -71,6 +72,17 @@ Revocation-feed freshness is derived from local import time:
 - `fresh`: imported within 24 hours;
 - `watch`: imported within 72 hours;
 - `stale`: older than 72 hours.
+
+Only the newest imported sequence for each issuer contributes to this
+freshness summary. Older retained sequences remain available as historical
+evidence but do not count as separate current feeds.
+
+The daily trust-cycle canary is `fresh` for 30 hours, `watch` through 48 hours,
+and then `stale`. This window accommodates the timer's randomized start delay
+without hiding a missed daily run. The audit record must show the same
+attestation accepted, its issuer's newer signed feed imported, and that
+attestation rejected as locally revoked. API liveness alone cannot produce a
+verified trust-cycle result.
 
 These thresholds are operator visibility signals. They do not change protocol
 acceptance rules.

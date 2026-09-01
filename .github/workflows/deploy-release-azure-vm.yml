@@ -204,8 +204,11 @@ jobs:
           cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
           cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
           cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
+          cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.service /etc/systemd/system/genesis-mesh-trust-cycle-canary.service
+          cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.timer /etc/systemd/system/genesis-mesh-trust-cycle-canary.timer
           mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
           cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
+          "$REPO_DIR/.venv/bin/python" infrastructure/scripts/configure-trust-cycle-canary.py
           systemctl daemon-reload
 
           echo "==> Restarting services"
@@ -221,6 +224,12 @@ jobs:
             systemctl status "$service" --no-pager --lines=5
           done
 
+          echo "==> Enabling and exercising the daily trust-cycle canary"
+          systemctl enable --now genesis-mesh-trust-cycle-canary.timer
+          systemctl start genesis-mesh-trust-cycle-canary.service
+          systemctl is-active --quiet genesis-mesh-trust-cycle-canary.timer
+          test "$(systemctl show genesis-mesh-trust-cycle-canary.service -p Result --value)" = "success"
+
           echo "==> Probing Network Authority"
           curl -fsS http://127.0.0.1:8443/healthz
           echo
@@ -229,6 +238,7 @@ jobs:
           "$REPO_DIR/.venv/bin/genesis-mesh" federation --help >/tmp/genesis-mesh-federation-help.txt
           head -n 1 /tmp/genesis-mesh-federation-help.txt
           curl -fsS http://127.0.0.1:8443/connectome.json >/tmp/genesis-mesh-connectome.json
+          curl -fsS http://127.0.0.1:8443/dashboard.json >/tmp/genesis-mesh-dashboard.json
           "$REPO_DIR/.venv/bin/python" - <<'PY'
           import json
           from pathlib import Path
@@ -240,6 +250,11 @@ jobs:
               f"edges={len(data.get('recognition_edges', []))}",
               f"revocations={len(data.get('imported_revocations', []))}",
           )
+          dashboard = json.loads(Path("/tmp/genesis-mesh-dashboard.json").read_text())
+          cycle = dashboard.get("trust_cycle_summary", {})
+          if cycle.get("status") != "verified" or cycle.get("freshness") != "fresh":
+              raise SystemExit(f"trust-cycle-canary-not-fresh: {cycle}")
+          print("trust-cycle-canary-ok", f"completed_at={cycle.get('completed_at')}")
           PY
 
           echo "==> Deployment complete"

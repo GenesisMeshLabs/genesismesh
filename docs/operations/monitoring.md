@@ -69,6 +69,37 @@ curl -fsS http://127.0.0.1:8443/connectome.json
 For public endpoints, run the same probes from outside the VM or cluster so
 ingress, TLS, DNS, and firewall state are included in the check.
 
+## Continuous Trust-Cycle Canary
+
+The Azure reference deployment runs
+`genesis-mesh-trust-cycle-canary.timer` once per day. It exercises two
+maintainer-operated sovereigns through their signed HTTP APIs:
+
+1. the issuer creates an attestation;
+2. the acceptor creates a scoped recognition treaty;
+3. the identical attestation is accepted;
+4. the issuer revokes the attestation;
+5. the acceptor imports the higher-sequence signed revocation feed;
+6. the identical attestation is rejected as locally revoked.
+
+The timer is persistent, so a missed run executes when the host returns. The
+latest operator-safe proof receipt is written to
+`/var/lib/genesis-mesh/trust-cycle-canary/latest.json`. Private keys and request
+signatures are not written to the receipt.
+
+Verify the timer and the last completed cycle:
+
+```bash
+systemctl status genesis-mesh-trust-cycle-canary.timer
+systemctl show genesis-mesh-trust-cycle-canary.service -p Result
+curl -fsS http://127.0.0.1:8443/dashboard.json \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["trust_cycle_summary"])'
+```
+
+Treat `/healthz` and the trust-cycle summary as separate signals. Liveness
+proves that the API responds. A fresh verified cycle proves that the
+recognition and revocation path was exercised successfully.
+
 ## Logging
 
 Genesis Mesh configures process logging through the shared observability layer.

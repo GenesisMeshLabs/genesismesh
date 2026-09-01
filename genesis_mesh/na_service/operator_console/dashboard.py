@@ -12,6 +12,8 @@ from .rendering import node_counts, page_document
 
 FRESH_FEED_HOURS = 24
 STALE_FEED_HOURS = 72
+FRESH_TRUST_CYCLE_HOURS = 30
+STALE_TRUST_CYCLE_HOURS = 48
 PRIVATE_DETAIL_TERMS = ("private", "secret", "signature", "token")
 
 
@@ -85,9 +87,9 @@ def _treaty_summary(treaties: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _revocation_feed_items(service) -> list[dict[str, Any]]:
-    """Return imported revocation feed freshness rows."""
+    """Return the newest imported revocation feed for each issuer."""
     now = datetime.now(timezone.utc)
-    items = []
+    newest_by_issuer: dict[str, dict[str, Any]] = {}
     for row in service.db.list_sovereign_revocation_feeds():
         feed = row["feed"]
         imported_at = _parse_datetime(row["imported_at"])
@@ -100,7 +102,7 @@ def _revocation_feed_items(service) -> list[dict[str, Any]]:
             freshness = "watch"
         else:
             freshness = "stale"
-        items.append({
+        item = {
             "feed_id": feed.feed_id,
             "issuer_sovereign_id": feed.issuer_sovereign_id,
             "sequence": feed.sequence,
@@ -109,8 +111,11 @@ def _revocation_feed_items(service) -> list[dict[str, Any]]:
             "imported_at_display": _human_datetime(row["imported_at"]),
             "age_hours": age_hours,
             "freshness": freshness,
-        })
-    return sorted(items, key=lambda item: (item["issuer_sovereign_id"], item["sequence"]))
+        }
+        current = newest_by_issuer.get(feed.issuer_sovereign_id)
+        if current is None or int(item["sequence"]) > int(current["sequence"]):
+            newest_by_issuer[feed.issuer_sovereign_id] = item
+    return sorted(newest_by_issuer.values(), key=lambda item: item["issuer_sovereign_id"])
 
 
 def _feed_summary(feeds: list[dict[str, Any]]) -> dict[str, Any]:
@@ -129,6 +134,91 @@ def _feed_summary(feeds: list[dict[str, Any]]) -> dict[str, Any]:
         "stale_count": sum(1 for feed in feeds if feed["freshness"] == "stale"),
         "watch_count": sum(1 for feed in feeds if feed["freshness"] in {"watch", "unknown"}),
     }
+
+
+def _trust_cycle_summary(service) -> dict[str, Any]:
+    """Summarize the newest complete accept, import, reject trust cycle."""
+    accepted: dict[str, dict[str, Any]] = {}
+    imported: dict[str, dict[str, Any]] = {}
+    completed: list[dict[str, Any]] = []
+
+    for event in service.db.list_audit_events():
+        event_type = str(event.get("event_type", ""))
+        details = event.get("details") or {}
+        if event_type == "sovereign_revocation_feed_imported":
+            issuer = str(details.get("issuer_sovereign_id", ""))
+            if issuer:
+                imported[issuer] = event
+            continue
+        if event_type != "treaty_attestation_verified":
+            continue
+
+        attestation_id = str(details.get("attestation_id", ""))
+        treaty_id = str(details.get("treaty_id", ""))
+        issuer = str(details.get("subject_sovereign_id", ""))
+        if not attestation_id or not treaty_id or not issuer:
+            continue
+        if details.get("accepted") is True and details.get("reason") == "accepted":
+            accepted[attestation_id] = event
+            continue
+        if (
+            details.get("accepted") is not False
+            or details.get("reason") != "attestation_locally_revoked"
+        ):
+            continue
+
+        accepted_event = accepted.get(attestation_id)
+        imported_event = imported.get(issuer)
+        if accepted_event is None or imported_event is None:
+            continue
+        accepted_at = _parse_datetime(accepted_event.get("created_at"))
+        imported_at = _parse_datetime(imported_event.get("created_at"))
+        completed_at = _parse_datetime(event.get("created_at"))
+        if not accepted_at or not imported_at or not completed_at:
+            continue
+        if accepted_at > imported_at or imported_at > completed_at:
+            continue
+        completed.append({
+            "status": "verified",
+            "completed_at": event.get("created_at"),
+            "completed_at_display": _human_datetime(event.get("created_at")),
+            "attestation_id": attestation_id,
+            "treaty_id": treaty_id,
+            "issuer_sovereign_id": issuer,
+        })
+
+    if not completed:
+        return {
+            "status": "not_observed",
+            "freshness": "none",
+            "completed_at": None,
+            "completed_at_display": "",
+            "age_hours": None,
+        }
+
+    latest = max(
+        completed,
+        key=lambda item: _parse_datetime(item["completed_at"])
+        or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    completed_at = _parse_datetime(latest["completed_at"])
+    age_hours = (
+        max(
+            0,
+            int((datetime.now(timezone.utc) - completed_at).total_seconds() // 3600),
+        )
+        if completed_at
+        else None
+    )
+    if age_hours is None:
+        freshness = "unknown"
+    elif age_hours <= FRESH_TRUST_CYCLE_HOURS:
+        freshness = "fresh"
+    elif age_hours <= STALE_TRUST_CYCLE_HOURS:
+        freshness = "watch"
+    else:
+        freshness = "stale"
+    return {**latest, "age_hours": age_hours, "freshness": freshness}
 
 
 def _is_safe_detail(key: str) -> bool:
@@ -260,6 +350,7 @@ def build_dashboard_model(service) -> dict[str, Any]:
     feeds = _revocation_feed_items(service)
     treaty_summary = _treaty_summary(treaties)
     feed_summary = _feed_summary(feeds)
+    trust_cycle_summary = _trust_cycle_summary(service)
     warnings = []
     if treaty_summary["expiring_soon"]:
         warnings.append(f"{treaty_summary['expiring_soon']} treaty is expiring soon.")
@@ -281,6 +372,7 @@ def build_dashboard_model(service) -> dict[str, Any]:
         "treaties": treaties,
         "revocation_feed_summary": feed_summary,
         "revocation_feeds": feeds,
+        "trust_cycle_summary": trust_cycle_summary,
         "recent_changes": _safe_recent_changes(service),
         "warnings": warnings,
         "links": {
@@ -460,7 +552,14 @@ def render_dashboard(service) -> str:
                 <div class="signal-card">
                     <strong>Revocation feeds</strong>
                     {_status_badge(model['revocation_feed_summary']['freshness'])}
-                    <span class="muted">{model['revocation_feed_summary']['count']} imported feeds</span>
+                    <span class="muted">{model['revocation_feed_summary']['count']} current issuer feeds</span>
+                </div>
+                <div class="signal-card">
+                    <strong>Trust-cycle canary</strong>
+                    {_status_badge(model['trust_cycle_summary']['freshness'])}
+                    <span class="muted">
+                        {escape(model['trust_cycle_summary']['completed_at_display'] or 'No completed cycle observed')}
+                    </span>
                 </div>
                 <div class="signal-card signal-card-wide">
                     <strong>Operator notes</strong>

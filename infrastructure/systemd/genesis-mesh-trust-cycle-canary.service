@@ -1,0 +1,36 @@
+[Unit]
+Description=Genesis Mesh daily trust-cycle verification canary
+After=network-online.target genesis-mesh-na.service genesis-mesh-rayen-na.service
+Wants=network-online.target
+Requires=genesis-mesh-na.service genesis-mesh-rayen-na.service
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/opt/genesis-mesh
+ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh proof remote --acceptor http://127.0.0.1:8443 --issuer http://127.0.0.1:18443 --acceptor-operator-key /var/lib/genesis-mesh/trust-cycle-canary/operator.key --acceptor-operator-key-id trust-cycle-canary --issuer-operator-key /home/azureuser/.genesis-mesh-rayen-trabelsi-tn-na/keys/operator.key --issuer-operator-key-id operator-local --role role:service:maintainer --subject-public-key trust-cycle-canary-subject --claim purpose=continuous-verification-canary --validity-hours 25 --proof-bundle /var/lib/genesis-mesh/trust-cycle-canary/latest.json --acceptor-operator-label Genesis-Core --acceptor-operator-type maintainer --issuer-operator-label Rayen-Trabelsi-TN --issuer-operator-type maintainer
+TimeoutStartSec=120
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/genesis-mesh/trust-cycle-canary
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077

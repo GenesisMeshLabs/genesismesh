@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import generate_keypair
+from genesis_mesh.models import SovereignRevocationFeed
 
 from .na_server_helpers import admin_headers
 
@@ -88,6 +89,7 @@ def test_dashboard_empty_state_is_read_only(client):
     assert "<span>Readiness</span>" not in body
     assert "No recognition treaties yet." in body
     assert "No imported sovereign revocation feeds." in body
+    assert "No completed cycle observed" in body
     assert "No recent trust-state changes." in body
     assert "Dashboard JSON" in body
     assert "Connectome JSON" in body
@@ -105,7 +107,72 @@ def test_dashboard_json_summarizes_empty_state(client):
     assert payload["readiness"]["status"] == "ready"
     assert payload["treaty_summary"]["total"] == 0
     assert payload["revocation_feed_summary"]["count"] == 0
+    assert payload["trust_cycle_summary"]["status"] == "not_observed"
+    assert payload["trust_cycle_summary"]["completed_at"] is None
     assert payload["links"]["connectome_json"] == "/connectome.json"
+
+
+def test_dashboard_reports_newest_feed_per_issuer(client, na_service):
+    """Historical feed sequences should not count as separate current feeds."""
+    now = datetime.now(timezone.utc)
+    for feed_id, issuer, sequence in (
+        ("feed-a-1", "sovereign-a", 1),
+        ("feed-a-2", "sovereign-a", 2),
+        ("feed-b-1", "sovereign-b", 1),
+    ):
+        na_service.db.save_sovereign_revocation_feed(
+            SovereignRevocationFeed(
+                feed_id=feed_id,
+                issuer_sovereign_id=issuer,
+                sequence=sequence,
+                issued_at=now,
+                revoked_attestation_ids=[f"attestation-{issuer}-{sequence}"],
+                issued_by=f"{issuer}-na-key",
+                signatures=[],
+            )
+        )
+
+    payload = client.get("/dashboard.json").get_json()
+
+    assert payload["revocation_feed_summary"]["count"] == 2
+    assert [feed["sequence"] for feed in payload["revocation_feeds"]] == [2, 1]
+
+
+def test_dashboard_reports_complete_trust_cycle(client, na_service):
+    """A complete accept, import, reject sequence should be a fresh canary."""
+    common = {
+        "attestation_id": "canary-attestation",
+        "treaty_id": "canary-treaty",
+        "issuer_sovereign_id": "sovereign-a",
+        "subject_sovereign_id": "sovereign-b",
+    }
+    na_service.db.add_audit_event(
+        "treaty_attestation_verified",
+        {**common, "accepted": True, "reason": "accepted"},
+    )
+    na_service.db.add_audit_event(
+        "sovereign_revocation_feed_imported",
+        {
+            "feed_id": "canary-feed",
+            "issuer_sovereign_id": "sovereign-b",
+            "sequence": 1,
+            "revoked_count": 1,
+        },
+    )
+    na_service.db.add_audit_event(
+        "treaty_attestation_verified",
+        {**common, "accepted": False, "reason": "attestation_locally_revoked"},
+    )
+
+    payload = client.get("/dashboard.json").get_json()
+    summary = payload["trust_cycle_summary"]
+
+    assert summary["status"] == "verified"
+    assert summary["freshness"] == "fresh"
+    assert summary["age_hours"] == 0
+    assert summary["attestation_id"] == "canary-attestation"
+    assert summary["issuer_sovereign_id"] == "sovereign-b"
+    assert summary["completed_at"]
 
 
 def test_dashboard_renders_treaty_and_audit_state(client, na_service):

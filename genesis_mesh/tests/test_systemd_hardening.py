@@ -185,7 +185,13 @@ ROUTER_UNITS = {
     "bootstrap:node-d": lambda: _bootstrap_units()["bootstrap:node-d"],
 }
 
-ALL_UNITS = {**NA_UNITS, **ROUTER_UNITS}
+CANARY_UNITS = {
+    "genesis-mesh-trust-cycle-canary.service": lambda: _canonical(
+        "genesis-mesh-trust-cycle-canary.service"
+    ),
+}
+
+ALL_UNITS = {**NA_UNITS, **ROUTER_UNITS, **CANARY_UNITS}
 
 
 # --------------------------------------------------------------------------
@@ -293,6 +299,27 @@ def test_router_unit_allows_writing_the_audit_log(label):
 def test_router_unit_keeps_home_reachable(label):
     """ProtectHome=true/tmpfs replaces $HOME; ReadWritePaths cannot re-enter it."""
     assert _one(ROUTER_UNITS[label](), "ProtectHome") == "read-only"
+
+
+def test_canary_unit_limits_writes_to_its_receipt_directory():
+    """The canary may write its proof receipt but not either authority state."""
+    section = CANARY_UNITS["genesis-mesh-trust-cycle-canary.service"]()
+    assert _one(section, "ProtectHome") == "read-only"
+    assert _one(section, "ReadWritePaths") == "/var/lib/genesis-mesh/trust-cycle-canary"
+    command = _one(section, "ExecStart")
+    assert "proof remote" in command
+    assert "--acceptor http://127.0.0.1:8443" in command
+    assert "--issuer http://127.0.0.1:18443" in command
+    assert "--proof-bundle /var/lib/genesis-mesh/trust-cycle-canary/latest.json" in command
+
+
+def test_canary_timer_is_daily_and_persistent():
+    """Missed daily runs should execute after the host returns."""
+    timer = (SYSTEMD_DIR / "genesis-mesh-trust-cycle-canary.timer").read_text()
+    assert "OnCalendar=*-*-* 04:15:00 UTC" in timer
+    assert "Persistent=true" in timer
+    assert "RandomizedDelaySec=15m" in timer
+    assert "Unit=genesis-mesh-trust-cycle-canary.service" in timer
 
 
 def test_audit_log_path_still_derives_from_the_constant(monkeypatch, tmp_path):
