@@ -7,17 +7,32 @@
 
 ## Formal Verification (Tamarin Prover)
 
-The GenesisMesh trust protocol is formally verified using
-[Tamarin Prover](https://tamarin-prover.com/) — a symbolic security
-analysis tool for multi-party protocols.
+Parts of the GenesisMesh trust protocol are modelled in
+[Tamarin Prover](https://tamarin-prover.com/) — a symbolic security analysis
+tool for multi-party protocols.  Tamarin reasons over *every* possible protocol
+run against a network attacker who can read, block, reorder, replay and inject
+messages, and either proves a property holds or produces a concrete
+counterexample trace.  Cryptography is treated as perfect, so these models test
+protocol *logic* — missing bindings, replays, ordering flaws — not primitive
+strength.
 
-### Model location
+### Scope and status
 
-```
-ops/tamarin/gm_protocol.spthy
-```
+Two models are checked in.  Results below were produced with
+**tamarin-prover 1.12.0 / Maude 3.5.1**:
 
-The model captures the core protocol pipeline (v0.26–v0.30):
+| Model | Theory | Lemmas | Status |
+|---|---|---|---|
+| `ops/tamarin/gm_protocol.spthy` | `GenesisMesh` | 5 | **5/5 verified** (0.36s) |
+| `ops/tamarin/risk_signal/peer_risk_signal.spthy` | `PeerRiskSignal` | 3 | **1 verified, 1 falsified, 1 undecided** |
+
+**These models describe the protocol pipeline as of v0.26–v0.30.**  They have
+not been re-validated against the current release, and protocol behaviour has
+changed since they were written.  Treat them as evidence about the protocol
+design at that revision, not as a proof about the code shipping today.  See
+*Known gaps* below.
+
+The core model captures:
 
 ```
 Agreement (Offer/Counter/Accept)
@@ -25,7 +40,7 @@ Agreement (Offer/Counter/Accept)
     → Execution (ExecutionEvidence)
 ```
 
-### Five security lemmas
+### Core protocol lemmas (`gm_protocol.spthy`)
 
 | Lemma | Property |
 |---|---|
@@ -35,21 +50,80 @@ Agreement (Offer/Counter/Accept)
 | `delegation_requires_agreement` | No delegation can exist without a root agreement |
 | `execution_traceability` | Each execution has a unique, non-repeatable evidence_id |
 
+### Peer risk-signal lemmas (`peer_risk_signal.spthy`)
+
+| Lemma | Property |
+|---|---|
+| `signal_bounded` | Every emitted signal value is one of the defined lattice values (`low`/`mid`/`high`) |
+| `anomaly_detection_responsive` | Every recorded sudden drop is followed by an anomaly detection — an adversary causing a large negative delta cannot suppress the detector indefinitely |
+| `no_single_source_cascade` | Anomalies raised at two distinct sovereigns each require that sovereign to have independently observed the drop — one event cannot "tunnel" into simultaneous alarms |
+
 ### Running the proofs
 
+Proof checking requires [Tamarin Prover](https://tamarin-prover.com/) to be
+installed locally:
+
 ```bash
-# Install Tamarin Prover (https://tamarin-prover.com/)
 tamarin-prover --prove ops/tamarin/gm_protocol.spthy
+tamarin-prover --prove ops/tamarin/risk_signal/peer_risk_signal.spthy
 ```
 
-All five lemmas verify in Tamarin's symbolic model.  In CI, the Python test
-harness runs the proofs automatically:
+The Python harness wraps both models:
 
 ```bash
-python -m pytest genesis_mesh/tests/test_tamarin_proofs.py -v
+python -m pytest genesis_mesh/tests/test_tamarin_proofs.py \
+                 genesis_mesh/tests/test_risk_signal_tamarin.py -v
 ```
 
-The test skips gracefully when `tamarin-prover` is not installed.
+That harness runs two kinds of test:
+
+- **Structural checks** — the model files exist, parse as the expected theory,
+  and declare the expected lemmas and rules.  These always run.
+- **Proof checks** — invoke `tamarin-prover --prove`.  These are
+  `skipif`-guarded and **skip** when the tool is not installed.
+
+> **CI does not prove the lemmas.**  The CI workflow does not install
+> `tamarin-prover`, so only the structural checks execute there; the proof
+> tests are reported as skipped.  Running the proofs is currently a manual,
+> local step.
+
+### Known gaps
+
+- **`peer_risk_signal.spthy` does not currently prove.**  Run against
+  tamarin-prover 1.12.0: `signal_bounded` verifies, but
+  `anomaly_detection_responsive` is **falsified** (counterexample found in 6
+  steps) and `no_single_source_cascade` does not terminate within 3 GB of heap.
+  Tamarin also reports **two wellformedness failures** — `rule InitSignal` has
+  unbound variables `C, S`, and some rule variables are not derivable from
+  their premises, which permits unintended pattern matching.  The unbound
+  variables are the likely cause of the falsification, meaning this is probably
+  a **modelling defect rather than a protocol weakness** — but that has not been
+  demonstrated, and the model should not be cited as evidence until it is
+  repaired and re-proved.
+- The models target the **v0.26–v0.30** pipeline and have not been updated for
+  the current release.  Protocol behaviour has since changed — notably
+  invocation-token binding, delegation-chain continuity, and treaty scope
+  semantics — so the models should be reviewed before being cited as evidence
+  about current behaviour.
+- The header comment inside `gm_protocol.spthy` lists two lemma names
+  (`scope_boundedness_is_structural`, `non_repudiation`) that do not match the
+  lemmas the file actually declares.  The tables above reflect the **declared
+  lemmas**, which are authoritative.
+- Proofs are not enforced continuously.  Until CI installs `tamarin-prover`, a
+  change that invalidates a lemma will not be caught automatically.
+
+### Note on `authorization_requires_agreement`
+
+This lemma was **falsified** as originally written.  Its delegation branch
+required `Delegated(agreement_id, agreement_id, provider, requester)` — the same
+identifier in both the delegation and parent positions — while `rule Delegate`
+emits `Delegated(~delegated_id, ~offer_id, ...)` with two distinct fresh values.
+The branch could therefore never match, and Tamarin produced a 5-step
+counterexample via `AuthorizeViaDelegation`.
+
+The parent identifier is now bound separately (`Ex parent_id #s. Delegated(
+agreement_id, parent_id, provider, requester)`), after which all five lemmas
+verify.  This was a defect in the lemma, not in the protocol.
 
 ---
 

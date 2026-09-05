@@ -294,10 +294,12 @@ BoundaryEngine. Payment and settlement are explicitly out of scope.
 :link-type: doc
 
 Three Tamarin Prover lemmas over the PeerRiskSignal state machine: (1)
-signal_bounded — signal stays in [0,1]; (2) anomaly_detection_responsive —
-SuddenDrop cannot permanently suppress detection; (3) no_single_source_cascade
-— cascade amplification requires independent per-sovereign observations.
-Executable property tests included for standard pytest runs.
+signal_bounded — every emitted signal is one of the abstract lattice values
+`low`/`mid`/`high`; (2) anomaly_detection_responsive — SuddenDrop cannot
+permanently suppress detection; (3) no_single_source_cascade — cascade
+amplification requires independent per-sovereign observations.
+**Only (1) currently proves**; see the page for current status. Executable
+property tests included for standard pytest runs.
 :::
 
 ::::
