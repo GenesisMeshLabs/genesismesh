@@ -20,6 +20,8 @@ repos:
         exclude: \.svg$
         stages: [pre-commit]
       - id: check-yaml
+        # Module invocation avoids Windows blocking the generated launcher.
+        entry: python -m pre_commit_hooks.check_yaml
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-merge-conflict

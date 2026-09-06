@@ -1,5 +1,16 @@
 # Changelog
 
+## Gateway v0.56.3 - Operator federation
+
+- Added a Rust authority preflight CLI, guided scoped recognition requests and
+  per-peer revocation synchronization visibility.
+- Moved Python authority maintenance into `scripts/authority_ops` and sandbox
+  demo setup out of the Rust gateway. Native packaging now uses PowerShell.
+- Verified automatic membership revocation rejection across three receiving
+  authorities in approximately 11 seconds. Existing expired genesis delegations
+  are reported and remain the owning operators' responsibility to renew.
+- This gateway release does not change the coordinated Python/SDK version.
+
 ## v0.56.0 - Coordinated release train (Unreleased)
 
 ### Changed

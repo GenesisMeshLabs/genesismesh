@@ -373,3 +373,14 @@ publication checks are complete. Historical tags remain unchanged.
 - Repository conventions for working in the codebase: `AGENT.md`
 
 This document changes as the project changes.
+
+### Gateway v0.56.3 - Operator Federation
+
+The Rust gateway adds native authority preflight and prepares directed,
+role-scoped recognition for operator signing. Its public mesh shows verified
+source feed sequences alongside authority-reported import state. Reference
+revocation consumers now live beside the Python authority, while demo setup
+lives in sandbox. A live canary was accepted by three receiving authorities and
+rejected after automatic propagation in approximately 11 seconds. This is
+maintainer-fleet operational evidence; independent implementation conformance
+and external adoption remain separate Phase 2 milestones.
