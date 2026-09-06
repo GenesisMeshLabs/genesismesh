@@ -1,9 +1,7 @@
 """Data usage routes — policy (admin), intent (admin), policy GET, verify.
 
-Note: DataLicensePolicy objects are stored in process memory.
-In multi-instance deployments, each instance maintains its own policy store;
-policies are lost on process restart. Re-POST to /admin/data-usage/policy
-after restart or use the response body to persist the signed policy externally.
+Signed DataLicensePolicy versions are stored in the authority database, shared
+by worker processes and preserved across process restarts.
 """
 
 from __future__ import annotations
@@ -45,10 +43,6 @@ def _j(model) -> dict:
 def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     """Create data usage policy routes — policy (admin), intent (admin), policy GET, verify."""
     bp = Blueprint("data_usage", __name__)
-
-    # In-memory policy store keyed by policy_id. Volatile — see module docstring.
-    _policies: dict[str, DataLicensePolicy] = {}
-    _active_policy_id: list[str] = []  # single-element list as mutable cell
 
     def _pub_b64() -> str:
         import nacl.encoding
@@ -118,9 +112,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 code="policy_sign_failed",
             ) from exc
 
-        _policies[policy.policy_id] = policy
-        _active_policy_id.clear()
-        _active_policy_id.append(policy.policy_id)
+        service.db.save_data_license_policy(policy)
 
         service.db.add_audit_event("data_license_policy_created", {
             "policy_id": policy.policy_id,
@@ -185,11 +177,9 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         """Return the currently active DataLicensePolicy."""
         if not service.rate_limiter.allow(_rate_key("data_usage_policy"), 120, 60):
             raise RateLimitError()
-        if not _active_policy_id:
+        policy = service.db.get_active_data_license_policy()
+        if policy is None:
             raise NotFoundError("No active data usage policy", code="no_policy")
-        policy = _policies.get(_active_policy_id[0])
-        if not policy:
-            raise NotFoundError("Policy not found", code="policy_not_found")
         return jsonify(_j(policy))
 
     @bp.route("/data-usage/verify", methods=["POST"])

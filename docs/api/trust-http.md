@@ -441,14 +441,14 @@ from the same validator count once.
 
 ### `POST /admin/data-usage/policy`
 
-Create and sign a `DataLicensePolicy` as licensor (NA). The policy is stored
-in process memory and becomes the active policy returned by
+Create and sign a `DataLicensePolicy` as licensor (NA). The signed policy is stored
+in the authority database and becomes the active policy returned by
 `GET /data-usage/policy`.
 
-> **Warning: ephemeral storage.** Policies are held in process memory and are
-> lost on process restart. Re-POST after restart, or store the signed response
-> body externally. Multi-instance deployments require coordinated re-posting to
-> each instance. Database persistence is planned for a future release.
+Migration `010_data_license_policies.sql` adds durable policy versions and an
+atomic active-policy selection. Workers sharing the authority database observe
+the same active version, which survives restarts. Separate authority databases
+still require operator-managed policy distribution.
 
 **Auth** — operator signature required.
 

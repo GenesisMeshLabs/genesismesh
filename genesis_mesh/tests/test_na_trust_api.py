@@ -588,3 +588,27 @@ def test_consensus_verify_does_not_accept_unsigned_votes(client):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["valid"] is False
+
+
+def test_data_usage_policy_visible_to_other_connection_and_after_restart(client, na_service, tmp_path):
+    from genesis_mesh.na_service.db import NADatabase
+    original = na_service.db
+    na_service.db = NADatabase(str(tmp_path / "authority.db"))
+    na_service.db.migrate()
+    created = _make_policy(client, na_service).get_json()
+    observer = NADatabase(na_service.db.db_path)
+    try:
+        observer.migrate()
+        assert observer.get_active_data_license_policy().policy_id == created["policy_id"]
+        replacement = _make_policy(client, na_service).get_json()
+        assert observer.get_active_data_license_policy().policy_id == replacement["policy_id"]
+    finally:
+        observer.conn.close()
+    reopened = NADatabase(na_service.db.db_path)
+    try:
+        assert reopened.get_active_data_license_policy().policy_id == replacement["policy_id"]
+        assert reopened.conn.execute("SELECT count(*) FROM data_license_policies WHERE active = 1").fetchone()[0] == 1
+    finally:
+        reopened.conn.close()
+        na_service.db.conn.close()
+        na_service.db = original
