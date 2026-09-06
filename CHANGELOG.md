@@ -15,6 +15,9 @@
 
 ### Changed
 
+- Aligned the Rust trust gateway with the `0.56.0` SDK release train, including
+  an embedded endpoint explorer and Windows / Linux AMD64 / ARM64 distributions.
+
 - Unified the Python reference implementation, TypeScript SDK, Go SDK, and
   .NET SDK on one `0.56.0` product version.
 - Added a daily, signed cross-sovereign trust-cycle canary between the existing

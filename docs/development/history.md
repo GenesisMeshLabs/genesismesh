@@ -372,6 +372,12 @@ publication checks are complete. Historical tags remain unchanged.
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENT.md`
 
+The Rust trust gateway joins the v0.56.0 release train in its existing
+`GenesisMeshLabs/gateway` repository. It combines operator-scoped certificate
+verification, signed revocation refresh, an embedded API explorer, and portable
+Windows / Linux AMD64 / ARM64 builds. This component release does not imply
+government accreditation or completion of the broader protocol release gates.
+
 This document changes as the project changes.
 
 ### Gateway v0.56.3 - Operator Federation
