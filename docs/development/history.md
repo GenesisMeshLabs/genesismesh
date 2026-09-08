@@ -349,16 +349,35 @@ As of v0.53.1, the following are *not* yet true:
 
 ---
 
-### v0.56.0 - Coordinated Release Train (In Development)
+### v0.56.0 to v0.57.2 - Rust Gateway Release Train
 
-The Python reference implementation and the TypeScript, Go, and .NET SDKs now
-declare one shared `0.56.0` development version. This corrects the earlier
-component-version sequence in which SDK milestones were mistaken for the
-version of Genesis Mesh as a whole.
+The companion Rust repository, `GenesisMeshLabs/gateway`, now provides a
+production-oriented trust-verification gateway while preserving the Python
+implementation as the Network Authority protocol authority. The gateway ships
+canonical-JSON and signature interoperability fixtures, single and bounded
+batch certificate verification, pinned authority keys and fresh signed CRL
+checks, and an embedded OpenAPI endpoint explorer.
 
-The coordinated release is not considered published until the v0.56.0 Go
-protocol verifier gate, all component tests, matching tags, and package
-publication checks are complete. Historical tags remain unchanged.
+The v0.56.x releases added a reviewed proxy for 59 scoped Network Authority
+operations across agreement, attestation, boundary, disclosure, consensus,
+data-usage, evidence, enrollment, discovery, treaty, network, and
+administration services. Clients receive explicit network and service-group
+permissions, while administrative calls retain the signed `X-Admin-*` header
+contract and browser-side signing keeps operator seeds local.
+
+The gateway also added native federation preflight with independently pinned
+CRL issuers, an opt-in live mesh view of published trust domains, treaties, and
+memberships, and portable multi-platform distributions. v0.57.x added durable
+per-issuer CRL checkpoints, a SQLite audit outbox with acknowledged HTTPS
+delivery, OIDC subject bindings, native mutual TLS, Redis-backed shared quotas,
+bounded resource controls, and hardened container and dependency release
+evidence.
+
+These are configurable deployment controls, not certification claims. The
+gateway does not hold authority private keys, issue production sovereign
+credentials, or replace relying services' session and application
+authorization decisions. See {doc}`../concepts/rust-gateway` for the complete
+integration surface and links to the Rust repository's operational guides.
 
 ---
 

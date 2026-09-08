@@ -179,6 +179,7 @@ tutorial
 concepts/introduction
 concepts/protocol
 concepts/context
+concepts/rust-gateway
 ```
 
 ```{toctree}
