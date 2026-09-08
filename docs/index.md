@@ -140,7 +140,8 @@ audit, incident response, backup.
 :link-type: doc
 
 TypeScript, Go, and C# (.NET) clients for the NA HTTP API — typed
-errors and dual-mode Ed25519 admin auth.
+errors and dual-mode Ed25519 admin auth — plus the Rust trust core and
+gateway.
 :::
 
 :::{grid-item-card} Examples
@@ -190,6 +191,7 @@ sdk/index
 sdk/typescript/index
 sdk/go/index
 sdk/dotnet/index
+sdk/rust/index
 ```
 
 ```{toctree}

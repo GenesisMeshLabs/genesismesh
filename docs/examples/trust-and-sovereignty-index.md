@@ -18,6 +18,7 @@ trust-evidence-audit
 trust-authorization
 trust-consensus-risk
 trust-security
+rust-trust-core-walkthrough
 ```
 
 ## Start Here
@@ -80,6 +81,15 @@ record offline — no shared backend or identity provider required.
 A read-only explorer over the recognition graph — sovereigns, relationships,
 treaty scope, and TrustEvidence overlay — as a live console page or a
 self-contained static snapshot.
+:::
+
+:::{grid-item-card} Rust Trust Core Walkthrough
+:link: rust-trust-core-walkthrough
+:link-type: doc
+
+Mint and verify a join certificate with the Rust CLI, run the gateway
+against a local policy, verify a certificate over HTTP, and preflight a
+candidate authority — no Python runtime required.
 :::
 
 :::{grid-item-card} Relationship Agreement

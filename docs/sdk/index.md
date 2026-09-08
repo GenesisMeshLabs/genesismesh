@@ -23,17 +23,24 @@ only after the complete release gate passes in every component repository.
 | TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.56.0 | `sdk-typescript/` |
 | Go | `github.com/GenesisMeshLabs/sdk-go` | 0.56.0 | `sdk-go/` |
 | C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.56.0 | `sdk-dotnet/` |
+| Rust | `genesis-mesh-gateway` on crates.io | 0.57.2 | `GenesisMeshLabs/gateway` |
+
+Rust is different in kind from the other three: it is not a thin HTTP client
+for the NA. It ships the portable trust primitives as an embeddable crate
+(`genesis_mesh`), plus CLI binaries and a production trust-verification
+gateway built on top of that crate. See {doc}`rust/index` and
+{doc}`/concepts/rust-gateway`.
 
 ## Design principles
 
 All SDKs mirror the main repo's layer separation:
 
-| Layer | TypeScript | Go | C# | Python equivalent |
-|-------|-----------|-----|----|------------------|
-| Crypto | `src/auth.ts` | `genesismesh/auth.go` | `Auth.cs` | `genesis_mesh/crypto/` |
-| HTTP transport | `src/client.ts` | `genesismesh/transport.go` | `Transport.cs` | `na_service/` |
-| Domain sub-clients | `src/agreement.ts` … | `genesismesh/agreement.go` … | `Clients/*.cs` | `na_service/routes/` |
-| Types | `src/types.ts` | `genesismesh/types.go` | `Models.cs` | `genesis_mesh/models/` |
+| Layer | TypeScript | Go | C# | Rust | Python equivalent |
+|-------|-----------|-----|----|------|------------------|
+| Crypto | `src/auth.ts` | `genesismesh/auth.go` | `Auth.cs` | `genesis_mesh::crypto` | `genesis_mesh/crypto/` |
+| HTTP transport | `src/client.ts` | `genesismesh/transport.go` | `Transport.cs` | `genesis_mesh::gateway` (service, not a client) | `na_service/` |
+| Domain sub-clients | `src/agreement.ts` … | `genesismesh/agreement.go` … | `Clients/*.cs` | none — see the gateway's authority service proxy | `na_service/routes/` |
+| Types | `src/types.ts` | `genesismesh/types.go` | `Models.cs` | `genesis_mesh::models` | `genesis_mesh/models/` |
 
 **No runtime dependencies.** SDKs use only the platform's built-in fetch and
 crypto APIs.
