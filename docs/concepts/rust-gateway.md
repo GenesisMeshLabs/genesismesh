@@ -32,7 +32,7 @@ Ed25519 authority keys, required roles, certificate freshness, and signed CRL
 sequence and revocation checks. It supports single and bounded batch
 verification:
 
-```http
+```text
 POST /verify
 POST /verify/batch
 ```
@@ -52,7 +52,7 @@ unhealthy.
 
 The gateway exposes a reviewed, allowlisted proxy for the Network Authority:
 
-```http
+```text
 GET|POST|DELETE /v1/networks/{network}/services/{operation}
 ```
 
