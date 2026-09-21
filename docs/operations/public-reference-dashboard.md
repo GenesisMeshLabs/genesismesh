@@ -11,6 +11,15 @@ registers only public GET/HEAD routes. The generic authority API, enrollment,
 signing, backups and full audit exports are not registered on this origin.
 Protocol APIs used by other deployments retain their existing contracts.
 
+## Console surfaces
+
+The overlay keeps the shared operator-console pages rather than replacing them:
+`/` is the console landing page, `/dashboard` the sanitized trust dashboard, and
+`/api-reference`, `/cli-reference` and `/swagger.json` the generated protocol
+references. Each page carries the public-instance notice, and the surface tables
+link only to routes this instance actually serves — documented signed POST,
+admin and unregistered GET surfaces render as plain paths instead of dead links.
+
 ## Status and privacy
 
 Service readiness is separate from trust posture. Only expected active,

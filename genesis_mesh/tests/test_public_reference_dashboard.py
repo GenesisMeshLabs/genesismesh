@@ -11,7 +11,7 @@ from examples.public_dashboard.app import create_app
 from examples.public_dashboard.records import ImportEvent, freshness, import_feed, sensitive_authorization_allowed, validate_snapshot
 from examples.public_dashboard.seed import seed
 from examples.public_dashboard.store import read_snapshot, write_snapshot
-from examples.public_dashboard.view import dashboard
+from examples.public_dashboard.view import NOTICE, dashboard
 from genesis_mesh.crypto import load_private_key, sign_model
 
 
@@ -31,14 +31,24 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
     root, snapshot = demo
     app = create_app(root, "abcdef1")
     client = app.test_client()
-    paths = ["/", "/dashboard", "/dashboard.json", "/connectome", "/connectome.json", "/atlas", "/atlas.json",
-             "/recognition-graph", "/recognition-treaties", "/genesis", "/sovereign.json", "/evidence.json", "/readyz"]
+    data_paths = ["/dashboard", "/dashboard.json", "/connectome", "/connectome.json", "/atlas", "/atlas.json",
+                  "/recognition-graph", "/recognition-treaties", "/genesis", "/sovereign.json", "/evidence.json",
+                  "/readyz"]
+    # Generated reference pages render shipped protocol vocabulary ("enrollment token", the CLI's
+    # own "USG" placeholder default), so only instance state must be absent from them.
+    reference_paths = ["/", "/api-reference", "/cli-reference", "/swagger.json"]
+    leaks = {
+        **{path: ["USG", "Rayen", "AMINE", "MiraOS", "ONS-A", "db_path", str(root), "private_key", "token"]
+           for path in data_paths},
+        **{path: ["Rayen", "AMINE", "MiraOS", "ONS-A", "db_path", str(root), "private_key"]
+           for path in reference_paths},
+    }
     original = (root / "public.db").read_bytes()
-    for path in paths:
+    for path in data_paths + reference_paths:
         response = client.get(path)
         assert response.status_code == 200, path
         text = response.get_data(as_text=True)
-        for forbidden in ["USG", "Rayen", "AMINE", "MiraOS", "ONS-A", "db_path", str(root), "private_key", "token"]:
+        for forbidden in leaks[path]:
             assert forbidden not in text, (path, forbidden)
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
@@ -54,6 +64,27 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
     assert "Network protocol:" not in html
     assert "v0.1" not in html
     assert "Genesis Mesh: v" in html
+
+
+def test_console_reference_pages_keep_the_shared_operator_surfaces(demo):
+    root, _ = demo
+    client = create_app(root, "abcdef1").test_client()
+    console = client.get("/").get_data(as_text=True)
+    assert "Genesis Mesh Network Authority" in console
+    assert "Safe Browser Links" in console
+    api = client.get("/api-reference").get_data(as_text=True)
+    assert "Genesis Mesh API Reference" in api
+    assert "/recognition-treaties" in api
+    cli = client.get("/cli-reference").get_data(as_text=True)
+    assert "genesis-mesh trust decide" in cli
+    for path in ["/", "/api-reference", "/cli-reference", "/atlas", "/connectome"]:
+        assert NOTICE in client.get(path).get_data(as_text=True), path
+    spec = client.get("/swagger.json").json
+    assert spec["openapi"] == "3.0.3"
+    assert "/api-reference" in spec["paths"]
+    # Documented but unserved surfaces must not become dead links on this instance.
+    assert '<a class="path" href="/policy">' not in api
+    assert '<a class="path" href="/atlas">' in api
 
 
 @pytest.mark.parametrize("hours,expected", [(23.999, "fresh"), (24, "warning"), (72, "warning"), (72.001, "stale")])

@@ -14,6 +14,8 @@ to the coordinated SDK release version or the protocol wire contract.
 - Import signed heartbeats hourly, keeping content sequences stable; run a daily
   HTTP acceptance/revocation canary. A single-node demo is explicitly labeled.
 - Compute current posture from expected active relationships and signed feed age.
+- Keep the shared operator-console pages (console, Atlas, Connectome, generated
+  API/CLI references, `/swagger.json`); link surface tables only to served routes.
 - Preserve source protocol verification and strict sequence import behavior; the
   demo heartbeat importer is separately scoped and tested.
 
@@ -23,6 +25,8 @@ to the coordinated SDK release version or the protocol wire contract.
 - [x] Read-only views, explicit fields, privacy and mutation regression tests.
 - [x] Exact freshness thresholds and expected-active versus historical status.
 - [x] Pagination, search, lifecycle filters, sort and recent-event load more.
+- [x] Console, API reference, CLI reference and OpenAPI metadata preserved with
+      the public notice and no dead links on the reduced instance.
 - [x] Local hourly maintenance and real HTTP canary.
 - [x] Full repository gates and scheduled vulnerability scan.
 - [ ] Offline production backup, isolated deployment, live privacy verification.

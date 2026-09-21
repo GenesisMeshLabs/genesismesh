@@ -66,7 +66,7 @@ def create_public_blueprint(service) -> Blueprint:
     @bp.route("/", methods=["GET"])
     def home():
         """Return the human-facing Network Authority landing page."""
-        return Response(render_homepage(service), mimetype="text/html")
+        return Response(render_homepage(service.genesis_block), mimetype="text/html")
 
     @bp.route("/dashboard", methods=["GET"])
     def dashboard():
@@ -81,12 +81,12 @@ def create_public_blueprint(service) -> Blueprint:
     @bp.route("/swagger.json", methods=["GET"])
     def swagger_json():
         """Return generated OpenAPI-compatible metadata."""
-        return jsonify(build_swagger_spec(service, _public_base_url()))
+        return jsonify(build_swagger_spec(service.genesis_block, _public_base_url()))
 
     @bp.route("/api-reference", methods=["GET"])
     def api_reference():
         """Return a read-only generated API reference page."""
-        return Response(render_api_reference(service), mimetype="text/html")
+        return Response(render_api_reference(service.genesis_block), mimetype="text/html")
 
     @bp.route("/cli-reference", methods=["GET"])
     def cli_reference():

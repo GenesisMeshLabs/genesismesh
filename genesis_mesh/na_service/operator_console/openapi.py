@@ -41,7 +41,7 @@ def _openapi_operation(surface: Surface) -> dict[str, Any]:
     return operation
 
 
-def build_swagger_spec(service, base_url: str) -> dict[str, Any]:
+def build_swagger_spec(genesis, base_url: str) -> dict[str, Any]:
     """Generate OpenAPI-compatible metadata for HTTP surfaces."""
     paths: dict[str, dict[str, Any]] = {}
     for surface in HTTP_SURFACES:
@@ -51,7 +51,7 @@ def build_swagger_spec(service, base_url: str) -> dict[str, Any]:
         "openapi": "3.0.3",
         "info": {
             "title": "Genesis Mesh Network Authority API",
-            "version": service.genesis_block.network_version,
+            "version": genesis.network_version,
             "description": "Read-only generated protocol surface metadata for this Network Authority.",
         },
         "servers": [{"url": base_url}],

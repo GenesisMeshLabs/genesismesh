@@ -15,10 +15,31 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from genesis_mesh.na_service.operator_console.atlas import render_atlas
 from genesis_mesh.na_service.operator_console.connectome import render_connectome
-from genesis_mesh.na_service.operator_console.rendering import page_document
+from genesis_mesh.na_service.operator_console.openapi import build_swagger_spec
+from genesis_mesh.na_service.operator_console.rendering import (
+    render_api_reference,
+    render_cli_reference,
+    render_homepage,
+)
 from genesis_mesh.trust import build_connectome_view
 from .store import read_snapshot
 from .view import NOTICE, dashboard, graph, render
+
+# Documented surfaces are protocol reference material; this instance serves reads only.
+READ_ONLY = (
+    "Only GET and HEAD are served on this instance. Signed POST and admin surfaces are documented for "
+    "reference and are refused here. Signing, maintenance, full audit exports and backups run locally."
+)
+
+
+def sanitized(html: str, *extra: str) -> str:
+    """Prefix a shared operator-console page with the public-instance notices."""
+    notices = "".join(f'<p class="notice">{note}</p>' for note in (NOTICE, *extra))
+    return html.replace(
+        '<main class="shell operator-console">',
+        '<main class="shell operator-console">' + notices,
+        1,
+    )
 
 
 def create_app(directory: Path, build: str = "unknown") -> Flask:
@@ -75,6 +96,10 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
                     429: "Request limit reached", 503: "Public evidence is temporarily unavailable"}
         return jsonify({"error": messages.get(code, "Request could not be completed")}), code
 
+    def served() -> set[str]:
+        """Return the static GET paths this instance answers, so docs link only to live routes."""
+        return {rule.rule for rule in app.url_map.iter_rules() if "<" not in rule.rule and "GET" in (rule.methods or ())}
+
     @app.get("/healthz")
     def healthz():
         return jsonify({"status": "ok"})
@@ -84,6 +109,9 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
         return jsonify({"status": "ready", "storage": "SQLite"})
 
     @app.get("/")
+    def console():
+        return Response(sanitized(render_homepage(g.snapshot.genesis, served())), mimetype="text/html")
+
     @app.get("/dashboard")
     @app.get("/dashboard.json")
     def home():
@@ -139,9 +167,9 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
     def trust_views():
         value = graph(g.snapshot, datetime.now(timezone.utc))
         if request.path == "/atlas":
-            return Response(render_atlas(value).replace('<main class="shell operator-console">', '<main class="shell operator-console"><p class="notice">'+NOTICE+'</p>'), mimetype="text/html")
+            return Response(sanitized(render_atlas(value)), mimetype="text/html")
         if request.path == "/connectome":
-            return Response(render_connectome(build_connectome_view(value)).replace('<main class="shell operator-console">', '<main class="shell operator-console"><p class="notice">'+NOTICE+'</p>'), mimetype="text/html")
+            return Response(sanitized(render_connectome(build_connectome_view(value))), mimetype="text/html")
         return jsonify(build_connectome_view(value) if request.path == "/connectome.json" else value)
 
     @app.get("/evidence.json")
@@ -151,14 +179,16 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
         return response
 
     @app.get("/api-reference")
+    def api_reference():
+        return Response(sanitized(render_api_reference(g.snapshot.genesis, served()), READ_ONLY), mimetype="text/html")
+
     @app.get("/cli-reference")
-    def reference():
-        body = f'<h1>Public reference surface</h1><p>{NOTICE}</p><p>Only GET and HEAD are available. Signing, maintenance, full audit exports and backups run locally.</p><ul>'
-        for rule in sorted(app.url_map.iter_rules(), key=str):
-            if '<' not in rule.rule:
-                body += f'<li><a href="{rule.rule}">{rule.rule}</a></li>'
-        body += '</ul><p>Offline verification: <code>python -m examples.public_dashboard.verify evidence.json --root-key &lt;pinned-root-key&gt;</code></p>'
-        return Response(page_document("Public API reference", "API Docs", body), mimetype="text/html")
+    def cli_reference():
+        return Response(sanitized(render_cli_reference(), READ_ONLY), mimetype="text/html")
+
+    @app.get("/swagger.json")
+    def swagger():
+        return jsonify(build_swagger_spec(g.snapshot.genesis, request.url_root.rstrip("/")))
 
     @app.get("/operator-console-static/<name>")
     def asset(name):
