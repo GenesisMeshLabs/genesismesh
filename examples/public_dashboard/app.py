@@ -164,7 +164,7 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
     def trust_views():
         value = graph(g.snapshot, datetime.now(timezone.utc))
         if request.path == "/atlas":
-            return Response(public_chrome(render_atlas(value)), mimetype="text/html")
+            return Response(public_chrome(render_atlas(value, operator_hints=False)), mimetype="text/html")
         if request.path == "/connectome":
             return Response(public_chrome(render_connectome(build_connectome_view(value))), mimetype="text/html")
         return jsonify(build_connectome_view(value) if request.path == "/connectome.json" else value)

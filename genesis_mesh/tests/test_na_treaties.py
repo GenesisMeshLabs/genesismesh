@@ -413,3 +413,40 @@ def test_connectome_graph_scales_without_overlapping_nodes():
     trimmed = _connectome_graph({"sovereigns": [{"sovereign_id": long_name}], "recognition_edges": []})
     assert f"<title>{long_name}</title>" in trimmed
     assert "…" in trimmed
+
+
+def test_connectome_uses_a_hub_layout_only_when_one_authority_issues_everything():
+    """An authority's own graph is a star; draw the issuer as a hub, not on the rim."""
+    import re
+
+    from genesis_mesh.na_service.operator_console.connectome import _connectome_graph
+
+    def graph(names, edges):
+        return _connectome_graph({
+            "sovereigns": [{"sovereign_id": n} for n in names],
+            "recognition_edges": [
+                {"from": f, "to": t, "status": "active", "lifecycle_state": "active"}
+                for f, t in edges
+            ],
+        })
+
+    names = [f"gm-sovereign-{i:02d}-na" for i in range(6)]
+
+    # Single issuer: the hub is centred and visually distinct.
+    star = graph(names, [(names[0], n) for n in names[1:]])
+    assert "graph-node-hub" in star
+    width, height = (float(v) for v in re.search(r'viewBox="0 0 (\d+) (\d+)"', star).groups())
+    centre = [
+        (x, y)
+        for x, y in ((float(a), float(b)) for a, b in re.findall(r'cx="([-\d.]+)" cy="([-\d.]+)"', star))
+        if abs(x - width / 2) < 1 and abs(y - height / 2) < 1
+    ]
+    assert len(centre) == 1, "the issuing authority should sit at the centre"
+
+    # More than one issuer is a genuine mesh: fall back to the ring.
+    mesh = graph(names, [(names[0], names[1]), (names[2], names[3]), (names[0], names[4])])
+    assert "graph-node-hub" not in mesh
+
+    # Two nodes need no hub; direction is already unambiguous.
+    pair = graph(names[:2], [(names[0], names[1])])
+    assert "graph-node-hub" not in pair

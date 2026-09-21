@@ -124,13 +124,23 @@ def dashboard(snapshot: Snapshot, args, version: dict, now: datetime) -> dict:
         "events_total": len(snapshot.events), "events_limit": event_limit}
 
 
+def elapsed(seconds: float) -> str:
+    """Describe a duration in its largest useful unit, not raw hours."""
+    seconds = abs(seconds)
+    for limit, size, unit in ((90, 1, "second"), (3600, 60, "minute"), (86400, 3600, "hour")):
+        if seconds < limit:
+            count = max(1, round(seconds / size))
+            return f"{count} {unit}{'s' if count != 1 else ''}"
+    count = round(seconds / 86400)
+    return f"{count} day{'s' if count != 1 else ''}"
+
+
 def timestamp(value: str | None) -> str:
     if not value:
         return "Not observed"
     dt = datetime.fromisoformat(value)
     seconds = (datetime.now(timezone.utc)-dt).total_seconds()
-    hours = int(abs(seconds)/3600)
-    relative = f"{hours}h ago" if seconds >= 0 else f"in {hours}h"
+    relative = f"{elapsed(seconds)} ago" if seconds >= 0 else f"in {elapsed(seconds)}"
     return f'<time datetime="{escape(value)}">{relative} · {dt.strftime("%Y-%m-%d %H:%M:%S UTC")}</time>'
 
 
@@ -163,7 +173,10 @@ def render(model: dict, root_key: str) -> str:
     events = ''.join(f"<tr><td>{timestamp(e['at'])}</td><td>{escape(e['issuer'])}</td><td>{e['outcome'].title()}</td></tr>" for e in model['recent_changes'])
     warning_items = ''.join(f'<li>⚠ {escape(w)}</li>' for w in model['warnings'])
     warnings = f'<section><h2>Current warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''
+    # Filtered and instance-wide figures must not sit in one unlabelled list.
     counts = ' · '.join(s.replace('_', ' ').title() + ': ' + str(n) for s, n in model['treaty_summary'].items())
+    filtered = model['pagination']['total']
+    matching = f"{filtered} matching treaty" if filtered == 1 else f"{filtered} matching treaties"
     # Every pager, server-rendered or client-side, uses the same spaced container.
     nav = ''
     for label, page in [('Previous', p['page']-1), ('Next', p['page']+1)]:
@@ -199,7 +212,7 @@ def render(model: dict, root_key: str) -> str:
         <p class="filter-summary">Last updated: {timestamp(model['last_updated'])} · <a class="action-link" href="/dashboard">Refresh</a></p></div>
         {warnings}
         <section><h2>Treaties</h2>
-        {filters}<p class="filter-summary">{p['total']} total results · Page {p['page']} of {p['pages']} · {counts}</p>
+        {filters}<p class="filter-summary">{matching} · Page {p['page']} of {p['pages']}<br>On this instance &mdash; {counts}</p>
         <div class="table-wrap"><table class="data-table"><thead><tr><th>Record / evidence</th><th>Authority</th><th>Lifecycle</th><th>Created</th><th>Expiry</th><th>Related evidence</th></tr></thead>
         <tbody>{rows or '<tr><td colspan="6">No treaties match these filters.</td></tr>'}</tbody></table></div>{nav}
         <p>Historical and revoked treaties remain available for audit. Only expected active relationships affect current trust posture.</p></section>
