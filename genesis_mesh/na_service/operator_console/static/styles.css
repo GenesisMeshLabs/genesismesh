@@ -674,6 +674,20 @@ section {
 }
 
 /* Radial labels: a stylesheet rule would beat SVG's text-anchor attribute. */
+.graph-node-hub {
+    fill: var(--panel-strong);
+    stroke: var(--accent-2);
+    stroke-width: 3;
+}
+
+/* The hub sits where every edge converges, so its label needs a halo. */
+.graph-node-label-hub {
+    paint-order: stroke;
+    stroke: var(--panel);
+    stroke-linejoin: round;
+    stroke-width: 6px;
+}
+
 .graph-node-label-start { text-anchor: start; }
 .graph-node-label-end { text-anchor: end; }
 .graph-node-label-middle { text-anchor: middle; }

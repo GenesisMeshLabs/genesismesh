@@ -77,30 +77,44 @@ def _connectome_graph(view: dict[str, Any]) -> str:
     labels = {name: _shorten(name) for name in shown}
     label_width = max((len(text) for text in labels.values()), default=0) * LABEL_CHAR_WIDTH
 
+    # An authority's recognition graph holds the treaties it issued, so in normal
+    # operation every edge starts at one node. Draw that as a hub rather than
+    # hiding it on the rim among its own subjects. Derived, never assumed: a graph
+    # with several issuers falls back to the ring.
+    issuers = {str(e.get("from", "")) for e in view.get("recognition_edges", [])}
+    # With two nodes the direction is already obvious and a hub buys nothing.
+    hub = next(iter(issuers)) if count > 2 and len(issuers) == 1 and issuers <= set(shown) else None
+    spokes = [name for name in shown if name != hub] if hub else shown
+
     margin = LABEL_GAP + label_width + 24
-    radius = max(MIN_RING_RADIUS, count * MIN_ARC_SPACING / (2 * pi))
+    ring_count = len(spokes)
+    radius = max(MIN_RING_RADIUS, ring_count * MIN_ARC_SPACING / (2 * pi))
     radius = max(radius, TARGET_GRAPH_WIDTH / 2 - margin)
     width = 2 * (radius + margin)
     # One or two sovereigns sit on the centre line; a full-height ring would be
     # mostly empty canvas, which is the common state of a newly bootstrapped NA.
-    height = 2 * (NODE_RADIUS + 40) if count <= 2 else 2 * (radius + NODE_RADIUS + 28)
+    flat = count <= 2
+    height = 2 * (NODE_RADIUS + 40) if flat else 2 * (radius + NODE_RADIUS + 28)
     center_x = width / 2
     center_y = height / 2
 
     positions: dict[str, tuple[float, float]] = {}
     angles: dict[str, float] = {}
-    if count == 1:
+    if hub:
+        positions[hub] = (center_x, center_y)
+        angles[hub] = -pi / 2
+    if count == 1 and not hub:
         positions[shown[0]] = (center_x, center_y)
         angles[shown[0]] = -pi / 2
-    else:
+    elif ring_count:
         # Two nodes read better side by side than stacked vertically.
-        offset = 0.0 if count == 2 else -pi / 2
-        for index, sovereign in enumerate(shown):
-            angle = (2 * pi * index / count) + offset
+        offset = 0.0 if flat else -pi / 2
+        for index, sovereign in enumerate(spokes):
+            angle = (2 * pi * index / ring_count) + offset
             angles[sovereign] = angle
             positions[sovereign] = (
                 center_x + radius * cos(angle),
-                center_y + (0 if count <= 2 else radius * sin(angle)),
+                center_y + (0 if flat else radius * sin(angle)),
             )
 
     grouped_edges: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -127,9 +141,19 @@ def _connectome_graph(view: dict[str, Any]) -> str:
     node_markup = []
     for sovereign, (x, y) in positions.items():
         angle = angles[sovereign]
+        is_hub = sovereign == hub
+        node_class = "graph-node graph-node-hub" if is_hub else "graph-node"
+        node_radius = NODE_RADIUS * 1.6 if is_hub else NODE_RADIUS
         node_markup.append(
-            f'<circle class="graph-node" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}"></circle>'
+            f'<circle class="{node_class}" cx="{x:.1f}" cy="{y:.1f}" r="{node_radius:.1f}"></circle>'
         )
+        if is_hub:
+            title = "" if labels[sovereign] == sovereign else f"<title>{escape(sovereign)}</title>"
+            node_markup.append(
+                f'<text class="graph-node-label graph-node-label-middle graph-node-label-hub" '
+                f'x="{x:.1f}" y="{(y + node_radius + 20):.1f}">{escape(labels[sovereign])}{title}</text>'
+            )
+            continue
         horizontal = cos(angle)
         if count == 1 or abs(horizontal) < 0.25:
             anchor = "middle"
@@ -162,6 +186,14 @@ def _connectome_graph(view: dict[str, Any]) -> str:
     """
 
 
+def _treaty_link(treaty_id: str) -> str:
+    """Link a treaty id to its signed record; styled-but-inert ids read as broken links."""
+    if not treaty_id:
+        return '<span class="muted">&mdash;</span>'
+    safe = escape(treaty_id)
+    return f'<a href="/recognition-treaties/{safe}"><code>{safe}</code></a>'
+
+
 def _edge_is_current(edge: dict[str, Any]) -> bool:
     return edge.get("status") == "active" and is_lifecycle_active({
         "state": edge.get("lifecycle_state", "active"),
@@ -178,7 +210,7 @@ def _edge_rows(edges: list[dict[str, Any]], empty_message: str) -> str:
         f"<td>{escape(str(edge.get('expiry_risk', '')))}</td>"
         f"<td>{escape(_human_datetime(edge.get('valid_from')))}</td>"
         f"<td>{escape(_human_datetime(edge.get('expires_at')))}</td>"
-        f"<td><code>{escape(str(edge.get('treaty_id', '')))}</code></td>"
+        f"<td>{_treaty_link(str(edge.get('treaty_id', '')))}</td>"
         "</tr>"
         for edge in edges
     )

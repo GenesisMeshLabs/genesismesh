@@ -85,21 +85,25 @@ def _rel_table(title: str, hint: str, rows: str) -> str:
 """
 
 
-def _evidence_section(evidences: list[dict[str, Any]]) -> str:
+def _evidence_section(evidences: list[dict[str, Any]], operator_hints: bool = True) -> str:
     if not evidences:
-        return """
+        # "Evidence records" here are optional TrustEvidence overlays, which are
+        # unrelated to the signatures on the treaties themselves. Say so: a zero
+        # count otherwise reads as "these relationships have no evidence".
+        hint = """
+      <span>
+        Build one with <code>genesis-mesh atlas build --graph &lt;file&gt;
+        --output &lt;dir&gt; --evidence &lt;dir&gt;</code>.
+      </span>""" if operator_hints else ""
+        return f"""
   <section>
     <div class="section-head">
       <h2>Trust Evidence Overlay</h2>
-      <p>No evidence records loaded. Provide evidence files via
-      <code>genesis-mesh atlas build --evidence &lt;dir&gt;</code> for static snapshots.</p>
+      <p>No optional verification overlays are loaded. This does not affect the
+      relationships above: each recognition treaty carries its own signatures.</p>
     </div>
     <div class="empty-state">
-      <strong>No TrustEvidence overlay.</strong>
-      <span>
-        Run <code>genesis-mesh atlas build --graph &lt;file&gt; --output &lt;dir&gt;
-        --evidence &lt;dir&gt;</code> to generate a static Atlas with evidence overlay.
-      </span>
+      <strong>No TrustEvidence overlay.</strong>{hint}
     </div>
   </section>
 """
@@ -138,7 +142,8 @@ def _evidence_section(evidences: list[dict[str, Any]]) -> str:
 """
 
 
-def render_atlas(graph: dict[str, Any], evidences: list[dict[str, Any]] | None = None) -> str:
+def render_atlas(graph: dict[str, Any], evidences: list[dict[str, Any]] | None = None,
+                 operator_hints: bool = True) -> str:
     """Render the operator Atlas page from a recognition graph export."""
     from ...trust.evidence import graph_digest_from_export
 
@@ -205,7 +210,7 @@ def render_atlas(graph: dict[str, Any], evidences: list[dict[str, Any]] | None =
       inactive_rows,
   )}
 
-  {_evidence_section(evidence_list)}
+  {_evidence_section(evidence_list, operator_hints)}
 
   <div class="notice">
     Graph digest: <code>{escape(graph_digest)}</code><br>

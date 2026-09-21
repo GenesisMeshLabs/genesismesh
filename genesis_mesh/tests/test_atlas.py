@@ -155,8 +155,16 @@ class TestRenderAtlas:
 
     def test_evidence_section_empty_when_no_evidences(self):
         html = render_atlas(_active_graph())
-        assert "No evidence records loaded" in html
+        assert "No optional verification overlays are loaded" in html
+        # A zero overlay count must not read as "these treaties are unsigned".
+        assert "each recognition treaty carries its own signatures" in html
         assert "atlas build" in html
+
+    def test_public_atlas_omits_operator_cli_guidance(self):
+        """Public visitors cannot run the CLI; do not tell them to."""
+        html = render_atlas(_active_graph(), operator_hints=False)
+        assert "atlas build" not in html
+        assert "No optional verification overlays are loaded" in html
 
     def test_evidence_overlay_shows_verdict(self):
         graph = _active_graph()
