@@ -33,9 +33,10 @@ if ss -ltnH 'sport = :28443' | grep -q .; then
 fi
 
 if [[ ! -d "$CODE/.git" ]]; then
-    git clone --branch ops/public-dashboard-sanitization --single-branch https://github.com/GenesisMeshLabs/genesismesh.git "$CODE"
+    git clone https://github.com/GenesisMeshLabs/genesismesh.git "$CODE"
 fi
-git -C "$CODE" fetch origin ops/public-dashboard-sanitization
+# Fetch every branch so any reviewed SHA stays deployable once its branch is merged and deleted.
+git -C "$CODE" fetch origin
 git -C "$CODE" checkout --detach "$BUILD"
 python3.12 -m venv "$CODE/.venv"
 "$CODE/.venv/bin/python" -m pip install -r "$CODE/requirements.txt" -e "$CODE"
