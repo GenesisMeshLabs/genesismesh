@@ -10,17 +10,26 @@ from genesis_mesh.models import SovereignRevocationFeed
 from .na_server_helpers import admin_headers
 
 
-def test_homepage_links_to_operational_routes(client):
-    """The Network Authority root should be useful in a browser."""
+def test_root_serves_current_state_not_the_surface_catalogue(client):
+    """The root is the dashboard; reference pages sit together behind /surfaces."""
     resp = client.get("/")
+
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    assert resp.get_data(as_text=True) == client.get("/dashboard").get_data(as_text=True)
+
+
+def test_surface_map_lists_operational_routes(client):
+    """The Network Authority surface map should be useful in a browser."""
+    resp = client.get("/surfaces")
 
     assert resp.status_code == 200
     assert resp.mimetype == "text/html"
 
     body = resp.get_data(as_text=True)
-    assert "Genesis Mesh Network Authority" in body
+    assert "Genesis Mesh Surfaces" in body
     assert "TEST" in body
-    assert "Console" in body
+    assert "Surfaces" in body
     assert "Dashboard" in body
     assert "API Docs" in body
     assert "CLI Docs" in body

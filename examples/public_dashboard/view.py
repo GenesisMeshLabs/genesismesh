@@ -8,8 +8,23 @@ from typing import Any
 from genesis_mesh.na_service.operator_console.rendering import page_document
 from .records import Snapshot, current_issuers, freshness, sensitive_authorization_allowed
 
-NOTICE = "This public dashboard contains sanitized operational trust metadata. It provides read-only visibility and cannot change trust state."
+NOTICE = "Public reference instance — sanitized demo data, read-only; it cannot change trust state."
 DEPLOYMENT = "Single-node public reference instance"
+
+
+BADGES = {
+    "healthy": "status-ok", "fresh": "status-ok", "verified": "status-ok", "ready": "status-ok",
+    "warning": "status-watch",
+    "degraded": "status-risk", "stale": "status-risk", "failed": "status-risk", "missing": "status-risk",
+    # A check that has not run yet is neither a pass nor a warning.
+    "not_observed": "status-idle",
+}
+
+
+def badge(state: str) -> str:
+    """Render one status as a console status badge, in sentence case."""
+    label = state.replace("_", " ")
+    return f'<span class="status-badge {BADGES.get(state, "status-idle")}">{label[:1].upper() + label[1:]}</span>'
 
 
 def lifecycle(record, now: datetime) -> str:
@@ -42,13 +57,13 @@ def graph(snapshot: Snapshot, now: datetime) -> dict:
 
 
 def dashboard(snapshot: Snapshot, args, version: dict, now: datetime) -> dict:
-    size = int(args.get("page_size", 25))
+    size = int(args.get("page_size", 10))
     page = int(args.get("page", 1))
     event_limit = int(args.get("events", 8))
     status = args.get("status", "all")
     sort = args.get("sort", "expiry")
     search = args.get("q", "").strip().lower()
-    if size not in {25, 50, 100} or not 1 <= page <= 100000 or not 8 <= event_limit <= 1000:
+    if size not in {10, 25, 50, 100} or not 1 <= page <= 100000 or not 8 <= event_limit <= 1000:
         raise ValueError("invalid_pagination")
     if status not in {"all", "active", "expiring_soon", "revoked", "historical"} or sort not in {"expiry", "creation"} or len(search) > 128:
         raise ValueError("invalid_filter")
@@ -121,12 +136,23 @@ def timestamp(value: str | None) -> str:
 
 def render(model: dict, root_key: str) -> str:
     p = model["pagination"]
-    filters = f'''<form method="get" class="reference-toolbar">
-        <label>Search authority or record ID <input name="q" type="search" value="{escape(p['q'])}" maxlength="128"></label>
-        <label>Lifecycle <select name="status">{''.join(f'<option value="{s}"' + (' selected' if p['status']==s else '') + f'>{s.replace('_', ' ').title()}</option>' for s in ['all','active','expiring_soon','revoked','historical'])}</select></label>
-        <label>Records <select name="page_size">{''.join(f'<option' + (' selected' if p['page_size']==n else '') + f'>{n}</option>' for n in [25,50,100])}</select></label>
-        <label>Sort <select name="sort">{''.join(f'<option value="{s}"' + (' selected' if p['sort']==s else '') + f'>{s.title()}</option>' for s in ['expiry','creation'])}</select></label>
-        <button type="submit">Apply filters</button></form>'''
+    def options(values, current, label=lambda v: str(v).replace("_", " ").title()):
+        return "".join(
+            f'<option value="{v}"' + (" selected" if current == v else "") + f">{label(v)}</option>"
+            for v in values
+        )
+
+    # Shared console control classes; a bare input/select inherits no theme styling.
+    filters = f'''<form method="get" class="filter-form">
+        <label class="filter-field">Search authority or record ID
+            <input class="search-box" name="q" type="search" value="{escape(p['q'])}" maxlength="128"></label>
+        <label class="filter-field">Lifecycle
+            <select class="filter-select" name="status">{options(["all", "active", "expiring_soon", "revoked", "historical"], p["status"])}</select></label>
+        <label class="filter-field">Records
+            <select class="filter-select" name="page_size">{options([10, 25, 50, 100], p["page_size"])}</select></label>
+        <label class="filter-field">Sort
+            <select class="filter-select" name="sort">{options(["expiry", "creation"], p["sort"])}</select></label>
+        <button class="filter-link filter-link-strong filter-apply" type="submit">Apply filters</button></form>'''
     rows = ''.join(f'''<tr><td><a href="{r['evidence_url']}">{escape(r['treaty_id'])}</a></td>
         <td>{escape(r['authority'])}</td><td>{r['lifecycle'].replace('_',' ').title()}</td>
         <td>{timestamp(r['created_at'])}</td><td>{timestamp(r['expires_at'])}</td>
@@ -135,7 +161,9 @@ def render(model: dict, root_key: str) -> str:
         <td>{f['freshness'].title()}</td><td>{f['sequence']}</td><td>{timestamp(f['issued_at'])}</td>
         <td>{timestamp(f['imported_at'])}</td></tr>''' for f in model['revocation_feeds'])
     events = ''.join(f"<tr><td>{timestamp(e['at'])}</td><td>{escape(e['issuer'])}</td><td>{e['outcome'].title()}</td></tr>" for e in model['recent_changes'])
-    warnings = ''.join(f'<li>⚠ {escape(w)}</li>' for w in model['warnings']) or '<li>✓ No current trust warnings.</li>'
+    warning_items = ''.join(f'<li>⚠ {escape(w)}</li>' for w in model['warnings'])
+    warnings = f'<section><h2>Current warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''
+    counts = ' · '.join(s.replace('_', ' ').title() + ': ' + str(n) for s, n in model['treaty_summary'].items())
     nav = ''
     for label, page in [('Previous', p['page']-1), ('Next', p['page']+1)]:
         if 1 <= page <= p['pages']:
@@ -144,28 +172,38 @@ def render(model: dict, root_key: str) -> str:
     if model['events_total'] > model['events_limit'] and model['events_limit'] < 1000:
         more = f'<a class="action-link" href="?{escape(urlencode({**{k:p[k] for k in ["q","status","sort","page_size","page"]}, "events":min(1000,model["events_limit"]+25)}))}#events">Load more</a>'
     command = f'python -m examples.public_dashboard.verify evidence.json --root-key {root_key}'
+    # Hero follows the console pattern: heading, lead, stats, then a pill row of
+    # metadata. Five stacked paragraphs pushed the actual status below the fold.
+    meta = "".join(
+        f'<span class="pill">{escape(text)}</span>'
+        for text in [
+            model["sovereign"]["id"],
+            "Storage: SQLite",
+            DEPLOYMENT,
+            "Genesis Mesh " + model["sovereign"]["version"],
+            "Build " + model["software"]["build"][:7],
+        ]
+    )
     body = f'''<div class="hero"><h1>Public Reference Trust Dashboard</h1>
-        <p class="lead">{NOTICE}</p><p><strong>{escape(model['sovereign']['id'])}</strong></p>
-        <p>Storage: SQLite · Deployment: {DEPLOYMENT}</p>
-        <p>Genesis Mesh: v{escape(model['software']['version'])} · Build: {escape(model['software']['build'])}</p>
-        <p>Last updated: {timestamp(model['last_updated'])} · <a class="action-link" href="/dashboard">Refresh</a></p>
-        <div class="stats"><div class="stat"><span>Service readiness</span><strong>✓ Ready</strong></div>
-        <div class="stat"><span>Trust posture</span><strong>{'✓' if model['trust_posture']=='healthy' else '⚠'} {model['trust_posture'].title()}</strong></div>
-        <div class="stat"><span>Daily canary</span><strong>{'✓' if model['trust_cycle_summary']['freshness']=='fresh' else '⚠'} {model['trust_cycle_summary']['freshness'].replace('_',' ').title()}</strong></div>
-        <div class="stat"><span>Revocation feeds</span><strong>{model['revocation_feed_summary']['stale_count']} of {model['revocation_feed_summary']['count']} stale</strong></div></div></div>
-        <section><h2>Current warnings</h2><ul>{warnings}</ul>
-        <p>The canary checks cross-authority communication. Feed freshness checks imported revocation information.</p>
-        <p>This single-node reference uses separately signed demo authorities on the same host; it does not demonstrate independent infrastructure.</p>
-        <p>Last successful canary: {timestamp(model['trust_cycle_summary']['completed_at'])}</p></section>
-        <section><h2>Treaties</h2><p>{' · '.join(s.replace('_',' ').title()+': '+str(n) for s,n in model['treaty_summary'].items())}</p>
-        {filters}<p>{p['total']} total results · Page {p['page']} of {p['pages']}</p>
+        <p class="lead">{NOTICE}</p>
+        <div class="stats stats-compact"><div class="stat"><span>Service readiness</span><strong>{badge('ready')}</strong></div>
+        <div class="stat"><span>Trust posture</span><strong>{badge(model['trust_posture'])}</strong></div>
+        <div class="stat"><span>Daily canary</span><strong>{badge(model['trust_cycle_summary']['freshness'])}</strong></div>
+        <div class="stat"><span>Revocation feeds</span><strong>{model['revocation_feed_summary']['stale_count']} of {model['revocation_feed_summary']['count']} stale</strong></div>
+        <div class="stat"><span>Treaties</span><strong>{model['treaty_summary']['active']} active</strong></div></div>
+        <div class="pill-row">{meta}</div>
+        <p class="filter-summary">Last updated: {timestamp(model['last_updated'])} · <a class="action-link" href="/dashboard">Refresh</a></p></div>
+        {warnings}
+        <section><h2>Treaties</h2>
+        {filters}<p class="filter-summary">{p['total']} total results · Page {p['page']} of {p['pages']} · {counts}</p>
         <div class="table-wrap"><table class="data-table"><thead><tr><th>Record / evidence</th><th>Authority</th><th>Lifecycle</th><th>Created</th><th>Expiry</th><th>Related evidence</th></tr></thead>
         <tbody>{rows or '<tr><td colspan="6">No treaties match these filters.</td></tr>'}</tbody></table></div>{nav}
         <p>Historical and revoked treaties remain available for audit. Only expected active relationships affect current trust posture.</p></section>
         <section><h2>Revocation feeds</h2><p>Fresh: under 24 hours. Warning: 24–72 hours. Stale: over 72 hours. Age is measured from the signed issue time, not a repeated download.</p>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Issuer / signed feed</th><th>Freshness</th><th>Sequence</th><th>Signed heartbeat</th><th>Imported</th></tr></thead><tbody>{feed_rows}</tbody></table></div></section>
-        <section id="events"><h2>Recent trust events</h2><table class="data-table"><thead><tr><th>UTC time</th><th>Issuer</th><th>Import result</th></tr></thead><tbody>{events or '<tr><td colspan="3">No import events yet.</td></tr>'}</tbody></table>{more}</section>
+        <p class="filter-summary">Feed freshness checks imported revocation information. The daily canary checks cross-authority communication; last successful run: {timestamp(model['trust_cycle_summary']['completed_at'])}</p>
+        <div class="table-wrap"><table class="data-table" data-paginate="10"><thead><tr><th>Issuer / signed feed</th><th>Freshness</th><th>Sequence</th><th>Signed heartbeat</th><th>Imported</th></tr></thead><tbody>{feed_rows}</tbody></table></div></section>
+        <section id="events"><h2>Recent trust events</h2><table class="data-table" data-paginate="10"><thead><tr><th>UTC time</th><th>Issuer</th><th>Import result</th></tr></thead><tbody>{events or '<tr><td colspan="3">No import events yet.</td></tr>'}</tbody></table>{more}</section>
         <section><h2>Independent verification</h2><p><a class="action-link" href="/evidence.json" download="evidence.json">Download sanitized evidence bundle</a></p>
         <p>From this release checkout with dependencies installed, run offline:</p><pre><code>{escape(command)}</code></pre>
-        <p>Pin the root key through a separately trusted channel. Verification proves signatures and integrity; it does not prove independent operation of the demo authorities.</p></section>'''
+        <p>Pin the root key through a separately trusted channel. Verification proves signatures and integrity; it does not prove independent operation of the demo authorities: this single-node reference uses separately signed demo authorities on the same host.</p></section>'''
     return page_document("Genesis Mesh Public Reference Dashboard", "Dashboard", body)

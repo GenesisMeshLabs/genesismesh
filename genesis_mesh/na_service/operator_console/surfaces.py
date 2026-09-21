@@ -80,6 +80,7 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     ),
     Surface("GET", "/agents/{node_public_key}", "Agent lookup", "Read one agent descriptor.", "safe", "browser_safe", "None"),
     Surface("GET", "/swagger.json", "OpenAPI metadata", "Generated HTTP protocol surface metadata.", "safe", "browser_safe", "None", True),
+    Surface("GET", "/surfaces", "Surface map", "Grouped map of every HTTP and CLI surface.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/api-reference", "API reference", "Read-only HTTP API reference.", "safe", "browser_safe", "None", True, True),
     Surface("GET", "/cli-reference", "CLI reference", "Generated CLI command reference.", "safe", "browser_safe", "None", True, True),
     Surface("POST", "/join", "Join", "Issue a certificate from a single-use invite.", "node_agent", "node_signed", "Node PoP", curated=True),

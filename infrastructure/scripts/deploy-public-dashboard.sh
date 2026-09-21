@@ -6,6 +6,21 @@ BUILD=${1:?Pass the reviewed Git commit SHA}
 CODE=/opt/genesis-mesh-public
 DATA=/var/lib/genesis-mesh-public
 ARCHIVE=/var/backups/genesis-mesh-offline/$(date -u +%Y%m%dT%H%M%SZ)
+
+# Resolve the build first: never stop a healthy public service for a SHA that
+# turns out to be unfetchable.
+if [[ ! -d "$CODE/.git" ]]; then
+    git clone https://github.com/GenesisMeshLabs/genesismesh.git "$CODE"
+fi
+# Clones made with --single-branch carry a refspec covering only that branch, so
+# every other reviewed SHA is invisible to `git fetch origin`. Repair it in place.
+git -C "$CODE" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git -C "$CODE" fetch --prune origin
+if ! git -C "$CODE" cat-file -e "${BUILD}^{commit}" 2>/dev/null; then
+    echo "Build $BUILD is not present on origin; refusing deployment" >&2
+    exit 1
+fi
+
 install -d -m 0700 "$ARCHIVE"
 
 # A consistent SQLite backup, not a copy of an open WAL database.
@@ -26,17 +41,18 @@ tar -czf "$ARCHIVE/legacy-configuration.tar.gz" /etc/genesis /etc/genesis-mesh \
 cp /etc/nginx/sites-available/genesis-mesh-na "$ARCHIVE/nginx.conf"
 chmod 0600 "$ARCHIVE"/*
 (cd "$ARCHIVE" && sha256sum na.db legacy-configuration.tar.gz nginx.conf > SHA256SUMS)
+# From here the public service is down; restore it if any later step fails.
+restore_public_service() {
+    echo 'Deployment failed; restarting the previous public service' >&2
+    systemctl start genesis-mesh-public-publisher.service genesis-mesh-public.service 2>/dev/null || true
+}
+trap restore_public_service ERR
 systemctl stop genesis-mesh-public.service genesis-mesh-public-publisher.service 2>/dev/null || true
 if ss -ltnH 'sport = :28443' | grep -q .; then
     echo 'Public reference port 28443 is already occupied; refusing deployment' >&2
     exit 1
 fi
 
-if [[ ! -d "$CODE/.git" ]]; then
-    git clone https://github.com/GenesisMeshLabs/genesismesh.git "$CODE"
-fi
-# Fetch every branch so any reviewed SHA stays deployable once its branch is merged and deleted.
-git -C "$CODE" fetch origin
 git -C "$CODE" checkout --detach "$BUILD"
 python3.12 -m venv "$CODE/.venv"
 "$CODE/.venv/bin/python" -m pip install -r "$CODE/requirements.txt" -e "$CODE"

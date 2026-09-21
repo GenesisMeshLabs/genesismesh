@@ -11,6 +11,26 @@ from typing import Any
 from ...trust.treaty_lifecycle import is_lifecycle_active
 from .rendering import page_document
 
+# Radial-layout constants. MIN_ARC_SPACING is the vertical room one label needs
+# around the ring; the radius is derived from it so nodes never collide.
+MAX_GRAPH_NODES = 48
+MIN_RING_RADIUS = 120
+# The SVG renders at its natural size, so one user unit is one CSS pixel and the
+# label font-size means what it says. The ring grows to fill this width rather
+# than letting a small viewBox be stretched across the panel.
+TARGET_GRAPH_WIDTH = 860
+MIN_ARC_SPACING = 30.0
+LABEL_CHAR_WIDTH = 7.2
+LABEL_MAX_CHARS = 26
+LABEL_GAP = 14
+NODE_RADIUS = 7
+
+
+def _shorten(name: str) -> str:
+    """Trim an over-long sovereign id; the full value stays in a <title>."""
+    return name if len(name) <= LABEL_MAX_CHARS else name[: LABEL_MAX_CHARS - 1] + "…"
+
+
 
 def _human_datetime(value: object) -> str:
     """Render ISO datetimes compactly for operator HTML tables."""
@@ -49,23 +69,38 @@ def _connectome_graph(view: dict[str, Any]) -> str:
             </div>
         """
 
-    width = 900
-    height = 360
-    radius = 118 if len(sovereigns) > 2 else 150
+    # Labels sit outside the ring, and the ring grows with the node count. Drawing
+    # names inside fixed r=42 circles on a fixed-radius ring made nodes overlap as
+    # soon as the graph passed roughly six sovereigns.
+    shown = sovereigns[:MAX_GRAPH_NODES]
+    count = len(shown)
+    labels = {name: _shorten(name) for name in shown}
+    label_width = max((len(text) for text in labels.values()), default=0) * LABEL_CHAR_WIDTH
+
+    margin = LABEL_GAP + label_width + 24
+    radius = max(MIN_RING_RADIUS, count * MIN_ARC_SPACING / (2 * pi))
+    radius = max(radius, TARGET_GRAPH_WIDTH / 2 - margin)
+    width = 2 * (radius + margin)
+    # One or two sovereigns sit on the centre line; a full-height ring would be
+    # mostly empty canvas, which is the common state of a newly bootstrapped NA.
+    height = 2 * (NODE_RADIUS + 40) if count <= 2 else 2 * (radius + NODE_RADIUS + 28)
     center_x = width / 2
     center_y = height / 2
+
     positions: dict[str, tuple[float, float]] = {}
-    if len(sovereigns) == 1:
-        positions[sovereigns[0]] = (center_x, center_y)
-    elif len(sovereigns) == 2:
-        positions[sovereigns[0]] = (center_x - 210, center_y)
-        positions[sovereigns[1]] = (center_x + 210, center_y)
+    angles: dict[str, float] = {}
+    if count == 1:
+        positions[shown[0]] = (center_x, center_y)
+        angles[shown[0]] = -pi / 2
     else:
-        for index, sovereign in enumerate(sovereigns):
-            angle = (2 * pi * index / len(sovereigns)) - (pi / 2)
+        # Two nodes read better side by side than stacked vertically.
+        offset = 0.0 if count == 2 else -pi / 2
+        for index, sovereign in enumerate(shown):
+            angle = (2 * pi * index / count) + offset
+            angles[sovereign] = angle
             positions[sovereign] = (
                 center_x + radius * cos(angle),
-                center_y + radius * sin(angle),
+                center_y + (0 if count <= 2 else radius * sin(angle)),
             )
 
     grouped_edges: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -91,17 +126,38 @@ def _connectome_graph(view: dict[str, Any]) -> str:
 
     node_markup = []
     for sovereign, (x, y) in positions.items():
-        node_markup.append(f'<circle class="graph-node" cx="{x:.1f}" cy="{y:.1f}" r="42"></circle>')
+        angle = angles[sovereign]
         node_markup.append(
-            f'<text class="graph-node-label" x="{x:.1f}" y="{(y + 5):.1f}">{escape(sovereign)}</text>'
+            f'<circle class="graph-node" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}"></circle>'
         )
+        horizontal = cos(angle)
+        if count == 1 or abs(horizontal) < 0.25:
+            anchor = "middle"
+            label_x = x
+            label_y = y + (LABEL_GAP + 12 if sin(angle) >= 0 else -LABEL_GAP - 4)
+        else:
+            anchor = "start" if horizontal > 0 else "end"
+            label_x = x + (LABEL_GAP if horizontal > 0 else -LABEL_GAP)
+            label_y = y + 4
+        title = "" if labels[sovereign] == sovereign else f"<title>{escape(sovereign)}</title>"
+        node_markup.append(
+            f'<text class="graph-node-label graph-node-label-{anchor}" '
+            f'x="{label_x:.1f}" y="{label_y:.1f}">{escape(labels[sovereign])}{title}</text>'
+        )
+
+    hidden = len(sovereigns) - count
+    caption = (
+        f'<p class="filter-summary">Showing {count} of {len(sovereigns)} sovereigns; '
+        f'the tables below list all {len(sovereigns)}.</p>'
+    ) if hidden > 0 else ""
 
     return f"""
         <div class="connectome-graph" role="img" aria-label="Sovereign recognition graph">
-            <svg viewBox="0 0 {width} {height}" aria-hidden="true">
+            <svg width="{width:.0f}" height="{height:.0f}" viewBox="0 0 {width:.0f} {height:.0f}" aria-hidden="true">
                 {"".join(edge_markup)}
                 {"".join(node_markup)}
             </svg>
+            {caption}
         </div>
     """
 
@@ -147,7 +203,7 @@ def _recognition_table(
       <h2>{escape(title)}</h2>
       <p>{escape(hint)}{download}</p>
     </div>
-    <table class="data-table">
+    <table class="data-table" data-paginate="10">
       <thead>
         <tr>
           <th>From</th>
@@ -216,7 +272,7 @@ def _trust_sections(view: dict[str, Any]) -> str:
       <h2>Revoked Trust Material</h2>
       <p>Trust material imported or revoked by sovereign feeds.</p>
     </div>
-    <table class="data-table">
+    <table class="data-table" data-paginate="10">
       <thead><tr><th>Type</th><th>ID</th><th>Reason</th><th>Revoked at</th></tr></thead>
       <tbody>{revoked_rows}</tbody>
     </table>
@@ -227,7 +283,7 @@ def _trust_sections(view: dict[str, Any]) -> str:
       <h2>Revocation Blast Radius</h2>
       <p>Accepting sovereigns affected by imported revocations.</p>
     </div>
-    <table class="data-table">
+    <table class="data-table" data-paginate="10">
       <thead>
         <tr>
           <th>Revoked attestation</th>
