@@ -1,6 +1,7 @@
 """Privacy, replay, status and read-only regression tests for the reference overlay."""
 
 from datetime import datetime, timedelta, timezone
+import re
 import json
 from pathlib import Path
 import uuid
@@ -109,6 +110,32 @@ def test_console_reference_pages_keep_the_shared_operator_surfaces(demo):
 def test_exact_feed_age_boundaries(hours, expected):
     now = datetime.now(timezone.utc)
     assert freshness(now - timedelta(hours=hours), now) == expected
+
+
+def test_every_pager_sits_in_the_shared_spaced_container(demo):
+    """Pagination controls must never render flush against the table above them."""
+    root, snapshot = demo
+    client = create_app(root, "abcdef1").test_client()
+
+    # Enough events to offer "Load more", and enough treaties to offer Next.
+    for index in range(40):
+        snapshot.events.append(
+            ImportEvent(at=datetime.now(timezone.utc), issuer="gm-demo-edge-na", outcome="success")
+        )
+    resign(snapshot, root)
+    write_snapshot(root / "public.db", snapshot)
+
+    html = create_app(root, "abcdef1").test_client().get("/dashboard?page_size=10").get_data(as_text=True)
+    assert "Load more" in html
+    assert "</table><a" not in html, "a pager is rendered flush against a table"
+    assert '</table></div><a' not in html
+    for control in re.findall(r'<a class="action-link"[^>]*>(?:Previous|Next|Load more)</a>', html):
+        start = html.index(control)
+        assert '<div class="table-pager">' in html[max(0, start - 400):start], control
+
+    # Client-side pagers on the other pages use the same container class.
+    for path in ["/connectome", "/atlas"]:
+        assert 'data-paginate' in client.get(path).get_data(as_text=True), path
 
 
 def test_canary_that_never_ran_is_neutral_not_a_warning(demo):

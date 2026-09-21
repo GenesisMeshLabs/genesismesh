@@ -164,13 +164,17 @@ def render(model: dict, root_key: str) -> str:
     warning_items = ''.join(f'<li>⚠ {escape(w)}</li>' for w in model['warnings'])
     warnings = f'<section><h2>Current warnings</h2><ul>{warning_items}</ul></section>' if warning_items else ''
     counts = ' · '.join(s.replace('_', ' ').title() + ': ' + str(n) for s, n in model['treaty_summary'].items())
+    # Every pager, server-rendered or client-side, uses the same spaced container.
     nav = ''
     for label, page in [('Previous', p['page']-1), ('Next', p['page']+1)]:
         if 1 <= page <= p['pages']:
-            nav += f'<a class="action-link" href="?{escape(urlencode({**{k:p[k] for k in ["q","status","sort","page_size"]}, "page":page}))}">{label}</a> '
+            nav += f'<a class="action-link" href="?{escape(urlencode({**{k:p[k] for k in ["q","status","sort","page_size"]}, "page":page}))}">{label}</a>'
+    if nav:
+        nav = f'<div class="table-pager">{nav}<span class="filter-summary">Page {p["page"]} of {p["pages"]}</span></div>'
     more = ''
     if model['events_total'] > model['events_limit'] and model['events_limit'] < 1000:
-        more = f'<a class="action-link" href="?{escape(urlencode({**{k:p[k] for k in ["q","status","sort","page_size","page"]}, "events":min(1000,model["events_limit"]+25)}))}#events">Load more</a>'
+        link = f'<a class="action-link" href="?{escape(urlencode({**{k:p[k] for k in ["q","status","sort","page_size","page"]}, "events":min(1000,model["events_limit"]+25)}))}#events">Load more</a>'
+        more = f'<div class="table-pager">{link}<span class="filter-summary">Showing {model["events_limit"]} of {model["events_total"]}</span></div>'
     command = f'python -m examples.public_dashboard.verify evidence.json --root-key {root_key}'
     # Hero follows the console pattern: heading, lead, stats, then a pill row of
     # metadata. Five stacked paragraphs pushed the actual status below the fold.
