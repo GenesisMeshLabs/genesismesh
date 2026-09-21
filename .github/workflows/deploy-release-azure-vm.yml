@@ -20,6 +20,9 @@ jobs:
   deploy:
     name: Deploy code to Azure VM
     runs-on: ubuntu-latest
+    environment:
+      name: azure-production
+      url: https://na.genesismesh.connectorzzz.com/
 
     permissions:
       contents: read
@@ -44,7 +47,7 @@ jobs:
           set -euo pipefail
 
           if [ "${GITHUB_REF:-}" != "refs/heads/main" ]; then
-            echo "This workflow must be run from main so Azure OIDC matches the configured federated credential." >&2
+            echo "This workflow must be run from main, the allowed branch for azure-production." >&2
             echo "Current GitHub ref: ${GITHUB_REF:-unknown}" >&2
             exit 1
           fi

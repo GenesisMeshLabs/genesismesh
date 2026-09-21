@@ -133,9 +133,13 @@ See: [Terraform deployment guide](terraform-deployment.md)
 Terraform provisions the VM. Code updates for an existing VM are handled by
 `.github/workflows/deploy-release-azure-vm.yml`.
 
-The release deployment workflow runs when a GitHub release is published. It can
-also be triggered manually from the Actions tab. The workflow connects to the
-VM over SSH, backs up `/var/lib/genesis-mesh/na.db`, checks out the release tag,
+Run **Deploy Release to Azure VM** manually from the Actions tab, selecting
+`main` as the workflow branch and a release tag or branch as the `ref` input.
+The job reports its deployment status to the `azure-production` environment.
+Publishing a release does not automatically run this workflow.
+
+The workflow authenticates with Azure through GitHub OIDC and uses Azure VM
+Run Command, backs up `/var/lib/genesis-mesh/na.db`, checks out the requested ref,
 updates the virtual environment, installs the current package, refreshes the
 systemd unit files, restarts the NA and router services, then probes:
 
@@ -147,28 +151,41 @@ Required GitHub secrets:
 
 | Secret | Value |
 |---|---|
-| `NA_VM_HOST` | Public hostname or IP address of the live VM |
-| `NA_VM_SSH_PRIVATE_KEY` | Private SSH key allowed to log in to the VM |
+| `AZURE_CLIENT_ID` | Application ID of the Azure deployment service principal |
+| `AZURE_TENANT_ID` | Azure tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
 
-Optional GitHub variables:
+Required GitHub variables:
 
-| Variable | Default | Description |
-|---|---|---|
-| `NA_VM_USER` | `azureuser` | SSH username |
-| `NA_VM_SSH_PORT` | `22` | SSH port |
+| Variable | Description |
+|---|---|
+| `AZURE_RESOURCE_GROUP` | Resource group containing the VM |
+| `AZURE_VM_NAME` | VM name |
 
-These can be loaded from `.env` with:
+Configure the `azure-production` environment to allow deployments from the
+`main` branch only. Add a federated credential to the Azure application used
+by `AZURE_CLIENT_ID` with these exact values:
 
-```bash
-bash infrastructure/scripts/setup-github-secrets.sh
+```text
+Issuer: https://token.actions.githubusercontent.com
+Subject: repo:GenesisMeshLabs/genesismesh:environment:azure-production
+Audience: api://AzureADTokenExchange
 ```
 
-Set `NA_VM_SSH_PRIVATE_KEY_FILE` in `.env` to read the private key from disk, or
-set `NA_VM_SSH_PRIVATE_KEY` directly if your local shell can safely handle
-multi-line values. The script never prints the private key.
+This repository currently uses the default, non-immutable OIDC subject format.
+An environment-scoped job uses the environment subject instead of the branch
+subject. Keep the existing `repo:GenesisMeshLabs/genesismesh:ref:refs/heads/main`
+credential for the separate Terraform workflow. Do not move that workflow into
+`azure-production`: this environment tracks release deployments to the VM.
 
-The workflow deploys the release tag on `release.published`. For manual runs,
-pass a tag such as `v0.12.0` or a branch such as `main`.
+The environment's previous failed entries remain historical records. A new
+release deployment updates its current status only when the workflow runs;
+changing the configuration alone does not deploy code or prove VM health.
+
+This workflow updates `/opt/genesis-mesh` and the configured NA/router services.
+It does not deploy the separate sanitized public dashboard checkout at
+`/opt/genesis-mesh-public`. Review the selected services before running it on a
+VM where the original authority has been retired.
 
 This workflow is intentionally Azure-specific because the next proof levels may
 use a second VM on another cloud or a physical host. Add separate release-CD
