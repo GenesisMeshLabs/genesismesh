@@ -512,11 +512,13 @@ section {
     overflow-wrap: anywhere;
 }
 
+/* Shared by server-rendered and client-side pagers so every table spaces alike. */
 .table-pager {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
-    margin-top: 12px;
+    margin-top: 14px;
 }
 
 .table-pager button[disabled] {
