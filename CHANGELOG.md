@@ -1,5 +1,18 @@
 # Changelog
 
+## Public reference deployment hardening (v0.56.0 package)
+
+- Added a keyless read-only dashboard overlay with freshly signed neutral demo
+  identities, offline evidence verification, strict public fields and pagination.
+- Separated service readiness, trust posture, canary status and signed feed age.
+- Added hourly verified heartbeat imports, daily HTTP revocation canaries, local
+  alerts, isolated systemd deployment and offline backup before public cutover.
+- Retained the coordinated package version; the deployed Git build identifies
+  this reference-deployment change independently of the v0.1 network protocol.
+- Kept the operator console, generated API reference, CLI reference and
+  `/swagger.json` on the public overlay instead of replacing them with a link
+  list, and restricted their surface tables to routes the instance serves.
+
 ## v0.56.0 - Coordinated release train (Unreleased)
 
 ### Changed

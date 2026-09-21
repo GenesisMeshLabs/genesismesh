@@ -54,21 +54,25 @@ def _surface_summary() -> dict[str, int]:
     }
 
 
-def _surface_target(surface: Surface) -> str:
-    """Render a path, command, or linked safe HTTP surface."""
+def _surface_target(surface: Surface, available: set[str] | None) -> str:
+    """Render a path, command, or linked safe HTTP surface.
+
+    ``available`` restricts links to the routes an instance actually serves, so
+    a reduced deployment documents the full protocol without dead links.
+    """
     target = escape(surface.target)
-    if surface.clickable:
+    if surface.clickable and (available is None or surface.target in available):
         return f'<a class="path" href="{target}">{target}</a>'
     return f'<code class="path">{target}</code>'
 
 
-def render_surface_table(surfaces: list[Surface]) -> str:
+def render_surface_table(surfaces: list[Surface], available: set[str] | None = None) -> str:
     """Render compact rows for HTTP or CLI surfaces."""
     rows = "\n".join(
         f"""
         <tr>
             <td>{method_badge(surface.method)}</td>
-            <td>{_surface_target(surface)}</td>
+            <td>{_surface_target(surface, available)}</td>
             <td><strong>{escape(surface.title)}</strong></td>
             <td>
                 {escape(surface.purpose)}
@@ -145,15 +149,14 @@ def page_document(title: str, active_nav: str, body: str) -> str:
 </html>"""
 
 
-def render_homepage(service) -> str:
-    """Build the human-facing Network Authority home page."""
-    genesis = service.genesis_block
+def render_homepage(genesis, available: set[str] | None = None) -> str:
+    """Build the human-facing Network Authority home page for a genesis block."""
     surface_summary = _surface_summary()
 
-    safe_rows = render_surface_table(surfaces_by_group("safe", curated_only=True))
-    node_rows = render_surface_table(surfaces_by_group("node_agent", curated_only=True))
-    operator_rows = render_surface_table(surfaces_by_group("operator", curated_only=True))
-    managed_rows = render_surface_table(surfaces_by_group("managed", curated_only=True))
+    safe_rows = render_surface_table(surfaces_by_group("safe", curated_only=True), available)
+    node_rows = render_surface_table(surfaces_by_group("node_agent", curated_only=True), available)
+    operator_rows = render_surface_table(surfaces_by_group("operator", curated_only=True), available)
+    managed_rows = render_surface_table(surfaces_by_group("managed", curated_only=True), available)
 
     body = f"""
         <div class="hero">
@@ -233,13 +236,13 @@ def render_homepage(service) -> str:
     return page_document("Genesis Mesh Network Authority", "Console", body)
 
 
-def render_api_reference(service) -> str:
-    """Render a read-only API reference page."""
+def render_api_reference(genesis, available: set[str] | None = None) -> str:
+    """Render a read-only API reference page for a genesis block."""
     body = f"""
         <div class="hero">
             <h1>Network Authority API</h1>
             <p class="lead">
-                Generated HTTP surface reference for {escape(service.genesis_block.network_name)}.
+                Generated HTTP surface reference for {escape(genesis.network_name)}.
                 This page intentionally has no try-it or request execution controls.
                 Use <a href="/swagger.json">/swagger.json</a> for automation.
             </p>
@@ -251,7 +254,7 @@ def render_api_reference(service) -> str:
                 <p>Signed POST routes require operator or node signing outside the browser.</p>
             </div>
             <div id="api-reference-results">
-                {render_surface_table(list(HTTP_SURFACES))}
+                {render_surface_table(list(HTTP_SURFACES), available)}
             </div>
             <div id="api-reference-results-empty" class="search-empty">No API surfaces match the current search.</div>
         </section>

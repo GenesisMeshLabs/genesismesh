@@ -1,0 +1,27 @@
+name: Public dashboard security
+on:
+  push:
+    paths:
+      - 'examples/public_dashboard/**'
+      - 'genesis_mesh/tests/test_public_reference_dashboard.py'
+      - 'requirements*.txt'
+      - '.github/workflows/public-dashboard-security.yml'
+  pull_request:
+  schedule:
+    - cron: '25 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt -e .
+      - run: python -m pip_audit -r requirements.txt -r requirements-dev.txt
+      - run: pip install bandit==1.9.4
+      - run: python -m bandit -r examples/public_dashboard -ll -q
+      - run: python -m pytest genesis_mesh/tests/test_public_reference_dashboard.py -q

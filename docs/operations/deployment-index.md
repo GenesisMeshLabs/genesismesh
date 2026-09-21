@@ -12,6 +12,7 @@ deployment live in the [Runbooks](runbooks-index.md) section.
 :hidden:
 
 deployment
+public-reference-dashboard
 vm-bootstrap
 infrastructure
 terraform-deployment

@@ -13,6 +13,14 @@ The canonical sources behind this document are the per-release plans under
 
 ## 1. The Problem
 
+The September 2026 public reference deployment hardening separates a keyless,
+read-only dashboard from local signing and maintenance. Fresh neutral identities
+replace the public legacy dataset while original signed records remain in an
+offline archive. Signed snapshots bind current relationships, heartbeat imports
+and canary evidence; the dashboard distinguishes service readiness from trust
+posture. See {doc}`../operations/public-reference-dashboard` for verification
+and the boundaries of the single-node reference demonstration.
+
 Machines can connect. They cannot prove trust.
 
 Every AI agent, autonomous system, and distributed worker that talks
