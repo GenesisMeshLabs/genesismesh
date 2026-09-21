@@ -108,10 +108,70 @@
         updateVisibility();
     }
 
+    function initPagination() {
+        document.querySelectorAll("[data-paginate]").forEach(function (table) {
+            // Tables paginate their body rows; other containers their own children.
+            var body = table.querySelector("tbody") || table;
+            var items = body === table
+                ? Array.from(body.children)
+                : Array.from(body.querySelectorAll("tr"));
+            var rows = items.filter(function (row) {
+                return !row.classList.contains("empty-row");
+            });
+            var size = parseInt(table.getAttribute("data-paginate"), 10) || 10;
+            if (rows.length <= size) {
+                return;
+            }
+
+            var pages = Math.ceil(rows.length / size);
+            var current = 1;
+
+            var controls = document.createElement("div");
+            controls.className = "table-pager";
+            var previous = document.createElement("button");
+            previous.type = "button";
+            previous.className = "filter-link";
+            previous.textContent = "Previous";
+            var next = document.createElement("button");
+            next.type = "button";
+            next.className = "filter-link";
+            next.textContent = "Next";
+            var status = document.createElement("span");
+            status.className = "filter-summary";
+            status.setAttribute("aria-live", "polite");
+            controls.appendChild(previous);
+            controls.appendChild(status);
+            controls.appendChild(next);
+
+            var anchor = table.closest(".table-wrap") || table;
+            anchor.parentNode.insertBefore(controls, anchor.nextSibling);
+
+            function show(page) {
+                current = Math.min(Math.max(page, 1), pages);
+                rows.forEach(function (row, index) {
+                    var start = (current - 1) * size;
+                    row.hidden = index < start || index >= start + size;
+                });
+                status.textContent = "Page " + current + " of " + pages + " · " + rows.length + " rows";
+                previous.disabled = current === 1;
+                next.disabled = current === pages;
+            }
+
+            previous.addEventListener("click", function () {
+                show(current - 1);
+            });
+            next.addEventListener("click", function () {
+                show(current + 1);
+            });
+            show(1);
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         initTheme();
         initSearch();
         initSurfaceFilters();
+        initPagination();
         initBackToTop();
     });
 })();

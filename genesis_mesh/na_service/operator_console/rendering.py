@@ -160,7 +160,7 @@ def render_homepage(genesis, available: set[str] | None = None) -> str:
 
     body = f"""
         <div class="hero">
-            <h1>Genesis Mesh Network Authority</h1>
+            <h1>Genesis Mesh Surfaces</h1>
             <p class="lead">
                 Every Network Authority surface in one compact map: open a safe
                 GET, sign an operator command, or run a managed CLI operation.
@@ -233,7 +233,7 @@ def render_homepage(genesis, available: set[str] | None = None) -> str:
             available for automation.
         </div>
     """
-    return page_document("Genesis Mesh Network Authority", "Console", body)
+    return page_document("Genesis Mesh Surfaces", "Surfaces", body)
 
 
 def render_api_reference(genesis, available: set[str] | None = None) -> str:

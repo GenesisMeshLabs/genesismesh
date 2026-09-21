@@ -11,7 +11,7 @@ from examples.public_dashboard.app import create_app
 from examples.public_dashboard.records import ImportEvent, freshness, import_feed, sensitive_authorization_allowed, validate_snapshot
 from examples.public_dashboard.seed import seed
 from examples.public_dashboard.store import read_snapshot, write_snapshot
-from examples.public_dashboard.view import NOTICE, dashboard
+from examples.public_dashboard.view import NOTICE, dashboard, render
 from genesis_mesh.crypto import load_private_key, sign_model
 
 
@@ -31,12 +31,12 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
     root, snapshot = demo
     app = create_app(root, "abcdef1")
     client = app.test_client()
-    data_paths = ["/dashboard", "/dashboard.json", "/connectome", "/connectome.json", "/atlas", "/atlas.json",
+    data_paths = ["/", "/dashboard", "/dashboard.json", "/connectome", "/connectome.json", "/atlas", "/atlas.json",
                   "/recognition-graph", "/recognition-treaties", "/genesis", "/sovereign.json", "/evidence.json",
                   "/readyz"]
     # Generated reference pages render shipped protocol vocabulary ("enrollment token", the CLI's
     # own "USG" placeholder default), so only instance state must be absent from them.
-    reference_paths = ["/", "/api-reference", "/cli-reference", "/swagger.json"]
+    reference_paths = ["/surfaces", "/api-reference", "/cli-reference", "/swagger.json"]
     leaks = {
         **{path: ["USG", "Rayen", "AMINE", "MiraOS", "ONS-A", "db_path", str(root), "private_key", "token"]
            for path in data_paths},
@@ -63,34 +63,98 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
     html = client.get("/dashboard").get_data(as_text=True)
     assert "Network protocol:" not in html
     assert "v0.1" not in html
-    assert "Genesis Mesh: v" in html
+    assert "Genesis Mesh v" in html
+    # Hero metadata is a compact pill row, and the build is abbreviated.
+    assert '<div class="pill-row">' in html
+    assert "Build abcdef1" in html
+    hero = html[html.index('<div class="hero">'):html.index("<section")]
+    assert hero.count("<p") <= 2, "dashboard hero should not stack metadata paragraphs"
+    # Filter controls must carry the shared console classes, not bare inputs.
+    assert '<input class="search-box" name="q"' in html
+    assert html.count('<select class="filter-select"') == 3
+    assert '<form method="get" class="filter-form">' in html
 
 
 def test_console_reference_pages_keep_the_shared_operator_surfaces(demo):
     root, _ = demo
     client = create_app(root, "abcdef1").test_client()
-    console = client.get("/").get_data(as_text=True)
-    assert "Genesis Mesh Network Authority" in console
+    # The root is current state; the surface map is one of the reference pages.
+    assert client.get("/").get_data(as_text=True) == client.get("/dashboard").get_data(as_text=True)
+    console = client.get("/surfaces").get_data(as_text=True)
+    assert "Genesis Mesh Surfaces" in console
     assert "Safe Browser Links" in console
     api = client.get("/api-reference").get_data(as_text=True)
     assert "Genesis Mesh API Reference" in api
     assert "/recognition-treaties" in api
     cli = client.get("/cli-reference").get_data(as_text=True)
     assert "genesis-mesh trust decide" in cli
-    for path in ["/", "/api-reference", "/cli-reference", "/atlas", "/connectome"]:
-        assert NOTICE in client.get(path).get_data(as_text=True), path
+    # The statement belongs once in the footer, not as a warning above the navigation.
+    for path in ["/surfaces", "/api-reference", "/cli-reference", "/atlas", "/connectome"]:
+        page = client.get(path).get_data(as_text=True)
+        assert f'<p class="footer">{NOTICE}</p></main>' in page, path
+        assert page.count(NOTICE) == 1, path
+        assert page.index(NOTICE) > page.index('<nav class="topbar"'), path
+        assert "<span>Public reference</span>" in page, path
+        assert "Operator surface" not in page, path
     spec = client.get("/swagger.json").json
     assert spec["openapi"] == "3.0.3"
     assert "/api-reference" in spec["paths"]
     # Documented but unserved surfaces must not become dead links on this instance.
     assert '<a class="path" href="/policy">' not in api
     assert '<a class="path" href="/atlas">' in api
+    assert '<a class="path" href="/surfaces">' in api
 
 
 @pytest.mark.parametrize("hours,expected", [(23.999, "fresh"), (24, "warning"), (72, "warning"), (72.001, "stale")])
 def test_exact_feed_age_boundaries(hours, expected):
     now = datetime.now(timezone.utc)
     assert freshness(now - timedelta(hours=hours), now) == expected
+
+
+def test_canary_that_never_ran_is_neutral_not_a_warning(demo):
+    _, snapshot = demo
+    now = datetime.now(timezone.utc)
+    software = {"version": "0.56.0", "build": "abcdef1"}
+
+    # A freshly seeded instance has no canary result yet. That is not a failure,
+    # and must not render like one while the page reports a healthy posture.
+    model = dashboard(snapshot, {}, software, now)
+    assert model["trust_cycle_summary"]["status"] == "not_observed"
+    assert model["trust_posture"] == "healthy"
+    html = render(model, "root-key")
+    assert '<span class="status-badge status-idle">Not observed</span>' in html
+    assert "status-watch" not in html
+    assert "status-risk" not in html
+
+    snapshot.canary.status = "verified"
+    snapshot.canary.completed_at = now - timedelta(hours=1)
+    assert '<span class="status-badge status-ok">Fresh</span>' in render(
+        dashboard(snapshot, {}, software, now), "root-key"
+    )
+
+    snapshot.canary.status = "failed"
+    snapshot.canary.completed_at = None
+    assert '<span class="status-badge status-risk">Failed</span>' in render(
+        dashboard(snapshot, {}, software, now), "root-key"
+    )
+
+
+def test_warning_section_appears_only_when_there_is_a_warning(demo):
+    _, snapshot = demo
+    now = datetime.now(timezone.utc)
+    software = {"version": "0.56.0", "build": "abcdef1"}
+
+    healthy = render(dashboard(snapshot, {}, software, now), "root-key")
+    # The hero's trust-posture tile already states the healthy case.
+    assert "Current warnings" not in healthy
+    assert "No current trust warnings" not in healthy
+
+    expired = snapshot.treaties[0].treaty
+    expired.issued_at = expired.valid_from = now - timedelta(days=2)
+    expired.expires_at = now - timedelta(days=1)
+    degraded = render(dashboard(snapshot, {}, software, now), "root-key")
+    assert "Current warnings" in degraded
+    assert "has expired" in degraded
 
 
 def test_expected_expiry_degrades_but_history_does_not(demo):
@@ -173,9 +237,10 @@ def test_pagination_search_sort_and_load_more(demo):
     first = client.get("/dashboard.json").json
     second = client.get("/dashboard.json?page=2").json
     assert first["pagination"]["total"] == 64
-    assert len(first["treaties"]) == len(second["treaties"]) == 25
+    assert len(first["treaties"]) == len(second["treaties"]) == 10
     assert {t['treaty_id'] for t in first['treaties']}.isdisjoint({t['treaty_id'] for t in second['treaties']})
     assert len(client.get("/dashboard.json?page_size=50").json["treaties"]) == 50
+    assert len(client.get("/dashboard.json?page_size=25").json["treaties"]) == 25
     record_id = first["treaties"][0]["treaty_id"]
     assert client.get("/dashboard.json?q=" + record_id).json["pagination"]["total"] == 1
     assert client.get("/dashboard.json?status=historical").json["pagination"]["total"] == 0

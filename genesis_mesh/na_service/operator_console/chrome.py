@@ -7,11 +7,13 @@ from html import escape
 
 def render_topbar(active: str) -> str:
     """Render shared operator-console top navigation."""
+    # Current state first, then reference. "Surfaces" previews the API and CLI
+    # references, so it belongs beside them rather than on the landing page.
     items = [
-        ("Console", "/"),
-        ("Dashboard", "/dashboard"),
+        ("Dashboard", "/"),
         ("Connectome", "/connectome"),
         ("Atlas", "/atlas"),
+        ("Surfaces", "/surfaces"),
         ("API Docs", "/api-reference"),
         ("CLI Docs", "/cli-reference"),
         ("Operator Docs", "https://genesismesh.connectorzzz.com/operators/"),

@@ -25,21 +25,17 @@ from genesis_mesh.trust import build_connectome_view
 from .store import read_snapshot
 from .view import NOTICE, dashboard, graph, render
 
-# Documented surfaces are protocol reference material; this instance serves reads only.
-READ_ONLY = (
-    "Only GET and HEAD are served on this instance. Signed POST and admin surfaces are documented for "
-    "reference and are refused here. Signing, maintenance, full audit exports and backups run locally."
-)
 
+def public_chrome(html: str) -> str:
+    """Mark a shared operator-console page as this public instance.
 
-def sanitized(html: str, *extra: str) -> str:
-    """Prefix a shared operator-console page with the public-instance notices."""
-    notices = "".join(f'<p class="notice">{note}</p>' for note in (NOTICE, *extra))
-    return html.replace(
-        '<main class="shell operator-console">',
-        '<main class="shell operator-console">' + notices,
-        1,
-    )
+    The identity sits in the topbar, where it costs no vertical space. The
+    statement itself appears once, in the footer: an amber `notice` above the
+    navigation repeated the same text on every page and read as a warning about
+    the data rather than a description of it.
+    """
+    html = html.replace("<span>Operator surface</span>", "<span>Public reference</span>", 1)
+    return html.replace("</main>", f'<p class="footer">{NOTICE}</p></main>', 1)
 
 
 def create_app(directory: Path, build: str = "unknown") -> Flask:
@@ -108,10 +104,11 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
     def readyz():
         return jsonify({"status": "ready", "storage": "SQLite"})
 
-    @app.get("/")
-    def console():
-        return Response(sanitized(render_homepage(g.snapshot.genesis, served())), mimetype="text/html")
+    @app.get("/surfaces")
+    def surfaces_page():
+        return Response(public_chrome(render_homepage(g.snapshot.genesis, served())), mimetype="text/html")
 
+    @app.get("/")
     @app.get("/dashboard")
     @app.get("/dashboard.json")
     def home():
@@ -167,9 +164,9 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
     def trust_views():
         value = graph(g.snapshot, datetime.now(timezone.utc))
         if request.path == "/atlas":
-            return Response(sanitized(render_atlas(value)), mimetype="text/html")
+            return Response(public_chrome(render_atlas(value)), mimetype="text/html")
         if request.path == "/connectome":
-            return Response(sanitized(render_connectome(build_connectome_view(value))), mimetype="text/html")
+            return Response(public_chrome(render_connectome(build_connectome_view(value))), mimetype="text/html")
         return jsonify(build_connectome_view(value) if request.path == "/connectome.json" else value)
 
     @app.get("/evidence.json")
@@ -180,11 +177,11 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
 
     @app.get("/api-reference")
     def api_reference():
-        return Response(sanitized(render_api_reference(g.snapshot.genesis, served()), READ_ONLY), mimetype="text/html")
+        return Response(public_chrome(render_api_reference(g.snapshot.genesis, served())), mimetype="text/html")
 
     @app.get("/cli-reference")
     def cli_reference():
-        return Response(sanitized(render_cli_reference(), READ_ONLY), mimetype="text/html")
+        return Response(public_chrome(render_cli_reference()), mimetype="text/html")
 
     @app.get("/swagger.json")
     def swagger():

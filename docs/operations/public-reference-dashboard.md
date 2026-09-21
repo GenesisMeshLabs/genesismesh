@@ -13,10 +13,12 @@ Protocol APIs used by other deployments retain their existing contracts.
 
 ## Console surfaces
 
-The overlay keeps the shared operator-console pages rather than replacing them:
-`/` is the console landing page, `/dashboard` the sanitized trust dashboard, and
-`/api-reference`, `/cli-reference` and `/swagger.json` the generated protocol
-references. Each page carries the public-instance notice, and the surface tables
+The overlay keeps the shared operator-console pages rather than replacing them.
+Navigation runs current state first, then reference: `/` and `/dashboard` are the
+sanitized trust dashboard, `/connectome` and `/atlas` the graph views, and
+`/surfaces`, `/api-reference`, `/cli-reference` and `/swagger.json` the generated
+protocol references. `/surfaces` is a grouped preview of the API and CLI
+references, so it sits beside them instead of on the landing page. Each page carries the public-instance notice, and the surface tables
 link only to routes this instance actually serves — documented signed POST,
 admin and unregistered GET surfaces render as plain paths instead of dead links.
 

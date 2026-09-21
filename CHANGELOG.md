@@ -9,6 +9,18 @@
   alerts, isolated systemd deployment and offline backup before public cutover.
 - Retained the coordinated package version; the deployed Git build identifies
   this reference-deployment change independently of the v0.1 network protocol.
+- Reorganised console navigation to run current state before reference: the root
+  serves the dashboard and the surface map moved to `/surfaces`, beside the API
+  and CLI references it previews.
+- Replaced repeated warning banners with one footer line and a topbar label,
+  gave the dashboard filters the shared control styles, and made status tiles
+  use the console status badges so a check that has not run reads as neutral
+  rather than as a warning.
+- Rebuilt the Connectome graph as a radial layout that scales with the node
+  count and renders at natural size; the previous fixed-radius ring overlapped
+  its nodes past roughly six sovereigns.
+- Added client-side pagination to the fully rendered tables on the dashboard,
+  Connectome and Atlas, and listed Atlas sovereign ids as a grid.
 - Kept the operator console, generated API reference, CLI reference and
   `/swagger.json` on the public overlay instead of replacing them with a link
   list, and restricted their surface tables to routes the instance serves.

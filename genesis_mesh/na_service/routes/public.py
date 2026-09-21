@@ -63,11 +63,12 @@ def create_public_blueprint(service) -> Blueprint:
         """Return the operator-console shared browser behavior."""
         return operator_console_asset("console.js", "application/javascript")
 
-    @bp.route("/", methods=["GET"])
-    def home():
-        """Return the human-facing Network Authority landing page."""
+    @bp.route("/surfaces", methods=["GET"])
+    def surfaces_page():
+        """Return the grouped map of every HTTP and CLI surface."""
         return Response(render_homepage(service.genesis_block), mimetype="text/html")
 
+    @bp.route("/", methods=["GET"])
     @bp.route("/dashboard", methods=["GET"])
     def dashboard():
         """Return the read-only sovereign health and trust dashboard."""
@@ -143,6 +144,7 @@ def create_public_blueprint(service) -> Blueprint:
                 "recognition_graph": f"{base_url}/recognition-graph",
                 "atlas": f"{base_url}/atlas.json",
                 "swagger": f"{base_url}/swagger.json",
+                "surfaces": f"{base_url}/surfaces",
                 "api_reference": f"{base_url}/api-reference",
                 "cli_reference": f"{base_url}/cli-reference",
             },

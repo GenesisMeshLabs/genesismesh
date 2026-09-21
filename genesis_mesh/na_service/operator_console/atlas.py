@@ -73,7 +73,7 @@ def _rel_table(title: str, hint: str, rows: str) -> str:
       <h2>{escape(title)}</h2>
       <p>{escape(hint)}</p>
     </div>
-    <table class="data-table">
+    <table class="data-table" data-paginate="10">
       <thead>
         <tr>
           <th>From</th><th>To</th><th>Status</th><th>Allowed roles</th><th>Expires</th>
@@ -125,7 +125,7 @@ def _evidence_section(evidences: list[dict[str, Any]]) -> str:
       <h2>Trust Evidence Overlay ({count} {noun})</h2>
       <p>TrustEvidence records supplied to this Atlas view.</p>
     </div>
-    <table class="data-table">
+    <table class="data-table" data-paginate="10">
       <thead>
         <tr>
           <th>Evidence ID</th><th>From</th><th>To</th>
@@ -153,11 +153,11 @@ def render_atlas(graph: dict[str, Any], evidences: list[dict[str, Any]] | None =
 
     if sovereigns:
         sov_rows = "\n".join(
-            f"<tr><td><code>{escape(str(s.get('sovereign_id', '')))}</code></td></tr>"
+            f"<code>{escape(str(s.get('sovereign_id', '')))}</code>"
             for s in sovereigns
         )
     else:
-        sov_rows = '<tr class="empty-row"><td>No sovereigns in graph</td></tr>'
+        sov_rows = '<p class="empty-row">No sovereigns in graph</p>'
 
     active_rows = (
         "\n".join(_rel_row(e, scope_map) for e in active_edges)
@@ -189,10 +189,7 @@ def render_atlas(graph: dict[str, Any], evidences: list[dict[str, Any]] | None =
       <h2>Sovereigns ({len(sovereigns)})</h2>
       <p>All sovereigns referenced in the recognition graph.</p>
     </div>
-    <table class="data-table">
-      <thead><tr><th>Sovereign ID</th></tr></thead>
-      <tbody>{sov_rows}</tbody>
-    </table>
+    <div class="id-grid" data-paginate="24">{sov_rows}</div>
   </section>
 
   {_rel_table(
@@ -260,11 +257,11 @@ def render_atlas_standalone(
 
     if sovereigns:
         sov_rows = "\n".join(
-            f"<tr><td><code>{escape(str(s.get('sovereign_id', '')))}</code></td></tr>"
+            f"<code>{escape(str(s.get('sovereign_id', '')))}</code>"
             for s in sovereigns
         )
     else:
-        sov_rows = "<tr><td><em>No sovereigns</em></td></tr>"
+        sov_rows = "<p><em>No sovereigns</em></p>"
 
     def _plain_rel_row(edge: dict[str, Any]) -> str:
         tid = str(edge.get("treaty_id", ""))
@@ -336,10 +333,7 @@ def render_atlas_standalone(
   </div>
 
   <h2>Sovereigns ({len(sovereigns)})</h2>
-  <table>
-    <thead><tr><th>Sovereign ID</th></tr></thead>
-    <tbody>{sov_rows}</tbody>
-  </table>
+  <div class="id-grid">{sov_rows}</div>
 
   <h2>Active Trust Relationships ({len(active_edges)})</h2>
   <table>

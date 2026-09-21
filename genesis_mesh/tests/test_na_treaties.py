@@ -183,7 +183,7 @@ def test_connectome_page_renders_html(client, na_service):
     assert "data-table" in body
     assert "Download Connectome JSON" in body
     assert "The Connectome explains current trust state" in body
-    assert "Console" in body
+    assert "Surfaces" in body
     assert "API Docs" in body
     assert "CLI Docs" in body
     assert "nav-link-active" in body
@@ -368,3 +368,48 @@ def test_treaty_issue_requires_operator_signature(client, na_service):
     )
 
     assert resp.status_code == 401
+
+
+def test_connectome_graph_scales_without_overlapping_nodes():
+    """Nodes must stay apart as the graph grows; labels sit outside the ring."""
+    import math
+    import re
+
+    from genesis_mesh.na_service.operator_console.connectome import (
+        MAX_GRAPH_NODES,
+        NODE_RADIUS,
+        _connectome_graph,
+    )
+
+    def graph(count):
+        names = [f"gm-sovereign-{i:02d}-na" for i in range(count)]
+        return _connectome_graph({
+            "sovereigns": [{"sovereign_id": name} for name in names],
+            "recognition_edges": [
+                {"from": names[0], "to": name, "status": "active", "lifecycle_state": "active"}
+                for name in names[1:]
+            ],
+        })
+
+    for count in (3, 10, 25, MAX_GRAPH_NODES):
+        markup = graph(count)
+        points = [
+            (float(x), float(y))
+            for x, y in re.findall(r'cx="([-\d.]+)" cy="([-\d.]+)"', markup)
+        ]
+        assert len(points) == count
+        closest = min(math.dist(a, b) for i, a in enumerate(points) for b in points[i + 1:])
+        assert closest > 2 * NODE_RADIUS, f"nodes overlap at {count} sovereigns"
+        width, height = (float(v) for v in re.search(r'viewBox="0 0 (\d+) (\d+)"', markup).groups())
+        assert all(0 <= x <= width and 0 <= y <= height for x, y in points)
+
+    # Beyond the cap the ring stops growing and the page says so.
+    oversized = graph(MAX_GRAPH_NODES + 20)
+    assert oversized.count("<circle") == MAX_GRAPH_NODES
+    assert f"Showing {MAX_GRAPH_NODES} of {MAX_GRAPH_NODES + 20} sovereigns" in oversized
+
+    # A long id is trimmed for display but kept in full in a title.
+    long_name = "gm-demo-" + "x" * 40 + "-na"
+    trimmed = _connectome_graph({"sovereigns": [{"sovereign_id": long_name}], "recognition_edges": []})
+    assert f"<title>{long_name}</title>" in trimmed
+    assert "…" in trimmed
