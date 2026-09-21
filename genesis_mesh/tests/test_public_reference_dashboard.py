@@ -49,6 +49,7 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
     assert client.get("/admin/invite").status_code == 404
     assert client.get("/operator-console-static/../../keys/na.key").status_code == 404
     assert client.get("/dashboard.json").json["software"]["build"] == "abcdef1"
+    assert client.get("/dashboard.json").json["connectome_summary"]["sovereign_count"] == 10
     html = client.get("/dashboard").get_data(as_text=True)
     assert "Network protocol:" not in html
     assert "v0.1" not in html

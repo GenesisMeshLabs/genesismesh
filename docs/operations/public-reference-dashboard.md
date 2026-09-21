@@ -41,7 +41,7 @@ python -m examples.public_dashboard.publisher /var/lib/genesis-mesh-public/publi
 # In a second terminal:
 python -m examples.public_dashboard.maintenance /var/lib/genesis-mesh-public
 PUBLIC_DEMO_DIR=/var/lib/genesis-mesh-public GENESIS_BUILD_SHA=$(git rev-parse HEAD) \
-  gunicorn --bind 127.0.0.1:18443 'examples.public_dashboard.app:configured_app()'
+  gunicorn --bind 127.0.0.1:28443 'examples.public_dashboard.app:configured_app()'
 ```
 
 Seed refuses an existing directory. The public app reads the installed package

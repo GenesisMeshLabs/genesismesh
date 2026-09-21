@@ -26,6 +26,11 @@ tar -czf "$ARCHIVE/legacy-configuration.tar.gz" /etc/genesis /etc/genesis-mesh \
 cp /etc/nginx/sites-available/genesis-mesh-na "$ARCHIVE/nginx.conf"
 chmod 0600 "$ARCHIVE"/*
 (cd "$ARCHIVE" && sha256sum na.db legacy-configuration.tar.gz nginx.conf > SHA256SUMS)
+systemctl stop genesis-mesh-public.service genesis-mesh-public-publisher.service 2>/dev/null || true
+if ss -ltnH 'sport = :28443' | grep -q .; then
+    echo 'Public reference port 28443 is already occupied; refusing deployment' >&2
+    exit 1
+fi
 
 if [[ ! -d "$CODE/.git" ]]; then
     git clone --branch ops/public-dashboard-sanitization --single-branch https://github.com/GenesisMeshLabs/genesismesh.git "$CODE"
@@ -78,7 +83,7 @@ WorkingDirectory=$CODE
 Environment=PUBLIC_DEMO_DIR=$DATA
 Environment=GENESIS_BUILD_SHA=$BUILD
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=$CODE/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:18443 --timeout 30 --max-requests 1000 'examples.public_dashboard.app:configured_app()'
+ExecStart=$CODE/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:28443 --timeout 30 --max-requests 1000 'examples.public_dashboard.app:configured_app()'
 Restart=on-failure
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -136,10 +141,11 @@ systemctl start genesis-mesh-public-maintenance.service
 systemctl enable --now genesis-mesh-public.service
 systemctl restart genesis-mesh-public.service
 for attempt in {1..20}; do
-    if curl -fsS http://127.0.0.1:18443/readyz; then break; fi
+    if curl -fsS http://127.0.0.1:28443/readyz; then break; fi
     sleep 1
 done
-curl -fsS http://127.0.0.1:18443/evidence.json > "$DATA/check-evidence.json"
+curl -fsS http://127.0.0.1:28443/sovereign.json | "$CODE/.venv/bin/python" -c 'import json,sys; assert json.load(sys.stdin)["sovereign_id"] == "gm-demo-public-na"'
+curl -fsS http://127.0.0.1:28443/evidence.json > "$DATA/check-evidence.json"
 "$CODE/.venv/bin/python" -m examples.public_dashboard.verify "$DATA/check-evidence.json" --root-key "$(cat "$DATA/root.pub")"
 if runuser -u gm-demo-web -- test -r "$DATA/keys/gm-demo-public-na.key"; then
     echo 'Web user can read signing key; refusing cutover' >&2
@@ -170,7 +176,7 @@ server {
         limit_except GET { deny all; }
         limit_req zone=gm_public burst=30 nodelay;
         limit_req_status 429;
-        proxy_pass http://127.0.0.1:18443;
+        proxy_pass http://127.0.0.1:28443;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;

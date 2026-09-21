@@ -24,6 +24,6 @@ to the coordinated SDK release version or the protocol wire contract.
 - [x] Exact freshness thresholds and expected-active versus historical status.
 - [x] Pagination, search, lifecycle filters, sort and recent-event load more.
 - [x] Local hourly maintenance and real HTTP canary.
-- [ ] Full repository gates and scheduled vulnerability scan.
+- [x] Full repository gates and scheduled vulnerability scan.
 - [ ] Offline production backup, isolated deployment, live privacy verification.
 - [ ] Live timer, repeat import and offline downloaded-evidence verification.

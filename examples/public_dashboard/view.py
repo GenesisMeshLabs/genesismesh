@@ -91,6 +91,10 @@ def dashboard(snapshot: Snapshot, args, version: dict, now: datetime) -> dict:
         "last_updated": snapshot.updated_at.isoformat(), "evaluated_at": now.isoformat(),
         "sovereign": {"id": snapshot.genesis.network_name, "version": "v" + version["version"]},
         "software": version, "readiness": {"status": "ready", "storage": "SQLite"},
+        "connectome_summary": {"sovereign_count": len(snapshot.authorities),
+            "recognition_edge_count": len(snapshot.treaties),
+            "active_edge_count": counts["active"] + counts["expiring_soon"],
+            "revoked_trust_material_count": counts["revoked"]},
         "trust_posture": "degraded" if degraded else "warning" if warnings else "healthy",
         "trust_cycle_summary": {"status": cycle.status, "freshness": cycle_freshness,
                                 "completed_at": cycle.completed_at.isoformat() if cycle.completed_at else None},
@@ -100,7 +104,8 @@ def dashboard(snapshot: Snapshot, args, version: dict, now: datetime) -> dict:
         "treaties": selected[(page-1)*size:page*size],
         "pagination": {"page": page, "page_size": size, "total": len(selected),
                        "pages": max(1, (len(selected)+size-1)//size), "q": search, "status": status, "sort": sort},
-        "recent_changes": [event.model_dump(mode="json") for event in reversed(snapshot.events[-event_limit:])],
+        "recent_changes": [{**event.model_dump(mode="json"), "created_at": event.at.isoformat()}
+                           for event in reversed(snapshot.events[-event_limit:])],
         "events_total": len(snapshot.events), "events_limit": event_limit}
 
 
