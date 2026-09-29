@@ -81,38 +81,10 @@ az storage container create -n tfstate --account-name tfstategenesismesh
 
 ## Deploy via GitHub Actions
 
-The workflow lives at `.github/workflows/deploy-azure.yml` and is triggered
-manually from the Actions tab with a choice of `plan`, `apply`, or `destroy`.
-It uses OIDC instead of a long-lived secret, so configure a federated
-credential on the service principal pointing at this repository's `main`
-branch.
-
-### GitHub Secrets
-
-| Secret | Value |
-|--------|-------|
-| `AZURE_CLIENT_ID` | `clientId` from the service principal |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
-| `AZURE_TENANT_ID` | `tenantId` from the service principal |
-| `NA_SSH_PUBLIC_KEY` | Contents of `~/.ssh/id_rsa.pub` |
-| `NA_ADMIN_CIDR` | Your IP as `x.x.x.x/32` for SSH access |
-
-### GitHub Variables
-
-| Variable | Value |
-|----------|-------|
-| `AZURE_LOCATION` | Azure region (e.g. `swedencentral`) |
-| `TF_STATE_RESOURCE_GROUP` | `terraform-state-rg` |
-| `TF_STATE_STORAGE_ACCOUNT` | `tfstategenesismesh` |
-
-### Run
-
-1. Actions → **Deploy Network Authority to Azure** → Run workflow.
-2. Select `plan` and review the resources.
-3. Run again with `apply` to provision.
-4. The workflow outputs the public IP, SSH command, and NA endpoint on success.
-
-To tear down: run the workflow with `destroy`.
+There is no Terraform workflow. Provision and change infrastructure with
+Terraform locally (below). Code releases are deployed by the
+**Deploy Release to Azure VM** workflow; see
+[deployment](deployment.md#release-cd-to-the-azure-vm).
 
 ## Deploy Locally
 
