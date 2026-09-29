@@ -17,7 +17,14 @@ Two specific attack questions require formal treatment:
    capacity.
 
 v0.48 extends the Tamarin Prover models introduced in v0.31 to cover the
-PeerRiskSignal state machine.  Three security lemmas are proven.
+PeerRiskSignal state machine with three security lemmas.
+
+> **Current status**: this model does **not** fully prove.  Against
+> tamarin-prover 1.12.0, `signal_bounded` verifies, `anomaly_detection_responsive`
+> is falsified, and `no_single_source_cascade` does not terminate in 3 GB of
+> heap; Tamarin also reports two wellformedness failures.  The lemmas below
+> describe the *intended* properties.  See "Known gaps" in
+> `formal-verification.md` before citing them as evidence.
 
 > **Scope constraint**: Tamarin proves properties of the *protocol specification*,
 > not the Python implementation.  An implementation bug that correctly implements

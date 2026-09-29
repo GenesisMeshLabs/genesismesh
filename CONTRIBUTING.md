@@ -27,8 +27,9 @@ pytest genesis_mesh/tests -q
 # Unit tests only, no integration
 pytest genesis_mesh/tests -q -m "not integration"
 
-# Tamarin proofs (requires tamarin-prover installed separately)
-pytest genesis_mesh/tests -q -m tamarin
+# Tamarin model checks (proof tests skip unless tamarin-prover is installed)
+pytest genesis_mesh/tests/test_tamarin_proofs.py \
+       genesis_mesh/tests/test_risk_signal_tamarin.py -q
 ```
 
 The test suite must pass in full before any PR is reviewed.
