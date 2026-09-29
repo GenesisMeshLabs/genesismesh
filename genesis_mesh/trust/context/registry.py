@@ -125,11 +125,11 @@ def _value_type(value: Any) -> str:
 
 
 def _is_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    # Python integers are always finite. Converting a large integer to float
+    # inside isfinite() can overflow during selector matching.
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))
 
 
 def _is_scalar(value: Any) -> bool:
@@ -342,7 +342,8 @@ class TimeWindowConfig(_Config):
     not_before: datetime | None = Field(default=None, description="Earliest requested_at (UTC)")
     not_after: datetime | None = Field(default=None, description="Latest requested_at (UTC)")
     weekdays: list[int] | None = Field(
-        default=None, description="Permitted ISO weekdays in UTC, 1=Mon .. 7=Sun"
+        default=None, max_length=MAX_LIST_VALUES,
+        description="Permitted ISO weekdays in UTC, 1=Mon .. 7=Sun"
     )
     utc_hour_start: int | None = Field(default=None, ge=0, le=23, description="First permitted UTC hour")
     utc_hour_end: int | None = Field(default=None, ge=1, le=24, description="Hour after the last permitted UTC hour")

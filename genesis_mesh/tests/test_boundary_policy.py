@@ -355,6 +355,14 @@ class TestBuiltinGates:
         codes = validate_boundary_policy(_policy(sign=False, gates=_one_gate("time_window.v1", {})), _REGISTRY).codes()
         assert "invalid_gate_config" in codes
 
+    @pytest.mark.parametrize("count,valid", [(256, True), (257, False)])
+    def test_time_window_bounds_weekday_list(self, count, valid):
+        policy = _policy(sign=False, gates=_one_gate("time_window.v1", {"weekdays": [1] * count}))
+        result = validate_boundary_policy(policy, _REGISTRY)
+        assert result.valid is valid
+        if not valid:
+            assert "invalid_gate_config" in result.codes()
+
 
 # ---------------------------------------------------------------------------
 # Resolution and composition
@@ -362,6 +370,21 @@ class TestBuiltinGates:
 
 
 class TestResolution:
+    @pytest.mark.parametrize("allowed,matches", [(10**400, True), (1, False)])
+    def test_large_integer_selector_produces_signed_decision(self, allowed, matches):
+        agreement = _agreement()
+        context = _context(agreement, params={"amount": 10**400})
+        policy = _policy(selector={"parameter_equals": {"request_parameters.amount": [allowed]}})
+        decision, proof = _evaluate([policy], context, agreement)
+        assert decision.authorized is (not matches)
+        assert verify_boundary_decision(decision, [_PUB]).accepted
+        assert verify_justification_proof(proof, [_PUB], decision=decision).valid
+        assert decision.policy_binding is not None
+        assert decision.policy_binding.resolution_status == "resolved"
+        assert len(decision.policy_binding.policies) == int(matches)
+        if matches:
+            assert decision.policy_binding.gate_evaluations[0].outcome == "fail"
+
     def test_global_policy_applies_to_everything(self):
         agreement = _agreement()
         policy = _policy(selector={})
@@ -618,6 +641,21 @@ class TestPolicyBinding:
         result = verify_boundary_decision(decision, [_PUB])
         assert result.accepted is True and result.authorized is False
         assert result.reason == "unauthorized_policy_gate_failure"
+
+    @pytest.mark.parametrize("with_policy", [False, True])
+    def test_custom_gate_denial_keeps_legacy_reason(self, with_policy):
+        agreement = _agreement()
+        context = _context(agreement)
+        engine = BoundaryEngine("bank-a")
+        engine.add_gate(lambda ctx, terms: GateResult(gate_name="custom", passed=False, detail="blocked"))
+        legacy = engine.evaluate(context, agreement, _SK, issued_by="k")
+        decision, _ = engine.evaluate_with_policies(
+            context, agreement, _SK, issued_by="k",
+            policies=[_policy()] if with_policy else [], registry=_REGISTRY, policy_public_keys=[_PUB],
+        )
+        result = verify_boundary_decision(decision, [_PUB])
+        assert result.accepted and not result.authorized
+        assert result.reason == verify_boundary_decision(legacy, [_PUB]).reason == "unauthorized_gate_failure"
 
     def test_policy_gate_named_capability_is_not_misreported(self):
         agreement = _agreement()

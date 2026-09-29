@@ -108,7 +108,7 @@ class BoundaryPolicy(BaseModel):
 
 class PolicyGateEvaluation(BaseModel):   # one per configured gate evaluated
     policy_id: str; policy_version: int; gate_id: str; gate_type: str
-    order: int; mode: str; passed: bool; outcome: str   # "pass"|"fail"|"missing_context"|"gate_error"
+    order: int; mode: str; passed: bool; outcome: str   # "pass"|"fail"|"missing_context"|"invalid_context"|"gate_error"
 
 class AppliedPolicy(BaseModel):
     policy_id: str; version: int; policy_digest: str   # sha256 of canonical body
@@ -139,7 +139,7 @@ cryptographic binding (req. 9).
 supplied by the external system that are not invocation parameters (e.g. an
 upstream risk tier).  `ContextRecord` is unsigned, so this is backward
 compatible.  Fact paths: `requested_capability`, `requester_sovereign_id`,
-`provider_sovereign_id`, `agreement_id`, `parent_kind`, `requested_at`,
+`provider_sovereign_id`, `agreement_id`, `parent_kind`, `requested_at`, `context_freshness_seq`,
 `request_parameters.<a>.<b>`, `attributes.<a>.<b>`.  No other roots are
 addressable; unknown roots fail validation.
 
@@ -191,10 +191,14 @@ comes from `context.requested_at`):
 | `denylist.v1` | `path, values` | scalar not in values |
 | `boolean_required.v1` | `path, expected=true` | fact is bool == expected |
 | `scope_membership.v1` | `path, allowed` | fact is list, every item in allowed |
-| `time_window.v1` | `not_before?, not_after?, weekdays?, utc_hours?` | `requested_at` inside window |
+| `time_window.v1` | `not_before?, not_after?, weekdays?, utc_hour_start?, utc_hour_end?` | `requested_at` inside window |
 
-Numeric gates reject `bool` and non-finite values; a missing or wrong-typed
-fact is outcome `missing_context` / `gate_error` and **fails**, never passes.
+Numeric gates reject `bool` and non-finite values; integers are compared without
+conversion to floats, including integers outside the floating-point range.
+A missing or wrong-typed fact is outcome `missing_context` / `invalid_context`
+and **fails**, never passes. Gate implementation exceptions yield `gate_error`.
+UTC hour bounds must be supplied together; the start is inclusive and the end
+is exclusive.
 
 ### 3. Validation and resolution -- `genesis_mesh/trust/context/policy.py`
 

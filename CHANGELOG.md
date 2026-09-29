@@ -47,6 +47,13 @@
 
 ### Fixed
 
+- Boundary policy selectors handle large integer facts without overflowing;
+  matching policies still enforce numeric limits and produce signed decisions.
+- Offline policy validation rejects unknown intent fields and incomplete issuer
+  metadata instead of silently discarding them.
+- Custom `add_gate()` denials retain their existing verification reason when
+  evaluated through the policy-aware engine.
+- Time-window weekday lists enforce the 256-value configuration limit.
 - Process-level mediation tests spawned a bare `python`, which the daemon's
   scrubbed environment cannot resolve on macOS; they now use the running
   interpreter.

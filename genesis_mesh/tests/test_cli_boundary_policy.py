@@ -6,6 +6,7 @@ import json
 from datetime import timedelta
 
 from click.testing import CliRunner
+import pytest
 
 from genesis_mesh.cli.boundary_policy_ops import boundary_policy
 
@@ -36,6 +37,21 @@ def test_validate_accepts_valid_intent(tmp_path):
     result = CliRunner().invoke(boundary_policy, ["validate", "--file", _write(tmp_path, "p.json", _intent())])
     assert result.exit_code == 0, result.output
     assert "Valid   : yes" in result.output
+
+
+@pytest.mark.parametrize("field", ["selectorr", "issued_at", "issued_by", "issuer_sovereign_id"])
+def test_validate_rejects_unknown_or_partial_issuer_fields(tmp_path, field):
+    intent = _intent(**{field: "unexpected"})
+    result = CliRunner().invoke(boundary_policy, ["validate", "--file", _write(tmp_path, "p.json", intent)])
+    assert result.exit_code == 1
+    assert "Policy is malformed" in result.output
+
+
+def test_validate_accepts_complete_signed_policy(tmp_path):
+    path = _write(tmp_path, "p.json", _policy().model_dump(mode="json"))
+    result = CliRunner().invoke(boundary_policy, ["validate", "--file", path, "--format", "json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["valid"] is True
 
 
 def test_validate_reports_unknown_gate_type(tmp_path):

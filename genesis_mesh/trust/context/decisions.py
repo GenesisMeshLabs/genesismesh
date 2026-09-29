@@ -109,7 +109,10 @@ def verify_boundary_decision(
         builtin_failed = any(
             not gr.passed and gr.gate_name in _BUILTIN_GATE_NAMES for gr in decision.gate_results
         )
-        if binding is not None and not builtin_failed:
+        if binding is not None and not builtin_failed and (
+            binding.resolution_status == "failed"
+            or any(e.mode == "enforce" and not e.passed for e in binding.gate_evaluations)
+        ):
             policy_reason: BoundaryDecisionVerificationReason = (
                 "unauthorized_policy_resolution_failed"
                 if binding.resolution_status == "failed"

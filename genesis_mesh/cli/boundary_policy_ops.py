@@ -17,7 +17,7 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
-from ..models.boundary_policy import BoundaryPolicy, GateSpec, PolicySelector
+from ..models.boundary_policy import BoundaryPolicy
 from ..models.context import BoundaryDecision
 from ..trust.context import GateRegistry, validate_boundary_policy, verify_boundary_policy
 
@@ -51,20 +51,15 @@ def _pub_key_from_input(public_key_input: str) -> str:
 
 def _policy_from_file(data: dict[str, Any]) -> BoundaryPolicy:
     """Parse a signed policy, or preview an unsigned intent document."""
-    if "version" in data or "signature" in data:
+    if {"version", "signature", "issued_at", "issued_by", "issuer_sovereign_id"} & data.keys():
         return BoundaryPolicy.model_validate(data)
-    return BoundaryPolicy(
-        policy_id=data.get("policy_id", ""),
-        version=1,
-        description=data.get("description") or "",
-        valid_from=data["valid_from"],
-        valid_until=data["valid_until"],
-        selector=PolicySelector.model_validate(data.get("selector") or {}),
-        gates=[GateSpec.model_validate(g) for g in data.get("gates") or []],
-        issued_at=datetime.now(timezone.utc),
-        issued_by="local-preview",
-        issuer_sovereign_id="local-preview",
-    )
+    return BoundaryPolicy.model_validate({
+        **data,
+        "version": 1,
+        "issued_at": datetime.now(timezone.utc),
+        "issued_by": "local-preview",
+        "issuer_sovereign_id": "local-preview",
+    })
 
 
 @click.group("boundary-policy")

@@ -345,6 +345,18 @@ def test_evaluate_missing_fact_denies(client, na_service):
     assert decision["policy_binding"]["gate_evaluations"][0]["outcome"] == "missing_context"
 
 
+@pytest.mark.parametrize("allowed,matches", [(10**400, True), (1, False)])
+def test_large_integer_selector_returns_signed_http_decision(client, na_service, allowed, matches):
+    _publish(client, selector={"parameter_equals": {"request_parameters.rows": [allowed]}})
+    assert _activate(client, "read-limits", 1).status_code == 200
+    response = _evaluate(client, na_service, rows=10**400)
+    assert response.status_code == 201
+    decision = BoundaryDecision.model_validate(response.get_json()["decision"])
+    assert decision.authorized is (not matches)
+    pub = na_service.na_private_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
+    assert verify_boundary_decision(decision, [pub]).accepted
+
+
 def test_evaluate_audit_never_records_values(client, na_service):
     _publish(client)
     _activate(client, "read-limits", 1)
