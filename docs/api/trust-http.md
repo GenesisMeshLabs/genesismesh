@@ -157,7 +157,12 @@ Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
 **Response** `201` — `BoundaryDecision` JSON with `signature`.
 
 **Errors** — `400 missing_boundary_fields`, `400 invalid_agreement`,
-`401 admin_auth_failed`, `422 boundary_eval_failed`.
+`401 admin_auth_failed`, `409 boundary_policy_required` (v0.57, when the NA
+runs with `boundary_policy_enforcement=required`), `422 boundary_eval_failed`.
+
+This route does not consult boundary policies and its response never carries
+`policy_binding`. Use `POST /admin/boundary/evaluate` for policy-aware
+decisions.
 
 ```sh
 curl -X POST $NA/admin/boundary/decide \
@@ -188,6 +193,133 @@ Verify a signed `BoundaryDecision`. Unauthenticated.
 ```
 
 **Errors** — `400 missing_decision`, `400 invalid_decision`.
+
+---
+
+## Boundary policies (v0.57)
+
+Signed, versioned declarative policies that configure trusted gate types. See
+{doc}`../examples/declarative-boundary-policy` for the model and semantics.
+All admin routes are rate limited to 30 requests/min per IP; the public verify
+route to 60/min per IP.
+
+### `POST /admin/boundary-policies/validate`
+
+Dry-run validation of policy intent against the NA's gate registry. Nothing is
+signed or stored. **Auth** — operator signature (standard tier).
+
+**Request** — the same intent body as publish.
+
+**Response** `200`
+
+```json
+{ "valid": false, "issues": [{"code": "unknown_gate_type", "message": "...", "gate_id": "x"}],
+  "policy_id": "transfer-limits", "next_version": 3 }
+```
+
+### `POST /admin/boundary-policies`
+
+Validate, sign and store a new **inactive** version. **Auth** — operator
+signature (privileged tier).
+
+**Request** — intent fields only. `version`, `signature`, `issued_at`,
+`issued_by` and `issuer_sovereign_id` are assigned by the NA.
+
+```json
+{
+  "policy_id": "transfer-limits",
+  "description": "Cap transfers",
+  "valid_from": "2026-10-01T00:00:00Z",
+  "valid_until": "2027-10-01T00:00:00Z",
+  "selector": {"capabilities": ["payments.*"]},
+  "gates": [
+    {"gate_id": "amount-cap", "gate_type": "max_value.v1", "order": 0,
+     "config": {"path": "request_parameters.amount", "max": 1000}}
+  ]
+}
+```
+
+**Response** `201` — signed `BoundaryPolicy` JSON.
+
+**Errors** — `400 unexpected_field`, `400 missing_policy_id`,
+`400 missing_validity_window`, `400 invalid_boundary_policy`,
+`400 boundary_policy_invalid` (with `details.issues`), `401 admin_auth_failed`,
+`403` (standard tier).
+
+### `GET /admin/boundary-policies`
+
+Every stored version with `active`, `policy_digest`, validity, gate count and
+`integrity_ok`. **Auth** — operator signature.
+
+### `GET /admin/boundary-policies/active`
+
+**Auth** — operator signature.
+
+```json
+{ "enforcement": "optional", "policy_set_healthy": true, "problems": [],
+  "registry_gate_types": ["allowlist.v1", "..."],
+  "active": [{"policy_id": "transfer-limits", "version": 2, "policy_digest": "...", "policy": {"...": "..."}}] }
+```
+
+`policy_set_healthy=false` means every policy-aware evaluation is denied until
+the listed problems are fixed.
+
+### `GET /admin/boundary-policies/<policy_id>/history`
+
+All versions of one policy, newest first, including the signed policy bodies.
+**Auth** — operator signature.
+
+### `POST /admin/boundary-policies/<policy_id>/activate`
+
+Re-verify a stored version and make it the active one; any other active
+version of the same policy is deactivated in the same transaction. Activating
+an earlier version is the rollback. **Auth** — operator signature (privileged
+tier).
+
+**Request** `{ "version": 1 }` — **Response** `200`
+`{ "policy_id": "...", "version": 1, "previous_version": 2, "active": true }`
+
+**Errors** — `400 invalid_policy_version`, `404 boundary_policy_not_found`,
+`409 boundary_policy_integrity_failed`,
+`409 boundary_policy_activation_refused`.
+
+### `POST /admin/boundary-policies/<policy_id>/deactivate`
+
+**Request** `{ "version": 1 }`. **Auth** — operator signature (privileged tier).
+**Errors** — `404 boundary_policy_not_found`, `409 boundary_policy_not_active`.
+
+### `POST /admin/boundary/evaluate`
+
+Policy-aware evaluation: built-in gates, then every applicable active policy.
+**Auth** — operator signature (standard tier).
+
+**Request** — the same body as `/admin/boundary/decide`, plus optional
+`context.attributes` (normalized external facts; never secrets).
+
+**Response** `201`
+
+```json
+{ "decision": { "<BoundaryDecision with policy_binding>": "..." },
+  "justification_proof": { "<JustificationProof>": "..." } }
+```
+
+Policy-evaluation failures return `201` with a signed DENY decision and a
+stable `policy_binding.resolution_failure` or gate `outcome`. Malformed
+requests return `400 missing_boundary_fields`, `400 invalid_agreement` or
+`400 invalid_context`.
+
+### `POST /boundary-policies/verify`
+
+Verify a signed `BoundaryPolicy`. Unauthenticated.
+
+**Request** `{ "policy": {...}, "issuer_public_keys": ["<base64-ed25519>"] }`
+(keys default to the NA key).
+
+**Response** `200`
+`{ "valid": true, "reason": "valid", "policy_id": "...", "version": 1, "policy_digest": "..." }`
+
+**Errors** — `400 missing_policy`, `400 invalid_policy`,
+`400 invalid_public_keys`.
 
 ---
 

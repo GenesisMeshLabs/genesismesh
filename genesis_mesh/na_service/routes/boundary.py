@@ -16,6 +16,7 @@ from ...trust.context.decisions import BoundaryDecision, verify_boundary_decisio
 from ...trust.context.engine import BoundaryEngine
 from ..errors import (
     BadRequestError,
+    ConflictError,
     RateLimitError,
     RequestValidationError,
     UnauthorizedError,
@@ -30,6 +31,11 @@ logger = logging.getLogger(__name__)
 
 def _j(model) -> dict:
     return json.loads(model.model_dump_json())
+
+
+def _legacy_decision_json(decision: BoundaryDecision) -> dict:
+    """Serialise a /decide result exactly as v0.56 did (no policy_binding key)."""
+    return json.loads(decision.model_dump_json(exclude={"policy_binding"}))
 
 
 def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
@@ -54,6 +60,17 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         ok, err = service._verify_admin_request(data)
         if not ok:
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
+
+        # v0.57: with policy enforcement required, the policy-free legacy path
+        # would be a bypass. Refuse it and point callers at the evaluate route.
+        if service.boundary_policy_enforcement == "required":
+            service.db.add_audit_event("boundary_legacy_decide_refused", {
+                "requested_capability": data.get("requested_capability"),
+            })
+            raise ConflictError(
+                "Boundary policy enforcement is required; use /admin/boundary/evaluate",
+                code="boundary_policy_required",
+            )
 
         raw_agreement = data.get("agreement")
         capability = data.get("requested_capability")
@@ -108,7 +125,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             "requested_capability": capability,
             "authorized": decision.authorized,
         })
-        return jsonify(_j(decision)), 201
+        return jsonify(_legacy_decision_json(decision)), 201
 
     @bp.route("/boundary/verify", methods=["POST"])
     def verify():

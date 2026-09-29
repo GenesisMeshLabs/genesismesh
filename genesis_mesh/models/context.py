@@ -17,6 +17,7 @@ Sorted keys, compact separators.  The operator signs this canonical form.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .boundary_policy import PolicyBinding
 from .freshness import FreshnessProof
 from .genesis import Signature
 
@@ -79,6 +81,23 @@ class ContextRecord(BaseModel):
         ge=0,
         description="Revocation-feed sequence number observed at request time",
     )
+    attributes: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Normalized facts supplied by the external system for policy gates "
+            "(e.g. an upstream risk tier).  Never place credentials, tokens or "
+            "secret values here -- supply metadata about them instead."
+        ),
+    )
+
+    def to_canonical_json(self) -> str:
+        """Return deterministic JSON of the full context (sorted keys, compact)."""
+        data = self.model_dump(mode="json")
+        return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    def digest(self) -> str:
+        """SHA-256 hex digest of the canonical context."""
+        return hashlib.sha256(self.to_canonical_json().encode("utf-8")).hexdigest()
 
 
 class BoundaryDecision(BaseModel):
@@ -123,6 +142,11 @@ class BoundaryDecision(BaseModel):
         description="Optional FreshnessProof embedded by the BoundaryEngine "
         "when require_freshness_proof=True; included in canonical form",
     )
+    policy_binding: PolicyBinding | None = Field(
+        default=None,
+        description="Policy basis for policy-aware decisions (v0.57); signed "
+        "when present, omitted from the canonical form when absent",
+    )
     signature: Signature | None = Field(
         default=None,
         description="Ed25519 signature by the operator over canonical decision body",
@@ -133,7 +157,13 @@ class BoundaryDecision(BaseModel):
 
         Excludes ``signature`` only.  ``freshness_proof`` (including the proof's
         own nested signature) IS included — the operator signs over the whole
-        proof structure.  Sorted keys, compact separators.
+        proof structure.  ``policy_binding`` is included when present and the
+        key is omitted entirely when it is None, so decisions produced before
+        v0.57 keep byte-identical canonical forms.  Sorted keys, compact
+        separators.
         """
-        data = self.model_dump(exclude={"signature"}, mode="json")
+        exclude: set[str] = {"signature"}
+        if self.policy_binding is None:
+            exclude.add("policy_binding")
+        data = self.model_dump(exclude=exclude, mode="json")
         return json.dumps(data, sort_keys=True, separators=(",", ":"))

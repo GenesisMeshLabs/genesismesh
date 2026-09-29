@@ -9,5 +9,6 @@ trust evidence records.
 relationship-agreement
 delegation-chain
 relationship-context
+declarative-boundary-policy
 trust-evidence
 ```

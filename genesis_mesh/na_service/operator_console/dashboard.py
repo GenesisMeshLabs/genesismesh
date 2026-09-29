@@ -305,6 +305,20 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
             ("Sequence", "sequence"),
             ("Reason", "reason"),
         ],
+        "boundary_policy_published": [
+            ("Policy", "policy_id"),
+            ("Version", "version"),
+            ("Gates", "gate_count"),
+        ],
+        "boundary_policy_activated": [
+            ("Policy", "policy_id"),
+            ("Version", "version"),
+            ("Previous", "previous_version"),
+        ],
+        "boundary_policy_deactivated": [
+            ("Policy", "policy_id"),
+            ("Version", "version"),
+        ],
         "trust_cycle_canary_completed": [
             ("Acceptor", "acceptor_sovereign_id"),
             ("Issuer", "issuer_sovereign_id"),
@@ -320,6 +334,9 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
         "sovereign_revocation_feed_imported": "Revocation feed imported",
         "sovereign_revocation_feed_rejected": "Revocation feed rejected",
         "trust_cycle_canary_completed": "Trust-cycle canary completed",
+        "boundary_policy_published": "Boundary policy published",
+        "boundary_policy_activated": "Boundary policy activated",
+        "boundary_policy_deactivated": "Boundary policy deactivated",
     }
     fields = []
     for label, key in detail_map.get(event_type, []):
@@ -346,12 +363,23 @@ def _audit_summary(event_type: str, details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Per-request boundary-policy events are evaluations, not trust-state changes;
+# only the policy lifecycle belongs in "recent changes".
+_NON_CHANGE_EVENTS = frozenset({
+    "boundary_policy_decision_made",
+    "boundary_policy_validated",
+    "boundary_policy_verified",
+    "boundary_legacy_decide_refused",
+})
+
+
 def _safe_recent_changes(service) -> list[dict[str, Any]]:
     """Return recent trust-relevant audit events with human-readable details."""
     trust_terms = ("recognition", "attestation", "revocation", "policy", "trust_cycle")
     events = [
         event for event in service.db.list_audit_events()
         if any(term in str(event.get("event_type", "")) for term in trust_terms)
+        and str(event.get("event_type", "")) not in _NON_CHANGE_EVENTS
     ]
     changes = []
     for event in reversed(events[-8:]):
@@ -369,6 +397,31 @@ def _safe_recent_changes(service) -> list[dict[str, Any]]:
             "summary": _audit_summary(str(event.get("event_type", "")), safe_details),
         })
     return changes
+
+
+def _boundary_policy_summary(service) -> dict[str, Any]:
+    """Summarise the active boundary policy set without selectors or thresholds.
+
+    The dashboard is public; configured limits can be business-sensitive, so
+    only identity, version, validity, gate count and scope kind are shown.
+    """
+    health = service.boundary_policies.health()
+    active = []
+    for policy in service.db.load_active_boundary_policies().policies:
+        active.append({
+            "policy_id": policy.policy_id,
+            "version": policy.version,
+            "valid_until_display": _human_datetime(policy.valid_until.isoformat()),
+            "gate_count": len(policy.gates),
+            "scope": "global" if policy.selector.is_global() else "selected",
+        })
+    return {
+        "enforcement": service.boundary_policy_enforcement,
+        "healthy": health.healthy,
+        "status": "healthy" if health.healthy else "unhealthy",
+        "problem_count": len(health.problems),
+        "active": active,
+    }
 
 
 def build_dashboard_model(service) -> dict[str, Any]:
@@ -389,6 +442,12 @@ def build_dashboard_model(service) -> dict[str, Any]:
         warnings.append("Historical revoked or replaced treaty material is present.")
     if feed_summary["stale_count"]:
         warnings.append(f"{feed_summary['stale_count']} revocation feed looks stale.")
+    boundary_policies = _boundary_policy_summary(service)
+    if not boundary_policies["healthy"]:
+        warnings.append(
+            "Boundary policy set is unhealthy: every policy-aware evaluation is denied "
+            "until the failing policy is deactivated or replaced."
+        )
     return {
         "sovereign": {
             "id": service.genesis_block.network_name,
@@ -402,6 +461,7 @@ def build_dashboard_model(service) -> dict[str, Any]:
         "revocation_feed_summary": feed_summary,
         "revocation_feeds": feeds,
         "trust_cycle_summary": trust_cycle_summary,
+        "boundary_policies": boundary_policies,
         "recent_changes": _safe_recent_changes(service),
         "warnings": warnings,
         "links": {
@@ -418,8 +478,8 @@ def build_dashboard_model(service) -> dict[str, Any]:
 
 def _status_class(value: str) -> str:
     """Return the visual class for a compact status badge."""
-    css = "status-ok" if value in {"ready", "fresh", "active", "low"} else "status-watch"
-    if value in {"expired", "revoked", "stale", "not_ready", "high", "rejected"}:
+    css = "status-ok" if value in {"ready", "fresh", "active", "low", "healthy"} else "status-watch"
+    if value in {"expired", "revoked", "stale", "not_ready", "high", "rejected", "unhealthy"}:
         css = "status-risk"
     return css
 
@@ -481,6 +541,43 @@ def _feed_table(feeds: list[dict[str, Any]]) -> str:
     return f"""
         <table class="data-table">
             <thead><tr><th>Issuer</th><th>Feed</th><th>Sequence</th><th>Revoked IDs</th><th>Imported</th><th>Freshness</th></tr></thead>
+            <tbody>{rows}</tbody>
+        </table>
+    """
+
+
+def _boundary_policy_table(summary: dict[str, Any]) -> str:
+    """Render the active boundary policy set or an empty state."""
+    banner = ""
+    if not summary["healthy"]:
+        banner = """
+            <div class="notice notice-risk" role="alert">
+                <strong>Boundary policy set unhealthy.</strong>
+                Every policy-aware evaluation is denied (fail closed) until the failing
+                policy is deactivated or replaced. Inspect
+                <code>GET /admin/boundary-policies/active</code> for details.
+            </div>
+        """
+    if not summary["active"]:
+        return banner + """
+            <div class="empty-state">
+                <strong>No active boundary policies.</strong>
+                <span>Publish a policy with the admin API, then activate it. Policy-aware evaluation still applies the built-in gates.</span>
+            </div>
+        """
+    rows = "\n".join(
+        "<tr>"
+        f"<td><code>{escape(item['policy_id'])}</code></td>"
+        f"<td>{escape(str(item['version']))}</td>"
+        f"<td>{escape(item['scope'])}</td>"
+        f"<td>{escape(str(item['gate_count']))}</td>"
+        f"<td>{escape(item['valid_until_display'])}</td>"
+        "</tr>"
+        for item in summary["active"]
+    )
+    return banner + f"""
+        <table class="data-table">
+            <thead><tr><th>Policy</th><th>Active version</th><th>Scope</th><th>Gates</th><th>Valid until</th></tr></thead>
             <tbody>{rows}</tbody>
         </table>
     """
@@ -590,6 +687,11 @@ def render_dashboard(service) -> str:
                         {escape(model['trust_cycle_summary']['completed_at_display'] or 'No completed cycle observed')}
                     </span>
                 </div>
+                <div class="signal-card">
+                    <strong>Boundary policies</strong>
+                    {_status_badge(model['boundary_policies']['status'])}
+                    <span class="muted">Enforcement: {escape(model['boundary_policies']['enforcement'])}</span>
+                </div>
                 <div class="signal-card signal-card-wide">
                     <strong>Operator notes</strong>
                     <ul class="signal-list">{warning_markup}</ul>
@@ -611,6 +713,14 @@ def render_dashboard(service) -> str:
                 <p>Fresh: {FRESH_FEED_HOURS}h. Watch: {STALE_FEED_HOURS}h. Older feeds are stale.</p>
             </div>
             {_feed_table(model['revocation_feeds'])}
+        </section>
+
+        <section>
+            <div class="section-head">
+                <h2>Boundary Policies</h2>
+                <p>Active signed policy versions. Selectors and thresholds are visible to operators only.</p>
+            </div>
+            {_boundary_policy_table(model['boundary_policies'])}
         </section>
 
         <section>

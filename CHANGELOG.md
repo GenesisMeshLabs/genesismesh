@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.57.0 - Declarative Boundary Policy and Gate Framework
+
+### Added
+
+- `BoundaryPolicy`, `PolicySelector`, `GateSpec`, `PolicyBinding`,
+  `AppliedPolicy` and `PolicyGateEvaluation` models: signed, versioned,
+  domain-neutral boundary authorization policies, separate from
+  `PolicyManifest`.
+- Trusted `GateRegistry` with eight configurable gate types
+  (`required_parameter`, `max_value`, `min_value`, `allowlist`, `denylist`,
+  `boolean_required`, `scope_membership`, `time_window`) and a
+  `ConfiguredGateType` protocol for new gate types. Policies cannot supply code.
+- `BoundaryEngine.evaluate_with_policies()`: deterministic resolution and
+  additive composition of every applicable active policy, `enforce` and
+  `observe` modes, and fail-closed handling of invalid, tampered, ambiguous or
+  expired policies, unavailable gate types, missing facts and gate errors.
+- Network Authority routes: `POST /admin/boundary-policies/validate`,
+  `POST /admin/boundary-policies`, `GET /admin/boundary-policies`,
+  `GET /admin/boundary-policies/active`,
+  `GET /admin/boundary-policies/<id>/history`,
+  `POST /admin/boundary-policies/<id>/activate` (also rollback),
+  `POST /admin/boundary-policies/<id>/deactivate`,
+  `POST /admin/boundary/evaluate` and public `POST /boundary-policies/verify`,
+  each with audit events.
+- `boundary_policy_enforcement` setting (`--boundary-policy-enforcement`,
+  `BOUNDARY_POLICY_ENFORCEMENT`); `required` refuses the legacy
+  `/admin/boundary/decide` route with `boundary_policy_required`.
+- Migration `010_boundary_policies.sql` with full version history and a
+  one-active-version-per-policy constraint.
+- `ContextRecord.attributes` for normalized external facts.
+- `genesis-mesh trust boundary-policy validate|verify|explain|gate-types`.
+- Boundary policy health on `/health`, `/admin/boundary-policies/active` and
+  the operator dashboard, with a banner when the active set is unhealthy.
+- Worked example: `docs/examples/declarative-boundary-policy.md`.
+
+### Changed
+
+- `BoundaryDecision` gains an optional, signed `policy_binding`. Its key is
+  omitted from the canonical form when absent, so existing decisions and
+  their signatures are byte-identical. `/admin/boundary/decide` responses are
+  unchanged.
+- `verify_boundary_decision()` accepts `expected_policies` and reports
+  `unauthorized_policy_gate_failure`, `unauthorized_policy_resolution_failed`,
+  `policy_binding_mismatch` and `policy_binding_missing`.
+
+### Fixed
+
+- Process-level mediation tests spawned a bare `python`, which the daemon's
+  scrubbed environment cannot resolve on macOS; they now use the running
+  interpreter.
+
 ## Public reference deployment hardening (v0.56.0 package)
 
 - Added a keyless read-only dashboard overlay with freshly signed neutral demo

@@ -163,6 +163,12 @@ These symbols are shipped and in active use but may evolve in minor versions.
 | `PeerRiskSignal` | `genesis_mesh.trust.risk_signal` | shape may refine in v0.52 |
 | `build_risk_signal(...)` | `genesis_mesh.trust.risk_signal` | same |
 | `BoundaryEngine` | `genesis_mesh.trust.context` | gate extension API may grow |
+| `BoundaryEngine.evaluate_with_policies(...)` | `genesis_mesh.trust.context` | v0.57.0; policy-bound decisions |
+| `BoundaryPolicy`, `PolicySelector`, `GateSpec` | `genesis_mesh.models` | v0.57.0 |
+| `PolicyBinding`, `AppliedPolicy`, `PolicyGateEvaluation` | `genesis_mesh.models` | v0.57.0; embedded in signed `BoundaryDecision` |
+| `GateRegistry`, `ConfiguredGateType`, `ConfiguredGateOutcome` | `genesis_mesh.trust.context` | v0.57.0; gate extension protocol |
+| `validate_boundary_policy`, `sign_boundary_policy`, `verify_boundary_policy`, `resolve_policies` | `genesis_mesh.trust.context` | v0.57.0 |
+| `genesis-mesh trust boundary-policy` | CLI | v0.57.0; `validate`, `verify`, `explain`, `gate-types` |
 
 ---
 

@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.48.1
+**Versions**: v0.38.0 – v0.57.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -76,6 +76,12 @@ covering every protocol feature across all three phases. Shared
 `terminal_render.py` and `_bootstrap.py` helpers; all 25 feature example
 pages embed GIF references.
 
+**Declarative Boundary Policy** (v0.57.0): `BoundaryPolicy`, `GateRegistry`
+and `PolicyBinding` turn boundary rules into signed, versioned configuration
+over trusted, code-defined gate types. Every policy-aware decision signs the
+exact policy versions and gate outcomes behind it and fails closed, closing the
+gap where rules were unsigned code and decisions did not record their basis.
+
 ## Value Added
 
 - Cascade detection guards K-of-N consensus against correlated validators.
@@ -124,3 +130,4 @@ interoperability proof (v0.49–v0.56).
 | v0.47.0 | Data usage attestation: DataLicensePolicy, DataAccessIntent, DataAccessRecord |
 | v0.48.0 | Formal PeerRiskSignal verification: 3 Tamarin lemmas, property-based tests |
 | v0.48.1 | Enterprise-grade example suite: 25 animated GIF demos, shared helpers |
+| v0.57.0 | Declarative Boundary Policy: BoundaryPolicy, GateRegistry, PolicyBinding, `/admin/boundary/evaluate` |

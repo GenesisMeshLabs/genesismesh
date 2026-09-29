@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import base64
 import json
+import shlex
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -42,9 +44,15 @@ def _pub_b64(sk: nacl.signing.SigningKey) -> str:
     return base64.b64encode(bytes(sk.verify_key)).decode()
 
 
+# The daemon spawns with a scrubbed environment (no PATH), so a bare "python"
+# resolves against the OS default search path, which has no "python" on
+# macOS. Tests that actually spawn use the running interpreter's absolute path.
+_PY = sys.executable
+_PY_VERSION = f"{shlex.quote(_PY)} --version"
+
 # Default allowlist for tests whose subject is not the allowlist itself.
 # Entries are full command lines (F-01): "python" alone would not match.
-_ALLOWLIST = ["python --version"]
+_ALLOWLIST = [_PY_VERSION]
 
 
 def _decision(
@@ -101,7 +109,7 @@ def _request(
         decision_id=decision_id,
         token_id=token_id,
         invocation_token=token,
-        subprocess_command=command or ["python", "--version"],
+        subprocess_command=command or [_PY, "--version"],
         allowed_env_vars=[],
         requested_at=_NOW,
     )
@@ -273,7 +281,7 @@ def test_command_not_in_allowlist() -> None:
         req, decision, [_pub_b64(agent_sk)],
         operator_public_keys=[_pub_b64(op_sk)],
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version", "node --version"],
+        command_allowlist=[_PY_VERSION, "node --version"],
         at_time=_NOW,
     )
     assert not ok
@@ -284,12 +292,12 @@ def test_command_in_allowlist_passes() -> None:
     agent_sk = _sk()
     op_sk = _sk()
     decision = _decision(op_sk)
-    req = _request(agent_sk, command=["python", "--version"], decision_id=decision.decision_id, token=_token(op_sk))
+    req = _request(agent_sk, command=[_PY, "--version"], decision_id=decision.decision_id, token=_token(op_sk))
     ok, reason = validate_mediation_request(
         req, decision, [_pub_b64(agent_sk)],
         operator_public_keys=[_pub_b64(op_sk)],
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version", "node --version"],
+        command_allowlist=[_PY_VERSION, "node --version"],
         at_time=_NOW,
     )
     assert ok
@@ -342,7 +350,7 @@ def test_allowlist_matches_full_command_not_just_program() -> None:
     decision = _decision(op_sk)
     req = _request(
         agent_sk,
-        command=["python", "-c", "import os; os.system('id')"],
+        command=[_PY, "-c", "import os; os.system('id')"],
         decision_id=decision.decision_id,
         token=_token(op_sk),
     )
@@ -350,7 +358,7 @@ def test_allowlist_matches_full_command_not_just_program() -> None:
         req, decision, [_pub_b64(agent_sk)],
         operator_public_keys=[_pub_b64(op_sk)],
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
         at_time=_NOW,
     )
     assert not ok
@@ -468,9 +476,9 @@ def test_daemon_rejects_decision_from_unknown_operator() -> None:
         decision_store={decision.decision_id: decision},
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
         operator_public_keys={"someone-else": [_pub_b64(op_sk)]},
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
     )
-    req = _request(agent_sk, command=["python", "--version"],
+    req = _request(agent_sk, command=[_PY, "--version"],
                    decision_id=decision.decision_id, token=_token(op_sk))
     result = daemon.handle_request(req)
     assert isinstance(result, MediationRejection)
@@ -554,9 +562,9 @@ def test_daemon_issues_receipt_for_valid_request() -> None:
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
         operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
     )
-    req = _request(agent_sk, command=["python", "--version"],
+    req = _request(agent_sk, command=[_PY, "--version"],
                    decision_id=decision.decision_id, token=_token(op_sk))
     result = daemon.handle_request(req)
     assert isinstance(result, MediatedExecutionReceipt)
@@ -579,7 +587,7 @@ def test_daemon_rejects_command_not_in_allowlist() -> None:
         token_issuer_public_keys=_issuer_keys(op_sk),
         command_allowlist=["node --version"],
     )
-    req = _request(agent_sk, command=["python", "--version"],
+    req = _request(agent_sk, command=[_PY, "--version"],
                    decision_id=decision.decision_id, token=_token(op_sk))
     result = daemon.handle_request(req)
     assert isinstance(result, MediationRejection)
@@ -600,14 +608,14 @@ def test_daemon_socket_integration() -> None:
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
         operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
         host="127.0.0.1",
         port=0,
     )
     daemon.start()
     time.sleep(0.1)
     try:
-        req = _request(agent_sk, command=["python", "--version"],
+        req = _request(agent_sk, command=[_PY, "--version"],
                        decision_id=decision.decision_id, token=_token(op_sk))
         raw = req.model_dump_json().encode()
         with socket.create_connection(("127.0.0.1", daemon.port), timeout=5) as sock:
@@ -701,7 +709,7 @@ def _mallory_request(mallory_sk, decision_id, token=None):
         requested_capability="run-python",
         decision_id=decision_id,
         invocation_token=token,
-        subprocess_command=["python", "--version"],
+        subprocess_command=[_PY, "--version"],
         allowed_env_vars=[],
         requested_at=_NOW,
     )
@@ -825,12 +833,12 @@ def test_budget_is_enforced_across_requests() -> None:
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
         operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
     )
 
     def once():
         return daemon.handle_request(
-            _request(agent_sk, command=["python", "--version"],
+            _request(agent_sk, command=[_PY, "--version"],
                      decision_id=decision.decision_id, token=token)
         )
 
@@ -852,10 +860,10 @@ def test_genuine_agent_with_its_own_token_still_works() -> None:
         agent_public_keys={"agent-a": [_pub_b64(agent_sk)]},
         operator_public_keys={"operator-a": [_pub_b64(op_sk)]},
         token_issuer_public_keys=_issuer_keys(op_sk),
-        command_allowlist=["python --version"],
+        command_allowlist=[_PY_VERSION],
     )
     result = daemon.handle_request(
-        _request(agent_sk, command=["python", "--version"],
+        _request(agent_sk, command=[_PY, "--version"],
                  decision_id=decision.decision_id, token=_token(op_sk))
     )
 

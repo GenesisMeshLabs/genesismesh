@@ -119,6 +119,16 @@ evaluates it against ordered gates and produces a signed, time-bounded
 BoundaryDecision. An agreement alone is not an authorization.
 :::
 
+:::{grid-item-card} Declarative Boundary Policy
+:link: declarative-boundary-policy
+:link-type: doc
+
+Signed, versioned policies configure trusted gate types from a code-defined
+registry. Every policy-aware decision is cryptographically bound to the exact
+policy versions and gate outcomes that produced it, and evaluation fails
+closed. Opt-in via `/admin/boundary/evaluate`; policies never contain code.
+:::
+
 :::{grid-item-card} Execution Evidence Chain
 :link: execution-evidence-chain
 :link-type: doc

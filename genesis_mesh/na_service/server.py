@@ -19,6 +19,7 @@ from ..crypto import (
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
+from ..trust.context import GateRegistry
 from .auth import (
     OperatorTier,
     load_operator_public_keys,
@@ -30,11 +31,14 @@ from .auth import (
 from .db import NADatabase
 from .errors import register_error_handlers
 from .rate_limit import RateLimiter
+from .services import BoundaryPolicyService
+from .services.boundary_policy import ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
     create_agreement_blueprint,
     create_attestation_blueprint,
     create_boundary_blueprint,
+    create_boundary_policy_blueprint,
     create_consensus_blueprint,
     create_crl_blueprint,
     create_data_usage_blueprint,
@@ -76,6 +80,8 @@ class NetworkAuthorityService:
         operator_public_keys: Optional[dict[str, str]] = None,
         operator_key_tiers: Optional[dict[str, str]] = None,
         renewal_grace_seconds: int = 900,
+        gate_registry: Optional[GateRegistry] = None,
+        boundary_policy_enforcement: str = "optional",
     ):
         """
         Initialize the Network Authority service.
@@ -92,6 +98,13 @@ class NetworkAuthorityService:
                 stays usable before it is rejected and published in the CRL
                 (F-20). Must outlast the node's renewal-retry backoff and CRL
                 propagation; 0 revokes the predecessor immediately.
+            gate_registry: Trusted, frozen registry of configurable gate types
+                boundary policies may reference (v0.57). Defaults to the
+                built-in gate types.
+            boundary_policy_enforcement: "optional" (default) leaves the
+                legacy /admin/boundary/decide route available; "required"
+                refuses it so every decision goes through the policy-aware
+                /admin/boundary/evaluate route.
         """
         self.genesis_block = genesis_block
         self.na_private_key = na_private_key
@@ -110,6 +123,18 @@ class NetworkAuthorityService:
         self.renewal_grace_seconds = renewal_grace_seconds
         # In-process counter (not DB-backed: it must survive audit-store outages).
         self.audit_write_failures = 0
+
+        if boundary_policy_enforcement not in ENFORCEMENT_MODES:
+            raise ValueError(
+                f"boundary_policy_enforcement must be one of {ENFORCEMENT_MODES}"
+            )
+        self.boundary_policy_enforcement = boundary_policy_enforcement
+        registry = gate_registry if gate_registry is not None else GateRegistry.default()
+        if not registry.frozen:
+            # A registry that can still change at runtime is not a trusted set.
+            raise ValueError("gate_registry must be frozen before the NA starts")
+        self.gate_registry = registry
+        self.boundary_policies = BoundaryPolicyService(self)
 
         # F-11: verify genesis signatures before trusting the block, mirroring
         # the node-side check (node/node.py:_verify_genesis_block).
@@ -149,6 +174,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_treaty_blueprint(self))
         self.app.register_blueprint(create_agreement_blueprint(self))
         self.app.register_blueprint(create_boundary_blueprint(self))
+        self.app.register_blueprint(create_boundary_policy_blueprint(self))
         self.app.register_blueprint(create_evidence_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
@@ -278,6 +304,8 @@ def create_app(
     operator_public_keys: Optional[dict[str, str]] = None,
     operator_key_tiers: Optional[dict[str, str]] = None,
     renewal_grace_seconds: int = 900,
+    gate_registry: Optional[GateRegistry] = None,
+    boundary_policy_enforcement: str = "optional",
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -288,6 +316,8 @@ def create_app(
         operator_public_keys=operator_public_keys,
         operator_key_tiers=operator_key_tiers,
         renewal_grace_seconds=renewal_grace_seconds,
+        gate_registry=gate_registry,
+        boundary_policy_enforcement=boundary_policy_enforcement,
     )
     return service.app
 
@@ -313,6 +343,12 @@ def main():
         help="Operator key tier as key-id=standard|privileged (required per key)",
     )
     parser.add_argument("--db-path", default="genesis_mesh_na.db", help="SQLite database path")
+    parser.add_argument(
+        "--boundary-policy-enforcement",
+        choices=ENFORCEMENT_MODES,
+        default="optional",
+        help="'required' refuses the legacy /admin/boundary/decide route",
+    )
     args = parser.parse_args()
 
     configure_logging()
@@ -327,6 +363,7 @@ def main():
         db_path=args.db_path,
         operator_public_keys=load_operator_public_keys(args.operator_public_key),
         operator_key_tiers=load_operator_key_tiers(args.operator_key_tier),
+        boundary_policy_enforcement=args.boundary_policy_enforcement,
     )
     raise SystemExit(
         "Network Authority app factory validated. Start production service with "

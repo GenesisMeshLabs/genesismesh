@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .db_agents import AgentStoreMixin
 from .db_audit import AuditStoreMixin
+from .db_boundary_policy import BoundaryPolicyStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
 from .db_policy import PolicyStoreMixin
 from .db_trust import TrustStoreMixin
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 class NADatabase(
     EnrollmentStoreMixin,
     PolicyStoreMixin,
+    BoundaryPolicyStoreMixin,
     AuditStoreMixin,
     TrustStoreMixin,
     AgentStoreMixin,
