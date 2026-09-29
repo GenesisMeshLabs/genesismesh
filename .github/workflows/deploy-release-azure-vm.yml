@@ -315,9 +315,26 @@ jobs:
 
           wait_for_endpoint http://127.0.0.1:8443/healthz
 
+          # Nodes join through the public NA URL, so one restarted alongside the NA
+          # can fail its first start and wait out RestartSec before it is active.
+          wait_for_service() {
+            service="$1"
+            attempts=60
+            while ! systemctl is-active --quiet "$service"; do
+              attempts=$((attempts - 1))
+              if [ "$attempts" -le 0 ]; then
+                echo "Service did not become active: $service" >&2
+                systemctl status "$service" --no-pager --lines=30 >&2 || true
+                journalctl -u "$service" --no-pager --lines=30 >&2 || true
+                return 1
+              fi
+              sleep 1
+            done
+          }
+
           echo "==> Checking service state"
           for service in $SERVICES; do
-            systemctl is-active --quiet "$service"
+            wait_for_service "$service"
             systemctl status "$service" --no-pager --lines=5
           done
 

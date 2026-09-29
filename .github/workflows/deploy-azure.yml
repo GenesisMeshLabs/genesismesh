@@ -1,4 +1,6 @@
-name: Deploy Network Authority to Azure
+# Provisions or changes the Azure infrastructure (VM, network, storage) with
+# Terraform. Code releases are deployed by deploy-release-azure-vm.yml.
+name: Azure infrastructure (Terraform)
 
 on:
   workflow_dispatch:
