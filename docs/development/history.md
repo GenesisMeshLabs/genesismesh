@@ -381,7 +381,11 @@ contract and browser-side signing keeps operator seeds local.
 
 The gateway also added native federation preflight with independently pinned
 CRL issuers, an opt-in live mesh view of published trust domains, treaties, and
-memberships, and portable multi-platform distributions. v0.57.x added durable
+memberships, and portable multi-platform distributions. With gateway v0.56.3
+the Python authority maintenance it used to host (CRL refresh and pinned-peer
+revocation sync) moved beside the reference authority in `scripts/authority_ops`,
+and a live canary revocation was rejected by three receiving authorities about
+11 seconds after propagation. v0.57.x added durable
 per-issuer CRL checkpoints, a SQLite audit outbox with acknowledged HTTPS
 delivery, OIDC subject bindings, native mutual TLS, Redis-backed shared quotas,
 bounded resource controls, and hardened container and dependency release

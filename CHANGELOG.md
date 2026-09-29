@@ -56,6 +56,9 @@ join the coordinated release train.
 
 ### Fixed
 
+- Active data-license policies are persisted in SQLite (migration
+  `011_data_license_policies.sql`) instead of each worker's memory, so every
+  worker sees the same active policy and it survives restarts.
 - Boundary policy selectors handle large integer facts without overflowing;
   matching policies still enforce numeric limits and produce signed decisions.
 - Offline policy validation rejects unknown intent fields and incomplete issuer
@@ -92,9 +95,23 @@ join the coordinated release train.
   `/swagger.json` on the public overlay instead of replacing them with a link
   list, and restricted their surface tables to routes the instance serves.
 
+## Gateway v0.56.3 - Operator federation
+
+- Added a Rust authority preflight CLI, guided scoped recognition requests and
+  per-peer revocation synchronization visibility.
+- Moved Python authority maintenance into `scripts/authority_ops` and sandbox
+  demo setup out of the Rust gateway. Native packaging now uses PowerShell.
+- Verified automatic membership revocation rejection across three receiving
+  authorities in approximately 11 seconds. Existing expired genesis delegations
+  are reported and remain the owning operators' responsibility to renew.
+- This gateway release does not change the coordinated Python/SDK version.
+
 ## v0.56.0 - Coordinated release train (Unreleased)
 
 ### Changed
+
+- Aligned the Rust trust gateway with the `0.56.0` SDK release train, including
+  an embedded endpoint explorer and Windows / Linux AMD64 / ARM64 distributions.
 
 - Unified the Python reference implementation, TypeScript SDK, Go SDK, and
   .NET SDK on one `0.56.0` product version.
