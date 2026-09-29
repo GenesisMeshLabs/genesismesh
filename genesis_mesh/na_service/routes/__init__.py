@@ -4,6 +4,7 @@ from .admin import create_admin_blueprint
 from .agreement import create_agreement_blueprint
 from .attestations import create_attestation_blueprint
 from .boundary import create_boundary_blueprint
+from .boundary_policy import create_boundary_policy_blueprint
 from .consensus import create_consensus_blueprint
 from .crl import create_crl_blueprint
 from .data_usage import create_data_usage_blueprint
@@ -20,6 +21,7 @@ __all__ = [
     "create_agreement_blueprint",
     "create_attestation_blueprint",
     "create_boundary_blueprint",
+    "create_boundary_policy_blueprint",
     "create_consensus_blueprint",
     "create_crl_blueprint",
     "create_data_usage_blueprint",

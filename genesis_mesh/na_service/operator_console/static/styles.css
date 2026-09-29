@@ -620,6 +620,14 @@ section {
     color: var(--warn);
 }
 
+.notice-risk {
+    margin-top: 0;
+    margin-bottom: 16px;
+    border-color: var(--danger);
+    background: transparent;
+    color: var(--danger);
+}
+
 .footer {
     margin-top: 28px;
     color: var(--muted);

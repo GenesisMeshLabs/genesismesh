@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.52.1:
+As of v0.58.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -173,6 +173,12 @@ As of v0.52.1:
   6 new NA route blueprints (agreement, boundary, evidence, disclosure,
   consensus, data usage), with a full HTTP reference at
   `docs/api/trust-http.md`.
+- Boundary authorization rules are signed, versioned configuration:
+  a `BoundaryPolicy` configures gate types from a frozen, code-defined
+  `GateRegistry`, and every policy-aware `BoundaryDecision` signs a
+  `PolicyBinding` naming the exact policy versions, gate order and outcomes
+  that produced it, failing closed on any policy, gate or context error, with
+  {doc}`../examples/declarative-boundary-policy`.
 
 ### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
@@ -375,7 +381,11 @@ contract and browser-side signing keeps operator seeds local.
 
 The gateway also added native federation preflight with independently pinned
 CRL issuers, an opt-in live mesh view of published trust domains, treaties, and
-memberships, and portable multi-platform distributions. v0.57.x added durable
+memberships, and portable multi-platform distributions. With gateway v0.56.3
+the Python authority maintenance it used to host (CRL refresh and pinned-peer
+revocation sync) moved beside the reference authority in `scripts/authority_ops`,
+and a live canary revocation was rejected by three receiving authorities about
+11 seconds after propagation. v0.57.x added durable
 per-issuer CRL checkpoints, a SQLite audit outbox with acknowledged HTTPS
 delivery, OIDC subject bindings, native mutual TLS, Redis-backed shared quotas,
 bounded resource controls, and hardened container and dependency release
@@ -386,6 +396,72 @@ gateway does not hold authority private keys, issue production sovereign
 credentials, or replace relying services' session and application
 authorization decisions. See {doc}`../concepts/rust-gateway` for the complete
 integration surface and links to the Rust repository's operational guides.
+
+---
+
+### v0.58.0 — Declarative Boundary Policy and Gate Framework
+
+*Planned as v0.57.0. The core skipped 0.57 because the Rust gateway had
+already released v0.57.x on its own; from v0.58.0 every component, including
+the gateway and the Rust SDK, shares one version, enforced by a release-train
+gate in CI. See {doc}`versioning`.*
+
+**Question this release answered:** Can a Network Authority operator add and
+change authorization rules as signed, versioned, auditable configuration
+rather than code, while every decision still proves exactly which rules
+produced it?
+
+**Why the previous state was insufficient:** since v0.28 the
+`BoundaryEngine` ran three built-in gates, and anything else was a Python
+callable passed to `add_gate()`. A new rule meant a code release. The rule
+was not signed or versioned, activation was not audited, and a signed
+`BoundaryDecision` recorded gate names but not the rule configuration behind
+them, so an auditor could not tell which version of which rule had applied.
+
+**What changed:**
+
+- **`BoundaryPolicy`** (`models/boundary_policy.py`): a signed, versioned
+  document with a `PolicySelector` (AND across fields, OR within a field;
+  empty = global) and ordered `GateSpec`s. Every model uses `extra="forbid"`.
+  Activation state is deliberately not signed, so rollback restores the exact
+  previously signed bytes and each activation change is an audit event.
+- **`GateRegistry`**: a frozen, in-process map from versioned `gate_type` keys
+  (`max_value.v1`) to trusted implementations, with eight generic built-ins.
+  A `gate_type` is only ever a dictionary key; nothing in a policy reaches
+  import, eval or I/O. Adding a rule means implementing `ConfiguredGateType`
+  and registering it.
+- **Deterministic resolution**: every active policy is verified (signature,
+  stored digest, registry validation) *before* any selector is matched,
+  because an untrusted policy cannot be trusted to say which requests it does
+  not cover. Applied policies are ordered by `(policy_id, version)` and gates
+  by `order`. Constraints only add: any failing `enforce` gate denies, and
+  `observe` gates record without denying.
+- **Policy-bound decisions**: `BoundaryDecision.policy_binding` carries
+  `policy_set_digest = SHA-256([(policy_id, version, policy_digest)…])`, the
+  per-gate evaluations and `context_digest`. It is inside the signed body and
+  its key is omitted from the canonical form when absent, so v0.56 decisions
+  keep byte-identical signatures (pinned by golden-byte tests).
+  `verify_boundary_decision(..., expected_policies=…)` detects a substituted
+  policy. `JustificationProof` is unchanged structurally; configured gates use
+  the existing `inputs`/`metadata` fields and disclose raw values only when
+  the signed policy sets `disclose_input`.
+- **Network Authority**: validate / publish / list / active / history /
+  activate / deactivate / verify routes, a policy-aware
+  `/admin/boundary/evaluate` route, migration 010 with a partial unique index
+  that makes two active versions unrepresentable, and a
+  `boundary_policy_enforcement="required"` mode that refuses the legacy
+  `/admin/boundary/decide` route so it cannot be used to bypass policy.
+- Policy-evaluation failures yield a signed DENY with a stable code
+  (`policy_signature_invalid`, `policy_store_integrity_failed`,
+  `gate_type_unavailable`, `ambiguous_resolution`, `policy_expired`,
+  `missing_context`, `gate_error`); transport and authentication errors stay
+  HTTP errors.
+
+**What became possible:** new policy domains can be added without changing
+the engine, resolver, routes, signing, proofs or audit handling. 136 new tests
+(1,483 in total including integration) cover every gate type, each
+fail-closed path, restart persistence and offline verification. This sets the
+decision format that the cross-language verifiers in v0.59 must check.
 
 ---
 

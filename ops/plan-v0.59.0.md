@@ -1,4 +1,4 @@
-# v0.57.0 Plan -- Cross-Language Interoperability Proof
+# v0.59.0 Plan -- Cross-Language Interoperability Proof
 
 ## Positioning
 
@@ -13,7 +13,7 @@ that a record produced by the Python implementation at runtime is accepted
 by the Go verifier, and that a record signed by a TypeScript client is
 verifiable by the C# client.
 
-v0.57 constructs the interoperability proof: a CI-enforced test matrix that
+v0.59 constructs the interoperability proof: a CI-enforced test matrix that
 runs a cross-language scenario end-to-end.  The scenario covers the complete
 authorization path: agreement negotiation (Python), boundary decision (Python),
 agreement verification (Go verifier), boundary decision verification (Go),
@@ -23,13 +23,26 @@ This is not a synthetic test.  It uses the actual implementations, actual
 network calls, and actual signed records.  The scenario fails if any
 implementation disagrees with another on any protocol decision.
 
-v0.57 should prove:
+v0.59 should prove:
 
 > A trust agreement produced by the Python Network Authority is independently
 > verifiable by the Go verifier; a boundary decision produced by Python is
 > verifiable in Go; a data access intent submitted by the TypeScript SDK is
 > verifiable by the C# SDK; all four implementations agree on all protocol
 > decisions in the cross-language scenario.
+
+## Prerequisites
+
+- **v0.58.0 (Declarative Boundary Policy)** ships first. It extends
+  `BoundaryDecision` with a policy binding and `JustificationProof` with
+  configured-gate entries; the interop legs must verify that final format.
+- **Offline verifiers in each SDK.** As of v0.56 the Go/TS/C# SDK `Verify`
+  methods are HTTP calls to the Network Authority's `/verify` routes, so a leg
+  that calls them only proves that Python verifies its own output.  Each SDK
+  needs a local verifier (canonical JSON + Ed25519) for agreements, boundary
+  decisions (including the v0.58 policy binding) and data-access intents,
+  backed by the shared conformance vectors, before the legs below are
+  meaningful.
 
 ## Design
 
@@ -165,9 +178,9 @@ what has been proven about cross-language agreement.
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.56.0`
+- [ ] Package metadata bumped to `0.59.0`
 - [ ] CHANGELOG entry (cross-language interoperability proof)
-- [ ] history.md updated with v0.57.0 entry
+- [ ] history.md updated with v0.59.0 entry
 - [ ] All prior Python tests continue to pass
 - [ ] All SDK tests continue to pass
 - [ ] Go verifier conformance: 100% pass rate

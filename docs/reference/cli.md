@@ -733,6 +733,74 @@ genesis-mesh trust context verify \
     --operator-public-key <bank-pub-b64>
 ```
 
+## Boundary Policy Commands
+
+The `genesis-mesh trust boundary-policy` sub-group (v0.58) validates, verifies
+and explains declarative boundary policies offline. Publishing and activation
+go through the Network Authority admin API
+(`/admin/boundary-policies`). See {doc}`../examples/declarative-boundary-policy`.
+
+### `genesis-mesh trust boundary-policy validate`
+
+> **v0.58** — Declarative Boundary Policy
+
+Validate a policy intent document or a signed `BoundaryPolicy` against the
+built-in trusted gate registry. Reports each issue with a stable code
+(`unknown_gate_type`, `invalid_gate_config`, `duplicate_gate_id`,
+`duplicate_gate_order`, `invalid_selector`, `invalid_fact_path`, …).
+
+```bash
+genesis-mesh trust boundary-policy validate \
+    --file transfer-limits.json \
+    --format human
+```
+
+Exit code 0 on success; 1 on failure.
+
+### `genesis-mesh trust boundary-policy verify`
+
+> **v0.58** — Declarative Boundary Policy
+
+Verify the NA signature on a signed `BoundaryPolicy` and print its digest.
+
+```bash
+genesis-mesh trust boundary-policy verify \
+    --file transfer-limits.signed.json \
+    --public-key keys/na.pub \
+    --format human
+```
+
+Exit code 0 on success; 1 on failure.
+
+### `genesis-mesh trust boundary-policy explain`
+
+> **v0.58** — Declarative Boundary Policy
+
+Print the applied policy versions, resolution status and per-gate outcomes from
+a policy-bound `BoundaryDecision` (or a full `/admin/boundary/evaluate`
+response).
+
+```bash
+genesis-mesh trust boundary-policy explain \
+    --decision evaluate-response.json \
+    --format human
+```
+
+Exit code 0 on success; 1 on failure.
+
+### `genesis-mesh trust boundary-policy gate-types`
+
+> **v0.58** — Declarative Boundary Policy
+
+List the trusted gate types a policy may reference and their config fields.
+
+```bash
+genesis-mesh trust boundary-policy gate-types \
+    --format human
+```
+
+Exit code 0 on success; 1 on failure.
+
 ## Execution Evidence Commands
 
 The `genesis-mesh trust execution` sub-group implements the Execution Evidence

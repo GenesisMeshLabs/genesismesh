@@ -1,5 +1,75 @@
 # Changelog
 
+## v0.58.0 - Declarative Boundary Policy and Gate Framework
+
+This release was planned as v0.57.0. The core skipped 0.57 because the Rust
+gateway had already released v0.57.0 to v0.57.2 on its own; see
+`docs/development/versioning.md`. From v0.58.0 the gateway and the Rust SDK
+join the coordinated release train.
+
+### Added
+
+- `scripts/check_release_train.py`, run in CI and before PyPI publication:
+  fails when any component repository has published a tag newer than
+  `VERSION`, so two components can no longer give one number to different
+  releases.
+- `BoundaryPolicy`, `PolicySelector`, `GateSpec`, `PolicyBinding`,
+  `AppliedPolicy` and `PolicyGateEvaluation` models: signed, versioned,
+  domain-neutral boundary authorization policies, separate from
+  `PolicyManifest`.
+- Trusted `GateRegistry` with eight configurable gate types
+  (`required_parameter`, `max_value`, `min_value`, `allowlist`, `denylist`,
+  `boolean_required`, `scope_membership`, `time_window`) and a
+  `ConfiguredGateType` protocol for new gate types. Policies cannot supply code.
+- `BoundaryEngine.evaluate_with_policies()`: deterministic resolution and
+  additive composition of every applicable active policy, `enforce` and
+  `observe` modes, and fail-closed handling of invalid, tampered, ambiguous or
+  expired policies, unavailable gate types, missing facts and gate errors.
+- Network Authority routes: `POST /admin/boundary-policies/validate`,
+  `POST /admin/boundary-policies`, `GET /admin/boundary-policies`,
+  `GET /admin/boundary-policies/active`,
+  `GET /admin/boundary-policies/<id>/history`,
+  `POST /admin/boundary-policies/<id>/activate` (also rollback),
+  `POST /admin/boundary-policies/<id>/deactivate`,
+  `POST /admin/boundary/evaluate` and public `POST /boundary-policies/verify`,
+  each with audit events.
+- `boundary_policy_enforcement` setting (`--boundary-policy-enforcement`,
+  `BOUNDARY_POLICY_ENFORCEMENT`); `required` refuses the legacy
+  `/admin/boundary/decide` route with `boundary_policy_required`.
+- Migration `010_boundary_policies.sql` with full version history and a
+  one-active-version-per-policy constraint.
+- `ContextRecord.attributes` for normalized external facts.
+- `genesis-mesh trust boundary-policy validate|verify|explain|gate-types`.
+- Boundary policy health on `/health`, `/admin/boundary-policies/active` and
+  the operator dashboard, with a banner when the active set is unhealthy.
+- Worked example: `docs/examples/declarative-boundary-policy.md`.
+
+### Changed
+
+- `BoundaryDecision` gains an optional, signed `policy_binding`. Its key is
+  omitted from the canonical form when absent, so existing decisions and
+  their signatures are byte-identical. `/admin/boundary/decide` responses are
+  unchanged.
+- `verify_boundary_decision()` accepts `expected_policies` and reports
+  `unauthorized_policy_gate_failure`, `unauthorized_policy_resolution_failed`,
+  `policy_binding_mismatch` and `policy_binding_missing`.
+
+### Fixed
+
+- Active data-license policies are persisted in SQLite (migration
+  `011_data_license_policies.sql`) instead of each worker's memory, so every
+  worker sees the same active policy and it survives restarts.
+- Boundary policy selectors handle large integer facts without overflowing;
+  matching policies still enforce numeric limits and produce signed decisions.
+- Offline policy validation rejects unknown intent fields and incomplete issuer
+  metadata instead of silently discarding them.
+- Custom `add_gate()` denials retain their existing verification reason when
+  evaluated through the policy-aware engine.
+- Time-window weekday lists enforce the 256-value configuration limit.
+- Process-level mediation tests spawned a bare `python`, which the daemon's
+  scrubbed environment cannot resolve on macOS; they now use the running
+  interpreter.
+
 ## Public reference deployment hardening (v0.56.0 package)
 
 - Added a keyless read-only dashboard overlay with freshly signed neutral demo
@@ -25,9 +95,23 @@
   `/swagger.json` on the public overlay instead of replacing them with a link
   list, and restricted their surface tables to routes the instance serves.
 
+## Gateway v0.56.3 - Operator federation
+
+- Added a Rust authority preflight CLI, guided scoped recognition requests and
+  per-peer revocation synchronization visibility.
+- Moved Python authority maintenance into `scripts/authority_ops` and sandbox
+  demo setup out of the Rust gateway. Native packaging now uses PowerShell.
+- Verified automatic membership revocation rejection across three receiving
+  authorities in approximately 11 seconds. Existing expired genesis delegations
+  are reported and remain the owning operators' responsibility to renew.
+- This gateway release does not change the coordinated Python/SDK version.
+
 ## v0.56.0 - Coordinated release train (Unreleased)
 
 ### Changed
+
+- Aligned the Rust trust gateway with the `0.56.0` SDK release train, including
+  an embedded endpoint explorer and Windows / Linux AMD64 / ARM64 distributions.
 
 - Unified the Python reference implementation, TypeScript SDK, Go SDK, and
   .NET SDK on one `0.56.0` product version.

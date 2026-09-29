@@ -40,12 +40,19 @@ def create_health_blueprint(service) -> Blueprint:
 
     @bp.route("/health", methods=["GET"])
     def health():
-        """Return legacy health metadata."""
+        """Return legacy health metadata plus boundary policy health (v0.58).
+
+        ``boundary_policies`` is "unhealthy" when any active policy fails
+        re-verification -- every policy-aware evaluation then denies.
+        """
+        policy_health = service.boundary_policies.health()
         return jsonify(
             {
                 "status": "healthy",
                 "network": service.genesis_block.network_name,
                 "version": service.genesis_block.network_version,
+                "boundary_policies": "healthy" if policy_health.healthy else "unhealthy",
+                "boundary_policy_enforcement": service.boundary_policy_enforcement,
             }
         )
 

@@ -119,6 +119,16 @@ evaluates it against ordered gates and produces a signed, time-bounded
 BoundaryDecision. An agreement alone is not an authorization.
 :::
 
+:::{grid-item-card} Declarative Boundary Policy
+:link: declarative-boundary-policy
+:link-type: doc
+
+Signed, versioned policies configure trusted gate types from a code-defined
+registry. Every policy-aware decision is cryptographically bound to the exact
+policy versions and gate outcomes that produced it, and evaluation fails
+closed. Opt-in via `/admin/boundary/evaluate`; policies never contain code.
+:::
+
 :::{grid-item-card} Execution Evidence Chain
 :link: execution-evidence-chain
 :link-type: doc
@@ -304,10 +314,12 @@ BoundaryEngine. Payment and settlement are explicitly out of scope.
 :link-type: doc
 
 Three Tamarin Prover lemmas over the PeerRiskSignal state machine: (1)
-signal_bounded — signal stays in [0,1]; (2) anomaly_detection_responsive —
-SuddenDrop cannot permanently suppress detection; (3) no_single_source_cascade
-— cascade amplification requires independent per-sovereign observations.
-Executable property tests included for standard pytest runs.
+signal_bounded — every emitted signal is one of the abstract lattice values
+`low`/`mid`/`high`; (2) anomaly_detection_responsive — SuddenDrop cannot
+permanently suppress detection; (3) no_single_source_cascade — cascade
+amplification requires independent per-sovereign observations.
+**Only (1) currently proves**; see the page for current status. Executable
+property tests included for standard pytest runs.
 :::
 
 ::::

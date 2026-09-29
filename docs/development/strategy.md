@@ -378,8 +378,9 @@ The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
 logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.
 No commercial vertical material lives in the public repo.
 
-1,041 tests pass. Eight Tamarin lemmas are machine-checked across the full
-protocol pipeline and the PeerRiskSignal state machine.
+The test suite passes in full. Five Tamarin lemmas are machine-checked across
+the core protocol pipeline; the three PeerRiskSignal lemmas do not currently
+all prove (see `docs/examples/formal-verification.md`).
 
 ### Pre-1.0 Gate
 

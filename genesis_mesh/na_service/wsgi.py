@@ -43,6 +43,7 @@ app = create_app(
     operator_public_keys=_load_operator_public_keys(),
     operator_key_tiers=_load_operator_key_tiers(),
     renewal_grace_seconds=int(os.environ.get("RENEWAL_GRACE_SECONDS", "900")),
+    boundary_policy_enforcement=os.environ.get("BOUNDARY_POLICY_ENFORCEMENT", "optional"),
 )
 
 # Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.

@@ -9,6 +9,14 @@ from .discovery import AgentDescriptor, AgentEndpoint
 from .enrollment import InviteToken
 from .evidence import TrustEvidence
 from .genesis import BootstrapAnchor, GenesisBlock, NetworkAuthority, PolicyManifestRef, Signature
+from .boundary_policy import (
+    AppliedPolicy,
+    BoundaryPolicy,
+    GateSpec,
+    PolicyBinding,
+    PolicyGateEvaluation,
+    PolicySelector,
+)
 from .justification import JustificationProof
 from .policy import PolicyManifest, RoutingConfig
 from .revocation import CertificateRevocationList, RevokedCertificate
@@ -51,6 +59,13 @@ __all__ = [
     # Policy
     "PolicyManifest",
     "RoutingConfig",
+    # Declarative boundary policy (v0.58)
+    "AppliedPolicy",
+    "BoundaryPolicy",
+    "GateSpec",
+    "PolicyBinding",
+    "PolicyGateEvaluation",
+    "PolicySelector",
     # Trust API
     "AgreementRecord",
     "AgreementTerms",
