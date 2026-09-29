@@ -122,30 +122,40 @@ terraform init \
 terraform apply
 ```
 
-The same module is driven from CI via
-`.github/workflows/deploy-azure.yml`, which is how the live deployment at
-`https://na.genesismesh.connectorzzz.com` was provisioned.
+This module provisioned the live VM behind
+`https://na.genesismesh.connectorzzz.com`. Terraform runs locally with an
+operator's Azure credentials; there is no CI workflow for infrastructure
+changes.
 
 See: [Terraform deployment guide](terraform-deployment.md)
 
 ## Release CD to the Azure VM
 
-Terraform provisions the VM. Code updates for an existing VM are handled by
-`.github/workflows/deploy-release-azure-vm.yml`.
+Terraform provisions the VM. Code updates are handled by the single deployment
+workflow, `.github/workflows/deploy-release-azure-vm.yml`.
+
+The VM serves the sanitized public reference instance
+(`examples/public_dashboard`, see
+[public reference dashboard](public-reference-dashboard.md)). The original
+Network Authority, router and canary services on the VM are retired: they stay
+stopped and disabled, and their state is archived offline.
 
 Run **Deploy Release to Azure VM** manually from the Actions tab, selecting
-`main` as the workflow branch and a release tag or branch as the `ref` input.
-The job reports its deployment status to the `azure-production` environment.
-Publishing a release does not automatically run this workflow.
+`main` as the workflow branch and a release tag (or another ref on `main`) as
+the `ref` input. The job reports its deployment status to the
+`azure-production` environment. Publishing a release does not automatically
+run this workflow.
 
-The workflow authenticates with Azure through GitHub OIDC and uses Azure VM
-Run Command, backs up `/var/lib/genesis-mesh/na.db`, checks out the requested ref,
-updates the virtual environment, installs the current package, refreshes the
-systemd unit files, restarts the NA and router services, then probes:
-
-- `GET /healthz`
-- `GET /readyz`
-- `GET /connectome.json`
+The workflow resolves the ref to an exact commit and refuses anything not on
+`main`. It authenticates with Azure through GitHub OIDC and uses Azure VM Run
+Command to run `infrastructure/scripts/deploy-public-dashboard.sh` from that
+commit as root. The script backs up state offline, checks out the commit,
+updates the public instance's virtual environment and systemd units, restarts
+the public services (restoring the previous ones if a step fails), verifies
+the signed evidence, and keeps the retired services stopped and disabled. The
+workflow then checks that every retired unit is inactive and disabled, and
+probes `GET /readyz` and `GET /dashboard.json` until the public instance
+reports the deployed commit.
 
 Required GitHub secrets:
 

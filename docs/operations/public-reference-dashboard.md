@@ -59,6 +59,17 @@ Seed refuses an existing directory. The public app reads the installed package
 version automatically and deployment passes the actual Git commit. It never
 uses the network protocol version as the product version.
 
+## Deployment
+
+Deploy with the **Deploy Release to Azure VM** workflow (`ref` = a release tag
+on `main`). It runs `infrastructure/scripts/deploy-public-dashboard.sh` on the VM
+at that exact commit. The script is safe to repeat: an existing
+`/var/lib/genesis-mesh-public` dataset is kept, each run writes a new offline
+backup, and a failed step restarts the previous public service. It also keeps
+the retired Network Authority, router and canary units stopped and disabled.
+The public app reports the deployed commit as `software.build` in
+`/dashboard.json`.
+
 ## Maintenance and alerts
 
 The systemd timer imports all required feeds hourly. A local publisher serves

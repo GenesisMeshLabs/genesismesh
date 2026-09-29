@@ -112,8 +112,8 @@ fi
 echo "OK variables set"
 
 echo ""
-echo "Done. Run the deploy workflow:"
-echo "  gh workflow run deploy-azure.yml --field action=plan"
+echo "Done. Provision infrastructure with Terraform locally (infrastructure/azure)."
 if [ "$CONFIGURE_RELEASE_VM" = true ]; then
-  echo "  gh workflow run deploy-release-azure-vm.yml"
+  echo "Deploy a release:"
+  echo "  gh workflow run deploy-release-azure-vm.yml --ref main --field ref=<tag>"
 fi

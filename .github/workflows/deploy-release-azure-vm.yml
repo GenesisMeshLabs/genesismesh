@@ -1,16 +1,19 @@
 name: Deploy Release to Azure VM
 
+# The only Azure deployment workflow. It deploys the sanitized public reference
+# instance (examples/public_dashboard) behind na.genesismesh.connectorzzz.com by
+# running infrastructure/scripts/deploy-public-dashboard.sh on the VM at an
+# exact, reviewed commit. That script also keeps the retired legacy Network
+# Authority stack (genesis-mesh-na, routers, canaries, trust-cycle timer)
+# stopped and disabled. See docs/operations/public-reference-dashboard.md.
+
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to deploy. Run this workflow from main; use a release tag such as v0.16.1 here."
+        description: "Release tag (e.g. v0.58.1), branch or commit to deploy; must be on main"
         required: true
         default: "main"
-      services:
-        description: "Space-separated systemd services to restart"
-        required: true
-        default: "genesis-mesh-na genesis-mesh-node genesis-mesh-node-d"
 
 concurrency:
   group: deploy-release-azure-vm
@@ -18,7 +21,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy code to Azure VM
+    name: Deploy public reference instance
     runs-on: ubuntu-latest
     environment:
       name: azure-production
@@ -35,58 +38,52 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_VM_NAME: ${{ vars.AZURE_VM_NAME }}
       INPUT_REF: ${{ github.event.inputs.ref }}
-      INPUT_SERVICES: ${{ github.event.inputs.services }}
+      PUBLIC_URL: https://na.genesismesh.connectorzzz.com
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate deployment configuration
+      - name: Resolve the reviewed build
+        id: build
         shell: bash
         run: |
           set -euo pipefail
-
           if [ "${GITHUB_REF:-}" != "refs/heads/main" ]; then
-            echo "This workflow must be run from main, the allowed branch for azure-production." >&2
-            echo "Current GitHub ref: ${GITHUB_REF:-unknown}" >&2
+            echo "Run this workflow from main, the allowed branch for azure-production." >&2
             exit 1
           fi
-
-          AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
-          AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
-          DEPLOY_REF="${INPUT_REF:-main}"
-          SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
-
-          if [ -z "${AZURE_CLIENT_ID:-}" ]; then
-            echo "AZURE_CLIENT_ID secret is required" >&2
-            exit 1
-          fi
-          if [ -z "${AZURE_SUBSCRIPTION_ID:-}" ]; then
-            echo "AZURE_SUBSCRIPTION_ID secret is required" >&2
-            exit 1
-          fi
-          if [ -z "${AZURE_TENANT_ID:-}" ]; then
-            echo "AZURE_TENANT_ID secret is required" >&2
-            exit 1
-          fi
-          if [ -z "$AZURE_RESOURCE_GROUP" ]; then
-            echo "AZURE_RESOURCE_GROUP repository variable is required" >&2
-            exit 1
-          fi
-          if [ -z "$AZURE_VM_NAME" ]; then
-            echo "AZURE_VM_NAME repository variable is required" >&2
-            exit 1
-          fi
-          if ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then
-            echo "Deployment ref contains unsupported characters: $DEPLOY_REF" >&2
-            exit 1
-          fi
-          for service in $SERVICES; do
-            if ! [[ "$service" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
-              echo "Service name contains unsupported characters: $service" >&2
+          for name in AZURE_CLIENT_ID AZURE_SUBSCRIPTION_ID AZURE_TENANT_ID AZURE_RESOURCE_GROUP AZURE_VM_NAME; do
+            if [ -z "$(printf '%s' "${!name:-}" | tr -d '\r\n')" ]; then
+              echo "$name is required" >&2
               exit 1
             fi
           done
+          ref="${INPUT_REF:-main}"
+          if ! [[ "$ref" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then
+            echo "Deployment ref contains unsupported characters: $ref" >&2
+            exit 1
+          fi
+          git fetch --tags --force origin >/dev/null
+          if git rev-parse --verify --quiet "refs/tags/$ref^{commit}" >/dev/null; then
+            sha="$(git rev-parse "refs/tags/$ref^{commit}")"
+          elif git rev-parse --verify --quiet "refs/remotes/origin/$ref^{commit}" >/dev/null; then
+            sha="$(git rev-parse "refs/remotes/origin/$ref^{commit}")"
+          elif git rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then
+            sha="$(git rev-parse "$ref^{commit}")"
+          else
+            echo "Unknown deployment ref: $ref" >&2
+            exit 1
+          fi
+          # Only commits that reached main were reviewed.
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "Ref $ref ($sha) is not on main; refusing deployment" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Deploying $ref ($sha)"
 
       - name: Azure login
         uses: azure/login@v2
@@ -95,309 +92,70 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy release and restart services
+      - name: Deploy on the VM
         shell: bash
+        env:
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
+          resource_group="$(printf '%s' "$AZURE_RESOURCE_GROUP" | tr -d '\r\n')"
+          vm_name="$(printf '%s' "$AZURE_VM_NAME" | tr -d '\r\n')"
 
-          AZURE_RESOURCE_GROUP="$(printf '%s' "${AZURE_RESOURCE_GROUP:-}" | tr -d '\r\n')"
-          AZURE_VM_NAME="$(printf '%s' "${AZURE_VM_NAME:-}" | tr -d '\r\n')"
-          DEPLOY_REF="${INPUT_REF:-main}"
-          SERVICES="${INPUT_SERVICES:-genesis-mesh-na genesis-mesh-node genesis-mesh-node-d}"
-
-          if ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/@:-]+$ ]]; then
-            echo "Deployment ref contains unsupported characters: $DEPLOY_REF" >&2
+          # Azure Run Command runs the generated file with /bin/sh as root. Ship
+          # the deploy script from the reviewed commit itself and run it with bash.
+          script="$(git show "$BUILD_SHA:infrastructure/scripts/deploy-public-dashboard.sh")"
+          if printf '%s\n' "$script" | grep -qx 'GM_DEPLOY_SCRIPT_EOF'; then
+            echo "Deploy script contains the heredoc delimiter" >&2
             exit 1
           fi
-          for service in $SERVICES; do
-            if ! [[ "$service" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
-              echo "Service name contains unsupported characters: $service" >&2
-              exit 1
-            fi
-          done
-
-          echo "Deploying ${DEPLOY_REF} to Azure VM ${AZURE_VM_NAME} in ${AZURE_RESOURCE_GROUP}"
-          echo "Restarting services: ${SERVICES}"
-
           {
-            printf 'DEPLOY_REF=%q\n' "$DEPLOY_REF"
-            printf 'SERVICES=%q\n' "$SERVICES"
-            cat <<'SCRIPT'
-          # Azure Run Command invokes this generated file with /bin/sh, not bash.
-          # Keep the top-level script POSIX-compatible; bash-specific blocks run
-          # inside explicit `bash <<REPO_SCRIPT` sections below.
-          set -eu
-
-          REPO_DIR=/opt/genesis-mesh
-
-          if [ ! -d "$REPO_DIR/.git" ]; then
-            echo "ERROR: $REPO_DIR is not a Git checkout" >&2
-            exit 1
-          fi
-
-          REPO_USER="$(stat -c '%U' "$REPO_DIR")"
-          echo "==> Repository owner: $REPO_USER"
-
-          echo "==> Current revision"
-          if [ "$REPO_USER" = "root" ]; then
-            cd "$REPO_DIR"
-            git config --global --add safe.directory "$REPO_DIR" || true
-            git log -1 --oneline || true
-          else
-            sudo -H -u "$REPO_USER" bash -lc "cd '$REPO_DIR' && git log -1 --oneline || true"
-          fi
-
-          echo "==> Backing up Network Authority database"
-          mkdir -p /var/lib/genesis-mesh/backups
-          if [ -f /var/lib/genesis-mesh/na.db ]; then
-            cp /var/lib/genesis-mesh/na.db "/var/lib/genesis-mesh/backups/na.db.$(date -u +%Y%m%d-%H%M%S).bak"
-          else
-            echo "No /var/lib/genesis-mesh/na.db found; skipping DB backup"
-          fi
-
-          echo "==> Fetching release and updating Python environment"
-          if [ "$REPO_USER" = "root" ]; then
-            env DEPLOY_REF="$DEPLOY_REF" bash <<'REPO_SCRIPT'
-          set -euo pipefail
-          cd /opt/genesis-mesh
-          git config --global --add safe.directory /opt/genesis-mesh || true
-          git remote set-url origin https://github.com/GenesisMeshLabs/genesismesh.git
-          if git ls-remote --exit-code --heads origin "$DEPLOY_REF" >/dev/null; then
-            git fetch --prune origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
-          elif git ls-remote --exit-code --tags origin "refs/tags/$DEPLOY_REF" >/dev/null; then
-            git fetch --force origin "refs/tags/$DEPLOY_REF:refs/tags/$DEPLOY_REF"
-          else
-            echo "Unknown deployment ref: $DEPLOY_REF" >&2
-            exit 1
-          fi
-          if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
-            git checkout --force "tags/$DEPLOY_REF"
-          elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
-            git checkout --force "origin/$DEPLOY_REF"
-          else
-            git checkout --force "$DEPLOY_REF"
-          fi
-          if [ ! -d .venv ]; then
-            python3 -m venv .venv
-          fi
-          . .venv/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -e .
-          python -m compileall genesis_mesh -q
-          REPO_SCRIPT
-          else
-            sudo -H -u "$REPO_USER" env DEPLOY_REF="$DEPLOY_REF" bash <<'REPO_SCRIPT'
-          set -euo pipefail
-          cd /opt/genesis-mesh
-          git remote set-url origin https://github.com/GenesisMeshLabs/genesismesh.git
-          if git ls-remote --exit-code --heads origin "$DEPLOY_REF" >/dev/null; then
-            git fetch --prune origin "+refs/heads/$DEPLOY_REF:refs/remotes/origin/$DEPLOY_REF"
-          elif git ls-remote --exit-code --tags origin "refs/tags/$DEPLOY_REF" >/dev/null; then
-            git fetch --force origin "refs/tags/$DEPLOY_REF:refs/tags/$DEPLOY_REF"
-          else
-            echo "Unknown deployment ref: $DEPLOY_REF" >&2
-            exit 1
-          fi
-          if git show-ref --verify --quiet "refs/tags/$DEPLOY_REF"; then
-            git checkout --force "tags/$DEPLOY_REF"
-          elif git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
-            git checkout --force "origin/$DEPLOY_REF"
-          else
-            git checkout --force "$DEPLOY_REF"
-          fi
-          if [ ! -d .venv ]; then
-            python3 -m venv .venv
-          fi
-          . .venv/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -e .
-          python -m compileall genesis_mesh -q
-          REPO_SCRIPT
-          fi
-
-          cd "$REPO_DIR"
-
-          echo "==> Installing systemd unit files"
-          cp infrastructure/systemd/genesis-mesh-na.service /etc/systemd/system/genesis-mesh-na.service
-          cp infrastructure/systemd/genesis-mesh-node.service /etc/systemd/system/genesis-mesh-node.service
-          cp infrastructure/systemd/genesis-mesh-node-d.service /etc/systemd/system/genesis-mesh-node-d.service
-          cp infrastructure/systemd/genesis-mesh-canary-001-na.service /etc/systemd/system/genesis-mesh-canary-001-na.service
-          cp infrastructure/systemd/genesis-mesh-canary-anonymous-na.service /etc/systemd/system/genesis-mesh-canary-anonymous-na.service
-          cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.service /etc/systemd/system/genesis-mesh-trust-cycle-canary.service
-          cp infrastructure/systemd/genesis-mesh-trust-cycle-canary.timer /etc/systemd/system/genesis-mesh-trust-cycle-canary.timer
-          mkdir -p /etc/systemd/system/genesis-mesh-na.service.d
-          cp infrastructure/systemd/genesis-mesh-na.override.conf /etc/systemd/system/genesis-mesh-na.service.d/override.conf
-          CANARY_DIR=/var/lib/genesis-mesh/trust-cycle-canary
-          for sovereign in 001-na anonymous-na; do
-            test -f "$CANARY_DIR/$sovereign/genesis.signed.json"
-            test -f "$CANARY_DIR/$sovereign/keys/na.key"
-            test -f "$CANARY_DIR/$sovereign/keys/operator.key"
-            test -f "$CANARY_DIR/$sovereign/keys/operator.pub"
-            install -o azureuser -g azureuser -m 0600 \
-              "$REPO_DIR/infrastructure/canary/$sovereign.toml" \
-              "$CANARY_DIR/$sovereign/genesis-mesh.toml"
-            chown -R azureuser:azureuser "$CANARY_DIR/$sovereign"
-            chmod 0700 "$CANARY_DIR/$sovereign" "$CANARY_DIR/$sovereign/keys"
-            chmod 0600 "$CANARY_DIR/$sovereign/keys/na.key" \
-              "$CANARY_DIR/$sovereign/keys/operator.key"
-            chmod 0644 "$CANARY_DIR/$sovereign/genesis.signed.json" \
-              "$CANARY_DIR/$sovereign/keys/operator.pub"
-          done
-
-          echo "==> Migrating legacy operator-key tiers"
-          "$REPO_DIR/.venv/bin/python" - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          env_path = Path("/etc/genesis-mesh/operator-keys.env")
-          lines = env_path.read_text(encoding="utf-8").splitlines()
-          values = dict(
-              line.split("=", 1)
-              for line in lines
-              if line and not line.startswith("#") and "=" in line
-          )
-          public_keys = json.loads(values.get("OPERATOR_PUBLIC_KEYS_JSON", "{}"))
-          tiers = json.loads(values.get("OPERATOR_KEY_TIERS_JSON", "{}"))
-          changed = False
-          for key_id in public_keys:
-              if key_id not in tiers:
-                  tiers[key_id] = "privileged"
-                  changed = True
-          if changed or "OPERATOR_KEY_TIERS_JSON" not in values:
-              replacement = "OPERATOR_KEY_TIERS_JSON=" + json.dumps(
-                  tiers, separators=(",", ":"), sort_keys=True
-              )
-              lines = [
-                  replacement if line.startswith("OPERATOR_KEY_TIERS_JSON=") else line
-                  for line in lines
-              ]
-              if not any(line.startswith("OPERATOR_KEY_TIERS_JSON=") for line in lines):
-                  lines.append(replacement)
-              env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-          os.chmod(env_path, 0o600)
-          PY
-
-          systemctl daemon-reload
-
-          echo "==> Starting private canary sovereigns"
-          systemctl enable --now genesis-mesh-canary-001-na.service
-          systemctl enable --now genesis-mesh-canary-anonymous-na.service
-          systemctl is-active --quiet genesis-mesh-canary-001-na.service
-          systemctl is-active --quiet genesis-mesh-canary-anonymous-na.service
-
-          wait_for_endpoint() {
-            endpoint="$1"
-            attempts=30
-            while ! curl -fsS "$endpoint" >/dev/null 2>&1; do
-              attempts=$((attempts - 1))
-              if [ "$attempts" -le 0 ]; then
-                echo "Endpoint did not become ready: $endpoint" >&2
-                return 1
-              fi
-              sleep 1
-            done
-          }
-
-          wait_for_endpoint http://127.0.0.1:19443/healthz
-          wait_for_endpoint http://127.0.0.1:19444/healthz
-          curl -fsS http://127.0.0.1:19443/healthz
-          echo
-          curl -fsS http://127.0.0.1:19444/healthz
-          echo
-
-          echo "==> Restarting services"
-          for service in $SERVICES; do
-            systemctl restart "$service"
-          done
-
-          wait_for_endpoint http://127.0.0.1:8443/healthz
-
-          # Nodes join through the public NA URL, so one restarted alongside the NA
-          # can fail its first start and wait out RestartSec before it is active.
-          wait_for_service() {
-            service="$1"
-            attempts=60
-            while ! systemctl is-active --quiet "$service"; do
-              attempts=$((attempts - 1))
-              if [ "$attempts" -le 0 ]; then
-                echo "Service did not become active: $service" >&2
-                systemctl status "$service" --no-pager --lines=30 >&2 || true
-                journalctl -u "$service" --no-pager --lines=30 >&2 || true
-                return 1
-              fi
-              sleep 1
-            done
-          }
-
-          echo "==> Checking service state"
-          for service in $SERVICES; do
-            wait_for_service "$service"
-            systemctl status "$service" --no-pager --lines=5
-          done
-
-          echo "==> Enabling and exercising the daily trust-cycle canary"
-          systemctl enable --now genesis-mesh-trust-cycle-canary.timer
-          systemctl start genesis-mesh-trust-cycle-canary.service
-          systemctl is-active --quiet genesis-mesh-trust-cycle-canary.timer
-          test "$(systemctl show genesis-mesh-trust-cycle-canary.service -p Result --value)" = "success"
-
-          echo "==> Probing Network Authority"
-          curl -fsS http://127.0.0.1:8443/healthz
-          echo
-          curl -fsS http://127.0.0.1:8443/readyz
-          echo
-          DEPLOY_TMP_DIR="$(mktemp -d)"
-          trap 'rm -rf "$DEPLOY_TMP_DIR"' EXIT
-          "$REPO_DIR/.venv/bin/genesis-mesh" federation --help >"$DEPLOY_TMP_DIR/federation-help.txt"
-          head -n 1 "$DEPLOY_TMP_DIR/federation-help.txt"
-          curl -fsS http://127.0.0.1:8443/connectome.json >"$DEPLOY_TMP_DIR/connectome.json"
-          curl -fsS http://127.0.0.1:8443/dashboard.json >"$DEPLOY_TMP_DIR/dashboard.json"
-          export DEPLOY_TMP_DIR
-          "$REPO_DIR/.venv/bin/python" - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          tmp_dir = Path(os.environ["DEPLOY_TMP_DIR"])
-          data = json.loads((tmp_dir / "connectome.json").read_text())
-          print(
-              "connectome-ok",
-              f"sovereigns={len(data.get('sovereigns', []))}",
-              f"edges={len(data.get('recognition_edges', []))}",
-              f"revocations={len(data.get('imported_revocations', []))}",
-          )
-          dashboard = json.loads((tmp_dir / "dashboard.json").read_text())
-          cycle = dashboard.get("trust_cycle_summary", {})
-          if cycle.get("status") != "verified" or cycle.get("freshness") != "fresh":
-              raise SystemExit(f"trust-cycle-canary-not-fresh: {cycle}")
-          print("trust-cycle-canary-ok", f"completed_at={cycle.get('completed_at')}")
-          PY
-
-          echo "==> Deployment complete"
-          if [ "$REPO_USER" = "root" ]; then
-            git log -1 --oneline
-          else
-            sudo -H -u "$REPO_USER" bash -lc "cd '$REPO_DIR' && git log -1 --oneline"
-          fi
-          echo "__GENESIS_DEPLOY_SUCCESS__"
-          SCRIPT
+            echo 'set -eu'
+            echo "cat > /tmp/gm-deploy-public-dashboard.sh <<'GM_DEPLOY_SCRIPT_EOF'"
+            printf '%s\n' "$script"
+            echo 'GM_DEPLOY_SCRIPT_EOF'
+            printf 'bash /tmp/gm-deploy-public-dashboard.sh %s\n' "$BUILD_SHA"
+            echo 'rm -f /tmp/gm-deploy-public-dashboard.sh'
+            echo 'for unit in genesis-mesh-na genesis-mesh-node genesis-mesh-node-d genesis-mesh-canary-001-na genesis-mesh-canary-anonymous-na genesis-mesh-trust-cycle-canary.timer; do'
+            echo '  if systemctl is-active --quiet "$unit" || systemctl is-enabled --quiet "$unit"; then echo "Retired unit still active or enabled: $unit" >&2; exit 1; fi'
+            echo 'done'
+            echo 'echo __GENESIS_DEPLOY_SUCCESS__'
           } > /tmp/deploy-genesis-mesh.sh
 
-          DEPLOY_OUTPUT="$(az vm run-command invoke \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_VM_NAME" \
+          echo "Deploying $BUILD_SHA to Azure VM $vm_name in $resource_group"
+          output="$(az vm run-command invoke \
+            --resource-group "$resource_group" \
+            --name "$vm_name" \
             --command-id RunShellScript \
             --scripts @/tmp/deploy-genesis-mesh.sh \
             --query "value[].message" \
             --output tsv)"
-          printf '%s\n' "$DEPLOY_OUTPUT"
-          if ! grep -q "__GENESIS_DEPLOY_SUCCESS__" <<EOF
-          $DEPLOY_OUTPUT
-          EOF
-          then
+          printf '%s\n' "$output"
+          if ! grep -q "__GENESIS_DEPLOY_SUCCESS__" <<<"$output"; then
             echo "Azure Run Command did not reach the deployment success marker" >&2
             exit 1
           fi
+
+      - name: Probe the public instance
+        shell: bash
+        env:
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$PUBLIC_URL/readyz" >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS "$PUBLIC_URL/readyz"
+          echo
+          # nginx caches for 15 s; wait for the new build to be served.
+          build=""
+          for attempt in $(seq 1 30); do
+            build="$(curl -fsS "$PUBLIC_URL/dashboard.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["software"]["build"])')"
+            if [ "$build" = "$BUILD_SHA" ]; then
+              echo "Serving build $build"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Public instance serves build $build, expected $BUILD_SHA" >&2
+          exit 1
