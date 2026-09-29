@@ -1,4 +1,4 @@
-"""Boundary policy lifecycle and policy-aware evaluation for the NA (v0.57).
+"""Boundary policy lifecycle and policy-aware evaluation for the NA (v0.58).
 
 Routes in ``routes/boundary_policy.py`` parse HTTP and call this service.
 The service owns the invariants that must not depend on the HTTP layer:

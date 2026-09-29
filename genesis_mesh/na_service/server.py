@@ -99,7 +99,7 @@ class NetworkAuthorityService:
                 (F-20). Must outlast the node's renewal-retry backoff and CRL
                 propagation; 0 revokes the predecessor immediately.
             gate_registry: Trusted, frozen registry of configurable gate types
-                boundary policies may reference (v0.57). Defaults to the
+                boundary policies may reference (v0.58). Defaults to the
                 built-in gate types.
             boundary_policy_enforcement: "optional" (default) leaves the
                 legacy /admin/boundary/decide route available; "required"

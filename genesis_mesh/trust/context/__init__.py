@@ -50,7 +50,7 @@ __all__ = [
     "BoundaryDecisionVerificationReason",
     "BoundaryDecisionVerificationResult",
     "verify_boundary_decision",
-    # declarative boundary policy (v0.57)
+    # declarative boundary policy (v0.58)
     "POLICY_RESOLUTION_GATE",
     "BoundaryPolicyVerificationResult",
     "ConfiguredGateOutcome",

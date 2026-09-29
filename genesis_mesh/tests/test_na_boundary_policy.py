@@ -1,4 +1,4 @@
-"""Tests for the v0.57 Network Authority boundary policy routes.
+"""Tests for the v0.58 Network Authority boundary policy routes.
 
 Covers publish / validate / list / active / history / activate / deactivate /
 rollback / verify, the policy-aware /admin/boundary/evaluate route, the

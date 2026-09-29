@@ -419,7 +419,17 @@ Open `SECURITY.md` and check the Supported Versions table. If the new version
 changes the supported minor or major version, update the table. A patch release
 typically does not change this table; a minor or major release does.
 
-### 7J — No staged secrets
+### 7J — Release train
+```
+python scripts/check_release_train.py
+```
+Pass: no component repository (SDKs, gateway, or this repository) has published
+a tag newer than `VERSION`.
+Fail: **HARD STOP** — the chosen version would reuse a number another component
+already released. Pick a version newer than every listed release; see
+`docs/development/versioning.md`.
+
+### 7K — No staged secrets
 ```
 git diff --cached -- "*.env" "*.pem" "*.key" "*private*" "*secret*"
 ```

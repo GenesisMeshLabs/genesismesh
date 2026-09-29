@@ -1,4 +1,4 @@
-"""Trusted gate registry and built-in configurable gate types (v0.57).
+"""Trusted gate registry and built-in configurable gate types (v0.58).
 
 A BoundaryPolicy references gates by ``gate_type`` -- a key into a
 ``GateRegistry`` populated in code by the process that runs the

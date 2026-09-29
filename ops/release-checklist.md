@@ -14,7 +14,8 @@ pushing the tag.
 - [ ] `python -m sphinx -W -b html docs docs/_build/html` passes with zero warnings
 - [ ] Package version bumped in `pyproject.toml`
 - [ ] `VERSION`, `pyproject.toml`, and the source fallback all match
-- [ ] TypeScript, Go, and .NET repositories declare the same release version
+- [ ] TypeScript, Go, .NET, Rust SDK, and gateway repositories declare the same release version
+- [ ] `python scripts/check_release_train.py` passes (no component has released ahead of `VERSION`)
 - [ ] `python scripts/check_version.py --tag vX.Y.Z` passes
 - [ ] CHANGELOG updated with a new version section
 - [ ] `docs/development/history.md` updated with the new version entry

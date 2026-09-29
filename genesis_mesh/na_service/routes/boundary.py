@@ -61,7 +61,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         if not ok:
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
 
-        # v0.57: with policy enforcement required, the policy-free legacy path
+        # v0.58: with policy enforcement required, the policy-free legacy path
         # would be a bypass. Refuse it and point callers at the evaluate route.
         if service.boundary_policy_enforcement == "required":
             service.db.add_audit_event("boundary_legacy_decide_refused", {

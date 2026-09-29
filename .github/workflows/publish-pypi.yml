@@ -38,6 +38,9 @@ jobs:
         if: github.event_name != 'release'
         run: python scripts/check_version.py
 
+      - name: Verify release train (no component released ahead of VERSION)
+        run: python scripts/check_release_train.py
+
       - name: Build distributions
         run: python -m build
 

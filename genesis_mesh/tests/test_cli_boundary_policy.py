@@ -1,4 +1,4 @@
-"""CLI tests for ``genesis-mesh trust boundary-policy`` (v0.57)."""
+"""CLI tests for ``genesis-mesh trust boundary-policy`` (v0.58)."""
 
 from __future__ import annotations
 

@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.57.0:
+As of v0.58.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -395,7 +395,12 @@ integration surface and links to the Rust repository's operational guides.
 
 ---
 
-### v0.57.0 — Declarative Boundary Policy and Gate Framework
+### v0.58.0 — Declarative Boundary Policy and Gate Framework
+
+*Planned as v0.57.0. The core skipped 0.57 because the Rust gateway had
+already released v0.57.x on its own; from v0.58.0 every component, including
+the gateway and the Rust SDK, shares one version, enforced by a release-train
+gate in CI. See {doc}`versioning`.*
 
 **Question this release answered:** Can a Network Authority operator add and
 change authorization rules as signed, versioned, auditable configuration
@@ -452,7 +457,7 @@ them, so an auditor could not tell which version of which rule had applied.
 the engine, resolver, routes, signing, proofs or audit handling. 136 new tests
 (1,483 in total including integration) cover every gate type, each
 fail-closed path, restart persistence and offline verification. This sets the
-decision format that the cross-language verifiers in v0.58 must check.
+decision format that the cross-language verifiers in v0.59 must check.
 
 ---
 

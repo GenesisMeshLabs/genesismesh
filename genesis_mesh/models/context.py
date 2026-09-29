@@ -144,7 +144,7 @@ class BoundaryDecision(BaseModel):
     )
     policy_binding: PolicyBinding | None = Field(
         default=None,
-        description="Policy basis for policy-aware decisions (v0.57); signed "
+        description="Policy basis for policy-aware decisions (v0.58); signed "
         "when present, omitted from the canonical form when absent",
     )
     signature: Signature | None = Field(
@@ -159,7 +159,7 @@ class BoundaryDecision(BaseModel):
         own nested signature) IS included — the operator signs over the whole
         proof structure.  ``policy_binding`` is included when present and the
         key is omitted entirely when it is None, so decisions produced before
-        v0.57 keep byte-identical canonical forms.  Sorted keys, compact
+        v0.58 keep byte-identical canonical forms.  Sorted keys, compact
         separators.
         """
         exclude: set[str] = {"signature"}

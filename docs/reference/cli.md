@@ -735,14 +735,14 @@ genesis-mesh trust context verify \
 
 ## Boundary Policy Commands
 
-The `genesis-mesh trust boundary-policy` sub-group (v0.57) validates, verifies
+The `genesis-mesh trust boundary-policy` sub-group (v0.58) validates, verifies
 and explains declarative boundary policies offline. Publishing and activation
 go through the Network Authority admin API
 (`/admin/boundary-policies`). See {doc}`../examples/declarative-boundary-policy`.
 
 ### `genesis-mesh trust boundary-policy validate`
 
-> **v0.57** — Declarative Boundary Policy
+> **v0.58** — Declarative Boundary Policy
 
 Validate a policy intent document or a signed `BoundaryPolicy` against the
 built-in trusted gate registry. Reports each issue with a stable code
@@ -759,7 +759,7 @@ Exit code 0 on success; 1 on failure.
 
 ### `genesis-mesh trust boundary-policy verify`
 
-> **v0.57** — Declarative Boundary Policy
+> **v0.58** — Declarative Boundary Policy
 
 Verify the NA signature on a signed `BoundaryPolicy` and print its digest.
 
@@ -774,7 +774,7 @@ Exit code 0 on success; 1 on failure.
 
 ### `genesis-mesh trust boundary-policy explain`
 
-> **v0.57** — Declarative Boundary Policy
+> **v0.58** — Declarative Boundary Policy
 
 Print the applied policy versions, resolution status and per-gate outcomes from
 a policy-bound `BoundaryDecision` (or a full `/admin/boundary/evaluate`
@@ -790,7 +790,7 @@ Exit code 0 on success; 1 on failure.
 
 ### `genesis-mesh trust boundary-policy gate-types`
 
-> **v0.57** — Declarative Boundary Policy
+> **v0.58** — Declarative Boundary Policy
 
 List the trusted gate types a policy may reference and their config fields.
 

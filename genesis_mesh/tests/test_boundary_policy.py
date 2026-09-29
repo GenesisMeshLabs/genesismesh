@@ -1,4 +1,4 @@
-"""Tests for the Declarative Boundary Policy and Gate Framework (v0.57).
+"""Tests for the Declarative Boundary Policy and Gate Framework (v0.58).
 
 Covers:
 - BoundaryPolicy signing / verification and canonical form

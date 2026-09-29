@@ -157,7 +157,7 @@ Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
 **Response** `201` — `BoundaryDecision` JSON with `signature`.
 
 **Errors** — `400 missing_boundary_fields`, `400 invalid_agreement`,
-`401 admin_auth_failed`, `409 boundary_policy_required` (v0.57, when the NA
+`401 admin_auth_failed`, `409 boundary_policy_required` (v0.58, when the NA
 runs with `boundary_policy_enforcement=required`), `422 boundary_eval_failed`.
 
 This route does not consult boundary policies and its response never carries
@@ -196,7 +196,7 @@ Verify a signed `BoundaryDecision`. Unauthenticated.
 
 ---
 
-## Boundary policies (v0.57)
+## Boundary policies (v0.58)
 
 Signed, versioned declarative policies that configure trusted gate types. See
 {doc}`../examples/declarative-boundary-policy` for the model and semantics.

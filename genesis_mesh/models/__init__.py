@@ -59,7 +59,7 @@ __all__ = [
     # Policy
     "PolicyManifest",
     "RoutingConfig",
-    # Declarative boundary policy (v0.57)
+    # Declarative boundary policy (v0.58)
     "AppliedPolicy",
     "BoundaryPolicy",
     "GateSpec",

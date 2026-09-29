@@ -1,9 +1,18 @@
 # Changelog
 
-## v0.57.0 - Declarative Boundary Policy and Gate Framework
+## v0.58.0 - Declarative Boundary Policy and Gate Framework
+
+This release was planned as v0.57.0. The core skipped 0.57 because the Rust
+gateway had already released v0.57.0 to v0.57.2 on its own; see
+`docs/development/versioning.md`. From v0.58.0 the gateway and the Rust SDK
+join the coordinated release train.
 
 ### Added
 
+- `scripts/check_release_train.py`, run in CI and before PyPI publication:
+  fails when any component repository has published a tag newer than
+  `VERSION`, so two components can no longer give one number to different
+  releases.
 - `BoundaryPolicy`, `PolicySelector`, `GateSpec`, `PolicyBinding`,
   `AppliedPolicy` and `PolicyGateEvaluation` models: signed, versioned,
   domain-neutral boundary authorization policies, separate from

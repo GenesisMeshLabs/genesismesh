@@ -12,6 +12,8 @@ The following components publish the same version:
 - `genesis-mesh-sdk`, the TypeScript SDK
 - `github.com/GenesisMeshLabs/sdk-go`, the Go SDK
 - `genesismesh-sdk-dotnet`, the .NET SDK
+- `genesis-mesh-sdk`, the Rust SDK (`GenesisMeshLabs/sdk-rust`)
+- `genesis-mesh-gateway`, the Rust trust gateway (`GenesisMeshLabs/gateway`)
 - official independent protocol verifiers
 
 Every coordinated release tags each component repository with the same
@@ -21,6 +23,31 @@ coordinated version after its compatibility tests pass.
 The authoritative development version is stored in `VERSION` in each
 repository. Package manifests must match it. Publishing workflows reject a tag
 that does not match the repository's declared version.
+
+## The core leads the train
+
+The core repository (`genesismesh`) chooses each coordinated version, and no
+component may release ahead of it. Two automated gates enforce this:
+
+- **Core gate.** `scripts/check_release_train.py` runs in CI and before PyPI
+  publication. It fails when any component repository, or the core itself, has
+  already published a tag newer than the core `VERSION`. A new core version must
+  therefore be newer than every version already released anywhere in the train.
+- **Component gate.** Each component's CI fails when its declared version is
+  newer than the core `VERSION` on `main`, and a tag build fails unless its
+  version equals that `VERSION` or an existing core tag.
+
+A component that needs a fix between coordinated releases waits for, or triggers,
+the next coordinated patch release; it does not take the next number on its own.
+
+### v0.57: a skipped version
+
+Before the gateway and the Rust SDK joined the train, the gateway released
+`v0.57.0` through `v0.57.2` on its own. To keep one number per release, the core
+and the other SDKs skipped 0.57: the release planned as core v0.57.0 (Declarative
+Boundary Policy) shipped as v0.58.0, and every component, including the gateway
+and the Rust SDK, joined the coordinated train at v0.58.0. Tags `v0.57.x` exist
+only in the gateway repository.
 
 ## Versions that remain independent
 

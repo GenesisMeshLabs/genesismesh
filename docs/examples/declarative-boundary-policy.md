@@ -8,7 +8,7 @@ a library user, but not for a Network Authority operator: a new rule such as
 versioned or audited, and the signed `BoundaryDecision` did not record which
 rules produced it.
 
-v0.57 makes gate configuration a signed, versioned artifact. A
+v0.58 makes gate configuration a signed, versioned artifact. A
 `BoundaryPolicy` selects requests by generic context facts and configures gates
 from a **trusted, code-defined gate registry**. The Network Authority
 publishes, validates, activates, deactivates and rolls back policies through
@@ -55,7 +55,7 @@ offline:
 - **Which request it was for.** `context_digest` is the SHA-256 of the
   canonical `ContextRecord`.
 
-Decisions produced before v0.57, or by the unchanged `/admin/boundary/decide`
+Decisions produced before v0.58, or by the unchanged `/admin/boundary/decide`
 route, have no `policy_binding` key at all. Their canonical bytes and
 signatures are identical to v0.56.
 

@@ -1,4 +1,4 @@
-"""Integration test: declarative boundary policy lifecycle across an NA restart (v0.57).
+"""Integration test: declarative boundary policy lifecycle across an NA restart (v0.58).
 
 A privileged operator publishes two versions of a policy on a file-backed
 Network Authority, activates the strict one, and the policy-aware route

@@ -362,6 +362,13 @@ git diff --cached -- "*.key" "*.pem" "*.env" "*private*" "*secret*"
 
 No output. Fail: **HARD STOP**.
 
+### 7F — Release train
+
+`X.Y.Z` must equal `genesismesh/VERSION` on `main` (or an existing core tag).
+The core leads every coordinated version; an SDK or the gateway never takes a
+version the core has not reached. Each component's CI enforces this, so a
+mismatch fails the tag build. Fail: **HARD STOP** — release the core first.
+
 ---
 
 ## PHASE 8 — Version bump
@@ -373,6 +380,10 @@ Update the version in the SDK package manifest to `X.Y.Z`:
 | TypeScript | `sdk-typescript/package.json` | `"version"` |
 | Go | `sdk-go/go.mod` | module path tag (set via git tag) |
 | C# | `sdk-cs/{Project}.csproj` | `<Version>` |
+| Rust SDK | `sdk-rust/Cargo.toml` and `VERSION` | `version` |
+| Rust gateway | `gateway/Cargo.toml` | `version` |
+
+Every component also keeps a `VERSION` file (the gateway uses `Cargo.toml`).
 
 ---
 

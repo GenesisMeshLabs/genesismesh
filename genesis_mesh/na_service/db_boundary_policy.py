@@ -1,4 +1,4 @@
-"""Boundary policy persistence (v0.57)."""
+"""Boundary policy persistence (v0.58)."""
 
 from __future__ import annotations
 

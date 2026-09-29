@@ -1,4 +1,4 @@
-"""Declarative boundary policy CLI commands — trust boundary-policy (v0.57).
+"""Declarative boundary policy CLI commands — trust boundary-policy (v0.58).
 
 Offline helpers for operators authoring and auditing boundary policies:
 validate intent or signed policies against the built-in gate registry, verify

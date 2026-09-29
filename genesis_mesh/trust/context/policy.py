@@ -1,4 +1,4 @@
-"""Declarative Boundary Policy -- validation, signing, resolution (v0.57).
+"""Declarative Boundary Policy -- validation, signing, resolution (v0.58).
 
 Resolution is deterministic and fails closed:
 

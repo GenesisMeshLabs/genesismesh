@@ -1,4 +1,4 @@
--- v0.57: declarative boundary policies.
+-- v0.58: declarative boundary policies.
 --
 -- Every published version is kept forever: rows are inserted once and only the
 -- activation columns ever change, so history and rollback are always

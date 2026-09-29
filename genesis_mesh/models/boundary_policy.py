@@ -1,4 +1,4 @@
-"""Declarative Boundary Policy models (v0.57).
+"""Declarative Boundary Policy models (v0.58).
 
 A BoundaryPolicy is a signed, versioned document that selects requests by
 generic ContextRecord facts and configures gates drawn from the Network

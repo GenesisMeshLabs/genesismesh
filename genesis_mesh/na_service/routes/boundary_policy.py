@@ -1,4 +1,4 @@
-"""Declarative boundary policy routes (v0.57).
+"""Declarative boundary policy routes (v0.58).
 
 Admin lifecycle routes (operator-authenticated):
   POST /admin/boundary-policies/validate          dry-run validation of intent

@@ -40,7 +40,7 @@ def create_health_blueprint(service) -> Blueprint:
 
     @bp.route("/health", methods=["GET"])
     def health():
-        """Return legacy health metadata plus boundary policy health (v0.57).
+        """Return legacy health metadata plus boundary policy health (v0.58).
 
         ``boundary_policies`` is "unhealthy" when any active policy fails
         re-verification -- every policy-aware evaluation then denies.

@@ -61,7 +61,7 @@ def verify_boundary_decision(
     FreshnessProof, also verifies the proof's signature and validity at
     decision_made_at.
 
-    When expected_policies is provided (v0.57), the decision must carry a
+    When expected_policies is provided (v0.58), the decision must carry a
     PolicyBinding whose applied policies are exactly those policy versions,
     with matching digests, in resolution order.  An auditor holding the signed
     policies can therefore confirm which rules produced the decision.
