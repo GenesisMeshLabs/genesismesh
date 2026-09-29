@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.58.0
+**Versions**: v0.38.0 – v0.58.1
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -82,6 +82,12 @@ over trusted, code-defined gate types. Every policy-aware decision signs the
 exact policy versions and gate outcomes behind it and fails closed, closing the
 gap where rules were unsigned code and decisions did not record their basis.
 
+**Attestation-Backed Evaluation** (v0.58.1): `/admin/boundary/evaluate` can
+evaluate a request against an NA-issued `MembershipAttestation` instead of an
+agreement. The signed `AttestationBinding` pins the attestation's digest and the
+revocation-feed sequence checked, so revoking the attestation, locally or through
+an imported feed, denies every later request.
+
 ## Value Added
 
 - Cascade detection guards K-of-N consensus against correlated validators.
@@ -131,3 +137,4 @@ interoperability proof (v0.49–v0.56).
 | v0.48.0 | Formal PeerRiskSignal verification: 3 Tamarin lemmas, property-based tests |
 | v0.48.1 | Enterprise-grade example suite: 25 animated GIF demos, shared helpers |
 | v0.58.0 | Declarative Boundary Policy: BoundaryPolicy, GateRegistry, PolicyBinding, `/admin/boundary/evaluate` |
+| v0.58.1 | Attestation-Backed Evaluation: AttestationBinding, attestation gates, `attestation_claim.v1`, `attestation_id` basis |

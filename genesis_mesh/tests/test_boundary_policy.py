@@ -273,10 +273,11 @@ def _outcome(gate_type: str, config: dict, params=None, attributes=None, request
 
 
 class TestBuiltinGates:
-    def test_registry_lists_eight_builtin_types(self):
+    def test_registry_lists_nine_builtin_types(self):
         assert _REGISTRY.gate_types() == sorted([
             "required_parameter.v1", "max_value.v1", "min_value.v1", "allowlist.v1",
             "denylist.v1", "boolean_required.v1", "scope_membership.v1", "time_window.v1",
+            "attestation_claim.v1",
         ])
 
     def test_required_parameter(self):

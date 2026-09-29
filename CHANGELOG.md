@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.58.1 - Attestation-Backed Boundary Evaluation
+
+### Added
+
+- `POST /admin/boundary/evaluate` accepts `attestation_id` as an alternative
+  basis to `agreement`: the NA evaluates the request against a
+  `MembershipAttestation` it issued. Exactly one basis is required
+  (`400 ambiguous_basis`, `400 invalid_attestation_id`). Audit event
+  `boundary_attestation_decision_made`.
+- Built-in attestation gates `attestation_status` and `attestation_validity`,
+  followed by `capability_check` against `claims.capabilities` and
+  `freshness_check`. Unusable attestations yield a signed DENY with
+  `attestation_not_found`, `attestation_invalid`, `attestation_revoked`
+  (including revocation through an imported sovereign revocation feed),
+  `attestation_expired`, `attestation_not_yet_valid` or
+  `attestation_subject_mismatch`.
+- `AttestationBinding` (`attestation_id`, `subject_id`, `issuer_sovereign_id`,
+  `attestation_digest`, `revocation_seq_checked`) signed into
+  `BoundaryDecision.attestation_binding`.
+- `ContextRecord.attestation_id` and `parent_kind="attestation"`;
+  `"attestation"` is accepted in `PolicySelector.parent_kinds`.
+- `attestation_claim.v1` gate type in `GateRegistry.default()`, and read-only
+  fact paths `attestation.subject_id`, `attestation.roles` and
+  `attestation.claims.<key>`.
+- `verify_boundary_decision(..., expected_attestation=...)` with reasons
+  `attestation_binding_mismatch`, `attestation_binding_missing` and
+  `unauthorized_attestation_basis`.
+- `MembershipAttestation.digest()`; `claims.capabilities` and `claims.apps`
+  documented as conventional claim keys.
+- CLI: `trust context request --attestation`, the attestation binding in
+  `trust boundary-policy explain`, and `attestation_claim.v1` in
+  `trust boundary-policy gate-types`.
+- Worked example: `docs/examples/attestation-backed-evaluation.md`.
+
+### Changed
+
+- `verify_justification_proof` rejects a proof whose trace entries do not name
+  the decision's gates with the same outcomes (`trace_gate_mismatch`).
+- `ContextRecord.attestation_id` and `BoundaryDecision.attestation_binding`
+  are omitted from canonical JSON when absent: existing context digests and
+  decision signatures are unchanged.
+
 ## v0.58.0 - Declarative Boundary Policy and Gate Framework
 
 This release was planned as v0.57.0. The core skipped 0.57 because the Rust

@@ -131,7 +131,7 @@ def verify_cmd(file_path: str, public_key_input: str, fmt: str) -> None:
               help="Policy-bound BoundaryDecision JSON (from /admin/boundary/evaluate).")
 @_FORMAT
 def explain_cmd(decision_path: str, fmt: str) -> None:
-    """Explain which policies and configured gates produced a decision.
+    """Explain which policies, configured gates and attestation produced a decision.
 
     Example:
 
@@ -148,18 +148,29 @@ def explain_cmd(decision_path: str, fmt: str) -> None:
     binding = decision.policy_binding
     if binding is None:
         raise click.ClickException("Decision has no policy_binding (not produced by a policy-aware evaluation)")
+    attestation = decision.attestation_binding
     if fmt == "json":
-        click.echo(json.dumps({
+        out: dict[str, Any] = {
             "decision_id": decision.decision_id,
             "authorized": decision.authorized,
             "denial_reason": decision.denial_reason,
             "policy_binding": binding.model_dump(mode="json"),
-        }, indent=2))
+        }
+        if attestation is not None:
+            out["attestation_binding"] = attestation.model_dump(mode="json")
+        click.echo(json.dumps(out, indent=2))
         return
     click.echo(f"Decision   : {decision.decision_id}")
     click.echo(f"Authorized : {decision.authorized}")
     if decision.denial_reason:
         click.echo(f"Reason     : {decision.denial_reason}")
+    if attestation is not None:
+        click.echo(f"Attestation: {attestation.attestation_id}")
+        click.echo(f"  subject  : {attestation.subject_id or '-'}")
+        click.echo(f"  issuer   : {attestation.issuer_sovereign_id or '-'}")
+        digest = attestation.attestation_digest
+        click.echo(f"  digest   : {digest[:16] + '…' if digest else '-'}")
+        click.echo(f"  revocation seq checked: {attestation.revocation_seq_checked}")
     click.echo(f"Resolution : {binding.resolution_status}"
                + (f" ({binding.resolution_failure})" if binding.resolution_failure else ""))
     click.echo(f"Policy set : {binding.policy_set_digest}")

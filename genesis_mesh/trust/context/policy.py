@@ -52,7 +52,7 @@ from .registry import (
 logger = logging.getLogger(__name__)
 
 MAX_GATE_CONFIG_BYTES = 16 * 1024
-PARENT_KINDS: frozenset[str] = frozenset({"agreement", "delegation", "direct"})
+PARENT_KINDS: frozenset[str] = frozenset({"agreement", "delegation", "direct", "attestation"})
 
 _POLICY_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _GATE_ID = re.compile(r"^[a-z0-9_-]{1,64}$")

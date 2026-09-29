@@ -294,7 +294,31 @@ Policy-aware evaluation: built-in gates, then every applicable active policy.
 **Auth** — operator signature (standard tier).
 
 **Request** — the same body as `/admin/boundary/decide`, plus optional
-`context.attributes` (normalized external facts; never secrets).
+`context.attributes` (normalized external facts; never secrets). Supply
+**exactly one** basis: `agreement` (an `AgreementRecord`) or, since v0.58.1,
+`attestation_id` (a `MembershipAttestation` this NA issued).
+
+```json
+{ "attestation_id": "7f0c...",
+  "requested_capability": "app.invoke",
+  "context": { "request_parameters": { "app_id": "billing" } } }
+```
+
+With `attestation_id` the NA loads the attestation from its store, verifies
+its signature against the NA key, checks that it is active and not revoked
+(locally or by an imported sovereign revocation feed), that the request time is
+within `valid_from`..`expires_at`, and that `context.requester_sovereign_id`
+(default: the attestation subject) is the subject. The context's `parent_kind`
+is always `"attestation"` and its `agreement_id` and `attestation_id` carry the
+attestation id. The built-in gates are `attestation_status`,
+`attestation_validity`, `capability_check` (against `claims.capabilities`) and
+`freshness_check`, followed by the applicable policies with the read-only
+`attestation.subject_id`, `attestation.roles` and `attestation.claims.<key>`
+facts available to them. The signed decision carries an `attestation_binding`
+(`attestation_id`, `subject_id`, `issuer_sovereign_id`, `attestation_digest`,
+`revocation_seq_checked`) alongside its `policy_binding`, and the NA records a
+`boundary_attestation_decision_made` audit event. See
+{doc}`../examples/attestation-backed-evaluation`.
 
 **Response** `201`
 
@@ -304,9 +328,13 @@ Policy-aware evaluation: built-in gates, then every applicable active policy.
 ```
 
 Policy-evaluation failures return `201` with a signed DENY decision and a
-stable `policy_binding.resolution_failure` or gate `outcome`. Malformed
-requests return `400 missing_boundary_fields`, `400 invalid_agreement` or
-`400 invalid_context`.
+stable `policy_binding.resolution_failure` or gate `outcome`. An unusable
+attestation also returns `201` with a signed DENY whose `denial_reason` is
+`attestation_not_found`, `attestation_invalid` (signature does not verify),
+`attestation_revoked`, `attestation_expired`, `attestation_not_yet_valid` or
+`attestation_subject_mismatch`. Malformed requests return
+`400 ambiguous_basis` (both or neither basis), `400 invalid_attestation_id`,
+`400 missing_boundary_fields`, `400 invalid_agreement` or `400 invalid_context`.
 
 ### `POST /boundary-policies/verify`
 

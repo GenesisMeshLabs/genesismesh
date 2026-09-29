@@ -706,6 +706,23 @@ genesis-mesh trust context request \
     --output context.json
 ```
 
+> **v0.58.1** — Attestation-Backed Evaluation
+
+With `--attestation <id>` instead of `--agreement`, the record is evaluated
+under a `MembershipAttestation` the Network Authority issued (`parent_kind`
+`"attestation"`). Exactly one of the two options is required. Evaluate it with
+`POST /admin/boundary/evaluate` and `attestation_id`; the requester must be the
+attestation subject.
+
+```bash
+genesis-mesh trust context request \
+    --attestation 7f0c2d6e-... \
+    --capability app.invoke \
+    --requester vendor-acme --provider my-sovereign \
+    --params '{"app_id": "billing"}' \
+    --output context.json
+```
+
 ### `genesis-mesh trust context evaluate`
 
 Run the `BoundaryEngine` on a `ContextRecord`.  Evaluates capability scope,
@@ -778,7 +795,9 @@ Exit code 0 on success; 1 on failure.
 
 Print the applied policy versions, resolution status and per-gate outcomes from
 a policy-bound `BoundaryDecision` (or a full `/admin/boundary/evaluate`
-response).
+response). Since v0.58.1 it also prints the attestation binding (attestation,
+subject, issuer, digest and revocation sequence checked) when the decision has
+one.
 
 ```bash
 genesis-mesh trust boundary-policy explain \
@@ -792,7 +811,8 @@ Exit code 0 on success; 1 on failure.
 
 > **v0.58** — Declarative Boundary Policy
 
-List the trusted gate types a policy may reference and their config fields.
+List the trusted gate types a policy may reference and their config fields,
+including `attestation_claim.v1` (v0.58.1).
 
 ```bash
 genesis-mesh trust boundary-policy gate-types \

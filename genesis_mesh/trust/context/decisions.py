@@ -9,6 +9,7 @@ from typing import Any, Literal, Sequence
 from ...crypto import verify_model_signature
 from ...models.boundary_policy import BoundaryPolicy, policy_set_digest
 from ...models.context import BoundaryDecision
+from ...models.sovereign import MembershipAttestation
 
 BoundaryDecisionVerificationReason = Literal[
     "authorized",
@@ -25,10 +26,16 @@ BoundaryDecisionVerificationReason = Literal[
     "unauthorized_policy_resolution_failed",
     "policy_binding_mismatch",
     "policy_binding_missing",
+    "unauthorized_attestation_basis",
+    "attestation_binding_mismatch",
+    "attestation_binding_missing",
 ]
 
 
-_BUILTIN_GATE_NAMES = frozenset({"capability_check", "validity_window", "freshness_check", "freshness_proof"})
+_ATTESTATION_GATE_NAMES = frozenset({"attestation_status", "attestation_validity"})
+_BUILTIN_GATE_NAMES = frozenset(
+    {"capability_check", "validity_window", "freshness_check", "freshness_proof"}
+) | _ATTESTATION_GATE_NAMES
 
 
 @dataclass(frozen=True)
@@ -54,6 +61,7 @@ def verify_boundary_decision(
     freshness_proof_issuer_keys: list[str] | None = None,
     now: datetime | None = None,
     expected_policies: Sequence[BoundaryPolicy] | None = None,
+    expected_attestation: MembershipAttestation | None = None,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and expiry.
 
@@ -65,6 +73,10 @@ def verify_boundary_decision(
     PolicyBinding whose applied policies are exactly those policy versions,
     with matching digests, in resolution order.  An auditor holding the signed
     policies can therefore confirm which rules produced the decision.
+
+    When expected_attestation is provided (v0.58.1), the decision must carry an
+    AttestationBinding naming that attestation, its subject and issuer, with a
+    digest equal to the attestation's canonical signed body.
     """
     ts = now or datetime.now(timezone.utc)
 
@@ -104,7 +116,24 @@ def verify_boundary_decision(
         if expected_refs != bound_refs or policy_set_digest(binding.policies) != binding.policy_set_digest:
             return _reject("policy_binding_mismatch")
 
+    attestation_binding = decision.attestation_binding
+    if expected_attestation is not None:
+        if attestation_binding is None:
+            return _reject("attestation_binding_missing")
+        if (
+            attestation_binding.attestation_id != expected_attestation.attestation_id
+            or attestation_binding.subject_id != expected_attestation.subject_id
+            or attestation_binding.issuer_sovereign_id != expected_attestation.issuer_sovereign_id
+            or attestation_binding.attestation_digest != expected_attestation.digest()
+        ):
+            return _reject("attestation_binding_mismatch")
+
     if not decision.authorized:
+        if any(not gr.passed and gr.gate_name in _ATTESTATION_GATE_NAMES for gr in decision.gate_results):
+            return BoundaryDecisionVerificationResult(
+                accepted=True, reason="unauthorized_attestation_basis",
+                decision_id=decision.decision_id, authorized=False,
+            )
         denial = decision.denial_reason or ""
         builtin_failed = any(
             not gr.passed and gr.gate_name in _BUILTIN_GATE_NAMES for gr in decision.gate_results

@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.58.0:
+As of v0.58.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -179,6 +179,12 @@ As of v0.58.0:
   `PolicyBinding` naming the exact policy versions, gate order and outcomes
   that produced it, failing closed on any policy, gate or context error, with
   {doc}`../examples/declarative-boundary-policy`.
+- Boundary decisions can rest on membership instead of agreement: an
+  `AttestationBinding` signs the digest, subject, issuer and checked
+  revocation-feed sequence of the `MembershipAttestation` a request was
+  evaluated under, so revoking the attestation locally or through an imported
+  feed denies every later request, with
+  {doc}`../examples/attestation-backed-evaluation`.
 
 ### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
@@ -462,6 +468,52 @@ the engine, resolver, routes, signing, proofs or audit handling. 136 new tests
 (1,483 in total including integration) cover every gate type, each
 fail-closed path, restart persistence and offline verification. This sets the
 decision format that the cross-language verifiers in v0.59 must check.
+
+### v0.58.1 — Attestation-Backed Boundary Evaluation
+
+**Question this release answered:** Can a request be authorized on the basis
+of a sovereign's membership attestation, so that withdrawing the membership
+withdraws the authorization, provably?
+
+**Why the previous state was insufficient:** every boundary evaluation needed
+an `AgreementRecord`. A vendor admitted to a sovereign already held a signed
+`MembershipAttestation` with roles and claims, but authorizing its requests
+meant creating a parallel agreement, and revoking the attestation had no
+effect on decisions made under that agreement.
+
+**What changed:**
+
+- `POST /admin/boundary/evaluate` accepts exactly one basis, `agreement` or
+  `attestation_id` (`400 ambiguous_basis` otherwise). For an attestation the
+  NA loads it from its own store, verifies its signature against the NA key,
+  and checks issuer-side status, imported revocation feeds, the validity
+  window and that the requester is the subject. Any failure is a signed DENY
+  with a stable code (`attestation_not_found`, `attestation_invalid`,
+  `attestation_revoked`, `attestation_expired`, `attestation_not_yet_valid`,
+  `attestation_subject_mismatch`).
+- The attestation gates (`attestation_status`, `attestation_validity`,
+  `capability_check` over `claims.capabilities`, `freshness_check`) replace
+  the agreement gates and run first; policy resolution is shared unchanged
+  with agreement evaluation.
+- **`AttestationBinding`** is signed into the decision alongside the
+  `PolicyBinding`, and omitted from the canonical form when absent, as is the
+  new `ContextRecord.attestation_id`, so earlier decisions and context digests
+  stay byte-identical. `verify_boundary_decision(..., expected_attestation=…)`
+  detects a substituted or altered attestation.
+- Policies gain read-only `attestation.subject_id`, `attestation.roles` and
+  `attestation.claims.<key>` facts and the `attestation_claim.v1` gate type.
+  The facts live in a private attribute that request JSON cannot populate and
+  the context digest excludes; only the engine binds them, from a verified
+  attestation, and the signed attestation digest covers them.
+- `verify_justification_proof` now checks each trace entry against the
+  decision's gate at the same position (`trace_gate_mismatch`), so a proof
+  cannot describe gates other than those that produced the decision.
+
+**What became possible:** membership revocation is now also authorization
+revocation for every system that evaluates through the NA. 33 new tests
+(1,543 in total including integration) cover allow and deny paths, local and
+feed revocation, expiry, tampering, basis validation, `required` enforcement,
+offline verification and the CLI.
 
 ---
 

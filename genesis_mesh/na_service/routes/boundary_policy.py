@@ -11,6 +11,7 @@ Admin lifecycle routes (operator-authenticated):
 
 Policy-aware evaluation:
   POST /admin/boundary/evaluate                   signed decision + justification proof
+                                                  (agreement or attestation_id basis, v0.58.1)
 
 Public:
   POST /boundary-policies/verify                  verify a policy signature
@@ -155,14 +156,59 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         })
         return jsonify({"policy_id": policy_id, "version": version, "active": False})
 
+    def _evaluate_attestation(data: dict, attestation_id: object, capability: str):
+        """Evaluate under an NA-issued MembershipAttestation (fails closed)."""
+        if not isinstance(attestation_id, str) or not attestation_id:
+            raise BadRequestError(
+                "attestation_id must be a non-empty string", code="invalid_attestation_id"
+            )
+        ctx = data.get("context") or {}
+        requester = ctx.get("requester_sovereign_id") if isinstance(ctx, dict) else None
+        if requester is not None and not isinstance(requester, str):
+            raise BadRequestError("Invalid context record", code="invalid_context")
+        basis, requester_id = policies.assess_attestation(attestation_id, requester)
+        context = policies.build_attestation_context(data, attestation_id, requester_id)
+        decision, proof = policies.evaluate_attestation(context, basis)
+
+        binding = decision.policy_binding
+        service.db.add_audit_event("boundary_attestation_decision_made", {
+            "decision_id": decision.decision_id,
+            "context_id": context.context_id,
+            "attestation_id": attestation_id,
+            "subject_id": basis.attestation.subject_id if basis.attestation else None,
+            "requester_sovereign_id": requester_id,
+            "requested_capability": capability,
+            "authorized": decision.authorized,
+            "denial_reason": decision.denial_reason,
+            "revocation_seq_checked": basis.revocation_seq_checked,
+            "applied_policies": [
+                f"{p.policy_id}@{p.version}" for p in (binding.policies if binding else [])
+            ],
+            "failed_gates": [gr.gate_name for gr in decision.gate_results if not gr.passed],
+        })
+        return jsonify({"decision": _j(decision), "justification_proof": _j(proof)}), 201
+
     @bp.route("/admin/boundary/evaluate", methods=["POST"])
     def evaluate():
-        """Policy-aware evaluation: built-in gates plus every applicable active policy."""
+        """Policy-aware evaluation under an agreement or (v0.58.1) an attestation basis."""
         data = request_json_object()
         _admin(data)
         raw_agreement = data.get("agreement")
+        attestation_id = data.get("attestation_id")
+        if (raw_agreement is None) == (attestation_id is None):
+            raise BadRequestError(
+                "provide exactly one of agreement or attestation_id",
+                code="ambiguous_basis",
+            )
         capability = data.get("requested_capability")
-        if not raw_agreement or not capability or not isinstance(capability, str):
+        if not capability or not isinstance(capability, str):
+            raise BadRequestError(
+                "requested_capability is required",
+                code="missing_boundary_fields",
+            )
+        if attestation_id is not None:
+            return _evaluate_attestation(data, attestation_id, capability)
+        if not raw_agreement:
             raise BadRequestError(
                 "agreement and requested_capability are required",
                 code="missing_boundary_fields",

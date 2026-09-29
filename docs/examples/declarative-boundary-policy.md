@@ -101,11 +101,20 @@ Never put credentials, tokens or secret values in `request_parameters` or
 | `boolean_required.v1` | `path, expected` | fact is a boolean equal to expected |
 | `scope_membership.v1` | `path, allowed` | fact is a list of strings, all in allowed |
 | `time_window.v1` | `not_before, not_after, weekdays, utc_hour_start, utc_hour_end` | `requested_at` inside the UTC window |
+| `attestation_claim.v1` | `path, claim` | fact is one of the values in `attestation.claims[claim]` (v0.58.1); fails without an attestation basis |
 
 Fact paths address `requested_capability`, `requester_sovereign_id`,
 `provider_sovereign_id`, `agreement_id`, `parent_kind`, `requested_at`,
 `context_freshness_seq`, `request_parameters.<key>…` and
-`attributes.<key>…` (at most 8 segments). Any other root is rejected.
+`attributes.<key>…` (at most 8 segments). Since v0.58.1 an attestation basis
+also exposes the read-only `attestation.subject_id`, `attestation.roles` and
+`attestation.claims.<key>…` facts; they are missing for any other basis. Any
+other root is rejected.
+
+A selector can target attestation-backed requests with
+`"parent_kinds": ["attestation"]`. See
+{doc}`attestation-backed-evaluation` for evaluating a request against a
+membership attestation instead of an agreement.
 
 ## Walkthrough
 

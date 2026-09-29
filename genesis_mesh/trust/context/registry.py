@@ -6,8 +6,9 @@ BoundaryEngine.  Policy content can select and configure an installed gate
 type; it can never supply, import or execute code.
 
 Every configurable gate is pure: it reads normalized facts from the
-ContextRecord, never performs I/O, and never reads the clock (time comes from
-``context.requested_at``).  The same context and configuration always yield
+ContextRecord (including, for an attestation basis, the read-only
+``attestation`` fact root the engine binds), never performs I/O, and never
+reads the clock (time comes from ``context.requested_at``).  The same context and configuration always yield
 the same outcome.
 
 Adding a domain rule: implement ``ConfiguredGateType`` (a ``gate_type`` key,
@@ -48,6 +49,13 @@ SCALAR_FACT_ROOTS: frozenset[str] = frozenset(
 #: ContextRecord mappings a policy may descend into with dotted paths.
 NESTED_FACT_ROOTS: frozenset[str] = frozenset({"request_parameters", "attributes"})
 
+#: Read-only attestation fact root (v0.58.1): ``attestation.subject_id``,
+#: ``attestation.roles`` and ``attestation.claims.<key>...``.  Bound by the
+#: engine from a verified attestation; absent (MISSING) for any other basis.
+ATTESTATION_FACT_ROOT = "attestation"
+ATTESTATION_SCALAR_FIELDS: frozenset[str] = frozenset({"subject_id", "roles"})
+ATTESTATION_NESTED_FIELD = "claims"
+
 MAX_FACT_PATH_DEPTH = 8
 _SEGMENT = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
@@ -87,6 +95,17 @@ def fact_path_error(path: str) -> str | None:
         if len(segments) < 2:
             return f"fact root {root!r} requires a key, e.g. {root}.<name>"
         return None
+    if root == ATTESTATION_FACT_ROOT:
+        field_name = segments[1] if len(segments) > 1 else ""
+        if field_name in ATTESTATION_SCALAR_FIELDS:
+            if len(segments) != 2:
+                return f"fact attestation.{field_name} has no nested fields"
+            return None
+        if field_name == ATTESTATION_NESTED_FIELD:
+            if len(segments) < 3:
+                return "fact attestation.claims requires a key, e.g. attestation.claims.<name>"
+            return None
+        return "attestation facts are attestation.subject_id, attestation.roles or attestation.claims.<key>"
     return f"unknown fact root {root!r}"
 
 
@@ -96,7 +115,13 @@ def resolve_fact(context: ContextRecord, path: str) -> Any:
     root = segments[0]
     if root in SCALAR_FACT_ROOTS:
         return getattr(context, root)
-    current: Any = getattr(context, root)
+    current: Any
+    if root == ATTESTATION_FACT_ROOT:
+        current = context.attestation_facts
+        if current is None:
+            return MISSING
+    else:
+        current = getattr(context, root)
     for seg in segments[1:]:
         if not isinstance(current, dict) or seg not in current:
             return MISSING
@@ -336,6 +361,17 @@ class ScopeMembershipConfig(PathConfig):
     allowed: list[str] = Field(
         ..., min_length=1, max_length=MAX_LIST_VALUES, description="Permitted scope items"
     )
+
+
+class AttestationClaimConfig(PathConfig):
+    claim: str = Field(..., description="Claim key on the attestation, e.g. apps")
+
+    @field_validator("claim")
+    @classmethod
+    def _valid_claim(cls, value: str) -> str:
+        if not _SEGMENT.match(value):
+            raise ValueError("claim must match [A-Za-z0-9_-]{1,64}")
+        return value
 
 
 class TimeWindowConfig(_Config):
@@ -586,6 +622,58 @@ class TimeWindowGate:
         return _result(passed, path, at, True, condition, detail)
 
 
+class AttestationClaimGate:
+    """Passes when the request fact is one of the values in ``attestation.claims[claim]``.
+
+    Fails when the request has no attestation basis, the claim is absent or
+    not a list, or the fact is missing.  Membership is type-strict.
+    """
+
+    gate_type = "attestation_claim.v1"
+    config_model: type[BaseModel] = AttestationClaimConfig
+
+    def evaluate(
+        self, context: ContextRecord, config: AttestationClaimConfig, *, disclose_input: bool
+    ) -> ConfiguredGateOutcome:
+        condition = {"claim": config.claim}
+        facts = context.attestation_facts
+        value = resolve_fact(context, config.path)
+        if facts is None:
+            return ConfiguredGateOutcome(
+                passed=False,
+                outcome="missing_context",
+                detail="request has no attestation basis",
+                inputs=fact_inputs(config.path, value, disclose_input),
+                condition=condition,
+            )
+        claims = facts.get(ATTESTATION_NESTED_FIELD) or {}
+        allowed = claims.get(config.claim, MISSING) if isinstance(claims, dict) else MISSING
+        if allowed is MISSING:
+            return ConfiguredGateOutcome(
+                passed=False,
+                outcome="missing_context",
+                detail=f"attestation has no {config.claim!r} claim",
+                inputs=fact_inputs(config.path, value, disclose_input),
+                condition=condition,
+            )
+        if not isinstance(allowed, list) or not all(_is_scalar(v) for v in allowed):
+            return ConfiguredGateOutcome(
+                passed=False,
+                outcome="invalid_context",
+                detail=f"attestation claim {config.claim!r} is not a list of scalars",
+                inputs=fact_inputs(config.path, value, disclose_input),
+                condition=condition,
+            )
+        if value is MISSING or value is None:
+            return _missing(config.path, value, disclose_input, condition)
+        if not _is_scalar(value):
+            return _wrong_type(config.path, value, disclose_input, condition, "scalar")
+        passed = any(scalar_equals(value, a) for a in allowed)
+        verdict = "is" if passed else "is not"
+        detail = f"{_shown(config.path, value, disclose_input)} {verdict} in attestation claim {config.claim!r}"
+        return _result(passed, config.path, value, disclose_input, condition, detail)
+
+
 BUILTIN_GATE_TYPES: tuple[ConfiguredGateType, ...] = (
     RequiredParameterGate(),
     MaxValueGate(),
@@ -595,4 +683,5 @@ BUILTIN_GATE_TYPES: tuple[ConfiguredGateType, ...] = (
     BooleanRequiredGate(),
     ScopeMembershipGate(),
     TimeWindowGate(),
+    AttestationClaimGate(),
 )

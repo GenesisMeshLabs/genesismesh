@@ -10,5 +10,6 @@ relationship-agreement
 delegation-chain
 relationship-context
 declarative-boundary-policy
+attestation-backed-evaluation
 trust-evidence
 ```
