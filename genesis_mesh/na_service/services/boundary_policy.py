@@ -8,6 +8,8 @@ The service owns the invariants that must not depend on the HTTP layer:
 - publishing never activates; activation re-verifies the stored version
 - the active set is re-verified on every evaluation
 - evaluation failures yield signed DENY decisions, never an HTTP 500 or ALLOW
+- an attestation basis (v0.58.1) is loaded from the NA's own store, verified
+  against the NA key and checked against local and imported revocation
 """
 
 from __future__ import annotations
@@ -26,9 +28,11 @@ from ...models.boundary_policy import BoundaryPolicy, GateSpec, PolicySelector
 from ...models.context import BoundaryDecision, ContextRecord
 from ...models.justification import JustificationProof
 from ...trust.context import (
+    AttestationBasis,
     BoundaryEngine,
     GateRegistry,
     PolicyValidationResult,
+    assess_attestation_basis,
     check_active_policy,
     sign_boundary_policy,
     validate_boundary_policy,
@@ -297,6 +301,78 @@ class BoundaryPolicyService:
         return engine.evaluate_with_policies(
             context,
             agreement,
+            self._na.na_private_key,
+            issued_by=self._na.key_id,
+            policies=loaded.policies,
+            registry=self.registry,
+            policy_public_keys=self.policy_public_keys(),
+            policy_integrity_failures=loaded.integrity_failures,
+            now=datetime.now(timezone.utc),
+        )
+
+    # -- attestation basis (v0.58.1) -----------------------------------------
+
+    def assess_attestation(self, attestation_id: str, requester_id: str | None) -> tuple[AttestationBasis, str]:
+        """Load and check an attestation; return the basis and the requester id used.
+
+        The requester defaults to the attestation subject when not supplied.
+        """
+        row = self._na.db.get_membership_attestation(attestation_id)
+        attestation = row["attestation"] if row else None
+        feed_revoked = False
+        seq = 0
+        if attestation is not None:
+            issuer = attestation.issuer_sovereign_id
+            feed_revoked = attestation_id in self._na.db.get_imported_revoked_attestation_ids(issuer)
+            seq = self._na.db.get_latest_sovereign_revocation_sequence(issuer) or 0
+        requester = requester_id or (attestation.subject_id if attestation is not None else "unknown")
+        basis = assess_attestation_basis(
+            attestation_id,
+            attestation,
+            issuer_public_keys=self.policy_public_keys(),
+            stored_status=row["status"] if row else None,
+            feed_revoked=feed_revoked,
+            revocation_seq_checked=seq,
+            requester_id=requester,
+        )
+        return basis, requester
+
+    def build_attestation_context(
+        self, data: dict[str, Any], attestation_id: str, requester_id: str
+    ) -> ContextRecord:
+        """Build the ContextRecord for an attestation-basis evaluate request.
+
+        ``parent_kind`` is always ``"attestation"``; a caller cannot choose it.
+        """
+        ctx = data.get("context") or {}
+        if not isinstance(ctx, dict):
+            raise BadRequestError("context must be an object", code="invalid_context")
+        try:
+            return ContextRecord(
+                context_id=ctx.get("context_id") or str(uuid.uuid4()),
+                agreement_id=attestation_id,
+                attestation_id=attestation_id,
+                parent_kind="attestation",
+                requester_sovereign_id=requester_id,
+                provider_sovereign_id=ctx.get("provider_sovereign_id") or self._na.genesis_block.network_name,
+                requested_capability=data["requested_capability"],
+                request_parameters=ctx.get("request_parameters") or {},
+                attributes=ctx.get("attributes") or {},
+                requested_at=datetime.now(timezone.utc),
+                context_freshness_seq=ctx.get("context_freshness_seq") or 0,
+            )
+        except (ValidationError, TypeError) as exc:
+            raise BadRequestError("Invalid context record", code="invalid_context") from exc
+
+    def evaluate_attestation(
+        self, context: ContextRecord, basis: AttestationBasis
+    ) -> tuple[BoundaryDecision, JustificationProof]:
+        """Evaluate a context under an attestation basis and the active policy set."""
+        loaded = self._na.db.load_active_boundary_policies()
+        engine = BoundaryEngine(operator_sovereign_id=self._na.genesis_block.network_name)
+        return engine.evaluate_attestation_with_policies(
+            context,
+            basis,
             self._na.na_private_key,
             issued_by=self._na.key_id,
             policies=loaded.policies,

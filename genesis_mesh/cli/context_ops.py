@@ -88,9 +88,13 @@ def _parse_public_key(value: str) -> str:
 
 @context.command("request")
 @click.option(
-    "--agreement", "agreement_path", required=True,
+    "--agreement", "agreement_path", default=None,
     type=click.Path(exists=True, dir_okay=False),
     help="AgreementRecord JSON this context is under.",
+)
+@click.option(
+    "--attestation", "attestation_id", default=None,
+    help="MembershipAttestation id this context is under (instead of --agreement).",
 )
 @click.option(
     "--capability", required=True,
@@ -118,7 +122,8 @@ def _parse_public_key(value: str) -> str:
     help="Output path for the ContextRecord JSON.",
 )
 def context_request(
-    agreement_path: str,
+    agreement_path: str | None,
+    attestation_id: str | None,
     capability: str,
     requester: str,
     provider: str,
@@ -140,16 +145,31 @@ def context_request(
             --requester aspayr --provider bank-a \\
             --freshness-seq 12 \\
             --output context.json
+
+    With --attestation the context is evaluated under a MembershipAttestation
+    the Network Authority issued (POST /admin/boundary/evaluate with
+    attestation_id); the requester must be the attestation subject.
     """
-    agreement = _load_agreement(agreement_path)
+    if (agreement_path is None) == (attestation_id is None):
+        raise click.UsageError("Provide exactly one of --agreement or --attestation.")
 
     try:
         params = json.loads(params_json)
     except json.JSONDecodeError as exc:
         raise click.ClickException(f"Invalid --params JSON: {exc}") from exc
 
+    if attestation_id is not None:
+        basis: dict[str, Any] = {
+            "agreement_id": attestation_id,
+            "attestation_id": attestation_id,
+            "parent_kind": "attestation",
+        }
+    else:
+        assert agreement_path is not None
+        basis = {"agreement_id": _load_agreement(agreement_path).agreement_id}
+
     record = ContextRecord(
-        agreement_id=agreement.agreement_id,
+        **basis,
         requester_sovereign_id=requester,
         provider_sovereign_id=provider,
         requested_capability=capability,
@@ -160,7 +180,10 @@ def context_request(
 
     out = _write_json(record, output)
     click.echo(f"Context   : {record.context_id}")
-    click.echo(f"Agreement : {record.agreement_id}")
+    if record.attestation_id is not None:
+        click.echo(f"Attestation: {record.attestation_id}")
+    else:
+        click.echo(f"Agreement : {record.agreement_id}")
     click.echo(f"Capability: {record.requested_capability}")
     click.echo(f"Requester : {record.requester_sovereign_id}")
     click.echo(f"Provider  : {record.provider_sovereign_id}")

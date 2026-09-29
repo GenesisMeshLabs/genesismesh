@@ -129,6 +129,16 @@ policy versions and gate outcomes that produced it, and evaluation fails
 closed. Opt-in via `/admin/boundary/evaluate`; policies never contain code.
 :::
 
+:::{grid-item-card} Attestation-Backed Evaluation
+:link: attestation-backed-evaluation
+:link-type: doc
+
+Evaluate a request against a membership attestation instead of an agreement.
+The signed decision binds the attestation's digest, and revoking it (locally or
+by an imported revocation feed) denies every later request. Opt-in via
+`attestation_id` on `/admin/boundary/evaluate`; this is not identity proofing.
+:::
+
 :::{grid-item-card} Execution Evidence Chain
 :link: execution-evidence-chain
 :link-type: doc

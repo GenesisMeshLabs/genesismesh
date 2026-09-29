@@ -3,7 +3,7 @@
 from .agreement import AgreementRecord, AgreementTerms, CapabilityCounter, CapabilityOffer
 from .certificates import JoinCertificate, ServiceManifest
 from .consensus import ConsensusProof, ValidatorVote
-from .context import ContextRecord
+from .context import AttestationBinding, ContextRecord
 from .data_usage import DataAccessIntent, DataLicensePolicy, DataSourceDescriptor, DataUsageViolation
 from .discovery import AgentDescriptor, AgentEndpoint
 from .enrollment import InviteToken
@@ -75,6 +75,7 @@ __all__ = [
     "CapabilityMembershipProof",
     "CapabilityNullifier",
     "ContextRecord",
+    "AttestationBinding",
     "ConsensusProof",
     "DataAccessIntent",
     "DataLicensePolicy",

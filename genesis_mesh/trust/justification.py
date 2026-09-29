@@ -23,6 +23,7 @@ JustificationProofVerificationReason = Literal[
     "invalid_signature",
     "decision_id_mismatch",
     "trace_entry_count_mismatch",
+    "trace_gate_mismatch",
     "short_circuit_inconsistent",
 ]
 
@@ -113,7 +114,13 @@ def verify_justification_proof(
 
     Verification order:
       missing_signature → invalid_signature → decision_id_mismatch →
-      trace_entry_count_mismatch → short_circuit_inconsistent → valid
+      trace_entry_count_mismatch → trace_gate_mismatch →
+      short_circuit_inconsistent → valid
+
+    With a decision, every trace entry must name the same gate, with the same
+    outcome, as the decision's gate result at that position (v0.58.1), so a
+    proof cannot describe gates -- including attestation gates -- other than
+    those that produced the decision.
 
     Args:
         proof: The JustificationProof to verify.
@@ -149,6 +156,10 @@ def verify_justification_proof(
 
         if len(proof.trace.entries) != len(decision.gate_results):
             return _reject("trace_entry_count_mismatch")
+
+        for entry, gate in zip(proof.trace.entries, decision.gate_results):
+            if entry.gate_name != gate.gate_name or entry.result != gate.passed:
+                return _reject("trace_gate_mismatch")
 
         # short_circuit_inconsistent: if decision is unauthorized but trace says
         # short_circuited_at is None (or vice versa)

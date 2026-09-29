@@ -169,6 +169,12 @@ These symbols are shipped and in active use but may evolve in minor versions.
 | `GateRegistry`, `ConfiguredGateType`, `ConfiguredGateOutcome` | `genesis_mesh.trust.context` | v0.58.0; gate extension protocol |
 | `validate_boundary_policy`, `sign_boundary_policy`, `verify_boundary_policy`, `resolve_policies` | `genesis_mesh.trust.context` | v0.58.0 |
 | `genesis-mesh trust boundary-policy` | CLI | v0.58.0; `validate`, `verify`, `explain`, `gate-types` |
+| `BoundaryEngine.evaluate_attestation_with_policies(...)` | `genesis_mesh.trust.context` | v0.58.1; attestation-bound decisions |
+| `AttestationBinding`, `ContextRecord.attestation_id`, `BoundaryDecision.attestation_binding` | `genesis_mesh.models` | v0.58.1; binding embedded in signed `BoundaryDecision` |
+| `AttestationBasis`, `assess_attestation_basis` | `genesis_mesh.trust.context` | v0.58.1 |
+| `verify_boundary_decision(..., expected_attestation=...)` | `genesis_mesh.trust.context` | v0.58.1 |
+| `attestation_claim.v1` gate type; `attestation.*` fact paths | `genesis_mesh.trust.context` | v0.58.1 |
+| `genesis-mesh trust context request --attestation` | CLI | v0.58.1 |
 
 ---
 

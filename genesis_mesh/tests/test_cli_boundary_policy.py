@@ -119,7 +119,7 @@ def test_gate_types_lists_builtins():
     result = CliRunner().invoke(boundary_policy, ["gate-types", "--format", "json"])
     assert result.exit_code == 0
     types = [t["gate_type"] for t in json.loads(result.output)]
-    assert "max_value.v1" in types and len(types) == 8
+    assert "max_value.v1" in types and "attestation_claim.v1" in types and len(types) == 9
 
 
 def test_group_is_registered_under_trust():

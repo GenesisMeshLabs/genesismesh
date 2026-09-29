@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -69,7 +70,12 @@ class MembershipAttestation(BaseModel):
     issued_by: str = Field(..., description="Issuer signing key identifier")
     claims: dict = Field(
         default_factory=dict,
-        description="Optional scoped claims carried by the attestation",
+        description=(
+            "Optional scoped claims carried by the attestation.  Conventional "
+            "keys read by attestation-backed boundary evaluation (v0.58.1): "
+            "``capabilities`` (list of capability ids the subject may invoke) and "
+            "``apps`` (list of application ids, checked by attestation_claim.v1)."
+        ),
     )
     signatures: list[Signature] = Field(
         default_factory=list,
@@ -89,6 +95,10 @@ class MembershipAttestation(BaseModel):
         """Return canonical JSON used for signing and verification."""
         data = self.model_dump(exclude={"signatures"}, mode="json")
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+    def digest(self) -> str:
+        """SHA-256 hex digest of the canonical signed body (signatures excluded)."""
+        return hashlib.sha256(self.to_canonical_json().encode("utf-8")).hexdigest()
 
     def is_valid(self, current_time: datetime | None = None) -> bool:
         """Return whether the attestation is active and within its time window."""

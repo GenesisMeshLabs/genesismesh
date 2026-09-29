@@ -4,6 +4,11 @@ All symbols previously importable from ``genesis_mesh.trust.context``
 remain importable unchanged.
 """
 
+from .attestation_basis import (
+    AttestationBasis,
+    AttestationFailure,
+    assess_attestation_basis,
+)
 from .decisions import (
     BoundaryDecisionVerificationReason,
     BoundaryDecisionVerificationResult,
@@ -69,4 +74,8 @@ __all__ = [
     "sign_boundary_policy",
     "validate_boundary_policy",
     "verify_boundary_policy",
+    # attestation-backed evaluation (v0.58.1)
+    "AttestationBasis",
+    "AttestationFailure",
+    "assess_attestation_basis",
 ]
