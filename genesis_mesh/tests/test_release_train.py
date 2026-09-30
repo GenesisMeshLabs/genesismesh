@@ -58,3 +58,29 @@ def test_main_fails_with_guidance(capsys: pytest.CaptureFixture[str]) -> None:
 def test_malformed_version_is_rejected() -> None:
     with pytest.raises(SystemExit, match="not a release version"):
         train.parse("0.58")
+
+
+def test_token_is_sent_as_a_header_not_in_the_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, "abc\trefs/tags/v0.59.0", "")
+
+    monkeypatch.setenv("RELEASE_TRAIN_TOKEN", "secret-token")
+    monkeypatch.setattr(train.subprocess, "run", fake_run)
+    assert train.released_versions("sdk-go") == [(0, 59, 0)]
+    joined = " ".join(seen["cmd"])
+    assert "secret-token" not in joined
+    assert "extraheader=Authorization: Basic" in joined
+    assert seen["cmd"][-1] == "https://github.com/GenesisMeshLabs/sdk-go.git"
+
+
+def test_private_repository_error_explains_the_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RELEASE_TRAIN_TOKEN", raising=False)
+    monkeypatch.setattr(
+        train.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 128, "", "fatal: could not read Username"),
+    )
+    with pytest.raises(SystemExit, match="RELEASE_TRAIN_TOKEN"):
+        train.released_versions("sdk-go")

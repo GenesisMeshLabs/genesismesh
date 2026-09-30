@@ -351,6 +351,58 @@ Verify a signed `BoundaryPolicy`. Unauthenticated.
 
 ---
 
+## Evidence store (v0.59)
+
+Opt-in (`EVIDENCE_STORE=on`, `--evidence-store on`). When off, every route
+below returns `404 evidence_store_disabled` and nothing is stored. When on,
+`/admin/boundary/evaluate` and `/admin/boundary/decide` store each signed
+decision with its context (and justification proof) before responding; a
+storage failure returns `503 evidence_store_unavailable`. See
+{doc}`../examples/evidence-store`.
+
+### `POST /evidence/execution`
+
+Submit one signed `ExecutionEvidence` after acting. **Auth**: the record's
+signature, by a registered, active executor key for its
+`executor_sovereign_id`. Rate limit 120/min per IP.
+
+**Request** `{ "evidence": { "<ExecutionEvidence>": "..." } }`. Optional v0.59
+fields `resource_id`, `resource_action` (`create`, `rotate`, `revoke`, `update`,
+`delete`), `resource_sequence` and `prev_resource_digest` place the record in
+its resource's chain across decisions. `execution_parameters` and
+`outcome_detail` must hold metadata only.
+
+**Response** `201` `{ "entry": {...}, "entry_digest": "...", "status": "recorded" }`;
+an identical resubmission returns `200` with `"status": "duplicate"`.
+
+**Errors**: `422` with `evidence_malformed`, `evidence_unknown_executor`,
+`evidence_invalid_signature`, `evidence_decision_not_found`,
+`evidence_decision_denied`, `evidence_decision_mismatch`,
+`evidence_outside_decision_window`, `evidence_capability_mismatch`,
+`evidence_chain_gap`, `evidence_chain_mismatch`, `resource_chain_gap`,
+`resource_chain_mismatch` or `evidence_secret_material`; `409 evidence_conflict`
+when the position or `evidence_id` is already taken by a different record. Every
+rejection is stored (without the payload) and audited.
+
+### Operator routes
+
+All operator-signed; rate limit 30/min per IP.
+
+| Route | Purpose |
+|---|---|
+| `GET /admin/evidence` | Search by `vendor_id`, `attestation_id`, `capability`, `resource_id`, `outcome`, `entry_kind`, `decision_id`, `since`, `until`; page with `after_sequence` and `limit` (1-1000) |
+| `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result |
+| `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified |
+| `GET /admin/evidence/verify` | Verify every stored entry, chain and signature |
+| `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint |
+| `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |
+| `GET /admin/evidence/executor-keys` | Registered executor keys, including retired ones |
+| `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}` (privileged; `409 executor_key_exists`) |
+| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged) |
+| `POST /admin/evidence/retention/apply` | `{ "older_than_days": N }`: remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged) |
+
+---
+
 ## Trust evidence
 
 ### `POST /admin/trust-evidence`

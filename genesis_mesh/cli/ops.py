@@ -57,6 +57,8 @@ from .support import (
     _validate_cli_roles,
 )
 
+from .evidence_store_ops import evidence
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,6 +82,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(treaty)
     cli.add_command(trust)
     cli.add_command(atlas)
+    cli.add_command(evidence)
 
 
 
@@ -93,7 +96,14 @@ def na() -> None:
 @click.option("--host", default=None, help="Bind host.")
 @click.option("--port", default=None, type=int, help="Bind port.")
 @click.option("--db-path", default=None, help="SQLite database path.")
-def na_start(config_path: str | None, host: str | None, port: int | None, db_path: str | None) -> None:
+@click.option(
+    "--evidence-store", "evidence_store", type=click.Choice(["off", "on"]), default=None,
+    help="Keep an append-only record of decisions and execution evidence (default: off).",
+)
+def na_start(
+    config_path: str | None, host: str | None, port: int | None, db_path: str | None,
+    evidence_store: str | None,
+) -> None:
     """Start a local Network Authority server from config."""
     config = _load_cli_config(config_path, required=True)
     genesis_path = _required_config_path(config, "paths", "genesis")
@@ -120,6 +130,7 @@ def na_start(config_path: str | None, host: str | None, port: int | None, db_pat
         # F-21: a locally started NA has one operator; give it the privileged
         # tier so this path retains the access it had before tiering.
         operator_key_tiers={operator_key_id: "privileged"},
+        evidence_store=evidence_store or get_config_value(config, "na", "evidence_store", "off"),
     )
     logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
     logger.warning(

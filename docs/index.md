@@ -219,6 +219,7 @@ operations/runbooks-index
 reference/cli
 reference/network-authority-api
 reference/configuration
+reference/evidence-event-schema
 api/trust-http
 ```
 

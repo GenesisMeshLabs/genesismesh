@@ -175,6 +175,11 @@ These symbols are shipped and in active use but may evolve in minor versions.
 | `verify_boundary_decision(..., expected_attestation=...)` | `genesis_mesh.trust.context` | v0.58.1 |
 | `attestation_claim.v1` gate type; `attestation.*` fact paths | `genesis_mesh.trust.context` | v0.58.1 |
 | `genesis-mesh trust context request --attestation` | CLI | v0.58.1 |
+| `EvidenceStoreEntry`, `RetentionCheckpoint`, `EvidenceEvent` (`gm.evidence.event` v1) | `genesis_mesh.models` | v0.59.0; export model versioned per `DEPRECATION_POLICY.md` |
+| `ExecutionEvidence.resource_id`, `resource_action`, `resource_sequence`, `prev_resource_digest` | `genesis_mesh.models.execution` | v0.59.0; omitted from the canonical form when absent |
+| `validate_execution`, `verify_evidence_events`, `plan_retention`, `check_metadata_only` | `genesis_mesh.trust.evidence_store` | v0.59.0 |
+| Evidence store routes (`/evidence/execution`, `/admin/evidence/*`) | HTTP | v0.59.0; opt-in |
+| `genesis-mesh evidence verify-export`, `na start --evidence-store` | CLI | v0.59.0 |
 
 ---
 

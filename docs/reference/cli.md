@@ -79,6 +79,7 @@ Useful options:
 | `--host` | Override configured bind host. |
 | `--port` | Override configured bind port. |
 | `--db-path` | Override SQLite database path. |
+| `--evidence-store` | `on` keeps an append-only record of decisions and execution evidence (v0.59). Also read from `evidence_store` in the `[na]` config section; default `off`. |
 
 This command uses Flask's local server and is intended for development. Use the
 container entry point and Gunicorn for production-style deployments.
@@ -86,6 +87,23 @@ container entry point and Gunicorn for production-style deployments.
 If `genesis-mesh dev down` was run earlier, recreate local config first with
 `genesis-mesh init`; `dev down` removes `genesis-mesh.toml`, `.genesis-mesh/`,
 and local `.node*/` smoke-test directories.
+
+### `genesis-mesh evidence verify-export`
+
+> **v0.59**: Evidence Store
+
+Verify an evidence export offline: envelopes, the store hash chain, NA and
+executor signatures, per-decision and per-resource chains.
+
+```bash
+genesis-mesh evidence verify-export \
+    --file export.jsonl \
+    --na-public-key <base64> \
+    --executor-keys executor-keys.json
+```
+
+`--executor-keys` takes the response of `GET /admin/evidence/executor-keys`.
+Exit code 0 when verified; 1 on any failure.
 
 ### `genesis-mesh admin invite`
 

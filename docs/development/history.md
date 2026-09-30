@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.58.1:
+As of v0.59.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -185,6 +185,10 @@ As of v0.58.1:
   evaluated under, so revoking the attestation locally or through an imported
   feed denies every later request, with
   {doc}`../examples/attestation-backed-evaluation`.
+- The Network Authority can be the durable audit record: with the evidence
+  store on, it keeps every decision it signs and the signed execution evidence
+  controllers submit, in an append-only hash chain with one verifiable history
+  per secret, with {doc}`../examples/evidence-store`.
 
 ### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
@@ -514,6 +518,42 @@ revocation for every system that evaluates through the NA. 33 new tests
 (1,543 in total including integration) cover allow and deny paths, local and
 feed revocation, expiry, tampering, basis validation, `required` enforcement,
 offline verification and the CLI.
+
+
+### v0.59.0 — Evidence Store in the Network Authority
+
+**Question this release answered:** Can the full history of a vendor or a
+secret, from decision to execution, be shown and verified from the Network
+Authority alone?
+
+**Why the previous state was insufficient:** the NA signed decisions but did
+not keep them, and it never saw what controllers did with them. Execution
+evidence was a signed chain per decision, stored wherever the controller put
+it, so an audit depended on the controller's storage, and nothing linked the
+creation, rotation and revocation of one secret across decisions.
+
+**What changed:**
+
+- An opt-in evidence store keeps every signed decision with its context and
+  justification proof, and accepts signed execution evidence from controllers
+  authenticated by registered executor keys. Invalid evidence is refused with a
+  stable code, and every write and rejection is audited.
+- `ExecutionEvidence` gains optional resource fields that chain one secret's
+  records across decisions; they are omitted from the canonical form when
+  absent, so existing records keep their bytes.
+- The store is append-only in the database itself: triggers refuse edits and
+  uncovered deletes, unique indexes protect every chain position, and every
+  entry links to the digest of the one before it. Retention removes only a
+  prefix, behind a signed checkpoint the remaining history verifies from.
+- Search, verified per-secret and per-vendor histories, and an export in the
+  stable, versioned `gm.evidence.event` model; SIEM-specific formats are left
+  to adapters outside GM core.
+
+**What became possible:** authorization and its consequences are audited in
+one place. 26 new tests (1,569 in total including integration) cover every
+rejection code, chain gaps and forks, append-only enforcement, tamper
+detection, retention, export verification and the full vendor-to-secret
+history across an NA restart.
 
 ---
 

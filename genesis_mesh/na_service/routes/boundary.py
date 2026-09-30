@@ -118,6 +118,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 code="boundary_eval_failed",
             ) from exc
 
+        service.evidence_store_service.record_decision(decision, context)
         service.db.add_audit_event("boundary_decision_made", {
             "decision_id": decision.decision_id,
             "context_id": context.context_id,

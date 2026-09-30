@@ -53,6 +53,7 @@ def create_health_blueprint(service) -> Blueprint:
                 "version": service.genesis_block.network_version,
                 "boundary_policies": "healthy" if policy_health.healthy else "unhealthy",
                 "boundary_policy_enforcement": service.boundary_policy_enforcement,
+                "evidence_store": service.evidence_store,
             }
         )
 

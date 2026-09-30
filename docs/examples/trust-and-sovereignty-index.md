@@ -148,6 +148,15 @@ linked by prev_evidence_digest. Any insertion, deletion, reorder, or tampering
 breaks the chain and is immediately detectable.
 :::
 
+:::{grid-item-card} Evidence Store
+:link: evidence-store
+:link-type: doc
+
+The Network Authority keeps an append-only record of every decision and of the
+signed execution evidence controllers submit, with one verifiable chain per
+secret. Opt-in (`EVIDENCE_STORE=on`); metadata only, never secret values.
+:::
+
 :::{grid-item-card} Freshness Proofs
 :link: freshness-proofs
 :link-type: doc

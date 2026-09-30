@@ -11,6 +11,14 @@ Signing invariant
 ``ExecutionEvidence.to_canonical_json()`` excludes ``signature`` only.
 ``prev_evidence_digest`` IS included — the chain integrity depends on it being
 signed by the executor.
+
+Resource chains (v0.59)
+-----------------------
+A record may also name the resource it acted on (``resource_id``, e.g. a
+secret) and link to the previous record for that resource across decisions
+(``resource_sequence``, ``prev_resource_digest``).  These fields are omitted
+from the canonical form when absent, so records created before v0.59 keep
+byte-identical canonical forms and signatures.
 """
 
 from __future__ import annotations
@@ -20,11 +28,22 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from .genesis import Signature
+
+
+ResourceAction = Literal["create", "rotate", "revoke", "update", "delete"]
+
+#: Optional resource-chain fields, omitted from the canonical form when None.
+RESOURCE_CHAIN_FIELDS: tuple[str, ...] = (
+    "resource_id",
+    "resource_action",
+    "resource_sequence",
+    "prev_resource_digest",
+)
 
 
 class ExecutionEvidence(BaseModel):
@@ -84,6 +103,25 @@ class ExecutionEvidence(BaseModel):
         default=None,
         description="SHA-256 hex of prior record's canonical JSON (None if first)",
     )
+    resource_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        description="Stable identifier of the resource acted on (never a value), v0.59",
+    )
+    resource_action: ResourceAction | None = Field(
+        default=None,
+        description="create, rotate, revoke, update or delete (v0.59)",
+    )
+    resource_sequence: int | None = Field(
+        default=None,
+        ge=1,
+        description="1-based position in the resource's history across decisions (v0.59)",
+    )
+    prev_resource_digest: str | None = Field(
+        default=None,
+        description="digest() of the previous record for the same resource (v0.59)",
+    )
     signature: Signature | None = Field(
         default=None,
         description="Ed25519 signature by the executor over canonical evidence body",
@@ -93,10 +131,12 @@ class ExecutionEvidence(BaseModel):
         """Return deterministic JSON the executor signs.
 
         Excludes ``signature`` only.  ``prev_evidence_digest`` IS included —
-        the chain integrity depends on it being signed.  Sorted keys, compact
-        separators.
+        the chain integrity depends on it being signed.  The v0.59 resource
+        fields are omitted when None, so older records keep identical bytes.
+        Sorted keys, compact separators.
         """
-        data = self.model_dump(exclude={"signature"}, mode="json")
+        exclude = {"signature"} | {f for f in RESOURCE_CHAIN_FIELDS if getattr(self, f) is None}
+        data = self.model_dump(exclude=exclude, mode="json")
         return json.dumps(data, sort_keys=True, separators=(",", ":"))
 
     def digest(self) -> str:
