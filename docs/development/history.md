@@ -467,7 +467,7 @@ them, so an auditor could not tell which version of which rule had applied.
 the engine, resolver, routes, signing, proofs or audit handling. 136 new tests
 (1,483 in total including integration) cover every gate type, each
 fail-closed path, restart persistence and offline verification. This sets the
-decision format that the cross-language verifiers in v0.59 must check.
+decision format that the cross-language verifiers in v0.61 must check.
 
 ### v0.58.1 — Attestation-Backed Boundary Evaluation
 
