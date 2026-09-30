@@ -1,249 +1,268 @@
-# v0.59.0 Plan -- Optional High Availability for the Network Authority
+# v0.59.0 Plan -- Evidence Store in the Network Authority
 
 ## Context
 
-The Network Authority runs as one process tree on one host, on one SQLite
-file. That is right for simple deployments and stays the default, but an
-organisation that depends on the NA for every boundary decision, revocation
-and (since v0.58.2) evidence record needs it to survive losing an instance.
+The Network Authority signs every boundary decision, but it keeps no record of
+them beyond an audit event, and it never sees what was actually done. Execution
+evidence exists as a model and a CLI (`ExecutionEvidence`, a signed hash chain
+per decision, `trust execution record|verify`), but the records live wherever
+the controller that acted puts them. An audit therefore depends on the
+controller's own storage.
 
-The current code assumes a single host:
-
-- every store mixin (`na_service/db_*.py`) uses a `sqlite3` connection directly,
-  with `?` placeholders and some SQLite-only SQL (`INSERT OR REPLACE`,
-  `PRAGMA`, `sqlite_master`, SQLite date functions, the SQLite backup API);
-- the rate limiter (`na_service/rate_limit.py`) is in-process memory, so even
-  today's four gunicorn workers each enforce their own limit;
-- the signing key is read from a local file (`NA_PRIVATE_KEY_FILE`);
-- some "exactly once" operations are checked in the application, not the
-  database: node-request nonces are checked (`has_nonce`) and then inserted
-  (`add_nonce`), so two concurrent requests both pass the check and one fails
-  with a database error instead of a clean replay rejection; the next CRL
-  sequence is computed as `current.sequence + 1`.
-
-This is a minor release: it changes the storage layer and deployment model,
-while leaving the default deployment exactly as it is.
+v0.59.0 makes the NA the durable record: it stores every decision it signs, and
+accepts signed execution evidence from controllers after they act (for example
+creating, rotating or revoking a secret), links it to the decision, and keeps
+one verifiable history per secret. It is opt-in and changes nothing for
+existing deployments.
 
 v0.59.0 should prove:
 
-> With two or more NA instances sharing a SQL database behind a load balancer,
-> one instance can be stopped and decisions, revocations and evidence keep
-> working through the others, with no data loss or duplicates.
+> The full history for one vendor or one secret, from decision to execution,
+> can be shown and verified from the Network Authority alone.
 
 ## Scope
 
 ### In scope
-- A storage backend interface with two implementations: SQLite (default,
-  unchanged) and PostgreSQL (Azure Database for PostgreSQL as the reference)
-- Portable SQL across all store mixins and migrations
-- Database-enforced "exactly once" semantics for policy activation, CRL and
-  revocation sequences, evidence chains and nonces
-- Shared rate limiting and a lease mechanism for single-runner jobs
-- A signing-key provider interface: local file (default), Azure Key Vault
-- Readiness that reflects database and key health, for load-balancer probes
-- A migration tool from SQLite to PostgreSQL with verification
-- Backup, restore and disaster-recovery documentation for the SQL option
-- A two-instance HA test in CI
+- Automatic storage of every signed decision (and its justification proof when
+  one is produced), with the context it was made for
+- A route for controllers to submit signed `ExecutionEvidence`, validated and
+  linked to its decision
+- A per-resource (per-secret) evidence chain across decisions
+- Append-only storage enforced by the database, with a store-wide hash chain
+- Search, per-resource history with verification, and JSON Lines export
+- Retention: keep everything by default; optional removal that keeps the rest
+  verifiable
+- A metadata-only guard against secret values
+- `evidence_store` setting, off by default
+- Portable SQL and database-enforced invariants so v0.60.0 can run it on the
+  SQL database option unchanged
 
 ### Out of scope
-- Multi-region active-active and cross-region write replication
-- Replicating SQLite (for example Litestream) as an HA mode
-- Automatic signing-key rotation
-- Terraform for the HA reference infrastructure (documented, not automated;
-  a follow-up can add a module)
-- Running the public reference overlay (`examples/public_dashboard`) in HA
+- The SQL database backend and multi-instance operation (v0.60.0)
+- Push delivery to a SIEM (export is pull-based; see below)
+- Evidence for decisions made before the store was enabled, or by another NA
+- SDK helpers for submitting evidence (the SDKs are thin clients; a later
+  release can wrap the route)
 
 ## Design
 
-### 1. Configuration and modes
+### 1. Models
 
-| setting | default | effect |
-|---|---|---|
-| `DATABASE_URL` | unset (SQLite at the configured path) | `postgresql://…` selects PostgreSQL |
-| `NA_HA_MODE` | `off` | `on` refuses to start unless `DATABASE_URL` is PostgreSQL and the key provider is not `file` |
-| `NA_KEY_PROVIDER` | `file` | `file` or `azure-keyvault` |
+**`ExecutionEvidence`** (existing, `models/execution.py`) gains optional
+fields, each omitted from the canonical form when absent so every existing
+record keeps byte-identical bytes and signatures:
 
-With no new settings the NA behaves exactly as v0.58.2: same SQLite file,
-same migrations, same key file. `NA_HA_MODE=on` is a guard rail so a
-misconfigured "HA" deployment fails at start-up instead of silently running
-per-instance state.
-
-### 2. Storage backend
-
-- `na_service/storage/` introduces a small backend interface used by every
-  mixin: `execute`, `fetchone`, `fetchall`, `transaction()`, `backend_name`,
-  and dialect helpers (`upsert`, `now()` handled in Python, not SQL).
-- `SQLiteBackend` wraps today's connection and pragmas unchanged.
-- `PostgresBackend` uses psycopg 3 with a connection pool; the driver is an
-  optional extra (`pip install genesis-mesh[postgres]`) so SQLite users gain
-  no dependency.
-- Placeholders: mixins keep `?`; the Postgres backend translates them.
-- SQLite-only SQL is replaced with portable forms supported by both
-  (`INSERT … ON CONFLICT … DO UPDATE/NOTHING`, Python-computed timestamps,
-  catalogue queries behind a backend method). The operator console queries
-  (`dashboard.py`, `atlas.py`, `connectome.py`) move behind the same interface.
-- Migrations stay numbered and shared; the rare statement that differs
-  (triggers, partial-index syntax if needed) lives in a per-dialect file with
-  the same number. The migration runner takes a database lock
-  (`pg_advisory_lock` / SQLite's single writer) so two instances starting
-  together cannot apply a migration twice.
-- `backup()` remains SQLite-only; PostgreSQL backups are the managed
-  service's job (section 8).
-
-### 3. Exactly-once operations
-
-Each rule is enforced by the database, so it holds for any number of
-instances and workers, on both backends:
-
-| operation | mechanism |
+| field | purpose |
 |---|---|
-| Boundary policy activation | existing partial unique index (one active version per policy), inside a transaction |
-| CRL sequence | `UNIQUE(sequence)` on CRL rows; allocate inside the write transaction; on conflict re-read and retry (bounded) |
-| Sovereign revocation feed import | existing stale-sequence check moved into the transaction plus `UNIQUE(issuer, sequence)` |
-| Evidence chains (v0.58.2) | `UNIQUE(decision_id, sequence_no)`, `UNIQUE(resource_id, resource_sequence)`, `UNIQUE(store_sequence)` |
-| Node and admin nonces | single atomic claim: insert, and treat a unique-violation as replay (removes the check-then-insert race, which also affects today's multi-worker SQLite deployment) |
-| Invite tokens, enrolment | consumed with a conditional update (`… WHERE used = 0`) checking the row count |
+| `resource_id` | Stable identifier of the resource acted on, e.g. `kv:vendor-acme/api-key`. Never a value. |
+| `resource_action` | `create`, `rotate`, `revoke`, `update` or `delete` |
+| `resource_sequence` | 1-based position in that resource's history |
+| `prev_resource_digest` | `digest()` of the previous record for the same resource (None for the first) |
 
-A concurrency test suite runs each operation from parallel workers against
-both backends and asserts exactly one success.
+The existing per-decision fields (`sequence_no`, `prev_evidence_digest`) keep
+their meaning. A record with `resource_id` belongs to both chains.
 
-### 4. Shared runtime state
+**`EvidenceStoreEntry`** (new, NA-side, `models/evidence_store.py`): the
+envelope for every stored item.
 
-- **Rate limiting**: `RateLimiter` gets a database-backed implementation
-  (fixed windows per key, one upsert per request, expired windows pruned
-  opportunistically). In-memory remains the SQLite default; HA mode requires
-  the shared one. This also makes limits correct across gunicorn workers.
-- **Single-runner jobs**: the NA has no in-process background jobs today
-  (timers are systemd units). Any job that must run once (evidence retention,
-  future CRL refresh) takes a lease row (`job_leases`: name, holder,
-  expires_at) with an atomic claim; on PostgreSQL, `pg_try_advisory_lock`.
-- Nothing that affects a trust decision is cached per instance. Caches that
-  exist (for example parsed genesis block) are read-only configuration.
+- `store_sequence` (store-wide, gap-free), `entry_kind`
+  (`decision`, `justification`, `execution`, `retention_checkpoint`),
+  `payload_digest`, `prev_entry_digest`, `recorded_at`
+- index fields copied from the payload for search: `decision_id`,
+  `context_id`, `vendor_id` (requester, or the attestation subject),
+  `attestation_id`, `capability`, `outcome`, `resource_id`
+- `entry_digest` = SHA-256 over the canonical envelope, so the store forms one
+  hash chain that detects edits, deletions and reordering
 
-### 5. One signing key
+**`RetentionCheckpoint`** (new, signed by the NA): records what a retention run
+removed (`removed_through_sequence`, `last_removed_entry_digest`, counts, and
+for every affected resource the digest and sequence of its last removed
+record) so the remaining chains verify from the checkpoint onward.
 
-- `KeyProvider` interface: `file` (today's behaviour) and `azure-keyvault`,
-  which reads the Ed25519 seed from a Key Vault **secret** with the
-  instance's managed identity at start-up and holds it in memory only.
-- Azure Key Vault and Managed HSM do not, to our knowledge, offer Ed25519
-  signing keys, so non-exportable HSM signing is not available on Azure for
-  the current signature suite. The interface leaves room for a PKCS#11
-  provider for an HSM that supports Ed25519; that provider is not part of
-  v0.59.0.
-- All instances therefore sign with the same key and `key_id`; `/readyz`
-  reports the key id and fingerprint (never the key) so a mismatch across
-  instances is visible.
+### 2. Storing decisions
 
-### 6. Health and failover
+When `evidence_store="on"`, `/admin/boundary/evaluate` and
+`/admin/boundary/decide` store the signed decision, its `ContextRecord` and,
+for `evaluate`, the `JustificationProof`, in the same transaction as the audit
+event. A storage failure fails the request (HTTP 503 `evidence_store_unavailable`)
+rather than returning a decision the store does not hold. With the store off,
+behaviour is unchanged.
 
-- `/healthz`: process up. `/readyz`: database reachable and writable (a cheap
-  transaction), migrations at the expected version, key loaded, and in HA mode
-  the shared rate limiter reachable. An instance failing `/readyz` returns 503.
-- Instances are stateless, so a load balancer probe on `/readyz` removes a
-  failed instance and the others keep serving. Documented for Azure
-  Application Gateway / Load Balancer and for nginx in the reference compose
-  setup.
-- Graceful shutdown: stop accepting, finish in-flight requests, release
-  leases.
+### 3. Accepting execution evidence
 
-### 7. Migration path (SQLite to PostgreSQL)
+`POST /evidence/execution` accepts one signed `ExecutionEvidence`. It is
+authenticated by the evidence signature itself: the signing key must be a
+registered **executor key**.
 
-`genesis-mesh na migrate-db --from sqlite:///var/lib/genesis-mesh/na.db --to
-$DATABASE_URL`:
+- `POST /admin/evidence/executor-keys` (privileged operator) registers
+  `{key_id, public_key, executor_sovereign_id}`; `DELETE` retires one (retired
+  keys still verify old records, and cannot sign new ones). Both are audited.
 
-1. refuses unless the target is empty and at the current schema version;
-2. opens the source read-only and copies every table in dependency order,
-   preserving identifiers, sequences and timestamps;
-3. verifies before reporting success: row counts per table, every boundary
-   policy's signature and stored digest, CRL sequence continuity, the evidence
-   store chains (v0.58.2) and the audit event count;
-4. writes a migration report and an audit event on the target.
+Validation, in order, each failing with a stable code (HTTP 422, record not
+stored, rejection stored and audited):
 
-The runbook covers the downtime window (stop writes, back up SQLite, migrate,
-verify, switch `DATABASE_URL`, start instances) and rollback (the SQLite file
-is untouched).
+| check | code |
+|---|---|
+| signature by a registered, active executor key for `executor_sovereign_id` | `evidence_unknown_executor`, `evidence_invalid_signature` |
+| decision exists in the store | `evidence_decision_not_found` |
+| decision was authorized | `evidence_decision_denied` |
+| `decision_made_at <= executed_at <= decision_valid_until` | `evidence_outside_decision_window` |
+| `executed_capability` equals the decision's requested capability | `evidence_capability_mismatch` |
+| per-decision chain: `sequence_no` next, `prev_evidence_digest` matches | `evidence_chain_gap`, `evidence_chain_mismatch` |
+| per-resource chain: `resource_sequence` next, `prev_resource_digest` matches | `resource_chain_gap`, `resource_chain_mismatch` |
+| same `evidence_id` or same `(resource_id, resource_sequence)` already stored | `evidence_duplicate` (identical bytes) or `evidence_conflict` (different bytes) |
+| metadata only (section 6) | `evidence_secret_material` |
 
-### 8. Backup and restore
+Chain positions are enforced by unique constraints on
+`(decision_id, sequence_no)` and `(resource_id, resource_sequence)`, not only by
+application checks, so two concurrent submissions for the same position cannot
+both succeed (this is what v0.60.0 relies on).
 
-Documented in `docs/operations/high-availability.md`:
+### 4. Append-only
 
-- Azure Database for PostgreSQL Flexible Server with zone-redundant HA,
-  automated backups and point-in-time restore; geo-redundant backup for
-  disaster recovery; target RPO and RTO stated and tested.
-- A restore drill: restore to a new server, run `genesis-mesh na verify-db`
-  (the same checks as the migration tool), switch instances over.
-- The signing key's Key Vault secret is covered by Key Vault soft delete and
-  purge protection; the runbook includes recovering it.
+- No update or delete code path exists for evidence tables.
+- Database triggers abort `UPDATE` on every evidence table and abort `DELETE`
+  unless a retention checkpoint covers the row (section 7). The triggers are
+  written for both SQLite and PostgreSQL.
+- Every accepted write and every rejection is an audit event
+  (`evidence_recorded`, `evidence_rejected` with its code,
+  `decision_stored`, `executor_key_registered`, `executor_key_retired`,
+  `evidence_retention_applied`).
+
+### 5. Search, history and export
+
+- `GET /admin/evidence` filters by `vendor_id`, `attestation_id`,
+  `capability`, `resource_id`, `outcome`, `entry_kind`, and a time range;
+  paginated by `store_sequence`.
+- `GET /admin/evidence/resources/<resource_id>` returns the resource's full
+  history, decision to execution, with a verification result: signatures,
+  both chains, decision links and windows, and the store chain.
+- `GET /admin/evidence/vendors/<vendor_id>` returns the vendor's decisions and
+  the evidence under them, verified the same way.
+- `GET /admin/evidence/export?since_sequence=N` streams JSON Lines (one entry
+  per line, stable field names, including `store_sequence` and `entry_digest`)
+  for a SIEM to poll incrementally. `verify_evidence_export()` and
+  `genesis-mesh evidence verify-export` check an export offline with the NA and
+  executor public keys.
+
+### 6. No secret values
+
+The store holds metadata only. `execution_parameters` and `outcome_detail` are
+checked before storage: keys such as `value`, `secret`, `password`, `token`,
+`private_key`, `credential` and `client_secret` (case-insensitive, at any
+depth) are rejected, as are values that look like key material (PEM blocks,
+long base64 or hex strings) and payloads over 16 KiB. This is a guard, not a
+guarantee: the documented contract is that controllers send identifiers,
+versions and timestamps (`secret_version`, `vault_uri`, `rotated_at`), never
+values. Search and export never return anything the store did not accept.
+
+### 7. Retention
+
+Default: keep everything. With `evidence_retention_days` set, an operator runs
+`POST /admin/evidence/retention/apply` (or `genesis-mesh evidence retention
+apply`); nothing runs in the background, which also keeps v0.60.0 simple. A run:
+
+1. selects entries older than the cut-off, never the latest entry of any
+   resource chain or any entry of a decision still inside its window;
+2. writes a signed `RetentionCheckpoint` as a new store entry;
+3. deletes the covered rows (the trigger allows exactly those);
+4. audits the run.
+
+Verification of a resource or the store then starts from the checkpoint:
+`prev_resource_digest` of the first remaining record must equal the
+checkpoint's recorded digest for that resource.
+
+### 8. Storage and HA readiness
+
+- Migration `012_evidence_store.sql`: `evidence_entries`,
+  `execution_evidence`, `stored_decisions`, `evidence_executor_keys`,
+  `evidence_retention_checkpoints`, with the unique constraints and triggers
+  above and indexes for every search filter.
+- Portable SQL only: no `INSERT OR REPLACE`, no SQLite date functions;
+  timestamps as ISO-8601 UTC text; `store_sequence` allocated inside the write
+  transaction from `MAX(store_sequence) + 1` with a unique constraint and a
+  bounded retry, so concurrent writers cannot share a number.
+- All state is in the database; nothing is cached in process memory.
+
+### 9. Opt-in
+
+`evidence_store: "off" | "on"` (`--evidence-store`, `EVIDENCE_STORE`), default
+`off`. When off, the new routes return `404 evidence_store_disabled`, nothing
+is stored, and existing routes behave exactly as in v0.58.1. The migration
+creates empty tables either way. `/health` and the operator console report the
+setting, the store size and the last `store_sequence`.
 
 ## Security notes
 
-- The database now holds everything an attacker would need to forge state
-  except the signing key; access is restricted to the NA's managed identity
-  over TLS, with no public network access in the reference setup.
-- The signing seed is never written to disk on HA instances; it lives in Key
-  Vault and process memory only.
-- HA mode refuses a `file` key provider so a deployment cannot quietly copy
-  key files between hosts.
-- Fail closed: if the database or key is unavailable, the instance reports
-  not ready and serves no decisions; it never falls back to local state.
+- The NA never signs execution evidence; controllers sign it with their own
+  registered keys. The NA signs only decisions and retention checkpoints.
+- Executor keys are registered only by privileged operators and retired, never
+  deleted, so historic signatures stay verifiable.
+- Rejections are stored with the code and the submitted evidence's digest and
+  identifiers, never the rejected payload itself, so a rejected record that
+  contained secret material is not persisted.
+- Export and search are operator-authenticated; the export contains the same
+  metadata-only records.
 
 ## Tests
 
-- The full existing suite runs twice in CI: on SQLite and on PostgreSQL
-  (service container)
-- Concurrency suite (section 3) on both backends
-- Rate limiting shared across workers and instances
-- Key provider: file and Key Vault (mocked) paths; HA mode refusals
-- Migration tool: round trip on a populated SQLite database, verification
-  failures detected (tampered policy, broken chain)
-- **HA integration** (docker compose: PostgreSQL, two NA instances, nginx):
-  decisions, revocations and evidence submitted continuously; instance A is
-  killed mid-run; traffic continues through B; afterwards every decision,
-  CRL sequence and evidence chain is present exactly once and verifies
+- Decisions and justification proofs are stored for evaluate and decide when
+  on, and not at all when off (byte-identical behaviour when off)
+- Valid evidence accepted and linked; each rejection code, including unknown
+  key, retired key, missing and denied decision, after-expiry, capability
+  mismatch, secret material
+- Resource chain: gap, duplicate (idempotent), conflicting duplicate, fork,
+  and concurrent submissions for the same position (one wins)
+- Append-only: direct `UPDATE` and uncovered `DELETE` fail at the database
+- Search by every filter; resource and vendor history verify end to end
+- Export round-trips and verifies offline; a tampered export line fails
+- Retention: checkpoint written, covered rows removed, remaining chains verify,
+  latest resource record kept, run audited
+- Existing `ExecutionEvidence` records (no resource fields) keep their bytes
+  and verify unchanged
+- Integration: one vendor with an attestation-backed decision, a secret
+  created, rotated and revoked, then the full history shown and verified from
+  the NA alone
 
 ## Documentation
 
-- `docs/operations/high-availability.md` (architecture, configuration, load
-  balancer, key provider, backup, restore, DR, migration runbook)
-- `docs/operations/deployment.md` (link from the default single-VM path)
-- `docs/api/trust-http.md` (`/readyz` fields), `docs/stability.md`,
-  CHANGELOG, history, phase-j
+- `docs/examples/evidence-store.md` (worked example: vendor, secret created,
+  rotated, revoked, history verified, export)
+- `docs/api/trust-http.md`, `docs/reference/cli.md`, `docs/stability.md`,
+  operator console surfaces, CHANGELOG, history, phase-j
 
 ## Success Criteria
 
-- [ ] With no new settings, behaviour is identical to v0.58.2 on SQLite
-- [ ] `DATABASE_URL` plus `NA_HA_MODE=on` runs the NA on PostgreSQL
-- [ ] Policies, attestations, revocation, audit and the evidence store behave
-      the same on both backends (full suite passes on both)
-- [ ] Two or more instances serve behind a load balancer with shared data
-- [ ] Policy activation, CRL and revocation sequences, evidence chains and
-      nonces are exactly-once under concurrency
-- [ ] Rate limits and single-runner jobs are shared, not per instance
-- [ ] All instances sign with one key from Key Vault
-- [ ] A failed instance is removed by its readiness probe; the others serve
-- [ ] Backup, restore and DR documented and drilled for PostgreSQL
-- [ ] SQLite to PostgreSQL migration documented and verified without loss
-- [ ] Stopping one instance keeps decisions, revocations and evidence working,
-      with no data loss or duplicates
+- [ ] Every signed decision is stored automatically when the store is on
+- [ ] Signed execution evidence is accepted and linked to its decision
+- [ ] Unknown key, missing or denied decision, expired decision and capability
+      mismatch are rejected with stable codes
+- [ ] One chain per secret; gaps, duplicates and changed records are rejected
+- [ ] Evidence cannot be updated or deleted outside a signed retention run;
+      every write and rejection is audited
+- [ ] Search by vendor, attestation, capability, time and outcome; per-secret
+      history with verification; JSON Lines export verifiable offline
+- [ ] Retention keeps the remaining history verifiable and is audited
+- [ ] No secret values are stored
+- [ ] Off by default; existing behaviour unchanged when off
+- [ ] Invariants enforced by database constraints, portable SQL only
+- [ ] The full history for one vendor or one secret is shown and verified from
+      the NA alone
 
 ## Release Gate
 
 - [ ] Version bumped to `0.59.0`
 - [ ] CHANGELOG entry
 - [ ] `docs/development/history.md` updated
-- [ ] All tests pass on both backends, plus the HA integration test
+- [ ] All tests pass
 - [ ] `python scripts/check_release_train.py` passes
 - [ ] SECURITY.md supported versions updated for the new minor line
 - [ ] Tag `v0.59.0`, push, GitHub release created
 
 ## Open questions
 
-1. **HSM signing.** Confirm whether non-exportable signing is required. If
-   so, it needs an HSM with Ed25519 (PKCS#11) or a change of signature suite,
-   either of which is larger than this release.
-2. **Database.** Azure Database for PostgreSQL is the reference. If another
-   SQL database (for example Azure SQL) is required, it needs its own backend
-   and doubles the test matrix.
-3. **Rate-limit store.** The plan uses the database to avoid new
-   infrastructure. Redis would scale further; it can be an optional backend
-   later.
+1. **Controller identity.** The plan registers executor keys at the NA. If
+   controllers should instead enrol like nodes (join certificates), the key
+   checks change but the store does not.
+2. **SIEM format.** JSON Lines is proposed. If a specific SIEM needs CEF or an
+   Elastic Common Schema mapping, it can be added as an export format.

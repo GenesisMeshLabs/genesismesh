@@ -56,9 +56,9 @@ v0.58 should prove:
 - Worked example, CLI reference, history, phase doc, stability entries
 
 ### Out of scope
-- Offline verifiers for policy-bound decisions in the Go/TS/C# SDKs (v0.60
-  prerequisite, see `ops/plan-v0.60.0.md`)
-- Conformance vectors for boundary decisions (added with the v0.60 verifiers)
+- Offline verifiers for policy-bound decisions in the Go/TS/C# SDKs (v0.61
+  prerequisite, see `ops/plan-v0.61.0.md`)
+- Conformance vectors for boundary decisions (added with the v0.61 verifiers)
 - Gates that fetch external state at evaluation time (explicitly forbidden, §6)
 - Per-policy precedence / override / "allow wins" semantics
 - Loading gate implementations from plugins, entry points or policy content
