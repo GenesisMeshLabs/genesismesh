@@ -29,7 +29,9 @@ v0.59.0 should prove:
   linked to its decision
 - A per-resource (per-secret) evidence chain across decisions
 - Append-only storage enforced by the database, with a store-wide hash chain
-- Search, per-resource history with verification, and JSON Lines export
+- Search, per-resource history with verification, and export as a stable,
+  versioned GM event model (`gm.evidence.event`, schema version 1) with a
+  published JSON Schema
 - Retention: keep everything by default; optional removal that keeps the rest
   verifiable
 - A metadata-only guard against secret values
@@ -40,6 +42,10 @@ v0.59.0 should prove:
 ### Out of scope
 - The SQL database backend and multi-instance operation (v0.60.0)
 - Push delivery to a SIEM (export is pull-based; see below)
+- SIEM-specific formats such as CEF or Elastic Common Schema. They are not
+  part of GM core; adapters outside GM map the versioned GM event model to
+  them
+- Node certificates or enrolment for controllers
 - Evidence for decisions made before the store was enabled, or by another NA
 - SDK helpers for submitting evidence (the SDKs are thin clients; a later
   release can wrap the route)
@@ -92,7 +98,8 @@ behaviour is unchanged.
 
 `POST /evidence/execution` accepts one signed `ExecutionEvidence`. It is
 authenticated by the evidence signature itself: the signing key must be a
-registered **executor key**.
+registered **executor key**. An executor identity is all a controller needs;
+normal controllers do not enrol and do not hold node certificates.
 
 - `POST /admin/evidence/executor-keys` (privileged operator) registers
   `{key_id, public_key, executor_sovereign_id}`; `DELETE` retires one (retired
@@ -139,11 +146,29 @@ both succeed (this is what v0.60.0 relies on).
   both chains, decision links and windows, and the store chain.
 - `GET /admin/evidence/vendors/<vendor_id>` returns the vendor's decisions and
   the evidence under them, verified the same way.
-- `GET /admin/evidence/export?since_sequence=N` streams JSON Lines (one entry
-  per line, stable field names, including `store_sequence` and `entry_digest`)
-  for a SIEM to poll incrementally. `verify_evidence_export()` and
-  `genesis-mesh evidence verify-export` check an export offline with the NA and
-  executor public keys.
+- `GET /admin/evidence/export?since_sequence=N` streams one event per line
+  (JSON Lines) for a SIEM pipeline to poll incrementally.
+  `verify_evidence_export()` and `genesis-mesh evidence verify-export` check
+  an export offline with the NA and executor public keys.
+
+**Event model.** Every exported line is a `gm.evidence.event`:
+
+- envelope fields: `schema` (`"gm.evidence.event"`), `schema_version` (`1`),
+  `store_sequence`, `entry_kind`, `recorded_at`, `entry_digest`,
+  `prev_entry_digest`;
+- index fields: `decision_id`, `context_id`, `vendor_id`, `attestation_id`,
+  `capability`, `outcome`, `resource_id`, `resource_action`,
+  `resource_sequence`, `executor_sovereign_id`;
+- `payload`: the signed record itself (decision, justification proof,
+  execution evidence or retention checkpoint), unchanged, so every line can be
+  verified independently of the index fields.
+
+The schema is published as `docs/schemas/gm.evidence.event.v1.json` and
+tested against every event kind. Adding optional fields keeps
+`schema_version` 1; removing or changing a field is a new version, served
+alongside the old one (`?schema_version=`) for the deprecation window in
+`DEPRECATION_POLICY.md`. CEF, ECS or any other SIEM mapping is built on this
+model outside GM core.
 
 ### 6. No secret values
 
@@ -216,6 +241,7 @@ setting, the store size and the last `store_sequence`.
 - Append-only: direct `UPDATE` and uncovered `DELETE` fail at the database
 - Search by every filter; resource and vendor history verify end to end
 - Export round-trips and verifies offline; a tampered export line fails
+- Every exported event validates against the published v1 schema
 - Retention: checkpoint written, covered rows removed, remaining chains verify,
   latest resource record kept, run audited
 - Existing `ExecutionEvidence` records (no resource fields) keep their bytes
@@ -228,6 +254,7 @@ setting, the store size and the last `store_sequence`.
 
 - `docs/examples/evidence-store.md` (worked example: vendor, secret created,
   rotated, revoked, history verified, export)
+- `docs/schemas/gm.evidence.event.v1.json` and a schema reference page
 - `docs/api/trust-http.md`, `docs/reference/cli.md`, `docs/stability.md`,
   operator console surfaces, CHANGELOG, history, phase-j
 
@@ -241,7 +268,8 @@ setting, the store size and the last `store_sequence`.
 - [ ] Evidence cannot be updated or deleted outside a signed retention run;
       every write and rejection is audited
 - [ ] Search by vendor, attestation, capability, time and outcome; per-secret
-      history with verification; JSON Lines export verifiable offline
+      history with verification; export as the versioned `gm.evidence.event`
+      model, schema published, verifiable offline
 - [ ] Retention keeps the remaining history verifiable and is audited
 - [ ] No secret values are stored
 - [ ] Off by default; existing behaviour unchanged when off
@@ -259,10 +287,10 @@ setting, the store size and the last `store_sequence`.
 - [ ] SECURITY.md supported versions updated for the new minor line
 - [ ] Tag `v0.59.0`, push, GitHub release created
 
-## Open questions
+## Decisions
 
-1. **Controller identity.** The plan registers executor keys at the NA. If
-   controllers should instead enrol like nodes (join certificates), the key
-   checks change but the store does not.
-2. **SIEM format.** JSON Lines is proposed. If a specific SIEM needs CEF or an
-   Elastic Common Schema mapping, it can be added as an export format.
+1. **Controller identity.** A registered executor identity is enough.
+   Normal controllers do not need node certificates or enrolment.
+2. **Export format.** GM produces a stable, versioned structured event model
+   (`gm.evidence.event`). CEF and ECS are not part of GM core; mappings to them
+   live outside it.
