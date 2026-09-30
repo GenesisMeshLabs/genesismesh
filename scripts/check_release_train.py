@@ -12,6 +12,8 @@ version newer than the core ``VERSION`` on ``main``.
 from __future__ import annotations
 
 import argparse
+import base64
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -29,15 +31,32 @@ def parse(version: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
 
 
+def _git_auth_args() -> list[str]:
+    """Git options that authenticate with RELEASE_TRAIN_TOKEN, if set.
+
+    Private component repositories need a read-only token. It is sent as an
+    HTTP header, never in the URL, so it cannot appear in error output.
+    """
+    token = os.environ.get("RELEASE_TRAIN_TOKEN", "").strip()
+    if not token:
+        return []
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return ["-c", "credential.helper=", "-c", f"http.https://github.com/.extraheader=Authorization: Basic {basic}"]
+
+
 def released_versions(component: str) -> list[tuple[int, int, int]]:
     """Return the release tags published by a component repository."""
     url = f"https://github.com/{ORGANIZATION}/{component}.git"
     result = subprocess.run(
-        ["git", "ls-remote", "--tags", "--refs", url],
+        ["git", *_git_auth_args(), "ls-remote", "--tags", "--refs", url],
         capture_output=True, text=True, timeout=60,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
     )
     if result.returncode:
-        raise SystemExit(f"could not list tags for {component}: {result.stderr.strip()}")
+        hint = "" if os.environ.get("RELEASE_TRAIN_TOKEN") else (
+            " (if the repository is private, set RELEASE_TRAIN_TOKEN to a read-only token)"
+        )
+        raise SystemExit(f"could not list tags for {component}{hint}")
     versions = []
     for line in result.stdout.splitlines():
         match = TAG.search(line)

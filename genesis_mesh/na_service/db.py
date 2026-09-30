@@ -11,6 +11,7 @@ from .db_audit import AuditStoreMixin
 from .db_boundary_policy import BoundaryPolicyStoreMixin
 from .db_data_usage import DataUsageStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
+from .db_evidence import EvidenceStoreMixin
 from .db_policy import PolicyStoreMixin
 from .db_trust import TrustStoreMixin
 
@@ -27,6 +28,7 @@ class NADatabase(
     TrustStoreMixin,
     AgentStoreMixin,
     DataUsageStoreMixin,
+    EvidenceStoreMixin,
 ):
     """SQLite repository facade for Network Authority state."""
 

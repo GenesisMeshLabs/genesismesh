@@ -97,6 +97,9 @@ def record_execution(
     outcome_detail: str | None = None,
     prior_record: ExecutionEvidence | None = None,
     now: datetime | None = None,
+    resource_id: str | None = None,
+    resource_action: str | None = None,
+    prior_resource_record: ExecutionEvidence | None = None,
 ) -> ExecutionEvidence:
     """Create and sign a new ExecutionEvidence record.
 
@@ -115,6 +118,11 @@ def record_execution(
         outcome_detail: Optional human-readable detail.
         prior_record: Previous ExecutionEvidence in the chain (None if first).
         now: Override for the current timestamp.
+        resource_id: Resource acted on, e.g. a secret identifier (v0.59).
+            Never a secret value.
+        resource_action: create, rotate, revoke, update or delete (v0.59).
+        prior_resource_record: Previous record for the same resource, from any
+            decision (None if this is the resource's first record).
     """
     ts = _now(now)
     prev_digest: str | None = prior_record.digest() if prior_record is not None else None
@@ -131,6 +139,15 @@ def record_execution(
         outcome=outcome,
         outcome_detail=outcome_detail,
         prev_evidence_digest=prev_digest,
+        resource_id=resource_id,
+        resource_action=resource_action,  # type: ignore[arg-type]
+        resource_sequence=(
+            ((prior_resource_record.resource_sequence or 0) + 1 if prior_resource_record else 1)
+            if resource_id is not None else None
+        ),
+        prev_resource_digest=(
+            prior_resource_record.digest() if (resource_id is not None and prior_resource_record) else None
+        ),
     )
     sig = sign_model(record, signing_key, issued_by)
     return record.model_copy(update={"signature": sig})

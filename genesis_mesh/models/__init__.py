@@ -3,6 +3,7 @@
 from .agreement import AgreementRecord, AgreementTerms, CapabilityCounter, CapabilityOffer
 from .certificates import JoinCertificate, ServiceManifest
 from .consensus import ConsensusProof, ValidatorVote
+from .evidence_store import EvidenceEvent, EvidenceStoreEntry, RetentionCheckpoint
 from .context import AttestationBinding, ContextRecord
 from .data_usage import DataAccessIntent, DataLicensePolicy, DataSourceDescriptor, DataUsageViolation
 from .discovery import AgentDescriptor, AgentEndpoint
@@ -76,6 +77,9 @@ __all__ = [
     "CapabilityNullifier",
     "ContextRecord",
     "AttestationBinding",
+    "EvidenceEvent",
+    "EvidenceStoreEntry",
+    "RetentionCheckpoint",
     "ConsensusProof",
     "DataAccessIntent",
     "DataLicensePolicy",

@@ -1,0 +1,242 @@
+{
+  "$defs": {
+    "EvidenceStoreEntry": {
+      "additionalProperties": false,
+      "description": "Envelope of one append-only evidence store entry.",
+      "properties": {
+        "attestation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attestation Id"
+        },
+        "capability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability"
+        },
+        "context_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Id"
+        },
+        "decision_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Id"
+        },
+        "entry_kind": {
+          "enum": [
+            "decision",
+            "justification",
+            "execution",
+            "retention_checkpoint"
+          ],
+          "title": "Entry Kind",
+          "type": "string"
+        },
+        "evidence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Id"
+        },
+        "exec_sequence_no": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exec Sequence No"
+        },
+        "executor_sovereign_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executor Sovereign Id"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "authorized / denied for decisions; the executor's outcome for execution",
+          "title": "Outcome"
+        },
+        "payload_digest": {
+          "description": "SHA-256 of the stored payload's canonical JSON",
+          "title": "Payload Digest",
+          "type": "string"
+        },
+        "prev_entry_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "digest() of the previous entry (None for the first)",
+          "title": "Prev Entry Digest"
+        },
+        "recorded_at": {
+          "description": "UTC time the NA stored the entry",
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "resource_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resource Action"
+        },
+        "resource_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resource Id"
+        },
+        "resource_sequence": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resource Sequence"
+        },
+        "store_sequence": {
+          "description": "Gap-free position in the store",
+          "minimum": 1,
+          "title": "Store Sequence",
+          "type": "integer"
+        },
+        "vendor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requester, or the attestation subject",
+          "title": "Vendor Id"
+        }
+      },
+      "required": [
+        "store_sequence",
+        "entry_kind",
+        "recorded_at",
+        "payload_digest"
+      ],
+      "title": "EvidenceStoreEntry",
+      "type": "object"
+    }
+  },
+  "$id": "urn:genesismesh:schema:gm.evidence.event:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Export model ``gm.evidence.event`` (schema version 1).\n\nAdding optional fields keeps version 1; removing or changing a field is a\nnew schema version (see DEPRECATION_POLICY.md).",
+  "properties": {
+    "entry": {
+      "$ref": "#/$defs/EvidenceStoreEntry"
+    },
+    "entry_digest": {
+      "title": "Entry Digest",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "description": "The stored signed record, unchanged",
+      "title": "Payload",
+      "type": "object"
+    },
+    "schema": {
+      "const": "gm.evidence.event",
+      "default": "gm.evidence.event",
+      "title": "Schema",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "entry",
+    "entry_digest",
+    "payload"
+  ],
+  "title": "EvidenceEvent",
+  "type": "object"
+}

@@ -31,7 +31,8 @@ from .auth import (
 from .db import NADatabase
 from .errors import register_error_handlers
 from .rate_limit import RateLimiter
-from .services import BoundaryPolicyService
+from .services import BoundaryPolicyService, EvidenceStoreService
+from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.boundary_policy import ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
@@ -46,6 +47,7 @@ from .routes import (
     create_discovery_blueprint,
     create_enrollment_blueprint,
     create_evidence_blueprint,
+    create_evidence_store_blueprint,
     create_health_blueprint,
     create_public_blueprint,
     create_treaty_blueprint,
@@ -82,6 +84,7 @@ class NetworkAuthorityService:
         renewal_grace_seconds: int = 900,
         gate_registry: Optional[GateRegistry] = None,
         boundary_policy_enforcement: str = "optional",
+        evidence_store: str = "off",
     ):
         """
         Initialize the Network Authority service.
@@ -105,6 +108,9 @@ class NetworkAuthorityService:
                 legacy /admin/boundary/decide route available; "required"
                 refuses it so every decision goes through the policy-aware
                 /admin/boundary/evaluate route.
+            evidence_store: "off" (default) stores nothing; "on" keeps an
+                append-only record of every decision and of the execution
+                evidence controllers submit (v0.59).
         """
         self.genesis_block = genesis_block
         self.na_private_key = na_private_key
@@ -135,6 +141,10 @@ class NetworkAuthorityService:
             raise ValueError("gate_registry must be frozen before the NA starts")
         self.gate_registry = registry
         self.boundary_policies = BoundaryPolicyService(self)
+        if evidence_store not in EVIDENCE_STORE_MODES:
+            raise ValueError(f"evidence_store must be one of {EVIDENCE_STORE_MODES}")
+        self.evidence_store = evidence_store
+        self.evidence_store_service = EvidenceStoreService(self)
 
         # F-11: verify genesis signatures before trusting the block, mirroring
         # the node-side check (node/node.py:_verify_genesis_block).
@@ -176,6 +186,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_boundary_blueprint(self))
         self.app.register_blueprint(create_boundary_policy_blueprint(self))
         self.app.register_blueprint(create_evidence_blueprint(self))
+        self.app.register_blueprint(create_evidence_store_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
         self.app.register_blueprint(create_data_usage_blueprint(self))
@@ -306,6 +317,7 @@ def create_app(
     renewal_grace_seconds: int = 900,
     gate_registry: Optional[GateRegistry] = None,
     boundary_policy_enforcement: str = "optional",
+    evidence_store: str = "off",
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -318,6 +330,7 @@ def create_app(
         renewal_grace_seconds=renewal_grace_seconds,
         gate_registry=gate_registry,
         boundary_policy_enforcement=boundary_policy_enforcement,
+        evidence_store=evidence_store,
     )
     return service.app
 
@@ -349,6 +362,12 @@ def main():
         default="optional",
         help="'required' refuses the legacy /admin/boundary/decide route",
     )
+    parser.add_argument(
+        "--evidence-store",
+        choices=EVIDENCE_STORE_MODES,
+        default="off",
+        help="'on' keeps an append-only record of decisions and execution evidence",
+    )
     args = parser.parse_args()
 
     configure_logging()
@@ -364,6 +383,7 @@ def main():
         operator_public_keys=load_operator_public_keys(args.operator_public_key),
         operator_key_tiers=load_operator_key_tiers(args.operator_key_tier),
         boundary_policy_enforcement=args.boundary_policy_enforcement,
+        evidence_store=args.evidence_store,
     )
     raise SystemExit(
         "Network Authority app factory validated. Start production service with "

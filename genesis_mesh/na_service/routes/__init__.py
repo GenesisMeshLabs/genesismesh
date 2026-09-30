@@ -12,6 +12,7 @@ from .disclosure import create_disclosure_blueprint
 from .discovery import create_discovery_blueprint
 from .enrollment import create_enrollment_blueprint
 from .evidence import create_evidence_blueprint
+from .evidence_store import create_evidence_store_blueprint
 from .health import create_health_blueprint
 from .public import create_public_blueprint
 from .treaties import create_treaty_blueprint
@@ -29,6 +30,7 @@ __all__ = [
     "create_discovery_blueprint",
     "create_enrollment_blueprint",
     "create_evidence_blueprint",
+    "create_evidence_store_blueprint",
     "create_health_blueprint",
     "create_public_blueprint",
     "create_treaty_blueprint",

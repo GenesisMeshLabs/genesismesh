@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.59.0 - Evidence Store in the Network Authority
+
+### Added
+
+- Opt-in evidence store (`EVIDENCE_STORE=on`, `--evidence-store on`, off by
+  default): the NA stores every signed decision with its context and
+  justification proof from `/admin/boundary/evaluate` and
+  `/admin/boundary/decide`.
+- `POST /evidence/execution`: controllers submit signed `ExecutionEvidence`,
+  authenticated by registered executor keys
+  (`/admin/evidence/executor-keys`, retire with `/<key_id>/retire`). Evidence
+  is rejected with stable codes for an unknown or retired key, a bad
+  signature, a missing or denied decision, execution outside the decision
+  window, a capability mismatch, chain gaps or forks, conflicts and secret
+  material.
+- Per-resource chains: optional `ExecutionEvidence.resource_id`,
+  `resource_action`, `resource_sequence` and `prev_resource_digest` give one
+  history per secret across decisions; `record_execution()` builds them.
+- Append-only storage (migration `012_evidence_store.sql`): database triggers
+  refuse updates and any delete not covered by a retention checkpoint; unique
+  indexes protect every chain position; the store is one hash chain.
+- Search (`GET /admin/evidence`), per-resource and per-vendor history with
+  verification, whole-store verification, and export as the versioned
+  `gm.evidence.event` model (JSON Lines) with a published JSON Schema
+  (`docs/schemas/gm.evidence.event.v1.json`).
+- Retention (`POST /admin/evidence/retention/apply`): removes a prefix of old
+  entries behind a signed `RetentionCheckpoint` so the remaining history still
+  verifies.
+- `genesis-mesh evidence verify-export` for offline verification.
+- Worked example: `docs/examples/evidence-store.md`.
+
+### Changed
+
+- `ExecutionEvidence` resource fields are omitted from the canonical form when
+  absent, so existing records keep identical bytes and signatures.
+- `SECURITY.md`: 0.59.x is the supported line.
+
 ## v0.58.1 - Attestation-Backed Boundary Evaluation
 
 ### Added

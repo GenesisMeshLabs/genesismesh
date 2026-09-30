@@ -102,7 +102,7 @@ registered **executor key**. An executor identity is all a controller needs;
 normal controllers do not enrol and do not hold node certificates.
 
 - `POST /admin/evidence/executor-keys` (privileged operator) registers
-  `{key_id, public_key, executor_sovereign_id}`; `DELETE` retires one (retired
+  `{key_id, public_key, executor_sovereign_id}`; `POST .../<key_id>/retire` retires one (retired
   keys still verify old records, and cannot sign new ones). Both are audited.
 
 Validation, in order, each failing with a stable code (HTTP 422, record not
@@ -183,9 +183,9 @@ values. Search and export never return anything the store did not accept.
 
 ### 7. Retention
 
-Default: keep everything. With `evidence_retention_days` set, an operator runs
-`POST /admin/evidence/retention/apply` (or `genesis-mesh evidence retention
-apply`); nothing runs in the background, which also keeps v0.60.0 simple. A run:
+Default: keep everything. To remove old entries, a privileged operator runs
+`POST /admin/evidence/retention/apply` with `older_than_days`; nothing runs in
+the background, which also keeps v0.60.0 simple. A run:
 
 1. selects entries older than the cut-off, never the latest entry of any
    resource chain or any entry of a decision still inside its window;
@@ -260,32 +260,32 @@ setting, the store size and the last `store_sequence`.
 
 ## Success Criteria
 
-- [ ] Every signed decision is stored automatically when the store is on
-- [ ] Signed execution evidence is accepted and linked to its decision
-- [ ] Unknown key, missing or denied decision, expired decision and capability
+- [x] Every signed decision is stored automatically when the store is on
+- [x] Signed execution evidence is accepted and linked to its decision
+- [x] Unknown key, missing or denied decision, expired decision and capability
       mismatch are rejected with stable codes
-- [ ] One chain per secret; gaps, duplicates and changed records are rejected
-- [ ] Evidence cannot be updated or deleted outside a signed retention run;
+- [x] One chain per secret; gaps, duplicates and changed records are rejected
+- [x] Evidence cannot be updated or deleted outside a signed retention run;
       every write and rejection is audited
-- [ ] Search by vendor, attestation, capability, time and outcome; per-secret
+- [x] Search by vendor, attestation, capability, time and outcome; per-secret
       history with verification; export as the versioned `gm.evidence.event`
       model, schema published, verifiable offline
-- [ ] Retention keeps the remaining history verifiable and is audited
-- [ ] No secret values are stored
-- [ ] Off by default; existing behaviour unchanged when off
-- [ ] Invariants enforced by database constraints, portable SQL only
-- [ ] The full history for one vendor or one secret is shown and verified from
+- [x] Retention keeps the remaining history verifiable and is audited
+- [x] No secret values are stored
+- [x] Off by default; existing behaviour unchanged when off
+- [x] Invariants enforced by database constraints, portable SQL only
+- [x] The full history for one vendor or one secret is shown and verified from
       the NA alone
 
 ## Release Gate
 
-- [ ] Version bumped to `0.59.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/development/history.md` updated
-- [ ] All tests pass
-- [ ] `python scripts/check_release_train.py` passes
-- [ ] SECURITY.md supported versions updated for the new minor line
-- [ ] Tag `v0.59.0`, push, GitHub release created
+- [x] Version bumped to `0.59.0`
+- [x] CHANGELOG entry
+- [x] `docs/development/history.md` updated
+- [x] All tests pass
+- [x] `python scripts/check_release_train.py` passes
+- [x] SECURITY.md supported versions updated for the new minor line
+- [x] Tag `v0.59.0`, push, GitHub release created
 
 ## Decisions
 

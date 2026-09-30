@@ -40,6 +40,8 @@ jobs:
 
       - name: Verify release train (no component released ahead of VERSION)
         run: python scripts/check_release_train.py
+        env:
+          RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
 
       - name: Build distributions
         run: python -m build

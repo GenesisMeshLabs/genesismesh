@@ -7,6 +7,7 @@ data usage attestation for post-execution audit.
 :hidden:
 
 execution-evidence-chain
+evidence-store
 freshness-proofs
 justification-proofs
 data-usage-attestation

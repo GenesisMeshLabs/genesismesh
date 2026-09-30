@@ -169,6 +169,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         basis, requester_id = policies.assess_attestation(attestation_id, requester)
         context = policies.build_attestation_context(data, attestation_id, requester_id)
         decision, proof = policies.evaluate_attestation(context, basis)
+        service.evidence_store_service.record_decision(decision, context, proof)
 
         binding = decision.policy_binding
         service.db.add_audit_event("boundary_attestation_decision_made", {
@@ -220,6 +221,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         context = policies.build_context(data, agreement)
 
         decision, proof = policies.evaluate(context, agreement)
+        service.evidence_store_service.record_decision(decision, context, proof)
 
         binding = decision.policy_binding
         service.db.add_audit_event("boundary_policy_decision_made", {
