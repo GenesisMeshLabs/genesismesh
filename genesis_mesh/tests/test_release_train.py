@@ -67,9 +67,18 @@ def test_token_is_sent_as_a_header_not_in_the_url(monkeypatch: pytest.MonkeyPatc
         seen["cmd"] = cmd
         return subprocess.CompletedProcess(cmd, 0, "abc\trefs/tags/v0.59.0", "")
 
+    calls: list = []
+
+    def private_then_token(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:  # anonymous attempt: private repository
+            return subprocess.CompletedProcess(cmd, 128, "", "fatal: repository not found")
+        return fake_run(cmd, **kwargs)
+
     monkeypatch.setenv("RELEASE_TRAIN_TOKEN", "secret-token")
-    monkeypatch.setattr(train.subprocess, "run", fake_run)
+    monkeypatch.setattr(train.subprocess, "run", private_then_token)
     assert train.released_versions("sdk-go") == [(0, 59, 0)]
+    assert "Authorization" not in " ".join(calls[0])
     joined = " ".join(seen["cmd"])
     assert "secret-token" not in joined
     assert "extraheader=Authorization: Basic" in joined
@@ -84,3 +93,16 @@ def test_private_repository_error_explains_the_token(monkeypatch: pytest.MonkeyP
     )
     with pytest.raises(SystemExit, match="RELEASE_TRAIN_TOKEN"):
         train.released_versions("sdk-go")
+
+
+def test_public_repository_is_read_without_the_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list = []
+
+    def anonymous_ok(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "abc\trefs/tags/v0.59.0", "")
+
+    monkeypatch.setenv("RELEASE_TRAIN_TOKEN", "token-without-access-to-public-repos")
+    monkeypatch.setattr(train.subprocess, "run", anonymous_ok)
+    assert train.released_versions("genesismesh") == [(0, 59, 0)]
+    assert len(calls) == 1 and "Authorization" not in " ".join(calls[0])

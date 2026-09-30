@@ -31,6 +31,11 @@ def parse(version: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
 
 
+#: Clear credential helpers and any stored auth header (actions/checkout stores
+#: one); an empty extraheader value resets git's header list.
+_NO_AUTH = ["-c", "credential.helper=", "-c", "http.https://github.com/.extraheader="]
+
+
 def _git_auth_args() -> list[str]:
     """Git options that authenticate with RELEASE_TRAIN_TOKEN, if set.
 
@@ -41,22 +46,34 @@ def _git_auth_args() -> list[str]:
     if not token:
         return []
     basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
-    return ["-c", "credential.helper=", "-c", f"http.https://github.com/.extraheader=Authorization: Basic {basic}"]
+    return [*_NO_AUTH, "-c", f"http.https://github.com/.extraheader=Authorization: Basic {basic}"]
 
 
-def released_versions(component: str) -> list[tuple[int, int, int]]:
-    """Return the release tags published by a component repository."""
-    url = f"https://github.com/{ORGANIZATION}/{component}.git"
-    result = subprocess.run(
-        ["git", *_git_auth_args(), "ls-remote", "--tags", "--refs", url],
+def _ls_remote(url: str, auth: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *auth, "ls-remote", "--tags", "--refs", url],
         capture_output=True, text=True, timeout=60,
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
     )
+
+
+def released_versions(component: str) -> list[tuple[int, int, int]]:
+    """Return the release tags published by a component repository.
+
+    Public repositories are read anonymously; the token is used only when
+    anonymous access fails, so a token scoped to the private repositories
+    never breaks the public ones.
+    """
+    url = f"https://github.com/{ORGANIZATION}/{component}.git"
+    result = _ls_remote(url, _NO_AUTH)
+    auth = _git_auth_args()
+    if result.returncode and auth:
+        result = _ls_remote(url, auth)
     if result.returncode:
-        hint = "" if os.environ.get("RELEASE_TRAIN_TOKEN") else (
-            " (if the repository is private, set RELEASE_TRAIN_TOKEN to a read-only token)"
-        )
-        raise SystemExit(f"could not list tags for {component}{hint}")
+        # stderr never contains the token (it is sent as a header, not in the URL).
+        reason = (result.stderr.strip().splitlines() or ["unknown error"])[-1]
+        hint = "" if auth else " (if the repository is private, set RELEASE_TRAIN_TOKEN to a read-only token)"
+        raise SystemExit(f"could not list tags for {component}{hint}: {reason}")
     versions = []
     for line in result.stdout.splitlines():
         match = TAG.search(line)
