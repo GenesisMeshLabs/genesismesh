@@ -78,7 +78,7 @@ def test_token_is_sent_as_a_header_not_in_the_url(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("RELEASE_TRAIN_TOKEN", "secret-token")
     monkeypatch.setattr(train.subprocess, "run", private_then_token)
     assert train.released_versions("sdk-go") == [(0, 59, 0)]
-    assert "extraheader" not in " ".join(calls[0])
+    assert "Authorization" not in " ".join(calls[0])
     joined = " ".join(seen["cmd"])
     assert "secret-token" not in joined
     assert "extraheader=Authorization: Basic" in joined
@@ -105,4 +105,4 @@ def test_public_repository_is_read_without_the_token(monkeypatch: pytest.MonkeyP
     monkeypatch.setenv("RELEASE_TRAIN_TOKEN", "token-without-access-to-public-repos")
     monkeypatch.setattr(train.subprocess, "run", anonymous_ok)
     assert train.released_versions("genesismesh") == [(0, 59, 0)]
-    assert len(calls) == 1 and "extraheader" not in " ".join(calls[0])
+    assert len(calls) == 1 and "Authorization" not in " ".join(calls[0])

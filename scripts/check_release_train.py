@@ -31,6 +31,11 @@ def parse(version: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
 
 
+#: Clear credential helpers and any stored auth header (actions/checkout stores
+#: one); an empty extraheader value resets git's header list.
+_NO_AUTH = ["-c", "credential.helper=", "-c", "http.https://github.com/.extraheader="]
+
+
 def _git_auth_args() -> list[str]:
     """Git options that authenticate with RELEASE_TRAIN_TOKEN, if set.
 
@@ -41,7 +46,7 @@ def _git_auth_args() -> list[str]:
     if not token:
         return []
     basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
-    return ["-c", "credential.helper=", "-c", f"http.https://github.com/.extraheader=Authorization: Basic {basic}"]
+    return [*_NO_AUTH, "-c", f"http.https://github.com/.extraheader=Authorization: Basic {basic}"]
 
 
 def _ls_remote(url: str, auth: list[str]) -> subprocess.CompletedProcess:
@@ -60,7 +65,7 @@ def released_versions(component: str) -> list[tuple[int, int, int]]:
     never breaks the public ones.
     """
     url = f"https://github.com/{ORGANIZATION}/{component}.git"
-    result = _ls_remote(url, ["-c", "credential.helper="])
+    result = _ls_remote(url, _NO_AUTH)
     auth = _git_auth_args()
     if result.returncode and auth:
         result = _ls_remote(url, auth)
