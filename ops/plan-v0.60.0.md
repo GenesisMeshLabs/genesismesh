@@ -49,6 +49,9 @@ v0.60.0 should prove:
 - Multi-region active-active and cross-region write replication
 - Replicating SQLite (for example Litestream) as an HA mode
 - Automatic signing-key rotation
+- Non-exportable (HSM) signing. It is a future hardening option; this
+  release keeps the architecture ready for it (section 5) but does not
+  implement it
 - Terraform for the HA reference infrastructure (documented, not automated;
   a follow-up can add a module)
 - Running the public reference overlay (`examples/public_dashboard`) in HA
@@ -133,6 +136,12 @@ both backends and asserts exactly one success.
 - All instances therefore sign with the same key and `key_id`; `/readyz`
   reports the key id and fingerprint (never the key) so a mismatch across
   instances is visible.
+- Every NA signature goes through one `Signer` interface (`sign(payload)`,
+  `public_key`, `key_id`) instead of callers holding the `SigningKey`. Today
+  routes and services pass `service.na_private_key` to `sign_model` directly;
+  this release routes them through the signer. Non-exportable signing is a
+  future hardening option: a remote-signing provider (an HSM with Ed25519, or
+  a different signature suite) can then be added without changing any caller.
 
 ### 6. Health and failover
 
@@ -194,6 +203,8 @@ Documented in `docs/operations/high-availability.md`:
 - Concurrency suite (section 3) on both backends
 - Rate limiting shared across workers and instances
 - Key provider: file and Key Vault (mocked) paths; HA mode refusals
+- Every NA signature goes through the `Signer`: a test fails if NA code
+  outside the key provider uses a `SigningKey` directly
 - Migration tool: round trip on a populated SQLite database, verification
   failures detected (tampered policy, broken chain)
 - **HA integration** (docker compose: PostgreSQL, two NA instances, nginx):
@@ -220,6 +231,8 @@ Documented in `docs/operations/high-availability.md`:
       nonces are exactly-once under concurrency
 - [ ] Rate limits and single-runner jobs are shared, not per instance
 - [ ] All instances sign with one key from Key Vault
+- [ ] All NA signing goes through the `Signer` interface, ready for a future
+      non-exportable provider
 - [ ] A failed instance is removed by its readiness probe; the others serve
 - [ ] Backup, restore and DR documented and drilled for PostgreSQL
 - [ ] SQLite to PostgreSQL migration documented and verified without loss
@@ -236,14 +249,17 @@ Documented in `docs/operations/high-availability.md`:
 - [ ] SECURITY.md supported versions updated for the new minor line
 - [ ] Tag `v0.60.0`, push, GitHub release created
 
+## Decisions
+
+1. **Non-exportable signing** is not a requirement for this release. It is a
+   future hardening option; the `Signer` interface keeps the architecture
+   ready for it without blocking HA on it.
+
 ## Open questions
 
-1. **HSM signing.** Confirm whether non-exportable signing is required. If
-   so, it needs an HSM with Ed25519 (PKCS#11) or a change of signature suite,
-   either of which is larger than this release.
-2. **Database.** Azure Database for PostgreSQL is the reference. If another
+1. **Database.** Azure Database for PostgreSQL is the reference. If another
    SQL database (for example Azure SQL) is required, it needs its own backend
    and doubles the test matrix.
-3. **Rate-limit store.** The plan uses the database to avoid new
+2. **Rate-limit store.** The plan uses the database to avoid new
    infrastructure. Redis would scale further; it can be an optional backend
    later.
