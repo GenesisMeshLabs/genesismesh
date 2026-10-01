@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import uuid
@@ -18,32 +17,59 @@ from ..models.revocation import CertificateRevocationList, RevokedCertificate
 CRL_ENTRY_RETENTION = timedelta(hours=1)
 
 
+class CrlSequenceConflict(Exception):
+    """Another writer already published a different CRL with this sequence."""
+
+    def __init__(self, sequence: int) -> None:
+        super().__init__(f"CRL sequence {sequence} is already taken")
+        self.sequence = sequence
+
+
 class PolicyStoreMixin:
     """Persistence methods for certificate revocation and policy versions."""
 
-    conn: sqlite3.Connection
+    conn: Any
     _lock: Any
 
     def get_cert(self, cert_id: str) -> Optional[dict]:
         raise NotImplementedError
 
     def save_crl(self, crl: CertificateRevocationList, active: bool = True) -> None:
-        """Persist a CRL version and optionally make it the active CRL."""
-        with self.conn:
-            if active:
-                self.conn.execute("UPDATE crl_versions SET active = 0")
-            self.conn.execute(
+        """Persist a CRL version exactly once and keep the highest sequence active.
+
+        A sequence is written once: saving the identical CRL again is a no-op,
+        and any other CRL for a sequence that is already taken raises
+        ``CrlSequenceConflict`` so the caller can rebuild from the new active
+        CRL (v0.60: concurrent NA instances can no longer overwrite each
+        other's revocations). The active CRL is always the highest sequence,
+        so a slower writer can never re-activate an older list.
+        """
+        with self._lock, self.conn:
+            inserted = self.conn.execute(
                 """
-                INSERT OR REPLACE INTO crl_versions(sequence, crl_json, active, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO crl_versions(sequence, crl_json, active, created_at)
+                VALUES (?, ?, 0, ?)
+                ON CONFLICT(sequence) DO NOTHING
                 """,
-                (
-                    crl.sequence,
-                    crl.model_dump_json(),
-                    1 if active else 0,
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
+                (crl.sequence, crl.model_dump_json(), datetime.now(timezone.utc).isoformat()),
+            ).rowcount
+            if inserted != 1:
+                row = self.conn.execute(
+                    "SELECT crl_json FROM crl_versions WHERE sequence = ?", (crl.sequence,)
+                ).fetchone()
+                # Published CRLs are immutable: only a byte-identical re-save is a no-op.
+                if row is None or row["crl_json"] != crl.model_dump_json():
+                    raise CrlSequenceConflict(crl.sequence)
+            if active:
+                self.conn.execute(
+                    """
+                    UPDATE crl_versions
+                    SET active = CASE WHEN sequence = (SELECT MAX(sequence) FROM crl_versions)
+                                      THEN 1 ELSE 0 END
+                    WHERE active = 1 OR sequence = (SELECT MAX(sequence) FROM crl_versions)
+                    """
+                )
+
     def get_active_crl(self) -> Optional[CertificateRevocationList]:
         """Return the currently active CRL, if one exists."""
         row = self.conn.execute(
@@ -230,8 +256,12 @@ class PolicyStoreMixin:
                 self.conn.execute("UPDATE policy_versions SET active = 0")
             self.conn.execute(
                 """
-                INSERT OR REPLACE INTO policy_versions(policy_id, policy_json, active, created_at)
+                INSERT INTO policy_versions(policy_id, policy_json, active, created_at)
                 VALUES (?, ?, ?, ?)
+                ON CONFLICT(policy_id) DO UPDATE SET
+                    policy_json = excluded.policy_json,
+                    active = excluded.active,
+                    created_at = excluded.created_at
                 """,
                 (
                     policy.policy_id,

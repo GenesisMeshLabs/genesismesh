@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
-from ...crypto import sign_model
 from ...models import PolicyManifest
 from ..errors import (
     ApiError,
@@ -124,7 +123,7 @@ def create_admin_blueprint(service) -> Blueprint:
                 routing=data.get("routing", {}),
                 signatures=[],
             )
-            policy.signatures.append(sign_model(policy, service.na_private_key, service.key_id))
+            policy.signatures.append(service.signer.sign_model(policy))
             service.db.save_policy(policy, active=True)
 
             return jsonify(policy.model_dump(mode="json")), 201
@@ -211,17 +210,14 @@ def create_admin_blueprint(service) -> Blueprint:
                 raise NotFoundError("Unknown certificate", code="certificate_not_found")
 
             try:
-                crl = service.db.revoke_cert(
-                    cert_id=cert_id,
-                    reason=reason,
-                    issuer=service.key_id,
+                # v0.60: rebuilt and retried if another instance publishes the
+                # same CRL sequence first, so concurrent revocations all land.
+                crl = service.publish_crl(
+                    lambda: service.db.revoke_cert(cert_id=cert_id, reason=reason, issuer=service.key_id)
                 )
             except KeyError:
                 raise NotFoundError("Unknown certificate", code="certificate_not_found") from None
-
-            if not crl.signatures:
-                crl.signatures.append(sign_model(crl, service.na_private_key, service.key_id))
-            service.db.save_crl(crl, active=True)
+            assert crl is not None
             service.db.add_audit_event(
                 "certificate_revoked",
                 {

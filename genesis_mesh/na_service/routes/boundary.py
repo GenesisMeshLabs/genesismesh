@@ -43,10 +43,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     bp = Blueprint("boundary", __name__)
 
     def _pub_b64() -> str:
-        import nacl.encoding
-        return service.na_private_key.verify_key.encode(
-            encoder=nacl.encoding.Base64Encoder
-        ).decode()
+        return service.signer.public_key_b64
 
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
@@ -107,7 +104,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             decision = engine.evaluate(
                 context,
                 agreement,
-                service.na_private_key,
+                service.signer,
                 issued_by=service.key_id,
                 now=datetime.now(timezone.utc),
             )

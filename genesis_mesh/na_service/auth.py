@@ -202,9 +202,9 @@ def verify_node_request_signature(
         logger.warning("Signature verification raised for scope %s: %s", nonce_scope, exc)
         return False, "Invalid signature"
 
-    try:
-        service.db.add_nonce(nonce_scope, nonce, now)
-    except Exception:
+    # The has_nonce check above is a fast path; this atomic claim is what
+    # decides, so concurrent workers or NA instances cannot both accept it.
+    if not service.db.claim_nonce(nonce_scope, nonce, now):
         _audit_auth_failure(
             service,
             "node_auth_failed",
@@ -305,9 +305,7 @@ def verify_admin_request(
         )
         return False, "Invalid admin signature"
 
-    try:
-        service.db.add_nonce(scope, nonce, now)
-    except Exception:
+    if not service.db.claim_nonce(scope, nonce, now):
         _audit_auth_failure(
             service,
             "admin_auth_failed",

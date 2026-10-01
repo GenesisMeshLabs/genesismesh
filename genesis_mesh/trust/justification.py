@@ -11,6 +11,7 @@ import nacl.signing
 from ..crypto import sign_model, verify_model_signature
 from ..models.context import BoundaryDecision
 from ..models.justification import GateTrace, JustificationProof
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ class JustificationProofVerificationResult:
 def sign_justification_proof(
     trace: GateTrace,
     decision: BoundaryDecision,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,

@@ -13,6 +13,8 @@ from genesis_mesh.crypto import generate_keypair, sign_model
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
+from .pg_support import postgres_test_database  # noqa: F401  (autouse fixture)
+
 
 @pytest.fixture(autouse=True)
 def _audit_logs_to_tmp(tmp_path, monkeypatch):

@@ -42,7 +42,7 @@ def _readiness(service) -> dict[str, str]:
     """Return local readiness without calling the HTTP route."""
     try:
         service.db.conn.execute("SELECT 1").fetchone()
-        if not service.genesis_block or not service.na_private_key:
+        if not service.genesis_block or not service.signer:
             return {"status": "not_ready", "db_path": service.db.db_path}
         return {"status": "ready", "db_path": service.db.db_path}
     except Exception as exc:

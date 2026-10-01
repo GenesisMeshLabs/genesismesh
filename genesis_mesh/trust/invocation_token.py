@@ -30,6 +30,7 @@ from ..crypto import sign_model, verify_model_signature
 from ..models.agreement import AgreementRecord
 from ..models.delegation import DelegatedAgreementRecord
 from ..models.invocation_token import InvocationToken, InvocationUseRecord
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def issue_invocation_token(
     agreement: AgreementRecord,
     bearer_sovereign_id: str,
     capabilities: list[str],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     valid_for_seconds: int = 300,
@@ -318,7 +319,7 @@ def record_invocation_use(
     token: InvocationToken,
     action_tag: str,
     outcome: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     used_by: str,
     prior_use: InvocationUseRecord | None = None,

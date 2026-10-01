@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
@@ -85,7 +84,7 @@ class EvidenceStoreService:
             raise NotFoundError("The evidence store is not enabled", code="evidence_store_disabled")
 
     def na_public_keys(self) -> list[str]:
-        return [self._na.na_private_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()]
+        return [self._na.signer.public_key_b64]
 
     def executor_keys(self) -> dict[str, ExecutorKey]:
         return {
@@ -137,7 +136,7 @@ class EvidenceStoreService:
             ))
         try:
             entries = self._na.db.append_evidence_entries(pending)
-        except sqlite3.Error as exc:
+        except self._na.db.database_errors as exc:
             logger.warning("evidence store write failed for decision %s: %s", decision.decision_id, exc)
             raise ServiceUnavailableError(
                 "The decision could not be stored", code="evidence_store_unavailable"
@@ -185,15 +184,9 @@ class EvidenceStoreService:
         except PydanticValidationError:
             self._reject("evidence_malformed", "evidence does not match the ExecutionEvidence model", None, digest)
 
-        existing = self._na.db.get_entry_by_evidence_id(evidence.evidence_id)
-        if existing is not None:
-            if existing["entry"].payload_digest == digest:
-                self._na.db.add_audit_event("evidence_duplicate", {
-                    "evidence_id": evidence.evidence_id,
-                    "store_sequence": existing["entry"].store_sequence,
-                })
-                return self._entry_body(existing), False
-            self._reject("evidence_conflict", "a different record with this evidence_id is stored", evidence, digest)
+        duplicate = self._stored_duplicate(evidence, digest)
+        if duplicate is not None:
+            return duplicate, False
 
         key_row = self._na.db.get_executor_key(evidence.signature.key_id) if evidence.signature else None
         executor_key = ExecutorKey(
@@ -223,6 +216,12 @@ class EvidenceStoreService:
         )
         if not check.accepted:
             assert check.code is not None
+            if check.code == "evidence_conflict":
+                # The same record may have been stored by another instance or
+                # worker since the duplicate check above (v0.60).
+                duplicate = self._stored_duplicate(evidence, digest)
+                if duplicate is not None:
+                    return duplicate, False
             self._reject(check.code, check.detail, evidence, digest)
 
         index = execution_index(evidence, decision_fields)
@@ -235,8 +234,12 @@ class EvidenceStoreService:
                 ),
                 raw,
             )])
-        except sqlite3.IntegrityError:
-            # Another writer took this position between validation and insert.
+        except self._na.db.integrity_errors:
+            # Another writer took this position between validation and insert:
+            # if it stored this very record, the submission is a duplicate.
+            duplicate = self._stored_duplicate(evidence, digest)
+            if duplicate is not None:
+                return duplicate, False
             self._reject("evidence_conflict", "the chain position was taken by another record", evidence, digest)
         stored = {"entry": entries[0], "entry_digest": entries[0].digest(), "payload": raw}
         self._na.db.add_audit_event("evidence_recorded", {
@@ -248,6 +251,24 @@ class EvidenceStoreService:
             "executor_sovereign_id": evidence.executor_sovereign_id,
         })
         return self._entry_body(stored), True
+
+    def _stored_duplicate(self, evidence: ExecutionEvidence, digest: str) -> dict[str, Any] | None:
+        """The stored entry when this exact record is already stored; None when it is not.
+
+        Rejects with ``evidence_conflict`` when a different record holds the
+        same ``evidence_id``. An identical resubmission -- including one that
+        raced another instance or worker -- is idempotent.
+        """
+        existing = self._na.db.get_entry_by_evidence_id(evidence.evidence_id)
+        if existing is None:
+            return None
+        if existing["entry"].payload_digest != digest:
+            self._reject("evidence_conflict", "a different record with this evidence_id is stored", evidence, digest)
+        self._na.db.add_audit_event("evidence_duplicate", {
+            "evidence_id": evidence.evidence_id,
+            "store_sequence": existing["entry"].store_sequence,
+        })
+        return self._entry_body(existing)
 
     def _resource_head(self, resource_id: str) -> ResourceHeadState | None:
         last = self._na.db.last_resource_record(resource_id)
@@ -284,7 +305,7 @@ class EvidenceStoreService:
             raise BadRequestError("public_key must be a 32-byte Ed25519 key", code="invalid_public_key")
         try:
             self._na.db.register_executor_key(str(key_id), str(public_key), str(executor), registered_by)
-        except sqlite3.IntegrityError as exc:
+        except self._na.db.integrity_errors as exc:
             raise ConflictError("key_id is already registered", code="executor_key_exists") from exc
         self._na.db.add_audit_event("executor_key_registered", {
             "key_id": key_id, "executor_sovereign_id": executor, "registered_by": registered_by,
@@ -419,11 +440,28 @@ class EvidenceStoreService:
 
     # -- retention ------------------------------------------------------------
 
+    #: Single-runner lease for retention (v0.60): one instance applies it at a time.
+    RETENTION_LEASE = "evidence-retention"
+    RETENTION_LEASE_TTL_SECONDS = 300
+
     def apply_retention(self, older_than_days: Any, applied_by: str) -> dict[str, Any]:
-        """Remove a verifiable prefix of the store older than the cut-off."""
+        """Remove a verifiable prefix of the store older than the cut-off.
+
+        Runs under a job lease, so with several NA instances only one applies
+        retention at a time; a concurrent request gets ``retention_in_progress``.
+        """
         self.require_enabled()
         if isinstance(older_than_days, bool) or not isinstance(older_than_days, int) or older_than_days < 1:
             raise BadRequestError("older_than_days must be a positive integer", code="invalid_retention")
+        holder = self._na.instance_id
+        if not self._na.db.claim_lease(self.RETENTION_LEASE, holder, self.RETENTION_LEASE_TTL_SECONDS):
+            raise ConflictError("Retention is already running on another instance", code="retention_in_progress")
+        try:
+            return self._apply_retention(older_than_days, applied_by)
+        finally:
+            self._na.db.release_lease(self.RETENTION_LEASE, holder)
+
+    def _apply_retention(self, older_than_days: int, applied_by: str) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=older_than_days)
         rows = self._na.db.retention_candidates()
@@ -469,7 +507,7 @@ class EvidenceStoreService:
                 previous_checkpoint_id=previous.checkpoint_id if previous else None,
                 issued_by=self._na.key_id,
             ),
-            self._na.na_private_key,
+            self._na.signer,
             self._na.key_id,
         )
         payload = json.loads(checkpoint.model_dump_json())

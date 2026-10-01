@@ -64,14 +64,16 @@ def create_health_blueprint(service) -> Blueprint:
 
     @bp.route("/readyz", methods=["GET"])
     def readyz():
-        """Return readiness after checking DB, genesis, and NA key state."""
-        try:
-            service.db.conn.execute("SELECT 1").fetchone()
-            if not service.genesis_block or not service.na_private_key:
-                return jsonify({"status": "not_ready"}), 503
-            return jsonify({"status": "ready", "db_path": service.db.db_path})
-        except Exception as exc:
-            raise ServiceUnavailableError("Service is not ready", code="service_not_ready") from exc
+        """Readiness for load balancers: database writable at the expected schema,
+        signing key loaded, shared state in HA mode (v0.60). 503 when not ready."""
+        ready, checks = service.readiness()
+        if not ready:
+            # Same error envelope as before v0.60; the checks explain why.
+            raise ServiceUnavailableError(
+                "Service is not ready", code="service_not_ready", details=checks
+            )
+        # db_path: the SQLite file, or the PostgreSQL URL with any password removed.
+        return jsonify({"status": "ready", **checks, "db_path": service.db.db_path})
 
     @bp.route("/nodes", methods=["GET"])
     def list_nodes():

@@ -27,8 +27,8 @@ Only the latest minor release receives security fixes.
 
 | Version | Status |
 |---|---|
-| `0.59.x` | Supported |
-| `< 0.59` | Unsupported |
+| `0.60.x` | Supported |
+| `< 0.60` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
 

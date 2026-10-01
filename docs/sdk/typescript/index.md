@@ -31,13 +31,13 @@ const client = new GenesisMeshClient({
 `signingKeyBase64` and `keyId` are only required for admin routes. You can
 omit them when calling public verification endpoints only.
 
-The client exposes 9 sub-clients:
+The client exposes 10 sub-clients:
 
 ```
 client.agreement   client.boundary    client.policy
 client.evidence    client.evidenceStore
 client.attestation client.disclosure  client.consensus
-client.dataUsage
+client.dataUsage   client.health
 ```
 
 `client.evidence` is trust evidence (v0.53); `client.evidenceStore` is the
@@ -54,6 +54,8 @@ The SDK covers the controller side of the secret governance pilots:
   signers, retries and errors
 - {doc}`offline-verification`: verifying decisions and evidence exports
   without the NA, and the canonical JSON rules
+- {doc}`high-availability` (v0.60): failover across NA instances, readiness,
+  and retryable conflicts
 
 ---
 
@@ -77,4 +79,5 @@ auth
 governance
 evidence-store
 offline-verification
+high-availability
 ```

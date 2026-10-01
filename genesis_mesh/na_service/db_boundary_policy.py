@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -29,7 +28,7 @@ class ActiveBoundaryPolicies:
 class BoundaryPolicyStoreMixin:
     """Persistence methods for signed boundary policy versions."""
 
-    conn: sqlite3.Connection
+    conn: Any
     _lock: Any
 
     def next_boundary_policy_version(self, policy_id: str) -> int:

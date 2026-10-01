@@ -1,7 +1,6 @@
 """Durable data-license policies shared by authority worker processes."""
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,7 +10,7 @@ from ..models.data_usage import DataLicensePolicy
 class DataUsageStoreMixin:
     """Persist signed policy versions and atomically select the active version."""
 
-    conn: sqlite3.Connection
+    conn: Any
     _lock: Any
 
     def save_data_license_policy(self, policy: DataLicensePolicy) -> None:
@@ -19,8 +18,9 @@ class DataUsageStoreMixin:
         with self._lock, self.conn:
             self.conn.execute("UPDATE data_license_policies SET active = 0 WHERE active = 1")
             self.conn.execute(
-                "INSERT OR REPLACE INTO data_license_policies"
-                "(policy_id, policy_json, active, created_at) VALUES (?, ?, 1, ?)",
+                "INSERT INTO data_license_policies(policy_id, policy_json, active, created_at) "
+                "VALUES (?, ?, 1, ?) ON CONFLICT(policy_id) DO UPDATE SET "
+                "policy_json = excluded.policy_json, active = 1, created_at = excluded.created_at",
                 (policy.policy_id, policy.model_dump_json(), datetime.now(timezone.utc).isoformat()),
             )
 

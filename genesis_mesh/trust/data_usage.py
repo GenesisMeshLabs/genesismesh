@@ -23,6 +23,7 @@ from ..models.data_usage import (
     DataSourceDescriptor,
     DataUsageViolation,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 DataUsageViolationReason = Literal[
     "source_not_licensed",
@@ -224,7 +225,7 @@ def create_data_access_intent(
     decision_id: str,
     sources: list[DataSourceDescriptor],
     access_types: list[str],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     estimated_volume_bytes: int | None = None,
     valid_for_seconds: int = 300,

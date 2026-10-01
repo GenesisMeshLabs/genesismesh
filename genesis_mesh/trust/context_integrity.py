@@ -28,6 +28,7 @@ from ..models.context_integrity import (
     ContextTree,
     ContextViolationReport,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # ---------------------------------------------------------------------------
 # Typed reason codes
@@ -80,7 +81,7 @@ def create_context_integrity_record(
     decision_id: str,
     base_context_tree: ContextTree,
     declared_segments: list[ContextAppendSegment],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     max_total_tokens: int = 8192,
     valid_for_seconds: int = 600,
