@@ -127,7 +127,7 @@ Genesis Mesh itself.
 ## Where to go next
 
 - New here: [`README.md`](README.md) and [`docs/quickstart.md`](docs/quickstart.md).
-- Working in the codebase: [`AGENT.md`](AGENT.md).
+- Working in the codebase: [`AGENTS.md`](AGENTS.md).
 - Architectural depth: [`docs/development/strategy.md`](docs/development/strategy.md).
 - Release plan and milestones: [`docs/development/roadmap.md`](docs/development/roadmap.md) and
   [`ops/plan-v0.*.md`](ops/).
