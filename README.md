@@ -6,7 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Python](https://img.shields.io/pypi/pyversions/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![CI](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/ci.yml/badge.svg)](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://genesismesh.connectorzzz.com)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://docs.genesismesh.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Genesis Mesh is a protocol for sovereign communities to establish, delegate,
@@ -60,7 +60,7 @@ Full HTTP reference: [docs/api/trust-http.md](docs/api/trust-http.md)
 
 Full documentation, operator guides, protocol RFCs, and example walkthroughs:
 
-**[genesismesh.connectorzzz.com](https://genesismesh.connectorzzz.com)**
+**[docs.genesismesh.org](https://docs.genesismesh.org)**
 
 ## Contributing
 
