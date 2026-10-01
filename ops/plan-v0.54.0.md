@@ -28,7 +28,7 @@ v0.54 should prove:
 
 ### Module: `sdk/go/`
 
-Published as Go module `github.com/thaersaidi/genesismesh/sdk`.
+Published as Go module `github.com/GenesisMeshLabs/sdk-go`.
 
 ```
 sdk/go/
@@ -87,7 +87,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/thaersaidi/genesismesh/sdk/genesismesh"
+    "github.com/GenesisMeshLabs/sdk-go/genesismesh"
 )
 
 func main() {

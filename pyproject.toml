@@ -23,10 +23,10 @@ keywords = [
     "agents",
 ]
 authors = [
-    { name = "Thaer Saidi", email = "thaer.saidi@outlook.com" },
+    { name = "Genesis Mesh Labs", email = "contact@genesismesh.org" },
 ]
 maintainers = [
-    { name = "Thaer Saidi", email = "thaer.saidi@outlook.com" },
+    { name = "Genesis Mesh Labs", email = "contact@genesismesh.org" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
