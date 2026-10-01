@@ -41,7 +41,8 @@ from genesis_mesh.trust.context_integrity import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime(2026, 10, 1, 10, 0, 0, tzinfo=timezone.utc)
+# Relative to the real clock: ContextInjectionGate checks expiry against it.
+_NOW = datetime.now(timezone.utc).replace(microsecond=0)
 _PROMPT = "You are a helpful assistant."
 _PROMPT_HASH = hashlib.sha256(_PROMPT.encode()).hexdigest()
 

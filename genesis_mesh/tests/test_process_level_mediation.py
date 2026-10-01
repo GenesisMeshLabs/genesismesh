@@ -33,7 +33,8 @@ from genesis_mesh.trust.mediation import (
     validate_mediation_request,
 )
 
-_NOW = datetime(2026, 10, 1, 10, 0, 0, tzinfo=timezone.utc)
+# Relative to the real clock: the code under test checks expiry against it.
+_NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def _sk() -> nacl.signing.SigningKey:
