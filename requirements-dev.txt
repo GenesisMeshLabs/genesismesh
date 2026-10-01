@@ -1,4 +1,5 @@
 -r requirements.txt
+-r requirements-postgres.txt
 -r docs/requirements.txt
 pytest==9.0.3
 pytest-asyncio==1.4.0

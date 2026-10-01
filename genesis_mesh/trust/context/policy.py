@@ -26,10 +26,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, Sequence
 
-import nacl.signing
 from pydantic import ValidationError
 
-from ...crypto import sign_model, verify_model_signature
+from ...crypto import SigningKeyLike, sign_model, verify_model_signature
 from ...models.boundary_policy import (
     MAX_GATES_PER_POLICY,
     MAX_LIST_VALUES,
@@ -239,7 +238,7 @@ class BoundaryPolicyVerificationResult:
 
 
 def sign_boundary_policy(
-    policy: BoundaryPolicy, signing_key: nacl.signing.SigningKey, issued_by: str
+    policy: BoundaryPolicy, signing_key: SigningKeyLike, issued_by: str
 ) -> BoundaryPolicy:
     """Return a copy of ``policy`` signed over its canonical body."""
     unsigned = policy.model_copy(update={"signature": None})

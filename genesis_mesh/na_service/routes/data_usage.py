@@ -45,14 +45,10 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     bp = Blueprint("data_usage", __name__)
 
     def _pub_b64() -> str:
-        import nacl.encoding
-        return service.na_private_key.verify_key.encode(
-            encoder=nacl.encoding.Base64Encoder
-        ).decode()
+        return service.signer.public_key_b64
 
     def _sign_policy(p: DataLicensePolicy) -> DataLicensePolicy:
-        from ...crypto import sign_model
-        sig = sign_model(p, service.na_private_key, service.key_id)
+        sig = service.signer.sign_model(p)
         return p.model_copy(update={"signature": sig})
 
     def _rate_key(prefix: str) -> str:
@@ -150,7 +146,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 decision_id=data.get("decision_id") or str(uuid.uuid4()),
                 sources=sources,
                 access_types=access_types,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 estimated_volume_bytes=data.get("estimated_volume_bytes"),
                 now=datetime.now(timezone.utc),
             )

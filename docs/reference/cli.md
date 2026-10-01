@@ -105,6 +105,44 @@ genesis-mesh evidence verify-export \
 `--executor-keys` takes the response of `GET /admin/evidence/executor-keys`.
 Exit code 0 when verified; 1 on any failure.
 
+### `genesis-mesh na migrate-db`
+
+> **v0.60**: High Availability
+
+Copy a Network Authority SQLite database into an empty PostgreSQL database and
+verify it. The source is opened read-only. The target must be empty, and the
+source must be at the current schema version (start this release on it once).
+
+```bash
+genesis-mesh na migrate-db \
+    --from sqlite:///var/lib/genesis-mesh/na.db \
+    --to "$DATABASE_URL" \
+    --genesis genesis.signed.json \
+    --report migration.json
+```
+
+Every table's row count and content digest must match the source, and the
+target must pass `na verify-db`; otherwise the command exits non-zero. A
+`database_migrated` audit event is written to the target. See
+[High Availability](../operations/high-availability.md).
+
+### `genesis-mesh na verify-db`
+
+> **v0.60**: High Availability
+
+Verify a Network Authority database (SQLite or PostgreSQL) after a restore or
+migration. It checks that boundary policies match their stored digests, that
+CRL sequences have no gaps with only the highest one active, and that the
+evidence store is an unbroken hash chain. With `--genesis` it also checks
+every evidence signature.
+
+```bash
+genesis-mesh na verify-db --database-url "$DATABASE_URL" --genesis genesis.signed.json
+genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db
+```
+
+Prints a JSON report; exit code 0 when every check passes, 1 otherwise.
+
 ### `genesis-mesh admin invite`
 
 Creates a single-use invite token through the operator-authenticated admin API.

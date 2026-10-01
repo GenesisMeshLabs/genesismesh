@@ -22,6 +22,7 @@ import nacl.signing
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.freshness import FreshnessProof
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ def issue_freshness_proof(
     feed_sovereign_id: str,
     feed_sequence: int,
     feed_digest: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     issuer_sovereign_id: str,

@@ -35,6 +35,7 @@ from ..models.evidence_store import (
 )
 from ..models.execution import ExecutionEvidence
 from ..models.justification import JustificationProof
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 EvidenceRejectionCode = Literal[
     "evidence_malformed",
@@ -337,7 +338,7 @@ def plan_retention(
 
 
 def sign_retention_checkpoint(
-    checkpoint: RetentionCheckpoint, signing_key: nacl.signing.SigningKey, key_id: str
+    checkpoint: RetentionCheckpoint, signing_key: SigningKeyLike, key_id: str
 ) -> RetentionCheckpoint:
     """Return the checkpoint signed by the NA."""
     return checkpoint.model_copy(update={"signature": sign_model(checkpoint, signing_key, key_id)})

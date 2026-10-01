@@ -23,6 +23,7 @@ from ..models.purge import (
     PurgePolicy,
 )
 from ..models.selective_disclosure import MerklePathNode
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # ---------------------------------------------------------------------------
 # Internal Merkle helpers (same algorithm as v0.35 selective_disclosure)
@@ -100,7 +101,7 @@ def _recompute_root(leaf_hash: str, path: list[MerklePathNode]) -> str:
 def create_nullification_receipt(
     identity: EphemeralExecutionIdentity,
     purging_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     now: datetime | None = None,
 ) -> NullificationReceipt:
@@ -137,7 +138,7 @@ def create_nullification_receipt(
 def build_nullification_registry(
     receipts: list[NullificationReceipt],
     operator_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     now: datetime | None = None,
 ) -> tuple[NullificationRegistryRoot, list[list[str]]]:

@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from click.testing import CliRunner
+import pytest
 import nacl.encoding
 import nacl.signing
 
@@ -21,6 +22,9 @@ from genesis_mesh.models import (
 )
 from genesis_mesh.na_service.db import NADatabase
 from genesis_mesh.na_service.server import NetworkAuthorityService
+
+# SQLite backup/restore tooling; PostgreSQL relies on the managed service's backups.
+pytestmark = pytest.mark.sqlite_only
 
 
 def test_managed_backup_and_restore_drill_restores_database_state(tmp_path):

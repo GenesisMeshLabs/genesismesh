@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import json
-import sqlite3
 from datetime import datetime, timezone
 
 from ..models import (
@@ -18,7 +19,7 @@ from ..trust.treaty_lifecycle import is_lifecycle_active, treaty_lifecycle
 class TrustStoreMixin:
     """Persistence methods for cross-sovereign trust state."""
 
-    conn: sqlite3.Connection
+    conn: Any
 
     def save_membership_attestation(
         self,
@@ -29,12 +30,24 @@ class TrustStoreMixin:
         with self.conn:
             self.conn.execute(
                 """
-                INSERT OR REPLACE INTO membership_attestations(
+                INSERT INTO membership_attestations(
                     attestation_id, issuer_sovereign_id, subject_id,
                     subject_public_key, roles_json, status, attestation_json,
                     issued_at, valid_from, expires_at, revoked_at,
                     revocation_reason
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                ON CONFLICT(attestation_id) DO UPDATE SET
+                    issuer_sovereign_id = excluded.issuer_sovereign_id,
+                    subject_id = excluded.subject_id,
+                    subject_public_key = excluded.subject_public_key,
+                    roles_json = excluded.roles_json,
+                    status = excluded.status,
+                    attestation_json = excluded.attestation_json,
+                    issued_at = excluded.issued_at,
+                    valid_from = excluded.valid_from,
+                    expires_at = excluded.expires_at,
+                    revoked_at = NULL,
+                    revocation_reason = NULL
                 """,
                 (
                     attestation.attestation_id,
@@ -134,9 +147,13 @@ class TrustStoreMixin:
                 self.conn.execute("UPDATE recognition_policies SET active = 0")
             self.conn.execute(
                 """
-                INSERT OR REPLACE INTO recognition_policies(
+                INSERT INTO recognition_policies(
                     policy_id, policy_json, active, created_at
                 ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(policy_id) DO UPDATE SET
+                    policy_json = excluded.policy_json,
+                    active = excluded.active,
+                    created_at = excluded.created_at
                 """,
                 (
                     policy_id,
@@ -160,11 +177,21 @@ class TrustStoreMixin:
         with self.conn:
             self.conn.execute(
                 """
-                INSERT OR REPLACE INTO recognition_treaties(
+                INSERT INTO recognition_treaties(
                     treaty_id, issuer_sovereign_id, subject_sovereign_id,
                     status, treaty_json, issued_at, valid_from, expires_at,
                     revoked_at, revocation_reason
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                ON CONFLICT(treaty_id) DO UPDATE SET
+                    issuer_sovereign_id = excluded.issuer_sovereign_id,
+                    subject_sovereign_id = excluded.subject_sovereign_id,
+                    status = excluded.status,
+                    treaty_json = excluded.treaty_json,
+                    issued_at = excluded.issued_at,
+                    valid_from = excluded.valid_from,
+                    expires_at = excluded.expires_at,
+                    revoked_at = NULL,
+                    revocation_reason = NULL
                 """,
                 (
                     treaty.treaty_id,

@@ -4,15 +4,15 @@ Append-only by construction: this mixin has no update path for entries, and
 database triggers (migration 012) refuse updates and any delete that a
 retention checkpoint does not cover.  Positions are protected by unique
 indexes, so concurrent writers cannot both take the same store, decision or
-resource position.  Appends run inside ``BEGIN IMMEDIATE`` so the next
-``store_sequence`` and the previous entry's digest are read and written under
-one write lock.
+resource position.  Appends run inside an exclusive transaction (SQLite
+``BEGIN IMMEDIATE``; a PostgreSQL advisory lock) so the next ``store_sequence``
+and the previous entry's digest are read and written under one write lock,
+across every NA instance.
 """
 
 from __future__ import annotations
 
 import json
-import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
@@ -41,23 +41,14 @@ EntryBuilder = Callable[[int, "str | None"], EvidenceStoreEntry]
 class EvidenceStoreMixin:
     """Persistence methods for the NA evidence store."""
 
-    conn: sqlite3.Connection
+    conn: Any
     _lock: threading.RLock
 
     @contextmanager
     def _evidence_write(self) -> Iterator[None]:
-        """Serialize a store write across threads and processes."""
-        with self._lock:
-            if self.conn.in_transaction:
-                self.conn.commit()
-            self.conn.execute("BEGIN IMMEDIATE")
-            try:
-                yield
-            except BaseException:
-                self.conn.rollback()
-                raise
-            else:
-                self.conn.commit()
+        """Serialize a store write across threads, processes and NA instances."""
+        with self.exclusive_transaction():  # type: ignore[attr-defined]
+            yield
 
     def _store_head(self) -> tuple[int, str | None]:
         """Return (last store_sequence, its digest), honouring retention checkpoints."""
@@ -105,8 +96,8 @@ class EvidenceStoreMixin:
     ) -> list[EvidenceStoreEntry]:
         """Append entries atomically, each linked to the one before it.
 
-        Raises ``sqlite3.IntegrityError`` when a unique position is already
-        taken (the caller maps that to a conflict).
+        Raises the backend's integrity error (``db.integrity_errors``) when a
+        unique position is already taken (the caller maps that to a conflict).
         """
         written: list[EvidenceStoreEntry] = []
         with self._evidence_write():
@@ -122,7 +113,7 @@ class EvidenceStoreMixin:
     # -- reads --------------------------------------------------------------
 
     @staticmethod
-    def _row_to_stored(row: sqlite3.Row) -> dict[str, Any]:
+    def _row_to_stored(row: Any) -> dict[str, Any]:
         return {
             "entry": EvidenceStoreEntry.model_validate_json(row["entry_json"]),
             "entry_digest": row["entry_digest"],
@@ -206,7 +197,7 @@ class EvidenceStoreMixin:
             "active_executor_keys": int(keys["n"]),
         }
 
-    def retention_candidates(self) -> list[sqlite3.Row]:
+    def retention_candidates(self) -> list[Any]:
         return self.conn.execute(
             """SELECT e.store_sequence, e.recorded_at, e.decision_id, e.resource_id,
                       e.resource_sequence, e.entry_kind, e.entry_digest, e.payload_json
@@ -258,12 +249,12 @@ class EvidenceStoreMixin:
             )
         return cur.rowcount > 0
 
-    def get_executor_key(self, key_id: str) -> sqlite3.Row | None:
+    def get_executor_key(self, key_id: str) -> Any | None:
         return self.conn.execute(
             "SELECT * FROM evidence_executor_keys WHERE key_id = ?", (key_id,)
         ).fetchone()
 
-    def list_executor_keys(self) -> list[sqlite3.Row]:
+    def list_executor_keys(self) -> list[Any]:
         return self.conn.execute(
             "SELECT * FROM evidence_executor_keys ORDER BY registered_at, key_id"
         ).fetchall()

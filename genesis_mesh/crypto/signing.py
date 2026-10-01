@@ -1,7 +1,7 @@
 """Cryptographic signing and verification."""
 
 import base64
-from typing import Union, Any
+from typing import Any, Protocol, Union
 
 import nacl.signing
 import nacl.encoding
@@ -11,7 +11,20 @@ from .keys import public_key_from_b64
 from ..models.genesis import Signature
 
 
-def sign_data(data: bytes, private_key: nacl.signing.SigningKey) -> str:
+class SigningKeyLike(Protocol):
+    """What signing code needs from a key: sign bytes, expose the public key.
+
+    ``nacl.signing.SigningKey`` satisfies it, and so does the Network
+    Authority's ``Signer`` (v0.60), which signs without exposing the seed.
+    """
+
+    @property
+    def verify_key(self) -> nacl.signing.VerifyKey: ...
+
+    def sign(self, message: bytes) -> nacl.signing.SignedMessage: ...
+
+
+def sign_data(data: bytes, private_key: SigningKeyLike) -> str:
     """
     Sign data with Ed25519 private key.
 
@@ -58,7 +71,7 @@ def verify_signature(
 
 def sign_model(
     model: Any,
-    private_key: nacl.signing.SigningKey,
+    private_key: SigningKeyLike,
     key_id: str
 ) -> Signature:
     """

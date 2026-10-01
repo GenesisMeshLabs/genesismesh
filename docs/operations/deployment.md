@@ -216,4 +216,6 @@ Before promoting any of the deployment shapes above to production:
 - logs do not expose private key material
 
 Do not run two Network Authority processes against the same SQLite database
-file. Genesis Mesh treats SQLite as a single-writer deployment store.
+file. Genesis Mesh treats SQLite as a single-writer deployment store. To run
+several instances, use the PostgreSQL option described in
+[High Availability](high-availability.md) (v0.60).

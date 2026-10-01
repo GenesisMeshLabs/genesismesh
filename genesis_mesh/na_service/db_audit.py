@@ -4,17 +4,24 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
+from typing import Any
 
 
 class AuditStoreMixin:
     """Persistence methods for audit events and live SQLite backups."""
 
-    conn: sqlite3.Connection
+    conn: Any
 
     def backup(self, dest_path: str) -> None:
-        """Copy the live SQLite database to a destination path."""
+        """Copy the live SQLite database to a destination path.
+
+        PostgreSQL deployments rely on the managed service's backups and
+        point-in-time restore (docs/operations/high-availability.md).
+        """
+        if getattr(self, "backend", "sqlite") != "sqlite":
+            raise NotImplementedError("backup() is SQLite-only; use the PostgreSQL service's backups")
         dest = sqlite3.connect(dest_path)
         try:
             self.conn.backup(dest)

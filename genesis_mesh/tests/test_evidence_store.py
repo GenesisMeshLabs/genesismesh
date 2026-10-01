@@ -9,7 +9,6 @@ full history is then shown and verified from the NA alone.
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -280,7 +279,7 @@ def test_database_refuses_duplicate_positions(na_service):
         "payload_json, resource_id, resource_sequence) VALUES (1,'execution','t','{}','a','{}','r',1)"
     )
     db.conn.commit()
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(db.integrity_errors):
         db.conn.execute(
             "INSERT INTO evidence_entries(store_sequence, entry_kind, recorded_at, entry_json, entry_digest, "
             "payload_json, resource_id, resource_sequence) VALUES (2,'execution','t','{}','b','{}','r',1)"
@@ -297,7 +296,7 @@ def test_entries_cannot_be_edited_or_deleted(client, na_service):
     _decide(client)
     conn = na_service.db.conn
     for sql in ("UPDATE evidence_entries SET outcome = 'authorized'", "DELETE FROM evidence_entries"):
-        with pytest.raises(sqlite3.DatabaseError):
+        with pytest.raises(na_service.db.database_errors):
             conn.execute(sql)
         conn.rollback()
     assert na_service.db.evidence_stats()["entries"] == 2
@@ -307,7 +306,8 @@ def test_tampering_that_bypasses_the_triggers_is_detected(client, na_service):
     controller = Controller(client)
     assert _submit(client, controller.record(_decide(client))).status_code == 201
     conn = na_service.db.conn
-    conn.execute("DROP TRIGGER evidence_entries_no_update")
+    on_table = " ON evidence_entries" if na_service.db.backend == "postgres" else ""
+    conn.execute("DROP TRIGGER evidence_entries_no_update" + on_table)
     row = conn.execute("SELECT payload_json FROM evidence_entries WHERE entry_kind='execution'").fetchone()
     payload = json.loads(row[0])
     payload["outcome"] = "failure"

@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.59.1:
+As of v0.60.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -148,6 +148,10 @@ As of v0.59.1:
   security checklist, a recognition playbook, and a proof bundle
   schema. The proof bundle format distinguishes maintainer-operated
   infrastructure from externally-operated infrastructure.
+- The Network Authority can run as several instances on a shared PostgreSQL
+  database behind a load balancer. Losing an instance loses no decision,
+  revocation or evidence, and every exactly-once operation is enforced by the
+  database.
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
@@ -576,6 +580,43 @@ NA. No core behaviour changed.
 
 **What became possible:** the pilot controllers can be written in TypeScript,
 and an auditor can verify the NA's export offline in either language.
+
+### v0.60.0 — Optional High Availability for the Network Authority
+
+**Question this release answered:** Can the Network Authority survive losing
+an instance, with no data loss or duplicates?
+
+**Why the previous state was insufficient:** the NA ran as one process tree on
+one host and one SQLite file. Rate limits were per process. The signing key
+was a local file. Two "exactly once" operations were checked in the
+application: two concurrent revocations computed the same CRL sequence, and
+one overwrote the other. Losing the host stopped every boundary decision,
+revocation and evidence record that depended on it.
+
+**What changed:**
+
+- A storage backend with SQLite (the default, unchanged) and PostgreSQL.
+  Every store works on both: migrations are shared, with one per-dialect
+  file, and they apply once across instances under a database lock.
+- The database enforces exactly-once operations: nonces are claimed
+  atomically, each CRL sequence is written once (a losing writer rebuilds and
+  retries), policy versions and activation are unique, and evidence chain
+  positions are unique.
+- Shared rate limits and job leases live in the database.
+- Every NA signature goes through one `Signer`. The key comes from a file, the
+  environment or an Azure Key Vault secret read with the managed identity.
+  HA mode refuses a key file.
+- `/readyz` checks that the database is a writable primary at the expected
+  schema, and reports the key fingerprint.
+- `na migrate-db` copies a SQLite database to PostgreSQL and proves nothing
+  was lost. `na verify-db` checks policies, CRLs and the evidence chain after
+  any restore.
+
+**What became possible:** the NA can be deployed for production use with HA.
+The full suite runs on both backends, a concurrency suite races every
+exactly-once operation, and an integration test kills one of two instances
+behind nginx mid-load. Every acknowledged decision, evidence record and
+revocation survives exactly once.
 
 ---
 

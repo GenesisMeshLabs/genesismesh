@@ -35,6 +35,7 @@ from ..models.selective_disclosure import (
     CapabilityNullifier,
     MerklePathNode,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # ---------------------------------------------------------------------------
 # Verification result
@@ -155,7 +156,7 @@ def _recompute_root(leaf_hash: str, path: list[MerklePathNode]) -> str:
 def commit_capabilities(
     capabilities: list[str],
     agreement: AgreementRecord,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,
@@ -279,7 +280,7 @@ def verify_capability_proof(
 
 def issue_nullifier(
     proof: CapabilityMembershipProof,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     valid_for_seconds: int = 60,

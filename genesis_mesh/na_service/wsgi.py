@@ -1,50 +1,41 @@
-"""WSGI entry point for the Network Authority service."""
+"""WSGI entry point for the Network Authority service.
+
+Configuration is read from the environment by ``settings.load_settings``; see
+that module for the variables. With no v0.60 variables set the NA runs exactly
+as before (SQLite, key file).
+"""
 
 import json
-import os
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from genesis_mesh.crypto import load_private_key
 from genesis_mesh.models import GenesisBlock
+from genesis_mesh.na_service.key_provider import load_signer
 from genesis_mesh.na_service.server import create_app
+from genesis_mesh.na_service.settings import load_settings
 from genesis_mesh.observability import configure_logging
 
 
 configure_logging()
 
+settings = load_settings()
 
-def _load_operator_public_keys() -> dict[str, str]:
-    """Load operator public keys from JSON environment configuration."""
-    raw = os.environ.get("OPERATOR_PUBLIC_KEYS_JSON")
-    return json.loads(raw) if raw else {}
-
-
-def _load_operator_key_tiers() -> dict[str, str]:
-    """Load operator key tiers from JSON environment configuration (F-21).
-
-    Every configured operator key must appear here as "standard" or
-    "privileged"; the service refuses to start otherwise.
-    """
-    raw = os.environ.get("OPERATOR_KEY_TIERS_JSON")
-    return json.loads(raw) if raw else {}
-
-
-with open(os.environ["GENESIS_FILE"], "r", encoding="utf-8") as f:
+with open(settings.genesis_file, "r", encoding="utf-8") as f:
     genesis_block = GenesisBlock(**json.load(f))
-
-na_private_key = load_private_key(os.environ["NA_PRIVATE_KEY_FILE"])
 
 app = create_app(
     genesis_block=genesis_block,
-    na_private_key=na_private_key,
-    db_path=os.environ.get("DB_PATH", "genesis_mesh_na.db"),
-    key_id=os.environ.get("NA_KEY_ID", "na-2025-q1"),
-    operator_public_keys=_load_operator_public_keys(),
-    operator_key_tiers=_load_operator_key_tiers(),
-    renewal_grace_seconds=int(os.environ.get("RENEWAL_GRACE_SECONDS", "900")),
-    boundary_policy_enforcement=os.environ.get("BOUNDARY_POLICY_ENFORCEMENT", "optional"),
-    evidence_store=os.environ.get("EVIDENCE_STORE", "off"),
+    na_private_key=load_signer(settings.key),
+    db_path=settings.db_path,
+    key_id=settings.key.key_id,
+    operator_public_keys=settings.operator_public_keys,
+    operator_key_tiers=settings.operator_key_tiers,
+    renewal_grace_seconds=settings.renewal_grace_seconds,
+    boundary_policy_enforcement=settings.boundary_policy_enforcement,
+    evidence_store=settings.evidence_store,
+    database_url=settings.database_url,
+    ha_mode=settings.ha_mode,
+    rate_limit_store=settings.rate_limit_store,
 )
 
 # Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.

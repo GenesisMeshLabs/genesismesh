@@ -30,13 +30,17 @@ if [ "$ROLE" = "na" ]; then
         (umask 077; printf '%s' "$NA_PRIVATE_KEY" > "$NA_PRIVATE_KEY_FILE")
     fi
 
-    if [ ! -f "$GENESIS_FILE" ] || [ ! -f "$NA_PRIVATE_KEY_FILE" ]; then
+    # v0.60: with NA_KEY_PROVIDER=env or azure-keyvault the key is never a
+    # file; the NA itself refuses to start if the provider cannot load it.
+    NA_KEY_PROVIDER=${NA_KEY_PROVIDER:-file}
+    if [ ! -f "$GENESIS_FILE" ] || { [ "$NA_KEY_PROVIDER" = "file" ] && [ ! -f "$NA_PRIVATE_KEY_FILE" ]; }; then
         echo "ERROR: genesis block or NA key not mounted. Refusing to start." >&2
         exit 1
     fi
 
     export GENESIS_FILE
     export NA_PRIVATE_KEY_FILE
+    export NA_KEY_PROVIDER
     export DB_PATH
 
     exec gunicorn \

@@ -44,6 +44,7 @@ from ..models.agreement import (
 from ..models.genesis import Signature
 from .decision import evaluate_trust_decision
 from .evidence import build_trust_evidence, graph_digest_from_export
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +111,7 @@ def _build_evidence_dict(
     graph: dict[str, Any],
     source_id: str,
     target_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     issued_by: str,
     now: datetime,
 ) -> dict[str, Any]:
@@ -151,7 +152,7 @@ def build_offer(
     responder_sovereign_id: str,
     requested_terms: AgreementTerms,
     graph: dict[str, Any],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     expires_at: datetime,
@@ -204,7 +205,7 @@ def build_counter(
     offer: CapabilityOffer,
     offered_terms: AgreementTerms,
     graph: dict[str, Any],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,
@@ -270,7 +271,7 @@ def build_counter(
 def accept_offer(
     offer: CapabilityOffer,
     graph: dict[str, Any],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,
@@ -328,7 +329,7 @@ def accept_offer(
 def accept_counter(
     counter: CapabilityCounter,
     original_offer: CapabilityOffer,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,
@@ -385,7 +386,7 @@ def accept_counter(
 
 def cosign_agreement(
     record: AgreementRecord,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
 ) -> AgreementRecord:

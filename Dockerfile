@@ -6,8 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-postgres.txt ./
+# The PostgreSQL driver is included so the image can run in HA mode (v0.60).
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-postgres.txt
 
 COPY . .
 

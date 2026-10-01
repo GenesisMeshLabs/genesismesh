@@ -180,6 +180,13 @@ These symbols are shipped and in active use but may evolve in minor versions.
 | `validate_execution`, `verify_evidence_events`, `plan_retention`, `check_metadata_only` | `genesis_mesh.trust.evidence_store` | v0.59.0 |
 | Evidence store routes (`/evidence/execution`, `/admin/evidence/*`) | HTTP | v0.59.0; opt-in |
 | `genesis-mesh evidence verify-export`, `na start --evidence-store` | CLI | v0.59.0 |
+| `DATABASE_URL`, `NA_HA_MODE`, `NA_KEY_PROVIDER`, `RATE_LIMIT_STORE` | NA configuration | v0.60.0; unset keeps v0.59 behaviour |
+| `GET /readyz` response fields (`database`, `signing_key`, `rate_limiter`, `ha_mode`, `instance`) | HTTP | v0.60.0 |
+| `NADatabase(db_path, database_url=...)`, `NADatabase.integrity_errors` | `genesis_mesh.na_service.db` | v0.60.0 |
+| `Signer`, `load_signer`, `KeyProviderConfig` | `genesis_mesh.na_service.key_provider` | v0.60.0 |
+| `SigningKeyLike` | `genesis_mesh.crypto` | v0.60.0; any key or signer accepted by signing functions |
+| `verify_database`, `migrate_sqlite_to_postgres` | `genesis_mesh.workflows.db_migration` | v0.60.0 |
+| `genesis-mesh na migrate-db`, `na verify-db` | CLI | v0.60.0 |
 
 ---
 

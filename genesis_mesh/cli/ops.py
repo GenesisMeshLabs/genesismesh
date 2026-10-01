@@ -13,6 +13,7 @@ import requests
 from werkzeug.serving import run_simple
 
 from .atlas_ops import atlas
+from .db_ops import migrate_db, verify_db
 from .decision_ops import trust
 from .dev_ops import dev
 from .federation import federation
@@ -89,6 +90,10 @@ def register_operational_commands(cli: click.Group) -> None:
 @click.group()
 def na() -> None:
     """Run Network Authority operations."""
+
+
+na.add_command(migrate_db)
+na.add_command(verify_db)
 
 
 @na.command("start")

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import uuid
@@ -15,7 +14,7 @@ from ..models import InviteToken, JoinCertificate
 class EnrollmentStoreMixin:
     """Persistence methods for node enrollment and certificate state."""
 
-    conn: sqlite3.Connection
+    conn: Any
     _lock: Any
 
     def create_invite_token(
@@ -187,6 +186,19 @@ class EnrollmentStoreMixin:
                 "INSERT INTO nonces(scope, nonce, created_at) VALUES (?, ?, ?)",
                 (scope, nonce, created_at.isoformat()),
             )
+    def claim_nonce(self, scope: str, nonce: str, created_at: datetime) -> bool:
+        """Atomically record a nonce; False when it was already used (a replay).
+
+        One statement decides the outcome, so two workers or instances
+        receiving the same request cannot both succeed (v0.60).
+        """
+        with self.conn:
+            claimed = self.conn.execute(
+                "INSERT INTO nonces(scope, nonce, created_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(scope, nonce) DO NOTHING",
+                (scope, nonce, created_at.isoformat()),
+            ).rowcount
+        return claimed == 1
     def has_nonce(self, scope: str, nonce: str) -> bool:
         """Return whether a nonce has already been used in a scope."""
         row = self.conn.execute(
@@ -205,8 +217,8 @@ class EnrollmentStoreMixin:
         """
         with self.conn:
             self.conn.execute(
-                "INSERT OR IGNORE INTO revoked_operator_keys"
-                "(key_id, revoked_at, reason, revoked_by) VALUES (?, ?, ?, ?)",
+                "INSERT INTO revoked_operator_keys(key_id, revoked_at, reason, revoked_by) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(key_id) DO NOTHING",
                 (key_id, revoked_at.isoformat(), reason, revoked_by),
             )
 
@@ -235,7 +247,7 @@ class EnrollmentStoreMixin:
                 "DELETE FROM nonces WHERE created_at < ?",
                 (cutoff.isoformat(),),
             )
-    def _invite_from_row(self, row: sqlite3.Row) -> InviteToken:
+    def _invite_from_row(self, row: Any) -> InviteToken:
         """Convert an `invite_tokens` row into an `InviteToken` model."""
         return InviteToken(
             token_id=row["token_id"],

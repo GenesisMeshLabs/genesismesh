@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from genesis_mesh.crypto import public_key_from_b64, verify_model_signature
@@ -184,7 +185,13 @@ def test_expired_certificate_entries_are_pruned_from_the_crl(
     )
     na_service.db.conn.commit()
 
-    stale = na_service.db.get_active_crl()
+    # A published CRL is immutable (v0.60), so the stale list is published as
+    # the next sequence rather than edited in place.
+    current = na_service.db.get_active_crl()
+    stale = current.model_copy(
+        update={"crl_id": str(uuid.uuid4()), "sequence": current.sequence + 1, "signatures": []},
+        deep=True,
+    )
     stale.revoked_certificates.append(
         RevokedCertificate(
             certificate_id="expired-cert",
