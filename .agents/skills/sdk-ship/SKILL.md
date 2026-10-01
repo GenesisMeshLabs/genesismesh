@@ -1,3 +1,8 @@
+---
+name: sdk-ship
+description: "Drive a complete Genesis Mesh SDK release (TypeScript, Go or .NET): plan, implement against the Network Authority API, run the SDK gate suite, write SDK docs, then commit, tag, push and create the GitHub release."
+---
+
 # /sdk-ship — Genesis Mesh SDK Release Skill
 
 You are executing the Genesis Mesh SDK release process. This skill drives a
@@ -58,9 +63,9 @@ Read all of the following in parallel before writing a single line of code:
 1. **`C:\Source\GenesisMeshLabs\AGENT.md`** — workspace topology and cross-repo rules.
 2. **`sdk-{lang}/AGENT.md`** — the target SDK's layer rule, known NA constraints,
    and coding conventions. This overrides everything else for SDK-specific decisions.
-3. **`genesismesh/AGENT.md`** — the protocol rules that apply to all SDKs.
-4. **Memory files** — every `.md` file in
-   `C:\Users\thaer\.claude\projects\c--Source-GenesisMeshLabs\memory\`.
+3. **`genesismesh/AGENTS.md`** — the protocol rules that apply to all SDKs.
+4. **Project memory** — if your agent keeps persistent memory for this
+   workspace, load it and apply what it records.
 5. **All existing plan files** — `genesismesh/ops/plan-v*.md` sorted by version,
    to understand release history and what the next increment is.
 6. **`genesismesh/CHANGELOG.md`** — entry format and last shipped version.
@@ -474,9 +479,9 @@ EOF
 Review decisions made during this release that are non-obvious or that
 future contributors would not derive from reading the code.
 
-Update `C:\Users\thaer\.claude\projects\c--Source-GenesisMeshLabs\memory\`
-following the memory format (feedback, project, or reference type).
-Update `MEMORY.md` index if a new file is written.
+If your agent keeps persistent project memory, record them there (feedback,
+project or reference entries in its format); otherwise add lasting SDK
+conventions to the SDK's agent instructions file.
 
 ---
 

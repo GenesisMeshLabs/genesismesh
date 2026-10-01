@@ -1,4 +1,4 @@
-# AGENT.md
+# AGENTS.md
 
 Guidance for AI coding agents and human contributors working inside Genesis Mesh.
 
@@ -497,8 +497,11 @@ A change is done only when:
 
 ## Release Skill
 
-The project ships releases using the `/ship` Claude Code skill at
-`.claude/commands/ship.md`. Run `/ship` inside Claude Code to drive the full
+The project ships releases using the `ship` skill at
+`.agents/skills/ship/SKILL.md` (SDK releases: `.agents/skills/sdk-ship/`).
+Skills use the Agent Skills format (`SKILL.md` with `name` and `description`
+frontmatter). In a coding agent that supports skills, run `/ship`; otherwise ask
+the agent to follow `.agents/skills/ship/SKILL.md`. Either way it drives the full
 release cycle: detect or draft the next plan, enforce vision rules, implement,
 run the full gate suite, write all required documentation, commit, tag, push,
 and create the GitHub release.

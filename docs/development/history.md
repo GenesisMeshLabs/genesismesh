@@ -587,6 +587,6 @@ and an auditor can verify the NA's export offline in either language.
 - Per-release plans: `ops/plan-v0.*.md`
 - Phase 2 externalization plan: {doc}`externalization`
 - Project vision and the "what we will not build" list: `VISION.md`
-- Repository conventions for working in the codebase: `AGENT.md`
+- Repository conventions for working in the codebase: `AGENTS.md`
 
 This document changes as the project changes.
