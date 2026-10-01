@@ -222,7 +222,7 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx \
   -d na.genesismesh.connectorzzz.com \
   --non-interactive --agree-tos \
-  -m rebel.saidi.thaer@gmail.com
+  -m contact@genesismesh.org
 ```
 
 Verify externally:

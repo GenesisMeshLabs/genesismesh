@@ -11,7 +11,7 @@
 PEER_HOST="${PEER_HOST:-4.223.130.190}"
 PEER_KEY="${PEER_KEY:-Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=}"
 PEER_PORT="${PEER_PORT:-7443}"
-SSH_KEY="${SSH_KEY:-/mnt/c/Users/thaer/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 
 # Config lives in the Windows repo — resolve from WSL2
 GENESIS_CONFIG="${GENESIS_CONFIG:-/mnt/c/Source/genesismesh/genesis-mesh.toml}"

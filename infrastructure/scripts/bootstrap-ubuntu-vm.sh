@@ -5,7 +5,7 @@ set -euo pipefail
 # It installs the package, writes systemd units, and optionally configures
 # Nginx/TLS. It deliberately does not create production secrets.
 
-GENESIS_REPO_URL="${GENESIS_REPO_URL:-https://github.com/thaersaidi/genesismesh.git}"
+GENESIS_REPO_URL="${GENESIS_REPO_URL:-https://github.com/GenesisMeshLabs/genesismesh.git}"
 GENESIS_REF="${GENESIS_REF:-main}"
 GENESIS_ROLE="${GENESIS_ROLE:-na}" # na, router, all
 GENESIS_USER="${GENESIS_USER:-${SUDO_USER:-genesis}}"
