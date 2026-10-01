@@ -156,7 +156,7 @@ them externally.
 
 ## Hardening Resources
 
-- [Trust model](https://genesismesh.connectorzzz.com/concepts/trust-model.html)
-- [Security model](https://genesismesh.connectorzzz.com/concepts/security-model.html)
-- [Certificate lifecycle](https://genesismesh.connectorzzz.com/concepts/certificate-lifecycle.html)
-- [Revocation operations](https://genesismesh.connectorzzz.com/operations/revocation.html)
+- [Trust model](https://docs.genesismesh.org/concepts/trust-model.html)
+- [Security model](https://docs.genesismesh.org/concepts/security-model.html)
+- [Certificate lifecycle](https://docs.genesismesh.org/concepts/certificate-lifecycle.html)
+- [Revocation operations](https://docs.genesismesh.org/operations/revocation.html)

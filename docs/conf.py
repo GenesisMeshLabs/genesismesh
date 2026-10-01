@@ -33,7 +33,7 @@ master_doc = "index"
 
 html_theme = "furo"
 html_title = "Genesis Mesh"
-html_baseurl = "https://genesismesh.connectorzzz.com/"
+html_baseurl = "https://docs.genesismesh.org/"
 html_show_sphinx = False
 html_logo = "../genesis_mesh/na_service/operator_console/static/logo.svg"
 html_favicon = "../genesis_mesh/na_service/operator_console/static/favicon.svg"
