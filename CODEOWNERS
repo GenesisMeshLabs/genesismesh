@@ -4,15 +4,15 @@
 # A PR touching a path cannot be merged without approval from the listed owner.
 
 # Protocol core — trust models and cryptographic primitives
-genesis_mesh/trust/         @thaersaidi
-genesis_mesh/models/        @thaersaidi
-genesis_mesh/crypto/        @thaersaidi
+genesis_mesh/trust/         @GenesisMeshLabs/maintainers
+genesis_mesh/models/        @GenesisMeshLabs/maintainers
+genesis_mesh/crypto/        @GenesisMeshLabs/maintainers
 
 # Formal verification models
-ops/tamarin/                @thaersaidi
+ops/tamarin/                @GenesisMeshLabs/maintainers
 
 # CLI
-genesis_mesh/cli/           @thaersaidi
+genesis_mesh/cli/           @GenesisMeshLabs/maintainers
 
 # Docs
-docs/                       @thaersaidi
+docs/                       @GenesisMeshLabs/maintainers

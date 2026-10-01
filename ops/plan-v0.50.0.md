@@ -81,18 +81,18 @@ Structured feature request:
 
 ```
 # Protocol core
-genesis_mesh/trust/         @thaersaidi
-genesis_mesh/models/        @thaersaidi
-genesis_mesh/crypto/        @thaersaidi
+genesis_mesh/trust/         @GenesisMeshLabs/maintainers
+genesis_mesh/models/        @GenesisMeshLabs/maintainers
+genesis_mesh/crypto/        @GenesisMeshLabs/maintainers
 
 # Formal models
-formal/                     @thaersaidi
+formal/                     @GenesisMeshLabs/maintainers
 
 # CLI
-genesis_mesh/cli/           @thaersaidi
+genesis_mesh/cli/           @GenesisMeshLabs/maintainers
 
 # Docs
-docs/                       @thaersaidi
+docs/                       @GenesisMeshLabs/maintainers
 ```
 
 ### `CONTRIBUTING.md`

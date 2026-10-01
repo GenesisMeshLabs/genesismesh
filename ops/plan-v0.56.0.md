@@ -39,7 +39,7 @@ It has no network dependency -- it verifies records from local data.
 
 ```
 verifier/go/
-  go.mod                     -- module: github.com/thaersaidi/genesismesh/verifier
+  go.mod                     -- module: github.com/GenesisMeshLabs/genesismesh/verifier
   go.sum
   verifier/
     signatures.go            -- Ed25519 signature verification
