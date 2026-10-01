@@ -28,8 +28,8 @@ SDKs carry the coordinated version without these additions.
 | TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.59.1 | `GenesisMeshLabs/sdk-typescript` |
 | Go | `github.com/GenesisMeshLabs/sdk-go` | 0.59.1 | `GenesisMeshLabs/sdk-go` |
 | C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.59.1 | `GenesisMeshLabs/sdk-dotnet` |
-| Rust SDK | `genesis-mesh-sdk` on crates.io | 0.59.1 | `GenesisMeshLabs/sdk-rust` |
-| Rust gateway | `genesis-mesh-gateway` on crates.io | 0.59.1 | `GenesisMeshLabs/gateway` |
+| Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 0.59.1 | `GenesisMeshLabs/sdk-rust` |
+| Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 0.59.1 | `GenesisMeshLabs/gateway` |
 
 Rust is different in kind from the other three: it is not a thin HTTP client
 for the NA. It ships the portable trust primitives as an embeddable crate
