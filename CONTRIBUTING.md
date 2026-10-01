@@ -96,12 +96,13 @@ The plan file must exist before any implementation is written.
 
 ## 8. Release process
 
-The project ships releases using the `/ship` Claude Code skill, located at
-`.claude/commands/ship.md`. It drives the full cycle automatically: plan
+The project ships releases using the `ship` agent skill, located at
+`.agents/skills/ship/SKILL.md`. It drives the full cycle automatically: plan
 detection, vision enforcement, implementation, gate suite, documentation,
 commit, tag, push, and GitHub release.
 
-To use it, open this repository in Claude Code and run `/ship`. The skill
+To use it, open this repository in a coding agent that supports skills and run
+`/ship` (or ask the agent to use the ship skill). The skill
 reads the next unimplemented plan from `ops/plan-v*.md`, implements it, runs
 all gates, writes required documentation (worked example, CLI reference,
 history narrative, phase doc, examples index), and creates the release.
