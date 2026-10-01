@@ -25,6 +25,7 @@ from ..models.atlas import (
     TrustPathCache,
     TrustPathEntry,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 def _graph_digest(graph: dict[str, Any]) -> str:
@@ -68,7 +69,7 @@ def cache_trust_path(
     target: str,
     graph: dict[str, Any],
     operator_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     path_ttl_seconds: int = 300,
     now: datetime | None = None,
@@ -107,7 +108,7 @@ def build_trust_path_cache(
     pairs: list[tuple[str, str]],
     graph: dict[str, Any],
     operator_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     path_ttl_seconds: int = 300,
     now: datetime | None = None,
@@ -136,7 +137,7 @@ def prune_graph(
     graph: dict[str, Any],
     policy: GraphPruningPolicy,
     operator_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], PrunedAtlasExport]:

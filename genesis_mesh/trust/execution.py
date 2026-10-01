@@ -19,6 +19,7 @@ import nacl.signing
 from ..crypto import sign_model, verify_model_signature
 from ..models.context import BoundaryDecision
 from ..models.execution import EvidenceChain, ExecutionEvidence
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +90,7 @@ def record_execution(
     executor_sovereign_id: str,
     executed_capability: str,
     outcome: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     sequence_no: int = 1,

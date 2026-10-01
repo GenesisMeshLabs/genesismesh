@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.59.1
+**Versions**: v0.38.0 – v0.60.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -93,6 +93,11 @@ hash-chained record of every decision it signs and of the signed execution
 evidence controllers submit, with one chain per secret across decisions, so an
 audit of a vendor or a secret no longer depends on the controller's storage.
 
+**High Availability** (v0.60.0): two or more NA instances share a PostgreSQL
+database behind a load balancer, with exactly-once operations enforced by the
+database and one signing key from Key Vault, so losing an instance loses no
+decision, revocation or evidence.
+
 ## Value Added
 
 - Cascade detection guards K-of-N consensus against correlated validators.
@@ -145,3 +150,4 @@ interoperability proof (v0.49–v0.56).
 | v0.58.1 | Attestation-Backed Evaluation: AttestationBinding, attestation gates, `attestation_claim.v1`, `attestation_id` basis |
 | v0.59.0 | Evidence Store: stored decisions, signed execution evidence, per-secret chains, `gm.evidence.event` export |
 | v0.59.1 | TypeScript SDK for governed secret lifecycles: attestation evaluation, policy lifecycle, evidence store, offline verification |
+| v0.60.0 | Optional HA: PostgreSQL backend, database-enforced exactly-once operations, shared rate limits, Key Vault signer, `/readyz`, SQLite migration |

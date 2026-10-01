@@ -762,6 +762,47 @@ Verify a `DataAccessIntent` against a `DataLicensePolicy`. Unauthenticated.
 
 ---
 
+## Health and readiness (v0.60)
+
+### `GET /healthz`
+
+Process liveness only: `{"status": "ok"}`.
+
+### `GET /readyz`
+
+Load-balancer readiness. Returns 200 when the database is reachable and
+writable at the expected schema version and the signing key is loaded. In HA
+mode, the shared rate limiter must also be in use:
+
+```json
+{
+  "status": "ready",
+  "instance": "host:1a2b3c4d",
+  "ha_mode": "off",
+  "database": {"backend": "sqlite", "writable": true, "schema_version": 13, "expected_schema_version": 13},
+  "signing_key": {"key_id": "na-local", "provider": "file", "fingerprint": "<sha256 of the public key>"},
+  "rate_limiter": "memory",
+  "db_path": "<SQLite path, or the PostgreSQL URL without its password>"
+}
+```
+
+When not ready: `503 service_not_ready`, with the same checks in
+`error.details`. The response never contains key material.
+
+### Concurrency conflicts (v0.60)
+
+With several NA instances, a request that loses a race the database decides
+gets `409`, and the client may retry it:
+
+| Code | Meaning |
+|---|---|
+| `boundary_policy_activation_conflict` | another version of the policy was activated at the same moment |
+| `boundary_policy_version_conflict` | concurrent publishes of one policy kept taking the next version |
+| `crl_publish_contention` | concurrent revocations kept taking the next CRL sequence |
+| `retention_in_progress` | evidence retention is already running on another instance |
+
+---
+
 ## Common error format
 
 All error responses use this envelope:
@@ -782,5 +823,6 @@ All error responses use this envelope:
 | 400 | Missing or malformed input |
 | 401 | Invalid or missing operator signature (admin routes) |
 | 404 | Resource not found |
+| 409 | Conflicts with stored state, or lost a concurrent race (retryable, see above) |
 | 422 | Input is well-formed but rejected by the trust library |
 | 500 | Unexpected internal error |

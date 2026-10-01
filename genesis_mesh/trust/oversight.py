@@ -17,6 +17,7 @@ from ..models.oversight import (
     HumanOversightPolicy,
     OversightEscalationLevel,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +180,7 @@ def propose_commitment(
     policy: HumanOversightPolicy,
     proposed_action: dict[str, Any],
     requesting_sovereign_id: str,
-    agent_signing_key: nacl.signing.SigningKey,
+    agent_signing_key: SigningKeyLike,
     *,
     issued_by: str,
     approval_window_seconds: int = 300,
@@ -236,7 +237,7 @@ def propose_commitment(
 def approve_commitment(
     request: HumanApprovalRequest,
     policy: HumanOversightPolicy,
-    human_signing_key: nacl.signing.SigningKey,
+    human_signing_key: SigningKeyLike,
     *,
     issued_by: str,
     commitment_valid_for_seconds: int = 600,
@@ -292,7 +293,7 @@ def approve_commitment(
 def reject_commitment(
     request: HumanApprovalRequest,
     policy: HumanOversightPolicy,
-    human_signing_key: nacl.signing.SigningKey,
+    human_signing_key: SigningKeyLike,
     *,
     issued_by: str,
     note: str | None = None,

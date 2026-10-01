@@ -23,7 +23,6 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-import nacl.encoding
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
@@ -257,7 +256,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         except ValidationError as exc:
             raise BadRequestError("Invalid policy object", code="invalid_policy") from exc
         keys = data.get("issuer_public_keys") or [
-            service.na_private_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
+            service.signer.public_key_b64
         ]
         if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
             raise BadRequestError("issuer_public_keys must be a list of strings", code="invalid_public_keys")

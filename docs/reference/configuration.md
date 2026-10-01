@@ -53,7 +53,13 @@ Private-key paths in this file are local secrets and must not be committed.
 |---|---:|---|
 | `SERVICE_ROLE` | no | Set to `na` for Network Authority startup. Defaults to `na`. |
 | `GENESIS_FILE` | yes | Path to the signed genesis block. |
-| `NA_PRIVATE_KEY_FILE` | yes | Path to the Network Authority private key. |
+| `NA_PRIVATE_KEY_FILE` | with the `file` key provider | Path to the Network Authority private key. |
+| `NA_KEY_PROVIDER` | no | `file` (default), `env` or `azure-keyvault`: where the signing key comes from (v0.60, see [High Availability](../operations/high-availability.md)). |
+| `NA_PRIVATE_KEY_SEED` | with the `env` provider | Base64 Ed25519 seed injected by the platform's secret store. |
+| `AZURE_KEY_VAULT_URL` / `NA_KEY_SECRET_NAME` | with the `azure-keyvault` provider | Vault URL and the secret holding the seed; read with the managed identity (`AZURE_CLIENT_ID` selects a user-assigned one). |
+| `DATABASE_URL` | no | `postgresql://...` stores all state in shared PostgreSQL (v0.60); `sqlite:///path` names a SQLite file. Unset: SQLite at `DB_PATH`. |
+| `NA_HA_MODE` | no | `off` (default) or `on`; `on` refuses to start without PostgreSQL, a non-file key provider and shared rate limits. |
+| `RATE_LIMIT_STORE` | no | `memory` or `database`; defaults to `database` on PostgreSQL. |
 | `NA_KEY_ID` | no | Key identifier used when signing NA objects. |
 | `DB_PATH` | no | SQLite database path. Defaults to `genesis_mesh_na.db`. |
 | `PORT` | no | HTTP bind port. Defaults to `8443`. |
@@ -63,8 +69,8 @@ Private-key paths in this file are local secrets and must not be committed.
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
 | `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
 
-`start.sh` refuses to start the Network Authority when `GENESIS_FILE` or
-`NA_PRIVATE_KEY_FILE` is missing.
+`start.sh` refuses to start the Network Authority when `GENESIS_FILE` is
+missing, or when `NA_PRIVATE_KEY_FILE` is missing with the `file` key provider.
 
 ## Node Environment
 

@@ -40,10 +40,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     bp = Blueprint("consensus", __name__)
 
     def _pub_b64() -> str:
-        import nacl.encoding
-        return service.na_private_key.verify_key.encode(
-            encoder=nacl.encoding.Base64Encoder
-        ).decode()
+        return service.signer.public_key_b64
 
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
@@ -79,7 +76,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 justification_proof=j_proof,
                 validator_sovereign_id=service.genesis_block.network_name,
                 vote=vote_val,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 reason=data.get("reason"),
                 now=datetime.now(timezone.utc),
             )
@@ -134,7 +131,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 votes=votes,
                 required_threshold=int(required_threshold),
                 validator_sovereign_ids=validator_ids,
-                assembler_signing_key=service.na_private_key,
+                assembler_signing_key=service.signer,
                 issued_by=service.key_id,
                 now=datetime.now(timezone.utc),
             )

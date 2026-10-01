@@ -20,6 +20,7 @@ from ..models.overlay_discovery import (
     DiscoveryGossipMessage,
     OverlayDiscoveryRecord,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 DiscoveryVerificationReason = Literal[
     "valid",
@@ -35,7 +36,7 @@ def create_discovery_record(
     na_public_key_b64: str,
     endpoints: list[str],
     capabilities_hash: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     sequence_no: int = 1,
     valid_for_hours: int = 24,
@@ -118,7 +119,7 @@ def gossip_should_forward(
 def build_discovery_feed(
     records: list[OverlayDiscoveryRecord],
     operator_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     valid_for_hours: int = 6,
     now: datetime | None = None,

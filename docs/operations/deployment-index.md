@@ -12,6 +12,7 @@ deployment live in the [Runbooks](runbooks-index.md) section.
 :hidden:
 
 deployment
+high-availability
 public-reference-dashboard
 vm-bootstrap
 infrastructure
@@ -30,6 +31,15 @@ kubernetes-deployment
 
 High-level overview of the supported deployment shapes and when to choose
 each.
+:::
+
+:::{grid-item-card} High Availability
+:link: high-availability
+:link-type: doc
+
+Two or more NA instances on a shared PostgreSQL database behind a load
+balancer: configuration, key provider, failover, migration, backup and DR
+(v0.60).
 :::
 
 :::{grid-item-card} Network Authority VM Bootstrap

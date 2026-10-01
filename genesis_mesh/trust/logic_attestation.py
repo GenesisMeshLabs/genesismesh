@@ -20,6 +20,7 @@ import nacl.signing
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.attestation import AttestationPolicy, ModelAttestation, ToolManifest
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # ---------------------------------------------------------------------------
 # Typed reason codes
@@ -47,7 +48,7 @@ def create_model_attestation(
     model_version_tag: str,
     system_prompt: str,
     tool_ids: list[str],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     token_id: str | None = None,
     valid_for_seconds: int = 300,

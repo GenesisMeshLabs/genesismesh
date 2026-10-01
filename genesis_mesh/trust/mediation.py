@@ -20,6 +20,7 @@ from ..models.mediation import (
     MediatedExecutionReceipt,
     MediationRejection,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 MediationRejectionReason = Literal[
     "invalid_request_signature",
@@ -257,7 +258,7 @@ def create_mediated_execution_receipt(
     request: ExecutionMediationRequest,
     subprocess_pid: int,
     guard_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     exit_code: int | None = None,
     now: datetime | None = None,

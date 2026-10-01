@@ -15,13 +15,14 @@ import nacl.signing
 from ...crypto import sign_model
 from ...models.consensus import ValidatorVote
 from ...models.justification import JustificationProof
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 def cast_validator_vote(
     justification_proof: JustificationProof,
     validator_sovereign_id: str,
     vote: bool,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     reason: str | None = None,
     context_digest: str | None = None,

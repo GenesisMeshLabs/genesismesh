@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from ..models import AgentDescriptor
 
@@ -12,7 +11,7 @@ from ..models import AgentDescriptor
 class AgentStoreMixin:
     """Persistence methods for authenticated agent registrations."""
 
-    conn: sqlite3.Connection
+    conn: Any
 
     def upsert_agent_registration(self, descriptor: AgentDescriptor) -> None:
         """Persist a signed agent descriptor; existing row for the same node key is replaced."""

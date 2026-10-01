@@ -430,9 +430,7 @@ def test_store_rejects_two_active_versions(na_service, client):
     _publish(client)
     _publish(client)
     _activate(client, "read-limits", 1)
-    import sqlite3
-
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(na_service.db.integrity_errors):
         with na_service.db.conn:
             na_service.db.conn.execute(
                 "UPDATE boundary_policy_versions SET active = 1 WHERE policy_id = ? AND version = 2",

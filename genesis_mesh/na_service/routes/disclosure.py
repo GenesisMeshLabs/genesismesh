@@ -42,10 +42,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     bp = Blueprint("disclosure", __name__)
 
     def _pub_b64() -> str:
-        import nacl.encoding
-        return service.na_private_key.verify_key.encode(
-            encoder=nacl.encoding.Base64Encoder
-        ).decode()
+        return service.signer.public_key_b64
 
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
@@ -78,7 +75,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
             commitment = commit_capabilities(
                 capabilities=capabilities,
                 agreement=agreement,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 issued_by=service.key_id,
                 now=datetime.now(timezone.utc),
             )
@@ -117,7 +114,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
         try:
             null = issue_nullifier(
                 proof=proof,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 issued_by=service.key_id,
                 now=datetime.now(timezone.utc),
             )

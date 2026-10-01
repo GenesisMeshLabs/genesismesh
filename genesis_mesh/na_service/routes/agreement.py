@@ -47,10 +47,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         return service.genesis_block.network_name
 
     def _pub_b64() -> str:
-        import nacl.encoding
-        return service.na_private_key.verify_key.encode(
-            encoder=nacl.encoding.Base64Encoder
-        ).decode()
+        return service.signer.public_key_b64
 
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
@@ -103,7 +100,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 responder_sovereign_id=responder,
                 requested_terms=terms,
                 graph=graph,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 issued_by=service.key_id,
                 expires_at=expires_at,
                 now=datetime.now(timezone.utc),
@@ -171,7 +168,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 offer=offer,
                 offered_terms=terms,
                 graph=graph,
-                signing_key=service.na_private_key,
+                signing_key=service.signer,
                 issued_by=service.key_id,
                 now=datetime.now(timezone.utc),
             )
@@ -209,7 +206,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 agreement = accept_counter(
                     counter=counter,
                     original_offer=original,
-                    signing_key=service.na_private_key,
+                    signing_key=service.signer,
                     issued_by=service.key_id,
                     now=now,
                 )
@@ -218,7 +215,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
                 agreement = accept_offer(
                     offer=offer,
                     graph=graph,
-                    signing_key=service.na_private_key,
+                    signing_key=service.signer,
                     issued_by=service.key_id,
                     now=now,
                 )
