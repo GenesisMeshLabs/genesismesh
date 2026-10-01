@@ -1,3 +1,8 @@
+---
+name: ship
+description: "Drive a complete Genesis Mesh core release: detect or draft the next ops/plan-v*.md, implement it under the vision rules, run the full gate suite, write the required docs, then commit, tag, push and create the GitHub release."
+---
+
 # /ship — Genesis Mesh Release Skill
 
 You are executing the Genesis Mesh release process. This skill drives a complete
@@ -36,13 +41,13 @@ python -m pip_audit -r requirements.txt -r requirements-dev.txt
 
 Read all of the following in parallel before writing a single line of code:
 
-1. **AGENT.md** — the operational rulebook for this repo. Contains the enforced
+1. **AGENTS.md** — the operational rulebook for this repo. Contains the enforced
    layer rule, modular boundaries, stable surface definition, and coding conventions
    that override everything else. Read this first.
 
-2. **Memory files** — every `.md` file in
-   `C:\Users\thaer\.claude\projects\c--Source-genesismesh\memory\` — apply the
-   rules and conventions they describe throughout the entire run.
+2. **Project memory** — if your agent keeps persistent memory for this
+   project, load it and apply the rules and conventions it records throughout
+   the entire run.
 
 3. **All existing plan files** — `ops/plan-v*.md` — sorted by version, to understand
    release history, scope patterns, and what the next logical increment is.
@@ -156,7 +161,7 @@ If matches: **HARD STOP** — hardcoded sovereign identity detected.
 
 ## PHASE 4 — Implementation
 
-Follow the conventions in AGENT.md and the memory files loaded in Phase 1.
+Follow the conventions in AGENTS.md and the memory files loaded in Phase 1.
 For every new file or changed file, also enforce:
 
 ### Route files (na_service/routes/)
@@ -531,11 +536,10 @@ Pass: no errors.
 
 Review the implementation just shipped. Identify any decisions, patterns, or
 constraints that were **non-obvious** — things that would trip up a future
-contributor who hadn't read the plan or this session. Write them as feedback or
-project memory entries following the format in
-`C:\Users\thaer\.claude\projects\c--Source-genesismesh\memory\`.
-
-Update `MEMORY.md` with a pointer to any new memory file written.
+contributor who hadn't read the plan or this session. If your agent keeps persistent
+project memory, record them there as feedback or project entries in its
+format; otherwise add them to `AGENTS.md` when they are lasting repository
+conventions.
 
 ---
 
