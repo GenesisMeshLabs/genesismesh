@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.59.0:
+As of v0.59.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -554,6 +554,28 @@ one place. 26 new tests (1,569 in total including integration) cover every
 rejection code, chain gaps and forks, append-only enforcement, tamper
 detection, retention, export verification and the full vendor-to-secret
 history across an NA restart.
+
+### v0.59.1 — TypeScript SDK for Governed Secret Lifecycles
+
+**Question this release answered:** Can a lifecycle controller written in
+TypeScript run the whole governed secret flow without hand-written HTTP or
+cryptography?
+
+**Why the previous state was insufficient:** the NA side of the secret pilots
+was complete in v0.59.0, but the TypeScript SDK could not evaluate under an
+attestation, manage policies, sign execution evidence or verify bindings and
+exports. Its canonical JSON also differed from Python for non-ASCII text and
+floats, so some signatures could not be produced or checked in TypeScript.
+
+**What changed:** the TypeScript SDK wraps attestation-backed evaluation, the
+policy lifecycle and the evidence store; signs execution evidence on the
+per-secret chain exactly as the reference does; ports decision and export
+verification; and adds a governed-action helper and reconciliation. It is
+tested against vectors produced by the core and against a disposable local
+NA. No core behaviour changed.
+
+**What became possible:** the pilot controllers can be written in TypeScript,
+and an auditor can verify the NA's export offline in either language.
 
 ---
 

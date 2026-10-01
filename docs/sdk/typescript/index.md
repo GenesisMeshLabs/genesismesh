@@ -3,7 +3,7 @@
 > **Added in v0.53.0** · Package: `genesis-mesh-sdk` · Source: `sdk-typescript/`
 
 TypeScript client for the Genesis Mesh Network Authority HTTP API.
-Ships ESM, CJS, and type declarations. Node.js ≥ 20 required.
+Ships ESM, CJS, and type declarations. Node.js ≥ 22 required.
 
 ---
 
@@ -31,13 +31,29 @@ const client = new GenesisMeshClient({
 `signingKeyBase64` and `keyId` are only required for admin routes. You can
 omit them when calling public verification endpoints only.
 
-The client exposes 7 sub-clients:
+The client exposes 9 sub-clients:
 
 ```
-client.agreement   client.boundary    client.evidence
+client.agreement   client.boundary    client.policy
+client.evidence    client.evidenceStore
 client.attestation client.disclosure  client.consensus
 client.dataUsage
 ```
+
+`client.evidence` is trust evidence (v0.53); `client.evidenceStore` is the
+v0.59 execution evidence store. Pass `signer` instead of `signingKeyBase64`
+to sign admin requests with a key held elsewhere (for example an HSM).
+
+## Governed secret lifecycles (v0.59.1)
+
+The SDK covers the controller side of the secret governance pilots:
+
+- {doc}`governance`: `governedAction` (decide, verify, act, record) and
+  reconciliation against the NA history
+- {doc}`evidence-store`: evidence store, attestation and policy clients,
+  signers, retries and errors
+- {doc}`offline-verification`: verifying decisions and evidence exports
+  without the NA, and the canonical JSON rules
 
 ---
 
@@ -46,15 +62,10 @@ client.dataUsage
 ```sh
 cd sdk-typescript
 npm run build   # ESM → dist/esm/ · CJS → dist/cjs/ · types → dist/types/
-npm test        # 74 Jest tests
-```
-
-Smoke test against a live NA:
-
-```sh
-cd sandbox/sdk-smoke
-npm install
-npm run smoke   # requires NA on http://127.0.0.1:9443
+npm run typecheck
+npm run test:package  # ESM and CommonJS entry points
+npm test              # unit tests and core-generated vectors
+npm run test:e2e      # live tests against a disposable local NA
 ```
 
 ```{toctree}
@@ -63,4 +74,7 @@ npm run smoke   # requires NA on http://127.0.0.1:9443
 
 sub-clients
 auth
+governance
+evidence-store
+offline-verification
 ```
