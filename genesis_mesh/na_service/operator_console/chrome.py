@@ -16,7 +16,7 @@ def render_topbar(active: str) -> str:
         ("Surfaces", "/surfaces"),
         ("API Docs", "/api-reference"),
         ("CLI Docs", "/cli-reference"),
-        ("Operator Docs", "https://genesismesh.connectorzzz.com/operators/"),
+        ("Operator Docs", "https://docs.genesismesh.org/operators/"),
     ]
     links = "\n".join(
         f'<a class="nav-link{" nav-link-active" if label == active else ""}" href="{href}">{label}</a>'

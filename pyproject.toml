@@ -76,8 +76,8 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://genesismesh.connectorzzz.com"
-Documentation = "https://genesismesh.connectorzzz.com"
+Homepage = "https://genesismesh.org"
+Documentation = "https://docs.genesismesh.org"
 Repository = "https://github.com/GenesisMeshLabs/genesismesh"
 Issues = "https://github.com/GenesisMeshLabs/genesismesh/issues"
 Releases = "https://github.com/GenesisMeshLabs/genesismesh/releases"
