@@ -446,7 +446,7 @@ All existing stable symbols retain their signatures.
   problem statement, proposed solution, alternatives, and research links.
 - `.github/pull_request_template.md` — PR checklist covering tests, Sphinx
   build, CHANGELOG, and no-secrets guard.
-- `CODEOWNERS` — assigns `@thaersaidi` to `trust/`, `models/`, `crypto/`,
+- `CODEOWNERS` — assigns the maintainers to `trust/`, `models/`, `crypto/`,
   `ops/tamarin/`, `cli/`, and `docs/`.
 - `ops/release-checklist.md` — step-by-step pre-release, release, and
   post-release checklist.

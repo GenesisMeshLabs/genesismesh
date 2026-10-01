@@ -89,7 +89,7 @@ Any change to `genesis_mesh/trust/`, `genesis_mesh/models/`,
 Protocol changes require:
 1. A written plan file in `ops/plan-vX.Y.Z.md` describing the change,
    the trust guarantee it adds or modifies, and the verification approach.
-2. Review and approval from `@thaersaidi` (see `CODEOWNERS`).
+2. Review and approval from a maintainer (`@GenesisMeshLabs/maintainers`, see `CODEOWNERS`).
 3. Updated Tamarin models if the change affects a formally-verified property.
 
 The plan file must exist before any implementation is written.
