@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from flask import Blueprint, jsonify, request
 
-from ...crypto import sign_model
 from ...models import MembershipAttestation, RecognitionPolicy, SovereignRevocationFeed
 from ...trust import verify_membership_attestation
 from ..errors import (
@@ -111,7 +110,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             signatures=[],
         )
         attestation.signatures.append(
-            sign_model(attestation, service.na_private_key, service.key_id)
+            service.signer.sign_model(attestation)
         )
         service.db.save_membership_attestation(attestation)
         service.db.add_audit_event("membership_attestation_issued", {
@@ -239,7 +238,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             issued_by=service.key_id,
             signatures=[],
         )
-        feed.signatures.append(sign_model(feed, service.na_private_key, service.key_id))
+        feed.signatures.append(service.signer.sign_model(feed))
         return jsonify(_json_model(feed))
 
     @bp.route("/attestations/verify", methods=["POST"])

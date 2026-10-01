@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
-import nacl.encoding
 from pydantic import ValidationError
 
 from ...models.agreement import AgreementRecord
@@ -91,7 +90,7 @@ class BoundaryPolicyService:
 
     def policy_public_keys(self) -> list[str]:
         return [
-            self._na.na_private_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
+            self._na.signer.public_key_b64
         ]
 
     # -- intent -> policy ---------------------------------------------------
@@ -148,6 +147,8 @@ class BoundaryPolicyService:
 
     # -- lifecycle ----------------------------------------------------------
 
+    PUBLISH_ATTEMPTS = 5
+
     def publish(self, data: dict[str, Any]) -> BoundaryPolicy:
         """Validate, sign and store a new inactive version."""
         policy, result = self.validate_intent(data)
@@ -156,9 +157,20 @@ class BoundaryPolicyService:
                 "boundary policy failed validation", code="boundary_policy_invalid",
                 details=result.to_dict(),
             )
-        signed = sign_boundary_policy(policy, self._na.na_private_key, self._na.key_id)
-        self._na.db.save_boundary_policy(signed)
-        return signed
+        # v0.60: another instance may publish the same policy_id concurrently
+        # and take the version number; rebuild with the next one (bounded).
+        for _ in range(self.PUBLISH_ATTEMPTS):
+            signed = sign_boundary_policy(policy, self._na.signer, self._na.key_id)
+            try:
+                self._na.db.save_boundary_policy(signed)
+            except self._na.db.integrity_errors:
+                policy = self.build_from_intent(data)
+                continue
+            return signed
+        raise ConflictError(
+            "boundary policy version was taken by concurrent publishes; retry",
+            code="boundary_policy_version_conflict",
+        )
 
     def _stored(self, policy_id: str, version: int) -> tuple[dict, BoundaryPolicy]:
         row = self._na.db.get_boundary_policy_row(policy_id, version)
@@ -186,7 +198,14 @@ class BoundaryPolicyService:
                 "boundary policy has expired", code="boundary_policy_activation_refused",
                 details={"reason": "policy_expired"},
             )
-        previous = self._na.db.activate_boundary_policy(policy_id, version)
+        try:
+            previous = self._na.db.activate_boundary_policy(policy_id, version)
+        except self._na.db.integrity_errors as exc:
+            # The one-active-version index refused a concurrent activation.
+            raise ConflictError(
+                "another version of this policy was activated concurrently; retry",
+                code="boundary_policy_activation_conflict",
+            ) from exc
         return policy, previous
 
     def deactivate(self, policy_id: str, version: int) -> None:
@@ -301,7 +320,7 @@ class BoundaryPolicyService:
         return engine.evaluate_with_policies(
             context,
             agreement,
-            self._na.na_private_key,
+            self._na.signer,
             issued_by=self._na.key_id,
             policies=loaded.policies,
             registry=self.registry,
@@ -373,7 +392,7 @@ class BoundaryPolicyService:
         return engine.evaluate_attestation_with_policies(
             context,
             basis,
-            self._na.na_private_key,
+            self._na.signer,
             issued_by=self._na.key_id,
             policies=loaded.policies,
             registry=self.registry,

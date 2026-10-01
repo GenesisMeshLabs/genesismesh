@@ -596,7 +596,9 @@ def test_data_usage_policy_visible_to_other_connection_and_after_restart(client,
     na_service.db = NADatabase(str(tmp_path / "authority.db"))
     na_service.db.migrate()
     created = _make_policy(client, na_service).get_json()
-    observer = NADatabase(na_service.db.db_path)
+    # A second connection to the same database (the file, or the PostgreSQL URL).
+    same_database = getattr(na_service.db.conn, "url", None)
+    observer = NADatabase(na_service.db.db_path, database_url=same_database)
     try:
         observer.migrate()
         assert observer.get_active_data_license_policy().policy_id == created["policy_id"]
@@ -604,7 +606,7 @@ def test_data_usage_policy_visible_to_other_connection_and_after_restart(client,
         assert observer.get_active_data_license_policy().policy_id == replacement["policy_id"]
     finally:
         observer.conn.close()
-    reopened = NADatabase(na_service.db.db_path)
+    reopened = NADatabase(na_service.db.db_path, database_url=same_database)
     try:
         assert reopened.get_active_data_license_policy().policy_id == replacement["policy_id"]
         assert reopened.conn.execute("SELECT count(*) FROM data_license_policies WHERE active = 1").fetchone()[0] == 1

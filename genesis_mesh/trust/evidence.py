@@ -30,6 +30,7 @@ import nacl.signing
 from ..crypto import sign_model, verify_model_signature
 from ..models.evidence import TrustEvidence
 from .decision import TrustDecision
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 EvidenceVerificationReason = Literal[
     "accepted",
@@ -74,7 +75,7 @@ def build_trust_evidence(
     issuer_sovereign_id: str,
     graph_digest: str,
     issued_by: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     metadata: dict[str, Any] | None = None,
     now: datetime | None = None,

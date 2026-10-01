@@ -222,35 +222,43 @@ Documented in `docs/operations/high-availability.md`:
 
 ## Success Criteria
 
-- [ ] With no new settings, behaviour is identical to v0.59.0 on SQLite
-- [ ] `DATABASE_URL` plus `NA_HA_MODE=on` runs the NA on PostgreSQL
-- [ ] Policies, attestations, revocation, audit and the evidence store behave
+- [x] With no new settings, behaviour is identical to v0.59.0 on SQLite
+- [x] `DATABASE_URL` plus `NA_HA_MODE=on` runs the NA on PostgreSQL
+- [x] Policies, attestations, revocation, audit and the evidence store behave
       the same on both backends (full suite passes on both)
-- [ ] Two or more instances serve behind a load balancer with shared data
-- [ ] Policy activation, CRL and revocation sequences, evidence chains and
+- [x] Two or more instances serve behind a load balancer with shared data
+- [x] Policy activation, CRL and revocation sequences, evidence chains and
       nonces are exactly-once under concurrency
-- [ ] Rate limits and single-runner jobs are shared, not per instance
-- [ ] All instances sign with one key from Key Vault
-- [ ] All NA signing goes through the `Signer` interface, ready for a future
+- [x] Rate limits and single-runner jobs are shared, not per instance
+- [x] All instances sign with one key from Key Vault
+- [x] All NA signing goes through the `Signer` interface, ready for a future
       non-exportable provider
-- [ ] A failed instance is removed by its readiness probe; the others serve
-- [ ] Backup, restore and DR documented and drilled for PostgreSQL
-- [ ] SQLite to PostgreSQL migration documented and verified without loss
-- [ ] Stopping one instance keeps decisions, revocations and evidence working,
+- [x] A failed instance is removed by its readiness probe; the others serve
+- [x] Backup, restore and DR documented and drilled for PostgreSQL
+- [x] SQLite to PostgreSQL migration documented and verified without loss
+- [x] Stopping one instance keeps decisions, revocations and evidence working,
       with no data loss or duplicates
 
 ## Release Gate
 
-- [ ] Version bumped to `0.60.0`
-- [ ] CHANGELOG entry
-- [ ] `docs/development/history.md` updated
-- [ ] All tests pass on both backends, plus the HA integration test
-- [ ] `python scripts/check_release_train.py` passes
-- [ ] SECURITY.md supported versions updated for the new minor line
+- [x] Version bumped to `0.60.0`
+- [x] CHANGELOG entry
+- [x] `docs/development/history.md` updated
+- [x] All tests pass on both backends, plus the HA integration test
+- [x] `python scripts/check_release_train.py` passes
+- [x] SECURITY.md supported versions updated for the new minor line
 - [ ] Tag `v0.60.0`, push, GitHub release created
 
 ## Decisions
 
+0. **Implementation notes (v0.60.0).** The PostgreSQL connection keeps the
+   sqlite3 calling conventions (``?`` placeholders, ``with conn:``
+   transactions, rows by name or index), so the store mixins carry no
+   backend branches. Besides ``file`` and ``azure-keyvault``, an ``env`` key
+   provider covers platforms whose secret store injects environment
+   variables (Kubernetes, Container Apps); HA mode accepts it because the key
+   is still never a file. The database must use code-point collation, since
+   identifier ordering feeds signed digests.
 1. **Non-exportable signing** is not a requirement for this release. It is a
    future hardening option; the `Signer` interface keeps the architecture
    ready for it without blocking HA on it.

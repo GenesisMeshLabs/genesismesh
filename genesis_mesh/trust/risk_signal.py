@@ -25,6 +25,7 @@ from ..models.risk_signal import (
     RiskSignalUpdate,
     SeedIsolationReport,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -57,7 +58,7 @@ _DEFAULT_SFS_WEIGHT = 0.3
 def create_risk_signal(
     from_sovereign_id: str,
     to_sovereign_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     initial_signal: float = _DEFAULT_INITIAL_SIGNAL,
     alpha: float = _DEFAULT_ALPHA,
@@ -106,7 +107,7 @@ def _clamp(value: float) -> float:
 def update_risk_signal(
     signal: PeerRiskSignal,
     evidence: ExecutionEvidence,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     history: list[RiskSignalUpdate] | None = None,
     anomaly_sigma_threshold: float = _DEFAULT_SIGMA_THRESHOLD,
@@ -187,7 +188,7 @@ def update_risk_signal(
 
 def decay_risk_signal(
     signal: PeerRiskSignal,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     now: datetime | None = None,
 ) -> PeerRiskSignal:

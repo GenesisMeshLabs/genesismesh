@@ -1,0 +1,3 @@
+# Optional PostgreSQL backend for multi-instance (HA) Network Authority deployments (v0.60).
+# pip install -r requirements-postgres.txt  (or: pip install "genesis-mesh[postgres]")
+psycopg[binary]==3.3.6

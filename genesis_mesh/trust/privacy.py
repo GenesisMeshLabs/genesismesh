@@ -23,6 +23,7 @@ from ..models.privacy import (
     MetadataEnvelope,
     PrivacyAuditRecord,
 )
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 # Header keys that Genesis Mesh requires for protocol function.
 # These are always retained regardless of profile settings.
@@ -79,7 +80,7 @@ def apply_privacy_profile(
     dispatch_time: datetime,
     sender_sovereign_id: str,
     profile: CommunicationPrivacyProfile,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     now: datetime | None = None,
 ) -> tuple[MetadataEnvelope, bytes, PrivacyAuditRecord]:

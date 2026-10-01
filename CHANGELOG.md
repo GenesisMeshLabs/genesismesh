@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.60.0 - Optional High Availability for the Network Authority
+
+Two or more NA instances can share a PostgreSQL database behind a load
+balancer; losing an instance loses no decision, revocation or evidence. With
+no new settings the NA behaves exactly as v0.59 (SQLite, key file).
+
+### Added
+
+- PostgreSQL storage backend (`DATABASE_URL=postgresql://...`, driver via
+  `pip install "genesis-mesh[postgres]"`, included in the container image).
+  Every store and migration works on SQLite and PostgreSQL; migration 012's
+  append-only triggers have a PostgreSQL version; migrations apply once
+  across instances under an advisory lock. The NA refuses a database whose
+  collation is not code-point order.
+- `NA_HA_MODE=on`: refuses to start without PostgreSQL, a non-file key
+  provider and shared rate limits.
+- Database-backed rate limiting (`RATE_LIMIT_STORE`, default `database` on
+  PostgreSQL) shared by every worker and instance, and job leases
+  (migration `013_ha_runtime_state.sql`); evidence retention runs on one
+  instance at a time (`409 retention_in_progress`).
+- One `Signer` for every NA signature, with key providers `file`, `env` and
+  `azure-keyvault` (seed read from a Key Vault secret with the managed
+  identity, kept in memory only). `crypto.SigningKeyLike` types the signing
+  parameters of the trust layer.
+- `/readyz` checks the database is a writable primary at the expected schema
+  and reports backend, schema version, key id, provider and fingerprint,
+  rate limiter and HA mode; 503 with the reasons otherwise.
+- `genesis-mesh na migrate-db` (SQLite to PostgreSQL, read-only source,
+  per-table row count and content digest checks, full verification, audit
+  event) and `genesis-mesh na verify-db` (policy digests, CRL continuity,
+  evidence chain and signatures) for either backend.
+- `docs/operations/high-availability.md` and a reference stack
+  (`infrastructure/ha/`: PostgreSQL, two NA instances, nginx).
+- CI runs the full suite on PostgreSQL, a concurrency suite for every
+  exactly-once operation on both backends, and a two-instance failover test
+  behind nginx that kills one instance mid-load.
+- TypeScript SDK 0.60.0: `baseUrls` failover across NA instances (non-idempotent
+  requests move only when never sent), `client.health` (`readiness()`,
+  `endpoints()`), `isRetryableConflict()`; docs in
+  `docs/sdk/typescript/high-availability.md`.
+
+### Changed
+
+- CRLs are published exactly once per sequence: a concurrent writer that
+  loses the race rebuilds from the new active CRL and retries (previously
+  `INSERT OR REPLACE` could drop a concurrent revocation). Published CRLs are
+  immutable and the active CRL is always the highest sequence.
+- Node and admin nonces are claimed with one atomic insert.
+- A concurrent publish of the same boundary policy takes the next version; a
+  concurrent activation returns `409 boundary_policy_activation_conflict`.
+- `start.sh` requires a key file only for the `file` key provider.
+
+### Fixed
+
+- Submitting the same execution evidence to two instances (or two workers) at
+  the same moment returned `409 evidence_conflict` to the slower one; an
+  identical record is now always `duplicate`, so controller retries are safe
+  under HA. Found by the TypeScript SDK smoke run against a two-instance
+  cluster.
+- `SECURITY.md`: 0.60.x is the supported line.
+
 ## v0.59.1 - TypeScript SDK for Governed Secret Lifecycles
 
 Coordinated patch release. No Network Authority, protocol or schema changes;

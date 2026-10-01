@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from flask import Blueprint, Response, jsonify, request
 
-from ...crypto import sign_model
 from ...models import (
     MembershipAttestation,
     RecognitionTreaty,
@@ -149,7 +148,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             metadata=data.get("metadata") or {},
             signatures=[],
         )
-        treaty.signatures.append(sign_model(treaty, service.na_private_key, service.key_id))
+        treaty.signatures.append(service.signer.sign_model(treaty))
         service.db.save_recognition_treaty(treaty)
         service.db.add_audit_event("recognition_treaty_issued", {
             "treaty_id": treaty.treaty_id,

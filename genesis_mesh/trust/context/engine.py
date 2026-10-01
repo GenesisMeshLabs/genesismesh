@@ -36,6 +36,7 @@ from .attestation_basis import (
 )
 from .policy import ConfiguredGateRecord, evaluate_configured_gates, resolve_policies
 from .registry import GateRegistry
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 if TYPE_CHECKING:
     from ...models.justification import JustificationProof
@@ -75,7 +76,7 @@ class BoundaryEngine:
         self,
         context: ContextRecord,
         agreement: AgreementRecord,
-        signing_key: nacl.signing.SigningKey,
+        signing_key: SigningKeyLike,
         *,
         issued_by: str,
         freshness_proof: FreshnessProof | None = None,
@@ -170,7 +171,7 @@ class BoundaryEngine:
         self,
         context: ContextRecord,
         agreement: AgreementRecord,
-        signing_key: nacl.signing.SigningKey,
+        signing_key: SigningKeyLike,
         *,
         issued_by: str,
         freshness_proof: FreshnessProof | None = None,
@@ -222,7 +223,7 @@ class BoundaryEngine:
         self,
         context: ContextRecord,
         agreement: AgreementRecord,
-        signing_key: nacl.signing.SigningKey,
+        signing_key: SigningKeyLike,
         *,
         issued_by: str,
         policies: Sequence[BoundaryPolicy],
@@ -289,7 +290,7 @@ class BoundaryEngine:
         self,
         context: ContextRecord,
         basis: AttestationBasis,
-        signing_key: nacl.signing.SigningKey,
+        signing_key: SigningKeyLike,
         *,
         issued_by: str,
         policies: Sequence[BoundaryPolicy],

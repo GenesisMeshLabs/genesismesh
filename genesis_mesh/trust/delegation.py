@@ -34,6 +34,7 @@ from ..models.delegation import DelegatedAgreementRecord, DelegationChain, terms
 from ..models.genesis import Signature
 from .decision import evaluate_trust_decision
 from .evidence import build_trust_evidence, graph_digest_from_export
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +105,7 @@ def _build_evidence_dict(
     graph: dict[str, Any],
     source_id: str,
     target_id: str,
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     issued_by: str,
     now: datetime,
 ) -> dict[str, Any]:
@@ -163,7 +164,7 @@ def build_delegation(
     parent: AgreementRecord | DelegatedAgreementRecord,
     delegated_terms: AgreementTerms,
     graph: dict[str, Any],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     delegator_sovereign_id: str,
     delegate_sovereign_id: str,
@@ -242,7 +243,7 @@ def build_delegation(
 def cosign_delegation(
     record: DelegatedAgreementRecord,
     graph: dict[str, Any],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     now: datetime | None = None,

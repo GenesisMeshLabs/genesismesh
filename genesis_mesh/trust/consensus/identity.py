@@ -10,6 +10,7 @@ import nacl.signing
 
 from ...crypto import sign_model, verify_model_signature
 from ...models.consensus import ConsensusProof, EphemeralExecutionIdentity
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 EphemeralIdentityVerificationReason = Literal[
     "valid",
@@ -39,7 +40,7 @@ def issue_ephemeral_identity(
     consensus_proof: ConsensusProof,
     bearer_sovereign_id: str,
     allowed_capabilities: list[str],
-    signing_key: nacl.signing.SigningKey,
+    signing_key: SigningKeyLike,
     *,
     issued_by: str,
     valid_for_seconds: int = 120,

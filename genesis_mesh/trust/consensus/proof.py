@@ -12,6 +12,7 @@ from ...crypto import sign_model, verify_model_signature
 from ...models.consensus import ConsensusProof, ValidatorVote
 from ...models.justification import JustificationProof
 from .cascade import CascadeAssessmentReason, assess_cascade_risk
+from genesis_mesh.crypto.signing import SigningKeyLike
 
 ConsensusProofVerificationReason = Literal[
     "valid",
@@ -46,7 +47,7 @@ def assemble_consensus_proof(
     votes: list[ValidatorVote],
     required_threshold: int,
     validator_sovereign_ids: list[str],
-    assembler_signing_key: nacl.signing.SigningKey,
+    assembler_signing_key: SigningKeyLike,
     *,
     issued_by: str,
     valid_for_seconds: int = 300,
