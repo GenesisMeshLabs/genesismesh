@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.59.0
+**Versions**: v0.38.0 – v0.59.1
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -144,3 +144,4 @@ interoperability proof (v0.49–v0.56).
 | v0.58.0 | Declarative Boundary Policy: BoundaryPolicy, GateRegistry, PolicyBinding, `/admin/boundary/evaluate` |
 | v0.58.1 | Attestation-Backed Evaluation: AttestationBinding, attestation gates, `attestation_claim.v1`, `attestation_id` basis |
 | v0.59.0 | Evidence Store: stored decisions, signed execution evidence, per-secret chains, `gm.evidence.event` export |
+| v0.59.1 | TypeScript SDK for governed secret lifecycles: attestation evaluation, policy lifecycle, evidence store, offline verification |
