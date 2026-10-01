@@ -4,8 +4,8 @@ Genesis Mesh ships client libraries for all major server-side runtimes. Every
 SDK wraps the same Network Authority HTTP API — the surface documented in
 {doc}`/api/trust-http`.
 
-SDKs are standalone packages: they live in separate repos under
-`C:\Source\GenesisMeshLabs\sdk-*\` and are not part of the Python main repo.
+SDKs are standalone packages: they live in separate repositories under the
+`GenesisMeshLabs` organization and are not part of the Python main repo.
 They share no runtime dependencies with the Python server.
 
 Starting with the coordinated v0.56.0 release train, the reference
@@ -15,15 +15,21 @@ markers.
 
 ## Current release train
 
-Version 0.56.0 is the coordinated source version. Registry publication occurs
+Version 0.59.1 is the coordinated source version. Registry publication occurs
 only after the complete release gate passes in every component repository.
+
+The TypeScript SDK is the most complete client: from 0.59.1 it covers
+attestation-backed evaluation, the boundary policy lifecycle, the evidence
+store and offline verification (see {doc}`typescript/index`). The Go and .NET
+SDKs carry the coordinated version without these additions.
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.56.0 | `sdk-typescript/` |
-| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.56.0 | `sdk-go/` |
-| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.56.0 | `sdk-dotnet/` |
-| Rust | `genesis-mesh-gateway` on crates.io | 0.57.2 | `GenesisMeshLabs/gateway` |
+| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.59.1 | `GenesisMeshLabs/sdk-typescript` |
+| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.59.1 | `GenesisMeshLabs/sdk-go` |
+| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.59.1 | `GenesisMeshLabs/sdk-dotnet` |
+| Rust SDK | `genesis-mesh-sdk` on crates.io | 0.59.1 | `GenesisMeshLabs/sdk-rust` |
+| Rust gateway | `genesis-mesh-gateway` on crates.io | 0.59.1 | `GenesisMeshLabs/gateway` |
 
 Rust is different in kind from the other three: it is not a thin HTTP client
 for the NA. It ships the portable trust primitives as an embeddable crate
