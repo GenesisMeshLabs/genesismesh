@@ -27,6 +27,13 @@ schema changes; one new read route; rate-limit defaults are unchanged.
   later action on that resource was refused as a conflict. Resource and
   vendor histories now report `truncated: true` when cut. TypeScript SDK
   0.63.1 uses the new route.
+- **SQLite startup with several workers.** Gunicorn workers sharing one
+  SQLite file migrated it at the same time, so on a fresh database two could
+  apply the same migration; the loser failed ("duplicate column name") and
+  gunicorn shut the whole NA down. Each SQLite migration now claims its
+  `schema_version` row in the same write transaction that applies it, and a
+  worker that loses the claim rolls back and continues. PostgreSQL already
+  serialized migrations with an advisory lock.
 
 ### Added
 

@@ -33,6 +33,7 @@ address, so a whole site was limited to 30 decisions a minute.
 - [x] Limits configurable, defaults equal to the previous values, tested
 - [x] Resource head lookup; truncation reported; SDK uses it; tested
 - [x] Deployed and exercised on the pilot-profile VM: SDK end-to-end suite from behind a TLS-inspecting proxy, backup and restore, failover
+- [x] SQLite NA with several gunicorn workers starts reliably on a fresh database (found by the pilot rehearsal on main); tested
 - [x] Documentation updated
 
 ## Release Gate
