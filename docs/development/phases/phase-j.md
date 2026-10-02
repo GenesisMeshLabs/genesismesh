@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.60.0
+**Versions**: v0.38.0 – v0.61.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -98,6 +98,11 @@ database behind a load balancer, with exactly-once operations enforced by the
 database and one signing key from Key Vault, so losing an instance loses no
 decision, revocation or evidence.
 
+**Cross-Language Interoperability** (v0.61.0): the Python NA, the Go, TypeScript
+and C# SDKs exchange live signed records in one scenario, and CI fails if any
+two disagree on any protocol decision. Each SDK gained an offline verifier
+backed by shared conformance vectors.
+
 ## Value Added
 
 - Cascade detection guards K-of-N consensus against correlated validators.
@@ -151,3 +156,4 @@ interoperability proof (v0.49–v0.56).
 | v0.59.0 | Evidence Store: stored decisions, signed execution evidence, per-secret chains, `gm.evidence.event` export |
 | v0.59.1 | TypeScript SDK for governed secret lifecycles: attestation evaluation, policy lifecycle, evidence store, offline verification |
 | v0.60.0 | Optional HA: PostgreSQL backend, database-enforced exactly-once operations, shared rate limits, Key Vault signer, `/readyz`, SQLite migration |
+| v0.61.0 | Cross-language interoperability proof: offline verifiers in the Go, TypeScript and .NET SDKs, `interop` conformance vectors, live four-language scenario in CI |

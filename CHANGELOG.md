@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.61.0 - Cross-Language Interoperability Proof
+
+The Python Network Authority and the Go, TypeScript and C# SDKs exchange live
+signed records in one scenario, and CI fails if any two disagree on any
+protocol decision. No Network Authority, protocol or schema changes.
+
+### Added
+
+- `interop/`: a four-leg scenario run by `interop/run_all.sh`. A local NA and
+  two sovereigns (org-a, bank-a) produce a dual-signed agreement
+  (offer, counter, accept), policy-bound boundary decisions for
+  `transactions.read` under the agreement (allowed, and denied by a policy
+  gate) and under a membership attestation, and a data license policy (Python).
+  Go verifies the agreement and decisions. The TypeScript SDK signs data access
+  intents and submits them to the NA. C# verifies the TypeScript intents.
+  Every leg judges every artifact, tampered copies included, and
+  `interop/assert_results.py` fails on any disagreement. `interop/scenario.md`
+  states what is proven.
+- `.github/workflows/interop.yml` runs the scenario against the SDK
+  repositories on every push and pull request, after checking the shared
+  vectors and the Go verifier conformance. An Interoperability badge is in the
+  README.
+- Conformance suite `interop` (`conformance/vectors/interop.json`, 25
+  vectors): canonical JSON edge cases (non-ASCII and astral characters, DEL,
+  big integers, Python float repr), agreements, boundary decisions with
+  policy and attestation bindings, data license policies and data access
+  intents. The runner passes 36/36.
+- Offline verifiers in the SDKs (0.61.0), all passing the `interop` vectors:
+  - Go: `VerifyAgreement`, `VerifyBoundaryDecision`,
+    `VerifyDataLicensePolicySignature`, `VerifyDataAccessIntent`,
+    `CanonicalJSON`, and policy and attestation digests.
+  - .NET: `OfflineVerifier` (the same checks) and `Canonical`.
+  - TypeScript: `verifyAgreement`, `verifyDataLicensePolicySignature`,
+    `verifyDataAccessIntent`, and `createDataAccessIntent` to sign intents.
+- `docs/development/interoperability.md`.
+
+### Fixed
+
+- Go and .NET SDK canonical JSON now matches Python for non-ASCII text
+  (escaped as `ensure_ascii` does), DEL, floats (Python repr, `90.0` kept) and
+  integers beyond 64 bits. Admin requests whose body contained such values
+  failed signature verification.
+- TypeScript SDK: integer literals beyond `Number.MAX_SAFE_INTEGER` are kept
+  exactly by `parseJson`. The `AgreementRecord`, `CapabilityOffer`,
+  `CapabilityCounter` and `DataAccessIntent` types now match the wire format.
+- `SECURITY.md`: 0.61.x is the supported line.
+
 ## v0.60.0 - Optional High Availability for the Network Authority
 
 Two or more NA instances can share a PostgreSQL database behind a load

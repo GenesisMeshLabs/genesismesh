@@ -15,22 +15,29 @@ markers.
 
 ## Current release train
 
-Version 0.60.0 is the coordinated source version. Registry publication occurs
+Version 0.61.0 is the coordinated source version. Registry publication occurs
 only after the complete release gate passes in every component repository.
 
 The TypeScript SDK is the most complete client: from 0.59.1 it covers
 attestation-backed evaluation, the boundary policy lifecycle, the evidence
 store and offline verification, and from 0.60.0 failover across HA instances
-and readiness (see {doc}`typescript/index`). The Go and .NET
-SDKs carry the coordinated version without these additions.
+and readiness (see {doc}`typescript/index`).
+
+From 0.61.0 the TypeScript, Go and .NET SDKs verify agreements, boundary
+decisions (with their policy and attestation bindings), data license policies
+and data access intents offline: canonical JSON and Ed25519 only, no call to
+the NA, with the reason codes of the Python reference. All three pass the
+shared `interop` conformance vectors, and the cross-language scenario in
+`interop/` runs them against a live NA on every push (see
+{doc}`../development/interoperability`).
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.60.0 | `GenesisMeshLabs/sdk-typescript` |
-| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.60.0 | `GenesisMeshLabs/sdk-go` |
-| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.60.0 | `GenesisMeshLabs/sdk-dotnet` |
-| Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 0.60.0 | `GenesisMeshLabs/sdk-rust` |
-| Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 0.60.0 | `GenesisMeshLabs/gateway` |
+| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 0.61.0 | `GenesisMeshLabs/sdk-typescript` |
+| Go | `github.com/GenesisMeshLabs/sdk-go` | 0.61.0 | `GenesisMeshLabs/sdk-go` |
+| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 0.61.0 | `GenesisMeshLabs/sdk-dotnet` |
+| Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 0.61.0 | `GenesisMeshLabs/sdk-rust` |
+| Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 0.61.0 | `GenesisMeshLabs/gateway` |
 
 Rust is different in kind from the other three: it is not a thin HTTP client
 for the NA. It ships the portable trust primitives as an embeddable crate

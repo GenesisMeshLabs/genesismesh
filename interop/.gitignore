@@ -1,0 +1,4 @@
+fixtures/
+typescript/node_modules/
+csharp/VerifyIntent/bin/
+csharp/VerifyIntent/obj/
