@@ -394,8 +394,9 @@ All operator-signed; rate limit 30/min per IP.
 | Route | Purpose |
 |---|---|
 | `GET /admin/evidence` | Search by `vendor_id`, `attestation_id`, `capability`, `resource_id`, `outcome`, `entry_kind`, `decision_id`, `since`, `until`; page with `after_sequence` and `limit` (1-1000) |
-| `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result |
-| `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified |
+| `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result. At most 10,000 records (the oldest); `truncated: true` when a longer chain was cut, in which case read it through the export |
+| `GET /admin/evidence/resource-heads/<resource_id>` | `{resource_id, resource_sequence, record_digest}`: what the next record of the resource must link to (the latest stored record, or the latest retention checkpoint), from one indexed lookup; `404 resource_not_found` when there is none (v0.63.1). Controllers use this, not the history, before each action |
+| `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified; `truncated` as for resources |
 | `GET /admin/evidence/verify` | Verify every stored entry, chain and signature |
 | `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint |
 | `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |

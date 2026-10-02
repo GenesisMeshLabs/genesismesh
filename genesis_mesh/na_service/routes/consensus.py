@@ -50,7 +50,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/consensus/vote", methods=["POST"])
     def vote():
         """Cast a ValidatorVote signed by the NA as validator."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -98,7 +98,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/consensus/proof", methods=["POST"])
     def proof():
         """Assemble a ConsensusProof from votes, signed by the NA as assembler."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -155,7 +155,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/consensus/verify", methods=["POST"])
     def verify():
         """Verify a ConsensusProof signature and threshold."""
-        if not service.rate_limiter.allow(_rate_key("consensus_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("consensus_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw = data.get("proof")

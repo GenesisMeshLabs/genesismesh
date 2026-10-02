@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.63.1 - Configurable Rate Limits and Resource Heads
+
+Found by testing the pilot deployment profile on a real VM. No protocol or
+schema changes; one new read route; rate-limit defaults are unchanged.
+
+### Changed
+
+- Per-route rate limits are settings: `NA_RATE_LIMIT_ADMIN_PER_MINUTE`
+  (default 30), `NA_RATE_LIMIT_VERIFY_PER_MINUTE` (60),
+  `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` (120) and
+  `NA_RATE_LIMIT_READ_PER_MINUTE` (120). Every governed action calls
+  `/admin/boundary/evaluate`, and behind a corporate proxy or NAT all clients
+  share one address, so the hard-coded 30 per minute limited a whole site.
+  Enrollment (`/join`) limits stay fixed.
+
+### Fixed
+
+- **Resource chain head.** `GET /admin/evidence/resource-heads/<resource_id>`
+  returns what the next record of a resource must link to from one indexed
+  lookup (falling back to the latest retention checkpoint). Controllers read
+  the head before every governed action; until now the TypeScript SDK fetched
+  the resource's whole history for it, which grew with every action (22 MB
+  for a few thousand records on the test VM). Past 10,000 records the history
+  was silently cut to the oldest records, so the head was stale and every
+  later action on that resource was refused as a conflict. Resource and
+  vendor histories now report `truncated: true` when cut. TypeScript SDK
+  0.63.1 uses the new route.
+
+### Added
+
+- `infrastructure/pilot-vm/`: the pilot deployment profile on one VM
+  (PostgreSQL 17, two NA instances in HA mode from the released package or a
+  release-candidate wheel, Caddy with automatic TLS), `restore-drill.sh`, and
+  `load-drill.mjs` (governed actions on one resource chain while an instance
+  is killed; checks every acknowledged record is stored exactly once).
+  On the test VM, 983 governed actions in two minutes through a
+  TLS-inspecting proxy, with one instance killed and restarted, lost and duplicated nothing.
+- Pilot profile: sizing, TLS-inspecting corporate proxies
+  (`NODE_EXTRA_CA_CERTS` for Node; the OS trust store for Python 3.13+, whose
+  strict verification rejects some proxy CAs) and memory.
+
+
 ## v0.63.0 - Pilot Readiness
 
 Evidence for the re-scoped v1 gate's recovery and deployment conditions. No
@@ -29,7 +71,7 @@ protocol, API or schema changes.
 
 ### Changed
 
-- `ops/plan-v1.0.0.md`: the gate is re-scoped for the corporate pilot (merged
+- `ops/plan-v1.0.0.md`: the gate is re-scoped for the first pilot (merged
   separately); `SECURITY.md`: 0.63.x is the supported line.
 
 

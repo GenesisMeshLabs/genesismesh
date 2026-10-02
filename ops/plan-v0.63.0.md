@@ -3,7 +3,7 @@
 ## Context
 
 The 2026-10-02 decision re-scoped the v1 gate (`ops/plan-v1.0.0.md`) for a
-corporate pilot. Two of its conditions are not yet evidenced: condition 1
+pilot. Two of its conditions are not yet evidenced: condition 1
 needs a PostgreSQL backup restored to a new instance (and the v0.60 failover
 test covers node certificate revocations, not the membership attestation
 revocations a pilot depends on), and condition 3 needs a documented and

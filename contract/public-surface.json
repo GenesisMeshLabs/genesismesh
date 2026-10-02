@@ -176,6 +176,13 @@
       "methods": [
         "GET"
       ],
+      "path": "/admin/evidence/resource-heads/<path:resource_id>",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
       "path": "/admin/evidence/resources/<path:resource_id>",
       "level": "stable"
     },

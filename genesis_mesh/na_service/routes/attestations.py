@@ -63,7 +63,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def issue_attestation():
         """Issue a signed membership attestation for a subject."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -126,7 +126,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def revoke_attestation(attestation_id: str):
         """Revoke an issued membership attestation."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -148,7 +148,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def save_recognition_policy():
         """Persist the local recognition policy used by attestation verification."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -245,7 +245,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def verify_attestation():
         """Verify a membership attestation against a local recognition policy."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"attestations_verify:{remote_addr}", 60, 60):
+        if not service.rate_limiter.allow(f"attestations_verify:{remote_addr}", service.rate_limits.verify, 60):
             raise RateLimitError()
 
         data = request_json_object()

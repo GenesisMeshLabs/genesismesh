@@ -62,7 +62,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
     def _admin(data: dict, tier: str = "standard") -> None:
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         ok, err = service._verify_admin_request(data, required_tier=tier)  # type: ignore[arg-type]
         if not ok:
@@ -245,7 +245,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
     @bp.route("/boundary-policies/verify", methods=["POST"])
     def verify_policy():
         """Verify a signed BoundaryPolicy against the NA key or supplied issuer keys."""
-        if not service.rate_limiter.allow(_rate_key("boundary_policy_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("boundary_policy_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw = data.get("policy")

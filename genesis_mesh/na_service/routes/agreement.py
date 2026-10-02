@@ -57,7 +57,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/agreements/offer", methods=["POST"])
     def build_offer_route():
         """Build and sign a CapabilityOffer as the NA sovereign."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -123,7 +123,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/agreements/counter", methods=["POST"])
     def build_counter_route():
         """Build and sign a CapabilityCounter in response to an existing offer."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -195,7 +195,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         then authorize, a trust change like issuing an attestation (v0.62.0
         security review). Offers and counters grant nothing until accepted.
         """
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data, required_tier="privileged")
@@ -250,7 +250,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/agreements/verify", methods=["POST"])
     def verify_route():
         """Verify a signed AgreementRecord without storing it."""
-        if not service.rate_limiter.allow(_rate_key("agreements_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("agreements_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw = data.get("agreement")

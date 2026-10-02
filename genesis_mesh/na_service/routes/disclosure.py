@@ -52,7 +52,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/admin/disclosure/commit", methods=["POST"])
     def commit():
         """Commit to a list of capabilities under an AgreementRecord, signed by the NA."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -96,7 +96,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/admin/disclosure/nullifier", methods=["POST"])
     def nullifier():
         """Issue a one-time nullifier for a capability membership proof, signed by the NA."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -137,7 +137,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/disclosure/prove", methods=["POST"])
     def prove():
         """Generate a Merkle membership proof from caller-supplied data (no NA state used)."""
-        if not service.rate_limiter.allow(_rate_key("disclosure_prove"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("disclosure_prove"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         capability = data.get("capability")
@@ -174,7 +174,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/disclosure/verify", methods=["POST"])
     def verify():
         """Verify a CapabilityMembershipProof against its commitment."""
-        if not service.rate_limiter.allow(_rate_key("disclosure_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("disclosure_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw_proof = data.get("proof")

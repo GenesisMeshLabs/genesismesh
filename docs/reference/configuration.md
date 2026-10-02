@@ -68,6 +68,10 @@ Private-key paths in this file are local secrets and must not be committed.
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
 | `NA_MAX_REQUEST_BYTES` | no | Largest accepted request body in bytes (default 2097152, 2 MiB); larger requests get `413 request_entity_too_large` before they are parsed (v0.62). |
+| `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | no | Signed admin requests per minute per client address (default 30). Every governed action calls `/admin/boundary/evaluate`, so size this to the controllers behind one address (v0.63.1). |
+| `NA_RATE_LIMIT_VERIFY_PER_MINUTE` | no | Public verification and proof requests per minute per client address (default 60). |
+| `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` | no | Execution evidence submissions per minute per client address (default 120). |
+| `NA_RATE_LIMIT_READ_PER_MINUTE` | no | Public policy reads per minute per client address (default 120). Enrollment (`/join`) limits are fixed anti-abuse controls. |
 | `NA_PROXY_HOPS` | no | Number of reverse proxies in front of the NA whose `X-Forwarded-For` is trusted (default `1`). Set `0` when the NA is reached directly, so clients cannot choose the address rate limits apply to (v0.62). |
 | `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
 
