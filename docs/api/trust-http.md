@@ -84,7 +84,10 @@ Build and sign a `CapabilityCounter` in response to an existing offer.
 
 Accept an offer or counter-offer, producing a signed `AgreementRecord`.
 
-**Auth** — operator signature required.
+**Auth** — operator signature (privileged tier since v0.62.0: the agreement
+grants capabilities that boundary decisions then authorize). A standard-tier
+key gets `403 insufficient_operator_tier`; offers and counters still accept a
+standard key.
 
 **Request (accept offer)**
 
@@ -656,6 +659,10 @@ from the same validator count once.
 Create and sign a `DataLicensePolicy` as licensor (NA). The signed policy is stored
 in the authority database and becomes the active policy returned by
 `GET /data-usage/policy`.
+
+**Auth** — operator signature (privileged tier since v0.62.0: the policy grants
+a licensee access to data sources). A standard-tier key gets
+`403 insufficient_operator_tier`.
 
 Migration `011_data_license_policies.sql` adds durable policy versions and an
 atomic active-policy selection. Workers sharing the authority database observe

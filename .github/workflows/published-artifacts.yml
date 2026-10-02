@@ -1,0 +1,54 @@
+name: Published artifacts
+
+# Runs the cross-language scenario from the released packages, as a consumer
+# installs them: genesis-mesh from PyPI, genesis-mesh-sdk from npm,
+# genesismesh-sdk-dotnet from NuGet and sdk-go from the Go module proxy.
+# Run it after the release train for a version has published (core first,
+# then the SDKs); it also runs daily against the version in VERSION.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to test (default: VERSION on main)"
+        required: false
+  schedule:
+    - cron: "17 6 * * *"
+
+jobs:
+  published:
+    name: Released packages agree
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Choose the version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: echo "VERSION_UNDER_TEST=${REQUESTED:-$(tr -d '[:space:]' < VERSION)}" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run the scenario from the released packages
+        env:
+          PYTHON: python
+        run: interop/run_all.sh --published "$VERSION_UNDER_TEST"

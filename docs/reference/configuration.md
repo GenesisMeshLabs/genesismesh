@@ -67,6 +67,8 @@ Private-key paths in this file are local secrets and must not be committed.
 | `OPERATOR_PUBLIC_KEYS_JSON` | yes for admin APIs | JSON object mapping operator key IDs to base64 public keys. |
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
+| `NA_MAX_REQUEST_BYTES` | no | Largest accepted request body in bytes (default 2097152, 2 MiB); larger requests get `413 request_entity_too_large` before they are parsed (v0.62). |
+| `NA_PROXY_HOPS` | no | Number of reverse proxies in front of the NA whose `X-Forwarded-For` is trusted (default `1`). Set `0` when the NA is reached directly, so clients cannot choose the address rate limits apply to (v0.62). |
 | `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
 
 `start.sh` refuses to start the Network Authority when `GENESIS_FILE` is

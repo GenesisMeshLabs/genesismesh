@@ -106,6 +106,10 @@ matching attestation with `attestation_locally_revoked`.
   **MUST** persist the highest accepted sequence per issuer.
 - Only the issuing sovereign may shrink its own trust. A consumer **MUST NOT**
   accept revocations for an issuer from any key other than that issuer's.
+  Which keys are the issuer's is the importing operator's trust decision: the
+  reference implementation uses the subject keys of the active treaty for
+  that issuer, or keys the operator supplies explicitly on import (a
+  privileged operation).
 - Feeds carry ids and optional coarse reasons, not attestation payloads. This
   keeps revocation auditable without disclosing who or what was revoked beyond
   the identifier the parties already share.

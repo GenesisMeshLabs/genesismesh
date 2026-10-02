@@ -1,0 +1,58 @@
+name: Upgrade
+
+# A database written by each supported 0.x release, upgraded by this commit:
+# every treaty, revocation, policy, decision and evidence record must still
+# verify, before and after a backup restore and a migration to PostgreSQL.
+# See DEPRECATION_POLICY.md (Persisted database state) and
+# docs/operations/upgrade.md.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  upgrade:
+    name: Upgrade from ${{ matrix.from }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        from: ["0.59.1", "0.60.0", "0.61.1"]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: genesis
+          POSTGRES_PASSWORD: genesis
+          POSTGRES_DB: gm_test
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U genesis -d gm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out repository (with release tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[postgres]"
+
+      - name: Rehearse the upgrade
+        run: python scripts/upgrade_rehearsal.py --from "${{ matrix.from }}" --postgres-url postgresql://genesis:genesis@localhost:5432/gm_test
