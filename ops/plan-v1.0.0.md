@@ -2,11 +2,26 @@
 
 ## Purpose
 
-Genesis Mesh should use `1.0.0` when an external operator can run a sovereign,
-establish scoped trust with another independently controlled sovereign, revoke
-that trust, and explain the resulting decision without Genesis Core brokering
-it. The release must also define the public API and the compatibility promise
-that follows from a stable version.
+`1.0.0` declares a stable, supported platform for an independently operated
+pilot: a defined public contract with compatibility rules, tested upgrades and
+recovery, a published security review, and a deployment profile an operator
+can run with its own keys, infrastructure, policy and revocation. Semantic
+Versioning ties 1.0.0 to a stable public API, not to every long-term goal
+being demonstrated.
+
+## Decision: 2026-10-02, the gate is re-scoped
+
+The maintainer re-scoped this gate for an upcoming corporate pilot. The second
+independently implemented sovereign (Workstream 1) and the first external
+operator proof (Workstream 2) are no longer conditions for tagging 1.0.0. They
+are **expected outcomes of the pilot**: if the pilot operator controls its own
+keys, infrastructure, policy and revocation, the pilot produces the
+external-operator evidence.
+
+1.0.0 must not claim them in advance. Public wording is "ready for an
+independently operated pilot", never "independent federation proven in
+production". Until the evidence exists, the documentation says that the
+federation proofs are pending.
 
 This plan implements the pre-1.0 gate in
 [`docs/development/strategy.md`](../docs/development/strategy.md) and the
@@ -27,9 +42,9 @@ It is a release plan, not evidence that any unchecked criterion is complete.
 - **The v0.61 scenario alone is insufficient for v1.** Its Go leg verifies an
   agreement and boundary decision, but does not exchange a recognition treaty,
   validate a trust bundle, or consume a revocation feed with an independently
-  implemented sovereign. Add that proof to v0.61 if possible; otherwise make
-  it the first v1 work item. Do not label an SDK calling a Python verification
-  endpoint as an independent implementation.
+  implemented sovereign. Since the 2026-10-02 decision that proof is an
+  expected pilot outcome rather than a 1.0.0 condition. Do not label an SDK
+  calling a Python verification endpoint as an independent implementation.
 - Neither prerequisite supplies a real external operator, a v1 wire-format
   compatibility contract, or the remaining governance deliverables. Those are
   explicit v1 work items below.
@@ -52,7 +67,7 @@ the PeerRiskSignal model has a current formal proof while the documented
 Tamarin gaps remain. Do not treat a documentation or SDK version bump as a
 substitute for protocol evidence.
 
-## Workstream 1: Independent trust and revocation
+## Workstream 1: Independent trust and revocation (pilot outcome, not gated)
 
 - [ ] Run a treaty-backed exchange between the Python reference sovereign and
       a second independently implemented sovereign. Go is the Phase 2 target.
@@ -71,7 +86,7 @@ substitute for protocol evidence.
 Acceptance evidence: a green CI run plus signed public artifacts, verifier
 results, and a concise account of each sovereign's independent decisions.
 
-## Workstream 2: External operator proof
+## Workstream 2: External operator proof (pilot outcome, not gated)
 
 - [ ] Complete one proof with an operator outside Genesis Core using
       [`docs/operators/external-operator-proof.md`](../docs/operators/external-operator-proof.md).
@@ -172,13 +187,14 @@ a documented security review, and claims that match the checks actually run.
 Do not tag `v1.0.0` unless all of the following are true:
 
 1. v0.60 HA, migration, concurrency, and restore criteria have passing
-   evidence, including a two-instance failure test.
-2. v0.61 cross-language tests pass, and a separate treaty-backed exchange,
-   trust-bundle validation, and revocation test pass with an independently
-   implemented sovereign.
-3. An external operator has completed the owned-key, owned-infrastructure
-   recognition and revocation proof without Genesis Core controlling the
-   operator's trust decisions.
+   evidence, including a two-instance failure test and a PostgreSQL backup
+   restored to a new instance.
+2. The v0.61 cross-language tests and the published-artifact scenario pass on
+   the release candidate.
+3. The pilot deployment profile is documented and rehearsed: operator-held
+   keys, the chosen database, backup and restore, readiness and failover if HA
+   is used, and a recognition-to-revocation flow. Who responds to a pilot
+   incident and ships a 1.0.1 is named.
 4. Stable public and wire surfaces, beta exclusions, migration guarantees,
    and SDK support levels are documented and tested. Known TypeScript type
    mismatches are fixed.
@@ -189,3 +205,6 @@ Do not tag `v1.0.0` unless all of the following are true:
 
 Any failed criterion blocks the v1 tag. The next 0.x release may still ship a
 completed subset without changing the meaning of this gate.
+
+Workstreams 1 and 2 are not gate conditions (see the 2026-10-02 decision). The
+1.0.0 release notes list them as pending evidence expected from the pilot.

@@ -49,6 +49,19 @@ Boundary Policy) shipped as v0.58.0, and every component, including the gateway
 and the Rust SDK, joined the coordinated train at v0.58.0. Tags `v0.57.x` exist
 only in the gateway repository.
 
+## 1.0.0 and the 1.x line
+
+`1.0.0` marks a stable public contract, not the completion of every goal:
+the surfaces classified stable in {doc}`../reference/public-contract` follow
+`DEPRECATION_POLICY.md` for the whole 1.x line. The conditions for tagging it
+are the go/no-go gate in `ops/plan-v1.0.0.md`. Evidence that 1.0.0 does not
+yet have (a second independently implemented sovereign, an external operator
+proof) is listed as pending in its release notes rather than claimed.
+
+Within 1.x the release train works as before: the core leads, components
+follow with the same version, and a minor version may add surfaces but not
+break stable ones.
+
 ## Versions that remain independent
 
 Product versions do not replace wire-format or evidence-schema versions.
