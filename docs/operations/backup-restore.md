@@ -1,7 +1,8 @@
 # Backup and Restore
 
 The Network Authority stores invite tokens, issued certificates, nonces, CRLs,
-policies, and audit events in SQLite. Treat that database as production state.
+policies, treaties, attestations, revocations, decisions, evidence and audit
+events in SQLite or PostgreSQL. Treat that database as production state.
 
 ## What to Back Up
 
@@ -72,6 +73,35 @@ db.backup("/backups/genesis_mesh_na-YYYYMMDD.db")
    ```bash
    curl http://localhost:8443/connectome.json
    ```
+
+7. Verify the restored database before serving it:
+
+   ```bash
+   genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db \
+     --genesis /config/genesis.signed.json
+   ```
+
+## PostgreSQL
+
+Back up with `pg_dump` in custom format and restore into a **new** database
+(created with C collation, as the NA requires), then point a new instance at
+it and verify:
+
+```bash
+pg_dump -Fc --no-owner --dbname "$DATABASE_URL" > na-YYYYMMDD.dump
+
+createdb --template=template0 --encoding=UTF8 --lc-collate=C --lc-ctype=C na_restored
+pg_restore --no-owner --exit-on-error --dbname postgresql://.../na_restored na-YYYYMMDD.dump
+
+DATABASE_URL=postgresql://.../na_restored genesis-mesh na verify-db \
+  --genesis /config/genesis.signed.json
+```
+
+Restore into a new database rather than over the old one, so the original is
+still there if the restore turns out to be incomplete. `scripts/recovery_drill.py`
+rehearses exactly this in CI: it dumps a populated database, drops the
+original, restores into a new database and has a new instance verify every
+treaty, revocation, policy, decision and evidence record.
 
 ## Restore Drill Checklist
 

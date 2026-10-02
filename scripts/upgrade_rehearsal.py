@@ -135,7 +135,7 @@ def _execute(state: dict, decision: dict, prior: dict | None, sequence: int) -> 
 # ── populate: runs under the past release ───────────────────────────────────
 
 
-def populate(state_path: Path, db_path: str) -> None:
+def populate(state_path: Path, db_path: str | None, database_url: str | None = None) -> None:
     import genesis_mesh
     from genesis_mesh.crypto import generate_keypair, sign_model
     from genesis_mesh.models import (
@@ -156,7 +156,8 @@ def populate(state_path: Path, db_path: str) -> None:
         "seeds": {name: kp.private_key_b64 for name, kp in keys.items()},
         "genesis": genesis.model_dump(mode="json"),
     }
-    api = Api(_service(state, db_path=db_path), state["seeds"]["operator"])
+    service = _service(state, db_path=db_path, database_url=database_url)
+    api = Api(service, state["seeds"]["operator"])
 
     # Recognition of a partner sovereign, its attestations, and its revocation feed.
     state["treaty"] = api.expect(api.admin("POST", "/admin/recognition-treaties", {
@@ -225,7 +226,9 @@ def populate(state_path: Path, db_path: str) -> None:
         "valid_from": (now - timedelta(hours=1)).isoformat(), "valid_until": (now + timedelta(days=365)).isoformat(),
     }), 201)
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"populated by genesis-mesh {state['written_by']}: {db_path}")
+    if hasattr(service.db, "close"):  # NADatabase.close arrived after 0.59
+        service.db.close()
+    print(f"populated by genesis-mesh {state['written_by']}: {db_path or 'PostgreSQL'}")
 
 
 # ── verify: runs under the current release ───────────────────────────────────
@@ -284,8 +287,7 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
           and stale.get_json()["error"]["code"] == "stale_sequence", stale.get_json())
 
     revoked = api.client.get(f"/attestations/{state['vendor_revoked']['attestation_id']}").get_json()
-    check("NA revocation kept", (revoked.get("attestation", revoked) or {}).get("status") == "revoked"
-          or revoked.get("status") == "revoked", revoked)
+    check("NA revocation kept", revoked.get("status") == "revoked", revoked)
     denied = api.admin("POST", "/admin/boundary/evaluate", {
         "attestation_id": state["vendor_revoked"]["attestation_id"], "requested_capability": "secret.rotate",
         "context": {"request_parameters": {"app_id": "billing"}}})
