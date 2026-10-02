@@ -134,14 +134,31 @@ class NADatabase(
         for version, path in migration_files("sqlite"):
             if version in applied:
                 continue
+            self._apply_sqlite_migration(version, path.read_text(encoding="utf-8"))
 
-            sql = path.read_text(encoding="utf-8")
-            with self.conn:
-                self.conn.executescript(sql)
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, ?)",
-                    (version, datetime.now(timezone.utc).isoformat()),
-                )
+    def _apply_sqlite_migration(self, version: int, sql: str) -> None:
+        """Apply one migration unless another process already has (v0.63.1).
+
+        Gunicorn workers sharing one SQLite file migrate at the same time. Each
+        migration runs in one write transaction that first claims its
+        ``schema_version`` row; a process that loses the race fails on that
+        claim before touching the schema, rolls back and moves on.
+        """
+        applied_at = datetime.now(timezone.utc).isoformat()
+        script = (
+            "BEGIN IMMEDIATE;\n"
+            f"INSERT INTO schema_version(version, applied_at) VALUES ({int(version)}, '{applied_at}');\n"
+            f"{sql}\nCOMMIT;"
+        )
+        try:
+            self.conn.executescript(script)
+        except sqlite3.Error:
+            if self.conn.in_transaction:
+                self.conn.rollback()
+            row = self.conn.execute("SELECT 1 FROM schema_version WHERE version = ?", (version,)).fetchone()
+            if row is None:
+                raise
+            logger.info("SQLite migration %03d was applied by another process", version)
 
     def _migrate_postgres(self) -> None:
         """Run pending migrations under a database-wide advisory lock.
