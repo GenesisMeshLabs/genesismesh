@@ -35,6 +35,42 @@ resource chains. A partial resource chain needs a signed `checkpoint` with its
 prior resource heads. A valid export proves the supplied records; it does not
 prove that an external source supplied every record in the original store.
 
+## Agreements, license policies and data access intents
+
+From 0.61.0 the SDK verifies agreements and data usage records offline, with the
+reason codes of the Python reference, and signs data access intents as an agent.
+
+```typescript
+import {
+  createDataAccessIntent, parseJson, seedSigner, verifyAgreement,
+  verifyDataAccessIntent, verifyDataLicensePolicySignature,
+} from 'genesis-mesh-sdk';
+
+const agreement = parseJson(agreementText) as AgreementRecord;
+const a = verifyAgreement(agreement, [offererPublicKey], [responderPublicKey]);
+// a.accepted, a.reason: 'accepted' | 'invalid_offerer_signature' | ...
+
+verifyDataLicensePolicySignature(policy, [licensorPublicKey]); // boolean
+
+const intent = await createDataAccessIntent({
+  agent_sovereign_id: 'bank-a', decision_id: decision.decision_id,
+  sources: [{ source_id: 'db-prod', source_type: 'proprietary', owner_sovereign_id: 'org-a', classification_tags: [] }],
+  access_types: ['read'], estimated_volume_bytes: 1_048_576,
+}, seedSigner(agentSeed, 'bank-a'));
+const v = verifyDataAccessIntent(intent, policy, [agentPublicKey]);
+// v.valid, v.violation_reason, v.violations
+```
+
+`verifyAgreement` checks both signatures over the agreed body and, when given,
+the expected graph digest. `verifyDataAccessIntent` checks the agent signature,
+then expiry, licensed sources, prohibited classifications, permitted access
+types and the volume cap, and reports every violation. Read agreements with
+`parseJson`: a signed float such as `1.0` must survive parsing.
+
+These verifiers pass the shared `interop` conformance vectors
+(`tests/fixtures/conformance/interop.json`), and the core's cross-language
+scenario runs them against a live Network Authority.
+
 ## Canonical JSON and numeric limits
 
 The SDK escapes non-ASCII text and DEL, orders object keys by Unicode code point,
@@ -47,7 +83,8 @@ lexemes such as `90.0`, including nested values in justification proofs. Ordinar
 `JSON.parse`, `JSON.stringify`, object copying and `structuredClone` can discard
 that information. Preserve received artifacts and use the supplied canonical
 functions for signing or digests. Keep metadata integers within JavaScript's safe
-integer range and prefer strings for identifiers and precise quantities.
+integer range and prefer strings for identifiers and precise quantities. Integer
+literals beyond that range are parsed as `bigint` and canonicalized exactly.
 
 ## Validation commands
 

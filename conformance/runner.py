@@ -283,6 +283,68 @@ def run_data_usage(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def _ts(value: str):
+    from datetime import datetime
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def run_interop(vectors: list[dict]) -> list[str]:
+    """Offline verification every SDK implements (v0.61.0)."""
+    import json as _json
+
+    from genesis_mesh.crypto import verify_model_signature
+    from genesis_mesh.models import MembershipAttestation
+    from genesis_mesh.models.agreement import AgreementRecord
+    from genesis_mesh.models.boundary_policy import BoundaryPolicy
+    from genesis_mesh.models.context import BoundaryDecision
+    from genesis_mesh.trust.agreement import verify_agreement
+    from genesis_mesh.trust.context import verify_boundary_decision
+    from genesis_mesh.trust.data_usage import DataAccessIntent, DataLicensePolicy, verify_data_access_intent
+
+    failures = []
+    for v in vectors:
+        inp, exp, kind = v["input"], v["expected"], v["kind"]
+        got: dict[str, object]
+        try:
+            if kind == "canonical_json":
+                got = {"canonical": _json.dumps(_json.loads(inp["json"]), sort_keys=True, separators=(",", ":"))}
+            elif kind == "agreement":
+                agreement = verify_agreement(
+                    AgreementRecord.model_validate(inp["agreement"]), inp["offerer_public_keys"],
+                    inp["responder_public_keys"], expected_graph_digest=inp.get("expected_graph_digest"),
+                )
+                got = {"accepted": agreement.accepted, "reason": agreement.reason}
+            elif kind == "boundary_decision":
+                decision = verify_boundary_decision(
+                    BoundaryDecision.model_validate(inp["decision"]), inp["operator_public_keys"],
+                    now=_ts(inp["now"]),
+                    expected_policies=[BoundaryPolicy.model_validate(p) for p in inp["expected_policies"]]
+                    if "expected_policies" in inp else None,
+                    expected_attestation=MembershipAttestation.model_validate(inp["expected_attestation"])
+                    if "expected_attestation" in inp else None,
+                )
+                got = {"accepted": decision.accepted, "reason": decision.reason, "authorized": decision.authorized}
+            elif kind == "data_license_policy":
+                policy = DataLicensePolicy.model_validate(inp["policy"])
+                got = {"valid": policy.signature is not None and any(
+                    verify_model_signature(policy, policy.signature, k) for k in inp["licensor_public_keys"])}
+            elif kind == "data_access_intent":
+                valid, reason, violations = verify_data_access_intent(
+                    DataAccessIntent.model_validate(inp["intent"]), DataLicensePolicy.model_validate(inp["policy"]),
+                    inp["agent_public_keys"], at_time=_ts(inp["at"]),
+                )
+                got = {"valid": valid, "violation_reason": reason,
+                       "violation_types": [x.violation_type for x in violations]}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind}")
+                continue
+            if got != exp:
+                failures.append(f"{v['id']}: got {got}, want {exp}")
+        except Exception as exc:
+            failures.append(f"{v['id']}: {exc}")
+    return failures
+
+
 # ── Suite registry ───────────────────────────────────────────────────────────
 
 SUITE_RUNNERS: dict[str, Any] = {
@@ -295,6 +357,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "selective_disclosure": run_selective_disclosure,
     "consensus": run_consensus,
     "data_usage": run_data_usage,
+    "interop": run_interop,
 }
 
 

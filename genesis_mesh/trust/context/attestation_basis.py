@@ -231,4 +231,3 @@ def attestation_denial_reason(gate: GateResult) -> str | None:
     if gate.gate_name in ATTESTATION_GATE_TYPES:
         return gate.detail.split(":", 1)[0]
     return None
-

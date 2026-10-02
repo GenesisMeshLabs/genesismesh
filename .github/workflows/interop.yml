@@ -1,0 +1,126 @@
+name: Interoperability
+
+# Cross-language interoperability proof (v0.61): a live Network Authority and
+# the Python, Go, TypeScript and C# implementations run one scenario, and the
+# job fails if any two of them disagree on any protocol decision.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      sdk_ref:
+        description: Branch or tag of the SDK repositories to test against (default main)
+        required: false
+
+jobs:
+  interop:
+    name: Python, Go, TypeScript and C# agree
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # A coordinated change lands in the core first (it leads the release
+      # train), so a core branch is tested against the SDK branches of the same
+      # name when they exist, and against main otherwise.
+      - name: Choose the SDK revision
+        env:
+          REQUESTED: ${{ inputs.sdk_ref }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          ref="${REQUESTED:-}"
+          if [ -z "$ref" ]; then
+            ref=main
+            for sdk in sdk-go sdk-typescript sdk-dotnet; do
+              if git ls-remote --exit-code --heads "https://github.com/GenesisMeshLabs/$sdk.git" "$BRANCH" >/dev/null; then
+                ref="$BRANCH"
+              else
+                ref=main
+                break
+              fi
+            done
+          fi
+          echo "Testing against SDK revision: $ref"
+          echo "SDK_REF=$ref" >> "$GITHUB_ENV"
+
+      - name: Check out the Go SDK
+        uses: actions/checkout@v4
+        with:
+          repository: GenesisMeshLabs/sdk-go
+          ref: ${{ env.SDK_REF }}
+          path: sdks/sdk-go
+
+      - name: Check out the TypeScript SDK
+        uses: actions/checkout@v4
+        with:
+          repository: GenesisMeshLabs/sdk-typescript
+          ref: ${{ env.SDK_REF }}
+          path: sdks/sdk-typescript
+
+      - name: Check out the .NET SDK
+        uses: actions/checkout@v4
+        with:
+          repository: GenesisMeshLabs/sdk-dotnet
+          ref: ${{ env.SDK_REF }}
+          path: sdks/sdk-dotnet
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Conformance vectors are current
+        run: |
+          python conformance/runner.py
+          for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
+            cmp conformance/vectors/interop.json "sdks/$sdk/conformance/interop.json"
+          done
+
+      - name: Go verifier conformance
+        working-directory: sdks/sdk-go
+        run: go test ./... -run 'Conformance|Canonical'
+
+      - name: Run the four legs
+        env:
+          GM_SDK_GO_DIR: ${{ github.workspace }}/sdks/sdk-go
+          GM_SDK_TS_DIR: ${{ github.workspace }}/sdks/sdk-typescript
+          GM_SDK_DOTNET_DIR: ${{ github.workspace }}/sdks/sdk-dotnet
+          PYTHON: python
+        run: interop/run_all.sh
+
+      - name: Keep the scenario's artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-fixtures
+          # na.json carries the throwaway operator key; never publish it.
+          path: |
+            interop/fixtures/
+            !interop/fixtures/na.json
+          if-no-files-found: ignore

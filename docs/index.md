@@ -237,6 +237,7 @@ rfcs/index
 development/contributing
 development/module-structure
 development/testing
+development/interoperability
 development/security-policy
 ```
 
