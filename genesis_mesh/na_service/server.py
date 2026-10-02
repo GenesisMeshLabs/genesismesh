@@ -61,6 +61,9 @@ HA_MODES = ("off", "on")
 CRL_PUBLISH_ATTEMPTS = 5
 
 
+# Default request body limit (NA_MAX_REQUEST_BYTES); a revocation feed of ~50,000 ids fits.
+DEFAULT_MAX_REQUEST_BYTES = 2 * 1024 * 1024
+
 class NetworkAuthorityService:
     """
     Orchestrate Network Authority state, signing, persistence, and routes.
@@ -93,6 +96,7 @@ class NetworkAuthorityService:
         database_url: Optional[str] = None,
         ha_mode: str = "off",
         rate_limit_store: Optional[str] = None,
+        max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     ):
         """
         Initialize the Network Authority service.
@@ -202,6 +206,12 @@ class NetworkAuthorityService:
             raise ValueError("NA private key does not match genesis block")
 
         self.app = Flask(__name__)
+        # Bound every request body: public verify routes are unauthenticated,
+        # and an unbounded JSON body is a memory denial of service (v0.62.0
+        # security review). Larger bodies get 413 request_entity_too_large.
+        if max_request_bytes <= 0:
+            raise ValueError("max_request_bytes must be positive")
+        self.app.config["MAX_CONTENT_LENGTH"] = max_request_bytes
         register_error_handlers(self.app)
         self._register_blueprints()
         logger.info(
@@ -413,6 +423,7 @@ def create_app(
     database_url: Optional[str] = None,
     ha_mode: str = "off",
     rate_limit_store: Optional[str] = None,
+    max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -429,6 +440,7 @@ def create_app(
         database_url=database_url,
         ha_mode=ha_mode,
         rate_limit_store=rate_limit_store,
+        max_request_bytes=max_request_bytes,
     )
     return service.app
 

@@ -1,5 +1,74 @@
 # Changelog
 
+## v0.62.0 - v1 Public Contract and Security Review
+
+The contract, compatibility rules, upgrade path and security review that a
+1.0.0 release needs. Two authorization changes and a new start-up refusal;
+see *Changed*.
+
+### Fixed
+
+- **The PyPI wheel now ships the database migrations.** Every earlier wheel
+  lacked `genesis_mesh/na_service/migrations/*.sql`, so a Network Authority
+  installed with `pip` started without its tables and failed on every admin
+  request. Source and container deployments were not affected. A test fails
+  on any package data file missing from the wheel, and CI runs a full NA
+  workload from the built wheel.
+- Two tests compared a pinned date with the real clock; one began failing on
+  2026-10-02 and the other would have a few days later. The suite passes with
+  the clock moved up to five years ahead.
+
+### Changed
+
+- **`POST /admin/agreements/accept` and `POST /admin/data-usage/policy`
+  require a privileged operator key.** Both are trust changes (an agreement
+  grants capabilities; a license policy grants data access), which the tier
+  model reserves for privileged keys. A standard key now gets
+  `403 insufficient_operator_tier`.
+- **A release refuses to start on a database migrated by a newer release**
+  (`NewerSchemaError`); a rollback is a restore of the pre-upgrade backup
+  (`docs/operations/upgrade.md`).
+- Request bodies above `NA_MAX_REQUEST_BYTES` (default 2 MiB) are refused with
+  `413 request_entity_too_large` before parsing.
+- Trusted reverse-proxy hops are configurable (`NA_PROXY_HOPS`, default 1);
+  `0` ignores `X-Forwarded-*` when the NA is exposed directly.
+- `docs/stability.md` points to the generated Public Contract; its hand
+  maintained lists had drifted from the code.
+
+### Added
+
+- `contract/public-surface.json` and `docs/reference/public-contract.md`:
+  every HTTP route (90), CLI command (121), public Python symbol, signed
+  artifact (51) and API error code classified stable, beta or internal, with
+  per-package support statements. `test_public_contract.py` fails when code
+  and contract disagree.
+- `DEPRECATION_POLICY.md` covers the wire protocol: HTTP requests and
+  responses, error codes, canonical signing bytes, signed artifact evolution,
+  the evidence export schema, conformance vectors, configuration and
+  persisted database state.
+- `scripts/upgrade_rehearsal.py` and `.github/workflows/upgrade.yml`: a
+  database written by 0.59.1, 0.60.0 and 0.61.1 (treaty, partner
+  attestations, imported revocation feed, revoked attestation, active policy,
+  decisions, a resource's execution chain) is upgraded, verified, restored
+  from backup and migrated to PostgreSQL on every change.
+- `interop/run_all.sh --published VERSION` and
+  `.github/workflows/published-artifacts.yml`: the cross-language scenario
+  from the packages on PyPI, npm, NuGet and the Go module proxy.
+- `docs/operators/exit-and-fork.md` and
+  `docs/operators/managing-partner-boundary.md`;
+  `test_operator_independence.py` keeps built-in endpoints, keys and
+  authorities out of runtime code.
+- `docs/development/security-review-v1.md`: the v1 deployment profile,
+  dependency reports for every package, key handling, revocation freshness,
+  replay protection, authorization and recovery, with findings SR-01 to
+  SR-11. `test_admin_route_auth.py` checks every admin route refuses an
+  unauthenticated request.
+- `docs/operations/upgrade.md`; a security review entry in the RFC decision
+  log (acceptance of RFC-001 to RFC-004 remains the maintainer's decision).
+- `SECURITY.md`: 0.62.x is the supported line; proxy trust, request limits,
+  operator tiers and NA key compromise brought up to date.
+
+
 ## v0.61.1 - Contract and Evidence Corrections
 
 Coordinated patch release. No protocol or schema changes; one validator

@@ -189,11 +189,16 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
 
     @bp.route("/admin/agreements/accept", methods=["POST"])
     def accept_route():
-        """Accept an offer or counter-offer, producing a signed AgreementRecord."""
+        """Accept an offer or counter-offer, producing a signed AgreementRecord.
+
+        Privileged: the agreement grants capabilities that boundary decisions
+        then authorize, a trust change like issuing an attestation (v0.62.0
+        security review). Offers and counters grant nothing until accepted.
+        """
         if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
-        ok, err = service._verify_admin_request(data)
+        ok, err = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
 

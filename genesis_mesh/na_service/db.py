@@ -43,6 +43,10 @@ def migration_files(backend: str) -> list[tuple[int, Path]]:
     return out
 
 
+class NewerSchemaError(RuntimeError):
+    """The database was migrated by a newer release than this one."""
+
+
 def expected_schema_version() -> int:
     """The highest migration version this release ships."""
     return max(version for version, _ in migration_files("sqlite"))
@@ -108,7 +112,12 @@ class NADatabase(
     # -- migrations -------------------------------------------------------------
 
     def migrate(self) -> None:
-        """Apply numbered SQL migrations transactionally, once across all instances."""
+        """Apply numbered SQL migrations transactionally, once across all instances.
+
+        Refuses a database migrated by a newer release: running older code on a
+        newer schema is not supported. Roll back by restoring the backup taken
+        before the upgrade (docs/operations/upgrade.md).
+        """
         if self.backend == "postgres":
             self._migrate_postgres()
             return
@@ -116,6 +125,7 @@ class NADatabase(
             "CREATE TABLE IF NOT EXISTS schema_version "
             "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
         )
+        self._refuse_newer_schema()
         applied = {
             row["version"]
             for row in self.conn.execute("SELECT version FROM schema_version")
@@ -145,6 +155,7 @@ class NADatabase(
                 "CREATE TABLE IF NOT EXISTS schema_version "
                 "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
             )
+            self._refuse_newer_schema()
             applied = {row["version"] for row in self.conn.execute("SELECT version FROM schema_version")}
             for version, path in migration_files("postgres"):
                 if version in applied:
@@ -158,6 +169,15 @@ class NADatabase(
                     )
         finally:
             self.conn.execute("SELECT pg_advisory_unlock(?)", (pg.MIGRATION_LOCK_KEY,))
+
+    def _refuse_newer_schema(self) -> None:
+        version = self.schema_version()
+        if version > expected_schema_version():
+            raise NewerSchemaError(
+                f"database schema version {version} is newer than this release supports "
+                f"({expected_schema_version()}); upgrade Genesis Mesh, or restore the "
+                "backup taken before the upgrade"
+            )
 
     def schema_version(self) -> int:
         """Return the highest applied migration version (0 when none)."""

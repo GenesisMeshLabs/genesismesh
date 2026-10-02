@@ -34,6 +34,8 @@ class NASettings:
     renewal_grace_seconds: int = 900
     boundary_policy_enforcement: str = "optional"
     evidence_store: str = "off"
+    max_request_bytes: int = 2 * 1024 * 1024
+    proxy_hops: int = 1
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -70,4 +72,13 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         renewal_grace_seconds=int(e.get("RENEWAL_GRACE_SECONDS", "900")),
         boundary_policy_enforcement=e.get("BOUNDARY_POLICY_ENFORCEMENT", "optional"),
         evidence_store=e.get("EVIDENCE_STORE", "off"),
+        max_request_bytes=int(e.get("NA_MAX_REQUEST_BYTES", str(2 * 1024 * 1024))),
+        proxy_hops=_proxy_hops(e.get("NA_PROXY_HOPS", "1")),
     )
+
+
+def _proxy_hops(raw: str) -> int:
+    hops = int(raw)
+    if hops < 0:
+        raise ValueError("NA_PROXY_HOPS must be 0 or more")
+    return hops

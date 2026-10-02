@@ -10,10 +10,10 @@ verification changes, then acceptance with a dated note. An RFC is
 
 | RFC | Status | Maintainer review | Operator review | Security review | Accepted |
 | --- | --- | --- | --- | --- | --- |
-| RFC-001 Sovereign Identity | Review | 2026-10-02 | not required | pending | — |
-| RFC-002 Recognition Treaties | Review | 2026-10-02 | pending | pending | — |
-| RFC-003 Trust Bundles | Review | 2026-10-02 | pending | pending | — |
-| RFC-004 Revocation Feeds | Review | 2026-10-02 | pending | pending | — |
+| RFC-001 Sovereign Identity | Review | 2026-10-02 | not required | 2026-10-02 | — |
+| RFC-002 Recognition Treaties | Review | 2026-10-02 | pending | 2026-10-02 | — |
+| RFC-003 Trust Bundles | Review | 2026-10-02 | pending | 2026-10-02 | — |
+| RFC-004 Revocation Feeds | Review | 2026-10-02 | pending | 2026-10-02 | — |
 | RFC-005 to RFC-008 | Draft | — | — | — | — |
 
 RFC-001 to RFC-004 are the normative RFCs for v1 interoperability
@@ -72,3 +72,27 @@ Observations for the security review, not changed here:
 set operator obligations for treaty issuance, bundle review and revocation
 publishing), a security review of all four, and the maintainer's acceptance
 recorded here.
+
+## 2026-10-02 — Security review of RFC-001 to RFC-004
+
+Part of the v1 security review ({doc}`security-review-v1`). The security
+considerations of each RFC were checked against the implementation and the v1
+deployment profile.
+
+- **RFC-001.** The canonical form and signature rules match the reference
+  and are tested by the `interop` vectors. Open: there is no NA key rotation
+  that keeps the sovereign's identity (SR-06), which remains an open question
+  of this RFC and an accepted residual risk for v1.
+- **RFC-002.** Signature checks, issuer and subject binding, validity window,
+  status and fail-closed empty scope match the code. Treaty issuance and
+  revocation require the privileged operator tier.
+- **RFC-003.** The self-attestation weakness is documented and accepted
+  (SR-08): bundles are never imported into trust state, and the validator now
+  enforces the required sections.
+- **RFC-004.** Sequence monotonicity and stale-feed rejection are enforced
+  and persisted per issuer. The RFC now states that the importing operator
+  decides which keys are the issuer's (SR-09). Feed freshness (a maximum
+  age) stays open (SR-07).
+
+No finding blocks acceptance. **Remaining:** operator review of RFC-002 to
+RFC-004, and the maintainer's acceptance recorded here.

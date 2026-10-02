@@ -159,3 +159,30 @@ def test_migrate_db_cli_writes_a_report(request, source, tmp_path):
 def test_migrate_db_cli_refuses_a_non_postgres_target(tmp_path):
     result = CliRunner().invoke(cli, ["na", "migrate-db", "--from", str(tmp_path / "x.db"), "--to", "sqlite:///y.db"])
     assert result.exit_code != 0 and "postgresql://" in result.output
+
+
+def test_older_release_refuses_a_database_migrated_by_a_newer_one(tmp_path):
+    """Running on a newer schema is refused at startup, not discovered later by /readyz."""
+    from genesis_mesh.na_service.db import NewerSchemaError, expected_schema_version
+
+    path = str(tmp_path / "na.db")
+    db = NADatabase(path)
+    db.migrate()
+    with db.conn:
+        db.conn.execute(
+            "INSERT INTO schema_version(version, applied_at) VALUES (?, ?)",
+            (expected_schema_version() + 1, datetime.now(timezone.utc).isoformat()),
+        )
+    reopened = NADatabase(path)
+    with pytest.raises(NewerSchemaError, match="newer than this release supports"):
+        reopened.migrate()
+
+
+def test_current_schema_migrates_again_without_error(tmp_path):
+    path = str(tmp_path / "na.db")
+    NADatabase(path).migrate()
+    db = NADatabase(path)
+    db.migrate()
+    from genesis_mesh.na_service.db import expected_schema_version
+
+    assert db.schema_version() == expected_schema_version()

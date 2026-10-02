@@ -36,8 +36,15 @@ app = create_app(
     database_url=settings.database_url,
     ha_mode=settings.ha_mode,
     rate_limit_store=settings.rate_limit_store,
+    max_request_bytes=settings.max_request_bytes,
 )
 
-# Trust one proxy hop (Nginx) so request.remote_addr reflects the real client IP.
-# Flask's documented ProxyFix idiom — mypy flags the wsgi_app reassignment.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # type: ignore[method-assign]
+# Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the
+# client address that rate limits key on. With 0 (the NA exposed directly) the
+# X-Forwarded-* headers are ignored: a client cannot set its own address and
+# escape per-IP limits (v0.62.0 security review). Flask's documented ProxyFix
+# idiom; mypy flags the wsgi_app reassignment.
+if settings.proxy_hops:
+    app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+        app.wsgi_app, x_for=settings.proxy_hops, x_proto=settings.proxy_hops, x_host=settings.proxy_hops,
+    )

@@ -27,8 +27,8 @@ Only the latest minor release receives security fixes.
 
 | Version | Status |
 |---|---|
-| `0.61.x` | Supported |
-| `< 0.61` | Unsupported |
+| `0.62.x` | Supported |
+| `< 0.62` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
 
@@ -40,8 +40,8 @@ deployment.
 - **Unauthenticated enrollment.** A node can only join with a single-use
   invite token that was signed into existence by an operator-authenticated
   `/admin/invite` call.
-- **Token reuse.** Invite tokens are consumed atomically in the NA's SQLite
-  database; a second `/join` with the same token returns 403.
+- **Token reuse.** Invite tokens are consumed atomically in the NA's database
+  (SQLite or PostgreSQL); a second `/join` with the same token returns 403.
 - **Operator request forgery.** Every admin call (`/admin/invite`,
   `/admin/revoke`, …) is verified against an Ed25519 signature over a canonical
   JSON envelope with timestamp and nonce. Unknown operator key IDs, expired
@@ -82,9 +82,15 @@ deployment.
 
 - **NA private key exposure.** The NA private key never leaves the NA
   process; admin callers use **operator keys**, not the NA key.
-- **Reverse-proxy IP spoofing.** The NA trusts exactly one proxy hop via
-  `ProxyFix(x_for=1)`, so `X-Forwarded-For` from arbitrary clients cannot
-  forge `request.remote_addr`.
+- **Reverse-proxy IP spoofing.** The NA trusts exactly `NA_PROXY_HOPS`
+  reverse proxies (default 1) for `X-Forwarded-For`, and none when it is set
+  to 0, so a client cannot choose the address its rate limits apply to. Set
+  it to match the deployment.
+- **Oversized requests.** Request bodies above `NA_MAX_REQUEST_BYTES`
+  (default 2 MiB) are refused with 413 before they are parsed.
+- **Trust changes by routine keys.** Operator keys have tiers; issuing,
+  revoking, treaties, feed imports, policies, agreement acceptance and data
+  license policies require a privileged key.
 
 ## Out of Scope: What Genesis Mesh Does NOT Defend Against
 
@@ -98,8 +104,11 @@ them externally.
   entire trust chain collapses. Mitigation is operational: keep this key
   offline, ideally on hardware.
 - **Network Authority private key compromise.** A compromised NA key allows
-  forging certificates for any identity. Mitigation: HSM or external secret
-  manager, plus rotation.
+  forging certificates and signed artifacts for that sovereign. There is no
+  rotation procedure that keeps the sovereign's identity yet; recovery is a
+  new identity, with counterparts re-issuing treaties. Mitigation: keep the
+  key in Azure Key Vault or another external secret manager (HA mode refuses
+  key files). See `docs/development/security-review-v1.md` (SR-06).
 - **Operator workstation compromise.** An attacker who steals an operator
   private key can issue invites and revoke certificates. Mitigation:
   workstation hygiene, hardware key, short-lived operator credentials.
@@ -109,10 +118,10 @@ them externally.
 
 ### Network-layer attacks
 
-- **Denial of service.** There is no rate-limiting on `/join`, `/heartbeat`,
-  or peer connections beyond what the underlying transport provides. An
-  attacker with sufficient bandwidth can exhaust the NA or a router. Mitigate
-  with a CDN, WAF, or load balancer in front of the NA.
+- **Denial of service.** Admin, verification and `/join` routes are rate
+  limited per client, but `/heartbeat`, `/renew` and peer connections are
+  not, and no per-IP limit stops a distributed flood. Mitigate with a CDN,
+  WAF, or load balancer in front of the NA.
 - **Traffic analysis.** Noise XX hides payload content; it does not hide that
   two peers are communicating, message timing, or message sizes.
 - **Resource exhaustion via routing churn.** A compromised peer can announce
@@ -153,6 +162,12 @@ them externally.
   Genesis Mesh validates the signer's identity and rejects metric-0 claims,
   but does not detect a compromised authenticated router that lies about
   metric N.
+
+## Security review
+
+The v1 security review (`docs/development/security-review-v1.md`) lists what
+was checked, the findings and how each was resolved, and the residual risks
+accepted for v1.
 
 ## Hardening Resources
 
