@@ -220,6 +220,18 @@ class HACluster:
         instance = next(i for i in self.instances if i.name == name)
         os.killpg(instance.process.pid, sig)
         instance.process.wait(timeout=15)
+        # Workers outlive the master by a moment and still hold the listening
+        # socket: a connection accepted then is reset after nginx has sent the
+        # request, which nginx cannot replay for a POST. Return only once the
+        # last worker is gone and the port refuses connections.
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            try:
+                socket.create_connection(("127.0.0.1", instance.port), timeout=0.5).close()
+            except OSError:
+                return
+            time.sleep(0.05)
+        raise TimeoutError(f"{name} still accepting connections after kill")
 
     def stop(self) -> None:
         procs = [i.process for i in self.instances if i.alive] + ([self.nginx] if self.nginx else [])
