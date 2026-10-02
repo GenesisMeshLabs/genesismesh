@@ -64,6 +64,25 @@ The recovery drill (`scripts/recovery_drill.py`) does the same for
 PostgreSQL: `pg_dump`, `pg_restore` into a new database after the original
 is dropped, and a new instance verifying every record and decision.
 
+## Sizing and corporate networks
+
+- **Rate limits are per client address.** Each governed action makes one
+  `/admin/boundary/evaluate` call and one evidence submission, and the admin
+  limit defaults to 30 requests per minute. Behind a corporate proxy or NAT
+  every client shares one address, and therefore one budget. Raise
+  `NA_RATE_LIMIT_ADMIN_PER_MINUTE` (and `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`)
+  to the pilot's peak, for example 600, and keep `NA_PROXY_HOPS` correct so
+  the limits apply to real client addresses.
+- **TLS-inspecting proxies.** Where outbound TLS is re-signed by a corporate
+  proxy (Zscaler and similar), clients must trust the proxy's CA:
+  `NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.pem` for the TypeScript SDK. Python
+  3.13 and later also reject proxy CAs that do not mark their basic
+  constraints critical; use the operating system's trust store through the
+  `truststore` package for the CLI and Python clients, or run them from a
+  network path without inspection.
+- **Memory.** One VM with PostgreSQL, two NA instances of two workers and a
+  reverse proxy uses about 750 MB; give it 2 GB, or 1 GB plus swap for tests.
+
 ## Operations
 
 | Task | How |

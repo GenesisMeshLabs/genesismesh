@@ -61,6 +61,9 @@ EVIDENCE_STORE_MODES: tuple[str, ...] = ("off", "on")
 
 #: Largest page returned by search and export.
 MAX_PAGE = 1000
+# Records in one resource or vendor history response; longer histories report
+# ``truncated`` and are read through the paged export.
+HISTORY_LIMIT = MAX_PAGE * 10
 
 
 def _event(stored: dict[str, Any]) -> EvidenceEvent:
@@ -378,12 +381,37 @@ class EvidenceStoreService:
             "verification": verification.to_dict(),
         }
 
-    def resource_history(self, resource_id: str) -> dict[str, Any]:
-        """Full history of one resource, decision to execution, verified."""
+    def resource_head(self, resource_id: str) -> dict[str, Any]:
+        """Where the next record of a resource must link: one indexed lookup (v0.63.1).
+
+        The same head submission validation uses: the latest stored record, or
+        the latest retention checkpoint once retention removed every stored
+        record. It is a hint for building the next record; submission still
+        validates the chain.
+        """
         self.require_enabled()
-        records = self._na.db.search_evidence({"resource_id": resource_id}, limit=MAX_PAGE * 10)
+        head = self._resource_head(resource_id)
+        if head is None:
+            raise NotFoundError("no evidence for this resource", code="resource_not_found")
+        return {
+            "resource_id": resource_id,
+            "resource_sequence": head.resource_sequence,
+            "record_digest": head.record_digest,
+        }
+
+    def resource_history(self, resource_id: str) -> dict[str, Any]:
+        """History of one resource, decision to execution, verified.
+
+        At most ``HISTORY_LIMIT`` records (the oldest); ``truncated`` says
+        when a longer chain was cut. Use the export for complete history and
+        ``resource_head`` for the next record's link.
+        """
+        self.require_enabled()
+        records = self._na.db.search_evidence({"resource_id": resource_id}, limit=HISTORY_LIMIT + 1)
         if not records:
             raise NotFoundError("no evidence for this resource", code="resource_not_found")
+        truncated = len(records) > HISTORY_LIMIT
+        records = records[:HISTORY_LIMIT]
         decision_ids = [r["entry"].decision_id for r in records if r["entry"].decision_id]
         history = self._history(decision_ids)
         # Only this resource's execution records, plus the decisions they rest on.
@@ -391,17 +419,20 @@ class EvidenceStoreService:
             e for e in history["entries"]
             if e["entry"]["entry_kind"] != "execution" or e["entry"]["resource_id"] == resource_id
         ]
-        return {"resource_id": resource_id, **history}
+        return {"resource_id": resource_id, "truncated": truncated, **history}
 
     def vendor_history(self, vendor_id: str) -> dict[str, Any]:
         """Every decision for a vendor and the evidence under it, verified."""
         self.require_enabled()
         decisions = self._na.db.search_evidence(
-            {"vendor_id": vendor_id, "entry_kind": "decision"}, limit=MAX_PAGE * 10
+            {"vendor_id": vendor_id, "entry_kind": "decision"}, limit=HISTORY_LIMIT + 1
         )
         if not decisions:
             raise NotFoundError("no decisions for this vendor", code="vendor_not_found")
-        return {"vendor_id": vendor_id, **self._history([d["entry"].decision_id for d in decisions])}
+        truncated = len(decisions) > HISTORY_LIMIT
+        decisions = decisions[:HISTORY_LIMIT]
+        return {"vendor_id": vendor_id, "truncated": truncated,
+                **self._history([d["entry"].decision_id for d in decisions])}
 
     def export_lines(self, args: dict[str, str]) -> list[str]:
         """``gm.evidence.event`` JSON Lines in store order, for incremental SIEM pulls."""

@@ -88,7 +88,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def issue_treaty():
         """Issue a signed direct-recognition treaty for another sovereign."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -163,7 +163,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def revoke_treaty(treaty_id: str):
         """Revoke a locally issued or imported recognition treaty."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -209,7 +209,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def verify_treaty():
         """Verify a signed recognition treaty."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"treaties_verify:{remote_addr}", 60, 60):
+        if not service.rate_limiter.allow(f"treaties_verify:{remote_addr}", service.rate_limits.verify, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -250,7 +250,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def verify_attestation_with_treaty_route():
         """Verify a membership attestation using a recognition treaty."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"attestations_verify_with_treaty:{remote_addr}", 60, 60):
+        if not service.rate_limiter.allow(f"attestations_verify_with_treaty:{remote_addr}", service.rate_limits.verify, 60):
             raise RateLimitError()
 
         data = request_json_object()
@@ -294,7 +294,7 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def import_sovereign_revocation_feed():
         """Import a signed revocation feed from a recognized sovereign."""
         remote_addr = request.remote_addr or "unknown"
-        if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+        if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
             raise RateLimitError()
 
         data = request_json_object()

@@ -37,6 +37,7 @@ app = create_app(
     ha_mode=settings.ha_mode,
     rate_limit_store=settings.rate_limit_store,
     max_request_bytes=settings.max_request_bytes,
+    rate_limits=settings.rate_limits,
 )
 
 # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the

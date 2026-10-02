@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.63.0:
+As of v0.63.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -763,6 +763,23 @@ membership attestations a pilot depends on.
 **What became possible:** v1 gate conditions 1 and 3 have evidence that runs
 on every change; naming the pilot's incident owner and the 1.0.0 release
 rehearsal remain.
+
+### v0.63.1 — Configurable Rate Limits and Resource Heads
+
+The first run of the pilot profile on a real VM, with clients behind a
+TLS-inspecting proxy, showed every admin request (including the
+boundary evaluation of each governed action) sharing a hard-coded budget of
+30 per minute per client address; behind a proxy or NAT that is one budget
+for a whole site. The limits became settings with unchanged defaults
+(`NA_RATE_LIMIT_ADMIN_PER_MINUTE` and three more), and the pilot profile now
+covers sizing, TLS-inspecting proxies (Node needs the proxy CA; Python 3.13+
+needs the OS trust store) and memory. A ten-minute soak on the same VM then showed resource history
+growing with every action (22 MB for a few thousand records) while the
+TypeScript SDK fetched it before each action to find the chain head; past
+10,000 records the history was silently cut to the oldest, so that head went
+stale and further actions failed. A resource-head lookup now answers in one
+indexed query, histories report `truncated`, and the SDK uses the lookup. The
+VM stack and drills are in `infrastructure/pilot-vm/`.
 
 ---
 

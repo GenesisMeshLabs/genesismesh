@@ -1,0 +1,4 @@
+dist/*.whl
+.env
+genesis.signed.json
+*.dump
