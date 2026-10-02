@@ -13,10 +13,10 @@
  *      — every ExecutionEvidence record is anchored to a BoundaryDecision
  *   3. agreement_has_two_signers
  *      — an agreement requires both offerer and responder to have acted
- *   4. scope_boundedness_is_structural
- *      — the pipeline order ensures scope is established before execution
- *   5. non_repudiation
- *      — a signed record's action timestamps cannot be reordered
+ *   4. delegation_requires_agreement
+ *      — no delegation can exist without a root agreement
+ *   5. execution_traceability
+ *      — each execution has a unique, non-repeatable evidence_id
  *
  * Simplifications vs full GM:
  *   - Delegation chains (v0.27) modelled as an optional intermediate rule

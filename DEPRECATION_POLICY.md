@@ -27,8 +27,10 @@ at any time.
   relied on that behavior.
 - Security fixes.  These may remove or change behavior immediately if
   keeping it would leave a known vulnerability in place.
-- The wire protocol.  Protocol-level compatibility is governed by the
-  Tamarin-verified lemmas in `ops/tamarin/`, not by this policy.
+- The wire protocol.  Its compatibility rules are not yet defined; they
+  are planned for v1.0 (`ops/plan-v1.0.0.md`). The Tamarin models in
+  `ops/tamarin/` prove design properties of the protocol, not compatibility
+  between versions.
 
 ## Additive changes (not deprecations)
 

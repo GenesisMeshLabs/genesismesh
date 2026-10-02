@@ -1,8 +1,8 @@
 # RFC-003 — Trust Bundles
 
-Status: Draft
+Status: Review
 Created: 2026-06-08
-Updated: 2026-08-18
+Updated: 2026-10-02
 Authors: Genesis Mesh contributors
 Requires: RFC-001, RFC-002, RFC-004
 
@@ -34,8 +34,9 @@ control material.
 
 ## Normative requirements
 
-1. A trust bundle **MUST** identify itself with `bundle_type` and
-   `bundle_version` so consumers can detect format changes.
+1. A trust bundle **MUST** identify itself with `bundle_type`
+   `"genesis-mesh.trust-bundle"` and `bundle_version` `"v1"` so consumers can
+   detect format changes.
 2. A trust bundle **MUST** carry the subject's public identity material:
    `sovereign_id`, `sovereign_metadata`, and `genesis`.
 3. A trust bundle **MUST** carry the subject's `recognition_policy` and
@@ -50,7 +51,9 @@ control material.
    granting trust is a separate, explicit operator action (typically issuing a
    treaty under RFC-002).
 8. An importer **MUST** be able to compute and record a stable bundle hash for
-   audit.
+   audit. The bundle hash is `"sha256:"` followed by the lowercase hex SHA-256
+   of the canonical form (RFC-001, *Canonical JSON and signatures*) of the
+   whole bundle.
 
 ## Data model
 
@@ -59,16 +62,16 @@ The reference implementation builds the bundle in
 
 ```json
 {
-  "bundle_type": "<bundle type tag>",
-  "bundle_version": "<format version>",
+  "bundle_type": "genesis-mesh.trust-bundle",
+  "bundle_version": "v1",
   "created_at": "<iso8601>",
   "source_endpoint": "https://na.example.org",
   "sovereign_id": "USG-NB",
   "network_version": "<version>",
   "sovereign_metadata": { "...": "RFC-001 identity material" },
   "genesis": { "...": "public genesis document" },
-  "recognition_policy": { "...": "subject recognition posture" },
-  "revocation_feed": { "...": "RFC-004 feed or {\"status\": \"skipped\"}" },
+  "recognition_policy": { "status": "ok", "payload": { "...": "subject recognition policy" } },
+  "revocation_feed": { "status": "ok", "payload": { "...": "RFC-004 feed" } },
   "connectome": {
     "summary": { "...": "RFC-006 counts" },
     "recognition_edges": [],
@@ -81,6 +84,13 @@ The reference implementation builds the bundle in
   }
 }
 ```
+
+`recognition_policy` and `revocation_feed` are status envelopes, because the
+subject may not publish them: `status` is `ok` (with the published document
+in `payload`), `skipped` (not requested), `not_configured` (the endpoint
+returned 404) or `unavailable` (with a `reason`). Each **MUST** be present as an
+envelope even when no document is included, and the reference validator
+rejects a bundle without them or without `connectome`.
 
 ## Verification rules
 
