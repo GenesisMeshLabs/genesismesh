@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.61.1:
+As of v0.62.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -167,18 +167,25 @@ As of v0.61.1:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 1,088 tests pass. The layer rule and public boundary rule are enforced
+- 1,671 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
 - Structured issue templates, a PR template, CODEOWNERS, a full
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
-- A versioned public API stability contract is declared in
-  `docs/stability.md`, with a formal deprecation policy in
-  `DEPRECATION_POLICY.md`.
-- A protocol conformance suite exists in `conformance/`: 9 suites,
-  11 deterministic vectors, a reference runner, and a pytest integration.
+- A machine-checked public contract (`contract/public-surface.json`, rendered
+  as the Public Contract page) classifies all 90 HTTP routes, 121 CLI
+  commands, the public Python API, 51 signed artifacts and every API error
+  code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
+  covers the wire protocol, signed artifact evolution and persisted state.
+- Upgrades from 0.59.1, 0.60.0 and 0.61.1 are rehearsed in CI on real
+  databases, including backup restore and migration to PostgreSQL; a release
+  refuses to run on a newer schema.
+- A security review against the v1 deployment profile is published, with its
+  findings resolved or accepted as documented residual risks.
+- A protocol conformance suite exists in `conformance/`: 10 suites and 36
+  deterministic vectors, run by a reference runner and by every official SDK.
 - All SDK-required stable protocol operations are exposed over HTTP via
   6 new NA route blueprints (agreement, boundary, evidence, disclosure,
   consensus, data usage), with a full HTTP reference at
@@ -675,6 +682,52 @@ the RFCs say what the implementation does?
   bytes are now fully specified, the signature field name and trust-bundle
   format are corrected, and the bundle validator enforces the sections the
   RFC requires. Decisions are logged in {doc}`rfc-decisions`.
+
+### v0.62.0 — v1 Public Contract and Security Review
+
+**Question this release answered:** Can an operator depend on a defined,
+tested contract, upgrade without losing trust state, and know what was
+reviewed?
+
+**Why the previous state was insufficient:** the stability page listed 12 of
+121 CLI commands (four no longer existed) and documented two stable functions
+with the wrong parameters; nothing classified the HTTP routes, signed
+artifacts or error codes, and the deprecation policy excluded the wire
+protocol. Upgrades were not tested against real databases. And every wheel
+on PyPI lacked the database migrations, so a Network Authority installed with
+`pip` could not work; only source and container deployments had ever run.
+
+**What changed:**
+
+- `contract/public-surface.json` classifies every surface as stable, beta or
+  internal, with per-package support statements. Tests walk the routes, CLI,
+  models and error codes the code actually exposes and fail on any drift; the
+  Public Contract page is rendered from it.
+- `DEPRECATION_POLICY.md` now covers HTTP fields, error codes, signing bytes,
+  signed artifact evolution (an unknown signed field fails closed, so new
+  fields are optional and omitted when absent), the export schema, vectors,
+  configuration and persisted state.
+- `scripts/upgrade_rehearsal.py` runs each supported past release from its
+  tag, fills a database through its HTTP API, then upgrades, verifies,
+  restores and migrates it to PostgreSQL with this release; CI runs it for
+  0.59.1, 0.60.0 and 0.61.1. A release now refuses a database migrated by a
+  newer one.
+- The wheel ships the migrations; CI runs a full NA from the built wheel, and
+  `interop/run_all.sh --published` runs the cross-language scenario from the
+  registries.
+- The operator exit and fork note and the managing-partner boundary are
+  published; a test keeps runtime code free of built-in authorities.
+- The v1 security review fixed five findings (packaging, two trust changes a
+  standard key could make, unbounded request bodies, fixed proxy trust,
+  running on a newer schema) and records the residual risks, chief among them
+  that the NA key cannot yet be rotated while keeping the sovereign identity.
+- Two tests that pinned a date and compared it with the real clock were
+  fixed; the suite now passes with the clock moved up to five years ahead.
+
+**What became possible:** a 1.0.0 candidate can be cut from a contract that
+the tests enforce, with a tested upgrade path and a documented security
+posture. What 1.0.0 still needs is the maintainer's RFC acceptance and the
+release rehearsal on fixed commits.
 
 ---
 

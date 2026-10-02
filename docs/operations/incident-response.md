@@ -53,7 +53,10 @@ Use this when the NA signing key may have been exposed.
 
 1. Stop the Network Authority.
 2. Preserve the current DB and key material for incident analysis.
-3. Generate a new sovereign or new NA key depending on policy.
+3. Create a new sovereign identity: new root and NA keys and a new signed
+   genesis. There is no procedure yet that replaces the NA key while keeping
+   the sovereign's identity (security review SR-06), so counterparts must
+   recognize the new identity explicitly.
 4. Publish the replacement public trust material.
 5. Re-issue affected certificates, attestations, treaties, and feeds as needed.
 6. Notify recognizing sovereigns that old trust material must be rejected.

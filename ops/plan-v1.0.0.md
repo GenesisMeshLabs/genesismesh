@@ -93,17 +93,17 @@ before-and-after trust record, not another maintainer-operated cloud instance.
 
 ## Workstream 3: Public contract and migrations
 
-- [ ] Review the CLI, Python API, Network Authority HTTP routes, signed models,
+- [x] Review the CLI, Python API, Network Authority HTTP routes, signed models,
       export schemas, and each official SDK. Publish a v1 inventory identifying
       stable, beta, and internal surfaces, with a specific support statement
       for each package. Do not promise feature parity where SDKs differ.
-- [ ] Define compatibility rules for HTTP request and response fields, stable
+- [x] Define compatibility rules for HTTP request and response fields, stable
       error codes, canonical signing bytes, signed-artifact schema versions,
       conformance vectors, and persisted database state. Update
       [`DEPRECATION_POLICY.md`](../DEPRECATION_POLICY.md), which currently
       excludes the wire protocol, so implementers know how a v1 reader handles
       old and new artifacts. Formal lemmas are not a migration policy.
-- [ ] Define the supported upgrade path from the latest supported 0.x release
+- [x] Define the supported upgrade path from the latest supported 0.x release
       and from a populated v0.59.1 pilot database. Test migrations and restored
       backups with existing treaties, revocations, policies, and evidence.
       Document rollback limits where a new schema makes rollback unsafe.
@@ -124,12 +124,12 @@ conformance results, and clean consumer builds without type escape hatches.
       normative identity, treaty, trust-bundle, and revocation RFCs through
       review before claiming they define v1 interoperability. Other RFCs may
       remain Draft if the release labels them accordingly.
-- [ ] Publish the operator exit and fork note and the managing-partner control
+- [x] Publish the operator exit and fork note and the managing-partner control
       boundary described in
       [`docs/development/governance.md`](../docs/development/governance.md).
       Show how an operator can leave without surrendering its identity or
       requiring Genesis Core approval.
-- [ ] Review the current threat model, dependency reports, key handling,
+- [x] Review the current threat model, dependency reports, key handling,
       revocation freshness, replay protection, authorization failures, and
       recovery procedures against the v1 deployment profile. Resolve critical
       findings and document accepted residual risks before release.

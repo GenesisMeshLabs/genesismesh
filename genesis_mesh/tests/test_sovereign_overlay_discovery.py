@@ -284,7 +284,9 @@ def test_cli_verify_valid() -> None:
         key_path = p / "sov.key"
         key_path.write_text(base64.b64encode(bytes(sk)).decode(), encoding="utf-8")
         record_path = p / "record.json"
-        r = _record(sk, now=_NOW)
+        # The CLI checks expiry against the real clock, so sign at the real time
+        # (a fixed _NOW made this test start failing 24 hours after it).
+        r = _record(sk, now=datetime.now(timezone.utc))
         record_path.write_text(r.model_dump_json(indent=2), encoding="utf-8")
 
         runner = CliRunner()

@@ -15,6 +15,7 @@ monitoring
 audit-export
 incident-response
 backup-restore
+upgrade
 revocation
 managed-sovereign
 ```
