@@ -159,10 +159,10 @@ a documented security review, and claims that match the checks actually run.
 
 ## Workstream 5: Operational and release proof
 
-- [ ] Complete every v0.60 acceptance criterion on both SQLite and PostgreSQL.
+- [x] Complete every v0.60 acceptance criterion on both SQLite and PostgreSQL.
       Verify two-instance failover under active decisions, revocations, and
       evidence submission with no lost or duplicate state.
-- [ ] Drill PostgreSQL backup and restore to a new instance, verify the
+- [x] Drill PostgreSQL backup and restore to a new instance, verify the
       restored database and trust state, and rehearse the documented migration
       and rollback paths. Record the outcome and any recovery limits.
 - [ ] Run the core unit and integration suites, conformance suite, SDK suites,
