@@ -176,7 +176,7 @@ what has been proven about cross-language agreement.
 - [x] Leg 3 (TypeScript) submits + verifies data intent: exit 0
 - [x] Leg 4 (C#) verifies TypeScript-produced intent: exit 0
 - [x] `.github/workflows/interop.yml` runs all four legs in sequence
-- [ ] CI passes on `main` branch
+- [x] CI passes on `main` branch
 - [x] `interop/scenario.md` narrative documents the full scenario
 - [x] Interoperability badge added to README
 
@@ -188,4 +188,4 @@ what has been proven about cross-language agreement.
 - [x] All prior Python tests continue to pass
 - [x] All SDK tests continue to pass
 - [x] Go verifier conformance: 100% pass rate
-- [ ] Interop CI workflow: all four legs green
+- [x] Interop CI workflow: all four legs green
