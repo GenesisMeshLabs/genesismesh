@@ -1,0 +1,60 @@
+name: Pilot readiness
+
+# Evidence for v1 gate conditions 1 and 3 (ops/plan-v1.0.0.md):
+# - a PostgreSQL backup restored to a new database and verified on a new
+#   Network Authority instance (scripts/recovery_drill.py);
+# - the pilot deployment profile rehearsed through the production entry
+#   point: two sovereigns on gunicorn configured from the environment, one in
+#   HA mode on PostgreSQL, from recognition to revocation and recovery
+#   (scripts/pilot_rehearsal.py, docs/operations/pilot-deployment-profile.md).
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pilot:
+    name: Recovery drill and pilot rehearsal
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: genesis
+          POSTGRES_PASSWORD: genesis
+          POSTGRES_DB: postgres
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U genesis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PG_URL: postgresql://genesis:genesis@localhost:5432/postgres
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[postgres]"
+
+      - name: PostgreSQL backup restored to a new instance
+        # The runner's pg_dump may be older than the server; use the server's own tools.
+        run: python scripts/recovery_drill.py --postgres-url "$PG_URL" --pg-tool-prefix "docker run --rm -i --network host postgres:17"
+
+      - name: Pilot deployment profile, recognition to revocation
+        run: python scripts/pilot_rehearsal.py --postgres-url "$PG_URL"

@@ -7,6 +7,10 @@ instance A is killed mid-run (SIGKILL: master and workers). Traffic continues
 through B. Afterwards every acknowledged decision, evidence record and
 revocation is present exactly once, the CRL sequences are gap-free with one
 active list, and the whole evidence store verifies with the NA key.
+
+v0.63.0 adds membership attestation revocations to the run: every
+acknowledged revocation holds on the surviving instance, and a decision on a
+revoked attestation is denied.
 """
 
 from __future__ import annotations
@@ -103,6 +107,15 @@ def test_killing_an_instance_loses_and_duplicates_nothing(request):
     })
     assert reg is not None and reg.status_code == 201
 
+    to_revoke = []
+    for i in range(60):
+        resp = client.post("/admin/attestations", {
+            "subject_id": f"member-{i}", "roles": ["role:client"],
+            "claims": {"capabilities": ["secret.manage"], "apps": ["billing"]},
+        })
+        assert resp is not None and resp.status_code == 201, resp and resp.text
+        to_revoke.append(resp.json()["attestation_id"])
+
     db = NADatabase(database_url=cluster.database_url)
     request.addfinalizer(db.close)
     cert_ids = []
@@ -117,7 +130,7 @@ def test_killing_an_instance_loses_and_duplicates_nothing(request):
         cert_ids.append(cert.cert_id)
 
     stop = threading.Event()
-    acked: dict[str, list[Any]] = {"decisions": [], "evidence": [], "revoked": []}
+    acked: dict[str, list[Any]] = {"decisions": [], "evidence": [], "revoked": [], "attestations_revoked": []}
     errors: list[str] = []
 
     def decide() -> Optional[BoundaryDecision]:
@@ -173,7 +186,22 @@ def test_killing_an_instance_loses_and_duplicates_nothing(request):
             acked["revoked"].append(cert_id)
             time.sleep(0.01)
 
-    threads = [threading.Thread(target=t) for t in (decisions_worker, decisions_worker, evidence_worker, revocation_worker)]
+    def attestation_revocation_worker() -> None:
+        for attestation in to_revoke:
+            if stop.is_set():
+                return
+            resp = client.post(f"/admin/attestations/{attestation}/revoke", {"reason": "offboarded"})
+            if resp is None:
+                continue
+            if resp.status_code != 200:
+                errors.append(f"attestation revoke {resp.status_code} {resp.text[:200]}")
+                continue
+            acked["attestations_revoked"].append(attestation)
+            time.sleep(0.1)
+
+    threads = [threading.Thread(target=t) for t in (
+        decisions_worker, decisions_worker, evidence_worker, revocation_worker, attestation_revocation_worker,
+    )]
     for t in threads:
         t.start()
     time.sleep(RUN_SECONDS_BEFORE_KILL)
@@ -208,6 +236,20 @@ def test_killing_an_instance_loses_and_duplicates_nothing(request):
     assert [int(r["resource_sequence"]) for r in evidence_rows] == list(range(1, len(evidence_rows) + 1))
     active_crl = db.get_active_crl()
     assert set(acked["revoked"]) <= {rc.certificate_id for rc in active_crl.revoked_certificates}
+
+    # Every acknowledged attestation revocation holds on the surviving instance,
+    # and decisions on those attestations are denied.
+    survivor = cluster.instances[1].url
+    for attestation in acked["attestations_revoked"]:
+        status, body = get_json(f"{survivor}/attestations/{attestation}")
+        assert status == 200 and body["status"] == "revoked" and body["revocation_reason"] == "offboarded", body
+    for attestation in acked["attestations_revoked"][::10]:
+        denied = client.post("/admin/boundary/evaluate", {
+            "attestation_id": attestation, "requested_capability": "secret.manage",
+            "context": {"request_parameters": {"app_id": "billing"}},
+        })
+        assert denied is not None and denied.status_code == 201
+        assert denied.json()["decision"]["authorized"] is False, denied.json()["decision"]
 
     # The whole store, the CRL history and the policies verify with the NA key.
     report = verify_database(db, cluster.na_public_key)

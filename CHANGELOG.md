@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.63.0 - Pilot Readiness
+
+Evidence for the re-scoped v1 gate's recovery and deployment conditions. No
+protocol, API or schema changes.
+
+### Added
+
+- `scripts/recovery_drill.py`: a PostgreSQL database filled through the HTTP
+  API is dumped (`pg_dump -Fc`), dropped, restored into a new database
+  (`pg_restore`) and verified by a new instance: treaties, imported and local
+  revocations, policies, decisions with their bindings, the evidence chain and
+  `na verify-db`.
+- `scripts/pilot_rehearsal.py`: two sovereigns as gunicorn Network
+  Authorities configured only from the environment (one on SQLite, one in HA
+  mode on PostgreSQL, both with the environment key provider and
+  `NA_PROXY_HOPS=0`). Trust bundle review, key from the live endpoint, scoped
+  treaty, member accepted and an out-of-scope role rejected, revocation by
+  signed feed, replayed and forged feeds refused, standard-tier trust changes
+  refused, and backup, restore and verification of a new instance.
+- `.github/workflows/pilot-readiness.yml` runs both on every change.
+- The upgrade rehearsal also covers databases written by 0.62.0.
+- The HA failover integration test revokes membership attestations while an
+  instance is killed: each acknowledged revocation holds on the survivor and
+  later decisions on it are denied.
+- `docs/operations/pilot-deployment-profile.md`; a PostgreSQL section and a
+  verification step in `docs/operations/backup-restore.md`.
+
+### Changed
+
+- `ops/plan-v1.0.0.md`: the gate is re-scoped for the corporate pilot (merged
+  separately); `SECURITY.md`: 0.63.x is the supported line.
+
+
 ## v0.62.0 - v1 Public Contract and Security Review
 
 The contract, compatibility rules, upgrade path and security review that a

@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.62.0
+**Versions**: v0.38.0 – v0.63.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -98,6 +98,12 @@ database behind a load balancer, with exactly-once operations enforced by the
 database and one signing key from Key Vault, so losing an instance loses no
 decision, revocation or evidence.
 
+**Pilot Readiness** (v0.63.0): the pilot deployment profile is documented and
+rehearsed on every change, two sovereigns on gunicorn configured only from the
+environment, from recognition to revocation and recovery; a PostgreSQL backup
+is restored into a new database and verified by a new instance; and the HA
+failover test now revokes membership attestations while an instance dies.
+
 **v1 Public Contract and Security Review** (v0.62.0): every HTTP route, CLI
 command, public Python symbol, signed artifact and error code is classified in a
 contract the tests enforce; compatibility rules cover the wire and persisted
@@ -166,3 +172,4 @@ interoperability proof (v0.49–v0.56).
 | v0.61.0 | Cross-language interoperability proof: offline verifiers in the Go, TypeScript and .NET SDKs, `interop` conformance vectors, live four-language scenario in CI |
 | v0.61.1 | SDK consensus types match the wire format; PeerRiskSignal model revised and proved in CI; RFC-001 to RFC-004 enter review |
 | v0.62.0 | v1 public contract (machine-checked), wire compatibility policy, rehearsed upgrades from 0.59 to 0.61, published-artifact checks, operator exit note, v1 security review |
+| v0.63.0 | Pilot readiness: PostgreSQL restore to a new instance, failover with attestation revocations in flight, pilot deployment profile rehearsed through the production entry point |
