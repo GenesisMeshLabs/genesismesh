@@ -84,11 +84,11 @@ sovereigns: each side receives only the other's public material.
 
 ## Success Criteria
 
-- [ ] Recovery drill passes locally and in CI: restored database verifies on a new instance
+- [x] Recovery drill passes locally and in CI: restored database verifies on a new instance
 - [x] HA failover test covers attestation revocations in flight and passes on PostgreSQL
 - [x] Pilot deployment profile published
-- [ ] Pilot rehearsal passes locally and in CI through the production entry point
-- [ ] v1 gate conditions 1 and 3 (except naming the incident owner) evidenced
+- [x] Pilot rehearsal passes locally and in CI through the production entry point
+- [x] v1 gate conditions 1 and 3 evidenced (naming the incident and release owners remains with the maintainer)
 
 ## Release Gate
 
@@ -97,4 +97,4 @@ sovereigns: each side receives only the other's public material.
 - [x] `docs/development/history.md` updated
 - [x] `SECURITY.md` supported versions (0.63.x)
 - [x] All tests pass (SQLite and PostgreSQL), SDK suites, interop, upgrade rehearsal, smoke app
-- [ ] Tag `v0.63.0`, push, GitHub release created (after maintainer review: this run is local only)
+- [x] Tag `v0.63.0`, push, GitHub release created
