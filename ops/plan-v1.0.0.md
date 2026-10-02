@@ -107,7 +107,7 @@ before-and-after trust record, not another maintainer-operated cloud instance.
       and from a populated v0.59.1 pilot database. Test migrations and restored
       backups with existing treaties, revocations, policies, and evidence.
       Document rollback limits where a new schema makes rollback unsafe.
-- [ ] Fix known TypeScript consensus declarations that disagree with Python's
+- [x] Fix known TypeScript consensus declarations that disagree with Python's
       `JustificationProof`, `ValidatorVote`, and `ConsensusProof` models. Remove
       the `as never` casts from the consumer smoke app and compile it against
       the packed SDK. Add coverage for counteroffers and retention checkpoint
@@ -133,7 +133,7 @@ conformance results, and clean consumer builds without type escape hatches.
       revocation freshness, replay protection, authorization failures, and
       recovery procedures against the v1 deployment profile. Resolve critical
       findings and document accepted residual risks before release.
-- [ ] Reconcile formal-verification claims with
+- [x] Reconcile formal-verification claims with
       [`docs/examples/formal-verification.md`](../docs/examples/formal-verification.md).
       Repair and rerun any model cited as evidence for current v1 behavior;
       otherwise remove that claim and keep the unproved surface beta. Record

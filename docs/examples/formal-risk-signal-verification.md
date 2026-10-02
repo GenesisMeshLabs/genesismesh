@@ -16,21 +16,16 @@ Two specific attack questions require formal treatment:
    If yes, this is a denial-of-service vector against the mesh's authorization
    capacity.
 
-v0.48 extends the Tamarin Prover models introduced in v0.31 to cover the
-PeerRiskSignal state machine with three security lemmas.
+v0.48 extended the Tamarin Prover models introduced in v0.31 to cover the
+PeerRiskSignal state machine. v0.61.1 rewrote that model against the shipped
+`update_risk_signal`, and it now proves completely.
 
-> **Current status**: this model does **not** fully prove.  Against
-> tamarin-prover 1.12.0, `signal_bounded` verifies, `anomaly_detection_responsive`
-> is falsified, and `no_single_source_cascade` does not terminate in 3 GB of
-> heap; Tamarin also reports two wellformedness failures.  The lemmas below
-> describe the *intended* properties.  See "Known gaps" in
-> `formal-verification.md` before citing them as evidence.
+> **Current status**: 7/7 lemmas verified with tamarin-prover 1.12.0 and Maude
+> 3.5.1, model wellformed, proved in CI by the `Formal verification` workflow.
 
-> **Scope constraint**: Tamarin proves properties of the *protocol specification*,
-> not the Python implementation.  An implementation bug that correctly implements
-> the protocol is not caught.  The Tamarin models in
-> `ops/tamarin/risk_signal/peer_risk_signal.spthy` are executable specifications,
-> not part of the Python test suite.
+> **Scope constraint**: Tamarin proves properties of the *model*, not of the
+> Python code. The model follows `genesis_mesh/trust/risk_signal.py`, but an
+> implementation bug that the model does not capture is not caught.
 
 ---
 
@@ -39,57 +34,64 @@ PeerRiskSignal state machine with three security lemmas.
 :class: screenshot
 ```
 
-## The three lemmas
+## What the model captures
 
-### Lemma 1 — `signal_bounded`
+- Each sovereign keeps its own signal per counterparty, starting at 0.5.
+  Nothing is shared between sovereigns.
+- The network adversary chooses every evidence outcome and evidence id.
+- Detection runs inside the update, only when the signal has enough history
+  (at least 10 prior updates in the code) and the update's delta is an
+  outlier (`|Δ - μ| > 3σ`), in either direction.
 
-> The signal value is always in the lattice `{low, mid, high}` (abstracting
-> `[0.0, 1.0]`) after any sequence of `InitSignal`, `UpdateSignal`, and
-> `DecaySignal` rule applications.
+Values are abstracted to `{low, mid, high}`, the history count to
+`cold`/`warm`, and the outlier statistics to a choice the model leaves open.
 
-This proves the `ge=0.0, le=1.0` invariant on `PeerRiskSignal.signal` at the
-protocol level, independent of Python's floating-point clamping.
+## The lemmas
 
-### Lemma 2 — `anomaly_detection_responsive`
+| Lemma | Property |
+|---|---|
+| `signal_bounded` | A signal only holds a lattice value: the `ge=0.0, le=1.0` invariant at the model level |
+| `anomaly_requires_local_outlier` | An anomaly is raised only by the owner's own update, on evidence it processed, whose delta was an outlier |
+| `anomaly_requires_history` | An anomaly requires a signal with enough prior updates |
+| `detection_is_synchronous` | With enough history, the update that processes an outlier raises the anomaly in the same step |
+| `no_single_source_cascade` | Anomalies about one counterparty at two sovereigns each come from evidence that sovereign processed itself |
+| `anomaly_reachable` | Sanity: anomalies at two sovereigns are reachable, so the lemmas are not vacuous |
+| `cold_outlier_reachable_without_anomaly` | An outlier with too little history raises nothing |
 
-> Whenever a `SuddenDrop` action is recorded for `(S, C)`, there exists a
-> subsequent `AnomalyDetected` action for `(S, C)`.
+## Answers to the two attack questions
 
-This proves that an adversary causing a sudden large negative delta cannot
-permanently suppress anomaly detection — the `EmitAnomaly` rule must eventually
-fire.  The lemma holds for all possible interleavings of `UpdateSignal` and
-`DecaySignal`.
-
-### Lemma 3 — `no_single_source_cascade`
-
-> If `AnomalyDetected(S1, C)` and `AnomalyDetected(S2, C)` are both observed
-> for distinct sovereigns `S1 ≠ S2`, then each sovereign must have independently
-> observed a `SuddenDrop(Sn, C)` before its own anomaly fired.
-
-This proves that cascade amplification requires genuine divergent behaviour visible
-to each independent observer.  A single adversary cannot "tunnel" one event into
-simultaneous anomaly alarms at multiple sovereigns.
+1. **Threshold manipulation.** Detection cannot be *suppressed or deferred*
+   once an update is an outlier on a signal with enough history
+   (`detection_is_synchronous`). It is **not** guaranteed for every drop: a
+   drop in the first 10 updates raises nothing
+   (`cold_outlier_reachable_without_anomaly`), and an adversary who keeps every
+   delta within 3σ degrades the signal slowly without an anomaly. The v0.48
+   lemma that claimed every sudden drop is detected was false for the
+   implementation and was removed.
+2. **Cascade amplification.** A single event cannot raise anomalies at two
+   sovereigns: each anomaly comes from evidence that sovereign processed in
+   its own update (`no_single_source_cascade`). A counterparty that misbehaves
+   towards several sovereigns can still trigger an anomaly at each of them,
+   one per observed outlier.
 
 ---
 
 ## Running the proofs
 
-With [Tamarin Prover](https://tamarin-prover.github.io/) installed:
+With [Tamarin Prover](https://tamarin-prover.com/) and Maude installed:
 
 ```bash
-# Prove all three lemmas
+# Prove every lemma
 tamarin-prover --prove ops/tamarin/risk_signal/peer_risk_signal.spthy
 
 # Prove a single lemma
-tamarin-prover --prove=signal_bounded ops/tamarin/risk_signal/peer_risk_signal.spthy
-tamarin-prover --prove=anomaly_detection_responsive ops/tamarin/risk_signal/peer_risk_signal.spthy
-tamarin-prover --prove=no_single_source_cascade ops/tamarin/risk_signal/peer_risk_signal.spthy
+tamarin-prover --prove=detection_is_synchronous ops/tamarin/risk_signal/peer_risk_signal.spthy
 ```
 
-The Python test wrappers in
-`genesis_mesh/tests/test_risk_signal_tamarin.py` invoke tamarin-prover
-automatically and are marked `@pytest.mark.skipif` so they are skipped when
-tamarin-prover is not installed.
+The wrappers in `genesis_mesh/tests/test_risk_signal_tamarin.py` fail on any
+falsified, undecided or unverified lemma and on a wellformedness failure. They
+skip when tamarin-prover is not installed; the `Formal verification` CI
+workflow installs it and fails if they skip.
 
 ---
 
@@ -100,8 +102,9 @@ conditions at the Python level without requiring the prover:
 
 - **Property 1 — bounded**: 7 tests over all combinations of outcomes, random
   sequences, and boundary initials (0.0 and 1.0).
-- **Property 2 — responsive**: anomaly fires after sustained success followed
-  by failures; alternating adversarial patterns cannot suppress it.
+- **Property 2 — responsive**: with enough history, anomaly fires after
+  sustained success followed by failures; alternating adversarial patterns
+  cannot suppress it.
 - **Property 3 — cascade isolation**: two independent sovereigns maintain
   independent signals; anomaly at one does not propagate to the other.
 
@@ -111,23 +114,12 @@ These tests run in the standard pytest suite.
 
 ## What is NOT proved
 
-- **Implementation fidelity**: the Python `update_risk_signal()` correctly
-  implements the EWMA formula, but Tamarin proves the abstract protocol, not
-  the Python code.  A Python bug that correctly realises the protocol (e.g.
-  numerical precision drift) is not caught.
-- **Timing attacks**: the model abstracts time as a non-deterministic decay
-  operator.  Real-time attacks exploiting the exponential decay formula's
-  continuous nature are not in scope.
-- **Cross-sovereign collusion**: Lemma 3 covers single-adversary cascade.  If
-  two sovereigns collude to construct a shared signal history, that is outside
-  the threat model.
-
----
-
-## Model simplifications
-
-The Tamarin model uses a three-point lattice `{low, mid, high}` instead of the
-continuous `[0.0, 1.0]` range.  This is sufficient to prove the structural
-properties (boundedness, detection responsiveness, cascade isolation) while
-keeping the model decidable.  A fully arithmetic Tamarin model would require
-the `diff` or `xor` built-ins and is left for future work.
+- **The statistics.** The EWMA, the decay and the 3σ test are not modelled.
+  The model proves where and when detection happens, not that the statistics
+  catch any particular attack. Slow degradation within 3σ is not detected.
+- **Implementation fidelity.** The model follows the code, but proves the
+  model; the Python tests cover the arithmetic.
+- **Timing.** Decay is not modelled; time-based attacks on the exponential
+  decay are out of scope.
+- **Collusion.** Two sovereigns that share or construct a signal history
+  together are outside the threat model.

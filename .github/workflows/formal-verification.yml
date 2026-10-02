@@ -1,0 +1,70 @@
+name: Formal verification
+
+# Proves every lemma of the Tamarin models in ops/tamarin/ on each change to
+# them, their tests or the code they model. Without tamarin-prover the proof
+# tests skip, so this is the job that makes the claims in
+# docs/examples/formal-verification.md enforced rather than manual.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "ops/tamarin/**"
+      - "genesis_mesh/tests/test_tamarin_proofs.py"
+      - "genesis_mesh/tests/test_risk_signal_tamarin.py"
+      - "genesis_mesh/trust/risk_signal.py"
+      - ".github/workflows/formal-verification.yml"
+  workflow_dispatch:
+
+jobs:
+  tamarin:
+    name: Tamarin proofs
+    runs-on: ubuntu-latest
+    env:
+      TAMARIN_VERSION: "1.12.0"
+      TAMARIN_SHA256: 201be06f469e47cff554df6ca93db8366fc2c69d70c61fcbd1370a1074b469c6
+      MAUDE_VERSION: "3.5.1"
+      MAUDE_SHA256: 72ed1ca87e3b3d0dfc6ee1436baf154bf04c45ff97d521bec040c5e8dfc8f92c
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install tamarin-prover and Maude (pinned release binaries)
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/tamarin"
+          mkdir -p "$dir"
+          cd "$dir"
+          curl -fsSLO "https://github.com/tamarin-prover/tamarin-prover/releases/download/${TAMARIN_VERSION}/tamarin-prover-${TAMARIN_VERSION}-linux64-ubuntu.tar.gz"
+          curl -fsSLO "https://github.com/maude-lang/Maude/releases/download/Maude${MAUDE_VERSION}/Maude-${MAUDE_VERSION}-linux-x86_64.zip"
+          echo "${TAMARIN_SHA256}  tamarin-prover-${TAMARIN_VERSION}-linux64-ubuntu.tar.gz" | sha256sum -c -
+          echo "${MAUDE_SHA256}  Maude-${MAUDE_VERSION}-linux-x86_64.zip" | sha256sum -c -
+          tar xzf "tamarin-prover-${TAMARIN_VERSION}-linux64-ubuntu.tar.gz"
+          unzip -q "Maude-${MAUDE_VERSION}-linux-x86_64.zip"
+          chmod +x tamarin-prover maude
+          echo "$dir" >> "$GITHUB_PATH"
+          echo "MAUDE_LIB=$dir" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+          python -m pip install -e .
+
+      - name: Prove every lemma
+        run: |
+          tamarin-prover --version | head -1
+          python -m pytest genesis_mesh/tests/test_tamarin_proofs.py genesis_mesh/tests/test_risk_signal_tamarin.py -v -p no:cacheprovider -rs
+
+      - name: Proof tests must not skip
+        run: |
+          python -m pytest genesis_mesh/tests/test_tamarin_proofs.py genesis_mesh/tests/test_risk_signal_tamarin.py -q -p no:cacheprovider -rs | tee result.txt
+          if grep -q skipped result.txt; then echo "::error::A Tamarin proof test was skipped"; exit 1; fi

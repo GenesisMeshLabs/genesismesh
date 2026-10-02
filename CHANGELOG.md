@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.61.1 - Contract and Evidence Corrections
+
+Coordinated patch release. No protocol or schema changes; one validator
+tightening (trust bundles, below).
+
+### Fixed
+
+- SDK consensus types now match the Python models and the wire format:
+  `ValidatorVote` (`context_digest`, a single `signature`), `ConsensusProof`
+  (`reached_at`, `expires_at`, `cascade_assessment_digest`) and the
+  `consensus/verify` result with its reason codes. TypeScript
+  (`JustificationProof` is the justification returned by
+  `boundary.evaluate`), Go and .NET each round-trip a Python-signed proof
+  from the `consensus` conformance vectors without loss. The Go and .NET
+  types and README examples previously used field names the NA never sent.
+- `ops/tamarin/risk_signal/peer_risk_signal.spthy` rewritten against
+  `trust/risk_signal.py`: wellformed, 7/7 lemmas verified.
+  `anomaly_detection_responsive` was removed: the implementation itself
+  raises no anomaly for a drop with fewer than 10 prior updates, so the claim
+  was false, not just unproved. `gm_protocol.spthy`'s header now names the
+  lemmas it declares.
+- Trust bundle validation rejects a bundle without `recognition_policy`,
+  `revocation_feed` or `connectome`, as RFC-003 requires.
+- Formal-verification claims in the docs, `DEPRECATION_POLICY.md` and the
+  project history now match what is proved and where.
+- The vector generator ends files with a newline, so regenerated vectors
+  match the committed ones.
+
+### Added
+
+- `.github/workflows/formal-verification.yml` proves both Tamarin models with
+  pinned, checksummed tamarin-prover 1.12.0 and Maude 3.5.1, and fails if a
+  proof test skips. The interoperability workflow also checks the SDKs'
+  copies of the `consensus` vectors.
+- RFC-001 *Canonical JSON and signatures*: the exact signed bytes, timestamp
+  form and signature object for RFC-001 to RFC-004. RFC-001 to RFC-004 move
+  to Review after a check against the implementation: the signature field is
+  `sig`, not `signature`; revoked ids are signed sorted and deduplicated; the
+  trust-bundle format and hash are specified. See
+  `docs/development/rfc-decisions.md`.
+- Sandbox TypeScript smoke app: offer, counter and accept; a real retention
+  checkpoint, verified and continued from offline; no `as never` casts.
+
+
 ## v0.61.0 - Cross-Language Interoperability Proof
 
 The Python Network Authority and the Go, TypeScript and C# SDKs exchange live

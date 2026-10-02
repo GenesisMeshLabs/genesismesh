@@ -1,7 +1,8 @@
 # RFC-004 — Revocation Feeds
 
-Status: Draft
+Status: Review
 Created: 2026-06-08
+Updated: 2026-10-02
 Authors: Genesis Mesh contributors
 Requires: RFC-001
 
@@ -47,7 +48,10 @@ and without leaking private payloads.
 4. A consumer **MUST** verify that the feed's `issuer_sovereign_id` matches the
    expected issuer before accepting it (`wrong_issuer`).
 5. `revoked_attestation_ids` **MUST** be treated as a set; duplicates are not
-   meaningful. The reference implementation deduplicates and sorts them.
+   meaningful. The canonical form, and therefore the signed bytes, carries the
+   ids deduplicated and sorted by code point: an issuer **MUST** sign that
+   form, and a verifier **MUST** normalize the list the same way before
+   verifying. The reference implementation does both in the model.
 6. Any per-id `revocation_reasons` entry **MUST** correspond to an id present in
    `revoked_attestation_ids`. A reason referencing an unknown id **MUST** cause
    the feed to be rejected as malformed.
@@ -71,9 +75,13 @@ The reference implementation defines `SovereignRevocationFeed` in
   "revoked_attestation_ids": ["<attestation id>"],
   "revocation_reasons": {"<attestation id>": "compromise"},
   "issued_by": "<issuer signing key id>",
-  "signatures": [{"key_id": "...", "signature": "..."}]
+  "signatures": [{"key_id": "<issuer key id>", "sig": "<base64 Ed25519 signature>"}]
 }
 ```
+
+A feed is signed over the canonical form (RFC-001, *Canonical JSON and
+signatures*) of every field above except `signatures`, with
+`revoked_attestation_ids` normalized as in requirement 5.
 
 ## Verification rules
 

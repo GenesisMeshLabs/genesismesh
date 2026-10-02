@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.61.0
+**Versions**: v0.38.0 – v0.61.1
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -157,3 +157,4 @@ interoperability proof (v0.49–v0.56).
 | v0.59.1 | TypeScript SDK for governed secret lifecycles: attestation evaluation, policy lifecycle, evidence store, offline verification |
 | v0.60.0 | Optional HA: PostgreSQL backend, database-enforced exactly-once operations, shared rate limits, Key Vault signer, `/readyz`, SQLite migration |
 | v0.61.0 | Cross-language interoperability proof: offline verifiers in the Go, TypeScript and .NET SDKs, `interop` conformance vectors, live four-language scenario in CI |
+| v0.61.1 | SDK consensus types match the wire format; PeerRiskSignal model revised and proved in CI; RFC-001 to RFC-004 enter review |

@@ -338,3 +338,15 @@ def test_signed_genesis_bundle_still_reports_validation_ok(tmp_path):
 
     assert report["errors"] == []
     assert report["warnings"] == []
+
+
+def test_bundle_without_posture_sections_is_rejected():
+    """RFC-003 requires recognition_policy, revocation_feed and connectome, even as status envelopes."""
+    from genesis_mesh.workflows.trust_bundle import validate_trust_bundle
+
+    complete = _attacker_bundle("usg-b")
+    assert not any("missing required section" in e for e in validate_trust_bundle(complete)["errors"])
+    for section in ("recognition_policy", "revocation_feed", "connectome"):
+        bundle = {k: v for k, v in complete.items() if k != section}
+        errors = validate_trust_bundle(bundle)["errors"]
+        assert f"missing required section: {section}" in errors, (section, errors)
