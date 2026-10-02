@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.62.0:
+As of v0.63.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -184,6 +184,9 @@ As of v0.62.0:
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
   findings resolved or accepted as documented residual risks.
+- The pilot deployment profile is rehearsed in CI through the production
+  entry point, from recognition to revocation and recovery, and a PostgreSQL
+  backup is restored into a new database and verified on every change.
 - A protocol conformance suite exists in `conformance/`: 10 suites and 36
   deterministic vectors, run by a reference runner and by every official SDK.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -728,6 +731,38 @@ on PyPI lacked the database migrations, so a Network Authority installed with
 the tests enforce, with a tested upgrade path and a documented security
 posture. What 1.0.0 still needs is the maintainer's RFC acceptance and the
 release rehearsal on fixed commits.
+
+### v0.63.0 — Pilot Readiness
+
+**Question this release answered:** Can an operator run the supported pilot
+shape, and recover it, exactly as documented?
+
+**Why the previous state was insufficient:** the re-scoped v1 gate asks for a
+PostgreSQL backup restored to a new instance and a rehearsed pilot deployment
+profile. Neither existed: restores had been drilled on SQLite only, every
+end-to-end test started the NA in-process rather than through the production
+entry point, and the failover test revoked node certificates but not the
+membership attestations a pilot depends on.
+
+**What changed:**
+
+- `scripts/recovery_drill.py` fills a PostgreSQL database through the HTTP
+  API, dumps it, drops it, restores into a new database and has a new
+  instance verify every treaty, revocation, policy, decision and evidence
+  record.
+- `scripts/pilot_rehearsal.py` runs two sovereigns as gunicorn processes
+  configured only from the environment, one in HA mode on PostgreSQL, through
+  trust bundle review, a scoped treaty, membership, revocation by signed
+  feed, refused replayed and forged feeds, refused standard-tier trust
+  changes, and backup, restore and verification.
+- The HA failover test revokes membership attestations while instance A is
+  killed; every acknowledged revocation holds and later decisions are denied.
+- `docs/operations/pilot-deployment-profile.md` documents the shape, its
+  configuration, operations, pilot roles and limits.
+
+**What became possible:** v1 gate conditions 1 and 3 have evidence that runs
+on every change; naming the pilot's incident owner and the 1.0.0 release
+rehearsal remain.
 
 ---
 

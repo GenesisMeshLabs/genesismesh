@@ -16,6 +16,7 @@ audit-export
 incident-response
 backup-restore
 upgrade
+pilot-deployment-profile
 revocation
 managed-sovereign
 ```
