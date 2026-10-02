@@ -1,0 +1,6 @@
+{
+  "name": "genesis-mesh-interop-typescript",
+  "private": true,
+  "type": "module",
+  "description": "Leg 3 of the cross-language interoperability scenario. run_all.sh installs the packed TypeScript SDK here."
+}

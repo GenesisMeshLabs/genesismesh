@@ -170,22 +170,22 @@ what has been proven about cross-language agreement.
 
 ## Success Criteria
 
-- [ ] `interop/` directory with all four legs
-- [ ] Leg 1 (Python) produces all fixtures
-- [ ] Leg 2 (Go) verifies agreement + boundary decision: exit 0
-- [ ] Leg 3 (TypeScript) submits + verifies data intent: exit 0
-- [ ] Leg 4 (C#) verifies TypeScript-produced intent: exit 0
-- [ ] `.github/workflows/interop.yml` runs all four legs in sequence
+- [x] `interop/` directory with all four legs
+- [x] Leg 1 (Python) produces all fixtures
+- [x] Leg 2 (Go) verifies agreement + boundary decision: exit 0
+- [x] Leg 3 (TypeScript) submits + verifies data intent: exit 0
+- [x] Leg 4 (C#) verifies TypeScript-produced intent: exit 0
+- [x] `.github/workflows/interop.yml` runs all four legs in sequence
 - [ ] CI passes on `main` branch
-- [ ] `interop/scenario.md` narrative documents the full scenario
-- [ ] Interoperability badge added to README
+- [x] `interop/scenario.md` narrative documents the full scenario
+- [x] Interoperability badge added to README
 
 ## Release Gate
 
-- [ ] Package metadata bumped to `0.61.0`
-- [ ] CHANGELOG entry (cross-language interoperability proof)
-- [ ] history.md updated with v0.61.0 entry
-- [ ] All prior Python tests continue to pass
-- [ ] All SDK tests continue to pass
-- [ ] Go verifier conformance: 100% pass rate
+- [x] Package metadata bumped to `0.61.0`
+- [x] CHANGELOG entry (cross-language interoperability proof)
+- [x] history.md updated with v0.61.0 entry
+- [x] All prior Python tests continue to pass
+- [x] All SDK tests continue to pass
+- [x] Go verifier conformance: 100% pass rate
 - [ ] Interop CI workflow: all four legs green

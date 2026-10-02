@@ -668,6 +668,210 @@ def gen_data_usage() -> None:
     _write("data_usage", {"suite": "data_usage", "version": "0.51.0", "vectors": vectors})
 
 
+# ── interop (v0.61.0): offline verification shared by every SDK ─────────────
+
+
+def _canonical_cases() -> list[dict]:
+    """Wire JSON text and the canonical form Python signs over."""
+    import json as _json
+
+    texts = [
+        '{"b":1,"a":[3,2,1],"c":{"z":null,"y":true,"x":false}}',
+        '{"floats":[1.0,90.0,0.25,1e-05,1e+21,1.5e+16,123456789.5,-0.5,100.0]}',
+        '{"text":"Z\\u00fcrich \\u2713 \\ud83d\\ude00","ctl":"a\\tb\\nc\\u0001\\u007f/\\"\\\\"}',
+        '{"\\ue000":1,"\\ud83d\\ude00":2,"z":3,"Z":4,"_":5}',
+        '{"big":12345678901234567890,"neg":-7,"zero":0,"nested":[{"k":[1.0,2]}]}',
+    ]
+    cases = []
+    for i, text in enumerate(texts, 1):
+        canonical = _json.dumps(_json.loads(text), sort_keys=True, separators=(",", ":"))
+        cases.append({
+            "id": f"canon-{i:03d}",
+            "kind": "canonical_json",
+            "description": "Canonical form of wire JSON (sorted keys, ASCII escapes, Python float repr)",
+            "input": {"json": text},
+            "expected": {"canonical": canonical},
+        })
+    return cases
+
+
+def gen_interop() -> None:
+    from datetime import timedelta
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models import MembershipAttestation
+    from genesis_mesh.models.boundary_policy import BoundaryPolicy, GateSpec, PolicySelector
+    from genesis_mesh.models.context import ContextRecord
+    from genesis_mesh.trust.agreement import (
+        AgreementTerms, accept_offer, build_offer, cosign_agreement, verify_agreement,
+    )
+    from genesis_mesh.trust.context import GateRegistry, sign_boundary_policy, verify_boundary_decision
+    from genesis_mesh.trust.context.attestation_basis import assess_attestation_basis
+    from genesis_mesh.trust.context.engine import BoundaryEngine
+    from genesis_mesh.trust.data_usage import (
+        DataLicensePolicy, DataSourceDescriptor, create_data_access_intent, verify_data_access_intent,
+    )
+
+    vectors: list[dict] = _canonical_cases()
+    keys = {"offerer": [pub_b64("a")], "responder": [pub_b64("b")], "na": [pub_b64("c")]}
+
+    # ── agreements ──────────────────────────────────────────────────────────
+    graph = _make_graph()
+    terms = AgreementTerms(
+        capabilities=["transactions.read", "statements.read"],
+        scope={"region": "Zürich ✓", "ratio": 0.25, "limit": 1.0, "accounts": ["acc-1"]},
+        valid_from=T0, valid_until=T1,
+    )
+    dual = _make_agreement()
+    offer = build_offer(
+        offerer_sovereign_id=SOV_A, responder_sovereign_id=SOV_B, requested_terms=terms, graph=graph,
+        signing_key=KEYS["a"], issued_by=pub_b64("a"), expires_at=T1, now=T0,
+    )
+    half = accept_offer(offer, graph, KEYS["b"], issued_by=pub_b64("b"), now=T0)
+    cosigned = cosign_agreement(half, KEYS["a"], issued_by=pub_b64("a"))
+    tampered = cosigned.model_copy(deep=True)
+    tampered.agreed_terms.capabilities = ["transactions.read", "transactions.write"]
+
+    def agreement_vector(vid, desc, record, expected_digest=None):
+        res = verify_agreement(
+            record, keys["offerer"], keys["responder"], expected_graph_digest=expected_digest,
+        )
+        inp = {"agreement": _model_to_dict(record), "offerer_public_keys": keys["offerer"],
+               "responder_public_keys": keys["responder"]}
+        if expected_digest is not None:
+            inp["expected_graph_digest"] = expected_digest
+        vectors.append({"id": vid, "kind": "agreement", "description": desc, "input": inp,
+                        "expected": {"accepted": res.accepted, "reason": res.reason}})
+
+    agreement_vector("agr-001", "Counter flow: dual-signed agreement verifies", dual)
+    agreement_vector("agr-002", "Direct acceptance plus cosign; non-ASCII text and floats (1.0) in the signed terms", cosigned)
+    agreement_vector("agr-003", "Half-signed (responder only): offerer signature missing", half)
+    agreement_vector("agr-004", "Agreed capabilities edited after signing", tampered)
+    agreement_vector("agr-005", "Graph digest does not match the expected one", cosigned, expected_digest="0" * 64)
+
+    # ── boundary decisions ──────────────────────────────────────────────────
+    registry = GateRegistry.default()
+    now = T0 + timedelta(hours=1)
+    policy = sign_boundary_policy(BoundaryPolicy(
+        policy_id="statements-read", version=1, description="Read limits — Zürich ✓",
+        valid_from=T0, valid_until=T1,
+        selector=PolicySelector(capabilities=["transactions.*", "statements.*"]),
+        gates=[
+            GateSpec(gate_id="max-rows", gate_type="max_value.v1", order=0,
+                     config={"path": "request_parameters.rows", "max": 90}),
+            GateSpec(gate_id="purpose", gate_type="required_parameter.v1", order=1, mode="observe",
+                     config={"path": "attributes.purpose"}),
+        ],
+        issued_at=T0, issued_by="na-key", issuer_sovereign_id=SOV_C,
+    ), KEYS["c"], "na-key")
+    engine = BoundaryEngine(operator_sovereign_id=SOV_C)
+
+    def context(rows, agreement_id=None, attestation_id=None):
+        return ContextRecord(
+            context_id=f"ctx-{rows}-{attestation_id or 'agr'}",
+            agreement_id=attestation_id or agreement_id or cosigned.agreement_id,
+            parent_kind="attestation" if attestation_id else "agreement",
+            attestation_id=attestation_id,
+            requester_sovereign_id=SOV_B, provider_sovereign_id=SOV_A,
+            requested_capability="transactions.read",
+            request_parameters={"rows": rows}, attributes={}, requested_at=now,
+        )
+
+    allowed, _ = engine.evaluate_with_policies(
+        context(10), cosigned, KEYS["c"], issued_by="na-key", policies=[policy], registry=registry,
+        policy_public_keys=keys["na"], now=now,
+    )
+    denied, _ = engine.evaluate_with_policies(
+        context(500), cosigned, KEYS["c"], issued_by="na-key", policies=[policy], registry=registry,
+        policy_public_keys=keys["na"], now=now,
+    )
+    attestation = MembershipAttestation(
+        attestation_id=UUID3, issuer_sovereign_id=SOV_C, subject_id=SOV_B, subject_public_key=pub_b64("b"),
+        roles=["role:client"], status="active", issued_at=T0, valid_from=T0, expires_at=T1,
+        issued_by="na-key", claims={"capabilities": ["transactions.read"], "apps": ["ledger"]}, signatures=[],
+    )
+    attestation.signatures.append(sign_model(attestation, KEYS["c"], "na-key"))
+    basis = assess_attestation_basis(
+        UUID3, attestation, issuer_public_keys=keys["na"], stored_status="active",
+        feed_revoked=False, revocation_seq_checked=0, requester_id=SOV_B,
+    )
+    attested, _ = engine.evaluate_attestation_with_policies(
+        context(10, attestation_id=UUID3), basis, KEYS["c"], issued_by="na-key", policies=[policy],
+        registry=registry, policy_public_keys=keys["na"], now=now,
+    )
+    tampered_decision = allowed.model_copy(update={"denial_reason": "edited"})
+
+    def decision_vector(vid, desc, decision, *, at, expected_policies=None, expected_attestation=None):
+        res = verify_boundary_decision(
+            decision, keys["na"], now=at, expected_policies=expected_policies,
+            expected_attestation=expected_attestation,
+        )
+        inp: dict = {"decision": _model_to_dict(decision), "operator_public_keys": keys["na"],
+                     "now": at.isoformat().replace("+00:00", "Z")}
+        if expected_policies is not None:
+            inp["expected_policies"] = [_model_to_dict(p) for p in expected_policies]
+        if expected_attestation is not None:
+            inp["expected_attestation"] = _model_to_dict(expected_attestation)
+        vectors.append({"id": vid, "kind": "boundary_decision", "description": desc, "input": inp,
+                        "expected": {"accepted": res.accepted, "reason": res.reason, "authorized": res.authorized}})
+
+    decision_vector("bd-001", "Policy-aware ALLOW under an agreement, policy binding checked", allowed,
+                    at=now, expected_policies=[policy])
+    decision_vector("bd-002", "Policy gate DENY (rows over 90): a verified denial", denied,
+                    at=now, expected_policies=[policy])
+    decision_vector("bd-003", "Attestation-basis ALLOW, policy and attestation bindings checked", attested,
+                    at=now, expected_policies=[policy], expected_attestation=attestation)
+    decision_vector("bd-004", "denial_reason edited after signing", tampered_decision, at=now)
+    decision_vector("bd-005", "Expected policy set differs from the binding", allowed, at=now, expected_policies=[])
+    decision_vector("bd-006", "Verified after decision_valid_until", allowed, at=T1 + timedelta(days=1))
+    other = attestation.model_copy(update={"subject_id": "someone-else"})
+    decision_vector("bd-007", "Expected attestation differs from the binding", attested, at=now,
+                    expected_attestation=other)
+
+    # ── data access intents against a license policy ──────────────────────────
+    license_policy = DataLicensePolicy(
+        policy_id=UUID1, licensor_sovereign_id=SOV_A, licensee_sovereign_id=SOV_B,
+        allowed_source_ids=["db-prod", "db-archive"], allowed_access_types=["read", "aggregate"],
+        max_volume_bytes_per_session=1_000_000, prohibited_classification_tags=["pii-raw"],
+        valid_from=T0, valid_until=T1,
+    )
+    license_policy.signature = sign_model(license_policy, KEYS["a"], key_id="key-a")
+    vectors.append({"id": "pol-001", "kind": "data_license_policy", "description": "Licensor signature over the policy",
+                    "input": {"policy": _model_to_dict(license_policy), "licensor_public_keys": keys["offerer"]},
+                    "expected": {"valid": True}})
+    bad_policy = license_policy.model_copy(update={"max_volume_bytes_per_session": 10**9})
+    vectors.append({"id": "pol-002", "kind": "data_license_policy", "description": "Volume cap raised after signing",
+                    "input": {"policy": _model_to_dict(bad_policy), "licensor_public_keys": keys["offerer"]},
+                    "expected": {"valid": False}})
+
+    def source(sid, tags=()):
+        return DataSourceDescriptor(source_id=sid, source_type="proprietary", owner_sovereign_id=SOV_A,
+                                    classification_tags=list(tags))
+
+    def intent_vector(vid, desc, sources, access, volume=None, *, at=now, signer="b", agent_keys=None):
+        intent = create_data_access_intent(
+            agent_sovereign_id=SOV_B, decision_id=allowed.decision_id, sources=sources, access_types=access,
+            signing_key=KEYS[signer], estimated_volume_bytes=volume, valid_for_seconds=3600, now=T0 + timedelta(minutes=30),
+        )
+        keys_for_agent = agent_keys or [pub_b64("b")]
+        valid, reason, violations = verify_data_access_intent(intent, license_policy, keys_for_agent, at_time=at)
+        vectors.append({"id": vid, "kind": "data_access_intent", "description": desc,
+                        "input": {"intent": _model_to_dict(intent), "policy": _model_to_dict(license_policy),
+                                  "agent_public_keys": keys_for_agent, "at": at.isoformat().replace("+00:00", "Z")},
+                        "expected": {"valid": valid, "violation_reason": reason,
+                                     "violation_types": [v.violation_type for v in violations]}})
+
+    intent_vector("int-001", "Compliant read of a licensed source", [source("db-prod")], ["read"], 5000)
+    intent_vector("int-002", "Unlicensed source", [source("db-hr")], ["read"])
+    intent_vector("int-003", "Prohibited classification tag", [source("db-prod", ["pii-raw", "eu"])], ["read"])
+    intent_vector("int-004", "Access type not permitted, and over the volume cap",
+                  [source("db-archive")], ["read", "write"], 5_000_000)
+    intent_vector("int-005", "Intent verified after it expired", [source("db-prod")], ["read"],
+                  at=T0 + timedelta(hours=3))
+    intent_vector("int-006", "Signed by a key that is not the agent's", [source("db-prod")], ["read"], signer="c")
+
+    _write("interop", {"suite": "interop", "version": "0.61.0", "vectors": vectors})
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -680,13 +884,16 @@ GENERATORS = {
     "selective_disclosure": gen_selective_disclosure,
     "consensus": gen_consensus,
     "data_usage": gen_data_usage,
+    "interop": gen_interop,
 }
 
 
 def main() -> int:
     VECTORS_DIR.mkdir(parents=True, exist_ok=True)
     failed = []
-    for name, fn in GENERATORS.items():
+    selected = sys.argv[1:] or list(GENERATORS)
+    for name in selected:
+        fn = GENERATORS[name]
         try:
             fn()
         except Exception as exc:
@@ -697,7 +904,7 @@ def main() -> int:
     if failed:
         print(f"\nFailed suites: {', '.join(failed)}", file=sys.stderr)
         return 1
-    print(f"\nGenerated {len(GENERATORS)}/{len(GENERATORS)} suites successfully.")
+    print(f"\nGenerated {len(selected)}/{len(selected)} suites successfully.")
     return 0
 
 
