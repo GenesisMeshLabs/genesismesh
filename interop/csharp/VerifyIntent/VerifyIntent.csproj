@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Leg 4 of the interoperability scenario. GmSdkDotnetDir points at an
-       sdk-dotnet checkout; it defaults to a sibling of this repository. -->
+       sdk-dotnet checkout (default: a sibling of this repository);
+       GmSdkDotnetVersion uses the released NuGet package instead. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
@@ -9,7 +10,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GmSdkDotnetDir Condition="'$(GmSdkDotnetDir)' == ''">$(MSBuildThisFileDirectory)../../../../sdk-dotnet</GmSdkDotnetDir>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(GmSdkDotnetVersion)' == ''">
     <ProjectReference Include="$(GmSdkDotnetDir)/src/GenesisMesh.Sdk/GenesisMesh.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(GmSdkDotnetVersion)' != ''">
+    <PackageReference Include="genesismesh-sdk-dotnet" Version="$(GmSdkDotnetVersion)" />
   </ItemGroup>
 </Project>

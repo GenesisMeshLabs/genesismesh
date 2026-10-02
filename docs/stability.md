@@ -1,200 +1,41 @@
 # Public API Stability
 
-Genesis Mesh v0.51.0 introduces its first versioned stability contract.
-Symbols listed on this page are **stable**: they will not be removed or
-have their signatures changed in a breaking way without a deprecation
-period as defined in `DEPRECATION_POLICY.md` at the repository root.
+Genesis Mesh classifies every public surface as **stable**, **beta** or
+**internal**. Since v0.62.0 the classification is the machine-checked
+{doc}`reference/public-contract`: every HTTP route of the Network Authority,
+every CLI command, the public Python API with its exact signatures, every
+signed artifact and every API error code. The source of truth is
+`contract/public-surface.json`, and `genesis_mesh/tests/test_public_contract.py`
+fails when the code and the contract disagree.
 
-Symbols not listed here are **internal**. They may change at any time.
-
----
+Earlier versions of this page listed stable symbols by hand. That list had
+drifted from the code (it named CLI commands that no longer exist and
+documented `verify_agreement` and `sign_model` with the wrong parameters), so
+it was replaced by the generated contract.
 
 ## Stability levels
 
 | Level | Meaning |
 |-------|---------|
-| **stable** | Will not break across minor versions. Removed only after a full deprecation cycle. |
-| **beta** | Shape is settled but may change in a minor version with a changelog notice. |
-| **internal** | No stability guarantee. May change or disappear in any release. |
+| **stable** | Will not break within 1.x. Removed or changed incompatibly only after the deprecation cycle in `DEPRECATION_POLICY.md`. |
+| **beta** | Shipped and supported; may change in a minor version with a CHANGELOG notice. |
+| **internal** | No compatibility promise. May change or disappear in any release. |
 
----
+Symbols not listed in the contract are internal.
 
-## CLI (stable)
+## What compatibility means for each surface
 
-All subcommands reachable from `genesis-mesh` and `genesis-mesh-na`.
-
-| Command | Since |
-|---------|-------|
-| `genesis-mesh init` | v0.3.0 |
-| `genesis-mesh na start` | v0.4.0 |
-| `genesis-mesh na stop` | v0.4.0 |
-| `genesis-mesh join` | v0.5.0 |
-| `genesis-mesh status` | v0.5.0 |
-| `genesis-mesh admin invite` | v0.7.0 |
-| `genesis-mesh admin revoke` | v0.10.0 |
-| `genesis-mesh dev up` | v0.13.0 |
-| `genesis-mesh fleet` | v0.23.0 |
-| `genesis-mesh trust evaluate` | v0.32.0 |
-| `genesis-mesh trust path` | v0.32.0 |
-| `genesis-mesh trust connectome` | v0.35.0 |
-
----
-
-## Python API (stable)
-
-### `genesis_mesh.crypto`
-
-| Symbol | Since |
-|--------|-------|
-| `sign_model(model, signing_key, *, key_id)` | v0.9.0 |
-| `verify_model_signature(model, signature, public_key)` | v0.9.0 |
-| `load_private_key(path)` | v0.9.0 |
-
-### `genesis_mesh.trust.treaty`
-
-| Symbol | Since |
-|--------|-------|
-| `RecognitionTreaty` | v0.9.0 |
-| `MembershipAttestation` | v0.9.0 |
-| `SovereignRevocationFeed` | v0.10.0 |
-| `verify_recognition_treaty(treaty, issuer_public_keys, *, expected_issuer_sovereign_id, expected_subject_sovereign_id, current_time)` | v0.9.0 |
-| `verify_sovereign_revocation_feed(feed, issuer_public_keys, *, expected_issuer_sovereign_id)` | v0.10.0 |
-
-### `genesis_mesh.trust.decision`
-
-| Symbol | Since |
-|--------|-------|
-| `TrustDecision` | v0.32.0 |
-| `evaluate_trust_decision(graph, source_sovereign_id, target_sovereign_id, *, requested_roles, now)` | v0.32.0 |
-| `explain_trust_path(graph, source_sovereign_id, target_sovereign_id)` | v0.35.0 |
-
-### `genesis_mesh.trust.agreement`
-
-| Symbol | Since |
-|--------|-------|
-| `AgreementTerms` | v0.26.0 |
-| `CapabilityOffer` | v0.26.0 |
-| `CapabilityCounter` | v0.26.0 |
-| `AgreementRecord` | v0.26.0 |
-| `build_offer(offerer_sovereign_id, responder_sovereign_id, requested_terms, graph, signing_key, *, issued_by, expires_at, now)` | v0.26.0 |
-| `build_counter(offer, offered_terms, graph, signing_key, *, issued_by, now)` | v0.26.0 |
-| `accept_offer(offer, graph, signing_key, *, issued_by, now)` | v0.26.0 |
-| `accept_counter(counter, original_offer, signing_key, *, issued_by, now)` | v0.26.0 |
-| `verify_agreement(agreement, issuer_public_keys, *, at_time)` | v0.26.0 |
-
-### `genesis_mesh.trust.invocation_token`
-
-| Symbol | Since |
-|--------|-------|
-| `InvocationToken` | v0.32.0 |
-| `issue_invocation_token(agreement, bearer_sovereign_id, capabilities, signing_key, *, issued_by, valid_for_seconds, max_invocations, now)` | v0.32.0 |
-| `verify_invocation_token(token, issuer_public_keys, *, requested_capability, bearer_sovereign_id, use_records, at_time)` | v0.32.0 |
-
-### `genesis_mesh.trust.logic_attestation`
-
-| Symbol | Since |
-|--------|-------|
-| `ModelAttestation` | v0.34.0 |
-| `AttestationPolicy` | v0.34.0 |
-| `create_model_attestation(agent_sovereign_id, model_id, model_version_tag, system_prompt, tool_ids, signing_key, *, token_id, valid_for_seconds, now)` | v0.34.0 |
-| `verify_model_attestation(attestation, policy, agent_public_keys, *, at_time)` | v0.34.0 |
-
-### `genesis_mesh.trust.evidence`
-
-| Symbol | Since |
-|--------|-------|
-| `TrustEvidence` | v0.36.0 |
-| `build_trust_evidence(decision, issuer_sovereign_id, graph_digest, issued_by, signing_key, *, now)` | v0.36.0 |
-| `verify_trust_evidence(evidence, issuer_public_keys, *, expected_graph_digest)` | v0.36.0 |
-
-### `genesis_mesh.trust.selective_disclosure`
-
-| Symbol | Since |
-|--------|-------|
-| `CapabilityCommitment` | v0.33.0 |
-| `CapabilityMembershipProof` | v0.33.0 |
-| `commit_capabilities(capabilities, agreement, signing_key, *, issued_by, now)` | v0.33.0 |
-| `prove_capability_membership(capability, capabilities, commitment, prover_sovereign_id, *, now)` | v0.33.0 |
-| `verify_capability_proof(proof, commitment, issuer_public_keys, *, nullifier, used_nullifiers, now)` | v0.33.0 |
-| `issue_nullifier(proof, signing_key, *, issued_by, now)` | v0.33.0 |
-
-### `genesis_mesh.trust.justification`
-
-| Symbol | Since |
-|--------|-------|
-| `GateTrace` | v0.32.0 |
-| `BoundaryDecision` | v0.32.0 |
-| `JustificationProof` | v0.32.0 |
-| `sign_justification_proof(trace, decision, signing_key, *, issued_by, now)` | v0.32.0 |
-
-### `genesis_mesh.trust.consensus`
-
-| Symbol | Since |
-|--------|-------|
-| `cast_validator_vote(justification_proof, validator_sovereign_id, vote, signing_key, *, reason, context_digest, now)` | v0.37.0 |
-| `assemble_consensus_proof(justification_proof, votes, required_threshold, validator_sovereign_ids, assembler_signing_key, *, issued_by, valid_for_seconds, cascade_threshold, expected_deliberation_seconds, now)` | v0.37.0 |
-| `verify_consensus_proof(proof, validator_public_keys, assembler_public_keys, *, justification_proof, cascade_threshold, expected_deliberation_seconds, at_time)` | v0.37.0 |
-
-### `genesis_mesh.trust.data_usage`
-
-| Symbol | Since |
-|--------|-------|
-| `DataLicensePolicy` | v0.48.0 |
-| `DataSourceDescriptor` | v0.48.0 |
-| `DataAccessIntent` | v0.48.0 |
-| `create_data_access_intent(agent_sovereign_id, decision_id, sources, access_types, signing_key, *, estimated_volume_bytes, valid_for_seconds, now)` | v0.48.0 |
-| `verify_data_access_intent(intent, policy, agent_public_keys, *, at_time)` | v0.48.0 |
-
-### `genesis_mesh.trust.connectome`
-
-| Symbol | Since |
-|--------|-------|
-| `build_connectome_view(graph)` | v0.35.0 |
-| `explain_trust_path(graph, source_sovereign_id, target_sovereign_id)` | v0.35.0 |
-
----
-
-## Python API (beta)
-
-These symbols are shipped and in active use but may evolve in minor versions.
-
-| Symbol | Module | Note |
-|--------|--------|------|
-| `PeerRiskSignal` | `genesis_mesh.trust.risk_signal` | shape may refine in v0.52 |
-| `build_risk_signal(...)` | `genesis_mesh.trust.risk_signal` | same |
-| `BoundaryEngine` | `genesis_mesh.trust.context` | gate extension API may grow |
-| `BoundaryEngine.evaluate_with_policies(...)` | `genesis_mesh.trust.context` | v0.58.0; policy-bound decisions |
-| `BoundaryPolicy`, `PolicySelector`, `GateSpec` | `genesis_mesh.models` | v0.58.0 |
-| `PolicyBinding`, `AppliedPolicy`, `PolicyGateEvaluation` | `genesis_mesh.models` | v0.58.0; embedded in signed `BoundaryDecision` |
-| `GateRegistry`, `ConfiguredGateType`, `ConfiguredGateOutcome` | `genesis_mesh.trust.context` | v0.58.0; gate extension protocol |
-| `validate_boundary_policy`, `sign_boundary_policy`, `verify_boundary_policy`, `resolve_policies` | `genesis_mesh.trust.context` | v0.58.0 |
-| `genesis-mesh trust boundary-policy` | CLI | v0.58.0; `validate`, `verify`, `explain`, `gate-types` |
-| `BoundaryEngine.evaluate_attestation_with_policies(...)` | `genesis_mesh.trust.context` | v0.58.1; attestation-bound decisions |
-| `AttestationBinding`, `ContextRecord.attestation_id`, `BoundaryDecision.attestation_binding` | `genesis_mesh.models` | v0.58.1; binding embedded in signed `BoundaryDecision` |
-| `AttestationBasis`, `assess_attestation_basis` | `genesis_mesh.trust.context` | v0.58.1 |
-| `verify_boundary_decision(..., expected_attestation=...)` | `genesis_mesh.trust.context` | v0.58.1 |
-| `attestation_claim.v1` gate type; `attestation.*` fact paths | `genesis_mesh.trust.context` | v0.58.1 |
-| `genesis-mesh trust context request --attestation` | CLI | v0.58.1 |
-| `EvidenceStoreEntry`, `RetentionCheckpoint`, `EvidenceEvent` (`gm.evidence.event` v1) | `genesis_mesh.models` | v0.59.0; export model versioned per `DEPRECATION_POLICY.md` |
-| `ExecutionEvidence.resource_id`, `resource_action`, `resource_sequence`, `prev_resource_digest` | `genesis_mesh.models.execution` | v0.59.0; omitted from the canonical form when absent |
-| `validate_execution`, `verify_evidence_events`, `plan_retention`, `check_metadata_only` | `genesis_mesh.trust.evidence_store` | v0.59.0 |
-| Evidence store routes (`/evidence/execution`, `/admin/evidence/*`) | HTTP | v0.59.0; opt-in |
-| `genesis-mesh evidence verify-export`, `na start --evidence-store` | CLI | v0.59.0 |
-| `DATABASE_URL`, `NA_HA_MODE`, `NA_KEY_PROVIDER`, `RATE_LIMIT_STORE` | NA configuration | v0.60.0; unset keeps v0.59 behaviour |
-| `GET /readyz` response fields (`database`, `signing_key`, `rate_limiter`, `ha_mode`, `instance`) | HTTP | v0.60.0 |
-| `NADatabase(db_path, database_url=...)`, `NADatabase.integrity_errors` | `genesis_mesh.na_service.db` | v0.60.0 |
-| `Signer`, `load_signer`, `KeyProviderConfig` | `genesis_mesh.na_service.key_provider` | v0.60.0 |
-| `SigningKeyLike` | `genesis_mesh.crypto` | v0.60.0; any key or signer accepted by signing functions |
-| `verify_database`, `migrate_sqlite_to_postgres` | `genesis_mesh.workflows.db_migration` | v0.60.0 |
-| `genesis-mesh na migrate-db`, `na verify-db` | CLI | v0.60.0 |
-
----
+`DEPRECATION_POLICY.md` at the repository root defines it for Python symbols,
+CLI commands, HTTP requests and responses, error codes, canonical signing
+bytes, signed artifact formats, the evidence export schema, conformance
+vectors and persisted database state.
 
 ## Conformance vectors
 
 The reference implementation produces deterministic output for every stable
-API above.  Vector files live in `conformance/vectors/` and are validated
-by `pytest genesis_mesh/tests/test_conformance.py`.
+signed artifact. Vector files live in `conformance/vectors/` and are run by
+`python conformance/runner.py`; each official SDK runs the `interop` and
+`consensus` suites in its own tests.
 
 Alternative implementations must pass all vectors to claim conformance.
 See `conformance/CONFORMANCE.md` for instructions.

@@ -51,6 +51,11 @@ jobs:
       - name: Compile package
         run: python -m compileall genesis_mesh -q
 
+      - name: The built wheel runs a Network Authority
+        run: |
+          python -m pip wheel --no-deps -w dist .
+          python scripts/upgrade_rehearsal.py --installed dist/genesis_mesh-*.whl
+
       - name: Build container image
         run: docker build -t genesis-mesh:ci .
 

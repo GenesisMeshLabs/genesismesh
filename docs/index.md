@@ -216,6 +216,7 @@ operations/runbooks-index
 :maxdepth: 2
 :caption: Reference
 
+reference/public-contract
 reference/cli
 reference/network-authority-api
 reference/configuration
@@ -239,6 +240,7 @@ development/module-structure
 development/testing
 development/interoperability
 development/security-policy
+development/security-review-v1
 ```
 
 ```{toctree}

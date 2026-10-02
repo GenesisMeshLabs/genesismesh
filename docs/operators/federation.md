@@ -11,4 +11,6 @@ trust-bundle-exchange
 external-operator-proof
 treaty-lifecycle
 recognition-playbook
+exit-and-fork
+managing-partner-boundary
 ```

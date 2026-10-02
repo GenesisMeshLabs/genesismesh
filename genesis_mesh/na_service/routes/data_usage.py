@@ -58,11 +58,15 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
 
     @bp.route("/admin/data-usage/policy", methods=["POST"])
     def create_policy():
-        """Create and sign a DataLicensePolicy as licensor (NA)."""
+        """Create and sign a DataLicensePolicy as licensor (NA).
+
+        Privileged: the policy grants a licensee access to data sources, a
+        trust change like issuing an attestation (v0.62.0 security review).
+        """
         if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
             raise RateLimitError()
         data = request_json_object()
-        ok, err = service._verify_admin_request(data)
+        ok, err = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
 

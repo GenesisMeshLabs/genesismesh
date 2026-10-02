@@ -82,10 +82,11 @@ def _make_signal(
     initial: float = 0.5,
     alpha: float = 0.2,
     lam: float = 0.05,
+    now: datetime = _NOW,
 ) -> tuple[PeerRiskSignal, nacl.signing.SigningKey]:
     sk = sk or _sk()
     sig = create_risk_signal(
-        _FROM, _TO, sk, initial_signal=initial, alpha=alpha, decay_lambda=lam, now=_NOW
+        _FROM, _TO, sk, initial_signal=initial, alpha=alpha, decay_lambda=lam, now=now
     )
     return sig, sk
 
@@ -277,7 +278,9 @@ class TestSignalClamping:
 
 class TestRiskSignalGate:
     def test_passes_when_signal_above_minimum(self) -> None:
-        sig, sk = _make_signal(initial=0.8)
+        # The gate decays the signal to the real clock, so create it at the real time
+        # (a fixed _NOW made this test fail a few days after it).
+        sig, sk = _make_signal(initial=0.8, now=datetime.now(timezone.utc))
         gate = RiskSignalGate(sig, minimum_signal=0.4, issuer_public_keys=[_pub_b64(sk)])
         result = gate(object(), object())  # type: ignore[attr-defined]
         assert result.passed is True  # type: ignore[attr-defined]

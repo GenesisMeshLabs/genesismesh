@@ -1,0 +1,3150 @@
+{
+  "contract_version": 1,
+  "describes": "Genesis Mesh public surfaces and their stability. See docs/reference/public-contract.md.",
+  "http_routes": [
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/agreements/accept",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/agreements/counter",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/agreements/offer",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/attestations",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/attestations/<attestation_id>/revoke",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/admin/boundary-policies",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/boundary-policies/<policy_id>/activate",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/boundary-policies/<policy_id>/deactivate",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/boundary-policies/<policy_id>/history",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/boundary-policies/active",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/boundary-policies/validate",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/boundary/decide",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/boundary/evaluate",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/consensus/proof",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/consensus/vote",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/data-usage/intent",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/data-usage/policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/disclosure/commit",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/disclosure/nullifier",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/admin/evidence/executor-keys",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/executor-keys/<key_id>/retire",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/export",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/resources/<path:resource_id>",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/retention/apply",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/status",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/vendors/<vendor_id>",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/invite",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/operator-keys/<key_id>/revoke",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/policy/history",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/policy/rollback",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/recognition-policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/recognition-treaties",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/recognition-treaties/<treaty_id>/revoke",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/revoke",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/sovereign-revocation-feeds/import",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/trust-evidence",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/agents",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "DELETE",
+        "GET"
+      ],
+      "path": "/agents/<path:node_public_key>",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/agreements/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api-reference",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/atlas",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/atlas.json",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/attestations",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/attestations/<attestation_id>",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/attestations/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/attestations/verify-with-treaty",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/boundary-policies/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/boundary/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/cli-reference",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/connectome",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/connectome.json",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/connectome/trust-path",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/consensus/verify",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/crl",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dashboard",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dashboard.json",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/data-usage/policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/data-usage/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/disclosure/prove",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/disclosure/verify",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/evidence/execution",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/favicon.ico",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/favicon.svg",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/genesis",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/health",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/healthz",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/heartbeat",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/join",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/metrics",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/nodes",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/operator-console-static/console.js",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/operator-console-static/logo.svg",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/operator-console-static/styles.css",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/readyz",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/recognition-graph",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/recognition-policy",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/recognition-treaties",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/recognition-treaties/<treaty_id>",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/recognition-treaties/verify",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/renew",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/sovereign-revocation-feed",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/sovereign.json",
+      "level": "stable"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/surfaces",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/swagger.json",
+      "level": "internal"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/trust-evidence/verify",
+      "level": "beta"
+    }
+  ],
+  "cli_commands": [
+    {
+      "command": "admin invite",
+      "level": "stable"
+    },
+    {
+      "command": "admin revoke",
+      "level": "stable"
+    },
+    {
+      "command": "admin revoke-operator-key",
+      "level": "stable"
+    },
+    {
+      "command": "atlas build",
+      "level": "beta"
+    },
+    {
+      "command": "atlas cache",
+      "level": "beta"
+    },
+    {
+      "command": "atlas lookup",
+      "level": "beta"
+    },
+    {
+      "command": "atlas prune",
+      "level": "beta"
+    },
+    {
+      "command": "dev down",
+      "level": "beta"
+    },
+    {
+      "command": "dev up",
+      "level": "stable"
+    },
+    {
+      "command": "discover",
+      "level": "beta"
+    },
+    {
+      "command": "evidence verify-export",
+      "level": "stable"
+    },
+    {
+      "command": "federation bootstrap",
+      "level": "stable"
+    },
+    {
+      "command": "fleet generate",
+      "level": "beta"
+    },
+    {
+      "command": "fleet mesh",
+      "level": "beta"
+    },
+    {
+      "command": "fleet status",
+      "level": "beta"
+    },
+    {
+      "command": "fleet verify",
+      "level": "beta"
+    },
+    {
+      "command": "genesis create",
+      "level": "stable"
+    },
+    {
+      "command": "genesis sign",
+      "level": "stable"
+    },
+    {
+      "command": "genesis verify",
+      "level": "stable"
+    },
+    {
+      "command": "info",
+      "level": "beta"
+    },
+    {
+      "command": "init",
+      "level": "stable"
+    },
+    {
+      "command": "join",
+      "level": "stable"
+    },
+    {
+      "command": "keygen network-authority",
+      "level": "stable"
+    },
+    {
+      "command": "keygen node",
+      "level": "stable"
+    },
+    {
+      "command": "keygen root",
+      "level": "stable"
+    },
+    {
+      "command": "managed audit-export",
+      "level": "beta"
+    },
+    {
+      "command": "managed backup",
+      "level": "beta"
+    },
+    {
+      "command": "managed restore",
+      "level": "beta"
+    },
+    {
+      "command": "na migrate-db",
+      "level": "stable"
+    },
+    {
+      "command": "na start",
+      "level": "stable"
+    },
+    {
+      "command": "na verify-db",
+      "level": "stable"
+    },
+    {
+      "command": "proof canary",
+      "level": "beta"
+    },
+    {
+      "command": "proof cleanup",
+      "level": "beta"
+    },
+    {
+      "command": "proof inspect",
+      "level": "beta"
+    },
+    {
+      "command": "proof remote",
+      "level": "beta"
+    },
+    {
+      "command": "send",
+      "level": "beta"
+    },
+    {
+      "command": "sovereign inspect",
+      "level": "stable"
+    },
+    {
+      "command": "status",
+      "level": "stable"
+    },
+    {
+      "command": "supply-chain verify",
+      "level": "beta"
+    },
+    {
+      "command": "treaty inspect",
+      "level": "stable"
+    },
+    {
+      "command": "treaty list",
+      "level": "stable"
+    },
+    {
+      "command": "treaty renew",
+      "level": "stable"
+    },
+    {
+      "command": "treaty replace",
+      "level": "stable"
+    },
+    {
+      "command": "treaty revoke",
+      "level": "stable"
+    },
+    {
+      "command": "trust agree accept",
+      "level": "stable"
+    },
+    {
+      "command": "trust agree cosign",
+      "level": "stable"
+    },
+    {
+      "command": "trust agree counter",
+      "level": "stable"
+    },
+    {
+      "command": "trust agree offer",
+      "level": "stable"
+    },
+    {
+      "command": "trust agree verify",
+      "level": "stable"
+    },
+    {
+      "command": "trust attest create",
+      "level": "beta"
+    },
+    {
+      "command": "trust attest policy",
+      "level": "beta"
+    },
+    {
+      "command": "trust attest verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust boundary-policy explain",
+      "level": "stable"
+    },
+    {
+      "command": "trust boundary-policy gate-types",
+      "level": "stable"
+    },
+    {
+      "command": "trust boundary-policy validate",
+      "level": "stable"
+    },
+    {
+      "command": "trust boundary-policy verify",
+      "level": "stable"
+    },
+    {
+      "command": "trust consensus assemble",
+      "level": "beta"
+    },
+    {
+      "command": "trust consensus assess-cascade",
+      "level": "beta"
+    },
+    {
+      "command": "trust consensus issue-identity",
+      "level": "beta"
+    },
+    {
+      "command": "trust consensus verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust consensus verify-identity",
+      "level": "beta"
+    },
+    {
+      "command": "trust consensus vote",
+      "level": "beta"
+    },
+    {
+      "command": "trust context evaluate",
+      "level": "stable"
+    },
+    {
+      "command": "trust context request",
+      "level": "stable"
+    },
+    {
+      "command": "trust context verify",
+      "level": "stable"
+    },
+    {
+      "command": "trust data intent",
+      "level": "stable"
+    },
+    {
+      "command": "trust data policy",
+      "level": "stable"
+    },
+    {
+      "command": "trust data record",
+      "level": "beta"
+    },
+    {
+      "command": "trust data verify",
+      "level": "stable"
+    },
+    {
+      "command": "trust decide",
+      "level": "beta"
+    },
+    {
+      "command": "trust delegate cosign",
+      "level": "beta"
+    },
+    {
+      "command": "trust delegate create",
+      "level": "beta"
+    },
+    {
+      "command": "trust delegate verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust disclose commit",
+      "level": "beta"
+    },
+    {
+      "command": "trust disclose nullify",
+      "level": "beta"
+    },
+    {
+      "command": "trust disclose prove",
+      "level": "beta"
+    },
+    {
+      "command": "trust disclose verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust discover announce",
+      "level": "beta"
+    },
+    {
+      "command": "trust discover feed",
+      "level": "beta"
+    },
+    {
+      "command": "trust discover merge",
+      "level": "beta"
+    },
+    {
+      "command": "trust discover verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust evidence",
+      "level": "beta"
+    },
+    {
+      "command": "trust execution record",
+      "level": "beta"
+    },
+    {
+      "command": "trust execution verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust freshness issue",
+      "level": "beta"
+    },
+    {
+      "command": "trust freshness verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust guard request",
+      "level": "beta"
+    },
+    {
+      "command": "trust guard start",
+      "level": "beta"
+    },
+    {
+      "command": "trust guard verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust integrity commit",
+      "level": "beta"
+    },
+    {
+      "command": "trust integrity verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust interop to-jwt",
+      "level": "beta"
+    },
+    {
+      "command": "trust interop to-spiffe",
+      "level": "beta"
+    },
+    {
+      "command": "trust interop to-vc",
+      "level": "beta"
+    },
+    {
+      "command": "trust justify sign",
+      "level": "beta"
+    },
+    {
+      "command": "trust justify verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust oversight approve",
+      "level": "beta"
+    },
+    {
+      "command": "trust oversight evaluate",
+      "level": "beta"
+    },
+    {
+      "command": "trust oversight propose",
+      "level": "beta"
+    },
+    {
+      "command": "trust oversight reject",
+      "level": "beta"
+    },
+    {
+      "command": "trust oversight verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust privacy apply",
+      "level": "beta"
+    },
+    {
+      "command": "trust privacy profile",
+      "level": "beta"
+    },
+    {
+      "command": "trust privacy scan",
+      "level": "beta"
+    },
+    {
+      "command": "trust purge prove",
+      "level": "beta"
+    },
+    {
+      "command": "trust purge receipt",
+      "level": "beta"
+    },
+    {
+      "command": "trust purge register",
+      "level": "beta"
+    },
+    {
+      "command": "trust purge verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust risk assess-seed",
+      "level": "beta"
+    },
+    {
+      "command": "trust risk create",
+      "level": "beta"
+    },
+    {
+      "command": "trust risk decay",
+      "level": "beta"
+    },
+    {
+      "command": "trust risk show",
+      "level": "beta"
+    },
+    {
+      "command": "trust risk update",
+      "level": "beta"
+    },
+    {
+      "command": "trust token issue",
+      "level": "beta"
+    },
+    {
+      "command": "trust token record-use",
+      "level": "beta"
+    },
+    {
+      "command": "trust token verify",
+      "level": "beta"
+    },
+    {
+      "command": "trust verify-evidence",
+      "level": "beta"
+    },
+    {
+      "command": "trust-bundle export",
+      "level": "stable"
+    },
+    {
+      "command": "trust-bundle import",
+      "level": "stable"
+    },
+    {
+      "command": "trust-bundle inspect",
+      "level": "stable"
+    },
+    {
+      "command": "trust-bundle validate",
+      "level": "stable"
+    }
+  ],
+  "python": [
+    {
+      "symbol": "genesis_mesh.crypto:generate_keypair",
+      "level": "stable",
+      "parameters": []
+    },
+    {
+      "symbol": "genesis_mesh.crypto:sign_model",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "model",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "private_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "key_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto:verify_model_signature",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "model",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signature",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "public_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto:sign_data",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "data",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "private_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto:verify_signature",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "data",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signature_b64",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "public_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto:load_private_key",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "path",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.models:SovereignIdentity",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:MembershipAttestation",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:RecognitionTreaty",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:RecognitionTreatyScope",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:SovereignRevocationFeed",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:GenesisBlock",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:Signature",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:ContextRecord",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:BoundaryPolicy",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:PolicySelector",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:GateSpec",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:PolicyBinding",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:AppliedPolicy",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:PolicyGateEvaluation",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:AttestationBinding",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:EvidenceStoreEntry",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:RetentionCheckpoint",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:EvidenceEvent",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:AgreementRecord",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:CapabilityOffer",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models:CapabilityCounter",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models.execution:ExecutionEvidence",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models.context:BoundaryDecision",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.models.justification:JustificationProof",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.trust.treaty:verify_recognition_treaty",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "treaty",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "expected_issuer_sovereign_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_subject_sovereign_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "revoked_treaty_ids",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "current_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.treaty:verify_attestation_with_treaty",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "attestation",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "treaty",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "treaty_issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "revoked_treaty_ids",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "revoked_attestation_ids",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "current_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.treaty:verify_sovereign_revocation_feed",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "feed",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "expected_issuer_sovereign_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "min_sequence",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.attestation:verify_membership_attestation",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "attestation",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "current_time",
+          "kind": "positional_or_keyword",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.decision:evaluate_trust_decision",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "graph",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "source_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "target_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "requested_roles",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:AgreementTerms",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:build_offer",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "offerer_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "responder_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "requested_terms",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "graph",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "expires_at",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:build_counter",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "offer",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "offered_terms",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "graph",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:accept_offer",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "offer",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "graph",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:accept_counter",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "counter",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "original_offer",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:cosign_agreement",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "record",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.agreement:verify_agreement",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "record",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "offerer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "responder_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "expected_graph_digest",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:verify_boundary_decision",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "decision",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "operator_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "freshness_proof_issuer_keys",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_policies",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_attestation",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:sign_boundary_policy",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:verify_boundary_policy",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:validate_boundary_policy",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "registry",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.evidence_store:verify_evidence_events",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "events",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "na_public_keys",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "executor_keys",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "contiguous",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "checkpoint",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.evidence_store:check_metadata_only",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "evidence",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.data_usage:DataLicensePolicy",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.trust.data_usage:DataSourceDescriptor",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.trust.data_usage:DataAccessIntent",
+      "level": "stable"
+    },
+    {
+      "symbol": "genesis_mesh.trust.data_usage:create_data_access_intent",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "agent_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "decision_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "sources",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "access_types",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "estimated_volume_bytes",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "valid_for_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.data_usage:verify_data_access_intent",
+      "level": "stable",
+      "parameters": [
+        {
+          "name": "intent",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "agent_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "at_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:BoundaryEngine",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "operator_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "decision_valid_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "require_freshness_proof",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:GateRegistry",
+      "level": "beta",
+      "parameters": []
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:resolve_policies",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "active",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "context",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "registry",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "integrity_failures",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.context:assess_attestation_basis",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "attestation_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "attestation",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "stored_status",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "feed_revoked",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "revocation_seq_checked",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "requester_id",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.invocation_token:issue_invocation_token",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "agreement",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "bearer_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "capabilities",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "valid_for_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "max_invocations",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "policy_constraints",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "delegation",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.invocation_token:verify_invocation_token",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "token",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "requested_capability",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "bearer_sovereign_id",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "use_records",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "at_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.logic_attestation:create_model_attestation",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "agent_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "model_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "model_version_tag",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "system_prompt",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "tool_ids",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "token_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "valid_for_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.logic_attestation:verify_model_attestation",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "attestation",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "policy",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "agent_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "at_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.evidence:build_trust_evidence",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "decision",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "graph_digest",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "metadata",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.evidence:verify_trust_evidence",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "evidence",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "expected_graph_digest",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.selective_disclosure:commit_capabilities",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "capabilities",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "agreement",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.selective_disclosure:prove_capability_membership",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "capability",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "capabilities",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "commitment",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "prover_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.selective_disclosure:verify_capability_proof",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "proof",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "commitment",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issuer_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "nullifier",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "used_nullifiers",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.selective_disclosure:issue_nullifier",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "proof",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "valid_for_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.consensus:cast_validator_vote",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "justification_proof",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "validator_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "vote",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "reason",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "context_digest",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.consensus:assemble_consensus_proof",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "justification_proof",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "votes",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "required_threshold",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "validator_sovereign_ids",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "assembler_signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "issued_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "valid_for_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "cascade_threshold",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_deliberation_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.consensus:verify_consensus_proof",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "proof",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "validator_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "assembler_public_keys",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "justification_proof",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "cascade_threshold",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_deliberation_seconds",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "at_time",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.connectome:build_connectome_view",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "graph",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.risk_signal:create_risk_signal",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "from_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "to_sovereign_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "initial_signal",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "alpha",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "decay_lambda",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.risk_signal:update_risk_signal",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "signal",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "evidence",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "history",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "anomaly_sigma_threshold",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.risk_signal:decay_risk_signal",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "signal",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "now",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.na_service.key_provider:Signer",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "signing_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "key_id",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "provider",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.na_service.key_provider:load_signer",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "config",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "http_get",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "environ",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.na_service.key_provider:KeyProviderConfig",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "provider",
+          "kind": "positional_or_keyword",
+          "required": false
+        },
+        {
+          "name": "key_id",
+          "kind": "positional_or_keyword",
+          "required": false
+        },
+        {
+          "name": "key_file",
+          "kind": "positional_or_keyword",
+          "required": false
+        },
+        {
+          "name": "seed_env_var",
+          "kind": "positional_or_keyword",
+          "required": false
+        },
+        {
+          "name": "vault_url",
+          "kind": "positional_or_keyword",
+          "required": false
+        },
+        {
+          "name": "secret_name",
+          "kind": "positional_or_keyword",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.workflows.db_migration:verify_database",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "db",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "na_public_key",
+          "kind": "positional_or_keyword",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.workflows.db_migration:migrate_sqlite_to_postgres",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "sqlite_path",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "database_url",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "na_public_key",
+          "kind": "keyword_only",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "signed_artifacts": [
+    {
+      "model": "genesis_mesh.models.agreement:AgreementRecord",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.agreement:CapabilityCounter",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.agreement:CapabilityOffer",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.atlas:GraphPruningPolicy",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.atlas:PrunedAtlasExport",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.atlas:TrustPathCache",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.atlas:TrustPathEntry",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.attestation:AttestationPolicy",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.attestation:ModelAttestation",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.boundary_policy:BoundaryPolicy",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.certificates:JoinCertificate",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.certificates:ServiceManifest",
+      "signature_field": "signatures",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.consensus:ConsensusProof",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.consensus:EphemeralExecutionIdentity",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.consensus:ValidatorVote",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.context:BoundaryDecision",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.context_integrity:ContextAppendSegment",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.context_integrity:ContextIntegrityRecord",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.control_plane:ControlMessageModel",
+      "signature_field": "signatures",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.data_usage:DataAccessIntent",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.data_usage:DataAccessRecord",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.data_usage:DataLicensePolicy",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.delegation:DelegatedAgreementRecord",
+      "signature_field": "signatures",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.discovery:AgentDescriptor",
+      "signature_field": "signatures",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.evidence:TrustEvidence",
+      "signature_field": "signatures",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.evidence_store:RetentionCheckpoint",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.execution:ExecutionEvidence",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.freshness:FreshnessProof",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.genesis:GenesisBlock",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.invocation_token:InvocationToken",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.invocation_token:InvocationUseRecord",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.justification:JustificationProof",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.mediation:ExecutionMediationRequest",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.mediation:MediatedExecutionReceipt",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.overlay_discovery:DiscoveryFeed",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.overlay_discovery:OverlayDiscoveryRecord",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.oversight:HumanOversightPolicy",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.policy:PolicyManifest",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.privacy:CommunicationPrivacyProfile",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.privacy:MetadataEnvelope",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.purge:NullificationReceipt",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.purge:NullificationRegistryRoot",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.purge:PurgePolicy",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.revocation:CertificateRevocationList",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.risk_signal:PeerRiskSignal",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.risk_signal:RiskSignalUpdate",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.selective_disclosure:CapabilityCommitment",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.selective_disclosure:CapabilityNullifier",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
+      "model": "genesis_mesh.models.sovereign:MembershipAttestation",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.sovereign:RecognitionTreaty",
+      "signature_field": "signatures",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.sovereign:SovereignRevocationFeed",
+      "signature_field": "signatures",
+      "level": "stable"
+    }
+  ],
+  "error_codes": [
+    "accept_rejected",
+    "admin_auth_failed",
+    "agent_not_registered",
+    "ambiguous_basis",
+    "asset_not_found",
+    "attestation_not_found",
+    "bad_request",
+    "boundary_eval_failed",
+    "boundary_policy_activation_conflict",
+    "boundary_policy_activation_refused",
+    "boundary_policy_integrity_failed",
+    "boundary_policy_invalid",
+    "boundary_policy_not_active",
+    "boundary_policy_not_found",
+    "boundary_policy_required",
+    "boundary_policy_version_conflict",
+    "certificate_key_mismatch",
+    "certificate_not_found",
+    "certificate_revoked",
+    "commit_failed",
+    "conflict",
+    "counter_rejected",
+    "crl_publish_contention",
+    "delete_signature_required",
+    "descriptor_expired",
+    "descriptor_network_mismatch",
+    "descriptor_signature_required",
+    "empty_subject_public_keys",
+    "evidence_build_failed",
+    "evidence_store_disabled",
+    "evidence_store_unavailable",
+    "executor_key_exists",
+    "executor_key_not_found",
+    "executor_key_retired",
+    "forbidden",
+    "insufficient_operator_tier",
+    "intent_create_failed",
+    "internal_server_error",
+    "invalid_agent_descriptor",
+    "invalid_agreement",
+    "invalid_attestation_id",
+    "invalid_attestation_or_policy",
+    "invalid_attestation_or_treaty",
+    "invalid_boundary_policy",
+    "invalid_commitment",
+    "invalid_context",
+    "invalid_decision",
+    "invalid_evidence",
+    "invalid_input",
+    "invalid_invite_token",
+    "invalid_json",
+    "invalid_json_object",
+    "invalid_justification",
+    "invalid_max_validity_hours",
+    "invalid_offer",
+    "invalid_page",
+    "invalid_policy",
+    "invalid_policy_version",
+    "invalid_proof",
+    "invalid_public_key",
+    "invalid_public_keys",
+    "invalid_recipient_public_key",
+    "invalid_recognition_policy",
+    "invalid_recognition_treaty",
+    "invalid_retention",
+    "invalid_revocation_reason",
+    "invalid_role",
+    "invalid_signature",
+    "invalid_signed_at",
+    "invalid_source",
+    "invalid_sovereign_revocation_feed",
+    "invalid_timestamp_order",
+    "invalid_timestamps",
+    "invalid_token_expiry_hours",
+    "invalid_treaty_scope",
+    "invalid_validity_hours",
+    "invalid_verdict",
+    "invalid_vote_type",
+    "last_active_operator_key",
+    "missing_accept_fields",
+    "missing_agreement",
+    "missing_attestation_subject",
+    "missing_boundary_fields",
+    "missing_cert_id",
+    "missing_certificate_identity",
+    "missing_commit_fields",
+    "missing_counter_fields",
+    "missing_decision",
+    "missing_evidence",
+    "missing_executor_key_fields",
+    "missing_intent_fields",
+    "missing_invite_token",
+    "missing_issuer_public_keys",
+    "missing_node_public_key",
+    "missing_offer_fields",
+    "missing_policy",
+    "missing_policy_fields",
+    "missing_policy_id",
+    "missing_proof",
+    "missing_proof_fields",
+    "missing_prove_fields",
+    "missing_recognition_policy",
+    "missing_signature",
+    "missing_treaty_subject",
+    "missing_trust_path_parameters",
+    "missing_validator_public_keys",
+    "missing_validity_window",
+    "missing_verify_fields",
+    "missing_vote_fields",
+    "no_policy",
+    "node_auth_failed",
+    "node_has_no_active_certificate",
+    "node_key_compromised",
+    "node_key_revoked",
+    "not_found",
+    "nullifier_failed",
+    "offer_rejected",
+    "policy_not_found",
+    "policy_sign_failed",
+    "proof_assembly_failed",
+    "prove_failed",
+    "rate_limit_exceeded",
+    "recognition_policy_not_configured",
+    "renewal_role_change_forbidden",
+    "request_validation_failed",
+    "resource_not_found",
+    "retention_in_progress",
+    "service_not_ready",
+    "service_unavailable",
+    "signed_at_outside_window",
+    "stale_sequence",
+    "treaty_not_found",
+    "unauthorized",
+    "unexpected_field",
+    "unknown_operator_key",
+    "validation_failed",
+    "vendor_not_found",
+    "vote_failed",
+    "wrong_issuer"
+  ],
+  "packages": [
+    {
+      "package": "genesis-mesh (PyPI)",
+      "repository": "GenesisMeshLabs/genesismesh",
+      "level": "stable",
+      "support": "The Network Authority, CLI and Python API as classified on this page. Supported deployment profiles: single instance on SQLite, and one or more instances on PostgreSQL (HA). Security fixes for the latest minor version line."
+    },
+    {
+      "package": "genesis-mesh-sdk (npm)",
+      "repository": "GenesisMeshLabs/sdk-typescript",
+      "level": "stable",
+      "support": "Every stable HTTP route, the governed secret lifecycle (attestation evaluation, policy lifecycle, evidence store, governedAction), HA failover, and offline verification of decisions, agreements, policies, data-usage records and evidence exports. Node.js 22 or newer."
+    },
+    {
+      "package": "github.com/GenesisMeshLabs/sdk-go",
+      "repository": "GenesisMeshLabs/sdk-go",
+      "level": "stable",
+      "support": "Stable for its clients (agreement, boundary decide and verify, evidence, attestation, disclosure, consensus, data usage, raw admin calls) and offline verification of agreements, boundary decisions, license policies and data access intents. It does not wrap the policy lifecycle, attestation evaluation or the evidence store; call those routes with raw admin calls."
+    },
+    {
+      "package": "genesismesh-sdk-dotnet (NuGet)",
+      "repository": "GenesisMeshLabs/sdk-dotnet",
+      "level": "stable",
+      "support": "Same scope as the Go SDK: its clients and OfflineVerifier are stable; the policy lifecycle, attestation evaluation and evidence store are reached with raw admin calls. .NET 8."
+    },
+    {
+      "package": "genesis-mesh-sdk (Rust crate, Git)",
+      "repository": "GenesisMeshLabs/sdk-rust",
+      "level": "beta",
+      "support": "Embeddable portable-trust primitives distributed as a Git dependency, not on crates.io. Not a leg of the interoperability scenario yet."
+    },
+    {
+      "package": "genesis-mesh-gateway",
+      "repository": "GenesisMeshLabs/gateway",
+      "level": "beta",
+      "support": "Release binaries on GitHub. Not part of the v1 stable contract."
+    },
+    {
+      "package": "PHP SDK",
+      "repository": "GenesisMeshLabs/sdk-php",
+      "level": "unsupported",
+      "support": "Not on the release train (last version 0.56.0); no support or compatibility promise."
+    }
+  ],
+  "rules": {
+    "http_status_codes": "Errors derived from a plain HTTP status (not_found, method_not_allowed, request_entity_too_large and other werkzeug status names) use the status name in snake case and are stable.",
+    "error_envelope": "Every error response is {\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}. code is stable; message and details are for people and may change."
+  }
+}
