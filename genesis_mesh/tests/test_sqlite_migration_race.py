@@ -14,6 +14,8 @@ import pytest
 
 from genesis_mesh.na_service.db import NADatabase, expected_schema_version, migration_files
 
+pytestmark = pytest.mark.sqlite_only
+
 WORKERS = 6
 
 
