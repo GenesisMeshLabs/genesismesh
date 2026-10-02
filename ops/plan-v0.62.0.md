@@ -94,8 +94,8 @@ is a documented residual risk with a reason.
 - [x] Contract file classifies every route, CLI command, signed model and error code; tests enforce it
 - [x] Rendered contract page current; `docs/stability.md` points to it
 - [x] `DEPRECATION_POLICY.md` covers the wire protocol and persisted state
-- [ ] Upgrade rehearsal passes from 0.59.1, 0.60.0 and 0.61.1 in CI; rollback limits documented
-- [ ] Published-artifact scenario passes against the released packages
+- [x] Upgrade rehearsal passes from 0.59.1, 0.60.0 and 0.61.1 in CI; rollback limits documented
+- [x] Published-artifact scenario passes against the released packages
 - [x] Operator exit and fork note and managing-partner boundary published
 - [x] Security review published; critical and high findings fixed
 - [x] RFC security review recorded; acceptance left to the maintainer
@@ -106,5 +106,5 @@ is a documented residual risk with a reason.
 - [x] CHANGELOG entry
 - [x] `docs/development/history.md` updated
 - [x] `SECURITY.md` supported versions (0.62.x)
-- [ ] All tests pass (SQLite and PostgreSQL), SDK suites, interop, smoke app
-- [ ] Tag `v0.62.0`, push, GitHub release created
+- [x] All tests pass (SQLite and PostgreSQL), SDK suites, interop, smoke app
+- [x] Tag `v0.62.0`, push, GitHub release created

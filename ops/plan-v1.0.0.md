@@ -112,7 +112,7 @@ before-and-after trust record, not another maintainer-operated cloud instance.
       the `as never` casts from the consumer smoke app and compile it against
       the packed SDK. Add coverage for counteroffers and retention checkpoint
       creation and verification, which the current smoke run does not exercise.
-- [ ] Install published or release-candidate artifacts into clean consumers
+- [x] Install published or release-candidate artifacts into clean consumers
       and run the cross-language contract tests against the same core version.
 
 Acceptance evidence: a published compatibility matrix, migration tests,
