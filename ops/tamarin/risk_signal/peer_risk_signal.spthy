@@ -1,175 +1,124 @@
 /*
- * GenesisMesh PeerRiskSignal Protocol — Tamarin Prover Model (v0.48)
+ * GenesisMesh PeerRiskSignal — Tamarin Prover Model (revised v0.61.1)
  *
- * Models the EWMA-based PeerRiskSignal state machine (first introduced v0.37).
+ * Models genesis_mesh/trust/risk_signal.py:update_risk_signal.
  *
- * Protocol rules:
- *   InitSignal   — sovereign S initialises a signal for counterparty C at 0.5
- *   UpdateSignal — S receives ExecutionEvidence from C; decays then applies EWMA
- *   DecaySignal  — S applies time-only decay (no new evidence)
+ * What the implementation does, and this model keeps:
+ *   - Each sovereign S keeps its own signal for a counterparty C, created at
+ *     0.5 (create_risk_signal). Nothing is shared between sovereigns.
+ *   - Each update consumes one ExecutionEvidence outcome for C. The network
+ *     adversary chooses every outcome and evidence id (the model gives the
+ *     adversary full control; it does not assume evidence is honest).
+ *   - The new value is clamped to [0, 1] (_clamp).
+ *   - Anomaly detection runs inside the same update, and only when the
+ *     signal has at least _ANOMALY_MIN_HISTORY (10) prior updates and the
+ *     update's delta is a statistical outlier (|delta - mu| > 3 sigma), in
+ *     either direction.
  *
- * Security lemmas:
- *   1. signal_bounded
- *      — the signal value is always in [0, 1] after any sequence of updates
- *   2. anomaly_detection_responsive
- *      — if a SuddenDrop event occurs, an Anomaly fact is eventually emitted
- *        (models that detection cannot be suppressed indefinitely given a
- *        sufficiently large cumulative delta)
- *   3. no_single_source_cascade
- *      — a single adversarial counterparty cannot simultaneously cause Anomaly
- *        facts at two distinct, independently-observing sovereigns without each
- *        sovereign having observed genuine divergent behaviour from that counterparty
+ * Abstractions:
+ *   - Signal values are the lattice {low, mid, high}; the posterior is any
+ *     lattice value (the EWMA arithmetic is not modelled).
+ *   - "At least 10 prior updates" is the history state 'warm'; a signal
+ *     becomes warm only after an update ('cold' -> 'warm' happens in an
+ *     update step), which records !History(S, C, sid): the update history
+ *     that update_risk_signal takes as input. The count of 10 itself is not
+ *     modelled.
+ *   - Whether a delta is an outlier depends on statistics of past deltas, so
+ *     the model lets every update be either 'normal' or 'outlier'.
  *
- * Simplifications vs the Python implementation:
- *   - Floating-point arithmetic modelled as abstract bounded values in {0, 1/2, 1}
- *     (three-point lattice sufficient to prove the bounded lemma structurally)
- *   - Decay is modelled as a monotone non-increasing operator (not exp(-λt))
- *   - EWMA mixing is modelled as: if outcome=1 → raise; if outcome=0 → lower; else same
- *   - Anomaly threshold is modelled as a non-deterministic adversarial guard; the
- *     lemma proves that the guard cannot suppress the Anomaly action forever once
- *     a SuddenDrop has occurred
- *   - Ed25519 signing modelled using Tamarin built-in `signing` equational theory
- *   - Temporal decay is modelled via abstract Tick facts, not wall-clock time
- *
- * Scope note (from plan-v0.48.0.md):
- *   Tamarin proves properties of the *protocol specification*, not the Python
- *   implementation.  Implementation bugs that correctly implement the protocol
- *   are not caught by this model.
+ * Revision note: the v0.48 model left `S` and `C` unbound in InitSignal (two
+ * wellformedness failures) and claimed that every sudden drop is followed by
+ * an anomaly. That claim is false for the implementation itself: a drop with
+ * fewer than 10 prior updates, or with no variance in past deltas, raises no
+ * anomaly. The lemmas below state what the implementation does guarantee.
  */
 
 theory PeerRiskSignal
 begin
 
-builtins: signing
+/* Lattice of signal values: the only values a signal can take. */
+rule Lattice_low:  [ ] --[ OnlyOnce('low') ]->  [ !Lattice('low') ]
+rule Lattice_mid:  [ ] --[ OnlyOnce('mid') ]->  [ !Lattice('mid') ]
+rule Lattice_high: [ ] --[ OnlyOnce('high') ]-> [ !Lattice('high') ]
 
-/* =========================================================================
- * State facts
- * =========================================================================
- *
- * Signal(S, C, v)   — sovereign S holds signal value v for counterparty C
- *                     v is abstract: 'low', 'mid', 'high'
- * History(S, C, n)  — S has accumulated n update records for C
- * Anomaly(S, C)     — S has detected anomalous behaviour from C
- * SuddenDrop(S, C)  — S observed a sudden large negative delta from C
- */
+restriction only_once:
+  "All x #i #j. OnlyOnce(x) @ #i & OnlyOnce(x) @ #j ==> #i = #j"
 
-/* =========================================================================
- * Rule: InitSignal
- * Sovereign S initialises a PeerRiskSignal for counterparty C at mid (0.5).
- * ========================================================================= */
+/* create_risk_signal: sovereign $S starts a signal ~sid for $C at 0.5. */
 rule InitSignal:
     [ Fr(~sid) ]
-  --[ Init(S, C), Signal(S, C, 'mid') ]->
-    [ !Sig(S, C, 'mid'), !Hist(S, C, '0') ]
+  --[ Init($S, $C, ~sid), Signal($S, $C, ~sid, 'mid') ]->
+    [ Sig($S, $C, ~sid, 'mid', 'cold') ]
+
+/* An update whose delta is not an outlier. History may become warm. */
+rule UpdateSignal_Normal:
+    [ Sig(S, C, sid, v, h), In(<'evidence', C, e, outcome>), !Lattice(v2) ]
+  --[ Received(S, C, sid, e), Update(S, C, sid, v, v2), Signal(S, C, sid, v2) ]->
+    [ Sig(S, C, sid, v2, h) ]
+
+rule UpdateSignal_Normal_Warms:
+    [ Sig(S, C, sid, v, 'cold'), In(<'evidence', C, e, outcome>), !Lattice(v2) ]
+  --[ Received(S, C, sid, e), Update(S, C, sid, v, v2), Signal(S, C, sid, v2), Warmed(S, C, sid) ]->
+    [ Sig(S, C, sid, v2, 'warm'), !History(S, C, sid) ]
+
+/* An outlier delta with too little history: the implementation raises nothing. */
+rule UpdateSignal_Outlier_Cold:
+    [ Sig(S, C, sid, v, 'cold'), In(<'evidence', C, e, outcome>), !Lattice(v2) ]
+  --[ Received(S, C, sid, e), Update(S, C, sid, v, v2), Signal(S, C, sid, v2),
+      Outlier(S, C, sid, e, 'cold') ]->
+    [ Sig(S, C, sid, v2, 'cold') ]
+
+/* An outlier delta with enough history: the anomaly is raised in the same update. */
+rule UpdateSignal_Outlier_Warm:
+    [ Sig(S, C, sid, v, 'warm'), !History(S, C, sid), In(<'evidence', C, e, outcome>), !Lattice(v2) ]
+  --[ Received(S, C, sid, e), Update(S, C, sid, v, v2), Signal(S, C, sid, v2),
+      Outlier(S, C, sid, e, 'warm'), AnomalyDetected(S, C, sid, e) ]->
+    [ Sig(S, C, sid, v2, 'warm'), Out(<'anomaly', S, C, e>) ]
 
 
-/* =========================================================================
- * Rule: UpdateSignal_High
- * S receives a success evidence from C; signal rises toward 'high'.
- * Anomaly detection: if prior was 'low' this is a SuddenRise (not modelled
- * as an attack vector in this theory).
- * ========================================================================= */
-rule UpdateSignal_High:
-    [ !Sig(S, C, v), !Hist(S, C, n) ]
-  --[ Update(S, C, v, 'high'), Signal(S, C, 'high') ]->
-    [ !Sig(S, C, 'high'), !Hist(S, C, 'more') ]
-
-
-/* =========================================================================
- * Rule: UpdateSignal_Low
- * S receives a failure evidence from C; signal drops toward 'low'.
- * If prior was 'high', this constitutes a SuddenDrop.
- * ========================================================================= */
-rule UpdateSignal_Low_from_High:
-    [ !Sig(S, C, 'high'), !Hist(S, C, n) ]
-  --[ Update(S, C, 'high', 'low'),
-      Signal(S, C, 'low'),
-      SuddenDrop(S, C) ]->
-    [ !Sig(S, C, 'low'), !Hist(S, C, 'more') ]
-
-rule UpdateSignal_Low_from_Mid:
-    [ !Sig(S, C, 'mid'), !Hist(S, C, n) ]
-  --[ Update(S, C, 'mid', 'low'),
-      Signal(S, C, 'low') ]->
-    [ !Sig(S, C, 'low'), !Hist(S, C, 'more') ]
-
-rule UpdateSignal_Low_from_Low:
-    [ !Sig(S, C, 'low'), !Hist(S, C, n) ]
-  --[ Update(S, C, 'low', 'low'),
-      Signal(S, C, 'low') ]->
-    [ !Sig(S, C, 'low'), !Hist(S, C, 'more') ]
-
-
-/* =========================================================================
- * Rule: UpdateSignal_Mid
- * S receives a partial evidence from C; signal stays at 'mid'.
- * ========================================================================= */
-rule UpdateSignal_Mid:
-    [ !Sig(S, C, v), !Hist(S, C, n) ]
-  --[ Update(S, C, v, 'mid'), Signal(S, C, 'mid') ]->
-    [ !Sig(S, C, 'mid'), !Hist(S, C, 'more') ]
-
-
-/* =========================================================================
- * Rule: EmitAnomaly
- * After a SuddenDrop, the detection algorithm eventually emits an Anomaly.
- * This rule models the non-deterministic detection trigger; the lemma
- * anomaly_detection_responsive asserts this rule fires after every SuddenDrop.
- * ========================================================================= */
-rule EmitAnomaly:
-    [ !Sig(S, C, 'low'), !Hist(S, C, n) ]
-  --[ AnomalyDetected(S, C) ]->
-    [ !Anomaly(S, C) ]
-
-
-/* =========================================================================
- * Lemma 1: signal_bounded
- *
- * The signal value emitted by any Signal action is one of the three
- * lattice values {low, mid, high} — i.e. structurally bounded.
- * ========================================================================= */
+/* Lemma 1: a signal only ever holds a lattice value (the clamp to [0, 1]). */
 lemma signal_bounded:
-  all-traces
-  "All S C v #t.
-    Signal(S, C, v) @ #t
-    ==> (v = 'low' | v = 'mid' | v = 'high')"
+  "All S C sid v #t. Signal(S, C, sid, v) @ #t ==> (v = 'low' | v = 'mid' | v = 'high')"
 
+/*
+ * Lemma 2: an anomaly is raised only by the owner's own update, on evidence
+ * that the owner itself processed, whose delta was an outlier.
+ */
+lemma anomaly_requires_local_outlier:
+  "All S C sid e #t. AnomalyDetected(S, C, sid, e) @ #t ==>
+     Received(S, C, sid, e) @ #t & Outlier(S, C, sid, e, 'warm') @ #t"
 
-/* =========================================================================
- * Lemma 2: anomaly_detection_responsive
- *
- * Whenever a SuddenDrop action is recorded for (S, C), there exists a
- * later AnomalyDetected action for (S, C).
- *
- * This models that an adversary that causes a sudden large negative delta
- * cannot prevent the anomaly detector from firing indefinitely.
- * ========================================================================= */
-lemma anomaly_detection_responsive:
-  all-traces
-  "All S C #t1.
-    SuddenDrop(S, C) @ #t1
-    ==> (Ex #t2. AnomalyDetected(S, C) @ #t2 & #t1 < #t2)"
+/* Lemma 3: an anomaly requires a signal with enough history (it warmed earlier). */
+lemma anomaly_requires_history:
+  "All S C sid e #t. AnomalyDetected(S, C, sid, e) @ #t ==>
+     (Ex #w. Warmed(S, C, sid) @ #w & #w < #t)"
 
+/*
+ * Lemma 4: detection cannot be suppressed or deferred. With enough history,
+ * the update that processes an outlier raises the anomaly in the same step.
+ */
+lemma detection_is_synchronous:
+  "All S C sid e #t. Outlier(S, C, sid, e, 'warm') @ #t ==> AnomalyDetected(S, C, sid, e) @ #t"
 
-/* =========================================================================
- * Lemma 3: no_single_source_cascade
- *
- * A single counterparty C cannot trigger anomaly detection at two distinct
- * sovereigns S1 and S2 without each sovereign independently observing the
- * SuddenDrop from C.
- *
- * This models that cascade amplification requires genuine divergent
- * behaviour visible to each independent observer; the adversary cannot
- * "tunnel" a single event into simultaneous alarms at multiple sovereigns.
- * ========================================================================= */
+/*
+ * Lemma 5: no cascade from a single observation. Anomalies about the same
+ * counterparty at two different sovereigns each come from evidence that
+ * sovereign processed itself, in its own update.
+ */
 lemma no_single_source_cascade:
-  all-traces
-  "All C S1 S2 #t1 #t2.
-    AnomalyDetected(S1, C) @ #t1 &
-    AnomalyDetected(S2, C) @ #t2 &
-    not(S1 = S2)
-    ==>
-    (Ex #td1. SuddenDrop(S1, C) @ #td1 & #td1 < #t1) &
-    (Ex #td2. SuddenDrop(S2, C) @ #td2 & #td2 < #t2)"
+  "All C S1 S2 sid1 sid2 e1 e2 #t1 #t2.
+     AnomalyDetected(S1, C, sid1, e1) @ #t1 & AnomalyDetected(S2, C, sid2, e2) @ #t2 & not(S1 = S2) ==>
+     Received(S1, C, sid1, e1) @ #t1 & Received(S2, C, sid2, e2) @ #t2"
+
+/* Sanity: anomalies are reachable, at two sovereigns about one counterparty (the lemmas are not vacuous). */
+lemma anomaly_reachable:
+  exists-trace
+  "Ex C S1 S2 sid1 sid2 e1 e2 #t1 #t2.
+     AnomalyDetected(S1, C, sid1, e1) @ #t1 & AnomalyDetected(S2, C, sid2, e2) @ #t2 & not(S1 = S2)"
+
+/* Sanity: a cold outlier raises nothing, which is why "every drop is detected" is not claimed. */
+lemma cold_outlier_reachable_without_anomaly:
+  exists-trace
+  "Ex S C sid e #t. Outlier(S, C, sid, e, 'cold') @ #t & not(Ex #a. AnomalyDetected(S, C, sid, e) @ #a)"
 
 end

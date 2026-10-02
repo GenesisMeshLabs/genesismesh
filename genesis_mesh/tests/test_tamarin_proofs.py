@@ -48,6 +48,9 @@ def test_tamarin_model_proves_all_lemmas() -> None:
     assert "analysis incomplete" not in out, (
         f"A lemma could not be decided by tamarin-prover.\nstdout:\n{result.stdout}"
     )
+    assert "wellformedness check failed" not in out, (
+        f"The model is not wellformed, so its results cannot be trusted.\nstdout:\n{result.stdout}"
+    )
     assert out.count("verified") >= 5, (
         f"Expected all five lemmas to report 'verified'.\nstdout:\n{result.stdout}"
     )

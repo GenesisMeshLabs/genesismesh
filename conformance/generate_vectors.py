@@ -49,7 +49,7 @@ SOV_C = "sovereign-c"
 
 def _write(name: str, data: dict) -> None:
     path = VECTORS_DIR / f"{name}.json"
-    path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, default=str) + "\n", encoding="utf-8")
     print(f"  wrote {path.name}  ({len(data['vectors'])} vectors)")
 
 

@@ -77,7 +77,7 @@ execution, bounded freshness, and machine-checked lemmas. Phase I made
 those relationships usable at runtime — bearer tokens, human oversight,
 selective disclosure, consensus authorization, and peer risk signals.
 Phase J hardened the full pipeline against adversarial behavior and
-formally verified the remaining open properties.
+modelled key properties in Tamarin.
 
 ---
 
@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.61.0:
+As of v0.61.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -163,8 +163,10 @@ As of v0.61.0:
 - All three trust architecture cycles are shipped: governed relationships
   (v0.26–v0.31), runtime trust layer (v0.32–v0.37), and adversarial
   hardening with formal verification (v0.38–v0.48).
-- Eight security lemmas are machine-checked in Tamarin Prover across
-  the full pipeline and the PeerRiskSignal state machine.
+- Twelve lemmas are machine-checked in Tamarin Prover on every relevant
+  change: five for the v0.26–v0.30 pipeline model and seven for the peer
+  risk signal as implemented. The pipeline model predates the current
+  release; see the formal verification notes for scope.
 - 1,088 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
@@ -653,6 +655,26 @@ live by one implementation with another.
 trusted to reach the same decision as the reference. The new vectors also
 showed that the Go and .NET canonical JSON diverged from Python for non-ASCII text and
 floats; both are fixed.
+
+### v0.61.1 — Contract and Evidence Corrections
+
+**Question this release answered:** Do the SDK types, the formal models and
+the RFCs say what the implementation does?
+
+**What changed:**
+
+- The TypeScript, Go and .NET consensus types now match Python's
+  `ValidatorVote` and `ConsensusProof`; a Python-signed proof round-trips
+  through each without loss. The TypeScript smoke app compiles without type
+  escape hatches and now covers counteroffers and retention checkpoints.
+- The PeerRiskSignal Tamarin model was rewritten against
+  `update_risk_signal`. The old liveness lemma was false for the
+  implementation itself and was removed; all seven new lemmas are proved, and
+  a CI workflow proves both models on every relevant change.
+- RFC-001 to RFC-004 were reviewed against the code and entered Review. Signed
+  bytes are now fully specified, the signature field name and trust-bundle
+  format are corrected, and the bundle validator enforces the sections the
+  RFC requires. Decisions are logged in {doc}`rfc-decisions`.
 
 ---
 
