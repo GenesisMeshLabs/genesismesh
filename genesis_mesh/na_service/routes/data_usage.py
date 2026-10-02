@@ -63,7 +63,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         Privileged: the policy grants a licensee access to data sources, a
         trust change like issuing an attestation (v0.62.0 security review).
         """
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data, required_tier="privileged")
@@ -125,7 +125,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/admin/data-usage/intent", methods=["POST"])
     def create_intent():
         """Create and sign a DataAccessIntent as agent (NA)."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -175,7 +175,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/data-usage/policy", methods=["GET"])
     def get_policy():
         """Return the currently active DataLicensePolicy."""
-        if not service.rate_limiter.allow(_rate_key("data_usage_policy"), 120, 60):
+        if not service.rate_limiter.allow(_rate_key("data_usage_policy"), service.rate_limits.read, 60):
             raise RateLimitError()
         policy = service.db.get_active_data_license_policy()
         if policy is None:
@@ -185,7 +185,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     @bp.route("/data-usage/verify", methods=["POST"])
     def verify():
         """Verify a DataAccessIntent against a DataLicensePolicy."""
-        if not service.rate_limiter.allow(_rate_key("data_usage_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("data_usage_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw_intent = data.get("intent")

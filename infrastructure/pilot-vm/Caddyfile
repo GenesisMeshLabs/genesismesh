@@ -1,0 +1,8 @@
+{$SITE_ADDRESS} {
+	reverse_proxy na-a:8000 na-b:8000 {
+		lb_policy round_robin
+		health_uri /readyz
+		health_interval 5s
+		fail_duration 10s
+	}
+}

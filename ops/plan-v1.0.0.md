@@ -11,7 +11,7 @@ being demonstrated.
 
 ## Decision: 2026-10-02, the gate is re-scoped
 
-The maintainer re-scoped this gate for an upcoming corporate pilot. The second
+The maintainer re-scoped this gate for an upcoming pilot. The second
 independently implemented sovereign (Workstream 1) and the first external
 operator proof (Workstream 2) are no longer conditions for tagging 1.0.0. They
 are **expected outcomes of the pilot**: if the pilot operator controls its own

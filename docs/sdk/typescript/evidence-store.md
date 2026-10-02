@@ -7,8 +7,8 @@ separate trust-evidence client.
 |---|---|
 | Submit executor-signed evidence | `submit(evidence)` |
 | Search one page or all matching entries | `search(params)`, `iterate(params)` |
-| Resource and vendor histories | `resourceHistory(id)`, `vendorHistory(id)` |
-| Current resource chain head and recorded states | `resourceHead(id)`, `resourceStates()` |
+| Resource and vendor histories (up to 10,000 records; `truncated` beyond that, read the export) | `resourceHistory(id)`, `vendorHistory(id)` |
+| Current resource chain head (one lookup on the NA since 0.63.1) and recorded states | `resourceHead(id)`, `resourceStates()` |
 | Store health and verification | `status()`, `verify()` |
 | Raw NDJSON, parsed page or paged export | `exportText(params)`, `export(params)`, `exportAll(sinceSequence, pageSize)` |
 | Executor keys | `registerExecutorKey(params)`, `listExecutorKeys()`, `retireExecutorKey(id)` |

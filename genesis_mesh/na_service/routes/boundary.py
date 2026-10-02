@@ -51,7 +51,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/boundary/decide", methods=["POST"])
     def decide():
         """Evaluate a ContextRecord against an AgreementRecord and sign the decision."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -128,7 +128,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/boundary/verify", methods=["POST"])
     def verify():
         """Verify a signed BoundaryDecision."""
-        if not service.rate_limiter.allow(_rate_key("boundary_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("boundary_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw = data.get("decision")

@@ -11,9 +11,31 @@ Two stores share one interface, ``allow(key, limit, window_seconds)``:
 
 import time
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from typing import Any, Callable
 
 RATE_LIMIT_STORES = ("memory", "database")
+
+
+@dataclass(frozen=True)
+class RateLimits:
+    """Requests per minute per client address, by route class (v0.63.1).
+
+    Defaults are the limits every earlier release hard-coded. A deployment
+    whose clients share one address (a corporate proxy or NAT) or that runs
+    busy controllers raises them; see docs/reference/configuration.md.
+    Enrollment limits (``/join``) are anti-abuse controls and stay fixed.
+    """
+
+    admin: int = 30
+    verify: int = 60
+    evidence: int = 120
+    read: int = 120
+
+    def __post_init__(self) -> None:
+        for name in ("admin", "verify", "evidence", "read"):
+            if getattr(self, name) < 1:
+                raise ValueError(f"rate limit {name} must be at least 1 per minute")
 
 
 class RateLimiter:
