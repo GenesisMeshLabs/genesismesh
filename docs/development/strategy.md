@@ -378,27 +378,34 @@ The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
 logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.
 No commercial vertical material lives in the public repo.
 
-The test suite passes in full. Five Tamarin lemmas are machine-checked across
-the core protocol pipeline; the three PeerRiskSignal lemmas do not currently
-all prove (see `docs/examples/formal-verification.md`).
+The test suite passes in full. Twelve Tamarin lemmas are machine-checked in CI:
+five for the v0.26–v0.30 pipeline model and seven for the peer risk signal
+(see `docs/examples/formal-verification.md`).
 
 ### Pre-1.0 Gate
 
 Use `1.0.0` only when:
 
 - core trust models are stable with documented migration guarantees
+- the public contract, compatibility rules and SDK support levels are defined
+  and tested
 - independent operators can run sovereign trust domains without relying on
-  Genesis Core as a permanent central authority
-- a second implementation has completed treaty-backed interoperability with
-  the Python reference implementation
+  Genesis Core as a permanent central authority: no built-in authority, owned
+  keys and infrastructure, a documented exit
 - governance is formalized: RFC process, decision log, operator exit note,
   managing-partner boundary document
-- deployment hardening is credible: HA, backup, and security guidance exist
-  for external operator use
+- deployment hardening is credible: HA, backup and restore, upgrade, and a
+  published security review for external operator use
 
-The 1.0 question is not "does the demo work?" It is: can two independent
-sovereign communities recognize each other, revoke trust, and explain every
-trust decision without Genesis Core brokering or approving the relationship?
+The 1.0 question is not "does the demo work?" It is: can an independent
+operator run a sovereign on a stable, supported contract, and recognize,
+revoke and explain trust without Genesis Core brokering or approving the
+relationship?
+
+A second, independently implemented sovereign completing a treaty-backed
+exchange, and the first external operator proof, are **expected outcomes of
+the first pilot**, not conditions for 1.0.0 (decision of 2026-10-02 in
+`ops/plan-v1.0.0.md`). Until that evidence exists, nothing claims it.
 
 ## Final Statement
 
