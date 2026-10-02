@@ -1,8 +1,8 @@
 # RFC-002 — Recognition Treaties
 
-Status: Draft
+Status: Review
 Created: 2026-06-08
-Updated: 2026-08-18
+Updated: 2026-10-02
 Authors: Genesis Mesh contributors
 Requires: RFC-001
 
@@ -93,9 +93,13 @@ The reference implementation defines `RecognitionTreaty` and
   "expires_at": "<iso8601>",
   "issued_by": "<issuer signing key id>",
   "metadata": {},
-  "signatures": [{"key_id": "...", "signature": "..."}]
+  "signatures": [{"key_id": "<issuer key id>", "sig": "<base64 Ed25519 signature>"}]
 }
 ```
+
+A treaty is signed over the canonical form (RFC-001, *Canonical JSON and
+signatures*) of every field above except `signatures`, including `metadata`
+and the defaulted `scope` fields.
 
 `status` is one of `active`, `suspended`, or `revoked`. An empty
 `scope.allowed_roles` grants **no** roles; an empty list is therefore the

@@ -99,7 +99,9 @@ jobs:
         run: |
           python conformance/runner.py
           for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
-            cmp conformance/vectors/interop.json "sdks/$sdk/conformance/interop.json"
+            for suite in interop consensus; do
+              cmp "conformance/vectors/$suite.json" "sdks/$sdk/conformance/$suite.json"
+            done
           done
 
       - name: Go verifier conformance

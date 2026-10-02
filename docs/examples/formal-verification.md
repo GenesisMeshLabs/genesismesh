@@ -18,19 +18,21 @@ strength.
 
 ### Scope and status
 
-Two models are checked in.  Results below were produced with
-**tamarin-prover 1.12.0 / Maude 3.5.1**:
+Two models are checked in. Both prove completely with **tamarin-prover 1.12.0 /
+Maude 3.5.1**, and the `Formal verification` CI workflow proves every lemma on
+each change to the models, their tests or the modelled risk-signal code:
 
-| Model | Theory | Lemmas | Status |
-|---|---|---|---|
-| `ops/tamarin/gm_protocol.spthy` | `GenesisMesh` | 5 | **5/5 verified** (0.36s) |
-| `ops/tamarin/risk_signal/peer_risk_signal.spthy` | `PeerRiskSignal` | 3 | **1 verified, 1 falsified, 1 undecided** |
+| Model | Theory | Lemmas | Status | Describes |
+|---|---|---|---|---|
+| `ops/tamarin/gm_protocol.spthy` | `GenesisMesh` | 5 | **5/5 verified** (0.25s) | Protocol pipeline as of v0.26–v0.30 |
+| `ops/tamarin/risk_signal/peer_risk_signal.spthy` | `PeerRiskSignal` | 7 | **7/7 verified** (3.6s), wellformed | `update_risk_signal` as shipped (revised v0.61.1) |
 
-**These models describe the protocol pipeline as of v0.26–v0.30.**  They have
-not been re-validated against the current release, and protocol behaviour has
-changed since they were written.  Treat them as evidence about the protocol
-design at that revision, not as a proof about the code shipping today.  See
-*Known gaps* below.
+Tamarin proves properties of the *models*, not of the Python code. The
+risk-signal model was rewritten in v0.61.1 against the current implementation
+(see below). **The core pipeline model still describes the v0.26–v0.30
+protocol** and has not been re-validated against the current release; treat
+it as evidence about that design revision, not as a proof about the code
+shipping today. See *Known gaps*.
 
 The core model captures:
 
@@ -52,21 +54,46 @@ Agreement (Offer/Counter/Accept)
 
 ### Peer risk-signal lemmas (`peer_risk_signal.spthy`)
 
+The model follows `genesis_mesh/trust/risk_signal.py:update_risk_signal`. Each
+sovereign keeps its own signal per counterparty. The network adversary chooses
+every evidence outcome. Anomaly detection runs inside the update, and only
+when the signal has enough history (at least 10 prior updates in the code)
+and the update's delta is a statistical outlier. Signal values are abstracted
+to `{low, mid, high}`, the history count to `cold`/`warm`, and the outlier
+statistics to a choice the model leaves open.
+
 | Lemma | Property |
 |---|---|
-| `signal_bounded` | Every emitted signal value is one of the defined lattice values (`low`/`mid`/`high`) |
-| `anomaly_detection_responsive` | Every recorded sudden drop is followed by an anomaly detection — an adversary causing a large negative delta cannot suppress the detector indefinitely |
-| `no_single_source_cascade` | Anomalies raised at two distinct sovereigns each require that sovereign to have independently observed the drop — one event cannot "tunnel" into simultaneous alarms |
+| `signal_bounded` | A signal only ever holds a lattice value (the clamp to [0, 1]) |
+| `anomaly_requires_local_outlier` | An anomaly is raised only by the owner's own update, on evidence it processed, whose delta was an outlier |
+| `anomaly_requires_history` | An anomaly requires a signal with enough prior updates |
+| `detection_is_synchronous` | With enough history, the update that processes an outlier raises the anomaly in the same step: detection cannot be suppressed or deferred |
+| `no_single_source_cascade` | Anomalies about one counterparty at two sovereigns each come from evidence that sovereign processed itself |
+| `anomaly_reachable` (exists-trace) | Anomalies at two sovereigns are reachable, so the lemmas above are not vacuous |
+| `cold_outlier_reachable_without_anomaly` (exists-trace) | An outlier with too little history raises nothing |
+
+**What changed in v0.61.1.** The v0.48 model left two variables unbound
+(two wellformedness failures). It claimed that every sudden drop is
+eventually followed by an anomaly (`anomaly_detection_responsive`, falsified
+in 6 steps), and its cascade lemma did not terminate. Comparing the model
+with the code showed the falsified claim was not just a modelling defect: the
+implementation itself raises no anomaly for a drop when there are fewer than
+10 prior updates or no variance in past deltas. That lemma was therefore
+removed, not repaired. The new model states what the implementation
+guarantees, and the last lemma records the limitation explicitly.
 
 ### Running the proofs
 
-Proof checking requires [Tamarin Prover](https://tamarin-prover.com/) to be
-installed locally:
+Install [Tamarin Prover](https://tamarin-prover.com/) and Maude (the CI
+workflow uses the pinned release binaries, checked by SHA-256), then:
 
 ```bash
 tamarin-prover --prove ops/tamarin/gm_protocol.spthy
 tamarin-prover --prove ops/tamarin/risk_signal/peer_risk_signal.spthy
 ```
+
+If Maude cannot find `prelude.maude`, set `MAUDE_LIB` to the directory that
+holds it.
 
 The Python harness wraps both models:
 
@@ -75,42 +102,35 @@ python -m pytest genesis_mesh/tests/test_tamarin_proofs.py \
                  genesis_mesh/tests/test_risk_signal_tamarin.py -v
 ```
 
-That harness runs two kinds of test:
+It runs two kinds of test:
 
-- **Structural checks** — the model files exist, parse as the expected theory,
-  and declare the expected lemmas and rules.  These always run.
-- **Proof checks** — invoke `tamarin-prover --prove`.  These are
-  `skipif`-guarded and **skip** when the tool is not installed.
+- **Structural checks**: the model files exist and declare the expected
+  theory, lemmas and rules. These always run, including in the main CI job.
+- **Proof checks**: run `tamarin-prover --prove` and fail on any falsified,
+  undecided or unverified lemma, or a wellformedness failure. These skip
+  when the tool is not installed. The `Formal verification` workflow
+  (`.github/workflows/formal-verification.yml`) installs it, runs them, and
+  fails if any proof test skips.
 
-> **CI does not prove the lemmas.**  The CI workflow does not install
-> `tamarin-prover`, so only the structural checks execute there; the proof
-> tests are reported as skipped.  Running the proofs is currently a manual,
-> local step.
+| Check | Where it runs |
+|---|---|
+| Structural checks | Main CI, every push and pull request |
+| Proofs of both models | `Formal verification` workflow: every push to main, and pull requests that touch the models, their tests or `trust/risk_signal.py` |
 
 ### Known gaps
 
-- **`peer_risk_signal.spthy` does not currently prove.**  Run against
-  tamarin-prover 1.12.0: `signal_bounded` verifies, but
-  `anomaly_detection_responsive` is **falsified** (counterexample found in 6
-  steps) and `no_single_source_cascade` does not terminate within 3 GB of heap.
-  Tamarin also reports **two wellformedness failures** — `rule InitSignal` has
-  unbound variables `C, S`, and some rule variables are not derivable from
-  their premises, which permits unintended pattern matching.  The unbound
-  variables are the likely cause of the falsification, meaning this is probably
-  a **modelling defect rather than a protocol weakness** — but that has not been
-  demonstrated, and the model should not be cited as evidence until it is
-  repaired and re-proved.
-- The models target the **v0.26–v0.30** pipeline and have not been updated for
-  the current release.  Protocol behaviour has since changed — notably
-  invocation-token binding, delegation-chain continuity, and treaty scope
-  semantics — so the models should be reviewed before being cited as evidence
-  about current behaviour.
-- The header comment inside `gm_protocol.spthy` lists two lemma names
-  (`scope_boundedness_is_structural`, `non_repudiation`) that do not match the
-  lemmas the file actually declares.  The tables above reflect the **declared
-  lemmas**, which are authoritative.
-- Proofs are not enforced continuously.  Until CI installs `tamarin-prover`, a
-  change that invalidates a lemma will not be caught automatically.
+- **`gm_protocol.spthy` targets the v0.26–v0.30 pipeline.** Protocol
+  behaviour has changed since, notably invocation-token binding,
+  delegation-chain continuity, treaty scope semantics, declarative boundary
+  policies (v0.58), attestation-backed evaluation (v0.58.1) and the evidence
+  store (v0.59). Its lemmas hold for that design and are proved in CI, but
+  they should not be cited as evidence about current behaviour until the
+  model is updated.
+- **The risk-signal model abstracts the arithmetic.** It does not model the
+  EWMA, the decay or the 3-sigma statistics. It proves where and when
+  detection can happen, not that the statistics detect any particular attack.
+- No model covers revocation feeds, treaties, trust bundles or data usage
+  intents; those rely on tests and the conformance vectors.
 
 ### Note on `authorization_requires_agreement`
 

@@ -1,7 +1,8 @@
 # RFC-001 — Sovereign Identity
 
-Status: Draft
+Status: Review
 Created: 2026-06-08
+Updated: 2026-10-02
 Authors: Genesis Mesh contributors
 Requires: none
 
@@ -91,8 +92,8 @@ Field summary:
 
 ## Verification rules
 
-1. Canonical JSON **MUST** be produced with sorted keys and no insignificant
-   whitespace. The reference implementation uses
+1. Canonical JSON **MUST** be produced as defined in *Canonical JSON and
+   signatures* below. The reference implementation uses
    `json.dumps(data, sort_keys=True, separators=(",", ":"))` in
    `SovereignIdentity.to_canonical_json`.
 2. A consumer that has obtained a sovereign identity out of band **MUST** treat
@@ -103,6 +104,42 @@ Field summary:
 4. A consumer **SHOULD** record the first-seen `root_public_key` for a
    `sovereign_id` and treat a later mismatch as a trust event requiring operator
    review rather than a silent acceptance.
+
+## Canonical JSON and signatures
+
+These rules define the bytes that are hashed and signed for every signed
+object in RFC-001 to RFC-004. They are normative: an implementation that
+produces different bytes for the same value cannot verify, or be verified by,
+the reference implementation. The shared `interop` conformance vectors
+(`conformance/vectors/interop.json`, cases `canon-*`) test them.
+
+1. **Encoding.** The canonical form is the JSON text produced by Python's
+   `json.dumps(value, sort_keys=True, separators=(",", ":"))` with its default
+   `ensure_ascii=True`, encoded as UTF-8. In detail:
+   - no whitespace between tokens;
+   - object keys sorted by Unicode code point;
+   - strings escaped with `\"`, `\\`, `\n`, `\r`, `\t`, `\b`, `\f`; every other
+     character below U+0020, DEL (U+007F) and every non-ASCII character
+     escaped as `\uXXXX` with lowercase hex, characters above U+FFFF as a
+     UTF-16 surrogate pair (`ü` is `\u00fc`, `😀` is `\ud83d\ude00`);
+   - integers written exactly as received, at any size;
+   - other numbers written as Python's `repr(float)`: the shortest
+     round-trip digits, positional when the decimal exponent is from -4 to
+     15 (`0.25`, `90.0`), otherwise `d.ddde±XX` (`1e-05`, `1e+16`). A value
+     received as `1.0` stays `1.0`;
+   - `true`, `false` and `null` as literals.
+2. **Timestamps** are strings in UTC, `YYYY-MM-DDTHH:MM:SS[.ffffff]Z`, with
+   six fractional digits when the microseconds are non-zero and none
+   otherwise. A signer **MUST** emit this form. A verifier **MUST**
+   canonicalize the received string as it is and **MUST NOT** re-format it.
+3. **Signed bytes.** An object is signed over the canonical form of the
+   object without its signature field (`signatures` for identity, treaty and
+   feed documents). Absent optional fields are serialized with their defaults
+   as the reference model emits them (`[]`, `{}`, `null`), so a signer
+   **MUST** include them.
+4. **Signature object.** `{"key_id": "<signing key id>", "sig": "<base64
+   Ed25519 signature>"}`, standard base64 with padding. Public keys are the
+   32-byte Ed25519 key in standard base64.
 
 ## Security considerations
 

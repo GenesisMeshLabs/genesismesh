@@ -142,6 +142,12 @@ def validate_trust_bundle(
     for field in ("created_at", "source_endpoint", "sovereign_metadata", "genesis"):
         if field not in bundle:
             errors.append(f"missing required field: {field}")
+    # RFC-003: the subject's recognition and revocation posture and its
+    # Connectome summary are required. An optional section is still present as
+    # a status envelope ({"status": "skipped"}, "not_configured", ...).
+    for field in ("recognition_policy", "revocation_feed", "connectome"):
+        if not isinstance(bundle.get(field), dict):
+            errors.append(f"missing required section: {field}")
 
     metadata = _dict_field(bundle, "sovereign_metadata", errors)
     genesis = _dict_field(bundle, "genesis", errors)
