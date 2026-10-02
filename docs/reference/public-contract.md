@@ -56,6 +56,7 @@ disappears. Compatibility rules are in `DEPRECATION_POLICY.md`.
 | GET, POST | `/admin/evidence/executor-keys` | stable |
 | POST | `/admin/evidence/executor-keys/<key_id>/retire` | stable |
 | GET | `/admin/evidence/export` | stable |
+| GET | `/admin/evidence/resource-heads/<path:resource_id>` | stable |
 | GET | `/admin/evidence/resources/<path:resource_id>` | stable |
 | POST | `/admin/evidence/retention/apply` | stable |
 | GET | `/admin/evidence/status` | stable |

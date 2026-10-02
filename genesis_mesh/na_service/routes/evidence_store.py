@@ -38,7 +38,7 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
     def _admin(data: dict, tier: str = "standard") -> str:
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         ok, err = service._verify_admin_request(data, required_tier=tier)  # type: ignore[arg-type]
         if not ok:
@@ -51,7 +51,7 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
     @bp.route("/evidence/execution", methods=["POST"])
     def submit_execution():
         """Validate and store one signed ExecutionEvidence record."""
-        if not service.rate_limiter.allow(_rate_key("evidence_submit"), 120, 60):
+        if not service.rate_limiter.allow(_rate_key("evidence_submit"), service.rate_limits.evidence, 60):
             raise RateLimitError()
         store.require_enabled()
         data = request_json_object()
@@ -84,6 +84,13 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
         store.require_enabled()
         _admin({})
         return jsonify(store.resource_history(resource_id))
+
+    @bp.route("/admin/evidence/resource-heads/<path:resource_id>", methods=["GET"])
+    def resource_head(resource_id: str):
+        """The head of one resource chain: what the next record must link to."""
+        store.require_enabled()
+        _admin({})
+        return jsonify(store.resource_head(resource_id))
 
     @bp.route("/admin/evidence/vendors/<vendor_id>", methods=["GET"])
     def vendor_history(vendor_id: str):

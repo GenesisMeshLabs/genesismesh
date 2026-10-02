@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Mapping, Optional
 
 from .key_provider import KeyProviderConfig
+from .rate_limit import RateLimits
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class NASettings:
     evidence_store: str = "off"
     max_request_bytes: int = 2 * 1024 * 1024
     proxy_hops: int = 1
+    rate_limits: RateLimits = field(default_factory=RateLimits)
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -74,6 +76,12 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         evidence_store=e.get("EVIDENCE_STORE", "off"),
         max_request_bytes=int(e.get("NA_MAX_REQUEST_BYTES", str(2 * 1024 * 1024))),
         proxy_hops=_proxy_hops(e.get("NA_PROXY_HOPS", "1")),
+        rate_limits=RateLimits(
+            admin=int(e.get("NA_RATE_LIMIT_ADMIN_PER_MINUTE", "30")),
+            verify=int(e.get("NA_RATE_LIMIT_VERIFY_PER_MINUTE", "60")),
+            evidence=int(e.get("NA_RATE_LIMIT_EVIDENCE_PER_MINUTE", "120")),
+            read=int(e.get("NA_RATE_LIMIT_READ_PER_MINUTE", "120")),
+        ),
     )
 
 

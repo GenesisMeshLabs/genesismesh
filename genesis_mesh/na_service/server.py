@@ -30,7 +30,7 @@ from .db import NADatabase, expected_schema_version
 from .db_policy import CrlSequenceConflict
 from .errors import ConflictError, register_error_handlers
 from .key_provider import KeyProviderConfig, Signer, as_signer, load_signer
-from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter
+from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, RateLimits
 from .services import BoundaryPolicyService, EvidenceStoreService
 from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.boundary_policy import ENFORCEMENT_MODES
@@ -97,6 +97,7 @@ class NetworkAuthorityService:
         ha_mode: str = "off",
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
+        rate_limits: Optional[RateLimits] = None,
     ):
         """
         Initialize the Network Authority service.
@@ -144,6 +145,7 @@ class NetworkAuthorityService:
         self.ha_mode = ha_mode
         self.instance_id = f"{socket.gethostname()}:{uuid.uuid4().hex[:8]}"
         self.db = NADatabase(db_path, database_url=database_url)
+        self.rate_limits = rate_limits or RateLimits()
         store = rate_limit_store or ("database" if self.db.backend == "postgres" else "memory")
         if store not in RATE_LIMIT_STORES:
             raise ValueError(f"rate_limit_store must be one of {RATE_LIMIT_STORES}")
@@ -424,6 +426,7 @@ def create_app(
     ha_mode: str = "off",
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
+    rate_limits: Optional[RateLimits] = None,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -441,6 +444,7 @@ def create_app(
         ha_mode=ha_mode,
         rate_limit_store=rate_limit_store,
         max_request_bytes=max_request_bytes,
+        rate_limits=rate_limits,
     )
     return service.app
 

@@ -1,0 +1,89 @@
+# Pilot-profile test deployment on one VM (docs/operations/pilot-deployment-profile.md).
+#
+# Two Network Authority instances from the released PyPI package share one
+# PostgreSQL database (NA_HA_MODE=on) behind Caddy, which terminates TLS with
+# an automatic certificate for SITE_ADDRESS. Configuration comes only from
+# .env, as a platform secret store would provide it. Operator private keys
+# never come here: only their public keys (OPERATOR_PUBLIC_KEYS_JSON).
+#
+#   docker compose up -d --build
+#
+# Single host, for testing the release before a pilot; in a pilot the
+# database is a managed service and the instances run on separate hosts.
+
+name: genesis-mesh-pilot
+
+x-na: &na
+  build:
+    context: .
+    args:
+      GENESIS_MESH_VERSION: ${GENESIS_MESH_VERSION:?set GENESIS_MESH_VERSION}
+  image: genesis-mesh-na:${IMAGE_TAG:-${GENESIS_MESH_VERSION}}
+  environment:
+    WEB_CONCURRENCY: "2"
+    GENESIS_FILE: /config/genesis.signed.json
+    NA_KEY_PROVIDER: env
+    NA_PRIVATE_KEY_SEED: ${NA_PRIVATE_KEY_SEED:?set NA_PRIVATE_KEY_SEED}
+    NA_KEY_ID: ${NA_KEY_ID:-pilot-na}
+    DATABASE_URL: postgresql://genesis:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/genesis_mesh
+    NA_HA_MODE: "on"
+    OPERATOR_PUBLIC_KEYS_JSON: ${OPERATOR_PUBLIC_KEYS_JSON:?set OPERATOR_PUBLIC_KEYS_JSON}
+    OPERATOR_KEY_TIERS_JSON: ${OPERATOR_KEY_TIERS_JSON:?set OPERATOR_KEY_TIERS_JSON}
+    EVIDENCE_STORE: "on"
+    BOUNDARY_POLICY_ENFORCEMENT: required
+    NA_PROXY_HOPS: "1"
+    NA_RATE_LIMIT_ADMIN_PER_MINUTE: ${NA_RATE_LIMIT_ADMIN_PER_MINUTE:-30}
+    NA_RATE_LIMIT_EVIDENCE_PER_MINUTE: ${NA_RATE_LIMIT_EVIDENCE_PER_MINUTE:-120}
+  volumes:
+    - ./genesis.signed.json:/config/genesis.signed.json:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3).status == 200 else 1)"]
+    interval: 5s
+    timeout: 5s
+    retries: 12
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: genesis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: genesis_mesh
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=60"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genesis -d genesis_mesh"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  na-a: *na
+  na-b: *na
+
+  proxy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      na-a:
+        condition: service_healthy
+      na-b:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy-data:

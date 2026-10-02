@@ -49,7 +49,7 @@ def create_evidence_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/admin/trust-evidence", methods=["POST"])
     def build():
         """Sign a TrustEvidence record from a TrustDecision."""
-        if not service.rate_limiter.allow(_rate_key("admin"), 30, 60):
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
         ok, err = service._verify_admin_request(data)
@@ -120,7 +120,7 @@ def create_evidence_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     @bp.route("/trust-evidence/verify", methods=["POST"])
     def verify():
         """Verify a TrustEvidence signature and optional graph digest."""
-        if not service.rate_limiter.allow(_rate_key("evidence_verify"), 60, 60):
+        if not service.rate_limiter.allow(_rate_key("evidence_verify"), service.rate_limits.verify, 60):
             raise RateLimitError()
         data = request_json_object()
         raw = data.get("evidence")

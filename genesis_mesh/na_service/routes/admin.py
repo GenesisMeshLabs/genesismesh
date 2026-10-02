@@ -39,7 +39,7 @@ def create_admin_blueprint(service) -> Blueprint:
             data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
 
-            if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+            if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
                 raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data)
@@ -106,7 +106,7 @@ def create_admin_blueprint(service) -> Blueprint:
         try:
             data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
-            if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+            if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
                 raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
@@ -181,7 +181,7 @@ def create_admin_blueprint(service) -> Blueprint:
         try:
             data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
-            if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+            if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
                 raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
@@ -266,7 +266,7 @@ def create_admin_blueprint(service) -> Blueprint:
         try:
             data = request_json_object()
             remote_addr = request.remote_addr or "unknown"
-            if not service.rate_limiter.allow(f"admin:{remote_addr}", 30, 60):
+            if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
                 raise RateLimitError()
 
             auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")

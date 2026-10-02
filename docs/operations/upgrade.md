@@ -17,7 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
-| 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
+| 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
 | 0.58.x and earlier | Not supported: upgrade to 0.59.1 first, or start fresh |
 
 ```{note}
