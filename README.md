@@ -6,6 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![Python](https://img.shields.io/pypi/pyversions/genesis-mesh)](https://pypi.org/project/genesis-mesh/)
 [![CI](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/ci.yml/badge.svg)](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/ci.yml)
+[![Interoperability](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/interop.yml/badge.svg)](https://github.com/GenesisMeshLabs/genesismesh/actions/workflows/interop.yml)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://docs.genesismesh.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 

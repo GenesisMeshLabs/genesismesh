@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.60.0:
+As of v0.61.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -152,6 +152,10 @@ As of v0.60.0:
   database behind a load balancer. Losing an instance loses no decision,
   revocation or evidence, and every exactly-once operation is enforced by the
   database.
+- Records produced by the Python Network Authority are verified offline by
+  the Go, TypeScript and C# SDKs, and a TypeScript-signed data access intent
+  by C#. A live four-language scenario in CI fails if any two
+  implementations disagree on any protocol decision.
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
@@ -617,6 +621,38 @@ The full suite runs on both backends, a concurrency suite races every
 exactly-once operation, and an integration test kills one of two instances
 behind nginx mid-load. Every acknowledged decision, evidence record and
 revocation survives exactly once.
+
+### v0.61.0 — Cross-Language Interoperability Proof
+
+**Question this release answered:** Do independent implementations agree on
+records they did not produce, at run time?
+
+**Why the previous state was insufficient:** v0.56 showed that a second
+implementation passes the conformance vectors in isolation. The SDKs'
+`Verify` methods called the NA's `/verify` routes, so a "Go verification" only
+proved that Python verifies its own output. No test exchanged a record signed
+live by one implementation with another.
+
+**What changed:**
+
+- The Go, TypeScript and .NET SDKs verify agreements, boundary decisions
+  (including policy and attestation bindings), data license policies and data
+  access intents offline, with the reference's reason codes. The TypeScript
+  SDK also creates and signs data access intents.
+- A shared `interop` conformance suite (25 vectors) covers those artifacts and
+  canonical JSON edge cases: non-ASCII text, astral characters, DEL, big
+  integers and Python float formatting. Every SDK runs it.
+- `interop/` runs a live scenario: a local NA, an agreement negotiated by two
+  sovereigns, policy-bound decisions under the agreement and under an
+  attestation, a license policy, and TypeScript-signed intents. Python, Go,
+  TypeScript and C# each judge every artifact, tampered ones included, and
+  the run fails on any disagreement. `.github/workflows/interop.yml` runs it
+  on every push.
+
+**What became possible:** a verifier in any of the four languages can be
+trusted to reach the same decision as the reference. The new vectors also
+showed that the Go and .NET canonical JSON diverged from Python for non-ASCII text and
+floats; both are fixed.
 
 ---
 
