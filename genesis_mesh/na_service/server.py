@@ -59,6 +59,10 @@ HA_MODES = ("off", "on")
 
 #: Bounded retries when another instance publishes a CRL sequence first.
 CRL_PUBLISH_ATTEMPTS = 5
+#: Republish the active CRL when less than this much validity remains (v0.64.1).
+CRL_REFRESH_MARGIN = timedelta(hours=12)
+#: Validity of a published CRL, as for every other CRL the NA signs.
+CRL_VALIDITY = timedelta(hours=24)
 
 
 # Default request body limit (NA_MAX_REQUEST_BYTES); a revocation feed of ~50,000 ids fits.
@@ -364,15 +368,34 @@ class NetworkAuthorityService:
         return crl
 
     def _get_or_create_active_crl(self) -> CertificateRevocationList:
-        """Return the active CRL, creating a signed empty one if needed."""
+        """Return a fresh active CRL, creating or republishing it if needed.
+
+        A CRL is valid for 24 hours. Before v0.64.1 the NA republished only when
+        a revocation changed it, so a quiet NA served an expired CRL and every
+        node and gateway reading it fell back to "not fresh". When less than
+        ``CRL_REFRESH_MARGIN`` remains, the same revocations are re-signed
+        under the next sequence number.
+        """
         published = self._publish_superseded_revocations()
         if published is not None:
             return published
 
         def build() -> Optional[CertificateRevocationList]:
-            if self.db.get_active_crl() is not None:
+            current = self.db.get_active_crl()
+            if current is None:
+                return CertificateRevocationList.create_empty(issuer=self.key_id, sequence=0)
+            now = datetime.now(timezone.utc)
+            if current.next_update - now > CRL_REFRESH_MARGIN:
                 return None
-            return CertificateRevocationList.create_empty(issuer=self.key_id, sequence=0)
+            return CertificateRevocationList(
+                crl_id=str(uuid.uuid4()),
+                sequence=current.sequence + 1,
+                issued_at=now,
+                next_update=now + CRL_VALIDITY,
+                issuer=current.issuer,
+                revoked_certificates=current.revoked_certificates,
+                signatures=[],
+            )
 
         self.publish_crl(build)
         crl = self.db.get_active_crl()
