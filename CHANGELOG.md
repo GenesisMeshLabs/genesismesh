@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.64.0 - Rust Parity: Governed Actions in the Rust SDK and Gateway
+
+No core protocol, route or schema changes. The Rust SDK and the Rust gateway
+catch up with the boundary policy and evidence store surface.
+
+### Added
+
+- **Rust SDK 0.64.0** (`GenesisMeshLabs/sdk-rust`): `policy` (boundary policy
+  lifecycle), `boundary.evaluate`, `evidence_store` (submission, paged search,
+  status, verification, resource and vendor histories, resource heads with the
+  fallback for NAs before 0.63.1, paged JSON Lines export, executor keys,
+  retention), `health`, `ExecutionRecorder` and `governed_action`, and offline
+  verification (`verify`, `canonical`) ported from the Python reference with
+  the same reason codes. Tested against Python-produced vectors and, in CI,
+  against a live NA from core `main`.
+- **Gateway 0.64.0**: 21 catalog operations for boundary policies,
+  policy-aware evaluation and the evidence store (80 in total), in the
+  `boundary_policy` and `evidence_store` service groups.
+- `docs/sdk/rust/sdk.md`: the Rust SDK reference. The SDK index no longer
+  describes Rust as having no NA client.
+- Rust sandbox app: boundary policy, executor key, governed-action and
+  evidence commands, directly or through a gateway, and
+  `scripts/governed-e2e.sh`, which checks one resource chain through both
+  paths.
+
+### Changed
+
+- Gateway: `resource_id` path parameters may span segments and, with
+  `vendor_id`, carry non-ASCII text; each segment is encoded once, and empty
+  or dot segments, `%`, `\` and control characters are refused. The evidence
+  export is forwarded as `application/x-ndjson` within 8 MiB; other responses
+  stay JSON within 2 MiB.
+- Gateway CI: the catalog generator runs with `--check` against core `main`,
+  so an unreviewed authority route fails the build.
+- The upgrade rehearsal covers databases written by 0.63.1.
+
 ## v0.63.1 - Configurable Rate Limits and Resource Heads
 
 Found by testing the pilot deployment profile on a real VM. No protocol or
