@@ -102,8 +102,8 @@ Fill these in before the pilot starts and keep them with the pilot's runbook.
 | Role | Responsibility | Who |
 | --- | --- | --- |
 | Operator | Holds the keys, decides recognition and revocation, runs the NA | *pilot operator* |
-| Incident owner | First response to a security or availability incident; follows {doc}`incident-response` | *to be named* |
-| Release owner | Ships a fix release (1.0.x) and confirms the upgrade path | *to be named* |
+| Incident owner | First response to a security or availability incident; follows {doc}`incident-response` | Maintainer |
+| Release owner | Ships a fix release (1.0.x) and confirms the upgrade path | Maintainer |
 | Managing partner (if any) | Assists within {doc}`../operators/managing-partner-boundary` | *optional* |
 
 ## Limits
