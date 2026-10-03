@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.63.1:
+As of v0.64.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -780,6 +780,30 @@ TypeScript SDK fetched it before each action to find the chain head; past
 stale and further actions failed. A resource-head lookup now answers in one
 indexed query, histories report `truncated`, and the SDK uses the lookup. The
 VM stack and drills are in `infrastructure/pilot-vm/`.
+
+### v0.64.0 — Rust Parity: Governed Actions in the Rust SDK and Gateway
+
+Boundary policies, the evidence store, high availability and resource heads
+had reached the core and the TypeScript SDK, but the Rust SDK stopped at the
+earlier surface and the Rust gateway's catalog at 59 operations, with none of
+the policy or evidence-store routes and no way to pass a resource ID such as
+`kv:vault/secret`. A Rust controller, or any client of the gateway, could not
+take part in the pilot's governed-action flow. The Rust SDK now has the policy
+lifecycle, policy-aware evaluation, the evidence store, readiness, an
+`ExecutionRecorder` and `governed_action`, and offline verification ported from
+the Python reference with the same reason codes; verifying the Python-produced
+export gives exactly the NA's own result, and a live test runs the lifecycle
+against core `main` in CI. The gateway's catalog, regenerated from the core's
+routes, has 80 operations; resource IDs may span segments and carry non-ASCII
+text, encoded once with dot segments refused; the export is forwarded as JSON
+Lines. The catalog had fallen behind because nothing checked it, so the
+gateway's CI now fails when it no longer matches core `main`. The Rust sandbox
+app drives one resource chain directly and through the gateway, and both paths
+agree and verify on the NA and offline.
+
+**What became possible:** a pilot controller can be written in Rust, and
+relying services can run governed actions through the gateway without direct
+access to the Network Authority.
 
 ---
 
