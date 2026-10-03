@@ -42,4 +42,4 @@ address, so a whole site was limited to 30 decisions a minute.
 - [x] CHANGELOG entry
 - [x] `docs/development/history.md` updated
 - [x] All tests pass (SQLite and PostgreSQL), SDK suites, interop, upgrade rehearsal, smoke app
-- [ ] Tag `v0.63.1`, push, GitHub release created
+- [x] Tag `v0.63.1`, push, GitHub release created
