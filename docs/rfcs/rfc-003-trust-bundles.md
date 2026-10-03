@@ -1,6 +1,6 @@
 # RFC-003 — Trust Bundles
 
-Status: Review
+Status: Accepted
 Created: 2026-06-08
 Updated: 2026-10-02
 Authors: Genesis Mesh contributors

@@ -13,17 +13,17 @@ The program goals, principles, template, and acceptance bar are described in
 
 This is the first RFC batch. Each maps to behavior already shipped in the
 Python reference implementation and cites the modules that implement it.
-RFC-001 to RFC-004, the normative RFCs for v1 interoperability, are in
-`Review`: checked against the implementation, corrected, and awaiting operator
-and security review before acceptance. The others are `Draft`: reviewable, not
-frozen. Decisions are recorded in {doc}`/development/rfc-decisions`.
+RFC-001 to RFC-004, the normative RFCs for v1 interoperability, are
+`Accepted` (2026-10-03): checked against the implementation, through operator
+and security review, and frozen under `DEPRECATION_POLICY.md`. The others are
+`Draft`: reviewable, not frozen. Decisions are recorded in {doc}`/development/rfc-decisions`.
 
 | RFC | Title | Status | Primary implementation |
 | --- | --- | --- | --- |
-| {doc}`RFC-001 <rfc-001-sovereign-identity>` | Sovereign Identity | Review | `genesis_mesh/models/sovereign.py` |
-| {doc}`RFC-002 <rfc-002-recognition-treaties>` | Recognition Treaties | Review | `genesis_mesh/trust/treaty.py` |
-| {doc}`RFC-003 <rfc-003-trust-bundles>` | Trust Bundles | Review | `genesis_mesh/cli/trust_bundle.py` |
-| {doc}`RFC-004 <rfc-004-revocation-feeds>` | Revocation Feeds | Review | `genesis_mesh/trust/treaty.py` |
+| {doc}`RFC-001 <rfc-001-sovereign-identity>` | Sovereign Identity | Accepted | `genesis_mesh/models/sovereign.py` |
+| {doc}`RFC-002 <rfc-002-recognition-treaties>` | Recognition Treaties | Accepted | `genesis_mesh/trust/treaty.py` |
+| {doc}`RFC-003 <rfc-003-trust-bundles>` | Trust Bundles | Accepted | `genesis_mesh/cli/trust_bundle.py` |
+| {doc}`RFC-004 <rfc-004-revocation-feeds>` | Revocation Feeds | Accepted | `genesis_mesh/trust/treaty.py` |
 | {doc}`RFC-005 <rfc-005-capability-manifests>` | Capability Manifests | Draft | `genesis_mesh/models/discovery.py` |
 | {doc}`RFC-006 <rfc-006-connectome-model>` | Connectome Model | Draft | `genesis_mesh/trust/connectome.py` |
 | {doc}`RFC-007 <rfc-007-operator-continuity>` | Operator Continuity | Draft | `docs/operators/` |
