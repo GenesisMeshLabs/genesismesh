@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v0.63.1
+**Versions**: v0.38.0 – v0.64.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -174,3 +174,4 @@ interoperability proof (v0.49–v0.56).
 | v0.62.0 | v1 public contract (machine-checked), wire compatibility policy, rehearsed upgrades from 0.59 to 0.61, published-artifact checks, operator exit note, v1 security review |
 | v0.63.0 | Pilot readiness: PostgreSQL restore to a new instance, failover with attestation revocations in flight, pilot deployment profile rehearsed through the production entry point |
 | v0.63.1 | Found by testing the pilot profile on a real VM: configurable rate limits, a resource-head lookup (histories report truncation); pilot-profile test VM stack and drills |
+| v0.64.0 | Rust parity: the Rust SDK runs governed actions (boundary policies, evidence store, offline verification) and the gateway catalog covers the policy and evidence-store routes, with CI that fails when it falls behind the core |

@@ -2,10 +2,10 @@
 
 > **Added in v0.56.0 – v0.57.2** · Crate: `genesis-mesh-gateway` (library name `genesis_mesh`) · Source: [`GenesisMeshLabs/gateway`](https://github.com/GenesisMeshLabs/gateway)
 
-Rust is not a thin HTTP client for the Network Authority like the
-TypeScript, Go, and .NET SDKs. It ships the portable trust primitives
-themselves as an embeddable crate, plus a production HTTP gateway and CLI
-binaries built on top of that crate. Rust ≥ 1.88 required.
+This page covers the gateway crate: the portable trust primitives as an
+embeddable crate, plus a production HTTP gateway and CLI binaries built on top
+of it. Rust ≥ 1.88 required. For a Network Authority client like the
+TypeScript, Go and .NET SDKs, use the Rust SDK ({doc}`sdk`).
 
 For the gateway's HTTP service, deployment, security, and Network Authority
 proxy surface, see {doc}`/concepts/rust-gateway`. This page covers the crate
@@ -91,6 +91,7 @@ cargo build --locked --release --bin genesis-mesh-gateway
 :maxdepth: 1
 :hidden:
 
+sdk
 usage
 auth
 ```

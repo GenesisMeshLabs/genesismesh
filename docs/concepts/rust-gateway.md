@@ -56,7 +56,7 @@ The gateway exposes a reviewed, allowlisted proxy for the Network Authority:
 GET|POST|DELETE /v1/networks/{network}/services/{operation}
 ```
 
-The catalog currently contains 59 scoped authority operations across these
+The catalog currently contains 80 scoped authority operations across these
 areas:
 
 | Area | Capabilities |
@@ -64,6 +64,8 @@ areas:
 | Agreement | Offer, counter, accept, and verify |
 | Attestations | Issue, list, inspect, verify, revoke, and recognition policy |
 | Boundary | Decide and verify |
+| Boundary policy | Validate, publish, list, activate, deactivate, history, verify, and policy-aware evaluation |
+| Evidence store | Execution submission, search, status, verification, resource heads and histories, vendor histories, JSON Lines export, executor keys, and retention |
 | Disclosure | Commitment, membership proof, nullifier, and verification |
 | Consensus | Vote, assemble proof, and verify against validator keys |
 | Data usage | License policies, usage intents, and verification |
@@ -80,6 +82,12 @@ operator key. Browser signing is available in the console; private seeds stay
 in the browser session and are never sent to the gateway.
 
 The proxy forwards only catalogued methods, paths, parameters, and JSON bodies.
+Resource identifiers may span path segments (`kv:vault/secret`) and carry
+non-ASCII text; each segment is encoded once, and dot segments, `%`, `\` and
+control characters are refused. The evidence export is forwarded as JSON Lines
+(`application/x-ndjson`) within an 8 MiB limit; every other response must be
+JSON within 2 MiB. Since v0.64.0 the gateway's CI fails when its catalog no
+longer matches the core's routes.
 It does not forward gateway bearer tokens, cookies, client URLs, or arbitrary
 headers to an authority. This boundary prevents a gateway credential from
 becoming an authority credential.
