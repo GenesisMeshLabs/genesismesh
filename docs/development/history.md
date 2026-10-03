@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.64.0:
+As of v0.64.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -804,6 +804,15 @@ agree and verify on the NA and offline.
 **What became possible:** a pilot controller can be written in Rust, and
 relying services can run governed actions through the gateway without direct
 access to the Network Authority.
+
+### v0.64.1 — CRL Refresh
+
+Hosting the gateway in front of a live NA at mesh.genesismesh.org showed that
+an NA signs each CRL for 24 hours but republished it only when a revocation
+changed it. A quiet NA therefore served an expired CRL a day after its last
+revocation, and every node and gateway reading it stopped treating the list as
+fresh. The NA now re-signs the same revocations under the next sequence number
+when less than 12 hours remain.
 
 ---
 

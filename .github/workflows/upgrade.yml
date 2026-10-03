@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        from: ["0.59.1", "0.60.0", "0.61.1", "0.62.0", "0.63.0", "0.63.1"]
+        from: ["0.59.1", "0.60.0", "0.61.1", "0.62.0", "0.63.0", "0.63.1", "0.64.0"]
     services:
       postgres:
         image: postgres:17

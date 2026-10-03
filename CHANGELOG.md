@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.64.1 - CRL Refresh
+
+### Fixed
+
+- **A quiet NA served an expired CRL.** Each CRL is valid for 24 hours, but the
+  NA republished it only when a revocation changed it, so a day after the last
+  revocation `GET /crl` returned an expired list and nodes and gateways stopped
+  treating it as fresh (the gateway reports not ready). When less than 12 hours
+  remain, the NA now re-signs the same revocations under the next sequence
+  number. Found by hosting the gateway in front of a live NA at
+  mesh.genesismesh.org. No schema or wire changes.
+- The upgrade rehearsal covers databases written by 0.64.0.
+
 ## v0.64.0 - Rust Parity: Governed Actions in the Rust SDK and Gateway
 
 No core protocol, route or schema changes. The Rust SDK and the Rust gateway
