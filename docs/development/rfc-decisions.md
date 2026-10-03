@@ -10,10 +10,10 @@ verification changes, then acceptance with a dated note. An RFC is
 
 | RFC | Status | Maintainer review | Operator review | Security review | Accepted |
 | --- | --- | --- | --- | --- | --- |
-| RFC-001 Sovereign Identity | Review | 2026-10-02 | not required | 2026-10-02 | — |
-| RFC-002 Recognition Treaties | Review | 2026-10-02 | pending | 2026-10-02 | — |
-| RFC-003 Trust Bundles | Review | 2026-10-02 | pending | 2026-10-02 | — |
-| RFC-004 Revocation Feeds | Review | 2026-10-02 | pending | 2026-10-02 | — |
+| RFC-001 Sovereign Identity | Accepted | 2026-10-02 | not required | 2026-10-02 | 2026-10-03 |
+| RFC-002 Recognition Treaties | Accepted | 2026-10-02 | 2026-10-03 | 2026-10-02 | 2026-10-03 |
+| RFC-003 Trust Bundles | Accepted | 2026-10-02 | 2026-10-03 | 2026-10-02 | 2026-10-03 |
+| RFC-004 Revocation Feeds | Accepted | 2026-10-02 | 2026-10-03 | 2026-10-02 | 2026-10-03 |
 | RFC-005 to RFC-008 | Draft | — | — | — | — |
 
 RFC-001 to RFC-004 are the normative RFCs for v1 interoperability
@@ -96,3 +96,32 @@ deployment profile.
 
 No finding blocks acceptance. **Remaining:** operator review of RFC-002 to
 RFC-004, and the maintainer's acceptance recorded here.
+
+## 2026-10-03 — RFC-001 to RFC-004 accepted
+
+**Operator review (RFC-002 to RFC-004).** For the first pilot the maintainer
+is the only operator running a Network Authority, so the maintainer performed
+the operator review in that role. The operator obligations were confirmed as
+workable for the pilot: treaty issuance and revocation need the privileged
+operator tier; trust bundles are reviewed by an operator before any trust
+decision and are never imported into trust state; revocation feeds are
+published with increasing sequence numbers, and the importing operator decides
+which keys are the issuer's. When a second operator joins, its review is
+recorded here before any change to these RFCs.
+
+**Accepted residual risks**, from the security review ({doc}`security-review-v1`):
+
+- SR-06: no NA key rotation that keeps the sovereign's identity (an open
+  question of RFC-001).
+- SR-07: imported revocation feeds have no enforced maximum age; operators
+  schedule imports to their tolerance (RFC-004).
+- SR-08: trust bundles are self-attested and unsigned; the mitigation stays
+  procedural (RFC-003).
+- SR-09: the importing operator chooses the feed issuer's keys (RFC-004).
+
+**Decision.** The maintainer accepts RFC-001 Sovereign Identity, RFC-002
+Recognition Treaties, RFC-003 Trust Bundles and RFC-004 Revocation Feeds. They
+are normative for v1 interoperability: a change to their signed fields,
+canonical form, verification rules or reason codes follows
+`DEPRECATION_POLICY.md` and a new dated entry in this log. RFC-005 to RFC-008
+remain Draft and are not part of the v1 interoperability claim.

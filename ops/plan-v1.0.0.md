@@ -135,10 +135,14 @@ conformance results, and clean consumer builds without type escape hatches.
 
 ## Workstream 4: Governance and security claims
 
-- [ ] Complete the RFC decision process and dated decision log. Move the
+- [x] Complete the RFC decision process and dated decision log. Move the
       normative identity, treaty, trust-bundle, and revocation RFCs through
       review before claiming they define v1 interoperability. Other RFCs may
       remain Draft if the release labels them accordingly.
+      *RFC-001 to RFC-004 accepted 2026-10-03, with the maintainer as the
+      first pilot's sole operator doing the operator review; RFC-005 to
+      RFC-008 remain Draft
+      ([`rfc-decisions.md`](../docs/development/rfc-decisions.md)).*
 - [x] Publish the operator exit and fork note and the managing-partner control
       boundary described in
       [`docs/development/governance.md`](../docs/development/governance.md).
@@ -194,7 +198,9 @@ Do not tag `v1.0.0` unless all of the following are true:
 3. The pilot deployment profile is documented and rehearsed: operator-held
    keys, the chosen database, backup and restore, readiness and failover if HA
    is used, and a recognition-to-revocation flow. Who responds to a pilot
-   incident and ships a 1.0.1 is named.
+   incident and ships a 1.0.1 is named. *Named 2026-10-03: the maintainer is
+   the incident owner and the release owner (pilot deployment profile,
+   "Roles for the pilot").*
 4. Stable public and wire surfaces, beta exclusions, migration guarantees,
    and SDK support levels are documented and tested. Known TypeScript type
    mismatches are fixed.
