@@ -357,3 +357,15 @@ table.docutils td,
 table.docutils th {
     border-bottom: 1px solid var(--gm-line) !important;
 }
+
+.bottom-of-page .right-details {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.gm-footer-thesis {
+  font-size: var(--font-size--small);
+  text-decoration: none;
+}
