@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import runpy
 import shutil
 from pathlib import Path
 
@@ -19,10 +18,8 @@ def dev() -> None:
 @dev.command("up")
 def dev_up() -> None:
     """Run the in-process local smoke workflow."""
-    workflow_path = Path(__file__).resolve().parents[2] / "examples" / "test_workflow.py"
-    if not workflow_path.exists():
-        raise click.ClickException(f"Smoke workflow not found at {workflow_path}")
-    smoke_main = runpy.run_path(str(workflow_path))["main"]
+    from .smoke import main as smoke_main
+
     smoke_main()
 
 
