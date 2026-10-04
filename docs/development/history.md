@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.65.0:
+As of v1.0.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -139,9 +139,11 @@ As of v0.65.0:
 - The Connectome surfaces the recognition graph with trust-path
   explanations and revocation blast-radius summaries, as one view
   over signed protocol data.
-- Maintainer-operated sovereigns run across Azure, DigitalOcean, Cloudflare, and
-  Akamai/Linode with separate identities, keys, endpoints, policies, and public
-  trust material.
+- Maintainer-operated sovereigns have run across Azure, DigitalOcean,
+  Cloudflare, and Akamai/Linode with separate identities, keys, endpoints,
+  policies, and public trust material; the current public deployments are the
+  read-only reference on Azure (`na.genesismesh.org`) and the live NA and
+  gateway on DigitalOcean (`mesh.genesismesh.org`).
 - Separate sovereign deployments have successfully recognized each other and
   propagated revocation across real network boundaries.
 - A reproducible operator packet exists, including a quickstart, a
@@ -167,7 +169,7 @@ As of v0.65.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 1,671 tests pass. The layer rule and public boundary rule are enforced
+- 1,715 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -209,6 +211,16 @@ As of v0.65.0:
   store on, it keeps every decision it signs and the signed execution evidence
   controllers submit, in an append-only hash chain with one verifiable history
   per secret, with {doc}`../examples/evidence-store`.
+- The public contract is stable for the 1.x line, security support covers
+  1.0.x, and all six components of the release train ship the same version.
+
+As of v1.0.0, the following are *not* yet true:
+
+- A second, independently implemented sovereign has not yet exchanged a
+  treaty, trust bundle and revocation feed with the Python reference.
+- No operator outside Genesis Core has yet run a sovereign with its own keys,
+  infrastructure, policy and revocation decision. Both are expected from the
+  pilot.
 
 ### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
@@ -832,6 +844,24 @@ the Python reference on the shared vectors.
 
 **What became possible:** anyone can see portable trust work end to end,
 across two independently signed sovereigns, without an account.
+
+### v1.0.0 — Stable Sovereign Trust for Independent Operators
+
+The 0.x line had built the protocol, the HA Network Authority, four-language
+verification, a machine-checked public contract and a rehearsed pilot
+profile, but promised no stability: any minor release could change a stable
+route or artifact. 1.0.0 makes that contract binding for the whole 1.x line.
+The surfaces classified stable follow `DEPRECATION_POLICY.md`, artifacts
+signed by 0.59.0 or later verify on every 1.x release, upgrades are rehearsed
+from every supported 0.x minor including 0.65.0, and all six components ship
+the same version. On 2026-10-02 the maintainer re-scoped the gate for the
+first pilot: a second independent implementation and an external operator
+proof are expected outcomes of that pilot, listed as pending rather than
+claimed. The release candidate passed 1,715 core tests and every SDK,
+gateway, interoperability, documentation and pilot-readiness gate.
+
+**What became possible:** an independent operator can run a pilot on a
+contract that will not break under it during 1.x.
 
 ---
 

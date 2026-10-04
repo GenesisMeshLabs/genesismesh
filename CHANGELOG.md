@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased
+## v1.0.0 - Stable Sovereign Trust for Independent Operators
+
+1.0.0 declares a stable, supported platform for an independently operated
+pilot. It does not claim that independent federation is proven in production;
+that evidence is pending (see below).
+
+### Stable contract
+
+- **The public contract is stable for the 1.x line.** HTTP routes, CLI
+  commands, the Python API, signed artifacts and error codes classified stable
+  in `contract/public-surface.json` (rendered as the Public Contract page)
+  follow `DEPRECATION_POLICY.md` until 2.0: no stable surface is removed,
+  renamed or given a new meaning, and artifacts signed by 0.59.0 or later
+  verify on every 1.x release. Beta surfaces stay marked beta.
+- **Upgrades are rehearsed from every supported 0.x line.** The upgrade
+  rehearsal now also starts from databases written by 0.65.0, alongside
+  0.59.1 to 0.64.1.
+- **Security support moves to 1.0.x.** Releases before 1.0.0 are unsupported;
+  operators upgrade from 0.59 or later.
+- **All six components ship 1.0.0**: the Python reference and Network
+  Authority, the TypeScript, Go, .NET and Rust SDKs, and the Rust gateway.
+- RFC-001 to RFC-004 (identity, treaties, trust bundles, revocation) are
+  Accepted and define v1 interoperability; RFC-005 to RFC-008 remain Draft.
+
+### Changed
+
+- The public reference authority is served at `na.genesismesh.org` with its
+  own certificate; the legacy hostname keeps working during the transition.
 
 ### Fixed
 
@@ -10,6 +37,13 @@
   ships as `genesis_mesh.cli.smoke`, binds the NA to a free local port instead
   of 8444, and always stops it; `examples/test_workflow.py` runs the same
   workflow from a checkout.
+
+### Pending evidence (expected from the pilot, not claimed)
+
+- A treaty-backed exchange with a second, independently implemented
+  sovereign that makes its own trust decisions.
+- A recognition-to-revocation proof run by an operator outside Genesis Core
+  that holds its own keys, infrastructure, policy and revocation.
 
 ## v0.65.0 - Mesh Demo Experience
 
