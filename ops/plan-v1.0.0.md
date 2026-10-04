@@ -169,17 +169,19 @@ a documented security review, and claims that match the checks actually run.
 - [x] Drill PostgreSQL backup and restore to a new instance, verify the
       restored database and trust state, and rehearse the documented migration
       and rollback paths. Record the outcome and any recovery limits.
-- [ ] Run the core unit and integration suites, conformance suite, SDK suites,
+- [x] Run the core unit and integration suites, conformance suite, SDK suites,
       interoperation scenarios, Sphinx warnings-as-errors build, type checks,
       dependency audits, and package installation checks on the v1 release
       candidate. Run the external-operator proof against that candidate.
+      *Done 2026-10-04 (record below). The external-operator proof is a pilot
+      outcome since the 2026-10-02 decision and is listed as pending.*
 - [ ] Apply the coordinated release train in
       [`docs/development/versioning.md`](../docs/development/versioning.md):
       matching versions and tags, security support table, changelogs, docs,
       registry packages or clearly documented Git distribution, and deployment
       validation. Distinguish a package available from a registry from one
       available only from Git.
-- [ ] Test a release candidate built from the intended `1.0.0` commit before
+- [x] Test a release candidate built from the intended `1.0.0` commit before
       publishing it. Record defects and compatibility changes, rerun affected
       evidence after fixes, and tag `1.0.0` only when the gates below are
       green. If a separately tagged prerelease is wanted, first add prerelease
@@ -214,3 +216,27 @@ completed subset without changing the meaning of this gate.
 
 Workstreams 1 and 2 are not gate conditions (see the 2026-10-02 decision). The
 1.0.0 release notes list them as pending evidence expected from the pilot.
+
+## Release candidate record (2026-10-04)
+
+Candidate: branch `ops/v1.0.0` (core `VERSION` 1.0.0) on main after v0.65.0
+and the `dev up` packaging fix; components at their main heads.
+
+| Gate | Result |
+| --- | --- |
+| Core unit suite (`-W error::DeprecationWarning`) | 1,701 passed, 9 skipped |
+| Core integration suite | 4 passed, 1 skipped (PostgreSQL leg runs in CI) |
+| Sphinx `-W` build, mypy, compileall | clean, 0 errors |
+| `pip-audit`, `pip check` | no vulnerabilities, no broken requirements |
+| Version and release-train checks | 1.0.0 verified, not behind any component |
+| Clean install of the 1.0.0 wheel outside the repo | `init`, `na start`, invite, `join`, `status`, `dev up`, `dev down` pass |
+| TypeScript SDK | 363 passed, 3 skipped |
+| Go SDK, Rust SDK, Rust gateway | all tests pass |
+| .NET SDK | CI on main green (no local toolchain) |
+| CI on main: interoperability, formal verification, upgrade, pilot readiness | green |
+| Published-artifact scenario | green on the 0.65.0 registry artifacts; rerun on 1.0.0 after publication |
+| Live smoke: genesismesh.org, www, docs, na.genesismesh.org, mesh.genesismesh.org | 39 checks pass |
+
+Defects found while testing the candidate: `genesis-mesh dev up` failed from a
+PyPI install (fixed before the candidate, PR #49).
+
