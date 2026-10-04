@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.1 - Gateway Console Fixes
+
+### Fixed
+
+- **Gateway 1.0.1 console:** the Genesis Mesh logo replaces the initials in
+  the top-left corner; on phones the live mesh graph scrolls horizontally
+  instead of being cut off on the right; the public reference link points at
+  `na.genesismesh.org`.
+- The upgrade rehearsal also starts from databases written by 1.0.0.
+- No protocol, schema or wire changes in any component.
+
 ## v1.0.0 - Stable Sovereign Trust for Independent Operators
 
 1.0.0 declares a stable, supported platform for an independently operated

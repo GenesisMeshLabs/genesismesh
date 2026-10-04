@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v1.0.0
+**Versions**: v0.38.0 – v1.0.1
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -178,3 +178,4 @@ interoperability proof (v0.49–v0.56).
 | v0.64.1 | A quiet NA republishes its CRL before it expires, found by hosting the gateway in front of a live NA |
 | v0.65.0 | Mesh demo experience: public demo access in the gateway, the Azure reference federated with the live NA by treaties both ways, and guided scenarios at mesh.genesismesh.org |
 | v1.0.0 | Stable sovereign trust for independent operators: the public contract is binding for 1.x, upgrades rehearsed from every supported 0.x minor, all six components at 1.0.0; independent federation evidence pending from the pilot |
+| v1.0.1 | Gateway console fixes found on mesh.genesismesh.org: logo, a mesh graph that scrolls on phones, the na.genesismesh.org link |

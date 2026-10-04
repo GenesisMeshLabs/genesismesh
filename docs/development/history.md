@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.0.0:
+As of v1.0.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -862,6 +862,14 @@ gateway, interoperability, documentation and pilot-readiness gate.
 
 **What became possible:** an independent operator can run a pilot on a
 contract that will not break under it during 1.x.
+
+### v1.0.1 — Gateway Console Fixes
+
+Reviewing mesh.genesismesh.org on a phone after 1.0.0 showed the live mesh
+graph cut off on the right with no way to scroll, initials where the logo
+belongs, and the public reference still linked under its legacy name. The
+gateway console now keeps the graph inside the viewport and scrolls it, shows
+the Genesis Mesh logo and links `na.genesismesh.org`. No protocol changes.
 
 ---
 
