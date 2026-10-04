@@ -23,10 +23,29 @@ flowchart TD
 
 ![Genesis Mesh enrollment demo](examples/assets/images/genesis-mesh-enrollment.gif)
 
-## Prerequisites
+```{tip}
+No install needed to look around: [mesh.genesismesh.org](https://mesh.genesismesh.org)
+runs a live Network Authority, a gateway and the public reference with demo
+access and a guided tour.
+```
 
-Install the package in editable mode so the `genesis-mesh` console command is
-available:
+## Install
+
+Install the released package from PyPI (Python 3.12 or newer):
+
+```bash
+pip install genesis-mesh
+genesis-mesh --help
+```
+
+Then follow the [operator workflow](#operator-workflow): `genesis-mesh init`,
+`genesis-mesh na start`, and `genesis-mesh status` in a second terminal.
+
+## Install from source
+
+To contribute, or to run the in-process smoke workflow and the examples, which
+live in the repository, install the package in editable mode so the
+`genesis-mesh` console command is available:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -145,7 +164,8 @@ runtime port.
 
 ## Developer Workflow
 
-Run the in-process smoke workflow:
+Run the in-process smoke workflow (from a source checkout; the workflow script
+is part of the repository, not the PyPI package):
 
 ```bash
 genesis-mesh dev up

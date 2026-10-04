@@ -240,9 +240,10 @@ AI Research automatically changes trust state.
 ```
 
 The first version of this proof can be run honestly with both sovereigns
-operated by the maintainer: for example, Genesis Core at
-`na.genesismesh.connectorzzz.com` and AI Research Community at
-`nb.genesismesh.connectorzzz.com`. That proves the protocol mechanism. A later
+operated by the maintainer: today the public reference `gm-demo-public-na`
+(`na.genesismesh.connectorzzz.com`) and `genesis-mesh` behind
+mesh.genesismesh.org recognize each other by treaty. That proves the protocol
+mechanism. A later
 external operator can stand up the second sovereign with no protocol change.
 
 The later proof is stronger:
