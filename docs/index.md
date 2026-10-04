@@ -205,6 +205,8 @@ policy.
 :caption: Start Here
 
 quickstart
+how-it-works
+tutorials
 installation
 stability
 changelog

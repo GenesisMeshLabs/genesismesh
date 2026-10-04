@@ -3,6 +3,12 @@
 The Network Authority exposes HTTP endpoints for enrollment, policy, revocation,
 and health.
 
+```{tip}
+Try the read and verify operations without running anything: the gateway at
+[mesh.genesismesh.org](https://mesh.genesismesh.org) publishes a demo token
+that can read and verify, but not change, its two sovereigns.
+```
+
 ```{mermaid}
 flowchart TB
     home["Browser console<br/>/"]

@@ -5,6 +5,12 @@
 These routes expose every SDK-required stable protocol operation over HTTP.
 They are served by the Network Authority (NA).
 
+```{tip}
+Try the read and verify operations without running anything: the gateway at
+[mesh.genesismesh.org](https://mesh.genesismesh.org) publishes a demo token
+that can read and verify, but not change, its two sovereigns.
+```
+
 **Base URL** — the NA process, e.g. `https://na.example.com`.
 
 **Auth** — admin routes require operator-signed headers (same scheme as
