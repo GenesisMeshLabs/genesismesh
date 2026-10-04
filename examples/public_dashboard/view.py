@@ -39,7 +39,7 @@ def lifecycle(record, now: datetime) -> str:
 
 
 def graph(snapshot: Snapshot, now: datetime) -> dict:
-    edges = []
+    edges: list[dict[str, object]] = []
     for r in snapshot.treaties:
         t = r.treaty
         state = lifecycle(r, now)
@@ -47,10 +47,17 @@ def graph(snapshot: Snapshot, now: datetime) -> dict:
             "treaty_id": t.treaty_id, "status": t.status, "lifecycle_state": state,
             "expiry_risk": "medium" if state == "expiring_soon" else "low" if state == "active" else "none",
             "valid_from": t.valid_from.isoformat(), "expires_at": t.expires_at.isoformat()})
-    return {"sovereigns": [{"sovereign_id": name} for name in sorted(snapshot.authorities)],
+    external = [r.treaty for r in snapshot.external_treaties if r.treaty.valid_from <= now < r.treaty.expires_at]
+    for t in external:
+        edges.append({"from": t.issuer_sovereign_id, "to": t.subject_sovereign_id,
+            "treaty_id": t.treaty_id, "status": t.status, "lifecycle_state": "active", "expiry_risk": "low",
+            "valid_from": t.valid_from.isoformat(), "expires_at": t.expires_at.isoformat(), "external": True})
+    return {"sovereigns": [{"sovereign_id": name} for name in sorted(snapshot.authorities)]
+            + [{"sovereign_id": t.subject_sovereign_id, "external": True} for t in external],
         "recognition_edges": edges,
         "active_treaties": [r.treaty.model_dump(mode="json") for r in snapshot.treaties
-                            if lifecycle(r, now) in {"active", "expiring_soon"}],
+                            if lifecycle(r, now) in {"active", "expiring_soon"}]
+                           + [t.model_dump(mode="json") for t in external],
         "revoked_trust_material": [{"type": "recognition_treaty", "id": r.treaty.treaty_id,
                                    "lifecycle_state": "revoked", "reason": "demo-revocation", "revoked_at": None}
                                   for r in snapshot.treaties if r.treaty.status == "revoked"]}
