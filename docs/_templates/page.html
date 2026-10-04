@@ -1,5 +1,24 @@
 {% extends "!page.html" %}
 
+{% block extrahead %}
+{%- set og_title = (title|striptags + " - Genesis Mesh") if pagename != master_doc else "Genesis Mesh documentation" %}
+{%- set og_image = "https://docs.genesismesh.org/_static/social-card.png" %}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Genesis Mesh">
+<meta property="og:title" content="{{ og_title|e }}">
+<meta property="og:description" content="Quick start, operator guides, protocol RFCs and SDK references for Genesis Mesh, the treaty layer for machines.">
+{%- if pageurl %}
+<meta property="og:url" content="{{ pageurl|e }}">
+{%- endif %}
+<meta property="og:image" content="{{ og_image }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Genesis Mesh documentation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ og_title|e }}">
+<meta name="twitter:image" content="{{ og_image }}">
+{% endblock extrahead %}
+
 {% block footer %}
 <div class="related-pages">
   {% if next -%}
