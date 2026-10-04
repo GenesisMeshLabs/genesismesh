@@ -12,8 +12,8 @@
 #   1. Node B running as genesis-mesh-node.service (port 7443) — existing
 #   2. Node D enrolled and running as genesis-mesh-node-d.service (port 7444)
 #      Setup commands:
-#        INVITE=$(genesis-mesh admin invite --role anchor --na https://na.genesismesh.connectorzzz.com --config /mnt/c/Source/genesismesh/genesis-mesh.toml)
-#        genesis-mesh join --na https://na.genesismesh.connectorzzz.com --token "$INVITE" --config ~/.genesis-mesh-node-d/config.toml
+#        INVITE=$(genesis-mesh admin invite --role anchor --na https://na.genesismesh.org --config /mnt/c/Source/genesismesh/genesis-mesh.toml)
+#        genesis-mesh join --na https://na.genesismesh.org --token "$INVITE" --config ~/.genesis-mesh-node-d/config.toml
 #        sudo tee /etc/systemd/system/genesis-mesh-node-d.service <<EOF
 #        [Unit]
 #        Description=Genesis Mesh Demo Node D
@@ -21,7 +21,7 @@
 #        [Service]
 #        User=azureuser
 #        WorkingDirectory=/opt/genesis-mesh
-#        ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --na https://na.genesismesh.connectorzzz.com --config /home/azureuser/.genesis-mesh-node-d/config.toml --persistent --listen-port 7444
+#        ExecStart=/opt/genesis-mesh/.venv/bin/genesis-mesh join --na https://na.genesismesh.org --config /home/azureuser/.genesis-mesh-node-d/config.toml --persistent --listen-port 7444
 #        Restart=on-failure
 #        RestartSec=10
 #        [Install]
@@ -36,7 +36,7 @@
 
 set -e
 
-NA="https://na.genesismesh.connectorzzz.com"
+NA="https://na.genesismesh.org"
 B_PEER="ws://4.223.130.190:7443"
 D_PEER="ws://4.223.130.190:7444"
 OPERATOR_CONFIG="/mnt/c/Source/genesismesh/genesis-mesh.toml"

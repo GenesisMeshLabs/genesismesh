@@ -9,7 +9,7 @@ Authority on DigitalOcean as Sovereign B:
 
 | Sovereign | Provider | Network name | Endpoint |
 |---|---|---|---|
-| Sovereign A | Azure | `USG` | `https://na.genesismesh.connectorzzz.com` |
+| Sovereign A | Azure | `USG` | `https://na.genesismesh.org` |
 | Sovereign B | DigitalOcean | `USG-NB` | `http://164.92.250.135:8443` |
 
 ```{mermaid}
@@ -117,7 +117,7 @@ flow and writes a redacted proof bundle:
 
 ```powershell
 genesis-mesh proof remote `
-  --acceptor https://na.genesismesh.connectorzzz.com `
+  --acceptor https://na.genesismesh.org `
   --issuer http://164.92.250.135:8443 `
   --operator-key .genesis-mesh\keys\operator.key `
   --operator-key-id operator-local `

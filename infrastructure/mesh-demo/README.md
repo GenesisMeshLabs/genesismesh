@@ -42,7 +42,7 @@ docker run --rm --network genesis-mesh-mesh_default -v "$PWD/work:/work" \
   --allow-http --policy-fragment /work/na.json
 docker run --rm -v "$PWD/work:/work" \
   --entrypoint /usr/local/bin/genesis-mesh-operator genesis-mesh-gateway:$GATEWAY_VERSION \
-  --origin https://na.genesismesh.connectorzzz.com --network gm-demo-public-na \
+  --origin https://na.genesismesh.org --network gm-demo-public-na \
   --authority-key "$REFERENCE_PUBLIC_KEY" --policy-fragment /work/reference.json
 ```
 

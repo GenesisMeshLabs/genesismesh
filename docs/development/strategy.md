@@ -241,7 +241,7 @@ AI Research automatically changes trust state.
 
 The first version of this proof can be run honestly with both sovereigns
 operated by the maintainer: today the public reference `gm-demo-public-na`
-(`na.genesismesh.connectorzzz.com`) and `genesis-mesh` behind
+(`na.genesismesh.org`) and `genesis-mesh` behind
 mesh.genesismesh.org recognize each other by treaty. That proves the protocol
 mechanism. A later
 external operator can stand up the second sovereign with no protocol change.

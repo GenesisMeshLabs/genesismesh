@@ -182,44 +182,59 @@ proxy_cache_path /var/cache/nginx/gm-public levels=1:2 keys_zone=gm_public_cache
 log_format gm_public_minimal '$time_iso8601 $request_method $status $body_bytes_sent';
 EOF
 install -d -o www-data -g www-data /var/cache/nginx/gm-public
+# na.genesismesh.org is canonical; the legacy name is served the same content
+# until its clients have moved, then it can be dropped.
+if [ ! -s /etc/letsencrypt/live/na.genesismesh.org/fullchain.pem ]; then
+    certbot certonly --nginx -d na.genesismesh.org --non-interactive --agree-tos --keep-until-expiring
+fi
+cat >/etc/nginx/snippets/genesis-mesh-na-common.conf <<'EOF'
+include /etc/letsencrypt/options-ssl-nginx.conf;
+ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+server_tokens off;
+access_log /var/log/nginx/gm-public-access.log gm_public_minimal;
+error_log /var/log/nginx/gm-public-error.log warn;
+add_header Strict-Transport-Security 'max-age=31536000' always;
+add_header X-Content-Type-Options nosniff always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" always;
+location / {
+    limit_except GET { deny all; }
+    limit_req zone=gm_public burst=30 nodelay;
+    limit_req_status 429;
+    proxy_pass http://127.0.0.1:28443;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache gm_public_cache;
+    proxy_cache_valid 200 15s;
+    proxy_cache_key "$scheme$host$request_uri";
+}
+EOF
 cat >/etc/nginx/sites-available/genesis-mesh-na <<'EOF'
+server {
+    listen 443 ssl;
+    server_name na.genesismesh.org;
+    ssl_certificate /etc/letsencrypt/live/na.genesismesh.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/na.genesismesh.org/privkey.pem;
+    include /etc/nginx/snippets/genesis-mesh-na-common.conf;
+}
 server {
     listen 443 ssl;
     server_name na.genesismesh.connectorzzz.com;
     ssl_certificate /etc/letsencrypt/live/na.genesismesh.connectorzzz.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/na.genesismesh.connectorzzz.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    server_tokens off;
-    access_log /var/log/nginx/gm-public-access.log gm_public_minimal;
-    error_log /var/log/nginx/gm-public-error.log warn;
-    add_header Strict-Transport-Security 'max-age=31536000' always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" always;
-    location / {
-        limit_except GET { deny all; }
-        limit_req zone=gm_public burst=30 nodelay;
-        limit_req_status 429;
-        proxy_pass http://127.0.0.1:28443;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache gm_public_cache;
-        proxy_cache_valid 200 15s;
-        proxy_cache_key "$scheme$host$request_uri";
-    }
+    include /etc/nginx/snippets/genesis-mesh-na-common.conf;
 }
 server {
     listen 80;
-    server_name na.genesismesh.connectorzzz.com;
+    server_name na.genesismesh.org na.genesismesh.connectorzzz.com;
     server_tokens off;
     access_log /var/log/nginx/gm-public-access.log gm_public_minimal;
-    return 301 https://na.genesismesh.connectorzzz.com$request_uri;
+    return 301 https://$host$request_uri;
 }
 EOF
 # Use a distinct log directory to avoid overlap with Ubuntu's nginx wildcard.
 install -d -o www-data -g adm -m 0750 /var/log/genesis-mesh-public
-sed -i 's@/var/log/nginx/gm-public-@/var/log/genesis-mesh-public/@g' /etc/nginx/sites-available/genesis-mesh-na
+sed -i 's@/var/log/nginx/gm-public-@/var/log/genesis-mesh-public/@g' /etc/nginx/sites-available/genesis-mesh-na /etc/nginx/snippets/genesis-mesh-na-common.conf
 cat >/etc/logrotate.d/genesis-mesh-public <<'EOF'
 /var/log/genesis-mesh-public/*.log {
     daily

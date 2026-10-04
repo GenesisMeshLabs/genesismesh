@@ -69,6 +69,6 @@ python docs\examples\assets\scripts\sovereign-health-dashboard-demo.py
 Open the live dashboard:
 
 ```powershell
-curl -fsS https://na.genesismesh.connectorzzz.com/dashboard
-curl -fsS https://na.genesismesh.connectorzzz.com/dashboard.json
+curl -fsS https://na.genesismesh.org/dashboard
+curl -fsS https://na.genesismesh.org/dashboard.json
 ```

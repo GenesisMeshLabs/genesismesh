@@ -5,7 +5,7 @@ End-to-end commands to bring up the live Network Authority on a fresh Ubuntu
 itself; everything below runs on the VM after it boots.
 
 This runbook reflects the actual commands that built the live deployment at
-[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com).
+[https://na.genesismesh.org](https://na.genesismesh.org).
 
 ## Provider-neutral bootstrap script
 
@@ -84,7 +84,7 @@ first, then run:
 sudo GENESIS_ROLE=router \
   GENESIS_REF=main \
   GENESIS_USER=ubuntu \
-  NA_ENDPOINT=https://na.genesismesh.connectorzzz.com \
+  NA_ENDPOINT=https://na.genesismesh.org \
   ROUTER_B_CONFIG=/home/ubuntu/.genesis-mesh-demo-node/config.toml \
   ROUTER_B_PORT=7443 \
   bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
@@ -93,13 +93,13 @@ sudo GENESIS_ROLE=router \
 For a combined NA plus router demo host, set `GENESIS_ROLE=all`.
 
 The rest of this page documents the manual live Azure setup for the current
-`na.genesismesh.connectorzzz.com` deployment.
+`na.genesismesh.org` deployment.
 
 ## Prerequisites
 
 - Ubuntu 22.04 VM provisioned (Terraform: `infrastructure/azure/`)
 - Public IP reachable on ports 22, 80, 443, 7443, 7444
-- DNS `na.genesismesh.connectorzzz.com` → VM public IP (Cloudflare or equivalent)
+- DNS `na.genesismesh.org` → VM public IP (Cloudflare or equivalent)
 - Locally generated artifacts to upload:
   - `genesis.signed.json` (from `genesis-mesh init`)
   - `na.key` (NA private key, from `genesis-mesh init`)
@@ -201,7 +201,7 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 sudo tee /etc/nginx/sites-available/genesis-mesh-na > /dev/null <<'EOF'
 server {
     listen 80;
-    server_name na.genesismesh.connectorzzz.com;
+    server_name na.genesismesh.org;
 
     location / {
         proxy_pass http://127.0.0.1:8443;
@@ -220,7 +220,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 # Provision Let's Encrypt cert (after DNS has propagated)
 sudo certbot --nginx \
-  -d na.genesismesh.connectorzzz.com \
+  -d na.genesismesh.org \
   --non-interactive --agree-tos \
   -m contact@genesismesh.org
 ```
@@ -228,7 +228,7 @@ sudo certbot --nginx \
 Verify externally:
 
 ```bash
-curl https://na.genesismesh.connectorzzz.com/healthz
+curl https://na.genesismesh.org/healthz
 ```
 
 ## 7. Router nodes (B on 7443, D on 7444)
@@ -238,9 +238,9 @@ Both routers run as separate systemd units against the same NA.
 ```bash
 # Get an invite token from your local machine first
 INVITE_B=$(genesis-mesh admin invite --role anchor \
-  --na https://na.genesismesh.connectorzzz.com)
+  --na https://na.genesismesh.org)
 INVITE_D=$(genesis-mesh admin invite --role anchor \
-  --na https://na.genesismesh.connectorzzz.com)
+  --na https://na.genesismesh.org)
 ```
 
 On the VM, enrol each router once so each has its own config + cert:
@@ -250,13 +250,13 @@ source /opt/genesis-mesh/.venv/bin/activate
 
 # Node B
 genesis-mesh join \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --token "$INVITE_B" \
   --config ~/.genesis-mesh-demo-node/config.toml
 
 # Node D
 genesis-mesh join \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --token "$INVITE_D" \
   --config ~/.genesis-mesh-node-d/config.toml
 ```
@@ -294,7 +294,7 @@ Cron entry that probes `/readyz` and pings Healthchecks.io on success:
 sudo tee /etc/cron.d/genesis-mesh-readyz > /dev/null <<'EOF'
 # Probe NA /readyz every 5 minutes; ping Healthchecks.io only on success.
 # If /readyz fails or times out, the second curl never fires and HC alerts.
-*/5 * * * * azureuser /usr/bin/curl -fsS --max-time 10 https://na.genesismesh.connectorzzz.com/readyz > /dev/null && /usr/bin/curl -fsS --retry 3 --max-time 10 https://hc-ping.com/<YOUR_HC_UUID> > /dev/null
+*/5 * * * * azureuser /usr/bin/curl -fsS --max-time 10 https://na.genesismesh.org/readyz > /dev/null && /usr/bin/curl -fsS --retry 3 --max-time 10 https://hc-ping.com/<YOUR_HC_UUID> > /dev/null
 EOF
 ```
 
@@ -312,9 +312,9 @@ sleep 6
 sudo systemctl status genesis-mesh-na | head -5    # → active (running)
 
 # Public endpoint
-curl -fsS https://na.genesismesh.connectorzzz.com/healthz
-curl -fsS https://na.genesismesh.connectorzzz.com/readyz
-curl -fsS https://na.genesismesh.connectorzzz.com/nodes | python3 -m json.tool
+curl -fsS https://na.genesismesh.org/healthz
+curl -fsS https://na.genesismesh.org/readyz
+curl -fsS https://na.genesismesh.org/nodes | python3 -m json.tool
 ```
 
 ## Where things live
@@ -332,4 +332,4 @@ curl -fsS https://na.genesismesh.connectorzzz.com/nodes | python3 -m json.tool
 | `/etc/systemd/system/genesis-mesh-node*.service` | Router service units |
 | `/etc/cron.d/genesis-mesh-readyz` | Healthchecks probe cron |
 | `/etc/nginx/sites-available/genesis-mesh-na` | Reverse proxy config |
-| `/etc/letsencrypt/live/na.genesismesh.connectorzzz.com/` | TLS certificate |
+| `/etc/letsencrypt/live/na.genesismesh.org/` | TLS certificate |

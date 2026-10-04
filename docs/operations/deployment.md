@@ -25,7 +25,7 @@ flowchart TB
 
 A public Network Authority runs on Azure (Sweden Central):
 
-**[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)**
+**[https://na.genesismesh.org](https://na.genesismesh.org)**
 
 ### Architecture
 
@@ -34,7 +34,7 @@ A public Network Authority runs on Azure (Sweden Central):
 - Gunicorn (4 workers, sync worker class)
 - Genesis Mesh Network Authority (systemd-managed `genesis-mesh-na.service`)
 - SQLite persistence on a durable disk
-- Public endpoint: [https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
+- Public endpoint: [https://na.genesismesh.org](https://na.genesismesh.org)
 
 Two enrolled nodes from separate IP addresses with active heartbeats.
 
@@ -123,7 +123,7 @@ terraform apply
 ```
 
 This module provisioned the live VM behind
-`https://na.genesismesh.connectorzzz.com`. Terraform runs locally with an
+`https://na.genesismesh.org`. Terraform runs locally with an
 operator's Azure credentials; there is no CI workflow for infrastructure
 changes.
 

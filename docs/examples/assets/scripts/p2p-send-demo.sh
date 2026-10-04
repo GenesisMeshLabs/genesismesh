@@ -27,7 +27,7 @@ fi
 clear
 
 echo "==> Enrolled nodes on the network"
-curl -s "https://na.genesismesh.connectorzzz.com/nodes" | python3 -m json.tool
+curl -s "https://na.genesismesh.org/nodes" | python3 -m json.tool
 sleep 2
 
 echo ""

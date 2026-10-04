@@ -40,7 +40,7 @@ def recorded_transcript() -> list[str]:
         "    Azure network_name: USG",
         "    NB network_name:    USG-NB",
         "    NB host:            DigitalOcean 164.92.250.135",
-        "    Azure host:         na.genesismesh.connectorzzz.com",
+        "    Azure host:         na.genesismesh.org",
         "",
         "==> NB issued membership attestation",
         "    attestation: 3ee9bc08-9685-461b-8b00-ed4ff05a8c16",
@@ -417,7 +417,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--azure",
-        default="https://na.genesismesh.connectorzzz.com",
+        default="https://na.genesismesh.org",
         help="Azure Sovereign A Network Authority endpoint",
     )
     parser.add_argument(

@@ -45,7 +45,7 @@ This example uses your own NA.
 ## What you need before running
 
 1. A live Network Authority. The public one at
-   `https://na.genesismesh.connectorzzz.com` works if you have operator
+   `https://na.genesismesh.org` works if you have operator
    credentials or pre-issued invite tokens. Otherwise, spin up a local one
    with `genesis-mesh init && genesis-mesh na start`.
 2. An invite token for each agent — get one with:
@@ -65,7 +65,7 @@ then listens):
 KB_INVITE=$(genesis-mesh admin invite --role anchor)
 
 python examples/agent-network/knowledge_base.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/kb/config.toml \
   --listen-port 7445 \
   --agent-id kb-1 \
@@ -85,7 +85,7 @@ In **terminal 2**, run the researcher with a single question:
 RES_INVITE=$(genesis-mesh admin invite --role client)
 
 python examples/agent-network/researcher.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/researcher/config.toml \
   --to-agent kb-1 \
   --destination-key "<paste public key from above>" \
@@ -95,12 +95,12 @@ python examples/agent-network/researcher.py \
 ```
 
 Output (captured from a real run against
-[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)):
+[https://na.genesismesh.org](https://na.genesismesh.org)):
 
 ```
 Genesis block signatures verified successfully
 Node initialized for network: USG
-Requesting join certificate from https://na.genesismesh.connectorzzz.com
+Requesting join certificate from https://na.genesismesh.org
 Received valid join certificate: 8614db72-7864-4eac-88e7-e28634446c92
 Valid until: 2026-06-01 22:58:57.360919+00:00
 Opening Noise XX session to ws://localhost:7446
@@ -178,7 +178,7 @@ SEC_INVITE=$(genesis-mesh admin invite --role anchor)
 TX_INVITE=$(genesis-mesh admin invite --role anchor)
 
 python examples/agent-network/knowledge_base.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/kb-security/config.toml \
   --listen-port 7447 \
   --agent-id kb-security \
@@ -186,7 +186,7 @@ python examples/agent-network/knowledge_base.py \
   --invite-token "$SEC_INVITE"
 
 python examples/agent-network/knowledge_base.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/kb-transport/config.toml \
   --listen-port 7448 \
   --agent-id kb-transport \
@@ -207,7 +207,7 @@ Start the router and point keyword rules at those knowledge agents:
 ROUTER_INVITE=$(genesis-mesh admin invite --role anchor)
 
 python examples/agent-network/router_agent.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/router/config.toml \
   --listen-port 7446 \
   --agent-id router-1 \
@@ -230,7 +230,7 @@ ROUTER_KEY=$(cat ~/.gm-agents/router/node.cert.json | python3 -c "import json,sy
 RES_INVITE=$(genesis-mesh admin invite --role client)
 
 python examples/agent-network/researcher.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/researcher/config.toml \
   --to-agent router-1 \
   --destination-key "$ROUTER_KEY" \
@@ -338,7 +338,7 @@ Then run the agent like any other responder:
 LLM_INVITE=$(genesis-mesh admin invite --role anchor)
 
 python examples/agent-network/llm_agent.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/llm/config.toml \
   --listen-port 7448 \
   --agent-id llm-1 \
@@ -351,7 +351,7 @@ Ask it a question through the existing researcher:
 LLM_KEY=$(cat ~/.gm-agents/llm/node.cert.json | python3 -c "import json,sys; print(json.load(sys.stdin)['node_public_key'])")
 
 python examples/agent-network/researcher.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/researcher/config.toml \
   --to-agent llm-1 \
   --destination-key "$LLM_KEY" \
@@ -360,7 +360,7 @@ python examples/agent-network/researcher.py \
 ```
 
 Output, captured from a live run against
-[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com)
+[https://na.genesismesh.org](https://na.genesismesh.org)
 with Azure OpenAI (`gpt-4o-mini` deployment):
 
 ```text
@@ -431,7 +431,7 @@ when running on a real server.
 
 ```bash
 python examples/agent-network/llm_agent.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/llm/config.toml \
   --listen-port 7448 \
   --agent-id llm-1 \
@@ -443,7 +443,7 @@ python examples/agent-network/llm_agent.py \
 ### Discovering from the CLI
 
 ```bash
-genesis-mesh discover --capability "llm:chat" --na https://na.genesismesh.connectorzzz.com
+genesis-mesh discover --capability "llm:chat" --na https://na.genesismesh.org
 ```
 
 Output:
@@ -466,7 +466,7 @@ every live registration.
 
 ```bash
 python examples/agent-network/researcher.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/researcher/config.toml \
   --capability "llm:chat" \
   --invite-token "$RES_INVITE" \

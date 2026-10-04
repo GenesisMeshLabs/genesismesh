@@ -60,14 +60,14 @@ The equivalent operator workflow is:
 
 ```powershell
 genesis-mesh treaty list `
-  --na https://na.genesismesh.connectorzzz.com
+  --na https://na.genesismesh.org
 
 genesis-mesh treaty inspect `
-  --na https://na.genesismesh.connectorzzz.com `
+  --na https://na.genesismesh.org `
   <treaty-id>
 
 genesis-mesh treaty replace `
-  --na https://na.genesismesh.connectorzzz.com `
+  --na https://na.genesismesh.org `
   <treaty-id> `
   --operator-key .genesis-mesh\keys\operator.key `
   --operator-key-id operator-local `

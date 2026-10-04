@@ -147,7 +147,7 @@ VPS from DigitalOcean, Hetzner, Vultr, a local hypervisor, or any other provider
 ```bash
 sudo GENESIS_ROLE=na \
   GENESIS_REF=main \
-  GENESIS_DOMAIN=nb.genesismesh.connectorzzz.com \
+  GENESIS_DOMAIN=mesh.genesismesh.org \
   ENABLE_NGINX=true \
   LETSENCRYPT_EMAIL=ops@example.com \
   bash infrastructure/scripts/bootstrap-ubuntu-vm.sh

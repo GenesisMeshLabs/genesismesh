@@ -20,8 +20,8 @@ curl -fsS http://127.0.0.1:8443/dashboard.json
 For the live Azure sovereign:
 
 ```powershell
-curl -fsS https://na.genesismesh.connectorzzz.com/dashboard
-curl -fsS https://na.genesismesh.connectorzzz.com/dashboard.json
+curl -fsS https://na.genesismesh.org/dashboard
+curl -fsS https://na.genesismesh.org/dashboard.json
 ```
 
 Use the HTML page for operator review and screenshots. Use
@@ -49,7 +49,7 @@ Use federation bootstrap to create the first direct-recognition treaty:
 
 ```powershell
 genesis-mesh federation bootstrap `
-  --acceptor https://na.genesismesh.connectorzzz.com `
+  --acceptor https://na.genesismesh.org `
   --issuer-bundle .\issuer-trust-bundle.json `
   --operator-key .genesis-mesh\keys\operator.key `
   --operator-key-id operator-local `

@@ -4,7 +4,7 @@ Part A demonstrates the core Genesis Mesh architecture running end to end:
 identity, trust, transport, routing, and resilience.
 
 Each demo is self-contained and can run against the live deployment at
-<https://na.genesismesh.connectorzzz.com> or a local NA started via Part C.
+<https://na.genesismesh.org> or a local NA started via Part C.
 
 ---
 
@@ -46,13 +46,13 @@ sequenceDiagram
 ```bash
 INVITE=$(genesis-mesh admin invite \
   --role anchor \
-  --na https://na.genesismesh.connectorzzz.com)
+  --na https://na.genesismesh.org)
 
 genesis-mesh join \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --token "$INVITE"
 
-curl -s https://na.genesismesh.connectorzzz.com/nodes | python3 -m json.tool
+curl -s https://na.genesismesh.org/nodes | python3 -m json.tool
 ```
 
 ### Expected proof
@@ -618,10 +618,10 @@ export LLM_BASE_URL=https://<resource>.services.ai.azure.com/openai/v1
 
 ```bash
 LLM_INVITE=$(genesis-mesh admin invite --role anchor \
-  --na https://na.genesismesh.connectorzzz.com)
+  --na https://na.genesismesh.org)
 
 python examples/agent-network/llm_agent.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/llm/config.toml \
   --listen-port 7448 \
   --agent-id llm-1 \
@@ -638,7 +638,7 @@ the registration on a timer.
 
 ```bash
 genesis-mesh discover --capability llm:chat \
-  --na https://na.genesismesh.connectorzzz.com
+  --na https://na.genesismesh.org
 ```
 
 Captured output from the v0.7 live-deployment gate run:
@@ -658,10 +658,10 @@ Captured output from the v0.7 live-deployment gate run:
 
 ```bash
 RES_INVITE=$(genesis-mesh admin invite --role client \
-  --na https://na.genesismesh.connectorzzz.com)
+  --na https://na.genesismesh.org)
 
 python examples/agent-network/researcher.py \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   --config ~/.gm-agents/researcher/config.toml \
   --capability llm:chat \
   --invite-token "$RES_INVITE" \

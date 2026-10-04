@@ -1,7 +1,7 @@
 name: Deploy Release to Azure VM
 
 # The only Azure deployment workflow. It deploys the sanitized public reference
-# instance (examples/public_dashboard) behind na.genesismesh.connectorzzz.com by
+# instance (examples/public_dashboard) behind na.genesismesh.org by
 # running infrastructure/scripts/deploy-public-dashboard.sh on the VM at an
 # exact, reviewed commit. That script also keeps the retired legacy Network
 # Authority stack (genesis-mesh-na, routers, canaries, trust-cycle timer)
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: azure-production
-      url: https://na.genesismesh.connectorzzz.com/
+      url: https://na.genesismesh.org/
 
     permissions:
       contents: read
@@ -38,7 +38,7 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_VM_NAME: ${{ vars.AZURE_VM_NAME }}
       INPUT_REF: ${{ github.event.inputs.ref }}
-      PUBLIC_URL: https://na.genesismesh.connectorzzz.com
+      PUBLIC_URL: https://na.genesismesh.org
 
     steps:
       - name: Check out repository

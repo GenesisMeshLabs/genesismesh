@@ -95,7 +95,7 @@ From a machine with operator credentials for both Network Authorities:
 
 ```bash
 genesis-mesh proof remote \
-  --acceptor https://na.genesismesh.connectorzzz.com \
+  --acceptor https://na.genesismesh.org \
   --issuer http://164.92.250.135:8443 \
   --acceptor-config ./sovereign-a.toml \
   --issuer-config ./sovereign-b.toml \
@@ -107,7 +107,7 @@ For a first run where both authorities trust the same operator key:
 
 ```bash
 genesis-mesh proof remote \
-  --acceptor https://na.genesismesh.connectorzzz.com \
+  --acceptor https://na.genesismesh.org \
   --issuer http://164.92.250.135:8443 \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \

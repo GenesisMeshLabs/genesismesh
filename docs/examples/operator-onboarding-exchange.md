@@ -9,7 +9,7 @@ The example uses the live Azure and DigitalOcean Network Authorities:
 
 | Role | Sovereign | Endpoint |
 |---|---|---|
-| Acceptor | `USG` | `https://na.genesismesh.connectorzzz.com` |
+| Acceptor | `USG` | `https://na.genesismesh.org` |
 | Issuer | `USG-NB` | `http://164.92.250.135:8443` |
 
 ```{mermaid}
@@ -109,7 +109,7 @@ genesis-mesh trust-bundle import `
   --output $RECEIPT
 
 genesis-mesh federation bootstrap `
-  --acceptor https://na.genesismesh.connectorzzz.com `
+  --acceptor https://na.genesismesh.org `
   --issuer-bundle $BUNDLE `
   --dry-run
 ```

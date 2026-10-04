@@ -11,7 +11,7 @@
 
 set -e
 
-NA="https://na.genesismesh.connectorzzz.com"
+NA="https://na.genesismesh.org"
 B_PEER="ws://4.223.130.190:7443"
 OPERATOR_CONFIG="/mnt/c/Source/genesismesh/genesis-mesh.toml"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa_azure}"

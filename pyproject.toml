@@ -81,7 +81,7 @@ Documentation = "https://docs.genesismesh.org"
 Repository = "https://github.com/GenesisMeshLabs/genesismesh"
 Issues = "https://github.com/GenesisMeshLabs/genesismesh/issues"
 Releases = "https://github.com/GenesisMeshLabs/genesismesh/releases"
-"Live Deployment" = "https://na.genesismesh.connectorzzz.com"
+"Live Deployment" = "https://na.genesismesh.org"
 
 [project.scripts]
 genesis-mesh = "genesis_mesh.cli.main:main"

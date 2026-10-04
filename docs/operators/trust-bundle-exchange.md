@@ -74,7 +74,7 @@ A valid issuer bundle can seed the federation bootstrap review:
 
 ```bash
 genesis-mesh federation bootstrap \
-  --acceptor https://na.genesismesh.connectorzzz.com \
+  --acceptor https://na.genesismesh.org \
   --issuer-bundle ./usg-nb-trust-bundle.json \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
