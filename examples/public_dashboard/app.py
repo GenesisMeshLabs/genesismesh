@@ -136,7 +136,7 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
     def treaties(record_id=None):
         records = g.snapshot.treaties
         if record_id:
-            match = next((r for r in records if r.treaty.treaty_id == record_id), None)
+            match = next((r for r in [*records, *g.snapshot.external_treaties] if r.treaty.treaty_id == record_id), None)
             if match is None:
                 abort(404)
             return jsonify(match.model_dump(mode="json"))
@@ -146,7 +146,15 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
         except (ValueError, TypeError):
             abort(400)
         ids = {r["treaty_id"] for r in model["treaties"]}
-        return jsonify({"treaties": [r.model_dump(mode="json") for r in records if r.treaty.treaty_id in ids], "pagination": model["pagination"]})
+        return jsonify({"treaties": [r.model_dump(mode="json") for r in records if r.treaty.treaty_id in ids],
+                        "external_treaties": [r.model_dump(mode="json") for r in g.snapshot.external_treaties],
+                        "pagination": model["pagination"]})
+
+    @app.get("/crl")
+    def crl():
+        if g.snapshot.crl is None:
+            abort(404)
+        return jsonify(g.snapshot.crl.model_dump(mode="json"))
 
     @app.get("/sovereign-revocation-feed")
     @app.get("/feeds/<issuer>")

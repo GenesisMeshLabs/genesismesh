@@ -22,6 +22,21 @@ references, so it sits beside them instead of on the landing page. Each page car
 link only to routes this instance actually serves — documented signed POST,
 admin and unregistered GET surfaces render as plain paths instead of dead links.
 
+## CRL and external treaties (v0.65)
+
+The maintenance job signs an empty CRL (issuer `demo-na`) and republishes it
+when less than 12 hours of its 24-hour validity remain, at `GET /crl`, so a
+gateway can pin and refresh the reference like any authority.
+
+`infrastructure/public-reference/external-treaties.json`, installed by the
+deploy script, lists sovereigns outside the demo set that the reference
+recognizes (scope `role:client`). Maintenance signs one treaty per entry,
+renews it seven days before expiry and drops treaties for removed entries.
+External treaties are listed under `external_treaties` in
+`/recognition-treaties` and drawn in the recognition graph, and they never
+change the demo set's posture, feed requirements or canary. The first entry
+recognizes `genesis-mesh`, the live NA behind mesh.genesismesh.org.
+
 ## Status and privacy
 
 Service readiness is separate from trust posture. Only expected active,
