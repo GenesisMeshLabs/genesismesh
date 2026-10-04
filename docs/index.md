@@ -1,5 +1,36 @@
 # Genesis Mesh
 
+::::{grid} 1 1 3 3
+:gutter: 2
+
+:::{grid-item-card} Try it, no install
+:link: https://mesh.genesismesh.org
+
+A live Network Authority, a gateway and the public reference, with demo access
+and a guided tour across two sovereigns.
+:::
+
+:::{grid-item-card} Operate a sovereign
+:link: quickstart
+:link-type: doc
+
+`pip install genesis-mesh`, then `init`, `na start` and `status`. Your keys,
+your policy, your treaties.
+:::
+
+:::{grid-item-card} Build on the mesh
+:link: sdk/index
+:link-type: doc
+
+Python, TypeScript, Go, .NET and Rust SDKs: attestations, boundary policies,
+governed actions and offline evidence verification.
+:::
+::::
+
+Also: [genesismesh.org](https://genesismesh.org) (the thesis and public proofs) ·
+[www.genesismesh.org](https://www.genesismesh.org) (overview, concept map,
+videos, articles).
+
 Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
 agents, edge systems, and distributed infrastructure.
 
