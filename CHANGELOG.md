@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`genesis-mesh dev up` failed from a PyPI install.** The command ran
+  `examples/test_workflow.py`, which only exists in a source checkout, so an
+  installed CLI stopped with "Smoke workflow not found". The smoke workflow now
+  ships as `genesis_mesh.cli.smoke`, binds the NA to a free local port instead
+  of 8444, and always stops it; `examples/test_workflow.py` runs the same
+  workflow from a checkout.
+
 ## v0.65.0 - Mesh Demo Experience
 
 ### Added
