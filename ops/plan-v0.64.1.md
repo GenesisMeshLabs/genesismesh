@@ -31,5 +31,5 @@ would hit this on its first quiet day.
 - [x] Version bumped to `0.64.1` across the release train
 - [x] CHANGELOG entry
 - [x] `docs/development/history.md` updated
-- [ ] All tests pass (core SQLite and PostgreSQL, SDK suites, gateway, interop)
-- [ ] Tag `v0.64.1`, push, GitHub release created
+- [x] All tests pass (core SQLite and PostgreSQL, SDK suites, gateway, interop)
+- [x] Tag `v0.64.1`, push, GitHub release created
