@@ -23,12 +23,14 @@ please give the project a reasonable window first.
 
 ## Supported Versions
 
-Only the latest minor release receives security fixes.
+Only the latest minor release of the 1.x line receives security fixes.
+Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following
+`DEPRECATION_POLICY.md` (persisted database state).
 
 | Version | Status |
 |---|---|
-| `0.63.x` | Supported |
-| `< 0.63` | Unsupported |
+| `1.0.x` | Supported |
+| `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
 
