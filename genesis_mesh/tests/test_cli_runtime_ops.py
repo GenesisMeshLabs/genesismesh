@@ -34,6 +34,16 @@ def test_status_reports_missing_config_without_traceback(tmp_path):
     assert "No Genesis Mesh config found" in result.output
     assert "Traceback" not in result.output
 
+def test_dev_up_runs_without_a_source_checkout(tmp_path):
+    """The dev-up smoke workflow ships with the package, so it runs from any directory."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(cli, ["dev", "up"])
+
+    assert result.exit_code == 0, result.output
+    assert "All smoke-test components completed." in result.output
+
+
 def test_dev_down_removes_runtime_artifacts(tmp_path):
     """The dev-down command removes generated local runtime artifacts."""
     runner = CliRunner()
