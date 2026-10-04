@@ -3,7 +3,7 @@
 Run:
 
     python researcher.py \\
-        --na https://na.genesismesh.connectorzzz.com \\
+        --na https://na.genesismesh.org \\
         --config ~/.genesis-mesh-researcher/config.toml \\
         --to-agent kb-1 \\
         --destination-key <DESTINATION_NODE_PUBLIC_KEY> \\

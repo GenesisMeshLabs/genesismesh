@@ -22,7 +22,7 @@ as the Connectome render those same dates compactly as UTC timestamps.
 
 ```bash
 genesis-mesh treaty list \
-  --na https://na.genesismesh.connectorzzz.com
+  --na https://na.genesismesh.org
 ```
 
 The list output shows the treaty ID, issuer and subject sovereigns, persisted
@@ -33,7 +33,7 @@ context when present.
 
 ```bash
 genesis-mesh treaty inspect \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id>
 ```
 
@@ -47,7 +47,7 @@ then revokes the old treaty with a `renewed_by:<new-id>` reason.
 
 ```bash
 genesis-mesh treaty renew \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
@@ -65,7 +65,7 @@ treaty with a `replaced_by:<new-id>` reason.
 
 ```bash
 genesis-mesh treaty replace \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
@@ -81,7 +81,7 @@ or local claims need to change.
 
 ```bash
 genesis-mesh treaty revoke \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \

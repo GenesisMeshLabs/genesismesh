@@ -60,11 +60,11 @@ def test_sovereign_identity_creation():
         network_name="USG",
         root_public_key="root-key",
         network_authority_public_key="na-key",
-        endpoints=["https://na.genesismesh.connectorzzz.com"],
+        endpoints=["https://na.genesismesh.org"],
     )
 
     assert identity.sovereign_id == "genesis-core"
-    assert identity.endpoints == ["https://na.genesismesh.connectorzzz.com"]
+    assert identity.endpoints == ["https://na.genesismesh.org"]
 
 
 def test_valid_membership_attestation_is_accepted():

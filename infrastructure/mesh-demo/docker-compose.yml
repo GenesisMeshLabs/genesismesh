@@ -45,7 +45,7 @@ services:
     environment:
       NA_URL: http://na:8000
       NA_PUBLIC_KEY: ${NA_PUBLIC_KEY:?set NA_PUBLIC_KEY}
-      REFERENCE_URL: https://na.genesismesh.connectorzzz.com
+      REFERENCE_URL: https://na.genesismesh.org
       REFERENCE_PUBLIC_KEY: ${REFERENCE_PUBLIC_KEY:?set REFERENCE_PUBLIC_KEY}
       DEMO_OPERATOR_SEED: ${DEMO_OPERATOR_SEED:?set DEMO_OPERATOR_SEED}
       DEMO_EXECUTOR_SEED: ${DEMO_EXECUTOR_SEED:?set DEMO_EXECUTOR_SEED}

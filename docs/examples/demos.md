@@ -10,7 +10,7 @@ Genesis Mesh includes 25 runnable demonstrations organized into three parts:
   ships in all expected deployment shapes.
 
 Most Part A demos can run against the live deployment at
-<https://na.genesismesh.connectorzzz.com> or against a local NA started via
+<https://na.genesismesh.org> or against a local NA started via
 Part C.
 
 ## Demo Map

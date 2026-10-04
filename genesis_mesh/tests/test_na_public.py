@@ -402,14 +402,14 @@ def test_sovereign_metadata_honors_proxy_headers(client):
         base_url="http://127.0.0.1:8443",
         headers={
             "X-Forwarded-Proto": "https",
-            "X-Forwarded-Host": "na.genesismesh.connectorzzz.com",
+            "X-Forwarded-Host": "na.genesismesh.org",
         },
     )
 
     assert resp.status_code == 200
     payload = resp.get_json()
-    assert payload["endpoint"] == "https://na.genesismesh.connectorzzz.com"
+    assert payload["endpoint"] == "https://na.genesismesh.org"
     assert (
         payload["supported_surfaces"]["sovereign_revocation_feed"]
-        == "https://na.genesismesh.connectorzzz.com/sovereign-revocation-feed"
+        == "https://na.genesismesh.org/sovereign-revocation-feed"
     )

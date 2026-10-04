@@ -5,7 +5,7 @@ The repository ships a self-contained Terraform module at
 that provisions a complete Network Authority environment on Azure.
 
 This is the same module used by the public deployment at
-[https://na.genesismesh.connectorzzz.com](https://na.genesismesh.connectorzzz.com).
+[https://na.genesismesh.org](https://na.genesismesh.org).
 
 ## Architecture
 

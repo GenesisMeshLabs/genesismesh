@@ -3,7 +3,7 @@
 Run:
 
     python knowledge_base.py \\
-        --na https://na.genesismesh.connectorzzz.com \\
+        --na https://na.genesismesh.org \\
         --config ~/.genesis-mesh-kb/config.toml \\
         --listen-port 7445 \\
         --agent-id kb-1 \\

@@ -219,9 +219,9 @@ compromise was noticed. The real reason is recorded in the audit log as
 Fetches operator-safe public metadata from a Network Authority.
 
 ```bash
-genesis-mesh sovereign inspect --na https://na.genesismesh.connectorzzz.com
+genesis-mesh sovereign inspect --na https://na.genesismesh.org
 genesis-mesh sovereign inspect --na http://164.92.250.135:8443 --format json
-genesis-mesh sovereign inspect --endpoint https://na.genesismesh.connectorzzz.com
+genesis-mesh sovereign inspect --endpoint https://na.genesismesh.org
 ```
 
 The command reads `/sovereign.json`, not private files. It prints the network
@@ -403,7 +403,7 @@ state, and expiry risk:
 
 ```bash
 genesis-mesh treaty list \
-  --na https://na.genesismesh.connectorzzz.com
+  --na https://na.genesismesh.org
 ```
 
 ### `genesis-mesh treaty inspect`
@@ -413,7 +413,7 @@ revocation context:
 
 ```bash
 genesis-mesh treaty inspect \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id>
 ```
 
@@ -424,7 +424,7 @@ a `renewed_by:<new-id>` revocation reason:
 
 ```bash
 genesis-mesh treaty renew \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
@@ -438,7 +438,7 @@ a `replaced_by:<new-id>` revocation reason:
 
 ```bash
 genesis-mesh treaty replace \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
@@ -453,7 +453,7 @@ Revokes a treaty through the existing operator-signed admin endpoint:
 
 ```bash
 genesis-mesh treaty revoke \
-  --na https://na.genesismesh.connectorzzz.com \
+  --na https://na.genesismesh.org \
   <treaty-id> \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
@@ -469,7 +469,7 @@ revocation feed, verify rejection, and optionally write a redacted proof bundle.
 
 ```bash
 genesis-mesh proof remote \
-  --acceptor https://na.genesismesh.connectorzzz.com \
+  --acceptor https://na.genesismesh.org \
   --issuer http://164.92.250.135:8443 \
   --acceptor-config ./sovereign-a.toml \
   --issuer-config ./sovereign-b.toml \

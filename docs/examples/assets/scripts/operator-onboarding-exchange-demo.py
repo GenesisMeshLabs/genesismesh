@@ -22,7 +22,7 @@ DEFAULT_GIF_OUTPUT = (
 DEFAULT_PNG_OUTPUT = (
     ROOT / "docs/examples/assets/images/genesis-mesh-operator-onboarding-exchange.png"
 )
-DEFAULT_AZURE_ENDPOINT = "https://na.genesismesh.connectorzzz.com"
+DEFAULT_AZURE_ENDPOINT = "https://na.genesismesh.org"
 DEFAULT_NB_ENDPOINT = "http://164.92.250.135:8443"
 
 
@@ -53,7 +53,7 @@ def recorded_transcript() -> list[str]:
         "    next_step: federation bootstrap with --issuer-bundle",
         "",
         "==> Federation bootstrap dry run from Azure to USG-NB",
-        "    acceptor: USG / https://na.genesismesh.connectorzzz.com",
+        "    acceptor: USG / https://na.genesismesh.org",
         "    issuer:   USG-NB / http://164.92.250.135:8443",
         "    treaty preview role: role:service:maintainer",
         "    accepted statuses: active",
