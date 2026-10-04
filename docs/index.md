@@ -27,9 +27,16 @@ governed actions and offline evidence verification.
 :::
 ::::
 
-Also: [genesismesh.org](https://genesismesh.org) (the thesis and public proofs) ·
-[www.genesismesh.org](https://www.genesismesh.org) (overview, concept map,
-videos, articles).
+```{admonition} Why a treaty layer?
+:class: tip
+
+Genesis Mesh encodes Verify, Limit, Revoke and Audit between sovereign systems
+without a shared root of trust.
+[Read the full thesis with live multi-cloud proof → genesismesh.org](https://genesismesh.org)
+```
+
+Overview, concept map, videos and articles live on
+[www.genesismesh.org](https://www.genesismesh.org).
 
 Genesis Mesh is a sovereign trust, identity, and communication fabric for AI
 agents, edge systems, and distributed infrastructure.
