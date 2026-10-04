@@ -164,8 +164,8 @@ runtime port.
 
 ## Developer Workflow
 
-Run the in-process smoke workflow (from a source checkout; the workflow script
-is part of the repository, not the PyPI package):
+Run the in-process smoke workflow (it ships with the package from 1.0.0, so it
+works from a PyPI install as well as a checkout):
 
 ```bash
 genesis-mesh dev up

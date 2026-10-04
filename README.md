@@ -17,6 +17,15 @@ cryptographic identity, signed attestations, delegated authority, cross-sovereig
 recognition, revocation propagation, and auditable trust state — without a
 central authority.
 
+## Status
+
+Genesis Mesh 1.0 is ready for an independently operated pilot. The surfaces
+listed as stable in the [public contract](https://docs.genesismesh.org/reference/public-contract.html)
+follow [`DEPRECATION_POLICY.md`](DEPRECATION_POLICY.md) for the whole 1.x line,
+and upgrades from 0.59 onward are rehearsed in CI. Independent federation in
+production is not yet proven: a second independently implemented sovereign and
+an operator outside Genesis Core are pending and expected from the pilot.
+
 ## Installation
 
 ```bash
