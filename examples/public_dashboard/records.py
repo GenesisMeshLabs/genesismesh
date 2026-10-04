@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from genesis_mesh.crypto import verify_model_signature
 from genesis_mesh.models import GenesisBlock, RecognitionTreaty, SovereignRevocationFeed, MembershipAttestation
+from genesis_mesh.models.revocation import CertificateRevocationList
 from genesis_mesh.models.genesis import Signature
 
 
@@ -22,6 +23,16 @@ class TreatyRecord(PublicRecord):
     treaty: RecognitionTreaty
     expected_active: bool
     retired: bool = False
+
+
+class ExternalTreatyRecord(PublicRecord):
+    """A treaty from the reference to a sovereign outside the demo set (v0.65).
+
+    Issued from the operator's reviewed ``external-treaties.json``; kept apart
+    from the demo treaties so it never changes their posture, feeds or canary.
+    """
+
+    treaty: RecognitionTreaty
 
 
 class ImportEvent(PublicRecord):
@@ -48,10 +59,20 @@ class Snapshot(PublicRecord):
     imports: dict[str, datetime]
     events: list[ImportEvent] = Field(default_factory=list)
     canary: Canary = Field(default_factory=Canary)
+    #: Signed empty CRL so gateways can pin and refresh this authority (v0.65).
+    crl: CertificateRevocationList | None = None
+    external_treaties: list[ExternalTreatyRecord] = Field(default_factory=list)
     signatures: list[Signature] = Field(default_factory=list)
 
     def to_canonical_json(self) -> str:
-        return json.dumps(self.model_dump(mode="json", exclude={"signatures"}), sort_keys=True, separators=(",", ":"))
+        # v0.65 fields are omitted while empty, so snapshots signed by earlier
+        # releases keep verifying after an upgrade.
+        body = self.model_dump(mode="json", exclude={"signatures"})
+        if body.get("crl") is None:
+            body.pop("crl", None)
+        if not body.get("external_treaties"):
+            body.pop("external_treaties", None)
+        return json.dumps(body, sort_keys=True, separators=(",", ":"))
 
 
 def digest(value: str) -> str:
@@ -128,6 +149,34 @@ def validate_snapshot(snapshot: Snapshot, root_key: str) -> None:
             raise ValueError("unexpected_revocation_reason")
         if not signed(feed, authority.network_authority.public_key):
             raise ValueError("invalid_feed_signature")
+    main_key = genesis.network_authority.public_key
+    crl = snapshot.crl
+    if crl is not None:
+        if crl.issuer != "demo-na" or crl.revoked_certificates:
+            raise ValueError("unexpected_crl")
+        if not re.fullmatch(r"[0-9a-f-]{36}", crl.crl_id) or crl.issued_at >= crl.next_update:
+            raise ValueError("unexpected_crl")
+        if any(sig.key_id != "demo-na" for sig in crl.signatures) or not signed(crl, main_key):
+            raise ValueError("invalid_crl_signature")
+    external_subjects = set()
+    for external in snapshot.external_treaties:
+        treaty = external.treaty
+        subject = treaty.subject_sovereign_id
+        if treaty.issuer_sovereign_id != genesis.network_name or treaty.issued_by != "demo-na":
+            raise ValueError("unexpected_issuer")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", subject) or subject in snapshot.authorities:
+            raise ValueError("unexpected_external_subject")
+        if subject in external_subjects:
+            raise ValueError("duplicate_external_subject")
+        external_subjects.add(subject)
+        if len(treaty.subject_public_keys) != 1 or treaty.scope.allowed_roles != ["role:client"]:
+            raise ValueError("unexpected_scope")
+        if treaty.metadata or treaty.scope.model_dump().get("claims"):
+            raise ValueError("unexpected_treaty_metadata")
+        if not re.fullmatch(r"[0-9a-f-]{36}", treaty.treaty_id):
+            raise ValueError("unexpected_record_id")
+        if any(sig.key_id != "demo-na" for sig in treaty.signatures) or not signed(treaty, main_key):
+            raise ValueError("invalid_treaty_signature")
     canary = snapshot.canary
     if canary.status == "verified":
         from genesis_mesh.trust import verify_attestation_with_treaty

@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v0.64.1:
+As of v0.65.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -813,6 +813,25 @@ changed it. A quiet NA therefore served an expired CRL a day after its last
 revocation, and every node and gateway reading it stopped treating the list as
 fresh. The NA now re-signs the same revocations under the next sequence number
 when less than 12 hours remain.
+
+### v0.65.0 — Mesh Demo Experience
+
+mesh.genesismesh.org put the gateway in front of a live NA, but a visitor
+without a token saw a list of operations and nothing else, and the read-only
+public reference on Azure was a separate site. The gateway now publishes a
+demo credential that its own policy validation limits to reads and
+verification, and its console runs four guided scenarios with it: explore the
+mesh, verify a treaty from another sovereign (and see a tampered copy fail),
+recognize and revoke a membership across sovereigns, and verify a governed
+secret's evidence chain in the browser. The Azure reference now signs a CRL,
+so a gateway can pin and refresh it like any authority, and an
+operator-configured external treaty recognizing the live NA; the live NA
+recognizes the reference back and imports its revocation feed. A demo job on
+the VM keeps real signed activity flowing. The browser's verification matches
+the Python reference on the shared vectors.
+
+**What became possible:** anyone can see portable trust work end to end,
+across two independently signed sovereigns, without an account.
 
 ---
 

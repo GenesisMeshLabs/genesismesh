@@ -1,0 +1,111 @@
+# mesh.genesismesh.org: a Genesis Mesh gateway in front of its own Network
+# Authority (`genesis-mesh`), a demo job that keeps signed activity flowing,
+# and Caddy. Only Caddy publishes ports; the NA's admin API stays internal.
+name: genesis-mesh-mesh
+services:
+  na:
+    build:
+      context: ./na
+      args:
+        GENESIS_MESH_VERSION: ${GENESIS_MESH_VERSION:?set GENESIS_MESH_VERSION}
+    image: genesis-mesh-na:${GENESIS_MESH_VERSION}
+    restart: unless-stopped
+    environment:
+      WEB_CONCURRENCY: "2"
+      GENESIS_FILE: /config/genesis.signed.json
+      NA_KEY_PROVIDER: env
+      NA_PRIVATE_KEY_SEED: ${NA_PRIVATE_KEY_SEED:?set NA_PRIVATE_KEY_SEED}
+      NA_KEY_ID: mesh-na
+      DB_PATH: /data/na.db
+      # ops: the maintainer (key held off the droplet); demo-ops: the demo job.
+      OPERATOR_PUBLIC_KEYS_JSON: ${OPERATOR_PUBLIC_KEYS_JSON:?set OPERATOR_PUBLIC_KEYS_JSON}
+      OPERATOR_KEY_TIERS_JSON: '{"ops": "privileged", "demo-ops": "privileged"}'
+      EVIDENCE_STORE: "on"
+      BOUNDARY_POLICY_ENFORCEMENT: required
+      # Every request arrives from the gateway or the demo job.
+      NA_PROXY_HOPS: "0"
+      NA_RATE_LIMIT_ADMIN_PER_MINUTE: "600"
+      NA_RATE_LIMIT_VERIFY_PER_MINUTE: "600"
+      NA_RATE_LIMIT_EVIDENCE_PER_MINUTE: "600"
+      NA_RATE_LIMIT_READ_PER_MINUTE: "600"
+    volumes:
+      - ./genesis.signed.json:/config/genesis.signed.json:ro
+      - na-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 384m
+
+  demo:
+    image: genesis-mesh-na:${GENESIS_MESH_VERSION}
+    restart: unless-stopped
+    command: ["python", "/opt/mesh-demo/demo_job.py"]
+    environment:
+      NA_URL: http://na:8000
+      NA_PUBLIC_KEY: ${NA_PUBLIC_KEY:?set NA_PUBLIC_KEY}
+      REFERENCE_URL: https://na.genesismesh.connectorzzz.com
+      REFERENCE_PUBLIC_KEY: ${REFERENCE_PUBLIC_KEY:?set REFERENCE_PUBLIC_KEY}
+      DEMO_OPERATOR_SEED: ${DEMO_OPERATOR_SEED:?set DEMO_OPERATOR_SEED}
+      DEMO_EXECUTOR_SEED: ${DEMO_EXECUTOR_SEED:?set DEMO_EXECUTOR_SEED}
+      DEMO_INTERVAL_SECONDS: "600"
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./demo/demo_job.py:/opt/mesh-demo/demo_job.py:ro
+      - demo-state:/state
+      - demo-data:/demo-data
+    depends_on:
+      na:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 160m
+
+  gateway:
+    image: genesis-mesh-gateway:${GATEWAY_VERSION:?set GATEWAY_VERSION}
+    restart: unless-stopped
+    environment:
+      GATEWAY_ADDR: 0.0.0.0:8080
+      GATEWAY_POLICY_FILE: /run/gateway/policy.json
+      GATEWAY_STATE_FILE: /var/lib/gateway/state.db
+      GATEWAY_MAX_INFLIGHT: "32"
+      GATEWAY_CPU_WORKERS: "1"
+      TOKIO_WORKER_THREADS: "2"
+      RUST_LOG: info
+    volumes:
+      - ./policy.json:/run/gateway/policy.json:ro
+      - gateway-state:/var/lib/gateway
+    depends_on:
+      na:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 192m
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "5"}
+
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - demo-data:/srv/demo-data:ro
+    depends_on: [gateway]
+    mem_limit: 128m
+
+volumes:
+  na-data:
+  demo-state:
+  demo-data:
+  gateway-state:
+  caddy-data:
+  caddy-config:
