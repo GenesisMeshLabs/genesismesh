@@ -78,17 +78,24 @@ recognition, verification and revocation end to end.
       client is refused at startup; tested
 - [x] The console shows both networks; the Azure reference is pinned with its
       signed CRL and refreshed; tested
-- [ ] Treaty in both directions, verified by both sovereigns; revocation feed
+- [x] Treaty in both directions, verified by both sovereigns; revocation feed
       imported and fresh
-- [ ] The four scenarios run end to end with demo access on
+- [x] The four scenarios run end to end with demo access on
       mesh.genesismesh.org
 - [x] Demo job keeps fresh data; gateway stays ready across CRL refreshes
 - [x] Documentation: gateway demo access, mesh-demo deployment, scenarios
+
+Verified on mesh.genesismesh.org after release (2026-10-04): both networks
+ready behind gateway 0.65.0; treaties in both directions (`genesis-mesh`
+recognizes `gm-demo-public-na`; the reference's external treaty recognizes
+`genesis-mesh`); the reference's revocation feed imported and current; all
+four guided scenarios pass with demo access. The reference does not yet import
+`genesis-mesh`'s feed, which the mesh view reports as "not imported".
 
 ## Release Gate
 
 - [x] Version bumped to `0.65.0` across the release train
 - [x] CHANGELOG entry
 - [x] `docs/development/history.md` updated
-- [ ] All tests pass (core SQLite and PostgreSQL, SDK suites, gateway, interop)
-- [ ] Tag `v0.65.0`, push, GitHub release created
+- [x] All tests pass (core SQLite and PostgreSQL, SDK suites, gateway, interop)
+- [x] Tag `v0.65.0`, push, GitHub release created
