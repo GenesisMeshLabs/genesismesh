@@ -68,6 +68,13 @@ chown -R gm-demo-maint:gm-demo-read "$DATA"
 chmod 0750 "$DATA" "$DATA/published"
 chmod 0700 "$DATA/keys"
 chmod 0640 "$DATA/public.db" "$DATA/root.pub"
+# Reviewed external treaties (public sovereign IDs and keys only), signed by maintenance.
+if [[ -f "$CODE/infrastructure/public-reference/external-treaties.json" ]]; then
+    install -m 0640 -o gm-demo-maint -g gm-demo-read \
+        "$CODE/infrastructure/public-reference/external-treaties.json" "$DATA/external-treaties.json"
+else
+    rm -f "$DATA/external-treaties.json"
+fi
 
 cat >/etc/systemd/system/genesis-mesh-public-publisher.service <<EOF
 [Unit]

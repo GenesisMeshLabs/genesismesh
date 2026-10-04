@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.65.0 - Mesh Demo Experience
+
+### Added
+
+- **Public reference CRL.** The reference's maintenance job signs an empty
+  CRL and keeps at least 12 hours of validity, served at `GET /crl`, so a
+  gateway can pin and refresh the reference like any authority.
+- **External treaties on the public reference.** An operator-reviewed
+  `external-treaties.json` lists sovereigns outside the demo set; maintenance
+  signs and renews one `role:client` treaty per entry. They are listed under
+  `external_treaties`, drawn in the graph, strictly validated, and never
+  change the demo posture. Snapshots signed before v0.65 still verify.
+- **`infrastructure/mesh-demo/`.** The mesh.genesismesh.org stack: the
+  `genesis-mesh` NA, the gateway, Caddy and a demo job that bootstraps the
+  recognition policy, a treaty recognizing the reference, the demo boundary
+  policy and executor key, imports the reference's revocation feed, rotates
+  visitor badges and runs a governed secret rotation every 10 minutes,
+  publishing the signed records for the browser scenarios.
+- **Gateway 0.65.0:**
+  - Demo access: a policy client marked `demo: true` publishes its token at
+    `GET /v1/demo`. The gateway refuses to start if a demo client can forward
+    operator operations, read metrics, exceed 120 requests per minute or use
+    groups other than reads and verification, and never lets one forward an
+    operator-signed request.
+  - Guided tour in the console: explore the mesh, verify a treaty from
+    another sovereign, recognize and revoke across sovereigns, and verify a
+    governed secret's evidence chain in the browser (WebCrypto Ed25519 and
+    SHA-256, Python-compatible canonical JSON, tested against the shared
+    Python vectors).
+  - `/v1/mesh` reads public-reference treaty formats, no longer needs an
+    attestation listing, and with the new per-network
+    `public_external_treaties` option shows treaties to sovereigns outside the
+    gateway as external nodes.
+  - The operator preflight accepts a public reference's treaty catalog.
+
+### Changed
+
+- The upgrade rehearsal covers databases written by 0.64.1.
+
 ## v0.64.1 - CRL Refresh
 
 ### Fixed

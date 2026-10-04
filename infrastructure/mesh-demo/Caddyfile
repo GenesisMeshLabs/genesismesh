@@ -1,0 +1,16 @@
+mesh.genesismesh.org {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+	# Signed records published by the demo job for the browser scenarios.
+	handle_path /demo-data/* {
+		root * /srv/demo-data
+		header Cache-Control "no-store"
+		header X-Content-Type-Options "nosniff"
+		file_server
+	}
+	handle {
+		reverse_proxy gateway:8080 {
+			health_uri /health
+		}
+	}
+}
