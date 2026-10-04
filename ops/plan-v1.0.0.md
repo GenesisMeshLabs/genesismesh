@@ -175,7 +175,7 @@ a documented security review, and claims that match the checks actually run.
       candidate. Run the external-operator proof against that candidate.
       *Done 2026-10-04 (record below). The external-operator proof is a pilot
       outcome since the 2026-10-02 decision and is listed as pending.*
-- [ ] Apply the coordinated release train in
+- [x] Apply the coordinated release train in
       [`docs/development/versioning.md`](../docs/development/versioning.md):
       matching versions and tags, security support table, changelogs, docs,
       registry packages or clearly documented Git distribution, and deployment
@@ -239,4 +239,23 @@ and the `dev up` packaging fix; components at their main heads.
 
 Defects found while testing the candidate: `genesis-mesh dev up` failed from a
 PyPI install (fixed before the candidate, PR #49).
+
+## Release record (2026-10-04)
+
+- Core `v1.0.0` tagged at `9f2c8c5` (signed); GitHub release created; PyPI
+  publishes `genesis-mesh 1.0.0`.
+- Components tagged `v1.0.0` (signed) and published: npm
+  `genesis-mesh-sdk 1.0.0`, NuGet `genesismesh-sdk-dotnet 1.0.0`, Go module
+  `github.com/GenesisMeshLabs/sdk-go v1.0.0`, Rust SDK by Git tag, gateway
+  release with signed binaries and OCI image (9 assets). Defect found during
+  the train: the sdk-go CI and sdk-rust release check accepted only `0.x.y`
+  versions; both now accept any `X.Y.Z`.
+- Published-artifact scenario against the 1.0.0 registry artifacts: green.
+- Deployments: the Azure public reference runs build `9f2c8c5` at
+  `na.genesismesh.org`; mesh.genesismesh.org runs NA 1.0.0 and gateway 1.0.0
+  (Sigstore-verified image), pointed at `na.genesismesh.org`, with backups of
+  the previous state kept on the VM.
+- Clean install of `genesis-mesh==1.0.0` from PyPI: quickstart and `dev up`
+  pass. Live smoke of the public sites and services: 39 checks pass.
+- Pending evidence, as stated in the release notes: Workstreams 1 and 2.
 
