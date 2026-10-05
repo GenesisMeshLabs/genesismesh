@@ -34,6 +34,12 @@ pip install genesis-mesh
 
 Requires Python 3.12 or later.
 
+The Network Authority and the gateway also ship as signed container images,
+`ghcr.io/genesismeshlabs/genesis-mesh` and
+`ghcr.io/genesismeshlabs/genesis-mesh-gateway`, for `linux/amd64` and
+`linux/arm64`. Verify them before deploying: see
+[Container Images](https://docs.genesismesh.org/operations/container-images.html).
+
 ## Quick start
 
 ```bash

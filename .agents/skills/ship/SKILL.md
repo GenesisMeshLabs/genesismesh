@@ -472,14 +472,13 @@ git commit -m "$(cat <<'EOF'
 - {key change 2}
 - {key change 3}
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
 
 Then tag:
 ```
-git tag v{X.Y.Z}
+git tag -s v{X.Y.Z} -m "v{X.Y.Z}"
 ```
 
 ---

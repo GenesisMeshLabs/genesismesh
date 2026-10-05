@@ -1,0 +1,112 @@
+# A Network Authority and a trust gateway from the published, signed images.
+# Steps (docs/operations/container-images.md walks through them):
+#
+#   1. Put the signed genesis in ./config/genesis.signed.json and the NA seed
+#      (the base64 line of na.key) in ./secrets/na_seed, readable by uid 10001.
+#      Set OPERATOR_PUBLIC_KEYS_JSON, OPERATOR_KEY_TIERS_JSON, NA_PUBLIC_KEY,
+#      NETWORK and CLIENT_TOKEN_SHA256 (sha256 hex of the gateway client token).
+#   2. docker compose up -d --wait na
+#   3. docker compose run --rm preflight      (pins the authority, writes the network fragment)
+#   4. docker compose run --rm policy         (writes the gateway policy for your client)
+#   5. docker compose run --rm gateway --init-state   (creates durable state, once)
+#   6. docker compose up -d --wait gateway
+#
+# Verify the images first: cosign verify (see the container images page).
+
+name: genesis-mesh
+
+services:
+  na:
+    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.1.0}
+    environment:
+      GENESIS_FILE: /run/config/genesis.signed.json
+      # The seed is a mounted secret file, not an environment value.
+      NA_KEY_PROVIDER: env
+      NA_PRIVATE_KEY_SEED_FILE: /run/secrets/na_seed
+      NA_KEY_ID: ${NA_KEY_ID:-na-local}
+      OPERATOR_PUBLIC_KEYS_JSON: ${OPERATOR_PUBLIC_KEYS_JSON:?set OPERATOR_PUBLIC_KEYS_JSON}
+      OPERATOR_KEY_TIERS_JSON: ${OPERATOR_KEY_TIERS_JSON:?set OPERATOR_KEY_TIERS_JSON}
+      # Requests reach the NA directly from the gateway on this network.
+      NA_PROXY_HOPS: "0"
+      WEB_CONCURRENCY: "2"
+    secrets:
+      - na_seed
+    volumes:
+      - ./config:/run/config:ro
+      - na-data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+
+  # One-off tools (steps 3 and 4); `docker compose run` starts them.
+  preflight:
+    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.1.0}
+    profiles: [tools]
+    user: "0:0"
+    entrypoint: ["/usr/local/bin/genesis-mesh-operator"]
+    command:
+      - --origin
+      - http://na:8443
+      - --network
+      - ${NETWORK:?set NETWORK}
+      - --authority-key
+      - ${NA_PUBLIC_KEY:?set NA_PUBLIC_KEY}
+      # The authority is reached over this private network; in production use HTTPS.
+      - --allow-http
+      - --policy-fragment
+      - /work/fragment.json
+    volumes:
+      - gateway-config:/work
+    depends_on:
+      na:
+        condition: service_healthy
+
+  policy:
+    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.1.0}
+    profiles: [tools]
+    user: "0:0"
+    entrypoint: ["python", "-c"]
+    command:
+      - |
+        import json, os
+        networks = json.load(open("/work/fragment.json"))
+        client = {"id": "client", "token_sha256": os.environ["CLIENT_TOKEN_SHA256"],
+                  "networks": sorted(networks), "metrics": False, "requests_per_minute": 120,
+                  "service_groups": ["network"], "authority_admin": False}
+        json.dump({"revision": "compose", "clients": [client], "networks": networks},
+                  open("/work/policy.json", "w"), indent=2)
+        print("wrote /work/policy.json")
+    environment:
+      CLIENT_TOKEN_SHA256: ${CLIENT_TOKEN_SHA256:?set CLIENT_TOKEN_SHA256}
+    volumes:
+      - gateway-config:/work
+
+  gateway:
+    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.1.0}
+    environment:
+      GATEWAY_ADDR: 0.0.0.0:8080
+      GATEWAY_POLICY_FILE: /run/gateway/policy.json
+      GATEWAY_STATE_FILE: /var/lib/gateway/state.db
+    volumes:
+      - gateway-config:/run/gateway:ro
+      - gateway-state:/var/lib/gateway
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    depends_on:
+      na:
+        condition: service_healthy
+
+secrets:
+  na_seed:
+    file: ./secrets/na_seed
+
+volumes:
+  na-data:
+  gateway-config:
+  gateway-state:

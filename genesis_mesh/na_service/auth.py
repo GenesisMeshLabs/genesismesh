@@ -9,7 +9,7 @@ from typing import Literal, Optional
 from flask import request
 
 from ..crypto import verify_signature
-from ..crypto.admin_auth import admin_signing_payload, legacy_admin_signing_payload
+from ..crypto.admin_auth import admin_signing_payload
 from .errors import ForbiddenError
 
 logger = logging.getLogger(__name__)
@@ -305,16 +305,7 @@ def verify_admin_request(
         timestamp=timestamp_str,
         nonce=nonce,
     )
-    signature_version = 2
-    valid = verify_signature(signed, signature_b64, public_key)
-    if not valid and service.admin_legacy_signatures == "accept":
-        legacy = legacy_admin_signing_payload(
-            body=data, key_id=key_id, timestamp=timestamp_str, nonce=nonce
-        )
-        if verify_signature(legacy, signature_b64, public_key):
-            valid = True
-            signature_version = 1
-    if not valid:
+    if not verify_signature(signed, signature_b64, public_key):
         _audit_auth_failure(
             service,
             "admin_auth_failed",
@@ -329,24 +320,6 @@ def verify_admin_request(
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
         )
         return False, "Admin nonce already used"
-
-    if signature_version == 1:
-        # Accepted only because the operator opted in for a migration window;
-        # every use stays visible so the window can be closed with evidence.
-        logger.warning(
-            "Accepted a version 1 admin signature from key %s on %s %s; "
-            "unset NA_ADMIN_LEGACY_SIGNATURES once clients are upgraded",
-            key_id, request.method, request.path,
-        )
-        try:
-            service.db.add_audit_event("admin_legacy_signature_accepted", {
-                "key_id": key_id,
-                "method": request.method,
-                "path": request.path,
-            })
-        except Exception as exc:  # the request is authentic; do not fail it on audit
-            service.audit_write_failures += 1
-            logger.error("Failed to persist admin_legacy_signature_accepted: %s", exc)
 
     # F-21: authorisation, after authentication has succeeded. The request is
     # genuine, so its nonce stays spent -- it simply asks for more than this key

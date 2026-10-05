@@ -58,6 +58,9 @@ ENV/
 *.pem
 *.crt
 keys/
+# Secret files handed to containers (the Compose examples read secrets/na_seed)
+secrets/
+*.seed
 
 # Local SQLite databases
 *.db
