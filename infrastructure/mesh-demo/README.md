@@ -15,7 +15,8 @@ keeps signed activity flowing. Runs on one small VM (1 GB, Docker Compose).
 ## Keys
 
 Generated on the maintainer's machine; only the NA signing key and the demo
-job's keys go to the VM.
+job's keys go to the VM. The mesh reader key is generated on the VM and never
+leaves it.
 
 | Key | Where | Purpose |
 | --- | --- | --- |
@@ -24,11 +25,23 @@ job's keys go to the VM.
 | `ops` | maintainer only | Privileged operator for manual changes |
 | `demo-ops` | VM `.env` | Privileged operator for the demo job: issuing and revoking attestations and importing feeds need that tier. Revoke it with the operator-key revocation route if the VM is compromised. |
 | executor | VM `.env` | Signs the demo controller's execution evidence |
+| `mesh-reader` | VM `secrets/mesh-reader.key` | Read-tier operator for the gateway's mesh view: the NA lists attestations to operators only, and a read key opens that list and the node roster, nothing else. |
 
 `.env` (mode 600): `GENESIS_MESH_VERSION`, `GATEWAY_VERSION`,
-`NA_PRIVATE_KEY_SEED`, `NA_PUBLIC_KEY`, `OPERATOR_PUBLIC_KEYS_JSON` (`ops` and
-`demo-ops`), `REFERENCE_PUBLIC_KEY`, `DEMO_OPERATOR_SEED`,
+`NA_PRIVATE_KEY_SEED`, `NA_PUBLIC_KEY`, `OPERATOR_PUBLIC_KEYS_JSON` (`ops`,
+`demo-ops` and `mesh-reader`), `REFERENCE_PUBLIC_KEY`, `DEMO_OPERATOR_SEED`,
 `DEMO_EXECUTOR_SEED`.
+
+Create the mesh reader key on the VM, as the user the NA and gateway images
+run as (10001), then add the printed public key to `OPERATOR_PUBLIC_KEYS_JSON`
+as `mesh-reader` before starting the NA (the NA refuses to start with a tier
+for a key it does not know):
+
+```sh
+sudo install -d -o 10001 -g 10001 -m 700 secrets
+docker compose run --rm --no-deps -v "$PWD/secrets:/out" --entrypoint genesis-mesh na keygen node --output /out/mesh-reader --key-id mesh-reader
+sudo chmod 400 secrets/mesh-reader.key
+```
 
 ## Gateway policy
 
@@ -46,8 +59,10 @@ docker run --rm -v "$PWD/work:/work" \
   --authority-key "$REFERENCE_PUBLIC_KEY" --policy-fragment /work/reference.json
 ```
 
-Combine them into `policy.json` with `public_mesh: true` on both networks and
-`public_external_treaties: true` on the reference, and two clients:
+Combine them into `policy.json` with `public_mesh: true` on both networks,
+`public_external_treaties: true` on the reference,
+`"mesh_reader": {"key_id": "mesh-reader", "seed_file": "/run/gateway/mesh-reader.key"}`
+on `genesis-mesh`, and two clients:
 
 - `maintainer`: `token_sha256` of a token kept off the VM, `authority_admin`,
   all service groups the maintainer uses.

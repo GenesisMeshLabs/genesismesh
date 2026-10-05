@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.0.1:
+As of v1.0.2:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -169,7 +169,7 @@ As of v1.0.1:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 1,715 tests pass. The layer rule and public boundary rule are enforced
+- 1,791 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -177,12 +177,12 @@ As of v1.0.1:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 90 HTTP routes, 121 CLI
+  as the Public Contract page) classifies all 91 HTTP routes, 125 CLI
   commands, the public Python API, 51 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from 0.59.1, 0.60.0 and 0.61.1 are rehearsed in CI on real
-  databases, including backup restore and migration to PostgreSQL; a release
+- Upgrades from every supported release, 0.59.1 to 1.0.1, are rehearsed in
+  CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
   findings resolved or accepted as documented residual risks.
@@ -213,6 +213,11 @@ As of v1.0.1:
   per secret, with {doc}`../examples/evidence-store`.
 - The public contract is stable for the 1.x line, security support covers
   1.0.x, and all six components of the release train ship the same version.
+- An operator's admin signature covers the whole request: method, path, query
+  and the target Network Authority's public key (signature version 2).
+- Every route, CLI command and SDK method is smoke-tested against a live
+  Network Authority, and the Go and .NET SDKs check their typed results
+  against one in CI.
 
 As of v1.0.0, the following are *not* yet true:
 
@@ -870,6 +875,22 @@ graph cut off on the right with no way to scroll, initials where the logo
 belongs, and the public reference still linked under its legacy name. The
 gateway console now keeps the graph inside the viewport and scrolls it, shows
 the Genesis Mesh logo and links `na.genesismesh.org`. No protocol changes.
+
+### v1.0.2 — Fixes from External Testing
+
+External testing of 1.0.1 led to a round of fixes. Admin signatures now cover
+the whole request (method, path, query and the target Network Authority's
+public key), treaty and feed checks use the keys a Network Authority pinned,
+and the attestation list goes to operators, with the count public.
+
+Every HTTP route, CLI command and SDK method was smoke-tested against a live
+Network Authority, beyond the unit tests. That brought typed SDK results in
+line with the Network Authority's JSON, UTC offsets in agreement timestamps,
+oversight approval windows, Windows console output, and a complete API
+reference, each with a test.
+
+**What became possible:** each admin request is signed for one action on one
+Network Authority, and every SDK returns what the Network Authority answered.
 
 ---
 

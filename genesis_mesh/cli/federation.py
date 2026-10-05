@@ -53,7 +53,7 @@ def federation() -> None:
 @click.option("--operator-key-id", default="operator-local", help="Acceptor operator key ID.")
 @click.option("--role", "roles", multiple=True, default=["role:service:maintainer"], help="Role accepted from issuer.")
 @click.option("--accepted-status", "accepted_statuses", multiple=True, default=["active"], help="Accepted attestation status.")
-@click.option("--claim", multiple=True, help="Treaty claim as key=value. Repeatable.")
+@click.option("--claim", multiple=True, help="Informational treaty claim as key=value (not matched against attestations). Repeatable.")
 @click.option("--validity-hours", default=24, type=int, help="Treaty validity window.")
 @click.option("--evidence", default=None, help="Optional JSON evidence output path.")
 @click.option("--dry-run", is_flag=True, help="Review and preview without issuing a treaty.")

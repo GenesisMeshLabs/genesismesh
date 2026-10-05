@@ -27,6 +27,7 @@ from ..trust.consensus import (
     verify_consensus_proof,
     verify_ephemeral_identity,
 )
+from .support import ensure_parent, public_key_value
 
 
 @click.group("consensus")
@@ -60,7 +61,7 @@ def consensus_vote(
     sk = load_private_key(key_path)
 
     vote = cast_validator_vote(proof, validator_id, approve, sk, reason=reason)
-    Path(output_path).write_text(vote.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(vote.model_dump_json(indent=2), encoding="utf-8")
     verdict = "APPROVE" if approve else "REJECT"
     click.echo(f"[OK] Vote {vote.vote_id} ({verdict}) written to {output_path}")
 
@@ -112,7 +113,7 @@ def consensus_assemble(
         click.echo(f"[ERROR] {exc}", err=True)
         sys.exit(1)
 
-    Path(output_path).write_text(cp.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(cp.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] ConsensusProof {cp.consensus_id} written to {output_path}")
     click.echo(
         f"     Approvals : {len(cp.approving_validators())}/{threshold} "
@@ -130,9 +131,9 @@ def consensus_assemble(
 @click.option("--consensus", "cp_path", required=True, type=click.Path(exists=True),
               help="ConsensusProof JSON to verify.")
 @click.option("--assembler-key", "assembler_keys", required=True, multiple=True,
-              help="Base64-encoded Ed25519 public key(s) of the assembler.")
+              help="Assembler public key: base64 or path to a public key file. Repeatable.")
 @click.option("--validator-key", "validator_key_pairs", multiple=True,
-              help="Validator public keys as 'id:b64key' pairs.")
+              help="Validator public key as 'id:key', the key base64 or path to a public key file. Repeatable.")
 @click.option("--proof", "proof_path", default=None, type=click.Path(exists=True),
               help="Optional JustificationProof for cross-check.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
@@ -148,13 +149,13 @@ def consensus_verify(
     for pair in validator_key_pairs:
         parts = pair.split(":", 1)
         if len(parts) == 2:
-            val_keys[parts[0]] = parts[1]
+            val_keys[parts[0]] = public_key_value(parts[1])
 
     jp = None
     if proof_path:
         jp = JustificationProof.model_validate_json(Path(proof_path).read_text(encoding="utf-8"))
 
-    result = verify_consensus_proof(cp, val_keys, list(assembler_keys), justification_proof=jp)
+    result = verify_consensus_proof(cp, val_keys, [public_key_value(k) for k in assembler_keys], justification_proof=jp)
 
     if fmt == "json":
         click.echo(json.dumps({"valid": result.valid, "reason": result.reason}, indent=2))
@@ -202,7 +203,7 @@ def consensus_issue_identity(
     eid = issue_ephemeral_identity(
         cp, bearer_id, list(caps), sk, issued_by=issuer_id, valid_for_seconds=valid_for,
     )
-    Path(output_path).write_text(eid.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(eid.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] EphemeralExecutionIdentity {eid.identity_id} written to {output_path}")
     click.echo(f"     Bearer  : {bearer_id}")
     click.echo(f"     Expires : {eid.expires_at.isoformat()}")
@@ -218,7 +219,7 @@ def consensus_issue_identity(
 @click.option("--identity", "eid_path", required=True, type=click.Path(exists=True),
               help="EphemeralExecutionIdentity JSON.")
 @click.option("--issuer-key", "issuer_keys", required=True, multiple=True,
-              help="Base64-encoded Ed25519 public key(s) of the issuer.")
+              help="Issuer public key: base64 or path to a public key file. Repeatable.")
 @click.option("--capability", required=True, help="Capability to check access for.")
 @click.option("--bearer", "bearer_id", required=True, help="Expected bearer sovereign ID.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
@@ -233,7 +234,7 @@ def consensus_verify_identity(
     )
 
     result = verify_ephemeral_identity(
-        eid, list(issuer_keys),
+        eid, [public_key_value(k) for k in issuer_keys],
         requested_capability=capability,
         bearer_sovereign_id=bearer_id,
     )

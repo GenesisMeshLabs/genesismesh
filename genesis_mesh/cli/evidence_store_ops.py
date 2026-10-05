@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from ..trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
+from .support import public_key_value
 
 
 @click.group("evidence")
@@ -19,7 +20,7 @@ def evidence() -> None:
 @click.option("--file", "file_path", required=True, type=click.Path(exists=True, dir_okay=False),
               help="gm.evidence.event JSON Lines from GET /admin/evidence/export.")
 @click.option("--na-public-key", "na_keys", required=True, multiple=True,
-              help="NA public key (base64), repeatable.")
+              help="NA public key: base64 or path to a public key file. Repeatable.")
 @click.option("--executor-keys", "executor_keys_path", required=True,
               type=click.Path(exists=True, dir_okay=False),
               help="JSON from GET /admin/evidence/executor-keys.")
@@ -47,7 +48,7 @@ def verify_export(file_path: str, na_keys: tuple[str, ...], executor_keys_path: 
         )
         for r in rows
     }
-    result = verify_evidence_events(events, na_public_keys=list(na_keys), executor_keys=keys, contiguous=True)
+    result = verify_evidence_events(events, na_public_keys=[public_key_value(k) for k in na_keys], executor_keys=keys, contiguous=True)
     if fmt == "json":
         click.echo(json.dumps(result.to_dict(), indent=2))
     else:

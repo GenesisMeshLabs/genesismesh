@@ -88,17 +88,31 @@ class Api:
     def __init__(self, service, operator_seed: str) -> None:
         self.client = service.app.test_client()
         self.key = _key(operator_seed)
+        self.audience = service.genesis_block.network_authority.public_key
 
     def admin(self, method: str, path: str, body: dict | None = None):
         from genesis_mesh.crypto import sign_data
 
         body = body or {}
-        ts = datetime.now(timezone.utc).isoformat()
-        nonce = str(uuid.uuid4())
-        canonical = json.dumps({"body": body, "key_id": "ops", "timestamp": ts, "nonce": nonce},
-                               sort_keys=True, separators=(",", ":"))
-        headers = {"X-Admin-Key-Id": "ops", "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
-                   "X-Admin-Signature": sign_data(canonical.encode("utf-8"), self.key)}
+        try:
+            # v1.0.2+: the signature binds method, path, query and audience.
+            from genesis_mesh.crypto.admin_auth import sign_admin_request
+        except ImportError:  # a past release: version 1 signs the body only
+            ts = datetime.now(timezone.utc).isoformat()
+            nonce = str(uuid.uuid4())
+            canonical = json.dumps({"body": body, "key_id": "ops", "timestamp": ts, "nonce": nonce},
+                                   sort_keys=True, separators=(",", ":"))
+            headers = {"X-Admin-Key-Id": "ops", "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
+                       "X-Admin-Signature": sign_data(canonical.encode("utf-8"), self.key)}
+        else:
+            from urllib.parse import parse_qs, urlsplit
+
+            parts = urlsplit(path)
+            headers = sign_admin_request(
+                self.key, "ops", method=method, path=parts.path,
+                query=parse_qs(parts.query, keep_blank_values=True),
+                audience=self.audience, body=body,
+            )
         if method == "GET":
             return self.client.get(path, headers=headers)
         return self.client.post(path, json=body, headers=headers)

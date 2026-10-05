@@ -91,3 +91,30 @@ def test_mesh_missing_manifest_errors():
     assert result.exit_code != 0
     assert "manifest not found" in result.output.lower()
     assert "Traceback" not in result.output
+
+
+def test_relative_output_resolves_operator_keys(tmp_path, monkeypatch):
+    """The documented flow: generate --output ./fleet, then mesh --config ./fleet/fleet.toml (v1.0.2)."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(cli, ["fleet", "generate", "--output", "fleet", "--count", "2"])
+    assert result.exit_code == 0, result.output
+    nodes = _load_fleet_manifest("fleet/fleet.toml")
+    assert all(n.operator_key_path.exists() for n in nodes), [str(n.operator_key_path) for n in nodes]
+    # Generated member configs carry absolute paths, so they work from any directory.
+    config = tomllib.loads((tmp_path / "fleet" / "na-1" / "genesis-mesh.toml").read_text(encoding="utf-8"))
+    assert Path(config["paths"]["operator_private_key"]).is_absolute()
+
+
+def test_fleet_with_relative_paths_loads_from_another_directory(tmp_path, monkeypatch):
+    """A fleet generated before v1.0.2 stored paths relative to the generate directory."""
+    monkeypatch.chdir(tmp_path)
+    assert CliRunner().invoke(cli, ["fleet", "generate", "--output", "fleet", "--count", "1"]).exit_code == 0
+    member = tmp_path / "fleet" / "na-1" / "genesis-mesh.toml"
+    text = member.read_text(encoding="utf-8").replace(tmp_path.as_posix() + "/", "")
+    member.write_text(text, encoding="utf-8")
+    assert '"fleet/na-1/keys/operator.key"' in text
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    nodes = _load_fleet_manifest(str(tmp_path / "fleet" / "fleet.toml"))
+    assert nodes[0].operator_key_path.exists(), str(nodes[0].operator_key_path)

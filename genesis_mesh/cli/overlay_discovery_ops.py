@@ -26,6 +26,7 @@ from ..trust.overlay_discovery import (
     merge_discovery_records,
     verify_discovery_record,
 )
+from .support import ensure_parent, public_key_value
 
 
 @click.group("discover")
@@ -41,7 +42,7 @@ def discover() -> None:
 @discover.command("announce")
 @click.option("--sovereign-id", "sovereign_id", required=True)
 @click.option("--na-public-key", "na_pub_key", required=True,
-              help="Ed25519 public key (base64) of this sovereign's NA.")
+              help="This sovereign's NA public key: base64 or path to a public key file.")
 @click.option("--endpoint", "endpoints", multiple=True, required=True,
               help="Reachable endpoint (pass once per endpoint).")
 @click.option("--capabilities-hash", "capabilities_hash", required=True,
@@ -59,14 +60,14 @@ def announce(
     sk = load_private_key(key_path)
     record = create_discovery_record(
         sovereign_id=sovereign_id,
-        na_public_key_b64=na_pub_key,
+        na_public_key_b64=public_key_value(na_pub_key),
         endpoints=list(endpoints),
         capabilities_hash=capabilities_hash,
         signing_key=sk,
         sequence_no=sequence_no,
         valid_for_hours=valid_for_hours,
     )
-    Path(output_path).write_text(record.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(record.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] OverlayDiscoveryRecord {record.record_id}")
     click.echo(f"     Sovereign : {sovereign_id}")
     click.echo(f"     Endpoints : {', '.join(endpoints)}")
@@ -127,7 +128,7 @@ def feed(
     result = build_discovery_feed(
         records, operator_id, sk, valid_for_hours=valid_for_hours
     )
-    Path(output_path).write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(result.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] DiscoveryFeed {result.feed_id}")
     click.echo(f"     Operator : {operator_id}")
     click.echo(f"     Records  : {len(records)}")
@@ -163,7 +164,7 @@ def merge(cache_path: str, incoming_paths: tuple[str, ...], output_path: str) ->
     ]
     updated, changed = merge_discovery_records(existing, incoming)
     out = [e.model_dump(mode="json") for e in updated]
-    Path(output_path).write_text(json.dumps(out, indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(json.dumps(out, indent=2), encoding="utf-8")
     click.echo(f"[OK] Cache updated — {len(changed)} change(s): {', '.join(changed) or 'none'}")
     click.echo(f"     Total entries: {len(updated)}")
     click.echo(f"     Output       : {output_path}")

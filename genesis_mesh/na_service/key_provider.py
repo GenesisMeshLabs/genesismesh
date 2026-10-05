@@ -11,7 +11,10 @@ Providers load the seed:
 
 * ``file``: today's behaviour, a local key file (``NA_PRIVATE_KEY_FILE``).
 * ``env``: a base64 seed injected by the platform's secret store into the
-  process environment (``NA_PRIVATE_KEY_SEED``); nothing is written to disk.
+  process environment (``NA_PRIVATE_KEY_SEED``), or read from the file that
+  ``NA_PRIVATE_KEY_SEED_FILE`` names (v1.0.2: a Docker or Kubernetes secret
+  mounted on tmpfs, which unlike an environment value is not visible to
+  ``docker inspect`` or inherited by every child process).
 * ``azure-keyvault``: the seed is a Key Vault secret, read at start-up with
   the instance's managed identity and held in memory only.
 
@@ -191,8 +194,23 @@ def load_signer(
         return Signer(load_private_key(config.key_file), config.key_id, "file")
     if config.provider == "env":
         seed = env.get(config.seed_env_var)
+        seed_file = env.get(f"{config.seed_env_var}_FILE")
+        if seed and seed_file:
+            raise KeyProviderError(
+                f"set either {config.seed_env_var} or {config.seed_env_var}_FILE, not both"
+            )
+        if seed_file:
+            try:
+                with open(seed_file, "r", encoding="utf-8") as handle:
+                    seed = handle.read()
+            except OSError as exc:
+                raise KeyProviderError(
+                    f"cannot read the signing key from {config.seed_env_var}_FILE"
+                ) from exc
         if not seed:
-            raise KeyProviderError(f"the env key provider needs {config.seed_env_var}")
+            raise KeyProviderError(
+                f"the env key provider needs {config.seed_env_var} or {config.seed_env_var}_FILE"
+            )
         return Signer(_seed_from_text(seed), config.key_id, "env")
     if config.provider == "azure-keyvault":
         if not config.vault_url or not config.secret_name:

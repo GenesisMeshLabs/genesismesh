@@ -1,0 +1,84 @@
+{
+  "suite": "admin_auth",
+  "version": "1.0.2",
+  "vectors": [
+    {
+      "id": "adm-001",
+      "description": "POST with a JSON body: method, path, audience (the target NA's public key) and body are signed",
+      "input": {
+        "key_id": "key-a",
+        "timestamp": "2026-10-05T00:00:00+00:00",
+        "method": "POST",
+        "path": "/admin/recognition-treaties/00000000-0000-4000-8000-000000000001/revoke",
+        "query": {},
+        "audience": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+        "body": {
+          "reason": "relationship_ended"
+        },
+        "nonce": "00000000-0000-4000-8000-0000000000a1",
+        "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+      },
+      "expected": {
+        "payload": "{\"audience\":\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\",\"body\":{\"reason\":\"relationship_ended\"},\"key_id\":\"key-a\",\"method\":\"POST\",\"nonce\":\"00000000-0000-4000-8000-0000000000a1\",\"path\":\"/admin/recognition-treaties/00000000-0000-4000-8000-000000000001/revoke\",\"query\":{},\"timestamp\":\"2026-10-05T00:00:00+00:00\",\"v\":2}",
+        "signature_b64": "lKqx2VJ70VqRomZ27C9LPm+cL02mLPXl0KVfHRfzBm0dJ3TaQUud2TWKEgwh4omKItMbDwJN0092pW+asmZ/BQ==",
+        "legacy_payload": "{\"body\":{\"reason\":\"relationship_ended\"},\"key_id\":\"key-a\",\"nonce\":\"00000000-0000-4000-8000-0000000000a1\",\"timestamp\":\"2026-10-05T00:00:00+00:00\"}",
+        "legacy_signature_b64": "yZhZFWs69Duv4rdNgmQNcAovBSEis2ANwiATUBL5/abboE6Kl9GFAjzQxmvdVk0FkZQJJVzFh/vvjRyMS2S6BQ=="
+      }
+    },
+    {
+      "id": "adm-002",
+      "description": "GET with query parameters: names sort, repeated values keep their order, no body signs {}",
+      "input": {
+        "key_id": "key-a",
+        "timestamp": "2026-10-05T00:00:00+00:00",
+        "method": "GET",
+        "path": "/admin/evidence",
+        "query": {
+          "limit": [
+            "100"
+          ],
+          "entry_kind": [
+            "execution",
+            "decision"
+          ]
+        },
+        "audience": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+        "body": {},
+        "nonce": "00000000-0000-4000-8000-0000000000a2",
+        "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+      },
+      "expected": {
+        "payload": "{\"audience\":\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\",\"body\":{},\"key_id\":\"key-a\",\"method\":\"GET\",\"nonce\":\"00000000-0000-4000-8000-0000000000a2\",\"path\":\"/admin/evidence\",\"query\":{\"entry_kind\":[\"execution\",\"decision\"],\"limit\":[\"100\"]},\"timestamp\":\"2026-10-05T00:00:00+00:00\",\"v\":2}",
+        "signature_b64": "F6oJcUKornUXWQcNofwzhR+aMIvKjVcCQtUQKgdm5UMUtS2BYlSdGH19C16IOm8xc4jkyLK9slT51vgrSOSFAA==",
+        "legacy_payload": "{\"body\":{},\"key_id\":\"key-a\",\"nonce\":\"00000000-0000-4000-8000-0000000000a2\",\"timestamp\":\"2026-10-05T00:00:00+00:00\"}",
+        "legacy_signature_b64": "iw4NLAa5n9tIOlnRXZiWUmpG/n+KBL9rfUzwF+wtTGswzN4bXRuPrtwzMR78F74JsLslEFNiliMjap7ms3iaAg=="
+      }
+    },
+    {
+      "id": "adm-003",
+      "description": "non-ASCII path and body text is signed with ASCII escapes, as served (decoded) by the NA",
+      "input": {
+        "key_id": "key-a",
+        "timestamp": "2026-10-05T00:00:00+00:00",
+        "method": "POST",
+        "path": "/admin/evidence/resources/kv:caf\u00e9/s\u00e9cret",
+        "query": {},
+        "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+        "body": {
+          "note": "Z\u00fcrich \u2713",
+          "count": 3,
+          "ok": true,
+          "none": null
+        },
+        "nonce": "00000000-0000-4000-8000-0000000000a3",
+        "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+      },
+      "expected": {
+        "payload": "{\"audience\":\"JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=\",\"body\":{\"count\":3,\"none\":null,\"note\":\"Z\\u00fcrich \\u2713\",\"ok\":true},\"key_id\":\"key-a\",\"method\":\"POST\",\"nonce\":\"00000000-0000-4000-8000-0000000000a3\",\"path\":\"/admin/evidence/resources/kv:caf\\u00e9/s\\u00e9cret\",\"query\":{},\"timestamp\":\"2026-10-05T00:00:00+00:00\",\"v\":2}",
+        "signature_b64": "xVV/5EA0cSmAMlrtyuuLxXcvzxTRxSIwCm1h3Mh7RBy66lg4npIf+a6Pw3o1lV39z8SmFI0D+HomHsX95zGuDw==",
+        "legacy_payload": "{\"body\":{\"count\":3,\"none\":null,\"note\":\"Z\\u00fcrich \\u2713\",\"ok\":true},\"key_id\":\"key-a\",\"nonce\":\"00000000-0000-4000-8000-0000000000a3\",\"timestamp\":\"2026-10-05T00:00:00+00:00\"}",
+        "legacy_signature_b64": "EmsDg6TiRYQu/7hZ+hGPKPWj6d/QNz6ksT9+fvd+1case4p/MWyd8xqGiIHkrARARmEL7ZeRVPsuLm9ERMWiDA=="
+      }
+    }
+  ]
+}

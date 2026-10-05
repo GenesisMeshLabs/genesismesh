@@ -8,17 +8,16 @@ Network Authority key, operator key, SQLite database, and treaty state.
 from __future__ import annotations
 
 import argparse
-import json
 import tempfile
 import textwrap
-import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import nacl.encoding
 import nacl.signing
 
-from genesis_mesh.crypto import KeyPair, generate_keypair, sign_data, sign_model
+from genesis_mesh.crypto import KeyPair, generate_keypair, sign_model
+from genesis_mesh.crypto.admin_auth import sign_admin_request
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
@@ -27,29 +26,17 @@ DEFAULT_GIF_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-recognitio
 DEFAULT_PNG_OUTPUT = ROOT / "docs/examples/assets/images/genesis-mesh-recognition-treaty.png"
 
 
-def _admin_headers(body: dict, operator_keypair: KeyPair, key_id: str) -> dict:
-    """Create operator-auth headers for an admin request body."""
-    timestamp = datetime.now(timezone.utc).isoformat()
-    nonce = str(uuid.uuid4())
-    canonical = json.dumps(
-        {
-            "body": body,
-            "key_id": key_id,
-            "timestamp": timestamp,
-            "nonce": nonce,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
+def _admin_headers(body: dict, operator_keypair: KeyPair, key_id: str, *, client, path: str) -> dict:
+    """Sign one admin POST: method, path, the NA's sovereign ID and the body (v1.0.2)."""
+    service = client.application.extensions["genesis_mesh_na"]
+    return sign_admin_request(
+        operator_keypair.private_key,
+        key_id,
+        method="POST",
+        path=path,
+        audience=service.genesis_block.network_authority.public_key,
+        body=body,
     )
-    return {
-        "X-Admin-Key-Id": key_id,
-        "X-Admin-Timestamp": timestamp,
-        "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(
-            canonical.encode("utf-8"),
-            operator_keypair.private_key,
-        ),
-    }
 
 
 def _new_sovereign(name: str, db_path: Path) -> tuple[NetworkAuthorityService, KeyPair]:
@@ -86,7 +73,7 @@ def _new_sovereign(name: str, db_path: Path) -> tuple[NetworkAuthorityService, K
 
 def _post_admin(client, path: str, body: dict, operator: KeyPair, key_id: str):
     """Post an operator-authenticated admin request."""
-    return client.post(path, json=body, headers=_admin_headers(body, operator, key_id))
+    return client.post(path, json=body, headers=_admin_headers(body, operator, key_id, client=client, path=path))
 
 
 def _require_status(response, expected: int, label: str) -> dict:

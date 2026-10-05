@@ -236,3 +236,34 @@ def test_delete_agents_requires_valid_signature(client, na_service):
         json={"version": "v1", "signed_at": signed_at, "signature": signature},
     )
     assert resp2.status_code in (401, 404)
+
+
+def test_an_agent_whose_key_contains_a_double_slash_can_be_read_and_removed(client, na_service):
+    """About 1 in 100 base64 keys contains "//" (v1.0.2).
+
+    Merging slashes answered such a path with a 308 redirect to a different
+    key, so that agent could never be read or deregistered.
+    """
+    import nacl.signing
+
+    from genesis_mesh.crypto import KeyPair
+
+    signing_key = nacl.signing.SigningKey((134).to_bytes(32, "big"))
+    keypair = KeyPair(private_key=signing_key, public_key=signing_key.verify_key)
+    assert "//" in keypair.public_key_b64
+    _enroll(client, keypair)
+    descriptor = _build_signed_descriptor(
+        keypair, network_name=na_service.genesis_block.network_name, capabilities=["llm:chat"],
+    )
+    assert client.post("/agents", json=descriptor.model_dump(mode="json")).status_code in (200, 201)
+    encoded_node_key = quote(keypair.public_key_b64, safe="")
+    assert client.get(f"/agents/{encoded_node_key}").status_code == 200
+
+    signed_at = datetime.now(timezone.utc).isoformat()
+    envelope = f"delete-agent|v1|{keypair.public_key_b64}|{signed_at}".encode("utf-8")
+    resp = client.delete(
+        f"/agents/{encoded_node_key}",
+        json={"version": "v1", "signed_at": signed_at, "signature": sign_data(envelope, keypair.private_key)},
+    )
+    assert resp.status_code == 200
+

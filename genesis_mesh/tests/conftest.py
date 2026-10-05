@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import nacl.encoding
 import nacl.signing
 import pytest
+from flask import Flask
 
 from genesis_mesh.audit import logger as audit_logger_module
 from genesis_mesh.crypto import generate_keypair, sign_model
@@ -14,6 +15,11 @@ from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRe
 from genesis_mesh.na_service.server import NetworkAuthorityService
 
 from .pg_support import postgres_test_database  # noqa: F401  (autouse fixture)
+from .na_server_helpers import SigningTestClient
+
+# Admin signatures (v1.0.2) bind method, path and query: every NA test client
+# signs requests marked by na_server_helpers.admin_headers when they are sent.
+Flask.test_client_class = SigningTestClient
 
 
 @pytest.fixture(autouse=True)

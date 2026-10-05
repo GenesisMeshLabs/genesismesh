@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import stat
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 
 from click.testing import CliRunner
@@ -251,6 +255,126 @@ def test_managed_restore_rejects_non_na_sqlite_file(tmp_path):
 
     assert result.exit_code != 0
     assert "does not look like a Genesis Mesh NA database" in result.output
+
+
+@pytest.mark.skipif(os.name == "nt" or os.geteuid() == 0, reason="POSIX permissions; root ignores them")
+def test_managed_restore_reads_a_backup_on_read_only_media(tmp_path):
+    """Validating a backup never writes to it, so a read-only backup directory
+    works (as a backup volume mounted read-only into a container) (v1.0.2)."""
+    db_path = tmp_path / "na.db"
+    backup_dir = tmp_path / "backups"
+    backup_path = backup_dir / "na-backup.db"
+    _seed_and_back_up(db_path, backup_path)
+    before = backup_path.read_bytes()
+    backup_dir.chmod(0o555)  # no -wal or -shm can be created next to the backup
+    try:
+        result = CliRunner().invoke(
+            cli,
+            ["managed", "restore", "--db-path", str(db_path), "--backup", str(backup_path), "--yes"],
+        )
+    finally:
+        backup_dir.chmod(0o755)
+    assert result.exit_code == 0, result.output
+    assert backup_path.read_bytes() == before
+    assert sorted(p.name for p in backup_dir.iterdir()) == ["na-backup.db"]
+
+
+def test_managed_restore_discards_the_replaced_databases_wal(tmp_path):
+    """After an unclean stop, writes that exist only in the replaced database's
+    WAL never reach the restored database (v1.0.2)."""
+    db_path = tmp_path / "na.db"
+    backup_path = tmp_path / "na-backup.db"
+    _seed_and_back_up(db_path, backup_path)
+    _crash_after_wal_write(db_path, "after_backup")
+    assert (tmp_path / "na.db-wal").stat().st_size > 0
+
+    result = CliRunner().invoke(
+        cli,
+        ["managed", "restore", "--db-path", str(db_path), "--backup", str(backup_path), "--yes"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _event_types(db_path) == ["in_backup"]
+
+
+def test_managed_pre_restore_backup_keeps_writes_still_in_the_wal(tmp_path):
+    """The pre-restore copy includes writes not yet checkpointed into the
+    database file, which a plain file copy would lose (v1.0.2)."""
+    db_path = tmp_path / "na.db"
+    backup_path = tmp_path / "na-backup.db"
+    pre_restore_path = tmp_path / "pre-restore.db"
+    _seed_and_back_up(db_path, backup_path)
+    _crash_after_wal_write(db_path, "after_backup")
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "managed", "restore", "--db-path", str(db_path), "--backup", str(backup_path),
+            "--pre-restore-backup", str(pre_restore_path), "--yes",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _event_types(pre_restore_path) == ["in_backup", "after_backup"]
+    assert _event_types(db_path) == ["in_backup"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_managed_restore_keeps_the_database_mode(tmp_path):
+    """A restore replaces the contents only: a group-writable database stays
+    group-writable even from a 0444 backup (v1.0.2)."""
+    db_path = tmp_path / "na.db"
+    backup_path = tmp_path / "backups" / "na-backup.db"
+    _seed_and_back_up(db_path, backup_path)
+    db_path.chmod(0o664)
+    backup_path.chmod(0o444)
+    try:
+        result = CliRunner().invoke(
+            cli,
+            ["managed", "restore", "--db-path", str(db_path), "--backup", str(backup_path), "--yes"],
+        )
+    finally:
+        backup_path.chmod(0o644)
+    assert result.exit_code == 0, result.output
+    assert stat.S_IMODE(db_path.stat().st_mode) == 0o664
+    assert _event_types(db_path) == ["in_backup"]
+
+
+def _seed_and_back_up(db_path, backup_path):
+    db = NADatabase(str(db_path))
+    try:
+        db.migrate()
+        db.add_audit_event("in_backup", {})
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        db.backup(str(backup_path))
+    finally:
+        db.conn.close()
+
+
+def _crash_after_wal_write(db_path, event_type):
+    """Commit one audit event in WAL mode and exit without closing, as a crash
+    would: the write is in na.db-wal only, never checkpointed."""
+    event = json.dumps({"event_id": event_type, "event_type": event_type, "details": {},
+                        "created_at": "2999-01-01T00:00:00+00:00"})
+    code = (
+        "import os, sqlite3, sys\n"
+        "conn = sqlite3.connect(sys.argv[1])\n"
+        "conn.execute('PRAGMA journal_mode = WAL')\n"
+        "conn.execute('PRAGMA wal_autocheckpoint = 0')\n"
+        "conn.execute('INSERT INTO audit_events (event_id, event_json, created_at) VALUES (?, ?, ?)',\n"
+        "             (sys.argv[2], sys.argv[3], '2999-01-01T00:00:00+00:00'))\n"
+        "conn.commit()\n"
+        "os._exit(0)\n"
+    )
+    subprocess.run([sys.executable, "-c", code, str(db_path), event_type, event], check=True)
+
+
+def _event_types(db_path):
+    db = NADatabase(str(db_path))
+    try:
+        return [event["event_type"] for event in db.list_audit_events()]
+    finally:
+        db.conn.close()
 
 
 def _new_service(db_path):

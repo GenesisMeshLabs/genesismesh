@@ -9,6 +9,7 @@ from typing import Literal, Optional
 from flask import request
 
 from ..crypto import verify_signature
+from ..crypto.admin_auth import admin_signing_payload, legacy_admin_signing_payload
 from .errors import ForbiddenError
 
 logger = logging.getLogger(__name__)
@@ -37,12 +38,15 @@ def _audit_auth_failure(service, event_type: str, details: dict) -> None:
         )
 
 
-OperatorTier = Literal["standard", "privileged"]
+OperatorTier = Literal["read", "standard", "privileged"]
 
-OPERATOR_TIERS: tuple[str, ...] = ("standard", "privileged")
+OPERATOR_TIERS: tuple[str, ...] = ("read", "standard", "privileged")
 
-# A privileged key satisfies a standard requirement; the reverse is not true.
-_TIER_RANK: dict[str, int] = {"standard": 0, "privileged": 1}
+# Each tier satisfies the requirements of the tiers below it; the reverse is
+# not true. A read key opens only the operator views of /nodes and
+# /attestations (v1.0.2), so a dashboard can hold one without being able to
+# change anything.
+_TIER_RANK: dict[str, int] = {"read": 0, "standard": 1, "privileged": 2}
 
 
 def load_operator_key_tiers(specs: Optional[list[str]]) -> dict[str, str]:
@@ -287,17 +291,30 @@ def verify_admin_request(
         )
         return False, "Admin nonce already used"
 
-    canonical = json.dumps(
-        {
-            "body": data,
-            "key_id": key_id,
-            "timestamp": timestamp_str,
-            "nonce": nonce,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
+    # v1.0.2: the signature covers the method, path, query and this NA's public
+    # key, so a captured request cannot be replayed against another route,
+    # target, query or Network Authority, not even one that shares this
+    # NA's network name (see crypto/admin_auth.py).
+    signed = admin_signing_payload(
+        method=request.method,
+        path=request.path,
+        query=request.args.to_dict(flat=False),
+        audience=service.genesis_block.network_authority.public_key,
+        body=data,
+        key_id=key_id,
+        timestamp=timestamp_str,
+        nonce=nonce,
     )
-    if not verify_signature(canonical.encode("utf-8"), signature_b64, public_key):
+    signature_version = 2
+    valid = verify_signature(signed, signature_b64, public_key)
+    if not valid and service.admin_legacy_signatures == "accept":
+        legacy = legacy_admin_signing_payload(
+            body=data, key_id=key_id, timestamp=timestamp_str, nonce=nonce
+        )
+        if verify_signature(legacy, signature_b64, public_key):
+            valid = True
+            signature_version = 1
+    if not valid:
         _audit_auth_failure(
             service,
             "admin_auth_failed",
@@ -312,6 +329,24 @@ def verify_admin_request(
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
         )
         return False, "Admin nonce already used"
+
+    if signature_version == 1:
+        # Accepted only because the operator opted in for a migration window;
+        # every use stays visible so the window can be closed with evidence.
+        logger.warning(
+            "Accepted a version 1 admin signature from key %s on %s %s; "
+            "unset NA_ADMIN_LEGACY_SIGNATURES once clients are upgraded",
+            key_id, request.method, request.path,
+        )
+        try:
+            service.db.add_audit_event("admin_legacy_signature_accepted", {
+                "key_id": key_id,
+                "method": request.method,
+                "path": request.path,
+            })
+        except Exception as exc:  # the request is authentic; do not fail it on audit
+            service.audit_write_failures += 1
+            logger.error("Failed to persist admin_legacy_signature_accepted: %s", exc)
 
     # F-21: authorisation, after authentication has succeeded. The request is
     # genuine, so its nonce stays spent -- it simply asks for more than this key

@@ -22,6 +22,7 @@ from ...trust.agreement import (
     verify_agreement,
 )
 from ..errors import (
+    utc_timestamp,
     BadRequestError,
     RateLimitError,
     RequestValidationError,
@@ -73,9 +74,9 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             )
 
         try:
-            valid_from = datetime.fromisoformat(data["valid_from"]).replace(tzinfo=timezone.utc)
-            valid_until = datetime.fromisoformat(data["valid_until"]).replace(tzinfo=timezone.utc)
-            expires_at = datetime.fromisoformat(data["expires_at"]).replace(tzinfo=timezone.utc)
+            valid_from = utc_timestamp(data["valid_from"])
+            valid_until = utc_timestamp(data["valid_until"])
+            expires_at = utc_timestamp(data["expires_at"])
         except (KeyError, ValueError) as exc:
             raise BadRequestError(
                 "valid_from, valid_until, expires_at are required ISO timestamps",
@@ -143,8 +144,8 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             raise BadRequestError("Invalid offer object", code="invalid_offer") from exc
 
         try:
-            valid_from = datetime.fromisoformat(data["valid_from"]).replace(tzinfo=timezone.utc)
-            valid_until = datetime.fromisoformat(data["valid_until"]).replace(tzinfo=timezone.utc)
+            valid_from = utc_timestamp(data["valid_from"])
+            valid_until = utc_timestamp(data["valid_until"])
         except (KeyError, ValueError) as exc:
             raise BadRequestError(
                 "valid_from and valid_until are required ISO timestamps",

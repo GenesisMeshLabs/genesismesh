@@ -16,6 +16,11 @@ from examples.public_dashboard.view import NOTICE, dashboard, render
 from genesis_mesh.crypto import load_private_key, sign_model
 
 
+# Keys and signatures are random base64, which now and then contains a short
+# forbidden name such as "USG" by chance; names are checked outside them.
+_BASE64_RUN = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
+
+
 @pytest.fixture
 def demo(tmp_path):
     root = tmp_path / "demo"
@@ -49,8 +54,10 @@ def test_public_routes_expose_only_clean_signed_data_and_are_read_only(demo):
         response = client.get(path)
         assert response.status_code == 200, path
         text = response.get_data(as_text=True)
+        assert str(root) not in text, path
+        names = _BASE64_RUN.sub("", text)
         for forbidden in leaks[path]:
-            assert forbidden not in text, (path, forbidden)
+            assert forbidden not in names, (path, forbidden)
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
         assert response.headers["Strict-Transport-Security"]

@@ -69,19 +69,18 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def canonical(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
-
-
 def call(method: str, path: str, body: dict | None = None, *, admin: bool = False,
          params: dict | None = None, ok: tuple[int, ...] = (200, 201)) -> requests.Response:
     headers = {}
     if admin:
-        ts, nonce = now().isoformat(), str(uuid.uuid4())
-        signed = canonical({"body": body if method == "POST" else {}, "key_id": OPERATOR_ID,
-                            "timestamp": ts, "nonce": nonce})
-        headers = {"X-Admin-Key-Id": OPERATOR_ID, "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
-                   "X-Admin-Signature": base64.b64encode(OPERATOR.sign(signed.encode()).signature).decode()}
+        # v1.0.2: the signature covers the method, path, query and the NA's
+        # public key (the pinned NA_PUBLIC_KEY).
+        from genesis_mesh.crypto.admin_auth import sign_admin_request
+
+        headers = sign_admin_request(
+            OPERATOR, OPERATOR_ID, method=method, path=path, audience=NA_KEY,
+            body=body if method == "POST" else {}, query=params,
+        )
     response = requests.request(method, NA_URL + path, json=body if method == "POST" else None,
                                 params=params, headers=headers, timeout=15)
     if response.status_code not in ok:

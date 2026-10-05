@@ -94,6 +94,14 @@ def test_admin_invite_and_join_use_single_configured_workflow(tmp_path):
         assert reuse_result.exit_code == 0, reuse_result.output
         assert "Using existing certificate" in reuse_result.output
         assert "Joined USG as role:anchor" in reuse_result.output
+        assert "--token was not used" not in reuse_result.output
+
+        # v1.0.2: an unused --token is reported, not silently ignored.
+        token_reuse = runner.invoke(
+            cli, ["join", "--config", str(config_path), "--na", endpoint, "--token", "unused-token"]
+        )
+        assert token_reuse.exit_code == 0, token_reuse.output
+        assert "--token was not used" in token_reuse.output
 
         reuse_status = runner.invoke(cli, ["status", "--config", str(config_path)])
         assert reuse_status.exit_code == 0, reuse_status.output

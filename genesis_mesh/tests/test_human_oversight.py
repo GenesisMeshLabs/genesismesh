@@ -744,3 +744,96 @@ class TestF07SelfVerifiableCommitment:
         assert result.valid is False
         # The agent check fires first because the core also carries the digest.
         assert result.reason in ("invalid_agent_signature", "invalid_human_signature")
+
+
+class TestApprovalBoundToItsRequest:
+    """v1.0.2: the custodian answers a request in its window, under its policy."""
+
+    def _request(self, window: int = 300, now: datetime = _NOW):
+        policy = _make_policy()
+        request, _ = propose_commitment(
+            policy, _make_action(irreversible=True), _AGENT_ID, _agent_sk(),
+            issued_by="agent-key", approval_window_seconds=window, now=now,
+        )
+        return request, policy
+
+    def test_approval_after_the_window_is_refused(self) -> None:
+        request, policy = self._request(window=120)
+        with pytest.raises(ValueError, match="approval window closed"):
+            approve_commitment(request, policy, _human_sk(), issued_by="human-key",
+                               now=_NOW + timedelta(seconds=121))
+
+    def test_approval_at_the_end_of_the_window_is_accepted(self) -> None:
+        request, policy = self._request(window=120)
+        _, commitment = approve_commitment(request, policy, _human_sk(), issued_by="human-key",
+                                           now=_NOW + timedelta(seconds=120))
+        assert commitment.is_fully_signed()
+
+    def test_approval_under_another_policy_is_refused(self) -> None:
+        request, _ = self._request()
+        with pytest.raises(ValueError, match="evaluated under policy"):
+            approve_commitment(request, _make_policy(), _human_sk(), issued_by="human-key", now=_NOW)
+
+    def test_rejection_under_another_policy_is_refused(self) -> None:
+        request, _ = self._request()
+        with pytest.raises(ValueError, match="evaluated under policy"):
+            reject_commitment(request, _make_policy(), _human_sk(), issued_by="human-key", now=_NOW)
+
+    def test_cli_reports_a_closed_window_as_an_error(self, tmp_path) -> None:
+        request, policy = self._request(now=datetime.now(timezone.utc) - timedelta(hours=1))
+        (tmp_path / "request.json").write_text(request.model_dump_json(), encoding="utf-8")
+        (tmp_path / "policy.json").write_text(policy.model_dump_json(), encoding="utf-8")
+        result = CliRunner().invoke(trust, [
+            "oversight", "approve",
+            "--request", str(tmp_path / "request.json"),
+            "--policy", str(tmp_path / "policy.json"),
+            "--signing-key", _write_key(_human_sk()),
+            "--output", str(tmp_path / "commitment.json"),
+        ])
+        assert result.exit_code == 1, result.output
+        assert "approval window closed" in result.output
+        assert not isinstance(result.exception, ValueError)
+        assert not (tmp_path / "commitment.json").exists()
+
+    def test_cli_reports_a_legacy_request_as_an_error(self, tmp_path) -> None:
+        request, policy = self._request(now=datetime.now(timezone.utc))
+        legacy = request.model_copy(update={"commitment_core_signature": None})
+        (tmp_path / "request.json").write_text(legacy.model_dump_json(), encoding="utf-8")
+        (tmp_path / "policy.json").write_text(policy.model_dump_json(), encoding="utf-8")
+        result = CliRunner().invoke(trust, [
+            "oversight", "approve",
+            "--request", str(tmp_path / "request.json"),
+            "--policy", str(tmp_path / "policy.json"),
+            "--signing-key", _write_key(_human_sk()),
+            "--output", str(tmp_path / "commitment.json"),
+        ])
+        assert result.exit_code == 1, result.output
+        assert "commitment_core_signature" in result.output
+        assert not isinstance(result.exception, ValueError)
+
+    def test_cli_workflow_with_a_hand_written_policy_without_an_id(self, tmp_path) -> None:
+        """A policy file without policy_id is named by its content, the same at each load."""
+        policy = {"agreement_id": _AGREEMENT_ID, "human_sovereign_id": _HUMAN_ID,
+                  "allowed_capabilities": ["transactions.send"]}
+        (tmp_path / "policy.json").write_text(json.dumps(policy), encoding="utf-8")
+        (tmp_path / "action.json").write_text(json.dumps(_make_action(irreversible=True)), encoding="utf-8")
+        runner = CliRunner()
+        proposed = runner.invoke(trust, [
+            "oversight", "propose", "--policy", str(tmp_path / "policy.json"),
+            "--action", str(tmp_path / "action.json"), "--requester", _AGENT_ID,
+            "--signing-key", _write_key(_agent_sk()), "--output", str(tmp_path / "request.json"),
+        ])
+        assert proposed.exit_code == 0, proposed.output
+        request = json.loads((tmp_path / "request.json").read_text(encoding="utf-8"))
+        assert request["policy_id"].startswith("sha256:")
+
+        approve = ["oversight", "approve", "--request", str(tmp_path / "request.json"),
+                   "--signing-key", _write_key(_human_sk()), "--output", str(tmp_path / "commitment.json")]
+        approved = runner.invoke(trust, [*approve, "--policy", str(tmp_path / "policy.json")])
+        assert approved.exit_code == 0, approved.output
+
+        (tmp_path / "other.json").write_text(json.dumps({**policy, "human_sovereign_id": "someone-else"}),
+                                             encoding="utf-8")
+        refused = runner.invoke(trust, [*approve, "--policy", str(tmp_path / "other.json")])
+        assert refused.exit_code == 1, refused.output
+        assert "evaluated under policy" in refused.output

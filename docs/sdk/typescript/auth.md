@@ -7,9 +7,17 @@ Admin routes use Ed25519 over canonical JSON. The four headers:
 | Header | Content |
 |--------|---------|
 | `X-Admin-Key-Id` | The `keyId` string |
-| `X-Admin-Signature` | Ed25519 over `canonicalJson({body, key_id, nonce, timestamp})` |
+| `X-Admin-Signature` | Ed25519 over the canonical admin payload (signature version 2) |
 | `X-Admin-Timestamp` | ISO 8601 UTC timestamp |
 | `X-Admin-Nonce` | UUID v4 replay-protection token |
+
+The signed payload is `canonicalJson({v: 2, method, path, query, audience, body,
+key_id, timestamp, nonce})`: the HTTP method, the decoded request path, the
+query parameters (`{name: [values]}`), the target NA's public key and the
+JSON body (`{}` without one). `adminSigningPayload` returns it. The client
+reads the NA's public key (`network_authority.public_key`) once from
+`/sovereign.json`, or takes the `audience` option. See the Network Authority API reference for the format and
+`conformance/vectors/admin_auth.json` for reference vectors.
 
 `canonicalJson` produces deterministic JSON (sorted keys, no spaces) matching
 Python's `json.dumps(..., sort_keys=True, separators=(",",":"))`.
@@ -32,19 +40,26 @@ For NA admin routes not covered by a sub-client, use `buildAdminHeaders`
 directly:
 
 ```typescript
-import { buildAdminHeaders } from 'genesis-mesh-sdk';
+import { buildAdminHeaders, canonicalJson } from 'genesis-mesh-sdk';
 
 const body = {
   subject_sovereign_id: 'BETA-NA',
-  subject_public_keys: ['<base64-pubkey>'],
+  subject_public_keys: ['<base64-ed25519-pubkey>'],
   scope: { allowed_roles: ['role:client'] },
   validity_hours: 24,
 };
-const headers = buildAdminHeaders(body, keyId, signingKeyBase64);
+
+// The signature binds the method, path, query, the NA's public key
+// (`network_authority.public_key` in its /sovereign.json) and the body.
+const headers = buildAdminHeaders(
+  { method: 'POST', path: '/admin/recognition-treaties', audience: '<NA public key from /sovereign.json>', body },
+  keyId,
+  signingKeyBase64,
+);
 const res = await fetch(`${baseUrl}/admin/recognition-treaties`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', ...headers },
-  body: JSON.stringify(body),
+  body: canonicalJson(body),
 });
 ```
 

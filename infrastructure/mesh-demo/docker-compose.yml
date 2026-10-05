@@ -17,9 +17,10 @@ services:
       NA_PRIVATE_KEY_SEED: ${NA_PRIVATE_KEY_SEED:?set NA_PRIVATE_KEY_SEED}
       NA_KEY_ID: mesh-na
       DB_PATH: /data/na.db
-      # ops: the maintainer (key held off the droplet); demo-ops: the demo job.
+      # ops: the maintainer (key held off the droplet); demo-ops: the demo job;
+      # mesh-reader: the gateway's mesh view, which reads the member list.
       OPERATOR_PUBLIC_KEYS_JSON: ${OPERATOR_PUBLIC_KEYS_JSON:?set OPERATOR_PUBLIC_KEYS_JSON}
-      OPERATOR_KEY_TIERS_JSON: '{"ops": "privileged", "demo-ops": "privileged"}'
+      OPERATOR_KEY_TIERS_JSON: '{"ops": "privileged", "demo-ops": "privileged", "mesh-reader": "read"}'
       EVIDENCE_STORE: "on"
       BOUNDARY_POLICY_ENFORCEMENT: required
       # Every request arrives from the gateway or the demo job.
@@ -77,6 +78,9 @@ services:
       RUST_LOG: info
     volumes:
       - ./policy.json:/run/gateway/policy.json:ro
+      # The mesh reader's seed: secrets/ is 700 and the key 400, both owned by
+      # the gateway user (10001). See README.md.
+      - ./secrets/mesh-reader.key:/run/gateway/mesh-reader.key:ro
       - gateway-state:/var/lib/gateway
     depends_on:
       na:

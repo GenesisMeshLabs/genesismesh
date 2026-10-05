@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
+@click.version_option(package_name="genesis-mesh", prog_name="genesis-mesh", message="%(prog)s %(version)s")
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 def cli(debug):
     """Genesis Mesh CLI - Cryptographic mesh networking toolkit."""
@@ -191,9 +193,11 @@ def genesis_verify(genesis):
         genesis_data = json.load(f)
         genesis_block = GenesisBlock(**genesis_data)
 
+    # A click command's return value is not its exit code: exit explicitly so
+    # scripts can rely on it (v1.0.2).
     if not genesis_block.signatures:
         click.echo("ERROR No signatures found!", err=True)
-        return 1
+        raise SystemExit(1)
 
     root_public_key = public_key_from_b64(genesis_block.root_public_key)
 
@@ -204,13 +208,11 @@ def genesis_verify(genesis):
         click.echo(f"{status} Signature from {sig.key_id}: {'VALID' if valid else 'INVALID'}")
         all_valid = all_valid and valid
 
-    if all_valid:
-        click.echo("\nOK All signatures verified successfully")
-        click.echo(f"  Network: {genesis_block.network_name} ({genesis_block.network_version})")
-        return 0
-    else:
+    if not all_valid:
         click.echo("\nERROR Signature verification failed!", err=True)
-        return 1
+        raise SystemExit(1)
+    click.echo("\nOK All signatures verified successfully")
+    click.echo(f"  Network: {genesis_block.network_name} ({genesis_block.network_version})")
 
 
 @cli.command()
@@ -243,9 +245,34 @@ def info(genesis):
 register_operational_commands(cli)
 
 
+def _utf8_output() -> None:
+    """Write UTF-8 on stdout and stderr.
+
+    Help texts and data carry characters outside a Windows console code page;
+    printing them into a pipe or file encoded with that code page raised
+    UnicodeEncodeError (v1.0.2).
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "").replace("_", "")
+        if encoding != "utf8" and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def main():
     """Entry point for CLI."""
-    cli()
+    _utf8_output()
+    try:
+        cli()
+    except OSError as exc:
+        # A file or network error is the user's to fix, not a crash: report it
+        # like any other CLI error (v1.0.2). --debug keeps the traceback.
+        if "--debug" in sys.argv[1:]:
+            raise
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1) from None
 
 
 if __name__ == '__main__':

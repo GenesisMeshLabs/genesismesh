@@ -19,6 +19,7 @@ import click
 from ..crypto import load_private_key
 from ..models.attestation import AttestationPolicy, ModelAttestation, ToolManifest
 from ..trust.logic_attestation import create_model_attestation, verify_model_attestation
+from .support import ensure_parent, public_key_value
 
 
 @click.group("attest")
@@ -64,7 +65,7 @@ def attest_create(
         agent_sov, model_id, model_version, system_prompt, list(tool_ids), sk,
         token_id=token_id, valid_for_seconds=valid_for,
     )
-    Path(output_path).write_text(attestation.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(attestation.model_dump_json(indent=2), encoding="utf-8")
 
     prompt_hash_short = attestation.system_prompt_hash[:16]
     click.echo(f"[OK] ModelAttestation {attestation.attestation_id}")
@@ -87,7 +88,7 @@ def attest_create(
 @click.option("--policy", "policy_path", required=True, type=click.Path(exists=True),
               help="AttestationPolicy JSON file.")
 @click.option("--public-key", "public_keys", required=True, multiple=True,
-              help="Agent public key (base64 string). Pass once per key.")
+              help="Agent public key: base64 or path to a public key file. Pass once per key.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
               help="Output format.")
 def attest_verify(
@@ -105,7 +106,7 @@ def attest_verify(
         Path(policy_path).read_text(encoding="utf-8")
     )
 
-    passed, reason = verify_model_attestation(attestation, policy, list(public_keys))
+    passed, reason = verify_model_attestation(attestation, policy, [public_key_value(k) for k in public_keys])
 
     if fmt == "json":
         click.echo(json.dumps({
@@ -172,7 +173,7 @@ def attest_policy(
     sig = _sign_model(policy, sk, operator_sov)
     policy = policy.model_copy(update={"signature": sig})
 
-    Path(output_path).write_text(policy.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(policy.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] AttestationPolicy {policy.policy_id}")
     click.echo(f"     Operator    : {operator_sov}")
     click.echo(f"     Models      : {list(allow_models) or ['(any)']}")

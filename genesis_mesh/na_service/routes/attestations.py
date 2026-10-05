@@ -91,13 +91,19 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             message="validity_hours must be greater than zero",
         )
 
+        # v1.0.2: this NA signs the attestation, so it names this sovereign as
+        # the issuer; it never signs an identity claim for another sovereign.
+        issuer_sovereign_id = service.genesis_block.network_name
+        if data.get("issuer_sovereign_id", issuer_sovereign_id) != issuer_sovereign_id:
+            raise BadRequestError(
+                "Attestations issued here name this sovereign as their issuer",
+                code="attestation_issuer_mismatch",
+            )
+
         now = datetime.now(timezone.utc)
         attestation = MembershipAttestation(
             attestation_id=str(uuid.uuid4()),
-            issuer_sovereign_id=data.get(
-                "issuer_sovereign_id",
-                service.genesis_block.network_name,
-            ),
+            issuer_sovereign_id=issuer_sovereign_id,
             subject_id=subject_id,
             subject_public_key=data.get("subject_public_key"),
             roles=roles,
@@ -198,11 +204,29 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
 
     @bp.route("/attestations", methods=["GET"])
     def list_attestations():
-        """List persisted membership attestations."""
+        """List membership attestations to operators; count them for anyone else.
+
+        The list names every attested subject with its key, roles and claims,
+        so it goes to operators only, as the node roster does; a read-tier key
+        is enough. An unsigned request gets the count, optionally by
+        ``status``; filtering by subject or issuer would answer "is this
+        subject a member", so it needs an operator signature (v1.0.2).
+        """
+        status = request.args.get("status")
+        if not request.headers.get("X-Admin-Key-Id"):
+            if request.args.get("subject_id") or request.args.get("issuer_sovereign_id"):
+                raise UnauthorizedError(
+                    "Filtering attestations by subject or issuer requires operator authentication",
+                    code="admin_auth_failed",
+                )
+            return jsonify({"count": len(service.db.list_membership_attestations(status=status))})
+        ok, error = service._verify_admin_request({}, required_tier="read")
+        if not ok:
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
         rows = service.db.list_membership_attestations(
             issuer_sovereign_id=request.args.get("issuer_sovereign_id"),
             subject_id=request.args.get("subject_id"),
-            status=request.args.get("status"),
+            status=status,
         )
         return jsonify({
             "count": len(rows),
@@ -211,11 +235,17 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
 
     @bp.route("/sovereign-revocation-feed", methods=["GET"])
     def sovereign_revocation_feed():
-        """Publish a signed feed of revoked membership attestations."""
-        issuer_sovereign_id = request.args.get(
-            "issuer_sovereign_id",
-            service.genesis_block.network_name,
-        )
+        """Publish this sovereign's signed feed of revoked membership attestations."""
+        issuer_sovereign_id = service.genesis_block.network_name
+        requested = request.args.get("issuer_sovereign_id")
+        if requested is not None and requested != issuer_sovereign_id:
+            # v1.0.2: this NA signs the feed, so the feed may only name this
+            # sovereign as its issuer. Another sovereign's feed comes from that
+            # sovereign's own endpoint.
+            raise BadRequestError(
+                "This Network Authority publishes only its own revocation feed",
+                code="feed_issuer_mismatch",
+            )
         revoked_rows = service.db.list_membership_attestations(
             issuer_sovereign_id=issuer_sovereign_id,
             status="revoked",
