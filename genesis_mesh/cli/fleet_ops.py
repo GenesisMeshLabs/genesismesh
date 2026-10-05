@@ -67,6 +67,23 @@ def _resolve(base: Path, value: str) -> Path:
     return candidate if candidate.is_absolute() else (base / candidate)
 
 
+def _member_path(node_config: Path, value: str) -> Path:
+    """Resolve a path stored in a member's genesis-mesh.toml.
+
+    Generated fleets store absolute paths (v1.0.2). Fleets generated before
+    stored paths relative to the directory ``fleet generate`` ran in, so a
+    relative path is tried from the current directory and then from each
+    directory above the member config, whichever holds the file.
+    """
+    candidate = Path(value)
+    if candidate.is_absolute() or candidate.exists():
+        return candidate
+    for base in (node_config.parent, *node_config.parent.parents):
+        if (base / candidate).exists():
+            return base / candidate
+    return candidate
+
+
 def _load_fleet_manifest(manifest_path: str) -> list[FleetNode]:
     """Read a fleet manifest and resolve each member NA's public config."""
     path = Path(manifest_path)
@@ -104,7 +121,7 @@ def _load_fleet_manifest(manifest_path: str) -> list[FleetNode]:
                 endpoint=endpoint.rstrip("/"),
                 config_path=node_config,
                 operator_key_id=operator.get("key_id", "operator-local"),
-                operator_key_path=_resolve(node_config.parent.parent, op_key) if op_key else Path(),
+                operator_key_path=_member_path(node_config, op_key) if op_key else Path(),
             )
         )
     return nodes
@@ -228,12 +245,13 @@ def _scaffold_sovereign(
     config = {
         "network": {"name": name, "version": network_version, "na_endpoint": endpoint},
         "paths": {
-            "home": config_path_value(home),
-            "genesis": config_path_value(signed_genesis_path),
-            "na_private_key": config_path_value(na_private_key_path),
-            "operator_private_key": config_path_value(operator_private_path),
-            "operator_public_key": config_path_value(operator_public_path),
-            "db": config_path_value(database_path),
+            # Absolute, so each member config works from any directory (v1.0.2).
+            "home": config_path_value(home.resolve()),
+            "genesis": config_path_value(signed_genesis_path.resolve()),
+            "na_private_key": config_path_value(na_private_key_path.resolve()),
+            "operator_private_key": config_path_value(operator_private_path.resolve()),
+            "operator_public_key": config_path_value(operator_public_path.resolve()),
+            "db": config_path_value(database_path.resolve()),
         },
         "na": {"key_id": "na-local", "host": host, "port": port},
         "operator": {"key_id": "operator-local"},

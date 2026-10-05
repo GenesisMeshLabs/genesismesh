@@ -17,6 +17,7 @@ import click
 from ..crypto import load_private_key
 from ..models.privacy import CommunicationPrivacyProfile, MetadataEnvelope
 from ..trust.privacy import apply_privacy_profile, scan_metadata_fingerprints
+from .support import ensure_parent
 
 
 @click.group("privacy")
@@ -69,7 +70,7 @@ def privacy_profile(
     )
     sig = _sign(profile, sk, sovereign_id)
     profile = profile.model_copy(update={"signature": sig})
-    Path(output_path).write_text(profile.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(profile.model_dump_json(indent=2), encoding="utf-8")
 
     click.echo(f"[OK] CommunicationPrivacyProfile {profile.profile_id}")
     click.echo(f"     Sovereign      : {sovereign_id}")
@@ -118,8 +119,8 @@ def privacy_apply(
         payload, headers, dispatch_time, profile.sovereign_id, profile, sk
     )
 
-    Path(envelope_path).write_text(envelope.model_dump_json(indent=2), encoding="utf-8")
-    Path(out_payload_path).write_bytes(normalized)
+    ensure_parent(envelope_path).write_text(envelope.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(out_payload_path).write_bytes(normalized)
 
     click.echo(f"[OK] MetadataEnvelope {envelope.envelope_id}")
     click.echo(f"     Original length  : {audit.original_length} bytes")

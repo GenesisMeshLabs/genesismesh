@@ -288,6 +288,38 @@ def _ts(value: str):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def run_admin_auth(vectors: list[dict]) -> list[str]:
+    """Admin request signatures: exact payload bytes and Ed25519 signatures."""
+    from genesis_mesh.crypto import sign_data, verify_signature
+    from genesis_mesh.crypto.admin_auth import (
+        admin_signing_payload,
+        legacy_admin_signing_payload,
+    )
+
+    failures = []
+    for v in vectors:
+        inp = {k: val for k, val in v["input"].items() if k != "public_key_b64"}
+        exp = v["expected"]
+        try:
+            payload = admin_signing_payload(**inp)
+            if payload.decode("utf-8") != exp["payload"]:
+                failures.append(f"{v['id']}: payload mismatch")
+            if sign_data(payload, KEYS["a"]) != exp["signature_b64"]:
+                failures.append(f"{v['id']}: signature mismatch")
+            if not verify_signature(payload, exp["signature_b64"], v["input"]["public_key_b64"]):
+                failures.append(f"{v['id']}: signature does not verify")
+            legacy = legacy_admin_signing_payload(
+                body=inp["body"], key_id=inp["key_id"], timestamp=inp["timestamp"], nonce=inp["nonce"]
+            )
+            if legacy.decode("utf-8") != exp["legacy_payload"]:
+                failures.append(f"{v['id']}: legacy payload mismatch")
+            if verify_signature(payload, exp["legacy_signature_b64"], v["input"]["public_key_b64"]):
+                failures.append(f"{v['id']}: a legacy signature verifies as version 2")
+        except Exception as exc:
+            failures.append(f"{v['id']}: {exc}")
+    return failures
+
+
 def run_interop(vectors: list[dict]) -> list[str]:
     """Offline verification every SDK implements (v0.61.0)."""
     import json as _json
@@ -358,6 +390,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "consensus": run_consensus,
     "data_usage": run_data_usage,
     "interop": run_interop,
+    "admin_auth": run_admin_auth,
 }
 
 

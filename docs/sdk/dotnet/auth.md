@@ -7,9 +7,16 @@ Admin routes use Ed25519 over canonical JSON. The four headers:
 | Header | Description |
 |--------|-------------|
 | `X-Admin-Key-Id` | Key identifier registered with the NA |
-| `X-Admin-Signature` | Ed25519 signature over `canonicalJSON({body, key_id, nonce, timestamp})` |
+| `X-Admin-Signature` | Ed25519 over the canonical admin payload: `{v: 2, method, path, query, audience, body, key_id, timestamp, nonce}` |
 | `X-Admin-Timestamp` | ISO 8601 UTC timestamp (within the NA's nonce window) |
 | `X-Admin-Nonce` | UUID v4 replay-protection token (single use) |
+
+Signature version 2 (1.0.2) binds each signature to the HTTP method, the request
+path, the query parameters and the target NA's public key (`Audience`). The
+client reads it (`network_authority.public_key`) once from the NA's public
+`/sovereign.json`, or
+uses `ClientOptions.Audience`. `Auth.AdminSigningPayload` returns the signed bytes.
+
 
 `canonicalJSON` produces output identical to Python's
 `json.dumps(sort_keys=True, separators=(",",":"))` — keys sorted recursively,
@@ -37,8 +44,10 @@ var body = new Dictionary<string, object?>
     ["validity_hours"]       = 24,
 };
 
-var (seed, _) = Auth.LoadPrivateKey(Environment.GetEnvironmentVariable("OPERATOR_KEY")!);
-var headers   = Auth.BuildAdminHeaders(body, "operator-local", seed);
+var seed      = Auth.LoadSeed(Environment.GetEnvironmentVariable("OPERATOR_KEY")!);
+// The signature binds method, path, query, the NA's public key and the body.
+var request   = new AdminRequest("POST", "/admin/recognition-treaties", "<NA public key from /sovereign.json>", body);
+var headers   = Auth.BuildAdminHeaders(request, "operator-local", seed);
 
 using var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/admin/recognition-treaties");
 req.Content = new StringContent(JsonSerializer.Serialize(body, Auth.SerializerOptions), Encoding.UTF8, "application/json");

@@ -11,15 +11,15 @@ and an export verifies offline.
 
 from __future__ import annotations
 
-import json
-import uuid
+from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, timedelta, timezone
 
 import nacl.encoding
 import nacl.signing
 import pytest
 
-from genesis_mesh.crypto import generate_keypair, sign_data, sign_model
+from genesis_mesh.crypto import generate_keypair, sign_model
+from genesis_mesh.crypto.admin_auth import sign_admin_request
 from genesis_mesh.models import GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.models.context import BoundaryDecision
 from genesis_mesh.na_service.server import NetworkAuthorityService
@@ -32,18 +32,14 @@ VENDOR = "vendor-acme"
 SECRET = "kv:vendor-acme/api-key"
 
 
-def _headers(keypair, body: dict) -> dict:
-    ts = datetime.now(timezone.utc).isoformat()
-    nonce = str(uuid.uuid4())
-    canonical = json.dumps(
-        {"body": body, "key_id": "ops", "timestamp": ts, "nonce": nonce}, sort_keys=True, separators=(",", ":")
+def _headers(keypair, body: dict, *, audience: str, method: str, url: str) -> dict:
+    """Sign one admin request (v1.0.2: method, path, query and audience are bound)."""
+    parts = urlsplit(url)
+    return sign_admin_request(
+        keypair.private_key, "ops",
+        method=method, path=parts.path, query=parse_qs(parts.query, keep_blank_values=True),
+        audience=audience, body=body,
     )
-    return {
-        "X-Admin-Key-Id": "ops",
-        "X-Admin-Timestamp": ts,
-        "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(canonical.encode("utf-8"), keypair.private_key),
-    }
 
 
 class _Operator:
@@ -51,12 +47,15 @@ class _Operator:
         service.app.config["TESTING"] = True
         self.client = service.app.test_client()
         self.keypair = keypair
+        self.audience = service.genesis_block.network_authority.public_key
 
     def post(self, url: str, body: dict):
-        return self.client.post(url, json=body, headers=_headers(self.keypair, body))
+        headers = _headers(self.keypair, body, audience=self.audience, method="POST", url=url)
+        return self.client.post(url, json=body, headers=headers)
 
     def get(self, url: str):
-        return self.client.get(url, headers=_headers(self.keypair, {}))
+        headers = _headers(self.keypair, {}, audience=self.audience, method="GET", url=url)
+        return self.client.get(url, headers=headers)
 
 
 def _boot(db_path: str, na_key, genesis, operator_keypair) -> NetworkAuthorityService:

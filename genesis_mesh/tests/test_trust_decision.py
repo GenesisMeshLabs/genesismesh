@@ -362,3 +362,36 @@ class TestTrustEvidence:
         blob = json.dumps(result.to_dict())
         assert '"accepted"' in blob
         assert '"evidence_id"' in blob
+
+
+def _revoked(attestation_id: str, feed_id: str = "feed-1", sequence: int = 1) -> dict:
+    return {
+        "type": "membership_attestation",
+        "id": attestation_id,
+        "issuer_sovereign_id": "sovereign-b",
+        "feed_id": feed_id,
+        "sequence": sequence,
+        "reason": "key_compromise",
+        "revoked_at": "2026-06-01T00:00:00+00:00",
+    }
+
+
+def test_one_pressure_signal_per_feed_not_per_attestation():
+    """v1.0.2: three attestations revoked by one feed give one signal, with the count."""
+    g = _active_graph()
+    g["revoked_trust_material"] = [_revoked("attest-1"), _revoked("attest-2"), _revoked("attest-3")]
+    d = evaluate_trust_decision(g, "sovereign-a", "sovereign-b")
+    pressure = [s for s in d.signals if s.code == "recognition_under_revocation_pressure"]
+    assert d.verdict == "escalate"
+    assert len(pressure) == 1
+    assert "3 attestation(s)" in pressure[0].detail
+    assert "feed-1" in pressure[0].detail and "sovereign-b" in pressure[0].detail
+
+
+def test_pressure_signals_from_two_feeds_stay_apart():
+    g = _active_graph()
+    g["revoked_trust_material"] = [_revoked("attest-1"), _revoked("attest-2", "feed-2", 2)]
+    d = evaluate_trust_decision(g, "sovereign-a", "sovereign-b")
+    pressure = [s for s in d.signals if s.code == "recognition_under_revocation_pressure"]
+    assert len(pressure) == 2
+    assert len({s.detail for s in pressure}) == 2

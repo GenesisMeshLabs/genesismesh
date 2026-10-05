@@ -51,13 +51,7 @@ recognition treaty (see {doc}`recognition-treaties` and {doc}`edge-fleet`).
 From Sovereign A's Network Authority:
 
 ```bash
-# Via the live endpoint
-curl -s https://na-a.example.org/trust/graph | tee fleet-graph.json
-
-# Or via the CLI proof command (offline)
-genesis-mesh proof export-graph \
-  --config .genesis-mesh/genesis-mesh.toml \
-  --output fleet-graph.json
+curl -s https://na-a.example.org/recognition-graph | tee fleet-graph.json
 ```
 
 ### 2. Evaluate the trust decision

@@ -88,9 +88,12 @@ genesis-mesh na start
 ```
 
 The command is blocking. Open `http://127.0.0.1:8443/` in a browser to see the
-Network Authority landing page with links to health, policy, CRL, and node
-routes. Keep the server running in one terminal, then create an invite token
-from another terminal:
+Network Authority's read-only health and trust dashboard: trust warnings,
+treaty lifecycle, revocation feed freshness, boundary policies, recent trust
+changes, and links to the API and CLI references and the JSON exports. The
+health, policy, CRL and node routes are `/healthz`, `/readyz`, `/policy`,
+`/crl` and `/nodes`. Keep the server running in one terminal, then create an
+invite token from another terminal:
 
 ```bash
 INVITE_TOKEN=$(genesis-mesh admin invite --role anchor)

@@ -118,8 +118,16 @@ def test_admin_invite_prints_server_validation_body(tmp_path, monkeypatch):
         def json(self):
             return {"error": "Invalid role: role:node"}
 
-    def fake_request(*args, **kwargs):
-        return Response()
+    class Sovereign:
+        status_code = 200
+        text = '{"sovereign_id":"USG","network_authority":{"public_key":"na-key"}}'
+
+        def json(self):
+            return {"sovereign_id": "USG", "network_authority": {"public_key": "na-key"}}
+
+    def fake_request(self, method, url, *args, **kwargs):
+        # The admin signature names the NA's public key (v1.0.2), read first.
+        return Sovereign() if url.endswith("/sovereign.json") else Response()
 
     monkeypatch.setattr("requests.sessions.Session.request", fake_request)
 

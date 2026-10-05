@@ -106,7 +106,7 @@ def _print_decision_table(d: dict[str, Any]) -> None:
 @click.option(
     "--graph", "graph_path", required=True,
     type=click.Path(exists=True, dir_okay=False),
-    help="Recognition-graph export JSON (from /trust/graph or `proof export-graph`).",
+    help="Recognition-graph export JSON (a Network Authority's GET /recognition-graph).",
 )
 @click.option("--from", "source", required=True, help="Source sovereign ID.")
 @click.option("--to", "target", required=True, help="Target sovereign ID.")

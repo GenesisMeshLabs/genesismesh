@@ -36,7 +36,7 @@ jobs:
           if [ -z "$ref" ]; then
             ref=main
             for sdk in sdk-go sdk-typescript sdk-dotnet; do
-              if git ls-remote --exit-code --heads "https://github.com/GenesisMeshLabs/$sdk.git" "$BRANCH" >/dev/null; then
+              if git ls-remote --exit-code --heads "https://github.com/GenesisMeshLabs/$sdk.git" "refs/heads/$BRANCH" >/dev/null; then
                 ref="$BRANCH"
               else
                 ref=main
@@ -99,7 +99,7 @@ jobs:
         run: |
           python conformance/runner.py
           for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
-            for suite in interop consensus; do
+            for suite in interop consensus admin_auth; do
               cmp "conformance/vectors/$suite.json" "sdks/$sdk/conformance/$suite.json"
             done
           done

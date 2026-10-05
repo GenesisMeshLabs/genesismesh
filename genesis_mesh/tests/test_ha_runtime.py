@@ -85,6 +85,28 @@ def test_env_provider_refuses_missing_or_bad_seeds(seed):
         load_signer(KeyProviderConfig(provider="env"), environ={"NA_PRIVATE_KEY_SEED": seed} if seed else {})
 
 
+def test_env_provider_reads_the_seed_from_a_secret_file(tmp_path):
+    """NA_PRIVATE_KEY_SEED_FILE: a mounted secret, not an environment value (v1.0.2)."""
+    key = nacl.signing.SigningKey.generate()
+    secret = tmp_path / "na_seed"
+    secret.write_text("# NA seed\n" + _seed_b64(key) + "\n")
+    signer = load_signer(KeyProviderConfig(provider="env", key_id="na-1"),
+                         environ={"NA_PRIVATE_KEY_SEED_FILE": str(secret)})
+    assert signer.provider == "env" and signer.verify_key == key.verify_key
+
+
+def test_env_provider_refuses_both_or_an_unreadable_seed_file(tmp_path):
+    key = nacl.signing.SigningKey.generate()
+    secret = tmp_path / "na_seed"
+    secret.write_text(_seed_b64(key))
+    with pytest.raises(KeyProviderError, match="not both"):
+        load_signer(KeyProviderConfig(provider="env"),
+                    environ={"NA_PRIVATE_KEY_SEED": _seed_b64(key), "NA_PRIVATE_KEY_SEED_FILE": str(secret)})
+    with pytest.raises(KeyProviderError, match="cannot read"):
+        load_signer(KeyProviderConfig(provider="env"),
+                    environ={"NA_PRIVATE_KEY_SEED_FILE": str(tmp_path / "missing")})
+
+
 def test_unknown_provider_is_refused():
     with pytest.raises(KeyProviderError):
         load_signer(KeyProviderConfig(provider="hsm"))
@@ -228,3 +250,43 @@ def test_readyz_is_not_ready_when_schema_is_behind(na_service):
 def test_default_policy_is_signed_through_the_signer(na_service):
     policy: PolicyManifest = na_service._get_default_policy()
     assert policy.signatures[0].key_id == na_service.signer.key_id
+
+
+class _ReadOnlySqlite:
+    """A sqlite3 connection whose writes fail as on a read-only file."""
+
+    def __init__(self, conn, message):
+        self._conn, self._message = conn, message
+
+    def execute(self, sql, *args):
+        if sql.startswith(("BEGIN IMMEDIATE", "INSERT", "CREATE")):
+            import sqlite3
+            raise sqlite3.OperationalError(self._message)
+        return self._conn.execute(sql, *args)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+@pytest.mark.sqlite_only
+def test_readyz_reports_an_unwritable_sqlite_database(na_service):
+    """A database that answers SELECT but refuses writes is not ready (v1.0.2)."""
+    na_service.db.conn = _ReadOnlySqlite(na_service.db.conn, "attempt to write a readonly database")
+    resp = na_service.app.test_client().get("/readyz")
+    assert resp.status_code == 503
+    assert resp.get_json()["error"]["details"]["database"]["writable"] is False
+
+
+@pytest.mark.sqlite_only
+def test_readyz_treats_a_locked_sqlite_database_as_writable(na_service):
+    """Another writer holding the lock proves the file is writable; readiness must not flap."""
+    na_service.db.conn = _ReadOnlySqlite(na_service.db.conn, "database is locked")
+    resp = na_service.app.test_client().get("/readyz")
+    assert resp.status_code == 200
+    assert resp.get_json()["database"]["writable"] is True
+
+
+@pytest.mark.sqlite_only
+def test_the_readiness_write_probe_leaves_no_trace(na_service):
+    assert na_service.app.test_client().get("/readyz").status_code == 200
+    assert "readiness_write_probe" not in na_service.db.table_names()

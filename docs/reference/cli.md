@@ -4,6 +4,7 @@ Genesis Mesh installs a single primary command:
 
 ```bash
 genesis-mesh --help
+genesis-mesh --version   # prints "genesis-mesh X.Y.Z" (v1.0.2)
 ```
 
 The command is intentionally persona-oriented instead of file-oriented. Operator
@@ -461,6 +462,66 @@ genesis-mesh treaty revoke \
   --yes
 ```
 
+### `genesis-mesh treaty import-feed`
+
+Imports an issuing sovereign's signed revocation feed into the accepting
+sovereign's Network Authority (beta, v1.0.2). The accepting NA verifies the
+feed under the key its own treaty pinned for the issuer; the command never
+supplies a key. Give exactly one of `--from` (fetch from the issuer's NA) and
+`--feed` (a feed JSON file):
+
+```bash
+genesis-mesh treaty import-feed \
+  --na https://acceptor.example.org \
+  --from https://issuer.example.org \
+  --expected-issuer issuer-sovereign-id \
+  --operator-key ./keys/operator.key \
+  --operator-key-id operator-local
+```
+
+### `genesis-mesh attestation issue`
+
+Issues a membership attestation signed by this sovereign's Network Authority
+(beta, v1.0.2). The NA signs only in its own name. `--output` also writes the
+signed attestation to a file to hand to a relying sovereign:
+
+```bash
+genesis-mesh attestation issue \
+  --na https://issuer.example.org \
+  --subject-id member-1 \
+  --role role:service:maintainer \
+  --claim proof=external-operator-adoption \
+  --output ./member-1.attestation.json \
+  --operator-key ./keys/operator.key \
+  --operator-key-id operator-local
+```
+
+### `genesis-mesh attestation revoke`
+
+Revokes an attestation this sovereign issued; the revocation enters its
+signed revocation feed (beta, v1.0.2):
+
+```bash
+genesis-mesh attestation revoke <attestation-id> \
+  --na https://issuer.example.org \
+  --reason offboarded \
+  --operator-key ./keys/operator.key \
+  --operator-key-id operator-local
+```
+
+### `genesis-mesh attestation verify-with-treaty`
+
+Asks the accepting sovereign's Network Authority whether its treaty accepts an
+attestation (beta, v1.0.2). Public: no operator key. Prints the answer, which
+names its `trust_basis`, and exits 0 when accepted and 1 otherwise:
+
+```bash
+genesis-mesh attestation verify-with-treaty \
+  --na https://acceptor.example.org \
+  --attestation ./member-1.attestation.json \
+  --treaty ./acceptor-treaty.json
+```
+
 ### `genesis-mesh proof remote`
 
 Runs the direct-recognition proof against two live Network Authority endpoints:
@@ -479,7 +540,11 @@ genesis-mesh proof remote \
 
 Use `--operator-key` when both endpoints trust the same operator key. Use the
 endpoint-specific `--acceptor-operator-key` and `--issuer-operator-key` options
-when each sovereign has its own operator key.
+when each sovereign has its own operator key. `proof remote` needs both
+sovereigns' operator keys on one machine; when the sovereigns have different
+operators, each runs its own side with `attestation issue`,
+`attestation revoke`, `attestation verify-with-treaty` and
+`treaty import-feed` instead.
 
 For adoption evidence, add `--adoption-proof` and operator-control metadata:
 
@@ -502,6 +567,35 @@ genesis-mesh proof remote \
 
 In adoption-proof mode, the CLI refuses to write a passing proof unless the
 issuer is marked external and confirms control of keys and infrastructure.
+
+### `genesis-mesh proof inspect`
+
+Validates a redacted proof bundle written by `proof remote --proof-bundle`
+offline, and optionally cross-checks it against a saved Connectome export:
+
+```bash
+genesis-mesh proof inspect --proof-bundle ./proof-bundle.json
+genesis-mesh proof inspect --proof-bundle ./proof-bundle.json   --connectome ./connectome.json --format json
+```
+
+Exit code 0 when the bundle is valid, 1 otherwise.
+
+### `genesis-mesh proof canary`
+
+Runs one continuous cross-sovereign trust cycle against two live Network
+Authorities (attestation, acceptance through the treaty, revocation, feed
+import, rejection), signs a receipt of it and records a
+`trust_cycle_canary_completed` audit event. Schedule it (for example with the
+`genesis-mesh-trust-cycle-canary` systemd timer, see
+[Monitoring](../operations/monitoring.md)) to prove the trust path keeps working:
+
+```bash
+genesis-mesh proof canary   --acceptor https://acceptor.example.org   --issuer https://issuer.example.org   --acceptor-operator-key ./acceptor/keys/operator.key   --issuer-operator-key ./issuer/keys/operator.key   --receipt-signing-key ./canary/keys/canary.key   --receipt-signing-key-id canary   --receipt /var/lib/genesis-mesh/trust-cycle-canary/latest.signed.json   --audit-db /var/lib/genesis-mesh/canary-audit.db
+```
+
+`--audit-db` must name an existing SQLite file (create it once, for example
+with `touch`); the command adds its schema and records the event there. A
+mistyped path therefore fails instead of starting an empty audit trail.
 
 ### `genesis-mesh supply-chain verify`
 
@@ -1319,16 +1413,16 @@ Options: `--allow-model`, `--allow-prompt-hash`, `--allow-tool-hash` (all repeat
 
 ## Trust Atlas Cache and Pruning Commands
 
-The following commands (v0.46) extend the existing `genesis-mesh trust atlas`
+The following commands (v0.46) extend the existing `genesis-mesh atlas`
 group with path caching and graph pruning.
 
-### `genesis-mesh trust atlas cache`
+### `genesis-mesh atlas cache`
 
 Pre-compute trust paths for (source, target) pairs and write a signed
 `TrustPathCache`.
 
 ```bash
-genesis-mesh trust atlas cache \
+genesis-mesh atlas cache \
     --graph graph.json \
     --pairs pairs.json \
     --operator-sovereign operator-1 \
@@ -1337,25 +1431,25 @@ genesis-mesh trust atlas cache \
     --output cache.json
 ```
 
-### `genesis-mesh trust atlas lookup`
+### `genesis-mesh atlas lookup`
 
 Query a `TrustPathCache` for a specific pair. Exits non-zero on cache miss.
 
 ```bash
-genesis-mesh trust atlas lookup \
+genesis-mesh atlas lookup \
     --cache cache.json \
     --from sovereign-a \
     --to sovereign-b \
     --format json
 ```
 
-### `genesis-mesh trust atlas prune`
+### `genesis-mesh atlas prune`
 
 Prune expired/revoked/empty-scope edges from a graph and produce a signed
 `PrunedAtlasExport` with per-edge audit entries.
 
 ```bash
-genesis-mesh trust atlas prune \
+genesis-mesh atlas prune \
     --graph graph.json \
     --policy policy.json \
     --operator-sovereign operator-1 \
@@ -1381,7 +1475,10 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
+    --agent-key 'agent-b=keys/agent.pub.b64' \
+    --operator-key 'operator-a=keys/operator.pub.b64' \
     --token-issuer-key 'operator-a=keys/operator.pub.b64' \
+    --decision decision.json \
     --command-allowlist 'python --version' \
     --command-allowlist 'python /opt/report.py ...'
 ```
@@ -1395,8 +1492,22 @@ entry format.
 `--token-issuer-key` is repeatable and takes `issuer-id=base64-public-key` or
 `issuer-id=path-to-key-file`. Every request must carry the requesting agent's
 signed `InvocationToken`; a token whose `issuer_sovereign_id` has no key here is
-rejected with `unknown_token_issuer`, so without this flag the guard starts but
-mediates nothing.
+rejected with `unknown_token_issuer`.
+
+The guard also checks the request and the decision it names (v1.0.2):
+
+- `--agent-key agent-id=key-or-path` (repeatable): an agent whose signed
+  requests the guard accepts. The agent ID is the bearer its
+  `InvocationToken` names.
+- `--operator-key operator-id=key-or-path` (repeatable): an operator whose
+  signed `BoundaryDecision`s the guard accepts. The ID is the decision's
+  `operator_sovereign_id`.
+- `--decision decision.json` (repeatable) loads a signed decision at start;
+  `--decision-dir DIR` names a directory the guard reads when a request names a
+  decision it has not loaded (`<decision_id>.json`, or any file holding it).
+
+Without any one of these the guard starts, warns for each one missing, and
+rejects every request.
 
 ### `genesis-mesh trust guard request`
 
@@ -1424,7 +1535,10 @@ names no agent at all.
 
 ### `genesis-mesh trust guard verify`
 
-Verify a signed `MediatedExecutionReceipt`. Exits non-zero if invalid.
+Verify a signed `MediatedExecutionReceipt`. Exits non-zero if invalid. When
+the guard refused the request, `trust guard request` wrote the rejection to
+the output file instead; `verify` then reports `not_a_receipt` with the
+rejection's reason.
 
 ```bash
 genesis-mesh trust guard verify \
@@ -1793,6 +1907,11 @@ The `genesis-mesh trust oversight` sub-group (v0.34) implements a deterministic
 proposed actions require both an agent signature and a human custodian
 countersignature before execution.
 
+The policy is a `HumanOversightPolicy` JSON file that the operator writes: no
+command creates or signs it, and these commands do not check its optional
+`signature`. The action is a JSON object with a `capability`. See
+[Human Oversight](../examples/human-oversight.md) for both formats.
+
 ### `genesis-mesh trust oversight evaluate`
 
 Run the policy engine and print the escalation result without signing anything.
@@ -1825,7 +1944,9 @@ genesis-mesh trust oversight propose \
 Human custodian countersigns the request and produces a `DualSignedCommitment`
 carrying the agent's `CommitmentCore` signature (taken from the request) and the
 human's signature over the commitment body. Fails if the request predates the
-self-verifiable format and so carries no `commitment_core_signature`.
+self-verifiable format and so carries no `commitment_core_signature`, if its
+approval window has closed, or if `--policy` is not the policy the request was
+evaluated under (a different `policy_id`; v1.0.2).
 
 ```bash
 genesis-mesh trust oversight approve \
@@ -1838,6 +1959,7 @@ genesis-mesh trust oversight approve \
 ### `genesis-mesh trust oversight reject`
 
 Human custodian rejects the request with a signed `HumanApprovalResponse`.
+Fails if `--policy` is not the policy the request was evaluated under.
 
 ```bash
 genesis-mesh trust oversight reject \
@@ -1966,9 +2088,9 @@ The `genesis-mesh trust` group evaluates trust decisions over a recognition-grap
 export and issues signed TrustEvidence records that a second sovereign can verify
 offline, without sharing a backend, database, or identity provider.
 
-All commands operate over a graph export file produced by
-`proof export-graph`, `federation bootstrap --evidence`, or the live
-`/trust/graph` Network Authority endpoint.
+All commands operate over a graph export: the recognition graph a Network
+Authority serves at `GET /recognition-graph`, saved to a file (for example
+`curl -s https://na.example.org/recognition-graph > fleet-graph.json`).
 
 ### `genesis-mesh trust decide`
 
@@ -2113,6 +2235,16 @@ Agents register themselves at startup using the helpers in
 `examples/agent-network/knowledge_base.py` and `llm_agent.py` auto-register
 with sensible default capability tags; override or extend with their
 `--capability` and `--announce-host` flags.
+
+### `genesis-mesh send`
+
+Sends a message to another node through a peer WebSocket endpoint, using this
+node's identity from its config. Both nodes must be running their peer runtime
+(`genesis-mesh join --persistent`):
+
+```bash
+genesis-mesh send   --to <recipient-node-public-key>   --via ws://127.0.0.1:19001   --message "hello"   --config ./node-a/genesis-mesh.toml
+```
 
 ## Developer Commands
 

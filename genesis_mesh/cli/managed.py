@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import sqlite3
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -95,9 +98,21 @@ def restore(
     _validate_sqlite_backup(backup_path)
     if db_path.exists() and pre_restore_backup is not None:
         pre_restore_backup.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(db_path, pre_restore_backup)
+        # The SQLite backup API includes writes still in the WAL file, which a
+        # plain file copy of the database would miss.
+        _sqlite_copy(db_path, pre_restore_backup)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(backup_path, db_path)
+    # The replaced database's WAL and shared-memory files belong to it: left in
+    # place after an unclean stop, SQLite would replay them onto the restore.
+    for suffix in ("-wal", "-shm"):
+        Path(f"{db_path}{suffix}").unlink(missing_ok=True)
+    # Contents only: the database keeps its own mode and owner (in the
+    # container image, group-writable so another user ID in group 0 can take
+    # the volume over), whatever the backup file's mode is (v1.0.2).
+    existed = db_path.exists()
+    shutil.copyfile(backup_path, db_path)
+    if not existed and db_path.parent.stat().st_mode & stat.S_IWGRP:
+        os.chmod(db_path, 0o664)
     click.echo(
         json.dumps(
             {
@@ -169,19 +184,38 @@ def audit_export(
 
 
 def _validate_sqlite_backup(path: Path) -> None:
-    """Reject obvious non-NA SQLite files before restore."""
-    db = NADatabase(str(path))
+    """Reject obvious non-NA SQLite files before restore.
+
+    The backup is opened read-only and immutable: validating it never writes
+    to it, and works from read-only media and mounts (v1.0.2).
+    """
+    uri = f"{path.resolve().as_uri()}?mode=ro&immutable=1"
     try:
-        has_schema = db.conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'"
-        ).fetchone()
-        has_audit = db.conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'audit_events'"
-        ).fetchone()
-    finally:
-        db.conn.close()
-    if not has_schema or not has_audit:
+        conn = sqlite3.connect(uri, uri=True)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError as exc:
+        raise click.ClickException(f"Backup is not a readable SQLite database: {path} ({exc})")
+    if not {"schema_version", "audit_events"} <= tables:
         raise click.ClickException(f"Backup does not look like a Genesis Mesh NA database: {path}")
+
+
+def _sqlite_copy(source: Path, destination: Path) -> None:
+    """Copy a SQLite database consistently, including writes still in its WAL."""
+    src = sqlite3.connect(str(source))
+    try:
+        dst = sqlite3.connect(str(destination))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
 
 
 def _redact_event(value: Any) -> Any:

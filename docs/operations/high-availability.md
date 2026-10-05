@@ -23,8 +23,8 @@ With two or more instances behind a load balancer:
   not the application, so they hold for any number of instances and workers
   (see [Exactly-once operations](#exactly-once-operations)).
 - **One signing key.** Every instance signs with the same key, loaded from Key
-  Vault (or the platform's secret store) into memory. It is never written to
-  disk.
+  Vault (or the platform's secret store) into memory. The NA never writes it
+  to disk.
 
 The release is verified by an integration test that runs decisions, execution
 evidence and revocations continuously through nginx against two instances. It
@@ -55,7 +55,7 @@ flowchart LR
 | Database | Azure Database for PostgreSQL Flexible Server, zone-redundant HA | PostgreSQL 15+ with streaming replication |
 | Instances | 2+ VMs or container replicas, each with a managed identity | 2+ containers (`infrastructure/ha/docker-compose.yml`) |
 | Load balancer | Application Gateway or Load Balancer, probe `/readyz` | nginx (`infrastructure/ha/nginx.conf`) |
-| Signing key | Key Vault secret, soft delete and purge protection on | platform secret store, injected as an environment variable |
+| Signing key | Key Vault secret, soft delete and purge protection on | platform secret store, mounted as a secret file |
 
 ## Configuration
 
@@ -63,7 +63,7 @@ flowchart LR
 |---|---|---|
 | `DATABASE_URL` | unset (SQLite at `DB_PATH`) | `postgresql://user:pass@host/db` stores all state in PostgreSQL. `sqlite:///path` names a SQLite file explicitly. |
 | `NA_HA_MODE` | `off` | `on` refuses to start unless `DATABASE_URL` is PostgreSQL, the key provider is not `file` and rate limits are shared. A misconfigured "HA" deployment fails at start-up instead of quietly keeping per-instance state. |
-| `NA_KEY_PROVIDER` | `file` | `file` (`NA_PRIVATE_KEY_FILE`), `env` (`NA_PRIVATE_KEY_SEED`) or `azure-keyvault` |
+| `NA_KEY_PROVIDER` | `file` | `file` (`NA_PRIVATE_KEY_FILE`), `env` (`NA_PRIVATE_KEY_SEED_FILE` or `NA_PRIVATE_KEY_SEED`) or `azure-keyvault` |
 | `AZURE_KEY_VAULT_URL` | | `https://<vault>.vault.azure.net` (for `azure-keyvault`) |
 | `NA_KEY_SECRET_NAME` | | Key Vault secret holding the base64 Ed25519 seed |
 | `AZURE_CLIENT_ID` | | Selects a user-assigned managed identity |
@@ -104,9 +104,12 @@ the key comes from a provider that never puts it in a file:
   reads it once at start-up with the managed identity (instance metadata
   service on VMs, `IDENTITY_ENDPOINT` on App Service and Container Apps) and
   keeps it in memory only. If the read fails, the instance does not start.
-- **`env`**: the platform's secret store injects `NA_PRIVATE_KEY_SEED` into
-  the process environment (Kubernetes secrets, Container Apps secret
-  references, Docker secrets).
+- **`env`**: the platform's secret store provides the seed as a file named
+  by `NA_PRIVATE_KEY_SEED_FILE` (Docker and Compose secrets, Kubernetes secret
+  volumes), or as the `NA_PRIVATE_KEY_SEED` environment variable (Kubernetes
+  `secretKeyRef`, Container Apps secret references). Prefer the file:
+  environment values are visible to anyone who can inspect the container
+  (`docker inspect`, the pod spec).
 
 Azure Key Vault and Managed HSM do not offer Ed25519 *signing* keys, so the
 seed is a secret rather than a non-exportable key. Every NA signature goes

@@ -674,6 +674,18 @@
       "level": "beta"
     },
     {
+      "command": "attestation issue",
+      "level": "beta"
+    },
+    {
+      "command": "attestation revoke",
+      "level": "beta"
+    },
+    {
+      "command": "attestation verify-with-treaty",
+      "level": "beta"
+    },
+    {
       "command": "dev down",
       "level": "beta"
     },
@@ -799,6 +811,10 @@
     },
     {
       "command": "supply-chain verify",
+      "level": "beta"
+    },
+    {
+      "command": "treaty import-feed",
       "level": "beta"
     },
     {
@@ -2971,6 +2987,7 @@
     "agent_not_registered",
     "ambiguous_basis",
     "asset_not_found",
+    "attestation_issuer_mismatch",
     "attestation_not_found",
     "bad_request",
     "boundary_eval_failed",
@@ -2982,6 +2999,7 @@
     "boundary_policy_not_found",
     "boundary_policy_required",
     "boundary_policy_version_conflict",
+    "caller_keys_not_accepted",
     "certificate_key_mismatch",
     "certificate_not_found",
     "certificate_revoked",
@@ -3000,6 +3018,7 @@
     "executor_key_exists",
     "executor_key_not_found",
     "executor_key_retired",
+    "feed_issuer_mismatch",
     "forbidden",
     "insufficient_operator_tier",
     "intent_create_failed",

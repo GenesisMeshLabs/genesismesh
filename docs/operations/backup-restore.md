@@ -53,6 +53,13 @@ db.backup("/backups/genesis_mesh_na-YYYYMMDD.db")
      --yes
    ```
 
+   The restore copies the backup's contents into the database file, which
+   keeps its own mode and owner whatever the backup file's mode is. It
+   removes the replaced database's `-wal` and `-shm` files first, so SQLite
+   cannot replay them onto the restored data. The pre-restore backup is
+   taken with the SQLite backup API, so it includes writes still in the WAL.
+   The backup is opened read-only and may sit on read-only media.
+
 3. Start the Network Authority.
 4. Check readiness:
 

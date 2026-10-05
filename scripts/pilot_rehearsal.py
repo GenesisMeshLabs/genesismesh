@@ -47,7 +47,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from genesis_mesh.crypto import generate_keypair, sign_data, sign_model  # noqa: E402
+from genesis_mesh.crypto import generate_keypair, sign_model  # noqa: E402
 from genesis_mesh.models import (  # noqa: E402
     GenesisBlock, NetworkAuthority, PolicyManifestRef, SovereignRevocationFeed,
 )
@@ -140,12 +140,14 @@ class Sovereign:
         self.proc = None
 
     def admin(self, path: str, body: dict, *, standard: bool = False) -> requests.Response:
+        from genesis_mesh.crypto.admin_auth import sign_admin_request
+
         key, key_id = (self.operator_std, "ops-std") if standard else (self.operator, "ops")
-        ts, nonce = datetime.now(timezone.utc).isoformat(), str(uuid.uuid4())
-        canonical = json.dumps({"body": body, "key_id": key_id, "timestamp": ts, "nonce": nonce},
-                               sort_keys=True, separators=(",", ":"))
-        headers = {"X-Admin-Key-Id": key_id, "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
-                   "X-Admin-Signature": sign_data(canonical.encode("utf-8"), key.private_key)}
+        if not getattr(self, "_audience", None):
+            self._audience = requests.get(self.url + "/sovereign.json", timeout=10).json()["network_authority"]["public_key"]
+        headers = sign_admin_request(
+            key.private_key, key_id, method="POST", path=path, audience=self._audience, body=body,
+        )
         return requests.post(self.url + path, json=body, headers=headers, timeout=10)
 
 

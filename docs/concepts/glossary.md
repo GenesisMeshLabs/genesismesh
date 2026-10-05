@@ -162,13 +162,15 @@ Connectome graph and defines the reachability of portable trust claims.
 
 ### Recognition Treaty
 
-The bilateral agreement document that formalizes a recognition relationship
-between two sovereigns. A recognition treaty is signed by both sovereigns' admin
-keys and records both sovereign IDs, the set of allowed roles, the capability
-scope covered by the recognition, a validity period, and the two Ed25519
-signatures. The treaty provides the cryptographic proof that both parties
-consented to the relationship; it is stored by both sovereigns and can be
-included in a trust bundle for offline verification.
+A signed, directed recognition: the issuing (accepting) sovereign's Network
+Authority states that it accepts membership attestations from the subject
+sovereign, within a scope. The treaty records both sovereign IDs, the subject's
+public keys, the allowed roles and accepted statuses, informational claims, and
+a validity period, and carries **one** signature: the issuing Network
+Authority's. Recognition in both directions takes two treaties, one signed by
+each sovereign. Claims are labels (for example the proof that motivated the
+treaty); they are not matched against attestations. A treaty can be included in
+a trust bundle for offline verification.
 
 ### Sovereign
 
@@ -218,8 +220,9 @@ path to the NA's public routes can call verify endpoints without credentials.
 The four HTTP headers that authenticate admin requests to the Network Authority's
 `/admin/*` routes. `X-Admin-Key-Id` identifies which admin key was used to
 produce the signature. `X-Admin-Signature` carries the Ed25519 signature over the
-canonical JSON encoding of the request body concatenated with the nonce and
-timestamp. `X-Admin-Timestamp` is an ISO 8601 UTC timestamp that must fall within
+canonical JSON of the request: method, path, query parameters, the target
+Network Authority's public key, the body, key ID, nonce and timestamp
+(signature version 2, v1.0.2; see the Network Authority API reference). `X-Admin-Timestamp` is an ISO 8601 UTC timestamp that must fall within
 the NA's freshness window. `X-Admin-Nonce` is a UUID v4 value that must not have
 been seen in any previous accepted request. All four headers are required on every
 admin route; the absence of any one of them causes the NA to return a 401

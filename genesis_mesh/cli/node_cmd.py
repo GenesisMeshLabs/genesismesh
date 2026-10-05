@@ -6,6 +6,8 @@ import argparse
 import asyncio
 import json
 import logging
+import signal
+from pathlib import Path
 
 from ..crypto import KeyPair, load_private_key
 from ..models import GenesisBlock
@@ -49,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--invite-token",
         help="Invite token for permissioned enrollment",
+    )
+    parser.add_argument(
+        "--invite-token-file",
+        help="File holding the invite token, which keeps it off the command line",
     )
     parser.add_argument(
         "--listen-host",
@@ -119,9 +125,18 @@ async def _run_runtime(node: MeshNode, args: argparse.Namespace) -> None:
         listen_port=args.listen_port,
     )
     await runtime.start()
+    # Stop cleanly on SIGTERM (docker stop, Kubernetes) as well as Ctrl+C:
+    # as PID 1 in a container the default SIGTERM action does not apply.
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass  # Windows: Ctrl+C still ends asyncio.run, which runs the finally below
     try:
-        while True:
-            await asyncio.sleep(1)
+        await stop.wait()
+        logger.info("Shutdown signal received; stopping the node runtime")
     finally:
         await runtime.stop()
 
@@ -130,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     """Run the node CLI."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    invite_token = args.invite_token
+    if args.invite_token_file:
+        if invite_token:
+            parser.error("give --invite-token or --invite-token-file, not both")
+        invite_token = Path(args.invite_token_file).read_text(encoding="utf-8").strip()
 
     configure_logging(debug=args.debug)
 
@@ -141,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        node.join_network(args.bootstrap, args.validity_hours, args.invite_token)
+        node.join_network(args.bootstrap, args.validity_hours, invite_token)
         node.fetch_policy(args.bootstrap)
 
         print("\n=== Node Status ===")

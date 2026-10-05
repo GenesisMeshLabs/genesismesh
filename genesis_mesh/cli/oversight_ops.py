@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -28,6 +29,20 @@ def _load_json(path: str, label: str) -> dict:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise click.ClickException(f"Cannot load {label} {path!r}: {exc}") from exc
+
+
+def _load_policy(path: str) -> HumanOversightPolicy:
+    """Load a HumanOversightPolicy file.
+
+    A file that sets no policy_id is named by a digest of its content: the
+    model's default, a new UUID, would differ between the agent's propose and
+    the custodian's approve of the same file (v1.0.2).
+    """
+    data = _load_json(path, "policy")
+    if isinstance(data, dict) and "policy_id" not in data:
+        canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
+        data = {**data, "policy_id": "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
+    return HumanOversightPolicy.model_validate(data)
 
 
 def _pub_key_from_input(public_key_input: str) -> str:
@@ -84,7 +99,7 @@ def oversight_evaluate(
             --policy policy.json --action action.json --requester bank-b
     """
     try:
-        policy = HumanOversightPolicy.model_validate(_load_json(policy_path, "policy"))
+        policy = _load_policy(policy_path)
     except Exception as exc:
         raise click.ClickException(f"Cannot parse policy: {exc}") from exc
     action = _load_json(action_path, "action")
@@ -156,7 +171,7 @@ def oversight_propose(
             --output request.json
     """
     try:
-        policy = HumanOversightPolicy.model_validate(_load_json(policy_path, "policy"))
+        policy = _load_policy(policy_path)
     except Exception as exc:
         raise click.ClickException(f"Cannot parse policy: {exc}") from exc
     action = _load_json(action_path, "action")
@@ -231,7 +246,7 @@ def oversight_approve(
         request = HumanApprovalRequest.model_validate_json(
             Path(request_path).read_text(encoding="utf-8")
         )
-        policy = HumanOversightPolicy.model_validate(_load_json(policy_path, "policy"))
+        policy = _load_policy(policy_path)
     except Exception as exc:
         raise click.ClickException(f"Cannot parse inputs: {exc}") from exc
 
@@ -240,10 +255,13 @@ def oversight_approve(
     except Exception as exc:
         raise click.ClickException(f"Cannot load signing key: {exc}") from exc
 
-    response, commitment = approve_commitment(
-        request, policy, private_key,
-        issued_by=key_id, commitment_valid_for_seconds=commitment_valid_for, note=note,
-    )
+    try:
+        response, commitment = approve_commitment(
+            request, policy, private_key,
+            issued_by=key_id, commitment_valid_for_seconds=commitment_valid_for, note=note,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,7 +314,7 @@ def oversight_reject(
         request = HumanApprovalRequest.model_validate_json(
             Path(request_path).read_text(encoding="utf-8")
         )
-        policy = HumanOversightPolicy.model_validate(_load_json(policy_path, "policy"))
+        policy = _load_policy(policy_path)
     except Exception as exc:
         raise click.ClickException(f"Cannot parse inputs: {exc}") from exc
 
@@ -305,7 +323,10 @@ def oversight_reject(
     except Exception as exc:
         raise click.ClickException(f"Cannot load signing key: {exc}") from exc
 
-    response = reject_commitment(request, policy, private_key, issued_by=key_id, note=note)
+    try:
+        response = reject_commitment(request, policy, private_key, issued_by=key_id, note=note)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)

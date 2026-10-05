@@ -27,6 +27,7 @@ from ..trust.data_usage import (
     create_data_access_intent,
     verify_data_access_intent,
 )
+from .support import ensure_parent, public_key_value
 
 
 @click.group("data")
@@ -86,7 +87,7 @@ def policy_cmd(
     )
     sig = sign_model(p, sk, licensor)
     p = p.model_copy(update={"signature": sig})
-    Path(output_path).write_text(p.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(p.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] DataLicensePolicy {p.policy_id}")
     click.echo(f"     Licensor : {licensor}")
     click.echo(f"     Licensee : {licensee}")
@@ -121,7 +122,7 @@ def intent_cmd(
         agent_id, decision_id, descriptors, list(access_types),
         sk, estimated_volume_bytes=vol, valid_for_seconds=ttl,
     )
-    Path(output_path).write_text(intent.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(intent.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] DataAccessIntent {intent.intent_id}")
     click.echo(f"     Agent    : {agent_id}")
     click.echo(f"     Sources  : {[s.source_id for s in descriptors]}")
@@ -164,7 +165,7 @@ def record_cmd(
     )
     sig = sign_model(rec, sk, intent.agent_sovereign_id)
     rec = rec.model_copy(update={"signature": sig})
-    Path(output_path).write_text(rec.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(rec.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] DataAccessRecord {rec.record_id}")
     click.echo(f"     Intent   : {intent.intent_id}")
     click.echo(f"     Sources  : {[s.source_id for s in descriptors]}")
@@ -180,7 +181,7 @@ def record_cmd(
 @click.option("--intent", "intent_path", required=True, type=click.Path(exists=True))
 @click.option("--policy", "policy_path", required=True, type=click.Path(exists=True))
 @click.option("--public-key", "pub_keys", multiple=True,
-              help="Agent Ed25519 public key (base64). Pass once per key.")
+              help="Agent public key: base64 or path to a public key file. Pass once per key.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human")
 def verify_cmd(
     intent_path: str, policy_path: str,
@@ -193,7 +194,7 @@ def verify_cmd(
     policy = DataLicensePolicy.model_validate_json(
         Path(policy_path).read_text(encoding="utf-8")
     )
-    ok, reason, violations = verify_data_access_intent(intent, policy, list(pub_keys))
+    ok, reason, violations = verify_data_access_intent(intent, policy, [public_key_value(k) for k in pub_keys])
     if fmt == "json":
         click.echo(json.dumps({
             "compliant": ok,

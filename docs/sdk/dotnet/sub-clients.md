@@ -13,7 +13,7 @@ Wraps the Agreement domain (`/admin/agreements/*`, `/agreements/verify`).
 |--------|-------|-------------|
 | `Offer(CapabilityOffer, ct)` | yes | Create and sign a capability offer |
 | `Counter(body, ct)` | yes | Create and sign a counter-offer |
-| `Accept(offer, ct)` | yes | Accept an offer or counter → `AgreementRecord` |
+| `Accept(offer, ct)` | yes | Accept an offer → `AgreementRecord` |
 | `Verify(body, ct)` | no | Verify agreement signatures |
 
 **Constraint:** `Accept` requires the NA to hold an active recognition treaty
@@ -103,3 +103,28 @@ Wraps Data Usage (`/admin/data-usage/*`, `/data-usage/*`).
 `source_type`, and `owner_sovereign_id`. Missing any field returns 422.
 
 `source_type` must be one of `"personal"`, `"proprietary"`, `"public"`, `"synthetic"`.
+
+---
+
+## Results
+
+Typed results carry the Network Authority's own field names (1.0.2). Before
+1.0.2 several declared names the NA never sends, so those fields were always
+empty; the old names still compile, are marked `[Obsolete]` and are filled in
+from the NA's fields:
+
+| Result | Read | Deprecated, filled from it |
+|--------|------|----------------------------|
+| `BoundaryDecision` | `Authorized`, `DenialReason`, `DecisionMadeAt` | `Allowed`, `Reason`, `IssuedAt` |
+| `VerifyResult` | `Valid` and `Accepted`: both true when the NA accepted, whichever name it answered with; `Authorized`, `ViolationReason` and the IDs where the route sends them | |
+| `AgreementRecord` | `AgreedTerms`, `EstablishedAt` | `Capabilities`, `CreatedAt` |
+| `TrustEvidence` | `IssuerSovereignId`, `TargetSovereignId`, `Signatures` | `IssuerId`, `SubjectId`, `Signature` |
+| `MembershipAttestation` | `SubjectId`, `Signatures` | `SubjectSovereignId`, `Signature` |
+| `CapabilityMembershipProof` | `RevealedCapability`, `MerklePath` | `Capability`, `Proof` |
+| `DataLicensePolicy` | `LicensorSovereignId`, `AllowedAccessTypes`, `ValidFrom` | `LocalSovereignId`, `IssuedAt` |
+| `DataAccessIntent` | `DeclaredSources`, `DeclaredAccessTypes`, `DeclaredAt` | `Sources`, `AccessTypes`, `IssuedAt` |
+
+Deprecated names the NA has no value for (for example `AllowedPurposes`, or
+`Capability` on a decision) stay empty. Serializing a deserialized result gives the
+NA's fields only. The SDK's CI checks every method against a live Network
+Authority.
