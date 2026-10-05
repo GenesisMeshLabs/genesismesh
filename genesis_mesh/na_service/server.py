@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from flask import Flask
+from werkzeug.routing import PathConverter
 import nacl.signing
 
 from ..crypto import (
@@ -56,6 +57,13 @@ from .routes import (
 logger = logging.getLogger(__name__)
 
 HA_MODES = ("off", "on")
+
+class _PathConverter(PathConverter):
+    """Werkzeug's ``path`` converter, also for a value that starts with "/"."""
+
+    regex = ".+?"
+    part_isolating = False  # set explicitly: a regex without "/" would turn it on
+
 
 #: Bounded retries when another instance publishes a CRL sequence first.
 CRL_PUBLISH_ATTEMPTS = 5
@@ -212,6 +220,10 @@ class NetworkAuthorityService:
             raise ValueError("NA private key does not match genesis block")
 
         self.app = Flask(__name__)
+        # A path parameter may start with "/": a base64 node key does about 1
+        # in 64 times, and the stock converter refuses that, so such an agent
+        # could be neither read nor deregistered (v1.1.0).
+        self.app.url_map.converters["path"] = _PathConverter
         # Bound every request body: public verify routes are unauthenticated,
         # and an unbounded JSON body is a memory denial of service (v0.62.0
         # security review). Larger bodies get 413 request_entity_too_large.
