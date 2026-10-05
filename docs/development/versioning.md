@@ -18,7 +18,10 @@ The following components publish the same version:
 
 Every coordinated release tags each component repository with the same
 `vX.Y.Z` value. A component with no functional changes still receives the
-coordinated version after its compatibility tests pass.
+coordinated version after its compatibility tests pass. From 1.1.0, the
+release also publishes the container images
+`ghcr.io/genesismeshlabs/genesis-mesh` and
+`ghcr.io/genesismeshlabs/genesis-mesh-gateway` with the same `X.Y.Z` tag.
 
 The authoritative development version is stored in `VERSION` in each
 repository. Package manifests must match it. Publishing workflows reject a tag

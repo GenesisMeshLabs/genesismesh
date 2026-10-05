@@ -52,12 +52,12 @@ Private-key paths in this file are local secrets and must not be committed.
 | Variable | Required | Description |
 |---|---:|---|
 | `SERVICE_ROLE` | no | Set to `na` for Network Authority startup. Defaults to `na`. |
-| `GENESIS_FILE` | yes | Path to the signed genesis block. `start.sh` defaults it to `genesis.signed.json` in the working directory. |
-| `GENESIS_JSON` | no | `start.sh`: the signed genesis block itself, used when `GENESIS_FILE` does not exist. It is written to a private temporary directory. |
+| `GENESIS_FILE` | yes | Path to the signed genesis block. `start.sh` defaults it to `genesis.signed.json` in the working directory (`/data` in the container image). |
+| `GENESIS_JSON` | no | `start.sh`: the signed genesis block itself, used when `GENESIS_FILE` does not exist. It is written to a private in-memory directory (`/dev/shm` when available) and removed from the environment. |
 | `NA_PRIVATE_KEY_FILE` | with the `file` key provider | Path to the Network Authority private key. `start.sh` defaults it to `keys/na.key` in the working directory. |
 | `NA_PRIVATE_KEY` | no | `start.sh`: the private key file's contents, used when `NA_PRIVATE_KEY_FILE` does not exist. Handled like `GENESIS_JSON`. Prefer a mounted file or the `env` provider with `NA_PRIVATE_KEY_SEED_FILE`. |
 | `NA_KEY_PROVIDER` | no | `file` (default), `env` or `azure-keyvault`: where the signing key comes from (v0.60, see [High Availability](../operations/high-availability.md)). |
-| `NA_PRIVATE_KEY_SEED` | with the `env` provider | Base64 Ed25519 seed injected by the platform's secret store. |
+| `NA_PRIVATE_KEY_SEED` | with the `env` provider | Base64 Ed25519 seed injected by the platform's secret store. `start.sh` moves it to a private in-memory file at start, so the server processes do not carry it in their environment. |
 | `NA_PRIVATE_KEY_SEED_FILE` | with the `env` provider | Path to a file holding the base64 seed, for Docker and Kubernetes secrets. Set this or `NA_PRIVATE_KEY_SEED`, not both (v1.0.2). |
 | `NA_KEY_SEED_ENV` | no | Name of the variable that holds the seed for the `env` provider (default `NA_PRIVATE_KEY_SEED`); the file variant is that name with `_FILE` appended. |
 | `AZURE_KEY_VAULT_URL` / `NA_KEY_SECRET_NAME` | with the `azure-keyvault` provider | Vault URL and the secret holding the seed; read with the managed identity (`AZURE_CLIENT_ID` selects a user-assigned one). |
@@ -65,7 +65,7 @@ Private-key paths in this file are local secrets and must not be committed.
 | `NA_HA_MODE` | no | `off` (default) or `on`; `on` refuses to start without PostgreSQL, a non-file key provider and shared rate limits. |
 | `RATE_LIMIT_STORE` | no | `memory` or `database`; defaults to `database` on PostgreSQL. |
 | `NA_KEY_ID` | no | Key ID named in the NA's signatures. Defaults to `na-2025-q1`; set it to the ID recorded in the NA key file (`na-local` for keys from `genesis-mesh init`) and keep it stable, since trust bundles and gateway policies refer to it. |
-| `DB_PATH` | no | SQLite database path. Defaults to `genesis_mesh_na.db`. |
+| `DB_PATH` | no | SQLite database path. Defaults to `genesis_mesh_na.db`; the container image sets `/data/genesis_mesh_na.db`. |
 | `PORT` | no | HTTP bind port. Defaults to `8443`. |
 | `WEB_CONCURRENCY` | no | Gunicorn worker count. Defaults to `4`. |
 | `OPERATOR_PUBLIC_KEYS_JSON` | yes for admin APIs | JSON object mapping operator key IDs to base64 public keys. |
@@ -77,21 +77,21 @@ Private-key paths in this file are local secrets and must not be committed.
 | `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` | no | Execution evidence submissions per minute per client address (default 120). |
 | `NA_RATE_LIMIT_READ_PER_MINUTE` | no | Public policy reads per minute per client address (default 120). Enrollment (`/join`) limits are fixed anti-abuse controls. |
 | `NA_PROXY_HOPS` | no | Number of reverse proxies in front of the NA whose `X-Forwarded-For` is trusted (default `1`). Set `0` when the NA is reached directly, so clients cannot choose the address rate limits apply to (v0.62). |
-| `NA_ADMIN_LEGACY_SIGNATURES` | no | `reject` (default) refuses version 1 admin signatures, which do not cover the method, path, query or target NA. `accept` allows them during a client migration window and audits each use (`admin_legacy_signature_accepted`). Unset it once every client is on v1.0.2 or later (v1.0.2). |
 | `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `read`, `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
 
 `start.sh` refuses to start the Network Authority when `GENESIS_FILE` is
-missing, or when `NA_PRIVATE_KEY_FILE` is missing with the `file` key provider.
-The Network Authority then refuses to start when the signing key does not
-match the genesis block.
+missing, when `NA_PRIVATE_KEY_FILE` is missing with the `file` key provider,
+when the SQLite database's directory does not exist or is not writable by the
+user it runs as, or when `NA_KEY_SEED_ENV` is not a variable name. The
+Network Authority then refuses to start when the signing key does not match
+the genesis block.
 
 These variables configure the production entry point (`start.sh`, or Gunicorn
 with `genesis_mesh.na_service.wsgi:app`). The local development server,
 `genesis-mesh na start`, reads none of them: it takes the genesis block, the
 keys, the database path and its one operator key (privileged tier) from the
 config file, the evidence store setting from `--evidence-store` or the config,
-and uses the defaults for everything else, including the rate limits and
-`NA_ADMIN_LEGACY_SIGNATURES=reject`. Use the production entry point to run
+and uses the defaults for everything else, including the rate limits. Use the production entry point to run
 with other settings.
 
 ## Node Environment
@@ -100,7 +100,8 @@ with other settings.
 |---|---:|---|
 | `SERVICE_ROLE` | yes | Set to `node` for node startup. |
 | `GENESIS_FILE` | yes | Path to the signed genesis block. |
-| `INVITE_TOKEN` | yes | Single-use enrollment token from the network's operator. |
+| `GENESIS_JSON` | no | `start.sh`: the signed genesis block itself, used when `GENESIS_FILE` is unset or missing. |
+| `INVITE_TOKEN` | yes | Single-use enrollment token from the network's operator. `start.sh` hands it to the node in a private file, not on its command line. |
 | `BOOTSTRAP_URL` | no | Network Authority endpoint. Defaults to `http://localhost:8443`. |
 | `NODE_ROLE` | no | Requested node role. Defaults to `anchor`. |
 | `NODE_KEY_FILE` | no | Path to an existing node private key. Unset: the node generates a new key at every start. |

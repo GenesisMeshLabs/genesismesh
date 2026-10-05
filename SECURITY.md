@@ -12,8 +12,9 @@ disclosure channel instead.
 
 - Open a draft advisory at
   [github.com/GenesisMeshLabs/genesismesh/security/advisories/new](https://github.com/GenesisMeshLabs/genesismesh/security/advisories/new).
-- Include: a description, reproduction steps, the version (`pip show
-  genesis-mesh`), and any logs or proof-of-concept code.
+- Include: a description, reproduction steps, the version
+  (`genesis-mesh --version`, or the container image tag and digest), and any
+  logs or proof-of-concept code.
 - You should receive acknowledgement within **5 business days**.
 - Expect a remediation plan within **30 days** for confirmed issues, longer for
   cryptographic findings that require a redesign.
@@ -24,12 +25,13 @@ please give the project a reasonable window first.
 ## Supported Versions
 
 Only the latest minor release of the 1.x line receives security fixes.
-Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following
-`DEPRECATION_POLICY.md` (persisted database state).
+Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEPRECATION_POLICY.md`
+(persisted database state).
 
 | Version | Status |
 |---|---|
-| `1.0.x` | Supported |
+| `1.1.x` | Supported |
+| `1.0.x` | Unsupported: upgrade to 1.1 |
 | `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
@@ -46,8 +48,11 @@ deployment.
   (SQLite or PostgreSQL); a second `/join` with the same token returns 403.
 - **Operator request forgery.** Every admin call (`/admin/invite`,
   `/admin/revoke`, …) is verified against an Ed25519 signature over a canonical
-  JSON envelope with timestamp and nonce. Unknown operator key IDs, expired
-  timestamps, or replayed nonces are rejected.
+  JSON envelope that binds the HTTP method, path, query parameters, body and
+  the target Network Authority's public key, with timestamp and nonce. Unknown
+  operator key IDs, expired timestamps, replayed nonces, and a signed request
+  presented to another route or another Network Authority are rejected, as
+  are version 1 signatures, which bind none of these.
 - **Privilege escalation via renewal.** Certificate renewal cannot extend
   beyond the original max-validity cap recorded on the issued cert.
 
@@ -67,6 +72,17 @@ deployment.
   long-term key later (perfect forward secrecy).
 - **Control-message replay.** The runtime maintains a replay cache of
   processed control-message IDs; duplicates are dropped.
+
+### Federation
+
+- **Forged treaties.** A Network Authority reports a treaty that names it as
+  issuer as valid only when it issued and still stores that treaty, verified
+  against its own key; other keys supplied by the caller are refused. Another
+  sovereign's treaty is checked against the keys this Network Authority pinned
+  in its own treaties, or against keys the caller supplies, and the answer
+  states which (`trust_basis`).
+- **Signing in another sovereign's name.** A Network Authority issues
+  attestations and revocation feeds only as itself.
 
 ### Revocation
 
@@ -148,8 +164,15 @@ them externally.
   not independently audited. `pip-audit` runs in CI but only catches publicly
   known CVEs.
 - **Build provenance.** Wheels published to PyPI are built by GitHub Actions
-  via Trusted Publishing (OIDC). Reproducible builds are not currently
-  verified.
+  via Trusted Publishing (OIDC). Container images are built by GitHub Actions,
+  signed keylessly with Sigstore and published with an SBOM and provenance
+  attestation; verify the signature before deploying
+  (`docs/operations/container-images.md`). Reproducible builds are not
+  currently verified.
+- **Base image vulnerabilities.** The Network Authority image is built on
+  Alpine, the gateway image on distroless Debian. Each release scans both
+  architectures before tagging, and either image is refused on any high or
+  critical finding, with or without a released fix, or any secret.
 - **VM/host compromise.** Compromising the host that runs the NA gives the
   attacker the NA private key. Mitigations are container hardening, systemd
   hardening (see `infrastructure/systemd/`), and an external secret manager.

@@ -7,8 +7,8 @@ events in SQLite or PostgreSQL. Treat that database as production state.
 ## What to Back Up
 
 Back up the SQLite file configured by `DB_PATH`. For local CLI deployments this
-is usually `.genesis-mesh/na.db`; for containers it should be a mounted durable
-volume such as `/data/genesis_mesh_na.db`.
+is usually `.genesis-mesh/na.db`; in the container image it is
+`/data/genesis_mesh_na.db` on the volume mounted at `/data`.
 
 Also keep offline backups of:
 
@@ -39,6 +39,37 @@ from genesis_mesh.na_service.db import NADatabase
 db = NADatabase("/data/genesis_mesh_na.db")
 db.backup("/backups/genesis_mesh_na-YYYYMMDD.db")
 ```
+
+### In a container
+
+The image includes the CLI. Back up inside the running container, then copy
+the file out:
+
+```bash
+docker exec na genesis-mesh managed backup \
+  --db-path /data/genesis_mesh_na.db --output /data/backup-YYYYMMDDHHMMSS.db
+mkdir -p backups
+docker cp na:/data/backup-YYYYMMDDHHMMSS.db ./backups/
+docker exec na rm /data/backup-YYYYMMDDHHMMSS.db
+```
+
+To restore, stop the container and run the restore from a one-off container
+on the same volume (the backup directory must be readable by user 10001):
+
+```bash
+docker stop na
+docker run --rm -v na-data:/data -v "$PWD/backups:/backups:ro" \
+  --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.1.0 \
+  managed restore --db-path /data/genesis_mesh_na.db \
+  --backup /backups/backup-YYYYMMDDHHMMSS.db \
+  --pre-restore-backup /data/before-restore.db --yes
+docker start na
+```
+
+The restore replaces the database's contents and keeps its mode and owner,
+whatever the backup file's mode is, so the volume stays as the image laid it
+out: group-writable, for platforms that run the image under another user ID
+in group 0.
 
 ## Restore
 

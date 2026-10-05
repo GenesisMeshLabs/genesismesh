@@ -147,9 +147,13 @@ Node:
 
 ## 17. Docker Image Smoke Demo
 
-The image demo checks that the container builds, runs as the non-root `genesis`
-user, imports the application modules, and fails closed when required runtime
-secrets or roles are missing.
+The image demo checks that the container builds, runs as the non-root user
+10001 under `tini`, imports the application modules, and fails closed when
+required runtime secrets or roles are missing. Each release publishes the same
+image, signed, as `ghcr.io/genesismeshlabs/genesis-mesh`; see
+[Container Images](../operations/container-images.md) to pull and verify it
+instead of building. `scripts/container_smoke.py` runs the full set of image
+checks, these included.
 
 Screenshot from the Docker smoke run:
 
@@ -174,7 +178,13 @@ docker image inspect genesis-mesh:demo \
 Expected metadata:
 
 ```text
-User=genesis Entrypoint=["./start.sh"] ExposedPorts={"8443/tcp":{}}
+User=10001:10001 Entrypoint=["/usr/bin/tini","--","/usr/local/bin/start.sh"] ExposedPorts={"8443/tcp":{}}
+```
+
+Print the version of the package inside the image:
+
+```bash
+docker run --rm --entrypoint genesis-mesh genesis-mesh:demo --version
 ```
 
 Check importability inside the image:
@@ -220,7 +230,11 @@ Screenshot from a real Compose run:
 
 A Compose example is included at:
 
-- [compose/docker-compose.na.yml](compose/docker-compose.na.yml)
+- [deploy/compose/docker-compose.na.yml](https://github.com/GenesisMeshLabs/genesismesh/blob/main/deploy/compose/docker-compose.na.yml)
+
+It builds the image from this checkout. To run the published images instead,
+use [deploy/compose/docker-compose.images.yml](https://github.com/GenesisMeshLabs/genesismesh/blob/main/deploy/compose/docker-compose.images.yml)
+(see [Container Images](../operations/container-images.md)).
 
 It expects the following local files to be mounted into the container:
 
@@ -240,14 +254,17 @@ uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
 ```
 
 The demo stores the NA SQLite database at `/tmp/genesis_mesh_na.db` inside the
-container so the `genesis` non-root user can write it without host-volume
-permission setup. For a persistent deployment, mount a data directory that is
-writable by the container user or use an external database strategy.
+container, so it needs no host-volume permission setup and is lost when the
+container is removed. For a persistent deployment, mount a volume at `/data`
+that the container user can write, or use PostgreSQL.
 
-Then run:
+`init` makes `na.key` readable only by you. On Linux, run the container as
+your own user, in group 0 like the image's `/data`, so it can read the
+mounted key (Docker Desktop on Windows and macOS does not need this):
 
 ```bash
-docker compose -f docs/examples/compose/docker-compose.na.yml up --build
+export HOST_UID="$(id -u)"
+docker compose -f deploy/compose/docker-compose.na.yml up --build
 ```
 
 Health probes:

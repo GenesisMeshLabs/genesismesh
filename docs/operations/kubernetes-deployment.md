@@ -7,7 +7,10 @@ membership, trust, certificate, policy, and revocation layer for nodes and
 agents inside or outside the cluster.
 
 The repository ships a working example under
-[`examples/kubernetes/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/examples/kubernetes).
+[`deploy/kubernetes/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/deploy/kubernetes).
+It runs the signed release image, `ghcr.io/genesismeshlabs/genesis-mesh`;
+verify it and pin its digest as described in
+[Container Images](container-images.md).
 
 ## Deployment Shape
 
@@ -35,9 +38,9 @@ flowchart TB
 | File | Purpose |
 |------|---------|
 | `namespace.yaml` | Creates the `genesis-mesh` namespace. |
-| `na-secrets.yaml` | Secret with the genesis block, NA key, and operator public keys. |
+| `na-secrets.yaml` | Secret with the genesis block, NA key, operator public keys and their tiers. |
 | `na-pvc.yaml` | 5 GiB PVC for the SQLite database. |
-| `na-deployment.yaml` | Single-replica non-root Deployment with `/healthz` and `/readyz` probes. |
+| `na-deployment.yaml` | Single-replica non-root Deployment with a read-only root file system and `/healthz` and `/readyz` probes. |
 | `na-service.yaml` | ClusterIP Service on port 8443. |
 
 ## Quick Start
@@ -48,7 +51,7 @@ flowchart TB
    genesis-mesh init
    ```
 
-2. Edit `examples/kubernetes/na-secrets.yaml` and replace each `REPLACE_WITH_…`
+2. Edit `deploy/kubernetes/na-secrets.yaml` and replace each `REPLACE_WITH_…`
    placeholder with the base64-encoded contents of:
 
    ```bash
@@ -57,14 +60,18 @@ flowchart TB
    cat       .genesis-mesh/keys/operator.pub
    ```
 
+   Give each operator key a tier (`read`, `standard` or `privileged`) in
+   `operator-key-tiers.json`; the Network Authority refuses to start when a
+   key has none.
+
 3. Apply:
 
    ```bash
-   kubectl apply -f examples/kubernetes/namespace.yaml
-   kubectl apply -f examples/kubernetes/na-secrets.yaml
-   kubectl apply -f examples/kubernetes/na-pvc.yaml
-   kubectl apply -f examples/kubernetes/na-deployment.yaml
-   kubectl apply -f examples/kubernetes/na-service.yaml
+   kubectl apply -f deploy/kubernetes/namespace.yaml
+   kubectl apply -f deploy/kubernetes/na-secrets.yaml
+   kubectl apply -f deploy/kubernetes/na-pvc.yaml
+   kubectl apply -f deploy/kubernetes/na-deployment.yaml
+   kubectl apply -f deploy/kubernetes/na-service.yaml
    ```
 
 4. Verify the rollout:

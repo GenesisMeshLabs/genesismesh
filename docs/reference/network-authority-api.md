@@ -333,9 +333,9 @@ ASCII escapes) of this object (signature version 2, v1.0.2):
 - `body` is the JSON request body, `{}` for requests without one.
 
 Version 1 (before v1.0.2) signed only `body`, `key_id`, `timestamp` and `nonce`.
-Network Authorities accept version 1 only while `NA_ADMIN_LEGACY_SIGNATURES=accept`
-is set, for a client migration window; each accepted version 1 request is logged and recorded as an
-`admin_legacy_signature_accepted` audit event. The reference vectors are in
+Network Authorities refuse it with `401`. (1.0.2 accepted version 1 while
+`NA_ADMIN_LEGACY_SIGNATURES=accept` was set, for a client migration window;
+1.1.0 removed that setting.) The reference vectors are in
 `conformance/vectors/admin_auth.json`; `genesis_mesh.crypto.admin_auth`
 implements the format in Python.
 

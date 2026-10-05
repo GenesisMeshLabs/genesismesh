@@ -109,7 +109,7 @@ def test_a_request_for_another_authority_is_refused(client):
     assert client.post("/admin/invite", json=body, headers=headers).status_code == 401
 
 
-def test_version_1_signatures_are_refused_by_default(client, na_service):
+def test_version_1_signatures_are_refused(client, na_service):
     body = _invite_body()
     response = client.post("/admin/invite", json=body, headers=_legacy_headers(client, body))
     assert response.status_code == 401
@@ -121,36 +121,12 @@ def test_version_1_signatures_are_refused_by_default(client, na_service):
     assert "invalid_signature" in reasons
 
 
-def test_version_1_signatures_are_accepted_and_audited_only_when_opted_in():
-    service = _make_service(admin_legacy_signatures="accept")
-    service.app.config["TESTING"] = True
-    client = service.app.test_client()
-    setattr(client, "operator_keypair", service._test_operator_keypair)
-    body = _invite_body()
-
-    response = client.post("/admin/invite", json=body, headers=_legacy_headers(client, body))
-
-    assert response.status_code == 201
-    legacy = [e for e in service.db.list_audit_events() if e["event_type"] == "admin_legacy_signature_accepted"]
-    assert legacy and legacy[-1]["details"] == {
-        "key_id": "operator-test", "method": "POST", "path": "/admin/invite",
-    }
-    # Version 2 keeps working during the migration window and is not audited as legacy.
-    assert client.post("/admin/invite", json=body, headers=_sign(
-        client, method="POST", path="/admin/invite", body=body,
-    )).status_code == 201
-    assert len([
-        e for e in service.db.list_audit_events() if e["event_type"] == "admin_legacy_signature_accepted"
-    ]) == len(legacy)
-
-
-def test_the_legacy_mode_is_validated_and_read_from_the_environment():
-    with pytest.raises(ValueError):
-        _make_service(admin_legacy_signatures="maybe")
-    assert load_settings({"GENESIS_FILE": "g.json"}).admin_legacy_signatures == "reject"
-    assert load_settings({
-        "GENESIS_FILE": "g.json", "NA_ADMIN_LEGACY_SIGNATURES": "accept",
-    }).admin_legacy_signatures == "accept"
+def test_version_1_cannot_be_turned_back_on():
+    """1.1.0 removed NA_ADMIN_LEGACY_SIGNATURES: no setting re-enables version 1."""
+    with pytest.raises(TypeError):
+        _make_service(admin_legacy_signatures="accept")
+    settings = load_settings({"GENESIS_FILE": "g.json", "NA_ADMIN_LEGACY_SIGNATURES": "accept"})
+    assert not hasattr(settings, "admin_legacy_signatures")
 
 
 def test_the_payload_refuses_a_relative_path():

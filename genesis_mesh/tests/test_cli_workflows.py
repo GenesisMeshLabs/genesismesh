@@ -149,6 +149,51 @@ def test_admin_invite_accepts_direct_operator_key_flags(tmp_path):
     assert invite_result.output.strip()
 
 
+def test_admin_commands_sign_for_the_network_authority_now_at_the_address(tmp_path):
+    """A new Network Authority on a reused address is signed for (v1.1.0).
+
+    The CLI kept each address's public key for the life of the process, so a
+    later command signed for the earlier Network Authority and was refused.
+    """
+    runner = CliRunner()
+    port = 0
+    for name in ("first", "second"):
+        config_path = tmp_path / name / "genesis-mesh.toml"
+        init_result = runner.invoke(
+            cli,
+            [
+                "init",
+                "--config",
+                str(config_path),
+                "--home",
+                str(tmp_path / name / ".genesis-mesh"),
+                "--force",
+            ],
+        )
+        assert init_result.exit_code == 0, init_result.output
+        config = load_config(str(config_path), required=True)
+
+        with _running_na_from_config(config_path, tmp_path / name / "na.db", port=port) as endpoint:
+            port = int(endpoint.rsplit(":", 1)[1])
+            invite_result = runner.invoke(
+                cli,
+                [
+                    "admin",
+                    "invite",
+                    "--na",
+                    endpoint,
+                    "--operator-key",
+                    config["paths"]["operator_private_key"],
+                    "--operator-key-id",
+                    config["operator"]["key_id"],
+                    "--role",
+                    "client",
+                ],
+            )
+
+        assert invite_result.exit_code == 0, f"{name}: {invite_result.output}"
+
+
 def test_na_start_uses_logger_and_werkzeug_runner(tmp_path, monkeypatch, caplog):
     """The local NA dev server avoids Flask's direct stderr banner path."""
     config_path = tmp_path / "genesis-mesh.toml"

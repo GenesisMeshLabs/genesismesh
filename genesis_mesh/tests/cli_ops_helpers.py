@@ -17,8 +17,8 @@ from genesis_mesh.na_service.server import create_app
 
 
 @contextmanager
-def _running_na_from_config(config_path: Path, db_path: Path):
-    """Run a configured Network Authority on an ephemeral localhost port."""
+def _running_na_from_config(config_path: Path, db_path: Path, port: int = 0):
+    """Run a configured Network Authority on localhost (an ephemeral port by default)."""
     config = load_config(str(config_path), required=True)
     with open(config["paths"]["genesis"], "r", encoding="utf-8") as f:
         genesis = GenesisBlock(**json.load(f))
@@ -34,7 +34,7 @@ def _running_na_from_config(config_path: Path, db_path: Path):
         # F-21: the single local operator is privileged.
         operator_key_tiers={config['operator']['key_id']: "privileged"},
     )
-    server = make_server("127.0.0.1", 0, app)
+    server = make_server("127.0.0.1", port, app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -42,3 +42,4 @@ def _running_na_from_config(config_path: Path, db_path: Path):
     finally:
         server.shutdown()
         thread.join(timeout=5)
+        server.server_close()

@@ -10,6 +10,7 @@ sovereign-attestations
 recognition-treaties
 cross-sovereign-revocation
 independent-sovereigns
+two-sovereigns-from-images
 connectome
 atlas
 ```

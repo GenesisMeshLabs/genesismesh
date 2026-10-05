@@ -17,7 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
-| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.0.2* below first |
+| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
 | 0.58.x and earlier | Not supported: upgrade to 0.59.1 first, or start fresh |
 
@@ -46,6 +46,48 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.1
+
+1.1 adds no database migration: the schema version stays the same, so a
+1.1 Network Authority can be rolled back to 1.0.2 on the same database (see
+*Rollback*). Admin signature version 2 arrived in 1.0.2: coming from 1.0.0
+or 1.0.1, read *Upgrading to 1.0.2* first: 1.1 accepts only version 2 and no
+longer has `NA_ADMIN_LEGACY_SIGNATURES`, so its client migration window must
+be finished, or older clients upgraded together with the Network Authority.
+What needs planning in 1.1 is the container image.
+
+### Container image: hand the data volume to the new user
+
+The 1.1 image (`ghcr.io/genesismeshlabs/genesis-mesh`) runs as user 10001 in
+`/data`. Images built from the 1.0 Dockerfile ran as a system user (uid 100)
+in `/app`, so:
+
+- **Relative paths move.** `GENESIS_FILE`, `NA_PRIVATE_KEY_FILE` and `DB_PATH`
+  default to files in the working directory, now `/data`. Mount the database
+  volume at `/data`, or set `DB_PATH` to where it is mounted.
+- **The volume must be writable by uid 10001.** The image refuses to start
+  otherwise:
+
+  ```text
+  ERROR: database /data/genesis_mesh_na.db is not writable by uid 10001. Give
+  the data volume to this user (for example chown -R 10001:0 and chmod -R
+  g+rwX on the volume). Refusing to start.
+  ```
+
+  With the Network Authority stopped and the backup taken, hand the volume
+  over once, to user 10001 and group 0 as the image lays out `/data`:
+
+  ```bash
+  docker run --rm --user 0 --entrypoint sh -v na-data:/data \
+    ghcr.io/genesismeshlabs/genesis-mesh:1.1.0 \
+    -c 'chown -R 10001:0 /data && chmod -R u+rwX,g+rwX,o-rwx /data && chmod g+s /data'
+  ```
+
+- **Mounted secrets must be readable by uid 10001** (or group 0), for
+  example a key file mounted read-only from the host.
+
+See [Container Images](container-images.md) for the full runtime contract.
 
 ## Upgrading to 1.0.2
 
@@ -106,9 +148,17 @@ revocation silently re-trusts the subject.
 
 When an upgrade adds no migration (`/readyz` shows the same schema version
 before and after), the previous binary can be started on the same database
-without a restore. This is the case from 1.0.2 back to 1.0.1. 1.0.1 accepts
-only version 1 admin signatures and ignores `NA_ADMIN_LEGACY_SIGNATURES`, so
-return the admin clients to 1.0.1 as well.
+without a restore. This is the case from 1.1 back to 1.0.2, and from 1.0.2
+back to 1.0.1. 1.0.1 accepts only version 1 admin signatures and ignores
+`NA_ADMIN_LEGACY_SIGNATURES`, so return the admin clients to 1.0.1 as well. A container is rolled back by
+running the image it ran before (by digest when it came from a registry). A
+volume handed to uid 10001 goes back to the 1.0 image's user with that
+image's own `chown`:
+
+```bash
+docker run --rm --user 0 --entrypoint chown -v na-data:/data \
+  <the 1.0 image> -R genesis:genesis /data
+```
 
 ## Mixed versions
 

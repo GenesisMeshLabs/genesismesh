@@ -138,16 +138,23 @@ def _admin_headers(
         key_id, key_path, body, method=method, base_url=base_url, path=path, query=query
     )
 
-_ADMIN_AUDIENCES: dict[str, str] = {}
+_ADMIN_AUDIENCES_META_KEY = "genesis_mesh.admin_audiences"
 
 def _admin_audience(base_url: str) -> str:
     """Return the audience admin requests to this Network Authority must name:
     its public key (``network_authority.public_key``), unique to it.
 
-    Read once per endpoint from the public ``/sovereign.json`` and cached.
+    Read from the public ``/sovereign.json`` once per endpoint and command.
+    The cache lives in the command's click context, not in the process: a
+    process that outlives one command (a test run, a program that invokes
+    the CLI) may meet another Network Authority at the same address (v1.1.0).
     """
     base = base_url.rstrip("/")
-    if base not in _ADMIN_AUDIENCES:
+    ctx = click.get_current_context(silent=True)
+    audiences: dict[str, str] = (
+        ctx.meta.setdefault(_ADMIN_AUDIENCES_META_KEY, {}) if ctx is not None else {}
+    )
+    if base not in audiences:
         payload = _request_json(
             requests.Session(), "GET", f"{base}/sovereign.json", label="sovereign metadata"
         )
@@ -157,8 +164,8 @@ def _admin_audience(base_url: str) -> str:
             raise click.ClickException(
                 f"{base}/sovereign.json has no network_authority.public_key"
             )
-        _ADMIN_AUDIENCES[base] = public_key
-    return _ADMIN_AUDIENCES[base]
+        audiences[base] = public_key
+    return audiences[base]
 
 def _signed_admin_headers(
     key_id: str,

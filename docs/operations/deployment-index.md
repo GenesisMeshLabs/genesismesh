@@ -12,6 +12,7 @@ deployment live in the [Runbooks](runbooks-index.md) section.
 :hidden:
 
 deployment
+container-images
 high-availability
 public-reference-dashboard
 vm-bootstrap
@@ -31,6 +32,14 @@ kubernetes-deployment
 
 High-level overview of the supported deployment shapes and when to choose
 each.
+:::
+
+:::{grid-item-card} Container Images
+:link: container-images
+:link-type: doc
+
+The signed Network Authority and gateway images: tags, verifying signatures,
+the runtime contract, key providers, Compose and upgrades (v1.1).
 :::
 
 :::{grid-item-card} High Availability

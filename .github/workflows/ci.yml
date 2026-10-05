@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests and smoke checks
@@ -56,20 +59,71 @@ jobs:
           python -m pip wheel --no-deps -w dist .
           python scripts/upgrade_rehearsal.py --installed dist/genesis_mesh-*.whl
 
-      - name: Build container image
-        run: docker build -t genesis-mesh:ci .
-
-      - name: Verify container fails closed without secrets
-        run: |
-          set +e
-          output=$(docker run --rm genesis-mesh:ci 2>&1)
-          status=$?
-          echo "$output"
-          test "$status" -ne 0
-          echo "$output" | grep -q "Refusing to start"
-
       - name: CLI smoke workflow
         run: python -m genesis_mesh.cli dev up
+
+  container:
+    name: Container images on ${{ matrix.arch }} (Network Authority and gateway)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # A coordinated change is tested against the gateway branch of the same
+      # name when it exists, and against main otherwise.
+      - name: Choose the gateway revision
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          ref=main
+          if git ls-remote --exit-code --heads https://github.com/GenesisMeshLabs/gateway.git "refs/heads/$BRANCH" > /dev/null; then ref="$BRANCH"; fi
+          echo "Testing with gateway revision: $ref"
+          echo "GATEWAY_REF=$ref" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: GenesisMeshLabs/gateway
+          ref: ${{ env.GATEWAY_REF }}
+          path: gateway-src
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      # Each architecture builds and runs natively on its own runner.
+      - name: Build the images
+        run: |
+          docker buildx build --load -t genesis-mesh:ci \
+            --build-arg VERSION="$(tr -d '[:space:]' < VERSION)" --build-arg REVISION="$GITHUB_SHA" .
+          GW_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' gateway-src/Cargo.toml | head -n 1)"
+          docker buildx build --load -t genesis-mesh-gateway:ci \
+            --build-arg VERSION="$GW_VERSION" --build-arg REVISION="$(git -C gateway-src rev-parse HEAD)" gateway-src
+          # The 1.0.x image ran as another uid; its volumes must be refused until handed over.
+          git archive v1.0.1 | docker buildx build --load -t genesis-mesh:legacy -
+
+      - name: Vulnerability gate
+        run: |
+          mkdir -p reports
+          docker save genesis-mesh:ci -o reports/image.tar
+          docker run --rm -v "$PWD/reports:/reports" aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image --quiet --input /reports/image.tar --scanners vuln,secret --format json --output /reports/trivy.json
+          rm reports/image.tar
+          python scripts/image_vuln_gate.py reports/trivy.json
+
+      - name: Container smoke tests
+        run: |
+          python scripts/container_smoke.py --image genesis-mesh:ci --gateway-image genesis-mesh-gateway:ci \
+            --legacy-image genesis-mesh:legacy --context-dir . \
+            --compose-file deploy/compose/docker-compose.images.yml
 
   postgres:
     name: PostgreSQL backend and HA failover

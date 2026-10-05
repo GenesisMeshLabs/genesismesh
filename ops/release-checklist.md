@@ -20,11 +20,20 @@ pushing the tag.
 - [ ] CHANGELOG updated with a new version section
 - [ ] `docs/development/history.md` updated with the new version entry
 - [ ] No secrets, operator keys, or private key files staged
+- [ ] CI `container` job green: both images build (amd64 and arm64), the
+      vulnerability gate passes and `scripts/container_smoke.py` passes
+- [ ] `Publish container image` dry run (`workflow_dispatch` on `main`) green
+- [ ] `requirements-image.lock` is current (`test_image_lock` passes)
 
 ## Release
 
-- [ ] `git tag vX.Y.Z`
-- [ ] `git push origin main --tags`
+- [ ] `git tag -s vX.Y.Z -m "vX.Y.Z"` (signed) on the merged release commit
+- [ ] `git push origin vX.Y.Z` (changes reach `main` only through a PR)
+- [ ] Core first: publish the core release before tagging the gateway, whose
+      image job builds the Network Authority from the core tag
+- [ ] A release image run that fails after tagging is finished by re-running
+      it (it verifies the published digest and completes the tags and notes);
+      never by a dispatch run
 - [ ] `gh release create vX.Y.Z --title "vX.Y.Z — <title>" --notes "<notes>"`
 
 ## Post-release
@@ -33,3 +42,14 @@ pushing the tag.
 - [ ] PyPI publish CI run completes successfully
 - [ ] `pip install genesis-mesh==X.Y.Z` installs cleanly in a fresh venv
 - [ ] Tag is visible: `git tag -l | grep vX.Y.Z`
+- [ ] `Publish container image` run completes: image pushed by digest, signed,
+      verified and tagged; the release notes list the digest
+- [ ] Gateway `Build distribution artifacts` run completes: gateway image
+      pushed, signed and tagged; the OCI archive and its bundle are on the
+      gateway release
+- [ ] First release with images only: both GHCR packages made public
+      (irreversible), then anonymous `docker pull` works
+- [ ] `cosign verify` of both images with the identities in
+      `docs/operations/container-images.md`
+- [ ] `Published artifacts` workflow green, including its `images` job
+      (anonymous pull, signatures, floating tags, smoke tests)
