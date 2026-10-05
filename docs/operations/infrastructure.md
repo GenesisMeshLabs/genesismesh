@@ -21,10 +21,12 @@ infrastructure/
 
 ## Root Files Kept Intentionally
 
-- `Dockerfile`: kept at the repository root so Docker and Azure Container
-  Registry builds can use the whole repository as the build context.
-- `start.sh`: kept at the repository root because the Docker image entry point
-  invokes it directly.
+- `Dockerfile`: the Network Authority image, published signed for each
+  release as `ghcr.io/genesismeshlabs/genesis-mesh` (see
+  [Container Images](container-images.md)). It builds from the repository
+  root; `.dockerignore` admits only the package, `start.sh` and the lock
+  files, never keys, `.env` files or databases.
+- `start.sh`: the image's entry point, kept at the repository root.
 - `requirements.txt`, `setup.py`, `pytest.ini`, and `README.md`: package and
   development entry files.
 
@@ -50,20 +52,32 @@ the Network Authority refuses to start if any configured key has no tier.
 
 ## Azure Scripts
 
-The Azure helper scripts live in `infrastructure/azure/` and build from the
-repository root automatically:
+The Azure helper scripts live in `deploy/azure/`. They deploy the
+published image at this checkout's `VERSION` to Azure Container Apps (set
+`IMAGE` to deploy another reference, ideally a digest). With
+`BUILD_FROM_SOURCE=true` they build this checkout in an Azure Container
+Registry instead:
 
 ```powershell
 .\infrastructure\azure\deploy_to_azure.ps1
 ```
 
 ```bash
-bash infrastructure/azure/deploy_to_azure.sh
+bash deploy/azure/deploy_to_azure.sh
 ```
 
-Both scripts target port `8443`, matching the Docker image and `start.sh`. The
-scripts set the expected environment variable names; production environments
-still need to mount the genesis and NA key files at those configured paths.
+Both scripts target port `8443`, matching the image and `start.sh`. They take their inputs from the environment: `GENESIS_FILE` (the signed
+genesis block) and `NA_SEED_FILE` (a file holding the NA key's base64 seed)
+are required and become Container Apps secrets, handed to the image as
+`GENESIS_JSON` and `NA_PRIVATE_KEY_SEED` (`start.sh` moves both out of the
+server processes' environment). `NA_KEY_ID` (default `na-local`),
+`OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON` configure the
+Network Authority; every operator key needs a tier (`standard` or
+`privileged`). Without `DATABASE_URL` (PostgreSQL, also passed as a secret)
+the state is SQLite inside the container, which a new revision starts
+without. With `INVITE_TOKEN`, the scripts also deploy a mesh node enrolled
+with it. Run them from a release checkout, since the image tag comes from
+`VERSION`.
 
 ## Terraform Verification
 

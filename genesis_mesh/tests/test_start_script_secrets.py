@@ -141,3 +141,79 @@ def test_mounted_files_bypass_env_injection(tmp_path):
     assert resolved["NA_PRIVATE_KEY_FILE"] == str(key_file)
     assert genesis_file.read_text() == '{"mounted": true}'
     assert key_file.read_text() == "mounted-key"
+
+
+NODE_STUB = """#!/bin/bash
+printf '%s\\n' "$@" > "$STUB_OUT"
+exit 0
+"""
+
+
+def test_node_invite_token_reaches_the_node_in_a_private_file(tmp_path):
+    """v1.1: the token is not on the node's command line, where ps shows it."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "python"
+    stub.write_text(NODE_STUB)
+    stub.chmod(0o755)
+    stub_out = tmp_path / "node_args.txt"
+    genesis_file = tmp_path / "genesis.signed.json"
+    genesis_file.write_text("{}")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SERVICE_ROLE": "node",
+            "PATH": f"{bin_dir}{os.pathsep}{env['PATH']}",
+            "STUB_OUT": str(stub_out),
+            "GENESIS_FILE": str(genesis_file),
+            "INVITE_TOKEN": "tok-secret-123",
+        }
+    )
+    result = subprocess.run(
+        ["bash", str(START_SH)], env=env, cwd=tmp_path, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, f"start.sh failed: {result.stdout}\n{result.stderr}"
+    args = stub_out.read_text().splitlines()
+    assert "tok-secret-123" not in args
+    assert "--invite-token" not in args
+    token_file = Path(args[args.index("--invite-token-file") + 1])
+    try:
+        assert token_file.read_text() == "tok-secret-123"
+        assert stat.S_IMODE(token_file.stat().st_mode) == 0o600
+        assert stat.S_IMODE(token_file.parent.stat().st_mode) == 0o700
+    finally:
+        shutil.rmtree(token_file.parent, ignore_errors=True)
+
+
+def test_files_the_na_creates_are_group_writable(tmp_path):
+    """v1.1: umask 0002, so another user ID in group 0 can take over the volume."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "gunicorn"
+    stub.write_text("#!/bin/bash\ntouch \"$PROBE\"\nexit 0\n")
+    stub.chmod(0o755)
+    genesis_file = tmp_path / "genesis.signed.json"
+    genesis_file.write_text("{}")
+    key_file = tmp_path / "na.key"
+    key_file.write_text("key")
+    probe = tmp_path / "created-by-the-na"
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SERVICE_ROLE": "na",
+            "PATH": f"{bin_dir}{os.pathsep}{env['PATH']}",
+            "GENESIS_FILE": str(genesis_file),
+            "NA_PRIVATE_KEY_FILE": str(key_file),
+            "DB_PATH": str(tmp_path / "na.db"),
+            "PROBE": str(probe),
+        }
+    )
+    result = subprocess.run(
+        ["bash", str(START_SH)], env=env, cwd=tmp_path, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, f"start.sh failed: {result.stdout}\n{result.stderr}"
+    assert stat.S_IMODE(probe.stat().st_mode) == 0o664
+    # SQLite would create the database 0644; start.sh creates it first.
+    assert stat.S_IMODE((tmp_path / "na.db").stat().st_mode) == 0o664

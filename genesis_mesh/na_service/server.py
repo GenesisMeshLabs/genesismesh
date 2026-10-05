@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from flask import Flask
+from werkzeug.routing import PathConverter
 import nacl.signing
 
 from ..crypto import (
@@ -56,8 +57,13 @@ from .routes import (
 logger = logging.getLogger(__name__)
 
 HA_MODES = ("off", "on")
-# v1.0.2: version 1 admin signatures (no method/path/query/audience binding).
-ADMIN_LEGACY_SIGNATURE_MODES = ("reject", "accept")
+
+class _PathConverter(PathConverter):
+    """Werkzeug's ``path`` converter, also for a value that starts with "/"."""
+
+    regex = ".+?"
+    part_isolating = False  # set explicitly: a regex without "/" would turn it on
+
 
 #: Bounded retries when another instance publishes a CRL sequence first.
 CRL_PUBLISH_ATTEMPTS = 5
@@ -104,7 +110,6 @@ class NetworkAuthorityService:
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
-        admin_legacy_signatures: str = "reject",
     ):
         """
         Initialize the Network Authority service.
@@ -139,17 +144,8 @@ class NetworkAuthorityService:
                 and the shared rate limiter (v0.60).
             rate_limit_store: "memory" (per process) or "database" (shared).
                 Defaults to "database" on PostgreSQL and "memory" on SQLite.
-            admin_legacy_signatures: "reject" (default) refuses version 1
-                admin signatures, which do not cover the method, path, query
-                or audience (v1.0.2); "accept" allows them for a
-                migration window and audits every use.
         """
         self.genesis_block = genesis_block
-        if admin_legacy_signatures not in ADMIN_LEGACY_SIGNATURE_MODES:
-            raise ValueError(
-                f"admin_legacy_signatures must be one of {ADMIN_LEGACY_SIGNATURE_MODES}"
-            )
-        self.admin_legacy_signatures = admin_legacy_signatures
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
         # remains as an alias so existing callers keep working; it is the
         # Signer, never the raw key.
@@ -224,6 +220,10 @@ class NetworkAuthorityService:
             raise ValueError("NA private key does not match genesis block")
 
         self.app = Flask(__name__)
+        # A path parameter may start with "/": a base64 node key does about 1
+        # in 64 times, and the stock converter refuses that, so such an agent
+        # could be neither read nor deregistered (v1.1.0).
+        self.app.url_map.converters["path"] = _PathConverter
         # Bound every request body: public verify routes are unauthenticated,
         # and an unbounded JSON body is a memory denial of service (v0.62.0
         # security review). Larger bodies get 413 request_entity_too_large.
@@ -464,7 +464,6 @@ def create_app(
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
-    admin_legacy_signatures: str = "reject",
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -483,7 +482,6 @@ def create_app(
         rate_limit_store=rate_limit_store,
         max_request_bytes=max_request_bytes,
         rate_limits=rate_limits,
-        admin_legacy_signatures=admin_legacy_signatures,
     )
     return service.app
 

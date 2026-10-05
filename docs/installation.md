@@ -16,6 +16,24 @@ genesis-mesh-na --help     # Network Authority server (legacy entry point)
 genesis-mesh-node --help   # Node runtime (legacy entry point)
 ```
 
+## Container Images
+
+The Network Authority and the trust gateway are also published as signed
+container images for `linux/amd64` and `linux/arm64`:
+
+```bash
+docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.1.0
+docker pull ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.1.0
+```
+
+Verify their signatures and deploy by digest; see
+[Container Images](operations/container-images.md). The image also contains
+the `genesis-mesh` CLI:
+
+```bash
+docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.1.0 --version
+```
+
 ## Development Install (Contributors)
 
 For working on the code or building docs locally, clone the repository and

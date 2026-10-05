@@ -3,6 +3,8 @@ name: Published artifacts
 # Runs the cross-language scenario from the released packages, as a consumer
 # installs them: genesis-mesh from PyPI, genesis-mesh-sdk from npm,
 # genesismesh-sdk-dotnet from NuGet and sdk-go from the Go module proxy.
+# The images job pulls the released container images anonymously, verifies
+# their signatures and runs the container smoke tests against them (v1.1).
 # Run it after the release train for a version has published (core first,
 # then the SDKs); it also runs daily against the version in VERSION.
 
@@ -14,6 +16,9 @@ on:
         required: false
   schedule:
     - cron: "17 6 * * *"
+
+permissions:
+  contents: read
 
 jobs:
   published:
@@ -52,3 +57,78 @@ jobs:
         env:
           PYTHON: python
         run: interop/run_all.sh --published "$VERSION_UNDER_TEST"
+
+  images:
+    name: Released container images verify and run (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    env:
+      NA_IMAGE: ghcr.io/genesismeshlabs/genesis-mesh
+      GW_IMAGE: ghcr.io/genesismeshlabs/genesis-mesh-gateway
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Choose the version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          V="${REQUESTED:-$(tr -d '[:space:]' < VERSION)}"
+          echo "VERSION_UNDER_TEST=$V" >> "$GITHUB_ENV"
+          # Images are published from 1.1.0 on; earlier releases have none.
+          if [ "$(printf '%s\n%s\n' 1.1.0 "$V" | sort -V | head -n 1)" = "1.1.0" ]; then
+            echo "HAS_IMAGES=true" >> "$GITHUB_ENV"
+          else
+            echo "::notice::$V predates the published container images (1.1.0); nothing to check."
+            echo "HAS_IMAGES=false" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: env.HAS_IMAGES == 'true'
+        with:
+          python-version: "3.14"
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        if: env.HAS_IMAGES == 'true'
+
+      - name: Pull anonymously and verify the signatures
+        if: env.HAS_IMAGES == 'true'
+        run: |
+          docker logout ghcr.io || true
+          V="$VERSION_UNDER_TEST"
+          docker pull "$NA_IMAGE:$V"
+          docker pull "$GW_IMAGE:$V"
+          cosign verify "$NA_IMAGE:$V" \
+            --certificate-identity "https://github.com/GenesisMeshLabs/genesismesh/.github/workflows/publish-image.yml@refs/tags/v$V" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          cosign verify "$GW_IMAGE:$V" \
+            --certificate-identity "https://github.com/GenesisMeshLabs/gateway/.github/workflows/distribution.yml@refs/tags/v$V" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          echo "Both images verified for $V"
+
+      - name: Floating tags point at the released digest
+        if: env.HAS_IMAGES == 'true'
+        run: |
+          V="$VERSION_UNDER_TEST"
+          tags="$(python scripts/image_tags.py "$V" --tags-from-git)"
+          if ! printf '%s\n' "$tags" | grep -qx "$V"; then echo "::error::no tags computed for $V: '$tags'"; exit 1; fi
+          for image in "$NA_IMAGE" "$GW_IMAGE"; do
+            digest="$(docker buildx imagetools inspect "$image:$V" --format '{{json .Manifest.Digest}}')"
+            for tag in $tags; do
+              got="$(docker buildx imagetools inspect "$image:$tag" --format '{{json .Manifest.Digest}}')"
+              if [ "$got" != "$digest" ]; then echo "::error::$image:$tag is $got, expected $digest"; exit 1; fi
+            done
+          done
+
+      - name: Container smoke tests against the released images
+        if: env.HAS_IMAGES == 'true'
+        run: |
+          python scripts/container_smoke.py --image "$NA_IMAGE:$VERSION_UNDER_TEST" \
+            --gateway-image "$GW_IMAGE:$VERSION_UNDER_TEST" --version "$VERSION_UNDER_TEST" \
+            --compose-file deploy/compose/docker-compose.images.yml

@@ -7,7 +7,7 @@ Minimal manifests to run the Genesis Mesh Network Authority on Kubernetes.
 | File | Purpose |
 |------|---------|
 | `namespace.yaml` | Creates the `genesis-mesh` namespace. |
-| `na-secrets.yaml` | Mounts the signed genesis block, NA private key, and operator public keys. **Edit before applying.** |
+| `na-secrets.yaml` | Mounts the signed genesis block, NA private key, operator public keys and their tiers. **Edit before applying.** |
 | `na-pvc.yaml` | 5 GiB PVC for the SQLite database. |
 | `na-deployment.yaml` | Single-replica Deployment running the Gunicorn NA. |
 | `na-service.yaml` | ClusterIP Service on port 8443. |
@@ -15,7 +15,9 @@ Minimal manifests to run the Genesis Mesh Network Authority on Kubernetes.
 ## Prerequisites
 
 - A Kubernetes cluster (`kubectl` configured)
-- The Genesis Mesh container image published to a registry your cluster can pull
+- Access to the signed Network Authority image,
+  `ghcr.io/genesismeshlabs/genesis-mesh`. Verify it and pin its digest in
+  `na-deployment.yaml` (see `docs/operations/container-images.md`)
 - A locally generated signed genesis block, NA private key, and operator public key
 
 Generate the inputs locally:
@@ -38,14 +40,18 @@ and `.genesis-mesh/keys/operator.pub`.
    cat       .genesis-mesh/keys/operator.pub
    ```
 
+   Give each operator key a tier (`read`, `standard` or `privileged`) in
+   `operator-key-tiers.json`; the Network Authority refuses to start when a
+   key has none.
+
 2. Apply the manifests:
 
    ```bash
-   kubectl apply -f examples/kubernetes/namespace.yaml
-   kubectl apply -f examples/kubernetes/na-secrets.yaml
-   kubectl apply -f examples/kubernetes/na-pvc.yaml
-   kubectl apply -f examples/kubernetes/na-deployment.yaml
-   kubectl apply -f examples/kubernetes/na-service.yaml
+   kubectl apply -f deploy/kubernetes/namespace.yaml
+   kubectl apply -f deploy/kubernetes/na-secrets.yaml
+   kubectl apply -f deploy/kubernetes/na-pvc.yaml
+   kubectl apply -f deploy/kubernetes/na-deployment.yaml
+   kubectl apply -f deploy/kubernetes/na-service.yaml
    ```
 
 3. Verify:

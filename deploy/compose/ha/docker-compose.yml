@@ -6,24 +6,31 @@
 # docs/operations/high-availability.md.
 #
 #   cp .env.example .env    # then fill in the values
+#   mkdir -p secrets && grep -v '^#' <path to na.key> > secrets/na_seed
+#   sudo chown 10001 secrets/na_seed && sudo chmod 0400 secrets/na_seed
 #   docker compose up -d --build
 #
 # This is a single-host reference for testing the HA behaviour. In production
 # the database is a managed, zone-redundant service (Azure Database for
 # PostgreSQL Flexible Server) and the instances run on separate hosts.
+#
+# It builds the image from this checkout. To run a release instead, replace
+# `build:` with `image: ghcr.io/genesismeshlabs/genesis-mesh@sha256:<digest>`
+# after verifying it (docs/operations/container-images.md). The NA seed is a
+# mounted secret file (NA_PRIVATE_KEY_SEED_FILE), not an environment value.
 
 name: genesis-mesh-ha
 
 x-na: &na
   build:
-    context: ../..
+    context: ../../..
   environment:
     SERVICE_ROLE: na
     PORT: "8443"
     WEB_CONCURRENCY: "2"
     GENESIS_JSON: ${GENESIS_JSON:?set GENESIS_JSON (signed genesis block)}
     NA_KEY_PROVIDER: env
-    NA_PRIVATE_KEY_SEED: ${NA_PRIVATE_KEY_SEED:?set NA_PRIVATE_KEY_SEED (base64 Ed25519 seed)}
+    NA_PRIVATE_KEY_SEED_FILE: /run/secrets/na_seed
     NA_KEY_ID: ${NA_KEY_ID:-na-ha}
     DATABASE_URL: postgresql://genesis:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/genesis_mesh
     NA_HA_MODE: "on"
@@ -31,6 +38,8 @@ x-na: &na
     OPERATOR_KEY_TIERS_JSON: ${OPERATOR_KEY_TIERS_JSON:?set OPERATOR_KEY_TIERS_JSON}
     EVIDENCE_STORE: "on"
     BOUNDARY_POLICY_ENFORCEMENT: required
+  secrets:
+    - na_seed
   depends_on:
     postgres:
       condition: service_healthy
@@ -72,6 +81,10 @@ services:
         condition: service_healthy
       na-b:
         condition: service_healthy
+
+secrets:
+  na_seed:
+    file: ./secrets/na_seed
 
 volumes:
   pgdata:

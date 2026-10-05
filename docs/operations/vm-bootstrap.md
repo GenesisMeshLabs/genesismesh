@@ -1,7 +1,7 @@
 # Network Authority VM Bootstrap
 
 End-to-end commands to bring up the live Network Authority on a fresh Ubuntu
-22.04 VM. The Terraform module at `infrastructure/azure/` provisions the VM
+22.04 VM. The Terraform module at `deploy/azure/` provisions the VM
 itself; everything below runs on the VM after it boots.
 
 This runbook reflects the actual commands that built the live deployment at
@@ -97,7 +97,7 @@ The rest of this page documents the manual live Azure setup for the current
 
 ## Prerequisites
 
-- Ubuntu 22.04 VM provisioned (Terraform: `infrastructure/azure/`)
+- Ubuntu 22.04 VM provisioned (Terraform: `deploy/azure/`)
 - Public IP reachable on ports 22, 80, 443, 7443, 7444
 - DNS `na.genesismesh.org` → VM public IP (Cloudflare or equivalent)
 - Locally generated artifacts to upload:

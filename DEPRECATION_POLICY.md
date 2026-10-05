@@ -55,8 +55,14 @@ exception (see *What is not covered*).
   its `error.code`, are stable. A code is never removed or given a new
   meaning; new codes may be added for new failures. `error.message` and
   `error.details` are for people and may change.
-- **Authentication.** The admin signature scheme (`X-Admin-*` headers over
-  the canonical `{body, key_id, timestamp, nonce}`) is stable.
+- **Authentication.** The admin signature scheme is stable: version 2
+  (`X-Admin-*` headers over the canonical `{v, method, path, query, audience,
+  body, key_id, timestamp, nonce}`, vectors in
+  `conformance/vectors/admin_auth.json`). Version 1 signed only
+  `{body, key_id, timestamp, nonce}`; 1.0.2 replaced it under the security
+  exception below, with `NA_ADMIN_LEGACY_SIGNATURES=accept` for a client
+  migration window. 1.1.0 removed that setting under the same exception: no
+  deployment relied on it.
 
 ## Canonical signing bytes
 
@@ -84,7 +90,7 @@ Therefore, within 1.x:
    later release verifies on every later 1.x release. Earlier artifacts are
    not covered. The upgrade rehearsal (`scripts/upgrade_rehearsal.py`) checks
    this against real databases written by 0.59.1, 0.60.0, 0.61.1, 0.62.0,
-   0.63.0, 0.63.1, 0.64.0, 0.64.1, 0.65.0, 1.0.0 and 1.0.1.
+   0.63.0, 0.63.1, 0.64.0, 0.64.1, 0.65.0, 1.0.0, 1.0.1 and 1.0.2.
 
 Beta signed artifacts may change in a minor version; the CHANGELOG says how
 artifacts from the previous version are handled.
@@ -108,6 +114,28 @@ SDKs carry byte-identical copies, which CI checks.
 Environment variables and configuration keys documented in
 `docs/reference/configuration.md` are stable. Unset values keep the previous
 behaviour.
+
+## Container images
+
+The Network Authority image `ghcr.io/genesismeshlabs/genesis-mesh` is stable
+from 1.1.0; the gateway image `ghcr.io/genesismeshlabs/genesis-mesh-gateway`
+follows the gateway's beta level. For the stable image, within 1.x:
+
+- **Tags.** `X.Y.Z` is published once and never moved or replaced; a fix ships
+  as a new patch version. `X.Y` and `latest` follow the newest release of
+  their line and move only forward. Deploy by digest or by `X.Y.Z`.
+- **Signatures.** Every published image is signed keylessly by the release
+  workflow of its repository; `docs/operations/container-images.md` gives the
+  exact identity to verify. An unsigned image is not a release.
+- **Runtime contract.** The image name, `SERVICE_ROLE=na` and `SERVICE_ROLE=node`, the
+  environment variables in `docs/reference/configuration.md`, the `/data`
+  state directory (writable by user 10001 and by group 0, for platforms that
+  run images under an arbitrary user ID), port 8443, user 10001, the health
+  check, and refusing to start without a genesis block or a signing key that
+  matches it are stable. Changing any of these follows the deprecation cycle.
+- **Not covered.** The base image, OS and Python packages inside the image,
+  file layout outside `/data`, image size and the set of shell tools present.
+  These change in any release, including for security updates.
 
 ## Persisted database state
 

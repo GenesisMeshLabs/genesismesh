@@ -27,8 +27,16 @@ spec:
         fsGroup: 10001
       containers:
         - name: na
-          image: ghcr.io/GenesisMeshLabs/genesismesh:latest
+          # The signed release image. Pin the digest you verified with cosign:
+          # ghcr.io/genesismeshlabs/genesis-mesh@sha256:<digest>
+          # (docs/operations/container-images.md).
+          image: ghcr.io/genesismeshlabs/genesis-mesh:1.1.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: 8443
@@ -39,6 +47,9 @@ spec:
               value: /run/secrets/genesis-mesh/genesis.signed.json
             - name: NA_PRIVATE_KEY_FILE
               value: /run/secrets/genesis-mesh/na.key
+            # The key ID recorded in na.key (genesis-mesh init writes na-local).
+            - name: NA_KEY_ID
+              value: na-local
             - name: DB_PATH
               value: /var/lib/genesis-mesh/na.db
             - name: PORT
@@ -50,12 +61,20 @@ spec:
                 secretKeyRef:
                   name: genesis-mesh-operators
                   key: operator-public-keys.json
+            # Every operator key needs a tier; the NA refuses to start otherwise.
+            - name: OPERATOR_KEY_TIERS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: genesis-mesh-operators
+                  key: operator-key-tiers.json
           volumeMounts:
             - name: na-secret
               mountPath: /run/secrets/genesis-mesh
               readOnly: true
             - name: na-data
               mountPath: /var/lib/genesis-mesh
+            - name: tmp
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /healthz
@@ -82,3 +101,6 @@ spec:
         - name: na-data
           persistentVolumeClaim:
             claimName: genesis-mesh-na-data
+        - name: tmp
+          emptyDir:
+            medium: Memory

@@ -65,12 +65,28 @@ python examples\test_workflow.py
 
 ## Container Smoke Checks
 
-Container startup and health behavior should be verified before release:
+`scripts/container_smoke.py` exercises the Network Authority and gateway
+images end to end with Docker: fail-closed start-up, each key provider,
+secret handling, a read-only root file system, an arbitrary user ID,
+persistence, PostgreSQL HA, the gateway with CRL refresh, two sovereigns
+federating through treaties, and the Compose example. CI runs it on every
+change (the `container` job, natively on amd64 and arm64 runners), the
+release workflows run it before anything is tagged (every scenario on amd64,
+the Network Authority or gateway scenarios on arm64), and
+`published-artifacts.yml` runs it against the published images on both
+architectures.
 
-- the image builds successfully
-- startup fails closed without mounted genesis and NA key files
-- `/healthz` and `/readyz` return healthy responses with required secrets mounted
+Run it locally against images built from checkouts of both repositories:
 
-The CI workflow builds the Docker image and verifies the fail-closed missing
-secret path. Full mounted-secret Gunicorn smoke testing is still useful before
-release because it exercises the target deployment host and volume mounts.
+```bash
+docker build -t genesis-mesh:local .
+docker build -t genesis-mesh-gateway:local ../gateway
+python scripts/container_smoke.py --image genesis-mesh:local \
+  --gateway-image genesis-mesh-gateway:local --context-dir . \
+  --compose-file deploy/compose/docker-compose.images.yml
+```
+
+`--only NAME` runs one scenario (repeat it for several), and
+`--legacy-image` adds the upgrade from an image built with the 1.0
+Dockerfile. Every container, volume and network the script creates carries
+the label `gmt.run=<run id>` and is removed when it finishes.

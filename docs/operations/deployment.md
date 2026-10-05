@@ -66,54 +66,69 @@ See: [In-process smoke demo](../examples/demos-packaging.md#15-in-process-smoke-
 
 ## 2. Docker
 
-The container entry point is `start.sh`. In Network Authority mode it runs
-Gunicorn and requires mounted genesis and NA key files.
+Each release publishes a signed Network Authority image,
+`ghcr.io/genesismeshlabs/genesis-mesh`, and a signed gateway image. Verify the
+signature and deploy by digest: [Container Images](container-images.md)
+covers verification, the runtime contract, key providers and Compose.
+
+The entry point is `start.sh`, run by `tini`. In Network Authority mode it
+runs Gunicorn and requires the genesis block and the NA key; state lives in
+`/data`, which the container's user (10001) must be able to write.
 
 ```bash
-docker run --rm \
+sudo chown 10001 secrets/na.key && sudo chmod 0400 secrets/na.key
+docker run -d --name na \
   -e SERVICE_ROLE=na \
   -e GENESIS_FILE=/run/secrets/genesis.signed.json \
   -e NA_PRIVATE_KEY_FILE=/run/secrets/na.key \
+  -e NA_KEY_ID=na-local \
   -e OPERATOR_PUBLIC_KEYS_JSON='{"operator-local":"<base64-public-key>"}' \
   -e OPERATOR_KEY_TIERS_JSON='{"operator-local":"privileged"}' \
-  -e DB_PATH=/data/genesis_mesh_na.db \
-  -p 8443:8443 \
-  genesis-mesh:local
+  -e NA_PROXY_HOPS=1 \
+  -v "$PWD/secrets:/run/secrets:ro" \
+  -v na-data:/data \
+  -p 127.0.0.1:8443:8443 \
+  ghcr.io/genesismeshlabs/genesis-mesh@sha256:<verified-digest>
 ```
 
-For multi-container orchestration with a writable database volume, use the
-included Docker Compose example.
+The key file must be readable by user 10001 (the first line hands it over).
+The port is published to the local reverse proxy that terminates TLS; with
+no proxy in front, set `NA_PROXY_HOPS=0`. To build the image from a checkout
+instead, run `docker build -t genesis-mesh:local .` at the repository root.
+
+For a Network Authority and a gateway together, use the Compose file in
+[Container Images](container-images.md).
 
 See: [Docker image smoke demo](../examples/demos-packaging.md#17-docker-image-smoke-demo)
 and [Docker Compose example](../examples/demos-packaging.md#18-docker-compose-network-authority-example)
 
 ## 3. Kubernetes
 
-A minimal set of manifests is provided under `examples/kubernetes/`:
+A minimal set of manifests is provided under `deploy/kubernetes/`:
 
 ```bash
-kubectl apply -f examples/kubernetes/namespace.yaml
-kubectl apply -f examples/kubernetes/na-secrets.yaml
-kubectl apply -f examples/kubernetes/na-pvc.yaml
-kubectl apply -f examples/kubernetes/na-deployment.yaml
-kubectl apply -f examples/kubernetes/na-service.yaml
+kubectl apply -f deploy/kubernetes/namespace.yaml
+kubectl apply -f deploy/kubernetes/na-secrets.yaml
+kubectl apply -f deploy/kubernetes/na-pvc.yaml
+kubectl apply -f deploy/kubernetes/na-deployment.yaml
+kubectl apply -f deploy/kubernetes/na-service.yaml
 ```
 
 The Deployment runs a single non-root replica, mounts the genesis block and NA
 key as a `Secret`, and persists the SQLite database to a `PersistentVolumeClaim`.
 
 See: [Kubernetes deployment guide](kubernetes-deployment.md) and
-[examples/kubernetes/README.md](https://github.com/GenesisMeshLabs/genesismesh/tree/main/examples/kubernetes)
+[deploy/kubernetes/README.md](https://github.com/GenesisMeshLabs/genesismesh/tree/main/deploy/kubernetes)
 
 ## 4. Terraform on Azure
 
-The `infrastructure/azure/` directory contains a self-contained Terraform module
+The `deploy/azure/` directory contains a self-contained Terraform module
 that provisions a complete Network Authority environment on Azure: resource
 group, virtual network, subnet, public IP, NSG, network interface, and an Ubuntu
 22.04 VM.
 
 ```bash
-cd infrastructure/azure
+cd deploy/azure
 terraform init \
   -backend-config="resource_group_name=terraform-state-rg" \
   -backend-config="storage_account_name=tfstategenesismesh" \

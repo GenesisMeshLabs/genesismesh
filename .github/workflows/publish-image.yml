@@ -1,0 +1,347 @@
+name: Publish container image
+
+# The official Network Authority image, ghcr.io/genesismeshlabs/genesis-mesh,
+# built from the release tag when a GitHub release is published (the same
+# event as publish-pypi.yml).
+#
+#   image    amd64: vulnerability gate and the full container harness (with
+#            the gateway, an image built from the 1.0 Dockerfile and the
+#            Compose file); then the multi-arch image is pushed by digest,
+#            untagged, and its amd64 layers checked against the tested image.
+#   arm64    the pushed arm64 variant, on an arm64 runner: vulnerability gate
+#            and the Network Authority harness.
+#   publish  cosign signs the digest (keyless, this workflow's identity at
+#            the tag) and verifies it; then the tags (X.Y.Z, plus X.Y and
+#            latest when this is the newest release, see scripts/image_tags.py)
+#            and the digest in the release notes. GitHub's pre-release flag does
+#            not change the tags, as it does not change PyPI.
+#
+# An existing X.Y.Z is never replaced. When it already exists (the release
+# event fired again, or a run is re-run after tagging), the run verifies the
+# published digest's signature and completes the tags and release notes
+# instead of building again. workflow_dispatch is a dry run: it builds, scans
+# and tests both architectures and checks the registry the release will use,
+# and never pushes or signs.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-image-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/genesismeshlabs/genesis-mesh
+  PUBLISH: ${{ github.event_name == 'release' }}
+  TRIVY: aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+
+jobs:
+  image:
+    name: Build, gate and test (amd64), push by digest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      existing: ${{ steps.existing.outputs.digest }}
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # release tags: the train check and the 1.0 image
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Version and release train
+        id: version
+        env:
+          RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ "$PUBLISH" = "true" ]; then python scripts/check_version.py --tag "$TAG"; else python scripts/check_version.py; fi
+          python scripts/check_release_train.py
+          version="$(tr -d '[:space:]' < VERSION)"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Fails closed: only a registry answer of "not found" counts as absent.
+      # A dry run asks too, so the first release does not meet this check new.
+      - name: Is this version already published?
+        id: existing
+        run: |
+          if out="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest.Digest}}' 2>&1)"; then
+            found="$(printf '%s' "$out" | tr -d '"')"
+            echo "::notice::$IMAGE:$VERSION is already published ($found)."
+          elif printf '%s' "$out" | grep -q "$IMAGE:$VERSION: not found"; then
+            found=""
+            echo "::notice::$IMAGE:$VERSION is not published."
+          else
+            echo "::error::Cannot tell whether $IMAGE:$VERSION exists: $out"
+            exit 1
+          fi
+          # Only a release completes an existing version; a dry run always builds and tests.
+          if [ "$PUBLISH" = "true" ]; then echo "digest=$found" >> "$GITHUB_OUTPUT"; else echo "digest=" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Build for amd64 (gate and test before anything is pushed)
+        if: steps.existing.outputs.digest == ''
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: genesis-mesh:candidate
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+          cache-to: type=gha,mode=max
+          cache-from: type=gha
+
+      - name: Vulnerability gate
+        if: steps.existing.outputs.digest == ''
+        run: |
+          mkdir -p reports
+          docker save genesis-mesh:candidate -o reports/image.tar
+          docker run --rm -v "$PWD/reports:/reports" "$TRIVY" \
+            image --quiet --input /reports/image.tar --scanners vuln,secret --format json --output /reports/trivy-amd64.json
+          rm reports/image.tar
+          python scripts/image_vuln_gate.py reports/trivy-amd64.json
+
+      # The gateway of the same release when it is already tagged, else main;
+      # the 1.0 image for the volume handover scenario.
+      - name: Choose the gateway revision
+        if: steps.existing.outputs.digest == ''
+        run: |
+          ref=main
+          if git ls-remote --exit-code --tags https://github.com/GenesisMeshLabs/gateway.git "refs/tags/v$VERSION" > /dev/null; then ref="v$VERSION"; fi
+          echo "GATEWAY_REF=$ref" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.existing.outputs.digest == ''
+        with:
+          repository: GenesisMeshLabs/gateway
+          ref: ${{ env.GATEWAY_REF }}
+          path: gateway-src
+
+      - name: Build the gateway and the 1.0 image for the harness
+        if: steps.existing.outputs.digest == ''
+        run: |
+          gw_version="$(python -c 'import tomllib; print(tomllib.load(open("gateway-src/Cargo.toml", "rb"))["package"]["version"])')"
+          docker buildx build --load -t genesis-mesh-gateway:harness --build-arg VERSION="$gw_version" gateway-src
+          git archive v1.0.1 | docker buildx build --load -t genesis-mesh:legacy -
+
+      - name: Container smoke tests (every scenario)
+        if: steps.existing.outputs.digest == ''
+        run: |
+          python scripts/container_smoke.py --image genesis-mesh:candidate --version "$VERSION" \
+            --gateway-image genesis-mesh-gateway:harness --legacy-image genesis-mesh:legacy \
+            --context-dir . --compose-file deploy/compose/docker-compose.images.yml
+
+      - name: Build multi-arch and push by digest (untagged)
+        id: push
+        if: env.PUBLISH == 'true' && steps.existing.outputs.digest == ''
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          sbom: true
+          provenance: mode=max
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+
+      # Same builder, same inputs: the amd64 layers come from the build cache of
+      # the tested image. Anything else (a cache miss that rebuilt with newer
+      # packages) is not the image that passed the gate and the smoke tests.
+      - name: The pushed amd64 image is the image that was scanned and tested
+        if: env.PUBLISH == 'true' && steps.existing.outputs.digest == ''
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          pushed="$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json (index .Image "linux/amd64")}}' \
+            | python -c 'import json,sys; print(json.load(sys.stdin)["rootfs"]["diff_ids"])')"
+          tested="$(docker image inspect genesis-mesh:candidate --format '{{json .RootFS.Layers}}' \
+            | python -c 'import json,sys; print(json.load(sys.stdin))')"
+          if [ "$pushed" != "$tested" ]; then
+            echo "::error::The pushed linux/amd64 layers differ from the scanned and tested image."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.existing.outputs.digest == ''
+        with:
+          name: image-security-report-amd64
+          path: reports/trivy-amd64.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+  arm64:
+    name: Gate and test the arm64 image (native)
+    needs: image
+    if: needs.image.outputs.existing == ''
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VERSION: ${{ needs.image.outputs.version }}
+      DIGEST: ${{ needs.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Log in to GHCR
+        if: env.DIGEST != ''
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release tests the arm64 variant it pushed; a dry run builds it here.
+      - name: The arm64 image
+        run: |
+          if [ -n "$DIGEST" ]; then
+            docker pull --platform linux/arm64 "$IMAGE@$DIGEST"
+            docker tag "$IMAGE@$DIGEST" genesis-mesh:candidate
+          else
+            docker build -t genesis-mesh:candidate --build-arg VERSION="$VERSION" --build-arg REVISION="$GITHUB_SHA" .
+          fi
+          arch="$(docker image inspect genesis-mesh:candidate --format '{{.Architecture}}')"
+          if [ "$arch" != "arm64" ]; then echo "::error::expected an arm64 image, got $arch"; exit 1; fi
+
+      - name: Vulnerability gate
+        run: |
+          mkdir -p reports
+          docker save genesis-mesh:candidate -o reports/image.tar
+          docker run --rm -v "$PWD/reports:/reports" "$TRIVY" \
+            image --quiet --input /reports/image.tar --scanners vuln,secret --format json --output /reports/trivy-arm64.json
+          rm reports/image.tar
+          python scripts/image_vuln_gate.py reports/trivy-arm64.json
+
+      - name: Container smoke tests (Network Authority scenarios)
+        run: python scripts/container_smoke.py --image genesis-mesh:candidate --version "$VERSION" --context-dir .
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: image-security-report-arm64
+          path: reports/trivy-arm64.json
+          retention-days: 90
+          if-no-files-found: ignore
+
+  publish:
+    name: Sign, verify and tag
+    needs: [image, arm64]
+    if: >-
+      always() && github.event_name == 'release' && needs.image.result == 'success'
+      && (needs.arm64.result == 'success' || (needs.arm64.result == 'skipped' && needs.image.outputs.existing != ''))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the digest in the release notes
+      packages: write
+      id-token: write   # keyless cosign signature
+    env:
+      VERSION: ${{ needs.image.outputs.version }}
+      NEW_DIGEST: ${{ needs.image.outputs.digest }}
+      EXISTING: ${{ needs.image.outputs.existing }}
+      IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/publish-image.yml@${{ github.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # release tags decide the floating tags
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign and verify the digest
+        run: |
+          if [ -n "$EXISTING" ]; then
+            digest="$EXISTING"
+          else
+            digest="$NEW_DIGEST"
+            cosign sign --yes --recursive "$IMAGE@$digest"
+          fi
+          cosign verify "$IMAGE@$digest" --certificate-identity "$IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+          echo "Signed and verified $IMAGE@$digest as $IDENTITY"
+
+      - name: Tag (never replace a published version)
+        run: |
+          tags="$(python scripts/image_tags.py "$VERSION" --tags-from-git)"
+          if ! printf '%s\n' "$tags" | grep -qx "$VERSION"; then echo "::error::no tags computed for $VERSION: '$tags'"; exit 1; fi
+          for tag in $tags; do
+            if out="$(docker buildx imagetools inspect "$IMAGE:$tag" --format '{{json .Manifest.Digest}}' 2>&1)"; then
+              current="$(printf '%s' "$out" | tr -d '"')"
+            elif printf '%s' "$out" | grep -q "$IMAGE:$tag: not found"; then
+              current=""
+            else
+              echo "::error::Cannot read $IMAGE:$tag: $out"
+              exit 1
+            fi
+            if [ "$current" = "$DIGEST" ]; then
+              echo "$IMAGE:$tag already points at $DIGEST"
+            elif [ "$tag" = "$VERSION" ] && [ -n "$current" ]; then
+              echo "::error::$IMAGE:$VERSION is $current, not $DIGEST. Published tags are immutable; ship a new patch version."
+              exit 1
+            else
+              docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE@$DIGEST"
+              echo "Tagged $IMAGE:$tag -> $DIGEST"
+            fi
+          done
+
+      - name: Record the digest in the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release view "$TAG" --json body --jq .body > notes.md
+          if grep -q "$DIGEST" notes.md; then
+            echo "The release notes already list $DIGEST"
+            exit 0
+          fi
+          {
+            echo
+            echo "### Container image"
+            echo
+            echo '```'
+            echo "docker pull $IMAGE:$VERSION"
+            echo "# $IMAGE@$DIGEST"
+            echo '```'
+          } >> notes.md
+          gh release edit "$TAG" --notes-file notes.md
