@@ -56,6 +56,12 @@ Signed container images for the Network Authority and the gateway.
   the Azure scripts and Terraform module (`deploy/azure`, was
   `infrastructure/azure`).
 
+### Fixed
+
+- `GET` and `DELETE /agents/{node_public_key}` work for keys whose base64 form
+  starts with `/` (about 1 in 64): the route answered `404` and `405`, so such
+  an agent could be neither read nor deregistered.
+
 ## v1.0.2 - Fixes from External Testing
 
 Fixes and small additions after external testing of 1.0.1. One protocol detail
