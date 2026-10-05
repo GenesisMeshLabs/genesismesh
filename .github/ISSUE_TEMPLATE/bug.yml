@@ -18,7 +18,8 @@ body:
       description: Which version are you running?
       options:
         - latest (main)
-        - v0.56.x
+        - v1.1.x
+        - v1.0.x
         - earlier
     validations:
       required: true
@@ -33,6 +34,7 @@ body:
         - Trust engine (models, trust/)
         - Boundary engine
         - Network Authority
+        - Container image
         - Formal models (Tamarin)
         - Docs
         - Other
@@ -70,10 +72,11 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Python version, OS, and any relevant config
+      description: Python version, OS, and any relevant config. For the container image, give its tag and digest.
       placeholder: |
-        Python: 3.12.4
+        Python: 3.14.0
         OS: Ubuntu 24.04
-        Install: pip install genesis-mesh==0.56.0
+        Install: pip install genesis-mesh==1.1.0
+        or image: ghcr.io/genesismeshlabs/genesis-mesh:1.1.0@sha256:...
     validations:
       required: false

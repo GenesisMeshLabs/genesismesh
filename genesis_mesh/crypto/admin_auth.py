@@ -20,8 +20,8 @@ Version 2 (v1.0.2) binds the signature to the request it authorises:
 * ``body`` -- the JSON request body (``{}`` for requests without one).
 
 Version 1 signed only the body, key ID, timestamp and nonce. Network
-Authorities accept it only while the operator sets
-``NA_ADMIN_LEGACY_SIGNATURES=accept`` for a client migration window.
+Authorities refuse it: 1.0.2 accepted it while ``NA_ADMIN_LEGACY_SIGNATURES``
+was ``accept``, and 1.1.0 removed that setting.
 """
 
 from __future__ import annotations
@@ -86,7 +86,11 @@ def admin_signing_payload(
 
 
 def legacy_admin_signing_payload(*, body: Any, key_id: str, timestamp: str, nonce: str) -> bytes:
-    """Return the version 1 canonical bytes (body only, no request binding)."""
+    """Return the version 1 canonical bytes (body only, no request binding).
+
+    Network Authorities refuse version 1; this builds the reference vectors
+    and lets tests prove the refusal.
+    """
     return _canonical_json({
         "body": {} if body is None else body,
         "key_id": key_id,

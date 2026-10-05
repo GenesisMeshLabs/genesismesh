@@ -10,14 +10,16 @@ one switch variable: `target_provider`.
 - `variables.tf`: Input variables including `target_provider`.
 - `outputs.tf`: Output values for instance IPs, IDs, and connection information.
 - `universal_boot.sh`: OS-agnostic bootstrap script for user_data/remote-exec.
-- `azure/`: Azure Container Apps helper scripts.
+- `../deploy/`: deployment files for operators (Compose, Kubernetes, Azure).
 - `scripts/`: Local operational smoke-test scripts.
   - `bootstrap-ubuntu-vm.sh`: provider-neutral installer for a plain Ubuntu
     VM/VPS after it already exists.
 
 Container-focused files remain at the repository root:
 
-- `Dockerfile`: requires the repository root as build context.
+- `Dockerfile`: the Network Authority image, published signed for each
+  release as `ghcr.io/genesismeshlabs/genesis-mesh`
+  (`docs/operations/container-images.md`). Builds from the repository root.
 - `start.sh`: Docker entry point used by the container image.
 
 ## Usage (conceptual)
@@ -117,25 +119,11 @@ terraform output aws_public_ip
 terraform output -json  # All outputs as JSON
 ```
 
-## Azure Container Apps Helpers
+## Deployment examples
 
-Azure helper scripts are grouped under `infrastructure/azure/`:
-
-```powershell
-.\infrastructure\azure\deploy_to_azure.ps1
-```
-
-```bash
-bash infrastructure/azure/deploy_to_azure.sh
-```
-
-The scripts build from the repository root and target port `8443`. Production
-deployments must provide mounted `GENESIS_FILE` and `NA_PRIVATE_KEY_FILE`
-secrets; the container startup path refuses to start without them. Operator
-admin public keys should be provided with `OPERATOR_PUBLIC_KEYS_JSON`, and each
-key's tier with `OPERATOR_KEY_TIERS_JSON` (`standard` or `privileged`; the
-service refuses to start if any key has no tier), formatted
-as a JSON object from key ID to base64 public key.
+Deployment files for operators (Compose, Kubernetes, Azure) are in
+`deploy/`; see `deploy/README.md`. This folder keeps the multi-cloud node
+module and the maintainers' own environments.
 
 ## Local Verification Script
 

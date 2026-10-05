@@ -1,7 +1,7 @@
 # Terraform Deployment on Azure
 
 The repository ships a self-contained Terraform module at
-[`infrastructure/azure/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/infrastructure/azure)
+[`deploy/azure/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/deploy/azure)
 that provisions a complete Network Authority environment on Azure.
 
 This is the same module used by the public deployment at
@@ -91,7 +91,7 @@ Terraform locally (below). Code releases are deployed by the
 If you prefer to run Terraform directly:
 
 ```bash
-cd infrastructure/azure
+cd deploy/azure
 
 terraform init \
   -backend-config="resource_group_name=terraform-state-rg" \

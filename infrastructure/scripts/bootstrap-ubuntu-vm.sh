@@ -18,7 +18,7 @@ DB_PATH="${DB_PATH:-/var/lib/genesis-mesh/na.db}"
 NA_PORT="${NA_PORT:-8443}"
 NA_ENDPOINT="${NA_ENDPOINT:-http://127.0.0.1:${NA_PORT}}"
 OPERATOR_PUBLIC_KEYS_JSON="${OPERATOR_PUBLIC_KEYS_JSON:-}"
-# F-21: each operator key must declare a tier (standard|privileged) or the
+# F-21: each operator key must declare a tier (read|standard|privileged) or the
 # Network Authority refuses to start.
 OPERATOR_KEY_TIERS_JSON="${OPERATOR_KEY_TIERS_JSON:-}"
 

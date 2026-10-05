@@ -1,5 +1,61 @@
 # Changelog
 
+## Unreleased
+
+Signed container images for the Network Authority and the gateway.
+
+### Removed
+
+- `NA_ADMIN_LEGACY_SIGNATURES`: a Network Authority accepts only version 2
+  admin signatures. 1.0.2 introduced the setting for a client migration
+  window; no deployment relies on it.
+
+### Added
+
+- **Signed container images.** Each release publishes
+  `ghcr.io/genesismeshlabs/genesis-mesh` (the Network Authority and the mesh
+  node, stable) and `ghcr.io/genesismeshlabs/genesis-mesh-gateway` (the
+  gateway and its operator tool, beta) for `linux/amd64` and `linux/arm64`,
+  with an SBOM and provenance, signed keylessly with Sigstore by the release
+  workflows. `X.Y.Z` tags are never moved or replaced; `X.Y` and `latest`
+  follow the newest release. The image runtime contract is stable
+  (`DEPRECATION_POLICY.md`, *Container images*). See the new Container Images
+  page for verifying, running and upgrading them.
+
+### Changed
+
+- **The Network Authority image is rebuilt for release.** It installs the
+  wheel and hash-locked dependencies only, without `pip`; runs as user 10001
+  in `/data` (images built from the 1.0 Dockerfile ran as a system user in
+  `/app`), with `tini` as PID 1 and a health check on `/readyz`; and declares
+  no `VOLUME`. `start.sh` refuses to start on a SQLite database it cannot
+  write, and moves secrets passed in the environment to a memory-backed
+  directory and out of the server processes' environment. A volume used by a
+  1.0 image needs a one-time handover to user 10001; see the upgrade guide.
+  Files the Network Authority creates in `/data` are group-writable (group 0),
+  so a platform that runs the image under another user ID in group 0 can take
+  over a volume the image wrote. The health check is a plain bash probe of
+  `/readyz`, quick even on slow or CPU-limited hosts.
+- A mesh node started by the image receives its invite token in a private
+  file (the node's `--invite-token-file`, from 1.0.2) instead of on its
+  command line, where any user on the host could read it.
+- The Azure Container Apps scripts deploy the published image by default;
+  `BUILD_FROM_SOURCE=true` keeps the Azure Container Registry build. They now
+  take the genesis block and the NA seed as Container Apps secrets
+  (`GENESIS_FILE`, `NA_SEED_FILE`), so the Network Authority they deploy can
+  start, and deploy a node only with an `INVITE_TOKEN`. The PowerShell script
+  now passes `OPERATOR_KEY_TIERS_JSON` and escapes JSON for `az`.
+- The node role of the image accepts the genesis block as `GENESIS_JSON`, like
+  the Network Authority role.
+- The Kubernetes example runs the published image with a read-only root file
+  system and sets `OPERATOR_KEY_TIERS_JSON`, without which the pod refused to
+  start.
+- Deployment files moved into `deploy/`: the Kubernetes manifests
+  (`deploy/kubernetes`, was `examples/kubernetes`), the Compose files
+  (`deploy/compose`, was `docs/examples/compose` and `infrastructure/ha`) and
+  the Azure scripts and Terraform module (`deploy/azure`, was
+  `infrastructure/azure`).
+
 ## v1.0.2 - Fixes from External Testing
 
 Fixes and small additions after external testing of 1.0.1. One protocol detail

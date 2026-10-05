@@ -129,9 +129,11 @@ replicas. The gateway never accepts or stores authority private signing keys.
 
 The gateway is distributed as:
 
-- Multi-architecture OCI images for Linux AMD64 and ARM64.
-- Checksummed native binary bundles for Linux and Windows.
-- CI artifacts with SBOM and provenance metadata.
+- A signed multi-architecture image for Linux AMD64 and ARM64,
+  `ghcr.io/genesismeshlabs/genesis-mesh-gateway`, with SBOM and provenance
+  (see [Container Images](../operations/container-images.md)).
+- The same image as a signed OCI archive on each GitHub release.
+- Signed, checksummed native binary bundles for Linux and Windows.
 
 The runtime image is non-root and read-only with constrained resources. Policy,
 keys, tokens, CRLs, and other deployment secrets remain external to the image.

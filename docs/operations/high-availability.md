@@ -53,8 +53,8 @@ flowchart LR
 | Component | Azure reference | Self-hosted reference |
 |---|---|---|
 | Database | Azure Database for PostgreSQL Flexible Server, zone-redundant HA | PostgreSQL 15+ with streaming replication |
-| Instances | 2+ VMs or container replicas, each with a managed identity | 2+ containers (`infrastructure/ha/docker-compose.yml`) |
-| Load balancer | Application Gateway or Load Balancer, probe `/readyz` | nginx (`infrastructure/ha/nginx.conf`) |
+| Instances | 2+ VMs or container replicas, each with a managed identity | 2+ containers of the [image](container-images.md) (`deploy/compose/ha/docker-compose.yml` builds it from source) |
+| Load balancer | Application Gateway or Load Balancer, probe `/readyz` | nginx (`deploy/compose/ha/nginx.conf`) |
 | Signing key | Key Vault secret, soft delete and purge protection on | platform secret store, mounted as a secret file |
 
 ## Configuration
@@ -109,7 +109,9 @@ the key comes from a provider that never puts it in a file:
   volumes), or as the `NA_PRIVATE_KEY_SEED` environment variable (Kubernetes
   `secretKeyRef`, Container Apps secret references). Prefer the file:
   environment values are visible to anyone who can inspect the container
-  (`docker inspect`, the pod spec).
+  (`docker inspect`, the pod spec). The container image moves an
+  environment seed into a memory-backed file at start, so the server
+  processes do not inherit it.
 
 Azure Key Vault and Managed HSM do not offer Ed25519 *signing* keys, so the
 seed is a secret rather than a non-exportable key. Every NA signature goes
@@ -152,7 +154,7 @@ Configure the load balancer to:
   delivered;
 - forward the client address (`X-Forwarded-For`). The NA trusts one proxy hop.
 
-`infrastructure/ha/nginx.conf` is a working example.
+`deploy/compose/ha/nginx.conf` is a working example.
 
 ## Exactly-once operations
 

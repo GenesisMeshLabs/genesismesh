@@ -3,7 +3,7 @@
   <circle cx="28" cy="28" r="7" fill="#ff5f57"/><circle cx="50" cy="28" r="7" fill="#ffbd2e"/><circle cx="72" cy="28" r="7" fill="#28c840"/>
   <text x="96" y="34" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">Genesis Mesh Docker Compose NA demo</text>
   <style>.t{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;fill:#d1e7ff;white-space:pre}</style>
-  <text x="24" y="58" class="t">$ docker compose -f docs/examples/compose/docker-compose.na.yml up --build</text>
+  <text x="24" y="58" class="t">$ docker compose -f deploy/compose/docker-compose.na.yml up --build</text>
 <text x="24" y="80" class="t">Starting Network Authority...</text>
 <text x="24" y="102" class="t">[INFO] Listening at: http://0.0.0.0:8443</text>
 <text x="24" y="124" class="t">[INFO] Booting worker with pid: 7</text>

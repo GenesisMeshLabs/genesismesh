@@ -416,14 +416,13 @@ feat(sdk): ship {Language} SDK vX.Y.Z (Phase {K})
 - auth: {key technical decision}
 - types: snake_case field names matching NA JSON API
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
 
 Then tag:
 ```sh
-git tag vX.Y.Z
+git tag -s vX.Y.Z -m "vX.Y.Z"
 ```
 
 ---
@@ -431,7 +430,7 @@ git tag vX.Y.Z
 ## PHASE 10 — Push
 
 ```sh
-git push origin main
+git push origin HEAD
 git push origin vX.Y.Z
 ```
 

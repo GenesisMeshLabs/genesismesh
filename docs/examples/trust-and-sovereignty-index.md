@@ -66,6 +66,16 @@ The cross-cloud operational proof between sovereigns on Azure and
 DigitalOcean, with separate keys, databases, and policies.
 :::
 
+:::{grid-item-card} Two Sovereigns from the Signed Images
+:link: two-sovereigns-from-images
+:link-type: doc
+
+Two sovereigns run from the published image, each operator acting with only
+their own key: recognition, a cross-sovereign attestation, its revocation and
+the signed feed import (v1.1). A single-host walkthrough, not a production
+federation proof.
+:::
+
 :::{grid-item-card} Trust Evidence
 :link: trust-evidence
 :link-type: doc

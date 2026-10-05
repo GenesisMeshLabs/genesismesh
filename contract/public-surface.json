@@ -3133,6 +3133,12 @@
       "support": "The Network Authority, CLI and Python API as classified on this page. Supported deployment profiles: single instance on SQLite, and one or more instances on PostgreSQL (HA). Security fixes for the latest minor version line."
     },
     {
+      "package": "ghcr.io/genesismeshlabs/genesis-mesh (container image)",
+      "repository": "GenesisMeshLabs/genesismesh",
+      "level": "stable",
+      "support": "The Network Authority and node image for linux/amd64 and linux/arm64, signed keylessly by the publish-image workflow of each release. Stable: the image name; X.Y.Z tags, which are never moved; X.Y and latest, which follow the newest release; SERVICE_ROLE=na and SERVICE_ROLE=node; the environment variables in the configuration reference; the /data state directory, writable by user 10001 and group 0; port 8443; user 10001; the health check; and refusing to start without a genesis block or signing key. The base image and its OS packages are not part of the contract."
+    },
+    {
       "package": "genesis-mesh-sdk (npm)",
       "repository": "GenesisMeshLabs/sdk-typescript",
       "level": "stable",
@@ -3160,7 +3166,13 @@
       "package": "genesis-mesh-gateway",
       "repository": "GenesisMeshLabs/gateway",
       "level": "beta",
-      "support": "Release binaries on GitHub. Not part of the v1 stable contract."
+      "support": "Release binaries on GitHub and the container image below. Not part of the v1 stable contract."
+    },
+    {
+      "package": "ghcr.io/genesismeshlabs/genesis-mesh-gateway (container image)",
+      "repository": "GenesisMeshLabs/gateway",
+      "level": "beta",
+      "support": "The gateway and its operator tool for linux/amd64 and linux/arm64, signed keylessly by the gateway distribution workflow of each release, with the same tag rules as the Network Authority image. Beta like the gateway itself."
     },
     {
       "package": "PHP SDK",

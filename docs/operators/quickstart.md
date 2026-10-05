@@ -73,7 +73,9 @@ For local development only, the same config can run through Flask:
 genesis-mesh na start --config genesis-mesh.toml
 ```
 
-Use Gunicorn and systemd for VM operation.
+Use Gunicorn and systemd for VM operation. To run the Network Authority as a
+container instead, use the signed image with the same genesis block and keys:
+see [Container Images](../operations/container-images.md).
 
 ## 4. Verify Public Metadata
 
