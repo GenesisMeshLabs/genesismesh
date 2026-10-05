@@ -61,6 +61,11 @@ Signed container images for the Network Authority and the gateway.
 - `GET` and `DELETE /agents/{node_public_key}` work for keys whose base64 form
   starts with `/` (about 1 in 64): the route answered `404` and `405`, so such
   an agent could be neither read nor deregistered.
+- The CLI keeps a Network Authority's public key, which admin signatures
+  name, for one command instead of the whole process. A process that ran
+  several commands (a test run, a program that invokes the CLI) signed for
+  the earlier Network Authority after another one took over its address, and
+  was refused with `401 Invalid admin signature`.
 
 ## v1.0.2 - Fixes from External Testing
 
