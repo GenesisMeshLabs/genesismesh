@@ -9,14 +9,15 @@ events and fail-closed behaviour on tampered storage.
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlsplit
 
 import nacl.encoding
 import nacl.signing
 import pytest
 
-from genesis_mesh.crypto import generate_keypair, sign_data, sign_model
+from genesis_mesh.crypto import generate_keypair, sign_model
+from genesis_mesh.crypto.admin_auth import sign_admin_request
 from genesis_mesh.models import BoundaryPolicy, GenesisBlock, NetworkAuthority, PolicyManifestRef
 from genesis_mesh.models.context import BoundaryDecision
 from genesis_mesh.na_service.server import NetworkAuthorityService
@@ -30,19 +31,18 @@ def _iso(delta: timedelta = timedelta()) -> str:
     return (datetime.now(timezone.utc) + delta).isoformat()
 
 
-def _headers(keypair, key_id: str, body: dict) -> dict:
-    timestamp = datetime.now(timezone.utc).isoformat()
-    nonce = str(uuid.uuid4())
-    canonical = json.dumps(
-        {"body": body, "key_id": key_id, "timestamp": timestamp, "nonce": nonce},
-        sort_keys=True, separators=(",", ":"),
+def _headers(keypair, key_id: str, body: dict, *, client, method: str, url: str) -> dict:
+    """Sign one admin request (v1.0.2: method, path, query and audience are bound)."""
+    parts = urlsplit(url)
+    return sign_admin_request(
+        keypair.private_key,
+        key_id,
+        method=method,
+        path=parts.path,
+        query=parse_qs(parts.query, keep_blank_values=True),
+        audience=client.application.extensions["genesis_mesh_na"].genesis_block.network_authority.public_key,
+        body=body,
     )
-    return {
-        "X-Admin-Key-Id": key_id,
-        "X-Admin-Timestamp": timestamp,
-        "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(canonical.encode("utf-8"), keypair.private_key),
-    }
 
 
 def _make_service(**kwargs) -> NetworkAuthorityService:
@@ -91,14 +91,16 @@ def client(na_service):
 
 def _post(client, url: str, body: dict, *, standard: bool = False):
     if standard:
-        headers = _headers(client.std_keypair, "operator-std", body)
+        headers = _headers(client.std_keypair, "operator-std", body, client=client, method="POST", url=url)
     else:
-        headers = _headers(client.operator_keypair, "operator-test", body)
+        headers = _headers(client.operator_keypair, "operator-test", body, client=client, method="POST", url=url)
     return client.post(url, json=body, headers=headers)
 
 
 def _get(client, url: str):
-    return client.get(url, headers=_headers(client.operator_keypair, "operator-test", {}))
+    return client.get(
+        url, headers=_headers(client.operator_keypair, "operator-test", {}, client=client, method="GET", url=url)
+    )
 
 
 def _intent(policy_id: str = "read-limits", max_rows: int = 100, **overrides) -> dict:

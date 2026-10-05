@@ -160,23 +160,27 @@ def _revocation_pressure_signals(
     path_sovereigns = {str(edge.get("from", "")) for edge in path} | {
         str(edge.get("to", "")) for edge in path
     }
-    signals: list[TrustSignal] = []
+    # One signal per feed, with the number of attestations it revokes: a feed
+    # revoking many attestations is one fact, not many identical ones (v1.0.2).
+    revoked: dict[tuple[str, str, str], int] = {}
     for item in graph.get("revoked_trust_material", []):
         if item.get("type") != "membership_attestation":
             continue
         issuer = str(item.get("issuer_sovereign_id", ""))
         if issuer and issuer in path_sovereigns:
-            signals.append(
-                TrustSignal(
-                    code="recognition_under_revocation_pressure",
-                    severity="escalate",
-                    detail=(
-                        f"revocation feed {item.get('feed_id')} "
-                        f"seq {item.get('sequence')} targets {issuer} on the trust path"
-                    ),
-                )
-            )
-    return signals
+            key = (issuer, str(item.get("feed_id")), str(item.get("sequence")))
+            revoked[key] = revoked.get(key, 0) + 1
+    return [
+        TrustSignal(
+            code="recognition_under_revocation_pressure",
+            severity="escalate",
+            detail=(
+                f"revocation feed {feed_id} seq {sequence} revokes {count} "
+                f"attestation(s) of {issuer} on the trust path"
+            ),
+        )
+        for (issuer, feed_id, sequence), count in revoked.items()
+    ]
 
 
 def evaluate_trust_decision(

@@ -23,7 +23,13 @@ use genesis_mesh::crypto::KeyPair;
 use serde_json::json;
 use uuid::Uuid;
 
+/// Signature version 2 (1.0.2): method, decoded path, query parameters
+/// (`{"name": ["value", ...]}`), the target NA's public key and the body.
 fn build_admin_headers(
+    method: &str,
+    path: &str,
+    query: &serde_json::Value,
+    audience: &str,
     body: &serde_json::Value,
     key_id: &str,
     signing: &KeyPair,
@@ -31,10 +37,15 @@ fn build_admin_headers(
     let timestamp = Utc::now().to_rfc3339();
     let nonce = Uuid::new_v4().to_string();
     let payload = json!({
+        "v": 2,
+        "method": method,
+        "path": path,
+        "query": query,
+        "audience": audience,
         "body": body,
         "key_id": key_id,
-        "nonce": nonce,
         "timestamp": timestamp,
+        "nonce": nonce,
     });
     let signature = signing.sign_b64(to_canonical_json(&payload)?.as_bytes());
     Ok([
@@ -49,7 +60,9 @@ fn build_admin_headers(
 This must match the Python reference implementation and the other SDKs'
 `canonicalJson` output exactly — sorted keys, no whitespace, `\uXXXX` escaping
 for non-ASCII — or the Network Authority rejects the signature. Verify any
-change against `tests/interop.rs` before relying on it.
+change against `tests/interop.rs` and the reference vectors in
+`conformance/vectors/admin_auth.json` before relying on it. The Rust SDK
+(`genesis-mesh-sdk`) ships `build_admin_headers` for this format.
 
 Public verification routes (`POST /verify`, `POST /verify/batch`, and the
 gateway's own `/v1/networks/{network}/services/{operation}` public

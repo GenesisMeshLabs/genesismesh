@@ -29,7 +29,7 @@ v0.46 introduces:
 
 ```bash
 # pairs.json: [["sovereign-a", "sovereign-b"], ["sovereign-a", "sovereign-c"]]
-genesis-mesh trust atlas cache \
+genesis-mesh atlas cache \
     --graph graph.json \
     --pairs pairs.json \
     --operator-sovereign operator-1 \
@@ -50,7 +50,7 @@ genesis-mesh trust atlas cache \
 ## Step 2 — Query the cache
 
 ```bash
-genesis-mesh trust atlas lookup \
+genesis-mesh atlas lookup \
     --cache cache.json \
     --from sovereign-a \
     --to sovereign-b
@@ -69,7 +69,7 @@ traversal and then update the cache.
 ## Step 3 — Prune expired and revoked edges
 
 ```bash
-genesis-mesh trust atlas prune \
+genesis-mesh atlas prune \
     --graph graph.json \
     --operator-sovereign operator-1 \
     --signing-key keys/operator.key \
@@ -164,6 +164,6 @@ Both conditions are checked by `lookup_trust_path()` automatically.
 
 ## See also
 
-- {doc}`/reference/cli` — `genesis-mesh trust atlas` reference
+- {doc}`/reference/cli` — `genesis-mesh atlas` reference
 - {doc}`sovereign-overlay-discovery` — discovering sovereign endpoints
 - {doc}`verifiable-logic-attestation` — attestation of what is at each hop

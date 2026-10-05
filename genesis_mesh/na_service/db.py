@@ -234,8 +234,26 @@ class NADatabase(
             with self.conn:
                 self.conn.execute("SELECT 1").fetchone()
             return
+        # A SELECT succeeds on a file this process cannot write (another
+        # owner's volume, a read-only mount), so take the write lock and write
+        # inside a transaction that is always rolled back (v1.0.2).
         with self._lock:
-            self.conn.execute("SELECT 1").fetchone()
+            if self.conn.in_transaction:
+                self.conn.commit()
+            self.conn.execute("PRAGMA busy_timeout = 1000")
+            try:
+                self.conn.execute("BEGIN IMMEDIATE")
+                try:
+                    self.conn.execute("CREATE TABLE IF NOT EXISTS readiness_write_probe (x INTEGER)")
+                    self.conn.execute("INSERT INTO readiness_write_probe (x) VALUES (1)")
+                finally:
+                    self.conn.rollback()
+            except sqlite3.OperationalError as exc:
+                # Another writer holds the lock: the database accepts writes.
+                if "locked" not in str(exc).lower():
+                    raise
+            finally:
+                self.conn.execute("PRAGMA busy_timeout = 30000")
 
     def table_names(self) -> list[str]:
         """Return application table names (excluding SQLite internals)."""

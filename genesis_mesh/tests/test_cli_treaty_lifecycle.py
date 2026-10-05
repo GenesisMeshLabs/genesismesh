@@ -57,7 +57,10 @@ def _issue_treaty(endpoint: str, config_path: Path, subject: str = "USG-NB") -> 
     response = requests.post(
         f"{endpoint}/admin/recognition-treaties",
         json=body,
-        headers=_signed_admin_headers(key_id, key_path, body),
+        headers=_signed_admin_headers(
+            key_id, key_path, body,
+            method="POST", base_url=endpoint, path="/admin/recognition-treaties",
+        ),
         timeout=10,
     )
     response.raise_for_status()

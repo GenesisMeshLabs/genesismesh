@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,7 +11,8 @@ from typing import Any
 import click
 import requests
 
-from ..crypto import load_private_key, sign_data
+from ..crypto import load_private_key
+from ..crypto.admin_auth import sign_admin_request
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..node.node import MeshNode
 from ..node.runtime import MeshNodeRuntime
@@ -122,40 +122,77 @@ def _required_config_path(config: dict[str, Any], section: str, key: str) -> Pat
         raise click.ClickException(f"Missing [{section}].{key} in config")
     return Path(value)
 
-def _admin_headers(config: dict[str, Any], body: dict[str, Any]) -> dict[str, str]:
+def _admin_headers(
+    config: dict[str, Any],
+    body: dict[str, Any],
+    *,
+    method: str,
+    base_url: str,
+    path: str,
+    query: dict[str, Any] | None = None,
+) -> dict[str, str]:
     """Create signed admin request headers from CLI config."""
     key_id = get_config_value(config, "operator", "key_id", "operator-local")
     key_path = _required_config_path(config, "paths", "operator_private_key")
-    return _signed_admin_headers(key_id, key_path, body)
+    return _signed_admin_headers(
+        key_id, key_path, body, method=method, base_url=base_url, path=path, query=query
+    )
 
-def _signed_admin_headers(key_id: str, key_path: Path, body: dict[str, Any]) -> dict[str, str]:
-    """Create signed admin request headers from a key ID and private key path."""
+_ADMIN_AUDIENCES: dict[str, str] = {}
+
+def _admin_audience(base_url: str) -> str:
+    """Return the audience admin requests to this Network Authority must name:
+    its public key (``network_authority.public_key``), unique to it.
+
+    Read once per endpoint from the public ``/sovereign.json`` and cached.
+    """
+    base = base_url.rstrip("/")
+    if base not in _ADMIN_AUDIENCES:
+        payload = _request_json(
+            requests.Session(), "GET", f"{base}/sovereign.json", label="sovereign metadata"
+        )
+        authority = payload.get("network_authority")
+        public_key = authority.get("public_key") if isinstance(authority, dict) else None
+        if not isinstance(public_key, str) or not public_key:
+            raise click.ClickException(
+                f"{base}/sovereign.json has no network_authority.public_key"
+            )
+        _ADMIN_AUDIENCES[base] = public_key
+    return _ADMIN_AUDIENCES[base]
+
+def _signed_admin_headers(
+    key_id: str,
+    key_path: Path,
+    body: dict[str, Any],
+    *,
+    method: str,
+    base_url: str,
+    path: str,
+    query: dict[str, Any] | None = None,
+    audience: str | None = None,
+) -> dict[str, str]:
+    """Sign one admin request: method, path, query, audience and body (v1.0.2).
+
+    ``audience`` is the target Network Authority's public key; when omitted
+    it is read from ``<base_url>/sovereign.json``.
+    """
     if not key_path.exists():
         raise click.ClickException(f"Operator private key not found: {key_path}")
-    timestamp = datetime.now(timezone.utc).isoformat()
-    nonce = str(uuid.uuid4())
-    canonical = json.dumps(
-        {
-            "body": body,
-            "key_id": key_id,
-            "timestamp": timestamp,
-            "nonce": nonce,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    audience = audience or _admin_audience(base_url)
     try:
-        signature = sign_data(canonical.encode("utf-8"), load_private_key(str(key_path)))
+        return sign_admin_request(
+            load_private_key(str(key_path)),
+            key_id,
+            method=method,
+            path=path,
+            audience=audience,
+            body=body,
+            query=query,
+        )
     except Exception as exc:
         raise click.ClickException(
             f"Could not sign admin request with operator key {key_path}: {exc}"
         ) from exc
-    return {
-        "X-Admin-Key-Id": key_id,
-        "X-Admin-Timestamp": timestamp,
-        "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": signature,
-    }
 
 def _admin_signer_from_inputs(
     config_path: str | None,
@@ -239,3 +276,26 @@ async def _run_runtime_forever(runtime: MeshNodeRuntime) -> None:
             await asyncio.sleep(3600)
     finally:
         await runtime.stop()
+
+
+def ensure_parent(path: str | Path) -> Path:
+    """Return ``path`` with its directory created, for a command's output file (v1.0.2)."""
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def public_key_value(value: str) -> str:
+    """A base64 public key given inline or as a key file (``#`` comment lines ignored) (v1.0.2)."""
+    path = Path(value)
+    try:
+        is_file = path.is_file()
+    except (OSError, ValueError):
+        is_file = False
+    if is_file:
+        return "".join(
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")
+        )
+    return value

@@ -695,6 +695,79 @@ def _canonical_cases() -> list[dict]:
     return cases
 
 
+def _admin_auth_cases() -> list[dict]:
+    """Admin request signatures (v1.0.2): what each field binds, as fixed inputs."""
+    common = {"key_id": "key-a", "timestamp": "2026-10-05T00:00:00+00:00"}
+    return [
+        {
+            "id": "adm-001",
+            "description": "POST with a JSON body: method, path, audience (the target NA's public key) and body are signed",
+            "input": {
+                **common,
+                "method": "POST",
+                "path": "/admin/recognition-treaties/00000000-0000-4000-8000-000000000001/revoke",
+                "query": {},
+                "audience": pub_b64("b"),
+                "body": {"reason": "relationship_ended"},
+                "nonce": "00000000-0000-4000-8000-0000000000a1",
+            },
+        },
+        {
+            "id": "adm-002",
+            "description": "GET with query parameters: names sort, repeated values keep their order, no body signs {}",
+            "input": {
+                **common,
+                "method": "GET",
+                "path": "/admin/evidence",
+                "query": {"limit": ["100"], "entry_kind": ["execution", "decision"]},
+                "audience": pub_b64("b"),
+                "body": {},
+                "nonce": "00000000-0000-4000-8000-0000000000a2",
+            },
+        },
+        {
+            "id": "adm-003",
+            "description": "non-ASCII path and body text is signed with ASCII escapes, as served (decoded) by the NA",
+            "input": {
+                **common,
+                "method": "POST",
+                "path": "/admin/evidence/resources/kv:café/sécret",
+                "query": {},
+                "audience": pub_b64("c"),
+                "body": {"note": "Zürich ✓", "count": 3, "ok": True, "none": None},
+                "nonce": "00000000-0000-4000-8000-0000000000a3",
+            },
+        },
+    ]
+
+
+def gen_admin_auth() -> None:
+    from genesis_mesh.crypto.admin_auth import (
+        admin_signing_payload,
+        legacy_admin_signing_payload,
+    )
+    from genesis_mesh.crypto import sign_data
+
+    vectors = []
+    for case in _admin_auth_cases():
+        inp = case["input"]
+        payload = admin_signing_payload(**inp)
+        legacy = legacy_admin_signing_payload(
+            body=inp["body"], key_id=inp["key_id"], timestamp=inp["timestamp"], nonce=inp["nonce"]
+        )
+        vectors.append({
+            **case,
+            "input": {**inp, "public_key_b64": pub_b64("a")},
+            "expected": {
+                "payload": payload.decode("utf-8"),
+                "signature_b64": sign_data(payload, KEYS["a"]),
+                "legacy_payload": legacy.decode("utf-8"),
+                "legacy_signature_b64": sign_data(legacy, KEYS["a"]),
+            },
+        })
+    _write("admin_auth", {"suite": "admin_auth", "version": "1.0.2", "vectors": vectors})
+
+
 def gen_interop() -> None:
     from datetime import timedelta
     from genesis_mesh.crypto import sign_model
@@ -885,6 +958,7 @@ GENERATORS = {
     "consensus": gen_consensus,
     "data_usage": gen_data_usage,
     "interop": gen_interop,
+    "admin_auth": gen_admin_auth,
 }
 
 

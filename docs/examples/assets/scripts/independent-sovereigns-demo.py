@@ -9,16 +9,14 @@ attestations, and imported revocation feed state.
 from __future__ import annotations
 
 import argparse
-import json
 import textwrap
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import requests
 
-from genesis_mesh.crypto import load_private_key, sign_data
+from genesis_mesh.crypto.admin_auth import sign_admin_request
+from genesis_mesh.crypto import load_private_key
 
 ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_GIF_OUTPUT = (
@@ -104,6 +102,7 @@ class LiveProofRunner:
         self.operator_key = load_private_key(str(operator_key))
         self.operator_key_id = operator_key_id
         self.session = requests.Session()
+        self.audiences: dict[str, str] = {}
         self.lines: list[str] = []
 
     def emit(self, line: str = "") -> None:
@@ -111,29 +110,16 @@ class LiveProofRunner:
         self.lines.append(line)
         print(line)
 
-    def admin_headers(self, body: dict[str, Any]) -> dict[str, str]:
-        """Create signed admin request headers for live endpoints."""
-        timestamp = datetime.now(timezone.utc).isoformat()
-        nonce = str(uuid.uuid4())
-        canonical = json.dumps(
-            {
-                "body": body,
-                "key_id": self.operator_key_id,
-                "timestamp": timestamp,
-                "nonce": nonce,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
+    def admin_headers(self, body: dict[str, Any], *, base: str, path: str) -> dict[str, str]:
+        """Sign one admin POST for a live endpoint (v1.0.2: method, path, audience, body)."""
+        audience = self.audiences.get(base)
+        if audience is None:
+            audience = self.request_json("GET", f"{base}/sovereign.json", label="sovereign metadata")["network_authority"]["public_key"]
+            self.audiences[base] = audience
+        return sign_admin_request(
+            self.operator_key, self.operator_key_id,
+            method="POST", path=path, audience=audience, body=body,
         )
-        return {
-            "X-Admin-Key-Id": self.operator_key_id,
-            "X-Admin-Timestamp": timestamp,
-            "X-Admin-Nonce": nonce,
-            "X-Admin-Signature": sign_data(
-                canonical.encode("utf-8"),
-                self.operator_key,
-            ),
-        }
 
     def request_json(
         self,
@@ -185,7 +171,7 @@ class LiveProofRunner:
             expected=201,
             label="NB attestation issue",
             json=attestation_body,
-            headers=self.admin_headers(attestation_body),
+            headers=self.admin_headers(attestation_body, base=self.nb, path="/admin/attestations"),
         )
         self.emit(f"    attestation: {attestation['attestation_id']}")
         self.emit(f"    issuer:      {attestation['issuer_sovereign_id']}")
@@ -213,7 +199,7 @@ class LiveProofRunner:
             expected=201,
             label="Azure treaty issue",
             json=treaty_body,
-            headers=self.admin_headers(treaty_body),
+            headers=self.admin_headers(treaty_body, base=self.azure, path="/admin/recognition-treaties"),
         )
         self.emit(f"    treaty: {treaty['treaty_id']}")
         self.emit(f"    from:   {treaty['issuer_sovereign_id']}")
@@ -237,7 +223,9 @@ class LiveProofRunner:
             f"{self.nb}/admin/attestations/{attestation['attestation_id']}/revoke",
             label="NB attestation revoke",
             json=revoke_body,
-            headers=self.admin_headers(revoke_body),
+            headers=self.admin_headers(
+                revoke_body, base=self.nb, path=f"/admin/attestations/{attestation['attestation_id']}/revoke",
+            ),
         )
         self.emit("==> NB revoked the same attestation")
         self.emit(f"    reason: {revoke_body['reason']}")
@@ -263,7 +251,9 @@ class LiveProofRunner:
             f"{self.azure}/admin/sovereign-revocation-feeds/import",
             label="Azure feed import",
             json=import_body,
-            headers=self.admin_headers(import_body),
+            headers=self.admin_headers(
+                import_body, base=self.azure, path="/admin/sovereign-revocation-feeds/import",
+            ),
         )
         self.emit()
         self.emit("==> Azure imported NB revocation feed")

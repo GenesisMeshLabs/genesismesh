@@ -156,7 +156,7 @@ def renew_treaty(
 @click.argument("treaty_id")
 @click.option("--role", "roles", multiple=True, help="Replacement role. Repeatable.")
 @click.option("--accepted-status", "statuses", multiple=True, help="Accepted status. Repeatable.")
-@click.option("--claim", multiple=True, help="Replacement claim as key=value. Repeatable.")
+@click.option("--claim", multiple=True, help="Replacement informational claim as key=value (not matched against attestations). Repeatable.")
 @click.option("--validity-hours", default=24, type=int, help="New treaty validity window.")
 @click.option("--config", "config_path", default=None, help="Config for operator signing.")
 @click.option("--operator-key", default=None, help="Operator private key.")
@@ -256,7 +256,10 @@ def issue_treaty_from_row(
         expected_status=201,
         label="treaty issue",
         json=body,
-        headers=_signed_admin_headers(key_id, key_path, body),
+        headers=_signed_admin_headers(
+            key_id, key_path, body,
+            method="POST", base_url=na_endpoint, path="/admin/recognition-treaties",
+        ),
     )
 
 
@@ -276,7 +279,11 @@ def revoke_existing_treaty(
         f"{na_endpoint.rstrip('/')}/admin/recognition-treaties/{treaty_id}/revoke",
         label="treaty revoke",
         json=body,
-        headers=_signed_admin_headers(key_id, key_path, body),
+        headers=_signed_admin_headers(
+            key_id, key_path, body,
+            method="POST", base_url=na_endpoint,
+            path=f"/admin/recognition-treaties/{treaty_id}/revoke",
+        ),
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from flask import Flask, g, jsonify, request
@@ -131,6 +132,21 @@ def request_json_object(*, required: bool = False) -> dict[str, Any]:
             code="invalid_json_object",
         )
     return data
+
+
+def utc_timestamp(value: Any) -> datetime:
+    """Parse an ISO 8601 timestamp from a request as an aware UTC datetime.
+
+    A UTC offset in the value is honoured (the instant is converted to UTC); a
+    value without one is taken as UTC. Replacing the offset instead of
+    converting it would move the instant by the offset (v1.0.2).
+    """
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be an ISO 8601 string")
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def positive_int_field(

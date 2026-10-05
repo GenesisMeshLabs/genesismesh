@@ -16,14 +16,13 @@ from __future__ import annotations
 import base64
 import json
 import sys
-import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import nacl.signing
 import requests
 
-from genesis_mesh.crypto import generate_keypair, sign_data, verify_model_signature
+from genesis_mesh.crypto import generate_keypair, verify_model_signature
 from genesis_mesh.models import MembershipAttestation
 from genesis_mesh.models.agreement import AgreementRecord
 from genesis_mesh.models.boundary_policy import BoundaryPolicy
@@ -50,12 +49,13 @@ class NA:
         self.key = nacl.signing.SigningKey(base64.b64decode(info["operator_seed"]))
 
     def post(self, path: str, body: dict) -> dict:
-        ts = datetime.now(timezone.utc).isoformat()
-        nonce = str(uuid.uuid4())
-        canonical = json.dumps({"body": body, "key_id": self.key_id, "timestamp": ts, "nonce": nonce},
-                               sort_keys=True, separators=(",", ":"))
-        headers = {"X-Admin-Key-Id": self.key_id, "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
-                   "X-Admin-Signature": sign_data(canonical.encode("utf-8"), self.key)}
+        from genesis_mesh.crypto.admin_auth import sign_admin_request
+
+        if not getattr(self, "audience", None):
+            self.audience = requests.get(self.url + "/sovereign.json", timeout=10).json()["network_authority"]["public_key"]
+        headers = sign_admin_request(
+            self.key, self.key_id, method="POST", path=path, audience=self.audience, body=body,
+        )
         resp = requests.post(self.url + path, json=body, headers=headers, timeout=10)
         if resp.status_code >= 300:
             raise SystemExit(f"{path}: HTTP {resp.status_code} {resp.text}")

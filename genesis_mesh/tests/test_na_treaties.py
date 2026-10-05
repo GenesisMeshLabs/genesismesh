@@ -4,14 +4,24 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .na_server_helpers import admin_headers
+import pytest
+
+from .na_server_helpers import admin_headers, make_client, make_na_service
 
 
-def _issue_treaty(client, na_service, allowed_roles=None):
-    """Issue an operator-authorized recognition treaty through the API."""
+@pytest.fixture
+def sovereign_b():
+    """A second, independent sovereign (its own NA, keys and database)."""
+    service = make_na_service("sovereign-b")
+    return service, make_client(service)
+
+
+def _issue_treaty(client, na_service, allowed_roles=None, subject_public_keys=None):
+    """Issue an operator-authorized recognition treaty for sovereign-b."""
     body = {
         "subject_sovereign_id": "sovereign-b",
-        "subject_public_keys": [na_service.genesis_block.network_authority.public_key],
+        "subject_public_keys": subject_public_keys
+        or [na_service.genesis_block.network_authority.public_key],
         "scope": {"allowed_roles": allowed_roles or ["role:client"]},
         "validity_hours": 24,
     }
@@ -22,10 +32,18 @@ def _issue_treaty(client, na_service, allowed_roles=None):
     )
 
 
+def _recognize_b(client, na_service, sovereign_b, allowed_roles=None):
+    """TEST recognizes sovereign-b, pinning sovereign-b's NA key."""
+    b_service, _ = sovereign_b
+    return _issue_treaty(
+        client, na_service, allowed_roles,
+        subject_public_keys=[b_service.genesis_block.network_authority.public_key],
+    )
+
+
 def _issue_attestation(client, subject_id: str = "alice", roles=None):
-    """Issue an operator-authorized membership attestation through the API."""
+    """Issue an operator-authorized membership attestation at ``client``'s NA."""
     body = {
-        "issuer_sovereign_id": "sovereign-b",
         "subject_id": subject_id,
         "subject_public_key": "subject-public-key",
         "roles": roles or ["role:client"],
@@ -65,10 +83,10 @@ def test_treaty_verification_accepts_signed_treaty(client, na_service):
     assert resp.get_json()["reason"] == "accepted"
 
 
-def test_attestation_verify_with_treaty_accepts_scoped_role(client, na_service):
+def test_attestation_verify_with_treaty_accepts_scoped_role(client, na_service, sovereign_b):
     """A treaty can back acceptance of a subject sovereign's attestation."""
-    treaty = _issue_treaty(client, na_service).get_json()
-    attestation = _issue_attestation(client).get_json()
+    treaty = _recognize_b(client, na_service, sovereign_b).get_json()
+    attestation = _issue_attestation(sovereign_b[1]).get_json()
 
     resp = client.post(
         "/attestations/verify-with-treaty",
@@ -80,10 +98,10 @@ def test_attestation_verify_with_treaty_accepts_scoped_role(client, na_service):
     assert resp.get_json()["reason"] == "accepted"
 
 
-def test_attestation_verify_with_treaty_rejects_role_outside_scope(client, na_service):
+def test_attestation_verify_with_treaty_rejects_role_outside_scope(client, na_service, sovereign_b):
     """Treaty role scope limits which attestations are accepted."""
-    treaty = _issue_treaty(client, na_service, allowed_roles=["role:anchor"]).get_json()
-    attestation = _issue_attestation(client, roles=["role:client"]).get_json()
+    treaty = _recognize_b(client, na_service, sovereign_b, allowed_roles=["role:anchor"]).get_json()
+    attestation = _issue_attestation(sovereign_b[1], roles=["role:client"]).get_json()
 
     resp = client.post(
         "/attestations/verify-with-treaty",
@@ -95,10 +113,10 @@ def test_attestation_verify_with_treaty_rejects_role_outside_scope(client, na_se
     assert resp.get_json()["reason"] == "attestation_role_not_allowed"
 
 
-def test_revoking_treaty_changes_treaty_backed_verification(client, na_service):
+def test_revoking_treaty_changes_treaty_backed_verification(client, na_service, sovereign_b):
     """A revoked treaty cannot continue backing attestation verification."""
-    treaty = _issue_treaty(client, na_service).get_json()
-    attestation = _issue_attestation(client).get_json()
+    treaty = _recognize_b(client, na_service, sovereign_b).get_json()
+    attestation = _issue_attestation(sovereign_b[1]).get_json()
 
     revoke_body = {"reason": "relationship_ended"}
     revoke = client.post(
@@ -261,10 +279,11 @@ def test_connectome_trust_path_requires_source_and_target(client):
     assert resp.get_json()["error"]["message"] == "from/source and to/target are required"
 
 
-def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_service):
+def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_service, sovereign_b):
     """A propagated issuer revocation stops treaty-backed attestation acceptance."""
-    treaty = _issue_treaty(client, na_service).get_json()
-    attestation = _issue_attestation(client).get_json()
+    b_client = sovereign_b[1]
+    treaty = _recognize_b(client, na_service, sovereign_b).get_json()
+    attestation = _issue_attestation(b_client).get_json()
 
     accepted = client.post(
         "/attestations/verify-with-treaty",
@@ -274,14 +293,15 @@ def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_se
     assert accepted.get_json()["accepted"] is True
 
     revoke_body = {"reason": "key_compromise"}
-    revoke = client.post(
+    revoke = b_client.post(
         f"/admin/attestations/{attestation['attestation_id']}/revoke",
         json=revoke_body,
-        headers=admin_headers(client, revoke_body),
+        headers=admin_headers(b_client, revoke_body),
     )
     assert revoke.status_code == 200
 
-    feed_resp = client.get("/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b")
+    # sovereign-b publishes its own signed feed; TEST imports it under its treaty pin.
+    feed_resp = b_client.get("/sovereign-revocation-feed")
     assert feed_resp.status_code == 200
     feed = feed_resp.get_json()
     assert feed["revoked_attestation_ids"] == [attestation["attestation_id"]]
@@ -326,19 +346,18 @@ def test_imported_revocation_feed_blocks_treaty_backed_attestation(client, na_se
     assert "fresh" in dashboard_body
 
 
-def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service):
+def test_stale_sovereign_revocation_feed_import_is_rejected(client, na_service, sovereign_b):
     """The same issuer sequence cannot be imported twice."""
-    _issue_treaty(client, na_service)
-    attestation = _issue_attestation(client).get_json()
+    b_client = sovereign_b[1]
+    _recognize_b(client, na_service, sovereign_b)
+    attestation = _issue_attestation(b_client).get_json()
     revoke_body = {"reason": "superseded"}
-    client.post(
+    b_client.post(
         f"/admin/attestations/{attestation['attestation_id']}/revoke",
         json=revoke_body,
-        headers=admin_headers(client, revoke_body),
+        headers=admin_headers(b_client, revoke_body),
     )
-    feed = client.get(
-        "/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b"
-    ).get_json()
+    feed = b_client.get("/sovereign-revocation-feed").get_json()
     import_body = {"feed": feed}
 
     first = client.post(
@@ -450,3 +469,224 @@ def test_connectome_uses_a_hub_layout_only_when_one_authority_issues_everything(
     # Two nodes need no hub; direction is already unambiguous.
     pair = graph(names[:2], [(names[0], names[1])])
     assert "graph-node-hub" not in pair
+
+
+def test_a_feed_for_another_sovereign_is_refused(client):
+    """An NA signs only its own revocation feed (v1.0.2)."""
+    resp = client.get("/sovereign-revocation-feed?issuer_sovereign_id=sovereign-b")
+    assert resp.status_code == 400
+    assert resp.get_json()["error"]["code"] == "feed_issuer_mismatch"
+    assert client.get("/sovereign-revocation-feed?issuer_sovereign_id=TEST").status_code == 200
+
+
+def test_an_attestation_naming_another_issuer_is_refused(client):
+    """An NA never signs an attestation in another sovereign's name (v1.0.2)."""
+    body = {"issuer_sovereign_id": "sovereign-b", "subject_id": "alice", "roles": ["role:client"]}
+    resp = client.post("/admin/attestations", json=body, headers=admin_headers(client, body))
+    assert resp.status_code == 400
+    assert resp.get_json()["error"]["code"] == "attestation_issuer_mismatch"
+
+
+def _forged_treaty_and_attestation():
+    """A treaty and attestation that claim TEST as issuer, signed by a random key."""
+    from genesis_mesh.crypto import generate_keypair, sign_model
+    from genesis_mesh.models import MembershipAttestation, RecognitionTreaty, RecognitionTreatyScope
+
+    forger = generate_keypair()
+    now = datetime.now(timezone.utc)
+    treaty = RecognitionTreaty(
+        treaty_id="00000000-0000-4000-8000-00000000f0f0",
+        issuer_sovereign_id="TEST",
+        subject_sovereign_id="sovereign-x",
+        subject_public_keys=[forger.public_key_b64],
+        scope=RecognitionTreatyScope(allowed_roles=["role:client"]),
+        status="active",
+        issued_at=now,
+        valid_from=now,
+        expires_at=now + timedelta(hours=1),
+        issued_by=forger.public_key_b64,
+        signatures=[],
+    )
+    treaty.signatures.append(sign_model(treaty, forger.private_key, "forger"))
+    attestation = MembershipAttestation(
+        attestation_id="00000000-0000-4000-8000-00000000a0a0",
+        issuer_sovereign_id="sovereign-x",
+        subject_id="mallory",
+        roles=["role:client"],
+        status="active",
+        issued_at=now,
+        valid_from=now,
+        expires_at=now + timedelta(hours=1),
+        issued_by="forger",
+        signatures=[],
+    )
+    attestation.signatures.append(sign_model(attestation, forger.private_key, "forger"))
+    return forger, treaty.model_dump(mode="json"), attestation.model_dump(mode="json")
+
+
+def test_a_forged_treaty_naming_this_authority_is_never_accepted(client):
+    """Caller keys cannot make this NA vouch for a treaty it never issued (v1.0.2)."""
+    forger, treaty, attestation = _forged_treaty_and_attestation()
+
+    with_keys = client.post("/attestations/verify-with-treaty", json={
+        "attestation": attestation, "treaty": treaty,
+        "treaty_issuer_public_keys": [forger.public_key_b64],
+    })
+    assert with_keys.status_code == 422
+    assert with_keys.get_json()["error"]["code"] == "caller_keys_not_accepted"
+
+    without_keys = client.post("/attestations/verify-with-treaty", json={
+        "attestation": attestation, "treaty": treaty,
+    })
+    assert without_keys.status_code == 200
+    assert without_keys.get_json()["accepted"] is False
+    assert without_keys.get_json()["reason"] == "treaty_not_held"
+
+    verify = client.post("/recognition-treaties/verify", json={
+        "treaty": treaty, "issuer_public_keys": [forger.public_key_b64],
+    })
+    assert verify.status_code == 422
+    assert verify.get_json()["error"]["code"] == "caller_keys_not_accepted"
+
+
+def test_a_tampered_copy_of_a_held_treaty_is_not_held(client, na_service):
+    treaty = _issue_treaty(client, na_service).get_json()
+    tampered = {**treaty, "scope": {**treaty["scope"], "allowed_roles": ["role:operator"]}}
+    resp = client.post("/recognition-treaties/verify", json={"treaty": tampered})
+    assert resp.get_json()["accepted"] is False
+    assert resp.get_json()["reason"] == "not_held"
+    held = client.post("/recognition-treaties/verify", json={"treaty": treaty}).get_json()
+    assert held["accepted"] is True and held["trust_basis"] == "this_authority"
+
+
+def test_another_sovereigns_treaty_uses_pinned_or_supplied_keys(client, na_service, sovereign_b):
+    """A treaty issued by sovereign-b verifies here against keys TEST pinned for it."""
+    b_service, b_client = sovereign_b
+    reverse = {
+        "subject_sovereign_id": "TEST",
+        "subject_public_keys": [na_service.genesis_block.network_authority.public_key],
+        "scope": {"allowed_roles": ["role:client"]},
+        "validity_hours": 24,
+    }
+    b_treaty = b_client.post(
+        "/admin/recognition-treaties", json=reverse, headers=admin_headers(b_client, reverse),
+    ).get_json()
+
+    unknown = client.post("/recognition-treaties/verify", json={"treaty": b_treaty}).get_json()
+    assert unknown == {**unknown, "accepted": False, "reason": "issuer_not_recognized"}
+
+    _recognize_b(client, na_service, sovereign_b)
+    pinned = client.post("/recognition-treaties/verify", json={"treaty": b_treaty}).get_json()
+    assert pinned["accepted"] is True and pinned["trust_basis"] == "recognized_issuer_keys"
+
+    b_key = b_service.genesis_block.network_authority.public_key
+    supplied = client.post("/recognition-treaties/verify", json={
+        "treaty": b_treaty, "issuer_public_keys": [b_key],
+    }).get_json()
+    assert supplied["accepted"] is True and supplied["trust_basis"] == "caller_supplied_keys"
+
+
+def _store_expired_treaty(na_service, subject_sovereign_id, subject_public_key):
+    """An active, unrevoked treaty whose validity window has passed."""
+    import uuid
+
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models import RecognitionTreaty, RecognitionTreatyScope
+
+    now = datetime.now(timezone.utc)
+    treaty = RecognitionTreaty(
+        treaty_id=str(uuid.uuid4()),
+        issuer_sovereign_id=na_service.genesis_block.network_name,
+        subject_sovereign_id=subject_sovereign_id,
+        subject_public_keys=[subject_public_key],
+        scope=RecognitionTreatyScope(allowed_roles=["role:client"]),
+        status="active",
+        issued_at=now - timedelta(hours=3),
+        valid_from=now - timedelta(hours=3),
+        expires_at=now - timedelta(hours=2),
+        issued_by=na_service.signer.key_id,
+    )
+    treaty.signatures.append(na_service.signer.sign_model(treaty))
+    na_service.db.save_recognition_treaty(treaty)
+    return treaty
+
+
+def test_an_expired_treaty_no_longer_pins_keys(client, na_service, sovereign_b):
+    """Keys of an expired (but unrevoked) treaty are not recognized issuer keys (v1.0.2)."""
+    b_service, b_client = sovereign_b
+    b_key = b_service.genesis_block.network_authority.public_key
+    _store_expired_treaty(na_service, "sovereign-b", b_key)
+    reverse = {
+        "subject_sovereign_id": "TEST",
+        "subject_public_keys": [na_service.genesis_block.network_authority.public_key],
+        "scope": {"allowed_roles": ["role:client"]},
+        "validity_hours": 24,
+    }
+    b_treaty = b_client.post(
+        "/admin/recognition-treaties", json=reverse, headers=admin_headers(b_client, reverse),
+    ).get_json()
+
+    answer = client.post("/recognition-treaties/verify", json={"treaty": b_treaty}).get_json()
+    assert answer["accepted"] is False
+    assert answer["reason"] == "issuer_not_recognized"
+
+    feed = b_client.get("/sovereign-revocation-feed").get_json()
+    import_body = {"feed": feed}
+    refused = client.post(
+        "/admin/sovereign-revocation-feeds/import", json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+    assert refused.status_code == 400
+    assert refused.get_json()["error"]["code"] == "missing_issuer_public_keys"
+
+
+def test_a_feed_from_a_recognized_issuer_verifies_only_against_pinned_keys(client, na_service, sovereign_b):
+    """Caller keys cannot replace the keys this NA's treaty pinned (v1.0.2)."""
+    import base64
+
+    import nacl.signing
+
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models import SovereignRevocationFeed
+
+    b_service, b_client = sovereign_b
+    _recognize_b(client, na_service, sovereign_b)
+    attacker = nacl.signing.SigningKey.generate()
+    attacker_pub = base64.b64encode(bytes(attacker.verify_key)).decode()
+    feed = SovereignRevocationFeed.model_validate(b_client.get("/sovereign-revocation-feed").get_json())
+    forged = feed.model_copy(update={"signatures": [], "revoked_attestation_ids": ["victim"]})
+    forged.signatures.append(sign_model(forged, attacker, "attacker"))
+    import_body = {"feed": forged.model_dump(mode="json"), "issuer_public_keys": [attacker_pub]}
+
+    refused = client.post(
+        "/admin/sovereign-revocation-feeds/import", json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+    assert refused.status_code == 422
+    assert refused.get_json()["error"]["code"] == "caller_keys_not_accepted"
+
+    genuine = {"feed": feed.model_dump(mode="json")}
+    imported = client.post(
+        "/admin/sovereign-revocation-feeds/import", json=genuine,
+        headers=admin_headers(client, genuine),
+    )
+    assert imported.status_code == 200
+    assert imported.get_json()["accepted"] is True
+    events = [e for e in na_service.db.list_audit_events() if e["event_type"] == "sovereign_revocation_feed_imported"]
+    assert events[-1]["details"]["trust_basis"] == "recognized_issuer_keys"
+
+
+def test_a_feed_from_an_unrecognized_issuer_uses_supplied_keys(client, na_service, sovereign_b):
+    """Without a treaty, a feed verifies against keys the operator supplies, labelled as such."""
+    b_service, b_client = sovereign_b
+    b_key = b_service.genesis_block.network_authority.public_key
+    feed = b_client.get("/sovereign-revocation-feed").get_json()
+    import_body = {"feed": feed, "issuer_public_keys": [b_key]}
+    imported = client.post(
+        "/admin/sovereign-revocation-feeds/import", json=import_body,
+        headers=admin_headers(client, import_body),
+    )
+    assert imported.status_code == 200
+    events = [e for e in na_service.db.list_audit_events() if e["event_type"] == "sovereign_revocation_feed_imported"]
+    assert events[-1]["details"]["trust_basis"] == "caller_supplied_keys"
+

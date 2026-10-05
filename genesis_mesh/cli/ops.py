@@ -20,6 +20,7 @@ from .federation import federation
 from .fleet_ops import fleet
 from .init_ops import init
 from .managed import managed
+from .membership_ops import attestation
 from .proof_ops import proof
 from .supply_chain import supply_chain
 from .treaty_ops import treaty
@@ -81,6 +82,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(supply_chain)
     cli.add_command(trust_bundle)
     cli.add_command(treaty)
+    cli.add_command(attestation)
     cli.add_command(trust)
     cli.add_command(atlas)
     cli.add_command(evidence)
@@ -201,7 +203,10 @@ def admin_invite(
         expected_status=201,
         label="invite creation",
         json=body,
-        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
+        headers=_admin_headers_from_inputs(
+            config_path, operator_key, operator_key_id, config, body,
+            method="POST", base_url=endpoint, path="/admin/invite",
+        ),
     )
     click.echo(payload["token_id"])
 
@@ -234,7 +239,10 @@ def admin_revoke(
         f"{endpoint}/admin/revoke",
         label="certificate revocation",
         json=body,
-        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
+        headers=_admin_headers_from_inputs(
+            config_path, operator_key, operator_key_id, config, body,
+            method="POST", base_url=endpoint, path="/admin/revoke",
+        ),
     )
     click.echo(json.dumps(payload, indent=2))
 
@@ -271,7 +279,10 @@ def admin_revoke_operator_key(
         f"{endpoint}/admin/operator-keys/{target_key_id}/revoke",
         label="operator key revocation",
         json=body,
-        headers=_admin_headers_from_inputs(config_path, operator_key, operator_key_id, config, body),
+        headers=_admin_headers_from_inputs(
+            config_path, operator_key, operator_key_id, config, body,
+            method="POST", base_url=endpoint, path=f"/admin/operator-keys/{target_key_id}/revoke",
+        ),
     )
     click.echo(json.dumps(payload, indent=2))
 
@@ -282,6 +293,10 @@ def _admin_headers_from_inputs(
     operator_key_id: str,
     config: dict[str, Any],
     body: dict[str, Any],
+    *,
+    method: str,
+    base_url: str,
+    path: str,
 ) -> dict[str, str]:
     """Create signed admin headers from direct key flags or a CLI config."""
     if operator_key:
@@ -290,8 +305,10 @@ def _admin_headers_from_inputs(
             operator_key,
             operator_key_id,
         )
-        return _signed_admin_headers(signer_key_id, key_path, body)
-    return _admin_headers(config, body)
+        return _signed_admin_headers(
+            signer_key_id, key_path, body, method=method, base_url=base_url, path=path
+        )
+    return _admin_headers(config, body, method=method, base_url=base_url, path=path)
 
 
 @click.command()
@@ -361,6 +378,13 @@ def join(
         node.roles = cert.roles
         policy = _load_existing_policy(policy_path, node) or node.fetch_policy(endpoint)
         click.echo(f"Using existing certificate: {cert.cert_id}")
+        if token:
+            # Say so instead of silently not spending the invite (v1.0.2).
+            click.echo(
+                "Warning: --token was not used: this config already holds a valid "
+                "certificate. Use a separate --config for another node identity.",
+                err=True,
+            )
     else:
         if not token:
             cert_error = _describe_unusable_certificate(cert_path, node)

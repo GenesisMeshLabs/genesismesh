@@ -15,7 +15,6 @@ revoked attestation is denied.
 
 from __future__ import annotations
 
-import json
 import shutil
 import threading
 import time
@@ -28,7 +27,8 @@ import nacl.signing
 import pytest
 import requests
 
-from genesis_mesh.crypto import generate_keypair, sign_data
+from genesis_mesh.crypto import generate_keypair
+from genesis_mesh.crypto.admin_auth import sign_admin_request
 from genesis_mesh.models import JoinCertificate
 from genesis_mesh.models.context import BoundaryDecision
 from genesis_mesh.na_service.db import NADatabase
@@ -56,25 +56,22 @@ class Client:
         self.url = cluster.url
         self.operator = cluster.operator
         self.key_id = cluster.operator_key_id
+        self.audience = cluster.na_public_key  # admin signatures name the NA public key
         self.session = requests.Session()
 
-    def _headers(self, body: dict) -> dict[str, str]:
-        ts = datetime.now(timezone.utc).isoformat()
-        nonce = str(uuid.uuid4())
-        canonical = json.dumps(
-            {"body": body, "key_id": self.key_id, "timestamp": ts, "nonce": nonce},
-            sort_keys=True, separators=(",", ":"),
-        )
+    def _headers(self, body: dict, path: str) -> dict[str, str]:
         return {
-            "X-Admin-Key-Id": self.key_id, "X-Admin-Timestamp": ts, "X-Admin-Nonce": nonce,
-            "X-Admin-Signature": sign_data(canonical.encode(), self.operator.private_key),
+            **sign_admin_request(
+                self.operator.private_key, self.key_id,
+                method="POST", path=path, audience=self.audience, body=body,
+            ),
             "X-Test-Client": f"10.{uuid.uuid4().int % 250}.{uuid.uuid4().int % 250}.{uuid.uuid4().int % 250}",
         }
 
     def post(self, path: str, body: dict, *, admin: bool = True, attempts: int = 8) -> Optional[requests.Response]:
         """POST with fresh admin signatures per attempt; None if every attempt failed in transport."""
         for _ in range(attempts):
-            headers = self._headers(body) if admin else {"X-Test-Client": f"10.9.{uuid.uuid4().int % 250}.1"}
+            headers = self._headers(body, path) if admin else {"X-Test-Client": f"10.9.{uuid.uuid4().int % 250}.1"}
             try:
                 resp = self.session.post(self.url + path, json=body, headers=headers, timeout=10)
             except requests.RequestException:

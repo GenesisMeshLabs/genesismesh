@@ -113,7 +113,7 @@ env:
         key: operator-key-tiers.json
 ```
 
-`OPERATOR_KEY_TIERS_JSON` maps each operator key ID to `standard` or
+`OPERATOR_KEY_TIERS_JSON` maps each operator key ID to `read`, `standard` or
 `privileged`. Every configured key must appear in it — the pod will fail to
 start otherwise, by design.
 

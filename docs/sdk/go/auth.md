@@ -7,7 +7,7 @@ Admin routes use Ed25519 over canonical JSON. The four headers:
 | Header | Description |
 |--------|-------------|
 | `X-Admin-Key-Id` | Key identifier registered with the NA |
-| `X-Admin-Signature` | Ed25519 signature over `canonicalJSON({body, key_id, nonce, timestamp})` |
+| `X-Admin-Signature` | Ed25519 over the canonical admin payload: `{v: 2, method, path, query, audience, body, key_id, timestamp, nonce}` |
 | `X-Admin-Timestamp` | ISO 8601 UTC timestamp (within the NA's nonce window) |
 | `X-Admin-Nonce` | UUID v4 replay-protection token (single use) |
 
@@ -16,6 +16,13 @@ Admin routes use Ed25519 over canonical JSON. The four headers:
 no spaces.
 
 The SDK builds these headers automatically when `SigningKey` is set.
+
+Signature version 2 (1.0.2) binds each signature to the HTTP method, the request
+path, the query parameters and the target NA's public key (`Audience`). The
+client reads it (`network_authority.public_key`) once from the NA's public
+`/sovereign.json`, or
+uses `ClientOptions.Audience`. `AdminSigningPayload` returns the signed bytes.
+
 
 ---
 
@@ -33,7 +40,11 @@ body := map[string]interface{}{
     "validity_hours":        24,
 }
 
-headers, _ := genesismesh.BuildAdminHeaders(body, "operator-local", priv)
+headers, _ := genesismesh.BuildAdminHeaders(genesismesh.AdminRequest{
+    Method: "POST", Path: "/admin/recognition-treaties",
+    Audience: "<NA public key>", // network_authority.public_key from the NA's /sovereign.json
+    Body: body,
+}, "operator-local", priv)
 
 b, _ := json.Marshal(body)
 req, _ := http.NewRequest("POST", baseURL+"/admin/recognition-treaties", bytes.NewReader(b))

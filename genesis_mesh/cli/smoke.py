@@ -5,17 +5,17 @@ It ships with the package so the command works from a PyPI install.
 
 from __future__ import annotations
 
-import json
 import threading
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, TypeVar
 
 import requests
 from werkzeug.serving import make_server
 
-from genesis_mesh.crypto import generate_keypair, sign_data, sign_model
+from genesis_mesh.crypto import generate_keypair, sign_model
+from genesis_mesh.crypto.admin_auth import sign_admin_request
 from genesis_mesh.crypto.keys import KeyPair
+from genesis_mesh.cli.support import _admin_audience
 from genesis_mesh.models import (
     BootstrapAnchor,
     GenesisBlock,
@@ -37,30 +37,22 @@ def _require(value: T | None) -> T:
 
 
 def _admin_headers(
-    body: dict[str, Any], operator_keypair: KeyPair, key_id: str = "operator-test"
+    body: dict[str, Any],
+    operator_keypair: KeyPair,
+    *,
+    na_endpoint: str,
+    path: str,
+    key_id: str = "operator-test",
 ) -> dict[str, str]:
-    """Create operator authentication headers for an admin request body."""
-    timestamp = datetime.now(timezone.utc).isoformat()
-    nonce = str(uuid.uuid4())
-    canonical = json.dumps(
-        {
-            "body": body,
-            "key_id": key_id,
-            "timestamp": timestamp,
-            "nonce": nonce,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
+    """Create operator authentication headers for one admin POST (signature v2)."""
+    return sign_admin_request(
+        operator_keypair.private_key,
+        key_id,
+        method="POST",
+        path=path,
+        audience=_admin_audience(na_endpoint),
+        body=body,
     )
-    return {
-        "X-Admin-Key-Id": key_id,
-        "X-Admin-Timestamp": timestamp,
-        "X-Admin-Nonce": nonce,
-        "X-Admin-Signature": sign_data(
-            canonical.encode("utf-8"),
-            operator_keypair.private_key,
-        ),
-    }
 
 
 def _create_invite(
@@ -78,7 +70,7 @@ def _create_invite(
     response = requests.post(
         f"{na_endpoint}/admin/invite",
         json=body,
-        headers=_admin_headers(body, operator_keypair),
+        headers=_admin_headers(body, operator_keypair, na_endpoint=na_endpoint, path="/admin/invite"),
         timeout=10,
     )
     response.raise_for_status()

@@ -27,6 +27,7 @@ from ..trust.purge import (
     prove_nullification_inclusion,
     verify_nullification_inclusion,
 )
+from .support import ensure_parent, public_key_value
 
 
 @click.group("purge")
@@ -67,7 +68,7 @@ def purge_receipt(
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    Path(output_path).write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] NullificationReceipt {receipt.receipt_id}")
     click.echo(f"     Identity  : {identity.identity_id}")
     click.echo(f"     Purged by : {purging_sov}")
@@ -104,13 +105,13 @@ def purge_register(
     ]
 
     registry, _ = build_nullification_registry(receipts, operator_sov, sk)
-    Path(output_path).write_text(registry.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(registry.model_dump_json(indent=2), encoding="utf-8")
 
     if receipts_path:
         receipts_json = json.dumps(
             [json.loads(r.model_dump_json()) for r in receipts], indent=2
         )
-        Path(receipts_path).write_text(receipts_json, encoding="utf-8")
+        ensure_parent(receipts_path).write_text(receipts_json, encoding="utf-8")
 
     click.echo(f"[OK] NullificationRegistryRoot {registry.root_id}")
     click.echo(f"     Receipts  : {len(receipts)}")
@@ -151,7 +152,7 @@ def purge_prove(
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    Path(output_path).write_text(proof.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(proof.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] NullificationInclusionProof {proof.proof_id}")
     click.echo(f"     Receipt   : {receipt_id}")
     click.echo(f"     Path len  : {len(proof.merkle_path)}")
@@ -171,7 +172,7 @@ def purge_prove(
 @click.option("--receipt", "receipt_path", required=True, type=click.Path(exists=True),
               help="NullificationReceipt JSON for the claimed receipt_id.")
 @click.option("--public-key", "public_keys", required=True, multiple=True,
-              help="Operator public key (base64). Pass once per key.")
+              help="Operator public key: base64 or path to a public key file. Pass once per key.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
               help="Output format.")
 def purge_verify(
@@ -193,7 +194,7 @@ def purge_verify(
     )
 
     passed, reason = verify_nullification_inclusion(
-        proof, registry, receipt, list(public_keys)
+        proof, registry, receipt, [public_key_value(k) for k in public_keys]
     )
 
     if fmt == "json":

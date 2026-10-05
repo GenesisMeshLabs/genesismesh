@@ -56,6 +56,8 @@ from .routes import (
 logger = logging.getLogger(__name__)
 
 HA_MODES = ("off", "on")
+# v1.0.2: version 1 admin signatures (no method/path/query/audience binding).
+ADMIN_LEGACY_SIGNATURE_MODES = ("reject", "accept")
 
 #: Bounded retries when another instance publishes a CRL sequence first.
 CRL_PUBLISH_ATTEMPTS = 5
@@ -102,6 +104,7 @@ class NetworkAuthorityService:
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
+        admin_legacy_signatures: str = "reject",
     ):
         """
         Initialize the Network Authority service.
@@ -136,8 +139,17 @@ class NetworkAuthorityService:
                 and the shared rate limiter (v0.60).
             rate_limit_store: "memory" (per process) or "database" (shared).
                 Defaults to "database" on PostgreSQL and "memory" on SQLite.
+            admin_legacy_signatures: "reject" (default) refuses version 1
+                admin signatures, which do not cover the method, path, query
+                or audience (v1.0.2); "accept" allows them for a
+                migration window and audits every use.
         """
         self.genesis_block = genesis_block
+        if admin_legacy_signatures not in ADMIN_LEGACY_SIGNATURE_MODES:
+            raise ValueError(
+                f"admin_legacy_signatures must be one of {ADMIN_LEGACY_SIGNATURE_MODES}"
+            )
+        self.admin_legacy_signatures = admin_legacy_signatures
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
         # remains as an alias so existing callers keep working; it is the
         # Signer, never the raw key.
@@ -218,6 +230,8 @@ class NetworkAuthorityService:
         if max_request_bytes <= 0:
             raise ValueError("max_request_bytes must be positive")
         self.app.config["MAX_CONTENT_LENGTH"] = max_request_bytes
+        # Lets tooling (and test clients) reach the service from the app.
+        self.app.extensions["genesis_mesh_na"] = self
         register_error_handlers(self.app)
         self._register_blueprints()
         logger.info(
@@ -450,6 +464,7 @@ def create_app(
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
+    admin_legacy_signatures: str = "reject",
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -468,6 +483,7 @@ def create_app(
         rate_limit_store=rate_limit_store,
         max_request_bytes=max_request_bytes,
         rate_limits=rate_limits,
+        admin_legacy_signatures=admin_legacy_signatures,
     )
     return service.app
 
@@ -490,7 +506,7 @@ def main():
         "--operator-key-tier",
         action="append",
         default=[],
-        help="Operator key tier as key-id=standard|privileged (required per key)",
+        help="Operator key tier as key-id=read|standard|privileged (required per key)",
     )
     parser.add_argument("--db-path", default="genesis_mesh_na.db", help="SQLite database path")
     parser.add_argument(

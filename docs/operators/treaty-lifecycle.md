@@ -40,6 +40,11 @@ genesis-mesh treaty inspect \
 Use inspect when you need the full role/status/claim scope and operator
 metadata for a single relationship.
 
+Only `allowed_roles` and `accepted_statuses` restrict which attestations a
+treaty accepts. Claims (`--claim key=value`) are informational labels signed
+into the treaty, such as the proof that motivated it; they are not matched
+against attestations.
+
 ## Renew A Treaty
 
 Renew issues a successor treaty using the existing treaty scope and public keys,
@@ -75,7 +80,7 @@ genesis-mesh treaty replace \
 ```
 
 Use replace when the relationship continues but the accepted roles, statuses,
-or local claims need to change.
+or informational claims need to change.
 
 ## Revoke A Treaty
 

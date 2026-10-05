@@ -38,6 +38,7 @@ app = create_app(
     rate_limit_store=settings.rate_limit_store,
     max_request_bytes=settings.max_request_bytes,
     rate_limits=settings.rate_limits,
+    admin_legacy_signatures=settings.admin_legacy_signatures,
 )
 
 # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the

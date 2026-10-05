@@ -84,7 +84,7 @@ Therefore, within 1.x:
    later release verifies on every later 1.x release. Earlier artifacts are
    not covered. The upgrade rehearsal (`scripts/upgrade_rehearsal.py`) checks
    this against real databases written by 0.59.1, 0.60.0, 0.61.1, 0.62.0,
-   0.63.0, 0.63.1, 0.64.0, 0.64.1, 0.65.0 and 1.0.0.
+   0.63.0, 0.63.1, 0.64.0, 0.64.1, 0.65.0, 1.0.0 and 1.0.1.
 
 Beta signed artifacts may change in a minor version; the CHANGELOG says how
 artifacts from the previous version are handled.

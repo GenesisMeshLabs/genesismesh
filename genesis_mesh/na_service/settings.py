@@ -9,6 +9,7 @@ at ``DB_PATH``, the key file at ``NA_PRIVATE_KEY_FILE``, in-memory rate limits.
 | ``NA_HA_MODE`` | ``off`` | ``on`` refuses to start unless PostgreSQL, a non-file key provider and the shared rate limiter are configured |
 | ``NA_KEY_PROVIDER`` | ``file`` | ``file``, ``env`` or ``azure-keyvault`` |
 | ``RATE_LIMIT_STORE`` | backend default | ``memory`` or ``database`` |
+| ``NA_ADMIN_LEGACY_SIGNATURES`` | ``reject`` | ``accept`` allows version 1 admin signatures for a migration window (v1.0.2) |
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ class NASettings:
     max_request_bytes: int = 2 * 1024 * 1024
     proxy_hops: int = 1
     rate_limits: RateLimits = field(default_factory=RateLimits)
+    admin_legacy_signatures: str = "reject"
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -82,6 +84,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
             evidence=int(e.get("NA_RATE_LIMIT_EVIDENCE_PER_MINUTE", "120")),
             read=int(e.get("NA_RATE_LIMIT_READ_PER_MINUTE", "120")),
         ),
+        admin_legacy_signatures=e.get("NA_ADMIN_LEGACY_SIGNATURES", "reject"),
     )
 
 
