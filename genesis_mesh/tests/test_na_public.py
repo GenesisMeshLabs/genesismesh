@@ -413,3 +413,38 @@ def test_sovereign_metadata_honors_proxy_headers(client):
         payload["supported_surfaces"]["sovereign_revocation_feed"]
         == "https://na.genesismesh.org/sovereign-revocation-feed"
     )
+
+
+def test_surface_catalog_lists_every_registered_route():
+    """/api-reference and /swagger.json come from the catalog: it names every route (v1.0.2)."""
+    import re
+
+    from genesis_mesh.na_service.operator_console.surfaces import HTTP_SURFACES
+
+    from .public_contract_support import http_routes
+
+    param = re.compile(r"<(?:[a-z]+:)?\w+>|\{\w+\}")
+    static = {"/favicon.ico", "/favicon.svg"}
+    registered = {
+        (method, param.sub("{}", path))
+        for path, methods in http_routes()
+        for method in methods
+        if path not in static and not path.startswith("/operator-console-static/")
+    }
+    catalog = {(s.method, param.sub("{}", s.target)) for s in HTTP_SURFACES}
+
+    assert sorted(registered - catalog) == []
+    assert sorted(catalog - registered) == []
+
+
+def test_swagger_lists_the_trust_api_routes(client):
+    """The generated OpenAPI metadata includes the Trust API operator routes (v1.0.2)."""
+    paths = client.get("/swagger.json").get_json()["paths"]
+
+    for path in ("/admin/agreements/offer", "/admin/consensus/proof", "/admin/data-usage/intent",
+                 "/admin/disclosure/commit", "/admin/trust-evidence", "/disclosure/prove"):
+        assert "post" in paths[path], path
+    assert paths["/admin/agreements/accept"]["post"]["x-genesis-mesh-auth-hint"] == (
+        "Operator signature (privileged tier)"
+    )
+    assert "get" in paths["/attestations/{attestation_id}"]

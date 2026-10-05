@@ -211,3 +211,42 @@ def test_public_verify_endpoints_are_rate_limited(client):
 
         assert last_resp is not None, path
         assert last_resp.status_code == 429, f"{path} is not rate limited"
+
+
+def test_unsigned_attestation_list_gives_only_the_count(client):
+    """The list names every subject: unsigned callers get the count (v1.0.2)."""
+    _issue_attestation(client, "alice")
+    _issue_attestation(client, "bob")
+
+    resp = client.get("/attestations")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"count": 2}
+
+    active = client.get("/attestations?status=active")
+    assert active.get_json() == {"count": 2}
+
+
+def test_unsigned_attestation_list_refuses_subject_and_issuer_filters(client):
+    """A count by subject would answer "is this subject a member" (v1.0.2)."""
+    _issue_attestation(client, "alice")
+
+    for query in ("subject_id=alice", "issuer_sovereign_id=TEST"):
+        resp = client.get(f"/attestations?{query}")
+        assert resp.status_code == 401, query
+        assert resp.get_json()["error"]["code"] == "admin_auth_failed"
+
+
+def test_operators_get_the_attestation_list(client):
+    """An operator-signed request gets the list, filters included (v1.0.2)."""
+    _issue_attestation(client, "alice")
+    _issue_attestation(client, "bob")
+
+    resp = client.get("/attestations?subject_id=alice", headers=admin_headers(client, {}))
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["count"] == 1
+    assert payload["attestations"][0]["attestation"]["subject_id"] == "alice"
+
+    bad = client.get("/attestations", headers={**admin_headers(client, {}), "X-Admin-Signature": "AAAA"})
+    assert bad.status_code == 401
+

@@ -23,6 +23,7 @@ from ..trust.selective_disclosure import (
     verify_capability_proof,
 )
 from ..crypto import load_private_key
+from .support import ensure_parent, public_key_value
 
 
 @click.group("disclose")
@@ -58,7 +59,7 @@ def disclose_commit(
         issued_by=issuer,
     )
 
-    Path(output_path).write_text(commitment.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(commitment.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Commitment {commitment.commitment_id} written to {output_path}")
     click.echo(f"     Merkle root : {commitment.merkle_root[:16]}...")
     click.echo(f"     Capabilities: {commitment.capability_count}")
@@ -101,7 +102,7 @@ def disclose_prove(
         click.echo(f"[ERROR] {exc}", err=True)
         sys.exit(2)
 
-    Path(output_path).write_text(proof.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(proof.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Proof {proof.proof_id} written to {output_path}")
     click.echo(f"     Disclosed: {capability}")
     click.echo(f"     Path nodes: {len(proof.merkle_path)}")
@@ -118,7 +119,7 @@ def disclose_prove(
 @click.option("--commitment", "commitment_path", required=True, type=click.Path(exists=True),
               help="Path to CapabilityCommitment JSON.")
 @click.option("--verify-key", "verify_key", required=True, multiple=True,
-              help="Base64-encoded Ed25519 public key(s) of the commitment issuer.")
+              help="Commitment issuer public key: base64 or path to a public key file. Repeatable.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
               help="Output format.")
 def disclose_verify(
@@ -132,7 +133,7 @@ def disclose_verify(
         Path(commitment_path).read_text(encoding="utf-8")
     )
 
-    result = verify_capability_proof(proof, commitment, list(verify_key))
+    result = verify_capability_proof(proof, commitment, [public_key_value(k) for k in verify_key])
 
     if fmt == "json":
         click.echo(json.dumps({"valid": result.valid, "reason": result.reason}, indent=2))
@@ -176,6 +177,6 @@ def disclose_nullify(
 
     nullifier = issue_nullifier(proof, signing_key, issued_by=prover, valid_for_seconds=valid_for)
 
-    Path(output_path).write_text(nullifier.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(nullifier.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Nullifier {nullifier.nullifier_id} written to {output_path}")
     click.echo(f"     Expires: {nullifier.expires_at.isoformat()}")

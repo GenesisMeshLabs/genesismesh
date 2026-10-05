@@ -120,7 +120,11 @@ def run_federation_bootstrap(
         expected_status=201,
         label="acceptor treaty issue",
         json=treaty_body,
-        headers=_signed_admin_headers(key_id, key_path, treaty_body),
+        headers=_signed_admin_headers(
+            key_id, key_path, treaty_body,
+            method="POST", base_url=acceptor, path="/admin/recognition-treaties",
+            audience=acceptor_review["network_authority"]["public_key"],
+        ),
     )
     result.update(
         {

@@ -20,6 +20,7 @@ from ..models.context_integrity import (
     ContextTree,
 )
 from ..trust.context_integrity import create_context_integrity_record, verify_context_integrity
+from .support import ensure_parent, public_key_value
 
 
 @click.group("integrity")
@@ -79,7 +80,7 @@ def context_commit(
         agent_sov, decision_id, base_context, [],
         sk, max_total_tokens=max_total_tokens, valid_for_seconds=valid_for,
     )
-    Path(output_path).write_text(record.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(record.model_dump_json(indent=2), encoding="utf-8")
 
     click.echo(f"[OK] ContextIntegrityRecord {record.record_id}")
     click.echo(f"     Agent      : {agent_sov}")
@@ -103,7 +104,7 @@ def context_commit(
 @click.option("--segment", "segment_jsons", multiple=True,
               help="JSON string for each observed ContextAppendSegment. Pass once per segment.")
 @click.option("--public-key", "public_keys", required=True, multiple=True,
-              help="Agent public key (base64). Pass once per key.")
+              help="Agent public key: base64 or path to a public key file. Pass once per key.")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human",
               help="Output format.")
 def context_verify(
@@ -126,7 +127,7 @@ def context_verify(
     ]
 
     passed, reason, report = verify_context_integrity(
-        record, final_context, observed, list(public_keys)
+        record, final_context, observed, [public_key_value(k) for k in public_keys]
     )
 
     if fmt == "json":

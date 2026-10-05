@@ -1,5 +1,150 @@
 # Changelog
 
+## v1.0.2 - Fixes from External Testing
+
+Fixes and small additions after external testing of 1.0.1. One protocol detail
+changes: an operator's admin signature now covers the whole request, so admin
+clients and Network Authorities move to 1.0.2 together (see *Upgrading*).
+
+### Upgrading
+
+1.0.2 clients sign admin requests with signature version 2, which a 1.0.1
+Network Authority does not accept; a 1.0.2 Network Authority accepts only
+version 2 by default. Upgrade in this order:
+
+1. Upgrade each Network Authority. To keep 1.0.1 clients working meanwhile,
+   set `NA_ADMIN_LEGACY_SIGNATURES=accept`; each version 1 request is then
+   recorded as `admin_legacy_signature_accepted`.
+2. Upgrade the clients: the CLI, the SDKs, the gateway and any workflow that
+   signs admin requests.
+3. Remove `NA_ADMIN_LEGACY_SIGNATURES` once no version 1 requests arrive.
+
+Read-only and verification calls carry no admin signature and work across
+versions. 1.0.2 adds no database migration.
+
+### Changed
+
+- **Admin signatures cover the whole request (signature version 2):** the
+  HTTP method, path, query parameters and the target Network Authority's
+  public key, besides the body, key ID, timestamp and nonce. The CLI, the
+  workflows, the four SDKs and the gateway console sign version 2. Reference
+  vectors: `conformance/vectors/admin_auth.json`; Python implementation:
+  `genesis_mesh.crypto.admin_auth`.
+- **Treaty and feed checks use the keys a Network Authority pinned.**
+  `POST /recognition-treaties/verify` and
+  `POST /attestations/verify-with-treaty` check a treaty this Network Authority
+  issued against its own key and its stored copy (`not_held` otherwise), and
+  another sovereign's treaty against the keys pinned in this Network
+  Authority's active treaties, or against keys the caller supplies. Both
+  report the basis of the answer in the new `trust_basis` field. Revocation
+  feeds from a recognised sovereign are imported under the pinned keys only;
+  other keys are refused with `422 caller_keys_not_accepted`, and keys from
+  expired treaties are no longer used.
+- A Network Authority signs only in its own name: `POST /admin/attestations`
+  and `GET /sovereign-revocation-feed` refuse another sovereign's ID
+  (`400 attestation_issuer_mismatch`, `400 feed_issuer_mismatch`).
+- `GET /attestations` gives the list to operators and the count to everyone
+  else, as `/nodes` does, because the list names every member with its keys,
+  roles and claims. `GET /attestations/<id>` is unchanged.
+- `proof remote` imports the issuer's revocation feed under the key the
+  acceptor's treaty pinned.
+
+### Added
+
+- A `read` operator tier: it opens the operator views of `GET /nodes` and
+  `GET /attestations` and nothing else, for dashboards. The gateway's mesh
+  view uses one to show a network's members.
+- `genesis-mesh attestation issue`, `attestation revoke`,
+  `attestation verify-with-treaty` and `treaty import-feed` (beta): each
+  operator runs the cross-sovereign steps for their own sovereign with only
+  their own key. `proof remote` still needs both sovereigns' operator keys in
+  one process. `treaty import-feed` never takes a key: the feed is verified
+  under the key the local treaty pinned.
+- `genesis-mesh --version`.
+- `NA_PRIVATE_KEY_SEED_FILE`: the `env` key provider reads the seed from a
+  file (a Docker or Kubernetes secret) instead of an environment variable.
+- The node reads its invite token from a file (`--invite-token-file`), so the
+  token is not on its command line, and stops cleanly on `SIGTERM`.
+- `genesis-mesh trust guard start` takes the keys and decisions it mediates
+  with: `--agent-key`, `--operator-key`, `--decision` and `--decision-dir`.
+  It warns at start for each one missing: without it every request is
+  rejected.
+
+### Fixed
+
+- `GET` and `DELETE /agents/{node_public_key}` work for keys whose base64 form
+  contains `//` (about 1 in 100). Merging the slashes answered with a redirect
+  to another key, so such an agent could not be read or deregistered.
+- **Timestamps with a UTC offset keep their instant.** Agreement offers,
+  counters and data-usage policies read `valid_from`, `valid_until` and the
+  other timestamps by dropping the offset, so `2026-07-01T12:00:00+02:00` was
+  stored as 12:00 UTC, two hours late. They are now converted to UTC. A
+  timestamp without an offset is read as UTC, and a non-string timestamp is a
+  `400`, not a `500`.
+- `/readyz` reported a SQLite database the process could only read as ready;
+  the first write then failed with `500`. Readiness now writes inside a
+  transaction it rolls back.
+- `genesis-mesh managed restore` opens the backup read-only, so a backup on a
+  read-only mount restores; removes the replaced database's `-wal` and `-shm`
+  files, which SQLite would otherwise replay onto the restored data; takes
+  the pre-restore copy with the SQLite backup API, so it includes writes still
+  in the WAL; and keeps the database file's mode and owner.
+- `genesis-mesh trust oversight approve` refuses a request whose approval
+  window (`--approval-window`) has closed, and `approve` and `reject` refuse a
+  policy file other than the one the request was evaluated under. Both
+  reported a legacy request with a traceback; they now print the error. A
+  policy file without a `policy_id` is named by a digest of its content, so
+  the agent and the custodian agree on it.
+- `genesis-mesh trust decide` reports one revocation-pressure signal per
+  revocation feed, with the number of attestations it revokes, instead of one
+  identical signal per attestation.
+- `genesis-mesh genesis verify` exits `1` when the genesis block has no
+  signatures or a signature fails; it printed the failure and exited `0`.
+- `genesis-mesh trust guard start` mediated with no keys and no decisions, so
+  it could only refuse. `trust guard verify --guard-key` also takes a key file.
+- Fleet configs with relative paths load from any working directory; the
+  paths resolve against the fleet file, and new fleets are written with
+  absolute paths.
+- CLI output on Windows: commands that print non-ASCII characters no longer
+  fail when the output is redirected, and a missing output directory is
+  created instead of ending in a traceback. File errors print one line
+  (`--debug` shows the traceback).
+- The public-key options of the trust commands accept a base64 key or a key
+  file.
+- `genesis-mesh join --token` reports a token it did not use because the
+  config already holds a valid certificate.
+- `/swagger.json` and `/api-reference` list every route; 18 were missing,
+  among them the agreement, consensus, disclosure, data-usage and
+  trust-evidence routes. A test keeps the catalog equal to the registered
+  routes.
+- **SDKs and gateway 1.0.2.** The Go and .NET SDKs' typed results use the
+  Network Authority's field names; several were always empty, among them the
+  verify results and `Boundary.Decide`'s answer. The TypeScript disclosure,
+  trust-signal and trust-evidence types match the NA. Each SDK's CI now runs
+  every method against a live Network Authority. The gateway's service
+  catalog includes the revocation feed's `issuer_sovereign_id` query, and the
+  gateway no longer depends on the unmaintained `rustls-pemfile`.
+
+### Documentation
+
+- Treaty claims are informational labels; only allowed roles and accepted
+  statuses restrict which attestations a treaty accepts. The glossary now says
+  a treaty carries one signature, from the issuing Network Authority.
+- The Network Authority API reference documents every route, including the
+  console pages and the attestation, treaty and recognition-policy reads, and
+  its public read classification is complete.
+- Configuration: `NA_PRIVATE_KEY_SEED_FILE`, `NA_KEY_SEED_ENV`, the
+  `NA_KEY_ID` default, the `start.sh` defaults and the node environment, which
+  defaults to `PERSISTENT=true`. `genesis-mesh na start` reads none of the
+  production environment variables, such as the rate limits.
+- Human oversight: the policy and action file formats; no command creates or
+  signs a policy.
+- The CLI reference documents `proof inspect`, `proof canary` and `send`; the
+  atlas commands are `genesis-mesh atlas`, and graph exports come from
+  `GET /recognition-graph`.
+- Quickstarts: the landing page is the health and trust dashboard; the
+  operator quickstart writes the operator key environment file in one step.
+
 ## v1.0.1 - Gateway Console Fixes
 
 ### Fixed

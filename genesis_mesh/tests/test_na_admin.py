@@ -522,3 +522,56 @@ def test_service_refuses_to_start_with_an_unknown_tier(na_service):
             operator_public_keys={"k": "AAAA"},
             operator_key_tiers={"k": "superuser"},
         )
+
+
+# ---------------------------------------------------------------------------
+# v1.0.2 — a read tier below standard, for dashboards: the operator views of
+# /nodes and /attestations, and nothing else.
+# ---------------------------------------------------------------------------
+
+
+def _add_read_operator(na_service, key_id: str = "operator-reader") -> str:
+    """Register a read-only operator key id."""
+    na_service.operator_public_keys[key_id] = na_service.operator_public_keys["operator-test"]
+    na_service.operator_key_tiers[key_id] = "read"
+    return key_id
+
+
+def test_read_operator_gets_the_roster_and_the_attestation_list(client, na_service):
+    """A read key opens the operator views of /nodes and /attestations."""
+    reader = _add_read_operator(na_service)
+    body = {"subject_id": "alice", "subject_public_key": "alice-key", "roles": ["role:client"]}
+    issued = client.post("/admin/attestations", json=body, headers=admin_headers(client, body))
+    assert issued.status_code == 201
+
+    nodes = client.get("/nodes", headers=admin_headers(client, {}, key_id=reader))
+    assert nodes.status_code == 200
+    assert "nodes" in nodes.get_json()
+
+    listed = client.get("/attestations?status=active", headers=admin_headers(client, {}, key_id=reader))
+    assert listed.status_code == 200
+    assert [a["attestation"]["subject_id"] for a in listed.get_json()["attestations"]] == ["alice"]
+
+
+def test_read_operator_cannot_use_any_other_admin_route(client, na_service):
+    """Every other admin route needs standard or privileged: 403 for a read key."""
+    reader = _add_read_operator(na_service)
+
+    assert _invite_as(client, reader).status_code == 403
+    history = client.get("/admin/policy/history", headers=admin_headers(client, {}, key_id=reader))
+    assert history.status_code == 403
+    assert history.get_json()["error"]["code"] == "insufficient_operator_tier"
+    attestation = _post_as(client, "/admin/attestations", reader,
+                           {"subject_id": "alice", "roles": ["role:client"]})
+    assert attestation.status_code == 403
+
+    denied = [e for e in na_service.db.list_audit_events() if e["event_type"] == "admin_authz_denied"]
+    assert denied[-1]["details"]["holder_tier"] == "read"
+
+
+def test_read_is_a_valid_tier_at_start():
+    """Configuration accepts the read tier, from the CLI and from JSON."""
+    from genesis_mesh.na_service.auth import load_operator_key_tiers, validate_operator_key_tiers
+
+    assert load_operator_key_tiers(["dashboard=read"]) == {"dashboard": "read"}
+    validate_operator_key_tiers({"dashboard": "AAAA"}, {"dashboard": "read"})

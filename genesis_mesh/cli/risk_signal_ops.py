@@ -22,6 +22,7 @@ from ..trust.risk_signal import (
     decay_risk_signal,
     update_risk_signal,
 )
+from .support import ensure_parent
 
 
 @click.group("risk")
@@ -58,7 +59,7 @@ def risk_create(
         from_sov, to_sov, sk,
         initial_signal=initial, alpha=alpha, decay_lambda=lam,
     )
-    Path(output_path).write_text(sig.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(sig.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] PeerRiskSignal {sig.signal_id} written to {output_path}")
     click.echo(f"     {from_sov} → {to_sov}  signal={sig.signal:.4f}")
 
@@ -94,17 +95,17 @@ def risk_update(
 
     updated, update_record, anomaly = update_risk_signal(signal, evidence, sk)
 
-    Path(output_path).write_text(updated.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(updated.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Signal updated: {signal.signal:.4f} → {updated.signal:.4f}")
     click.echo(f"     Outcome: {evidence.outcome}  delta={update_record.delta:+.4f}")
 
     if update_path:
-        Path(update_path).write_text(update_record.model_dump_json(indent=2), encoding="utf-8")
+        ensure_parent(update_path).write_text(update_record.model_dump_json(indent=2), encoding="utf-8")
 
     if anomaly is not None:
         click.echo(f"[ANOMALY] Detected: {anomaly.sigma_multiples:.1f}σ above threshold")
         if anomaly_path:
-            Path(anomaly_path).write_text(anomaly.model_dump_json(indent=2), encoding="utf-8")
+            ensure_parent(anomaly_path).write_text(anomaly.model_dump_json(indent=2), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +126,7 @@ def risk_decay(signal_path: str, key_path: str, output_path: str) -> None:
     sk = load_private_key(key_path)
 
     decayed = decay_risk_signal(signal, sk)
-    Path(output_path).write_text(decayed.model_dump_json(indent=2), encoding="utf-8")
+    ensure_parent(output_path).write_text(decayed.model_dump_json(indent=2), encoding="utf-8")
     click.echo(f"[OK] Signal decayed: {signal.signal:.4f} → {decayed.signal:.4f}")
 
 

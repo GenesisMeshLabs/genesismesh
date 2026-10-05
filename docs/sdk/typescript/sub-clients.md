@@ -57,6 +57,9 @@ Wraps the Attestation domain (`/admin/attestations`, `/admin/recognition-policy`
 | `issue(params)` | yes | Issue a signed membership attestation |
 | `revoke(id, params)` | yes | Revoke an attestation by ID |
 | `savePolicy(params)` | yes | Set the active recognition policy |
+| `get(id)` | no | One attestation and its status |
+| `list(params)` | signed when it can | With a signing key: the attestations, filtered by issuer, subject or status. Without one: the count only (1.0.2) |
+| `verify(params)` | no | Verify an attestation against a recognition policy |
 
 **Constraint — roles:** must use a recognized prefix:
 `role:anchor`, `role:bridge`, `role:client`, `role:operator`, `role:service:<name>`.

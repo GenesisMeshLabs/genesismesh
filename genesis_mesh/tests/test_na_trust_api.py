@@ -614,3 +614,131 @@ def test_data_usage_policy_visible_to_other_connection_and_after_restart(client,
         reopened.conn.close()
         na_service.db.conn.close()
         na_service.db = original
+
+
+# ── v1.0.2: request timestamps keep their instant ──────────────────────────────
+
+
+def test_offer_with_utc_offset_keeps_the_instant(client, na_service):
+    """A window given in +02:00 is converted to UTC, not relabelled as UTC."""
+    _issue_treaty_for_sovereign(client, na_service)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+    plus_two = timezone(timedelta(hours=2))
+    body = {
+        "responder_sovereign_id": "sovereign-b",
+        "capabilities": ["read"],
+        "valid_from": start.astimezone(plus_two).isoformat(),
+        "valid_until": (start + timedelta(hours=24)).astimezone(plus_two).isoformat(),
+        "expires_at": (start + timedelta(hours=1)).astimezone(plus_two).isoformat(),
+    }
+    offer = _post_admin(client, "/admin/agreements/offer", body).get_json()
+    terms = offer["requested_terms"]
+    assert datetime.fromisoformat(terms["valid_from"]) == start
+    assert datetime.fromisoformat(terms["valid_until"]) == start + timedelta(hours=24)
+    assert datetime.fromisoformat(offer["expires_at"]) == start + timedelta(hours=1)
+
+
+def test_data_usage_policy_with_utc_offset_keeps_the_instant(client, na_service):
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+    minus_five = timezone(timedelta(hours=-5))
+    body = {
+        "licensee_sovereign_id": "sovereign-b",
+        "allowed_source_ids": ["src-1"],
+        "allowed_access_types": ["read"],
+        "valid_from": start.astimezone(minus_five).isoformat(),
+        "valid_until": (start + timedelta(hours=1)).astimezone(minus_five).isoformat(),
+    }
+    policy = _post_admin(client, "/admin/data-usage/policy", body).get_json()
+    assert datetime.fromisoformat(policy["valid_from"]) == start
+    assert datetime.fromisoformat(policy["valid_until"]) == start + timedelta(hours=1)
+
+
+def test_timestamp_without_offset_is_utc(client, na_service):
+    _issue_treaty_for_sovereign(client, na_service)
+    start = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+    body = {
+        "responder_sovereign_id": "sovereign-b",
+        "capabilities": ["read"],
+        "valid_from": start.isoformat(),
+        "valid_until": (start + timedelta(hours=24)).isoformat(),
+        "expires_at": (start + timedelta(hours=1)).isoformat(),
+    }
+    offer = _post_admin(client, "/admin/agreements/offer", body).get_json()
+    assert datetime.fromisoformat(offer["requested_terms"]["valid_from"]) == start.replace(tzinfo=timezone.utc)
+
+
+def test_non_string_timestamp_is_a_bad_request(client, na_service):
+    body = {
+        "responder_sovereign_id": "sovereign-b",
+        "capabilities": ["read"],
+        "valid_from": 1700000000,
+        "valid_until": _future_iso(24),
+        "expires_at": _future_iso(1),
+    }
+    resp = _post_admin(client, "/admin/agreements/offer", body)
+    assert resp.status_code == 400
+    assert resp.get_json()["error"]["code"] == "invalid_timestamps"
+
+
+# ── v1.0.2: consensus vote and proof over HTTP ─────────────────────────────────
+
+
+def _justification_proof(na_service) -> dict:
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.justification import GateTrace, GateTraceEntry, JustificationProof
+
+    now = datetime.now(timezone.utc)
+    trace = GateTrace(
+        trace_id="tr-http-1", decision_id="dec-http-1", agreement_id="agr-http-1",
+        operator_sovereign_id=na_service.genesis_block.network_name, traced_at=now,
+        entries=[GateTraceEntry(gate_name="capability_check", gate_type="CapabilityGate", evaluated_at=now,
+                                inputs={"requested_capability": "read"}, result=True, reason="ok")],
+        final_authorized=True,
+    )
+    proof = JustificationProof(proof_id="jp-http-1", decision_id="dec-http-1", trace=trace,
+                               proof_issued_at=now, issuer_sovereign_id=na_service.genesis_block.network_name)
+    proof.signature = sign_model(proof, na_service.signer, na_service.key_id)
+    return proof.model_dump(mode="json")
+
+
+def test_consensus_vote_proof_and_verify_over_http(client, na_service):
+    proof = _justification_proof(na_service)
+    vote = _post_admin(client, "/admin/consensus/vote", {"justification_proof": proof, "vote": True})
+    assert vote.status_code == 201, vote.get_json()
+    vote_body = vote.get_json()
+    assert vote_body["vote"] is True
+    assert vote_body["validator_sovereign_id"] == na_service.genesis_block.network_name
+
+    assembled = _post_admin(client, "/admin/consensus/proof", {
+        "justification_proof": proof, "votes": [vote_body], "required_threshold": 1,
+        "validator_sovereign_ids": [na_service.genesis_block.network_name],
+    })
+    assert assembled.status_code == 201, assembled.get_json()
+    consensus = assembled.get_json()
+    assert consensus["required_threshold"] == 1
+
+    verified = client.post("/consensus/verify", json={
+        "proof": consensus,
+        "validator_public_keys": {na_service.genesis_block.network_name: na_service.genesis_block.network_authority.public_key},
+    })
+    assert verified.status_code == 200
+    assert verified.get_json()["valid"] is True
+
+
+def test_consensus_vote_rejects_bad_input(client, na_service):
+    proof = _justification_proof(na_service)
+    assert _post_admin(client, "/admin/consensus/vote", {"justification_proof": proof}).status_code == 400
+    assert _post_admin(client, "/admin/consensus/vote",
+                       {"justification_proof": proof, "vote": "yes"}).status_code == 400
+    assert _post_admin(client, "/admin/consensus/vote",
+                       {"justification_proof": {"not": "a proof"}, "vote": True}).status_code == 400
+    assert client.post("/admin/consensus/vote", json={"justification_proof": proof, "vote": True}).status_code == 401
+
+
+def test_consensus_proof_needs_enough_votes(client, na_service):
+    proof = _justification_proof(na_service)
+    resp = _post_admin(client, "/admin/consensus/proof", {
+        "justification_proof": proof, "votes": [], "required_threshold": 1,
+        "validator_sovereign_ids": [na_service.genesis_block.network_name],
+    })
+    assert resp.status_code in (400, 422)

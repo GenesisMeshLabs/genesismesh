@@ -203,7 +203,42 @@ Before confirming, check:
 
 ## Step 4: Revocation Proof
 
-Run the remote proof with explicit operator-control metadata:
+When each side holds only its own keys, as an external proof should, each
+operator runs its own commands (v1.0.2). Only signed, public artifacts cross
+between them: the attestation and the acceptor's treaty.
+
+```bash
+# Operator: issue a member attestation and send the file to the recognizing side.
+genesis-mesh attestation issue --na https://issuer.example.org \
+  --subject-id member-1 --role role:service:maintainer \
+  --claim proof=external-operator-adoption \
+  --output ./member-1.attestation.json --config ./issuer.toml
+
+# Recognizing side: save its treaty for the operator's sovereign from
+# GET /recognition-treaties, then ask its own NA. Expect "accepted": true.
+genesis-mesh attestation verify-with-treaty --na https://acceptor.example.org \
+  --attestation ./member-1.attestation.json --treaty ./acceptor-treaty.json
+
+# Operator: revoke the attestation.
+genesis-mesh attestation revoke <attestation-id> \
+  --na https://issuer.example.org --reason proof-complete --config ./issuer.toml
+
+# Recognizing side: import the operator's signed feed, then verify again.
+# Expect "accepted": false and exit code 1.
+genesis-mesh treaty import-feed --na https://acceptor.example.org \
+  --from https://issuer.example.org --expected-issuer <issuer-sovereign-id> \
+  --config ./acceptor.toml
+genesis-mesh attestation verify-with-treaty --na https://acceptor.example.org \
+  --attestation ./member-1.attestation.json --treaty ./acceptor-treaty.json
+```
+
+Keep each command's JSON output as the evidence for Step 5.
+
+`proof remote` runs the same sequence from one machine and writes a redacted
+proof bundle, but it signs both sides' admin requests there, so it needs both
+operator keys in one place. Use it for rehearsals between sovereigns you
+operate yourself; with an external operator, prefer the commands above. With
+explicit operator-control metadata it looks like this:
 
 ```bash
 genesis-mesh proof remote \
@@ -238,7 +273,12 @@ The proof should show:
 
 ## Step 5: Evidence Review
 
-Inspect the proof bundle:
+With the separated commands, the first `verify-with-treaty` answer shows
+`"accepted": true` with `"trust_basis": "this_authority"`, and the one after
+the feed import shows `"accepted": false` with the reason
+`attestation_locally_revoked`.
+
+With `proof remote`, inspect the proof bundle:
 
 ```bash
 python3 -m json.tool external-operator-proof.json

@@ -63,6 +63,40 @@ human custodian must countersign before the agent may proceed.
 
 ## CLI quickstart
 
+### Step 0 — Write the policy and the action
+
+No command creates the policy: it is a JSON file the operator who owns the
+oversight responsibility writes, or builds with `HumanOversightPolicy` in
+Python (see [Python API](#python-api)). Only `agreement_id`,
+`human_sovereign_id` and `allowed_capabilities` are required:
+
+```json
+{
+  "policy_id": "payments-oversight-1",
+  "agreement_id": "agr-123",
+  "human_sovereign_id": "compliance-desk",
+  "allowed_capabilities": ["transactions.send", "config.write"],
+  "counterparty_allowlist": [],
+  "value_threshold": 10000.0,
+  "allowed_hours": [9, 17],
+  "frequency_limit": [3, 3600]
+}
+```
+
+The agent and the custodian must use the same file. What binds the workflow to
+it is its `policy_id`, which the agent's request carries: set one, or leave it
+out and the CLI names the policy by a SHA-256 digest of the file's content
+(`sha256:...`, v1.0.2), so any change to the file makes it another policy. The
+model has an optional `signature` field, but these commands neither sign the
+policy nor check a signature on it.
+
+The action is any JSON object with a `capability`; the checks read `value`,
+`irreversible` and `novel_counterparty` when present:
+
+```json
+{"capability": "transactions.send", "value": 50000.0, "irreversible": true}
+```
+
 ### Step 1 — Evaluate the policy
 
 ```bash
@@ -102,6 +136,7 @@ genesis-mesh trust oversight propose \
 ```
 
 Produces a signed `HumanApprovalRequest`. The agent's signature attests the proposal.
+The request expires after `--approval-window` seconds (default 300).
 
 ### Step 3 — Human approves
 
@@ -116,6 +151,12 @@ genesis-mesh trust oversight approve \
 
 Produces a `DualSignedCommitment` carrying a verifiable signature from each
 party, and `is_fully_signed()` is `True`.
+
+The custodian answers the request under the policy it was evaluated against and
+within its window: `approve` refuses a request whose approval window has closed
+("ask the agent for a new request"), and `approve` and `reject` refuse a policy
+file with a different `policy_id` (v1.0.2). Neither command checks the agent's
+signature on the request; `verify` checks both signatures on the commitment.
 
 The two parties sign different bytes, which is what makes the commitment
 **self-verifiable** — it can be checked on its own, without also shipping the
@@ -222,6 +263,7 @@ response, commitment = approve_commitment(
     request, policy, human_sk, issued_by="human-key",
     note="reviewed and approved",
 )
+# ValueError if the window closed or the policy is not the request's
 assert commitment.is_fully_signed()
 
 result = verify_dual_signed_commitment(

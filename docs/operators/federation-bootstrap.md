@@ -55,6 +55,10 @@ genesis-mesh federation bootstrap \
   --validity-hours 24
 ```
 
+`--claim` adds an informational label to the signed treaty; it does not
+restrict which attestations are accepted. Scope comes from `--role` and
+`--accepted-status`.
+
 For automation, add `--yes`:
 
 ```bash

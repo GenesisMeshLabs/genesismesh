@@ -19,8 +19,10 @@ import logging
 import os
 import socket
 import subprocess
+import re
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import nacl.signing
@@ -42,6 +44,8 @@ from ..trust.mediation import (
 logger = logging.getLogger(__name__)
 
 _RECV_SIZE = 65536
+# Decision files are looked up by decision ID; nothing else becomes a path.
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class GenesisGuardDaemon:
@@ -64,6 +68,7 @@ class GenesisGuardDaemon:
         command_allowlist: list[str] | None = None,
         host: str = "127.0.0.1",
         port: int = 0,
+        decision_dir: str | Path | None = None,
     ) -> None:
         # Refuse to start without an enforceable allowlist.  An absent allowlist
         # used to mean "allow anything"; it now means the guard does not run.
@@ -81,6 +86,9 @@ class GenesisGuardDaemon:
         self.guard_sovereign_id = guard_sovereign_id
         self.signing_key = signing_key
         self.decision_store = decision_store
+        # Signed decisions issued after start-up can be dropped here as JSON
+        # files; each is still verified against the operator keys (v1.0.2).
+        self.decision_dir = Path(decision_dir) if decision_dir else None
         self.agent_public_keys = agent_public_keys
         self.operator_public_keys = operator_public_keys or {}
         self.token_issuer_public_keys = token_issuer_public_keys or {}
@@ -144,13 +152,32 @@ class GenesisGuardDaemon:
                 except OSError:
                     pass
 
+    def _load_decision(self, decision_id: str) -> BoundaryDecision | None:
+        """Find a decision in ``decision_dir``: ``<decision_id>.json`` or any JSON file holding it."""
+        if self.decision_dir is None or not _SAFE_ID.match(decision_id):
+            return None
+        candidates = [self.decision_dir / f"{decision_id}.json"]
+        try:
+            candidates += sorted(self.decision_dir.glob("*.json"))[:1000]
+        except OSError:
+            return None
+        for path in candidates:
+            try:
+                decision = BoundaryDecision.model_validate_json(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if decision.decision_id == decision_id:
+                self.decision_store[decision_id] = decision
+                return decision
+        return None
+
     def handle_request(
         self,
         request: ExecutionMediationRequest,
     ) -> MediatedExecutionReceipt | MediationRejection:
         """Validate and execute, or reject."""
         now = datetime.now(timezone.utc)
-        decision = self.decision_store.get(request.decision_id)
+        decision = self.decision_store.get(request.decision_id) or self._load_decision(request.decision_id)
         agent_keys = self.agent_public_keys.get(request.agent_sovereign_id, [])
         # Keyed by the operator the decision claims to be from, so the signature
         # is checked against that operator's key rather than any known key.

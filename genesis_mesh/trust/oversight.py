@@ -234,6 +234,15 @@ def propose_commitment(
     return request, evaluation
 
 
+def _require_same_policy(request: HumanApprovalRequest, policy: HumanOversightPolicy) -> None:
+    """The custodian answers under the policy the agent's request was evaluated against."""
+    if request.policy_id != policy.policy_id:
+        raise ValueError(
+            f"request was evaluated under policy {request.policy_id}, not "
+            f"{policy.policy_id}: answer it with the policy the agent used"
+        )
+
+
 def approve_commitment(
     request: HumanApprovalRequest,
     policy: HumanOversightPolicy,
@@ -252,7 +261,8 @@ def approve_commitment(
 
     Raises ValueError if the request carries no commitment_core_signature —
     a request issued before the self-verifiable format, which cannot produce a
-    verifiable commitment.
+    verifiable commitment — if it was evaluated under another policy, or if its
+    approval window has closed (v1.0.2).
     """
     ts = now or datetime.now(timezone.utc)
 
@@ -261,6 +271,12 @@ def approve_commitment(
             "request carries no commitment_core_signature: it predates the "
             "self-verifiable commitment format and cannot produce a commitment "
             "that verifies on its own.  Reissue the request."
+        )
+    _require_same_policy(request, policy)
+    if ts > request.expires_at:
+        raise ValueError(
+            f"the approval window closed at {request.expires_at.isoformat()}: "
+            "ask the agent for a new request"
         )
 
     response = HumanApprovalResponse(
@@ -299,8 +315,12 @@ def reject_commitment(
     note: str | None = None,
     now: datetime | None = None,
 ) -> HumanApprovalResponse:
-    """Human custodian rejects the request."""
+    """Human custodian rejects the request.
+
+    Raises ValueError if the request was evaluated under another policy (v1.0.2).
+    """
     ts = now or datetime.now(timezone.utc)
+    _require_same_policy(request, policy)
     response = HumanApprovalResponse(
         request_id=request.request_id,
         human_sovereign_id=policy.human_sovereign_id,

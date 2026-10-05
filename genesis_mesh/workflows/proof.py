@@ -47,6 +47,7 @@ def run_remote_proof(
     acceptor_id = acceptor_genesis["network_name"]
     issuer_id = issuer_genesis["network_name"]
     issuer_public_key = issuer_genesis["network_authority"]["public_key"]
+    acceptor_public_key = acceptor_genesis["network_authority"]["public_key"]
 
     attestation_body = {
         "subject_id": subject_id,
@@ -60,7 +61,10 @@ def run_remote_proof(
         session, "POST", f"{issuer}/admin/attestations",
         expected_status=201, label="issuer attestation issue",
         json=attestation_body,
-        headers=_signed_admin_headers(issuer_key_id, issuer_key_path, attestation_body),
+        headers=_signed_admin_headers(
+            issuer_key_id, issuer_key_path, attestation_body,
+            method="POST", base_url=issuer, path="/admin/attestations", audience=issuer_public_key,
+        ),
     )
 
     treaty_body = {
@@ -79,7 +83,11 @@ def run_remote_proof(
         session, "POST", f"{acceptor}/admin/recognition-treaties",
         expected_status=201, label="acceptor treaty issue",
         json=treaty_body,
-        headers=_signed_admin_headers(acceptor_key_id, acceptor_key_path, treaty_body),
+        headers=_signed_admin_headers(
+            acceptor_key_id, acceptor_key_path, treaty_body,
+            method="POST", base_url=acceptor, path="/admin/recognition-treaties",
+            audience=acceptor_public_key,
+        ),
     )
 
     pre_revocation = _request_json(
@@ -96,7 +104,12 @@ def run_remote_proof(
         f"{issuer}/admin/attestations/{attestation['attestation_id']}/revoke",
         label="issuer attestation revoke",
         json=revoke_body,
-        headers=_signed_admin_headers(issuer_key_id, issuer_key_path, revoke_body),
+        headers=_signed_admin_headers(
+            issuer_key_id, issuer_key_path, revoke_body,
+            method="POST", base_url=issuer,
+            path=f"/admin/attestations/{attestation['attestation_id']}/revoke",
+            audience=issuer_public_key,
+        ),
     )
 
     feed = _request_json(
@@ -104,16 +117,21 @@ def run_remote_proof(
         f"{issuer}/sovereign-revocation-feed?issuer_sovereign_id={issuer_id}",
         label="issuer revocation feed",
     )
+    # The acceptor verifies the feed against the keys its treaty pinned for
+    # the issuer (v1.0.2), not against a key fetched live from the issuer.
     import_body = {
         "feed": feed,
-        "issuer_public_keys": [issuer_public_key],
         "expected_issuer_sovereign_id": issuer_id,
     }
     imported = _request_json(
         session, "POST", f"{acceptor}/admin/sovereign-revocation-feeds/import",
         label="acceptor feed import",
         json=import_body,
-        headers=_signed_admin_headers(acceptor_key_id, acceptor_key_path, import_body),
+        headers=_signed_admin_headers(
+            acceptor_key_id, acceptor_key_path, import_body,
+            method="POST", base_url=acceptor, path="/admin/sovereign-revocation-feeds/import",
+            audience=acceptor_public_key,
+        ),
     )
     if not imported.get("accepted"):
         raise ValueError(f"Revocation feed import was rejected: {imported}")

@@ -81,7 +81,8 @@ def create_health_blueprint(service) -> Blueprint:
 
         The per-node roster carries public keys, roles and the address each node
         connected from — a live map of the network to any caller. Unauthenticated
-        callers get the count only; operators get the detail.
+        callers get the count only; operators get the detail, and a read-tier
+        key is enough (v1.0.2).
         """
         active_nodes = _recent_active_nodes(service)
 
@@ -91,7 +92,7 @@ def create_health_blueprint(service) -> Blueprint:
         if not request.headers.get("X-Admin-Key-Id"):
             return jsonify({"count": len(active_nodes)})
 
-        ok, error = service._verify_admin_request({})
+        ok, error = service._verify_admin_request({}, required_tier="read")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 

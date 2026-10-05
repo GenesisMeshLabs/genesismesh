@@ -45,7 +45,7 @@ configuration. Container deployments pass them to the WSGI app with
 base64 public key.
 
 Each key must also be assigned a tier via `OPERATOR_KEY_TIERS_JSON`, a JSON
-object from operator key ID to `standard` or `privileged`. There is no default:
+object from operator key ID to `read`, `standard` or `privileged`. There is no default:
 the Network Authority refuses to start if any configured key has no tier.
 
 ## Azure Scripts

@@ -44,7 +44,7 @@ what the service actually exposes.
 
 | Class | Meaning |
 |---|---|
-| **Public** | Answers any caller. Discloses no membership inventory. |
+| **Public** | Answers any caller. Membership is not enumerated: the node, agent and attestation lists give counts only; treaties and revocation feeds, which are trust material between sovereigns, are listed in full. |
 | **Internal** | Not gated in code; must be restricted by deployment (management interface or firewall). |
 | **Operator** | Requires operator signature headers. |
 | **Node** | Requires node proof-of-possession. |
@@ -53,23 +53,31 @@ what the service actually exposes.
 |---|---|---|---|
 | `GET /healthz`, `/readyz`, `/health` | Public | — | Liveness and readiness only. |
 | `GET /metrics` | **Internal** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. |
-| `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. |
+| `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. A `read` key is enough. |
 | `GET /agents?capability=` | Public | — | Peer discovery protocol. Returns matching descriptors. |
 | `GET /agents` (unfiltered) | Public (count) | — | Does not enumerate the registry. |
 | `GET /genesis`, `/policy`, `/crl`, `/sovereign.json` | Public | — | Signed trust material, public by design. |
-| `POST /*/verify` (nine endpoints) | Public | **60/min per IP** | Stateless signature checking. Public by protocol design; see below. |
-| `POST /join`, `/heartbeat`, `/renew`, `/agents` | Node | varies | Node-signed. |
-| `POST /admin/*` | Operator | 30/min per IP | Operator-signed. |
+| `GET /attestations` | Public (count) / **Operator** (list) | — | The list names each subject with its public key, roles and claims. A `read` key is enough. |
+| `GET /attestations/<id>` | Public | — | One attestation by its ID, which only its holder and the parties it was shown to know. |
+| `GET /recognition-treaties`, `/recognition-treaties/<id>`, `/recognition-policy`, `/sovereign-revocation-feed` | Public | — | Signed cross-sovereign trust material. |
+| `GET /recognition-graph`, `/connectome`, `/connectome.json`, `/connectome/trust-path`, `/atlas`, `/atlas.json` | Public | — | Views derived from the recognition graph. |
+| `GET /`, `/dashboard`, `/dashboard.json`, `/surfaces`, `/api-reference`, `/cli-reference`, `/swagger.json` | Public | — | Read-only console pages and their JSON. |
+| `POST /*/verify` (ten endpoints) and `POST /disclosure/prove` | Public | **60/min per IP** | Stateless signature checking and proof building over caller-supplied material. Public by protocol design; see below. |
+| `POST /evidence/execution` | Executor | 120/min per IP | Signed by a registered executor key; see the [Trust API reference](../api/trust-http.md). |
+| `POST /join`, `/heartbeat`, `/renew`, `/agents`; `DELETE /agents/<key>` | Node | varies | Node-signed. |
+| `GET` and `POST /admin/*` | Operator | 30/min per IP | Operator-signed. |
 
 ### Why the verification endpoints are public
 
-The nine `*/verify` endpoints — `/consensus/verify`, `/agreements/verify`,
+The ten `*/verify` endpoints — `/consensus/verify`, `/agreements/verify`,
 `/disclosure/verify`, `/trust-evidence/verify`, `/boundary/verify`,
-`/data-usage/verify`, `/attestations/verify`, `/recognition-treaties/verify` and
-`/attestations/verify-with-treaty` — let any party check a signature on material
-they already hold. That is deliberately open: verification is a protocol
+`/boundary-policies/verify`, `/data-usage/verify`, `/attestations/verify`,
+`/recognition-treaties/verify` and `/attestations/verify-with-treaty` — let any
+party check a signature on material they already hold, and
+`/disclosure/prove` builds a membership proof from caller-supplied inputs. That is deliberately open: verification is a protocol
 service, it is stateless, and it discloses no inventory. Because they are open,
-each is rate limited to **60 requests per minute per source address** so they
+each is rate limited to **60 requests per minute per source address** (the
+verify limit, `NA_RATE_LIMIT_VERIFY_PER_MINUTE`) so they
 cannot be used as a free oracle or a traffic amplifier.
 
 ## Error Responses
@@ -108,15 +116,9 @@ Common statuses:
 
 ## Browser Console
 
-### `GET /`
+### `GET /` and `GET /dashboard`
 
-Returns a human-readable Network Authority home page with links to public,
-health, node, and operator routes. It is intended for operators opening the NA
-from a browser and does not replace signed API clients for write operations.
-
-### `GET /dashboard`
-
-Returns the read-only sovereign health and trust dashboard. The page summarizes
+Both return the read-only sovereign health and trust dashboard. The page summarizes
 readiness, Connectome counts, treaty lifecycle risk, revocation-feed freshness,
 recent trust-state changes, and links to raw JSON/reference surfaces.
 
@@ -125,6 +127,42 @@ recent trust-state changes, and links to raw JSON/reference surfaces.
 Returns the same dashboard model in machine-readable form for automation and
 independent verification. This endpoint does not create, mutate, authorize, or
 revoke trust.
+
+### `GET /surfaces`
+
+Returns the surface map: the representative HTTP routes and CLI workflows,
+grouped into safe browser links, node and agent runtime, operator commands and
+managed operations, with links to the full references below. It documents
+signed operations; it does not run them.
+
+### `GET /api-reference` and `GET /swagger.json`
+
+`/api-reference` is a searchable HTML table of every HTTP route: method, path,
+purpose, access class and rate limit. `/swagger.json` is the same catalog as
+OpenAPI 3.0.3 metadata for automation, with `x-genesis-mesh-access`,
+`x-genesis-mesh-auth-hint` and `x-genesis-mesh-rate-limit` on each operation.
+Both are generated from `genesis_mesh/na_service/operator_console/surfaces.py`;
+a test keeps that catalog equal to the routes the service registers. Neither
+page can send a request.
+
+### `GET /cli-reference`
+
+Returns a searchable HTML reference of the `genesis-mesh` commands, generated
+from the installed CLI.
+
+### `GET /atlas` and `GET /atlas.json`
+
+`/atlas` renders the Trust Atlas, the recognition graph as a page. `/atlas.json`
+returns its summary: `sovereigns`, `recognition_edges`, `active_treaty_count`,
+`revoked_trust_material_count` and `graph_digest`, the digest that
+`genesis-mesh atlas` commands and trust evidence records name. To work with a
+graph offline, save `GET /recognition-graph` to a file.
+
+### Static assets
+
+`GET /favicon.svg`, `GET /favicon.ico` and
+`GET /operator-console-static/{styles.css,console.js,logo.svg}` serve the
+console's icon, stylesheet, script and logo.
 
 ## Health
 
@@ -149,7 +187,7 @@ Authority active-node window.
 The per-node roster — public keys, roles, heartbeat status, **the address each
 node connected from**, and certificate expiry — is **operator-authenticated**.
 Send the standard admin headers (`X-Admin-Key-Id`, `X-Admin-Timestamp`,
-`X-Admin-Nonce`, `X-Admin-Signature`, signed over an empty body) to receive it:
+`X-Admin-Nonce`, `X-Admin-Signature`; `GET /nodes` with an empty body) to receive it:
 
 ```json
 { "count": 2, "nodes": { "<cert_id>": { "node_public_key": "...", "roles": ["role:anchor"], "remote_addr": "..." } } }
@@ -266,6 +304,41 @@ Admin endpoints require operator-key authentication headers:
 | `X-Admin-Nonce` | Unique nonce scoped to the operator key. |
 | `X-Admin-Signature` | Signature over the canonical admin payload. |
 
+The signature is Ed25519 over the canonical JSON (sorted keys, no whitespace,
+ASCII escapes) of this object (signature version 2, v1.0.2):
+
+```json
+{
+  "v": 2,
+  "method": "POST",
+  "path": "/admin/recognition-treaties/<treaty-id>/revoke",
+  "query": {},
+  "audience": "<network_authority.public_key from this NA's /sovereign.json>",
+  "body": {"reason": "relationship_ended"},
+  "key_id": "<X-Admin-Key-Id>",
+  "timestamp": "<X-Admin-Timestamp>",
+  "nonce": "<X-Admin-Nonce>"
+}
+```
+
+- `method` is the HTTP method in upper case; `path` is the request path the
+  Network Authority serves, without the query string.
+- `query` lists every query parameter as `{"name": ["value", ...]}`, values in
+  the order sent; `{}` when there are none.
+- `audience` is the public key of the Network Authority the request is for,
+  as in its genesis block and `/sovereign.json`
+  (`network_authority.public_key`). Unlike the network name, which operators
+  choose and two Network Authorities can share, it identifies exactly one
+  Network Authority.
+- `body` is the JSON request body, `{}` for requests without one.
+
+Version 1 (before v1.0.2) signed only `body`, `key_id`, `timestamp` and `nonce`.
+Network Authorities accept version 1 only while `NA_ADMIN_LEGACY_SIGNATURES=accept`
+is set, for a client migration window; each accepted version 1 request is logged and recorded as an
+`admin_legacy_signature_accepted` audit event. The reference vectors are in
+`conformance/vectors/admin_auth.json`; `genesis_mesh.crypto.admin_auth`
+implements the format in Python.
+
 ### `POST /admin/invite`
 
 Creates a single-use invite token.
@@ -311,10 +384,12 @@ during an incident.
 
 | Tier | May do |
 |---|---|
-| `standard` | Day-to-day work: invitations, reads, and routine operations. |
+| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list), and nothing else (v1.0.2). For dashboards and other readers. |
+| `standard` | Everything a read key may do, **plus** day-to-day work: invitations, admin reads, and routine operations. |
 | `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
 
-Privileged satisfies a standard requirement; the reverse is not true.
+Each tier satisfies the requirements of the tiers below it; the reverse is not
+true.
 
 **Privileged routes** — `POST /admin/revoke`,
 `POST /admin/operator-keys/{key_id}/revoke`, `POST /admin/policy`,
@@ -324,7 +399,8 @@ Privileged satisfies a standard requirement; the reverse is not true.
 `POST /admin/recognition-policy`,
 `POST /admin/sovereign-revocation-feeds/import`.
 
-Every other admin route requires `standard`.
+Every other admin route requires `standard`, so a `read` key gets `403` on
+all of them.
 
 A key that authenticates but lacks the tier receives **`403
 insufficient_operator_tier`** — deliberately distinct from the `401` an unknown
@@ -332,7 +408,7 @@ or revoked key receives, so that "who are you?" and "you may not do that" stay
 separable in an incident log. Denials are audited as `admin_authz_denied` with
 the holder and required tiers.
 
-Configure tiers with `--operator-key-tier key-id=standard|privileged` or the
+Configure tiers with `--operator-key-tier key-id=read|standard|privileged` or the
 `OPERATOR_KEY_TIERS_JSON` environment variable, alongside the existing key
 configuration.
 
@@ -504,6 +580,64 @@ publishes revoked membership-attestation IDs. An accepting sovereign verifies
 the feed under a recognized issuer key, imports it, and rejects matching
 attestations during treaty-backed verification.
 
+A Network Authority signs artifacts only in its own name (v1.0.2):
+`POST /admin/attestations` names this sovereign as the issuer (a different
+`issuer_sovereign_id` is refused with `400 attestation_issuer_mismatch`), and
+`GET /sovereign-revocation-feed` publishes only this sovereign's feed
+(`?issuer_sovereign_id=` naming another sovereign is refused with
+`400 feed_issuer_mismatch`).
+
+### `GET /attestations` and `GET /attestations/<attestation_id>`
+
+List the membership attestations this Network Authority issued, or return one.
+
+The list names every attested subject with its public key, roles and claims,
+so, like the node roster, it goes to operators (v1.0.2); a `read` key is
+enough. Sign the request with the operator headers and it returns
+`{"count": N, "attestations": [...]}`, with the optional filters
+`issuer_sovereign_id`, `subject_id` and `status` (`active`, `suspended` or
+`revoked`). Each item, like the single-attestation
+response, is `{"attestation": {...}, "status": ..., "revoked_at": ...,
+"revocation_reason": ...}`.
+
+An unsigned request gets `{"count": N}`, optionally counted by `status`; a
+subject or issuer filter without a signature is refused with
+`401 admin_auth_failed`, because the count would tell whether a subject is a
+member. A public view of the members, such as the gateway's mesh view at
+mesh.genesismesh.org, reads the list with a `read` key and decides itself
+what to show.
+
+`GET /attestations/<attestation_id>` is public: it answers only for an ID its
+caller already holds. An unknown ID returns `404 attestation_not_found`.
+
+### `GET /recognition-treaties` and `GET /recognition-treaties/<treaty_id>`
+
+List the recognition treaties this Network Authority stores, or return one.
+The list takes the optional filters `issuer_sovereign_id`,
+`subject_sovereign_id` and `status` and returns
+`{"count": N, "recognition_treaties": [...]}`; each item is
+`{"treaty": {...}, "status": ..., "revoked_at": ..., "revocation_reason": ...,
+"lifecycle": {...}}`, `lifecycle` giving the treaty's state, expiry risk and any
+replacement treaty.
+The `status` filter takes `active`, `suspended` or `revoked`. An unknown ID
+returns `404 treaty_not_found`.
+
+### `GET /recognition-policy`
+
+Returns the active local `RecognitionPolicy`, the acceptance rules for
+portable trust that `POST /admin/recognition-policy` sets, or
+`404 recognition_policy_not_configured` when none is set.
+
+### Treaty verification: `POST /recognition-treaties/verify` and `POST /attestations/verify-with-treaty`
+
+Both routes report which keys their answer rests on in `trust_basis`:
+
+| `trust_basis` | When | Meaning |
+|---|---|---|
+| `this_authority` | the treaty names this Network Authority as its issuer | Verified against this NA's own key, and the treaty must be the one this NA stores: a copy it does not hold, or a changed copy, is refused with reason `not_held` (`treaty_not_held` with an attestation). Supplying any key other than this NA's own is refused with `422 caller_keys_not_accepted`. |
+| `recognized_issuer_keys` | another sovereign's treaty, no keys supplied | Verified against the keys this NA pinned for that sovereign in its own treaties that are active, unrevoked and within their validity window; without such a treaty the reason is `issuer_not_recognized` (`treaty_issuer_not_recognized` with an attestation). |
+| `caller_supplied_keys` | another sovereign's treaty, `issuer_public_keys` (or `treaty_issuer_public_keys`) supplied | Verified against the keys the caller pinned. The answer says only that the treaty is valid under those keys; it is not this NA's recognition. |
+
 ### `GET /sovereign-revocation-feed`
 
 Returns the current signed `SovereignRevocationFeed` for the local sovereign.
@@ -557,21 +691,26 @@ Request:
       }
     ]
   },
-  "issuer_public_keys": {
-    "<issuer-key-id>": "<base64-ed25519-public-key>"
-  }
+  "issuer_public_keys": ["<base64-ed25519-public-key>"]
 }
 ```
 
-If `issuer_public_keys` is omitted, the Network Authority attempts to verify
-the feed using subject public keys from active recognition treaties for the
-feed issuer.
+A feed from a sovereign this Network Authority recognises verifies only
+against the keys its own treaties pinned for that sovereign (active,
+unrevoked, within their validity window); `issuer_public_keys` that are not
+among them are refused with `422 caller_keys_not_accepted` (v1.0.2). For a
+sovereign it has no treaty with, the feed verifies against the
+`issuer_public_keys` the operator supplies; without them the import is
+refused with `400 missing_issuer_public_keys`. The response and the
+`sovereign_revocation_feed_imported` audit event record the basis
+(`trust_basis`: `recognized_issuer_keys` or `caller_supplied_keys`).
 
 Responses:
 
 - `200` when the feed is verified and imported
-- `400` for malformed feeds or invalid signatures
+- `400` for malformed feeds, invalid signatures or missing keys
 - `409` for stale feed sequences
+- `422 caller_keys_not_accepted` for keys that differ from the pinned ones
 
 ## Connectome Operator View (v0.12+)
 

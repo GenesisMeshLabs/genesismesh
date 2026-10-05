@@ -22,6 +22,7 @@ from ...trust.data_usage import (
     verify_data_access_intent,
 )
 from ..errors import (
+    utc_timestamp,
     BadRequestError,
     NotFoundError,
     RateLimitError,
@@ -79,8 +80,8 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
                 code="missing_policy_fields",
             )
         try:
-            valid_from = datetime.fromisoformat(data["valid_from"]).replace(tzinfo=timezone.utc)
-            valid_until = datetime.fromisoformat(data["valid_until"]).replace(tzinfo=timezone.utc)
+            valid_from = utc_timestamp(data["valid_from"])
+            valid_until = utc_timestamp(data["valid_until"])
         except (KeyError, ValueError) as exc:
             raise BadRequestError(
                 "valid_from and valid_until are required ISO timestamps",

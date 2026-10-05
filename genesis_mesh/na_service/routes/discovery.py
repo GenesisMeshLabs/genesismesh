@@ -153,7 +153,9 @@ def create_discovery_blueprint(service) -> Blueprint:
             }
         )
 
-    @bp.route("/agents/<path:node_public_key>", methods=["GET"], strict_slashes=False)
+    # A base64 node key can contain "//": merging slashes would answer with a
+    # 308 redirect to another key, so that agent could never be read or removed.
+    @bp.route("/agents/<path:node_public_key>", methods=["GET"], strict_slashes=False, merge_slashes=False)
     def get_agent(node_public_key: str):
         """Return one registration."""
         descriptor = service.db.get_agent_registration(node_public_key)
@@ -161,7 +163,7 @@ def create_discovery_blueprint(service) -> Blueprint:
             raise NotFoundError("agent not registered", code="agent_not_registered")
         return jsonify(descriptor.model_dump(mode="json"))
 
-    @bp.route("/agents/<path:node_public_key>", methods=["DELETE"], strict_slashes=False)
+    @bp.route("/agents/<path:node_public_key>", methods=["DELETE"], strict_slashes=False, merge_slashes=False)
     def delete_agent(node_public_key: str):
         """Voluntary deregistration. Requires a signed envelope."""
         body = request_json_object(required=True)

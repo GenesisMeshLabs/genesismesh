@@ -85,7 +85,10 @@ genesis-mesh trust guard start \
     --guard-sovereign guard-1 \
     --signing-key keys/guard.key \
     --port 8700 \
+    --agent-key 'agent-b=keys/agent.pub.b64' \
+    --operator-key 'operator-a=keys/operator.pub.b64' \
     --token-issuer-key 'operator-a=keys/operator.pub.b64' \
+    --decision decision.json \
     --command-allowlist 'python --version' \
     --command-allowlist 'python /opt/report.py ...'
 ```
