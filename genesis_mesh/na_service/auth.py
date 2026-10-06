@@ -10,7 +10,7 @@ from flask import request
 
 from ..crypto import verify_signature
 from ..crypto.admin_auth import admin_signing_payload
-from .errors import ForbiddenError
+from .errors import ForbiddenError, utc_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,9 @@ def verify_node_request_signature(
         return False, "Missing authentication fields: signature, timestamp, and nonce required"
 
     try:
-        request_time = datetime.fromisoformat(timestamp_str)
+        # A value without a UTC offset is taken as UTC, as everywhere else in
+        # the NA; comparing it with an aware "now" raised TypeError (a 500).
+        request_time = utc_timestamp(timestamp_str)
     except (ValueError, TypeError):
         _audit_auth_failure(
             service,
@@ -220,6 +222,12 @@ def verify_node_request_signature(
     return True, None
 
 
+# Longest accepted value of each X-Admin-* header. Real values are far
+# shorter (a key ID, a UUID nonce, an ISO 8601 timestamp, a base64 Ed25519
+# signature); the cap bounds what a failed attempt writes to the audit log.
+MAX_ADMIN_HEADER_LENGTH = 256
+
+
 def verify_admin_request(
     service, data: dict, required_tier: OperatorTier = "standard"
 ) -> tuple[bool, str | None]:
@@ -233,6 +241,20 @@ def verify_admin_request(
     signature_b64 = request.headers.get("X-Admin-Signature")
     timestamp_str = request.headers.get("X-Admin-Timestamp")
     nonce = request.headers.get("X-Admin-Nonce")
+
+    if any(
+        value is not None and len(value) > MAX_ADMIN_HEADER_LENGTH
+        for value in (key_id, signature_b64, timestamp_str, nonce)
+    ):
+        _audit_auth_failure(
+            service,
+            "admin_auth_failed",
+            {
+                "key_id": (key_id or "missing")[:MAX_ADMIN_HEADER_LENGTH],
+                "reason": "oversized_headers",
+            },
+        )
+        return False, "Invalid admin authentication headers"
 
     if not key_id or not signature_b64 or not timestamp_str or not nonce:
         _audit_auth_failure(
@@ -263,7 +285,9 @@ def verify_admin_request(
         return False, "Unknown admin key"
 
     try:
-        request_time = datetime.fromisoformat(timestamp_str)
+        # A value without a UTC offset is taken as UTC, as everywhere else in
+        # the NA; comparing it with an aware "now" raised TypeError (a 500).
+        request_time = utc_timestamp(timestamp_str)
     except (ValueError, TypeError):
         _audit_auth_failure(
             service,

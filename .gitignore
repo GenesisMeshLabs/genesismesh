@@ -82,3 +82,6 @@ ops/drafts/*
 # Local generated sovereign homes and configs
 examples/genesis/usg-local/*
 examples/genesis/genesis-mesh-usg-local.toml
+
+# Dependencies come from requirements*.txt and the image locks; uv runs use --no-project.
+uv.lock

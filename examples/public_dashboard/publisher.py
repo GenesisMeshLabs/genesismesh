@@ -3,14 +3,30 @@
 import argparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-import re
+
+SLUG_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+
+
+def published_name(name: str) -> bool:
+    """Whether ``name`` is a file this server publishes: ``canary.json`` or
+    ``gm-demo-<slug>.json`` (lower-case letters, digits and hyphens).
+
+    Plain string checks rather than a pattern, so a long request path costs
+    linear time at most.
+    """
+    if name == "canary.json":
+        return True
+    if len(name) > 128 or not name.startswith("gm-demo-") or not name.endswith(".json"):
+        return False
+    slug = name[len("gm-demo-"):-len(".json")]
+    return bool(slug) and set(slug) <= SLUG_CHARACTERS
 
 
 def serve(directory: Path, port: int = 18444) -> None:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             name = self.path.lstrip("/")
-            if not re.fullmatch(r"(?:gm-demo-[a-z0-9-]+|canary)\.json", name):
+            if not published_name(name):
                 self.send_error(404)
                 return
             path = directory / name

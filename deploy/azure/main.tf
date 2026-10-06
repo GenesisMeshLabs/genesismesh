@@ -163,7 +163,7 @@ resource "azurerm_linux_virtual_machine" "na" {
   }
 
   custom_data = base64encode(templatefile(
-    "${path.module}/../universal_boot.sh",
+    "${path.module}/../../infrastructure/universal_boot.sh",
     {
       bootstrap_endpoint = var.bootstrap_endpoint
       genesis_uri        = var.genesis_uri

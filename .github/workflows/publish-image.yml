@@ -43,7 +43,7 @@ env:
 jobs:
   image:
     name: Build, gate and test (amd64), push by digest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -128,9 +128,15 @@ jobs:
       # the 1.0 image for the volume handover scenario.
       - name: Choose the gateway revision
         if: steps.existing.outputs.digest == ''
+        # A release tests the gateway it ships with: the gateway's tag for this
+        # version when it exists, main otherwise. A dry run rehearses the next
+        # release and always uses main: before the version bump, the tag for
+        # VERSION is the previous release, built from an older Dockerfile.
+        # Bump the core and the gateway together before a dry run: the
+        # harness checks that the gateway's version label equals VERSION.
         run: |
           ref=main
-          if git ls-remote --exit-code --tags https://github.com/GenesisMeshLabs/gateway.git "refs/tags/v$VERSION" > /dev/null; then ref="v$VERSION"; fi
+          if [ "$PUBLISH" = "true" ] && git ls-remote --exit-code --tags https://github.com/GenesisMeshLabs/gateway.git "refs/tags/v$VERSION" > /dev/null; then ref="v$VERSION"; fi
           echo "GATEWAY_REF=$ref" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -258,7 +264,7 @@ jobs:
     if: >-
       always() && github.event_name == 'release' && needs.image.result == 'success'
       && (needs.arm64.result == 'success' || (needs.arm64.result == 'skipped' && needs.image.outputs.existing != ''))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write   # the digest in the release notes
       packages: write

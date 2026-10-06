@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from html import escape
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 from ...trust import build_connectome_view
 from ...trust.treaty_lifecycle import treaty_lifecycle
 from .rendering import node_counts, page_document
+
+logger = logging.getLogger(__name__)
 
 FRESH_FEED_HOURS = 24
 STALE_FEED_HOURS = 72
@@ -39,14 +42,20 @@ def _human_datetime(value: object) -> str:
 
 
 def _readiness(service) -> dict[str, str]:
-    """Return local readiness without calling the HTTP route."""
+    """Return local readiness without calling the HTTP route.
+
+    The dashboard is public: it names the database backend, never its path,
+    and logs a failed check instead of showing the error (v1.1.0).
+    """
+    backend = "PostgreSQL" if getattr(service.db, "backend", "sqlite") == "postgres" else "SQLite"
     try:
         service.db.conn.execute("SELECT 1").fetchone()
         if not service.genesis_block or not service.signer:
-            return {"status": "not_ready", "db_path": service.db.db_path}
-        return {"status": "ready", "db_path": service.db.db_path}
-    except Exception as exc:
-        return {"status": "not_ready", "db_path": service.db.db_path, "error": str(exc)}
+            return {"status": "not_ready", "backend": backend}
+        return {"status": "ready", "backend": backend}
+    except Exception:
+        logger.exception("Dashboard readiness check failed")
+        return {"status": "not_ready", "backend": backend}
 
 
 def _treaty_items(service) -> list[dict[str, Any]]:
@@ -136,13 +145,26 @@ def _feed_summary(feeds: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# The dashboard is public: it reads only the newest events of the types it
+# shows, so its cost does not grow with the audit table, failed admin
+# attempts included (v1.1.0).
+_DASHBOARD_AUDIT_WINDOW = 5000
+_TRUST_CYCLE_EVENTS = (
+    "trust_cycle_canary_completed",
+    "sovereign_revocation_feed_imported",
+    "treaty_attestation_verified",
+)
+
+
 def _trust_cycle_summary(service) -> dict[str, Any]:
     """Summarize the newest complete accept, import, reject trust cycle."""
     accepted: dict[str, dict[str, Any]] = {}
     imported: dict[str, dict[str, Any]] = {}
     completed: list[dict[str, Any]] = []
 
-    for event in service.db.list_audit_events():
+    for event in service.db.list_audit_events(
+        event_types=_TRUST_CYCLE_EVENTS, limit=_DASHBOARD_AUDIT_WINDOW
+    ):
         event_type = str(event.get("event_type", ""))
         details = event.get("details") or {}
         if event_type == "trust_cycle_canary_completed":
@@ -377,7 +399,9 @@ def _safe_recent_changes(service) -> list[dict[str, Any]]:
     """Return recent trust-relevant audit events with human-readable details."""
     trust_terms = ("recognition", "attestation", "revocation", "policy", "trust_cycle")
     events = [
-        event for event in service.db.list_audit_events()
+        event for event in service.db.list_audit_events(
+            exclude_event_types=("admin_auth_failed",), limit=_DASHBOARD_AUDIT_WINDOW
+        )
         if any(term in str(event.get("event_type", "")) for term in trust_terms)
         and str(event.get("event_type", "")) not in _NON_CHANGE_EVENTS
     ]
@@ -673,7 +697,7 @@ def render_dashboard(service) -> str:
                 <div class="signal-card">
                     <strong>Health</strong>
                     {_status_badge(model['readiness']['status'])}
-                    <span class="muted">Database: {escape(model['readiness']['db_path'])}</span>
+                    <span class="muted">Database: {escape(model['readiness']['backend'])}</span>
                 </div>
                 <div class="signal-card">
                     <strong>Revocation feeds</strong>
