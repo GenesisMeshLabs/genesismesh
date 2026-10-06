@@ -121,6 +121,31 @@ def test_dashboard_json_summarizes_empty_state(client):
     assert payload["links"]["connectome_json"] == "/connectome.json"
 
 
+def test_dashboard_shows_no_database_path_or_error_text(client, na_service, monkeypatch):
+    """The public dashboard names the backend only, even when a check fails (v1.1.0).
+
+    It showed the database path, and a failed check's exception text.
+    """
+    db_path = str(na_service.db.db_path)
+    payload = client.get("/dashboard.json").get_json()
+    assert payload["readiness"] == {"status": "ready", "backend": "SQLite"}
+
+    class FailingConnection:
+        def execute(self, *args, **kwargs):
+            raise RuntimeError("connection to host db.internal failed for user na")
+
+    monkeypatch.setattr(na_service.db, "conn", FailingConnection())
+    from genesis_mesh.na_service.operator_console.dashboard import _readiness
+
+    readiness = _readiness(na_service)
+
+    assert readiness == {"status": "not_ready", "backend": "SQLite"}
+    monkeypatch.undo()
+    page = client.get("/").get_data(as_text=True)
+    assert db_path not in page
+    assert "Database: SQLite" in page
+
+
 def test_dashboard_reports_newest_feed_per_issuer(client, na_service):
     """Historical feed sequences should not count as separate current feeds."""
     now = datetime.now(timezone.utc)

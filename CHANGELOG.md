@@ -92,6 +92,9 @@ Signed container images for the Network Authority and the gateway.
 - The CLI creates private key files readable by their owner only from the
   first byte; they were readable by other local users until the `chmod` that
   followed the write.
+- The public dashboard (`/`, `/dashboard`, `/dashboard.json`) names the
+  database backend instead of its path, and logs a failed readiness check
+  instead of showing its error text.
 
 ## v1.0.2 - Fixes from External Testing
 
