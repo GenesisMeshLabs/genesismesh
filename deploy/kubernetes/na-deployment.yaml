@@ -21,10 +21,13 @@ spec:
         app.kubernetes.io/name: genesis-mesh
         app.kubernetes.io/component: network-authority
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: na
           # The signed release image. Pin the digest you verified with cosign:

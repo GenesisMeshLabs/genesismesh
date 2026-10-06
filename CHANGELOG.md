@@ -55,6 +55,15 @@ Signed container images for the Network Authority and the gateway.
   (`deploy/compose`, was `docs/examples/compose` and `infrastructure/ha`) and
   the Azure scripts and Terraform module (`deploy/azure`, was
   `infrastructure/azure`).
+- The demo Compose file (`deploy/compose/docker-compose.na.yml`) publishes
+  the Network Authority on `127.0.0.1` only and sets `NA_PROXY_HOPS=0`: with
+  no proxy in front, clients could choose the address the rate limits see.
+- The Kubernetes example sets `seccompProfile: RuntimeDefault` and mounts no
+  service account token, so the Network Authority is admitted under the
+  `restricted` Pod Security Standard.
+- `uv.lock` is removed: it was stale (it still named version 0.22.0) and
+  nothing used it but `uv run`, which synced old pins from it. The documented
+  `uv run` commands use `--no-project`.
 
 ### Fixed
 
@@ -66,6 +75,26 @@ Signed container images for the Network Authority and the gateway.
   several commands (a test run, a program that invokes the CLI) signed for
   the earlier Network Authority after another one took over its address, and
   was refused with `401 Invalid admin signature`.
+- An admin or node request whose timestamp has no UTC offset is read as UTC,
+  as everywhere else; it caused a `500`.
+- The Azure Terraform module (`deploy/azure`) failed to plan since the move to
+  `deploy/`: it still loaded the boot script from its old location.
+
+### Security
+
+- **Every admin-authenticated request counts against the admin rate limit**
+  (30 a minute per address). `GET /admin/policy/history`,
+  `POST /admin/policy/rollback` and the operator views of `GET /nodes` and
+  `GET /attestations` did not, so failed attempts could fill the audit log
+  without limit and slow the public dashboard. `X-Admin-*` headers longer than
+  256 characters are refused before they are audited, and the dashboard reads
+  only the newest audit events of the kinds it shows.
+- The CLI creates private key files readable by their owner only from the
+  first byte; they were readable by other local users until the `chmod` that
+  followed the write.
+- The public dashboard (`/`, `/dashboard`, `/dashboard.json`) names the
+  database backend instead of its path, and logs a failed readiness check
+  instead of showing its error text.
 
 ## v1.0.2 - Fixes from External Testing
 

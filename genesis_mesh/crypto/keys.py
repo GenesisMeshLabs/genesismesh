@@ -42,6 +42,24 @@ def generate_keypair() -> KeyPair:
     return KeyPair(private_key=private_key, public_key=public_key)
 
 
+def _open_private_key_for_writing(path: Path):
+    """Open the private key file for writing, owner-only before the first byte.
+
+    Writing first and restricting afterwards left the key readable by other
+    local users in between (v1.1.0). On POSIX the file is created with mode
+    0600, and an existing file is restricted before it is rewritten. A
+    filesystem that ignores modes is reported by the check in save_keypair.
+    """
+    if os.name != "posix":
+        return open(path, "w")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    except OSError:
+        pass
+    return os.fdopen(fd, "w")
+
+
 def save_keypair(keypair: KeyPair, base_path: str, key_id: Optional[str] = None) -> tuple[Path, Path]:
     """
     Save key pair to files.
@@ -61,7 +79,7 @@ def save_keypair(keypair: KeyPair, base_path: str, key_id: Optional[str] = None)
     public_path = base.with_suffix('.pub')
 
     # Save private key
-    with open(private_path, 'w') as f:
+    with _open_private_key_for_writing(private_path) as f:
         f.write(f"# Ed25519 Private Key\n")
         if key_id:
             f.write(f"# Key ID: {key_id}\n")

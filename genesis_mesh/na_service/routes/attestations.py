@@ -220,6 +220,11 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
                     code="admin_auth_failed",
                 )
             return jsonify({"count": len(service.db.list_membership_attestations(status=status))})
+        # The operator view is an admin request: same limit as /admin/* (v1.1.0).
+        if not service.rate_limiter.allow(
+            f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
+        ):
+            raise RateLimitError()
         ok, error = service._verify_admin_request({}, required_tier="read")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")

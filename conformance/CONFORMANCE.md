@@ -1,6 +1,8 @@
 # Protocol Conformance
 
-This directory contains the reference conformance suite for Genesis Mesh v0.51.0.
+This directory contains the reference conformance suite for Genesis Mesh. It
+started with v0.51.0; the `version` in each file is the release that last
+changed that suite's vectors (for example `admin_auth.json`: 1.0.2).
 
 An alternative implementation (TypeScript, Go, C#, etc.) that correctly
 processes every vector in `vectors/` against its own cryptography and model
