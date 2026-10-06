@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from html import escape
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 from ...trust import build_connectome_view
 from ...trust.treaty_lifecycle import treaty_lifecycle
 from .rendering import node_counts, page_document
+
+logger = logging.getLogger(__name__)
 
 FRESH_FEED_HOURS = 24
 STALE_FEED_HOURS = 72
@@ -39,14 +42,20 @@ def _human_datetime(value: object) -> str:
 
 
 def _readiness(service) -> dict[str, str]:
-    """Return local readiness without calling the HTTP route."""
+    """Return local readiness without calling the HTTP route.
+
+    The dashboard is public: it names the database backend, never its path,
+    and logs a failed check instead of showing the error (v1.1.0).
+    """
+    backend = "PostgreSQL" if getattr(service.db, "backend", "sqlite") == "postgres" else "SQLite"
     try:
         service.db.conn.execute("SELECT 1").fetchone()
         if not service.genesis_block or not service.signer:
-            return {"status": "not_ready", "db_path": service.db.db_path}
-        return {"status": "ready", "db_path": service.db.db_path}
-    except Exception as exc:
-        return {"status": "not_ready", "db_path": service.db.db_path, "error": str(exc)}
+            return {"status": "not_ready", "backend": backend}
+        return {"status": "ready", "backend": backend}
+    except Exception:
+        logger.exception("Dashboard readiness check failed")
+        return {"status": "not_ready", "backend": backend}
 
 
 def _treaty_items(service) -> list[dict[str, Any]]:
@@ -688,7 +697,7 @@ def render_dashboard(service) -> str:
                 <div class="signal-card">
                     <strong>Health</strong>
                     {_status_badge(model['readiness']['status'])}
-                    <span class="muted">Database: {escape(model['readiness']['db_path'])}</span>
+                    <span class="muted">Database: {escape(model['readiness']['backend'])}</span>
                 </div>
                 <div class="signal-card">
                     <strong>Revocation feeds</strong>

@@ -18,6 +18,9 @@ on:
       - ".github/workflows/formal-verification.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   tamarin:
     name: Tamarin proofs

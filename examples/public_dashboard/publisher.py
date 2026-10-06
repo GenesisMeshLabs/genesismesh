@@ -10,7 +10,7 @@ def serve(directory: Path, port: int = 18444) -> None:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             name = self.path.lstrip("/")
-            if not re.fullmatch(r"(?:gm-demo-[a-z0-9-]+|canary)\.json", name):
+            if len(name) > 128 or not re.fullmatch(r"(?:gm-demo-[a-z0-9-]+|canary)\.json", name):
                 self.send_error(404)
                 return
             path = directory / name
