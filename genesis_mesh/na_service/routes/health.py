@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, jsonify, request
 
-from ..errors import ServiceUnavailableError, UnauthorizedError
+from ..errors import RateLimitError, ServiceUnavailableError, UnauthorizedError
 
 
 def _recent_active_nodes(service) -> dict:
@@ -92,6 +92,11 @@ def create_health_blueprint(service) -> Blueprint:
         if not request.headers.get("X-Admin-Key-Id"):
             return jsonify({"count": len(active_nodes)})
 
+        # The operator view is an admin request: same limit as /admin/* (v1.1.0).
+        if not service.rate_limiter.allow(
+            f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
+        ):
+            raise RateLimitError()
         ok, error = service._verify_admin_request({}, required_tier="read")
         if not ok:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")

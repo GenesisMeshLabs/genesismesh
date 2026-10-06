@@ -136,13 +136,26 @@ def _feed_summary(feeds: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# The dashboard is public: it reads only the newest events of the types it
+# shows, so its cost does not grow with the audit table, failed admin
+# attempts included (v1.1.0).
+_DASHBOARD_AUDIT_WINDOW = 5000
+_TRUST_CYCLE_EVENTS = (
+    "trust_cycle_canary_completed",
+    "sovereign_revocation_feed_imported",
+    "treaty_attestation_verified",
+)
+
+
 def _trust_cycle_summary(service) -> dict[str, Any]:
     """Summarize the newest complete accept, import, reject trust cycle."""
     accepted: dict[str, dict[str, Any]] = {}
     imported: dict[str, dict[str, Any]] = {}
     completed: list[dict[str, Any]] = []
 
-    for event in service.db.list_audit_events():
+    for event in service.db.list_audit_events(
+        event_types=_TRUST_CYCLE_EVENTS, limit=_DASHBOARD_AUDIT_WINDOW
+    ):
         event_type = str(event.get("event_type", ""))
         details = event.get("details") or {}
         if event_type == "trust_cycle_canary_completed":
@@ -377,7 +390,9 @@ def _safe_recent_changes(service) -> list[dict[str, Any]]:
     """Return recent trust-relevant audit events with human-readable details."""
     trust_terms = ("recognition", "attestation", "revocation", "policy", "trust_cycle")
     events = [
-        event for event in service.db.list_audit_events()
+        event for event in service.db.list_audit_events(
+            exclude_event_types=("admin_auth_failed",), limit=_DASHBOARD_AUDIT_WINDOW
+        )
         if any(term in str(event.get("event_type", "")) for term in trust_terms)
         and str(event.get("event_type", "")) not in _NON_CHANGE_EVENTS
     ]

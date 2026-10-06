@@ -6,7 +6,7 @@ import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Sequence
 
 
 class AuditStoreMixin:
@@ -45,9 +45,50 @@ class AuditStoreMixin:
                 (event_id, json.dumps(payload, sort_keys=True), payload["created_at"]),
             )
         return event_id
-    def list_audit_events(self) -> list[dict]:
-        """Return persisted Network Authority audit events in insertion order."""
-        rows = self.conn.execute(
-            "SELECT event_json FROM audit_events ORDER BY created_at ASC"
-        ).fetchall()
+    def list_audit_events(
+        self,
+        *,
+        event_types: Sequence[str] = (),
+        exclude_event_types: Sequence[str] = (),
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Return persisted Network Authority audit events in insertion order.
+
+        ``event_types`` keeps only those types and ``exclude_event_types``
+        leaves those out, both in SQL; ``limit`` keeps the newest ``limit``
+        events. The public dashboard uses them so that its cost does not grow
+        with the whole table (v1.1.0).
+        """
+        clauses: list[str] = []
+        params: list[Any] = []
+        if event_types:
+            matches = [_event_type_match(t) for t in event_types]
+            clauses.append("(" + " OR ".join(sql for sql, _ in matches) + ")")
+            params.extend(value for _, values in matches for value in values)
+        for event_type in exclude_event_types:
+            sql, values = _event_type_match(event_type)
+            clauses.append(f"NOT {sql}")
+            params.extend(values)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        if limit is None:
+            rows = self.conn.execute(
+                f"SELECT event_json FROM audit_events{where} ORDER BY created_at ASC", params
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                f"SELECT event_json FROM audit_events{where} ORDER BY created_at DESC LIMIT ?",
+                [*params, int(limit)],
+            ).fetchall()[::-1]
         return [json.loads(row["event_json"]) for row in rows]
+
+
+def _event_type_match(event_type: str) -> tuple[str, list[str]]:
+    """SQL matching one event type in ``event_json`` (written with sort_keys).
+
+    Both separator spellings are accepted, so a row copied by another tool
+    still matches; the closing quote makes the match exact.
+    """
+    return (
+        "(event_json LIKE ? OR event_json LIKE ?)",
+        [f'%"event_type": "{event_type}"%', f'%"event_type":"{event_type}"%'],
+    )

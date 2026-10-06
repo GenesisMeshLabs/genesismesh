@@ -182,6 +182,11 @@ def test_save_keypair_warns_when_private_key_cannot_be_restricted(tmp_path, monk
         raise PermissionError("chmod unsupported")
 
     monkeypatch.setattr("pathlib.Path.chmod", chmod_raises)
+    # A filesystem that ignores the mode the key file is created with.
+    monkeypatch.setattr(
+        "genesis_mesh.crypto.keys._open_private_key_for_writing",
+        lambda path: open(path, "w"),
+    )
 
     with caplog.at_level("WARNING", logger="genesis_mesh.crypto.keys"):
         private_path, public_path = save_keypair(keypair, str(tmp_path / "node"), "node-test")
@@ -194,6 +199,27 @@ def test_save_keypair_warns_when_private_key_cannot_be_restricted(tmp_path, monk
     assert str(private_path) in message
     assert "could not be restricted" in message
     assert "chmod failed" in message
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Windows reports synthetic mode bits; chmod is not attempted")
+def test_private_key_is_owner_only_before_it_is_written(tmp_path, monkeypatch):
+    """No window in which other local users can read the key (v1.1.0).
+
+    The key used to be written first and restricted with chmod afterwards.
+    With that chmod disabled, the file must still be owner-only, including a
+    key file that already existed with a looser mode.
+    """
+    monkeypatch.setattr("pathlib.Path.chmod", lambda self, mode: None)
+    existing = tmp_path / "node.key"
+    existing.write_text("old")
+    os.chmod(existing, 0o644)
+    previous_umask = os.umask(0o022)
+    try:
+        private_path, _ = save_keypair(generate_keypair(), str(tmp_path / "node"), "node-test")
+    finally:
+        os.umask(previous_umask)
+
+    assert private_path.stat().st_mode & 0o777 == 0o600
 
 
 def test_save_keypair_silent_when_chmod_succeeds(tmp_path, caplog):

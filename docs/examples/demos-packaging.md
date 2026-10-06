@@ -48,7 +48,7 @@ python -m genesis_mesh.cli dev up
 or from this repository with `uv`:
 
 ```bash
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli dev up
 ```
 
@@ -95,14 +95,14 @@ CONFIG="$TMP/genesis-mesh.toml"
 HOME_DIR="$TMP/home"
 ENDPOINT="http://127.0.0.1:$PORT"
 
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli init \
   --config "$CONFIG" \
   --home "$HOME_DIR" \
   --na-endpoint "$ENDPOINT" \
   --force
 
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli na start \
   --config "$CONFIG" \
   --host 127.0.0.1 \
@@ -113,19 +113,19 @@ uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
 In another terminal after `/healthz` returns `200`:
 
 ```bash
-INVITE=$(uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+INVITE=$(uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli admin invite \
   --config "$CONFIG" \
   --na "$ENDPOINT" \
   --role anchor)
 
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli join \
   --config "$CONFIG" \
   --na "$ENDPOINT" \
   --token "$INVITE"
 
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli status --config "$CONFIG"
 
 curl "$ENDPOINT/nodes"
@@ -246,7 +246,7 @@ It expects the following local files to be mounted into the container:
 Create those files with the CLI init workflow:
 
 ```bash
-uv run --python /usr/bin/python3.12 --with-requirements requirements.txt \
+uv run --no-project --python /usr/bin/python3.12 --with-requirements requirements.txt \
   python -m genesis_mesh.cli init \
   --home .genesis-mesh \
   --na-endpoint http://127.0.0.1:8443 \

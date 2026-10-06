@@ -135,6 +135,10 @@ def create_admin_blueprint(service) -> Blueprint:
     @bp.route("/admin/policy/history", methods=["GET"])
     def policy_history():
         """Return persisted policy versions."""
+        if not service.rate_limiter.allow(
+            f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
+        ):
+            raise RateLimitError()
         auth_ok, auth_err = service._verify_admin_request({})
         if not auth_ok:
             raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
@@ -157,6 +161,10 @@ def create_admin_blueprint(service) -> Blueprint:
         """Activate a previously persisted policy version."""
         try:
             data = request_json_object()
+            if not service.rate_limiter.allow(
+                f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
+            ):
+                raise RateLimitError()
             auth_ok, auth_err = service._verify_admin_request(data, required_tier="privileged")
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
