@@ -127,8 +127,9 @@ def test_dashboard_shows_no_database_path_or_error_text(client, na_service, monk
     It showed the database path, and a failed check's exception text.
     """
     db_path = str(na_service.db.db_path)
+    backend = "PostgreSQL" if na_service.db.backend == "postgres" else "SQLite"
     payload = client.get("/dashboard.json").get_json()
-    assert payload["readiness"] == {"status": "ready", "backend": "SQLite"}
+    assert payload["readiness"] == {"status": "ready", "backend": backend}
 
     class FailingConnection:
         def execute(self, *args, **kwargs):
@@ -139,11 +140,11 @@ def test_dashboard_shows_no_database_path_or_error_text(client, na_service, monk
 
     readiness = _readiness(na_service)
 
-    assert readiness == {"status": "not_ready", "backend": "SQLite"}
+    assert readiness == {"status": "not_ready", "backend": backend}
     monkeypatch.undo()
     page = client.get("/").get_data(as_text=True)
     assert db_path not in page
-    assert "Database: SQLite" in page
+    assert f"Database: {backend}" in page
 
 
 def test_dashboard_reports_newest_feed_per_issuer(client, na_service):
