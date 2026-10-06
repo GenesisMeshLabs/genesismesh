@@ -65,7 +65,7 @@ what the service actually exposes.
 | `POST /*/verify` (ten endpoints) and `POST /disclosure/prove` | Public | **60/min per IP** | Stateless signature checking and proof building over caller-supplied material. Public by protocol design; see below. |
 | `POST /evidence/execution` | Executor | 120/min per IP | Signed by a registered executor key; see the [Trust API reference](../api/trust-http.md). |
 | `POST /join`, `/heartbeat`, `/renew`, `/agents`; `DELETE /agents/<key>` | Node | varies | Node-signed. |
-| `GET` and `POST /admin/*` | Operator | 30/min per IP | Operator-signed. |
+| `GET` and `POST /admin/*` | Operator | 30/min per IP | Operator-signed. The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
 
 ### Why the verification endpoints are public
 
