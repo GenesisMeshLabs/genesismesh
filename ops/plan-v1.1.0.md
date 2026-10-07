@@ -1,5 +1,8 @@
 # Plan v1.1.0 — Signed Container Images
 
+1.1.0 also ships the local governed Network Authority and the new admin
+rate limits of `plan-v1.1.0-local-governed-na.md` (Decisions, 12).
+
 ## Context
 
 Since v1.0.0 a Network Authority is installed with `pip install genesis-mesh`,
@@ -284,7 +287,14 @@ token from a file). The images rely on them and change none of them.
 
 - [x] Maintainer decisions below recorded (2026-10-05)
 - [ ] Version bumped to `1.1.0` across the release train (core, four SDKs, gateway)
-- [ ] CHANGELOG entry, `docs/development/history.md`, phase J
+- [ ] CHANGELOG entry (drop "(unreleased)"), `docs/development/history.md`
+      (final test count), phase J: drafted with the local NA work
+- [ ] `SECURITY.md`: 1.1.x supported, 1.0.x upgrade to 1.1;
+      `docs/sdk/index.md` version table and text at 1.1.0
+- [ ] `"1.1.0"` added to the `upgrade.yml` matrix after the release
+- [ ] SDK README links to the local NA guide (sdk-typescript #19, sdk-go
+      #19, sdk-dotnet #19, sdk-rust #22) merged once the docs are live,
+      before the SDK version bumps
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
       (from 1.0.2 too)
 - [ ] Dry runs green on `main`: core `Publish container image` and gateway
@@ -338,3 +348,7 @@ token from a file). The images rely on them and change none of them.
 ## Open questions
 
 1. **A Docker Hub mirror**, later, of the same signed digests.
+12. **The local governed Network Authority ships in 1.1.0** (Maintainer,
+    2026-10-07): it merged (#55) before `v1.1.0` was tagged; see
+    `plan-v1.1.0-local-governed-na.md`. The dry runs are repeated on the
+    `main` that holds both.

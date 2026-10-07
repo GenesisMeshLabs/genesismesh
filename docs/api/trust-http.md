@@ -18,7 +18,7 @@ that can read and verify, but not change, its two sovereigns.
 
 **Rate limits** — admin routes: 300 requests per 60 seconds per IP by default,
 and 30 failed admin authentications before an address gets
-`429 admin_auth_throttled` (v1.2.0; see {doc}`../reference/configuration`).
+`429 admin_auth_throttled` (v1.1.0; see {doc}`../reference/configuration`).
 Unauthenticated verify/prove routes: 60 requests per 60 seconds per IP.
 `GET /data-usage/policy`: 120 requests per 60 seconds per IP.
 

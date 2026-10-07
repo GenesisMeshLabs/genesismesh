@@ -1,10 +1,10 @@
-"""A governed Network Authority for SDK development, and admin limits (v1.2.0).
+"""A governed Network Authority for SDK development, and admin limits (v1.1.0).
 
 A pilot controller built on the TypeScript SDK showed what an SDK developer
 hits first: ``na start`` could not run a governed NA (no enforcement, one
 operator key, no rate-limit settings), no command created an operator key,
 and the admin limit of 30 a minute per address stopped a governed workload
-within seconds. 1.2.0 adds ``na start --env-file`` (the production app and
+within seconds. 1.1.0 adds ``na start --env-file`` (the production app and
 settings), ``init --env-file`` and ``keygen operator``, raises the admin limit
 to 300 and holds failed admin authentications to the old 30.
 """

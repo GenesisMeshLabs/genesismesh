@@ -1,4 +1,4 @@
-"""Build the Network Authority app from its settings (v1.2.0).
+"""Build the Network Authority app from its settings (v1.1.0).
 
 The WSGI entry point (Gunicorn, the container image) and
 ``genesis-mesh na start --env-file`` both build the app here, so a locally

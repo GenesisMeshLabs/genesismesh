@@ -1,6 +1,6 @@
 # Phase J -- Third Trust Cycle
 
-**Versions**: v0.38.0 – v1.2.0
+**Versions**: v0.38.0 – v1.1.0
 **Question**: How does the trust pipeline defend against adversarial behavior at the voting, execution, reasoning, and data layers — and can those defenses be formally machine-checked?
 
 ## What Changed
@@ -121,7 +121,9 @@ request, treaty and feed checks use the keys a Network Authority pinned, the
 attestation list goes to operators, and every route, CLI command and SDK
 method is smoke-tested against a live Network Authority.
 
-**Local Governed Network Authority** (v1.2.0): `na start --env-file` runs the
+**Signed Container Images and a Local Governed Network Authority** (v1.1.0):
+signed multi-architecture images for the Network Authority and the gateway,
+with an SBOM, provenance and a vulnerability gate. `na start --env-file` runs the
 production app with production settings on a developer's machine, and
 `keygen operator` creates tiered operator keys. The admin limit rises to 300
 a minute while failed admin authentications stay at 30 per address, refused
@@ -192,4 +194,4 @@ interoperability proof (v0.49–v0.56).
 | v1.0.0 | Stable sovereign trust for independent operators: the public contract is binding for 1.x, upgrades rehearsed from every supported 0.x minor, all six components at 1.0.0; independent federation evidence pending from the pilot |
 | v1.0.1 | Gateway console fixes found on mesh.genesismesh.org: logo, a mesh graph that scrolls on phones, the na.genesismesh.org link |
 | v1.0.2 | Fixes from external testing: admin signatures cover the whole request, treaty and feed checks use pinned keys, typed SDK results match the NA, and every API and CLI surface is smoke-tested |
-| v1.2.0 | Local governed NA: `na start --env-file`, `init --env-file`, `keygen operator`; admin limit 300 with failed authentications held to 30; `Retry-After` on 429 |
+| v1.1.0 | Signed container images (NA stable, gateway beta) and a local governed NA: `na start --env-file`, `init --env-file`, `keygen operator`; admin limit 300 with failed authentications held to 30 |

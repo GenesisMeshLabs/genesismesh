@@ -103,7 +103,7 @@ def test_admin_invite_rejects_malformed_signature(na_service, client):
 
 
 def test_admin_invite_rate_limit_returns_429(client):
-    """Unsigned admin requests get 429 after the failed-authentication burst (v1.2.0)."""
+    """Unsigned admin requests get 429 after the failed-authentication burst (v1.1.0)."""
     body = {
         "roles": ["role:client"],
         "max_validity_hours": 168,

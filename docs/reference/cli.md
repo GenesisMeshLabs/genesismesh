@@ -43,7 +43,7 @@ Useful options:
 | `--na-host` | Network Authority bind host to store in config. |
 | `--na-port` | Network Authority bind port to store in config. |
 | `--anchor` | Optional peer bootstrap anchor in `id:endpoint` format. Do not use the NA HTTP endpoint. |
-| `--env-file` | Also write Network Authority settings for `na start --env-file` (v1.2.0): the genesis block, the NA key, the database, `PORT` from `--na-port`, the init operator key (`privileged`), `BOUNDARY_POLICY_ENFORCEMENT=required`, `EVIDENCE_STORE=on` and `NA_PROXY_HOPS=0`. Paths are written relative to the file; no private key material. Refuses an existing file unless `--force` is given. |
+| `--env-file` | Also write Network Authority settings for `na start --env-file` (v1.1.0): the genesis block, the NA key, the database, `PORT` from `--na-port`, the init operator key (`privileged`), `BOUNDARY_POLICY_ENFORCEMENT=required`, `EVIDENCE_STORE=on` and `NA_PROXY_HOPS=0`. Paths are written relative to the file; no private key material. Refuses an existing file unless `--force` is given. |
 | `--force` | Replace an existing config and generated local artifacts. Refuses to delete the directory the command is running from. |
 
 `init` is suitable for local development and demos. Production key generation
@@ -83,7 +83,7 @@ Useful options:
 | `--port` | Override configured bind port. |
 | `--db-path` | Override SQLite database path. |
 | `--evidence-store` | `on` keeps an append-only record of decisions and execution evidence (v0.59). Also read from `evidence_store` in the `[na]` config section; default `off`. |
-| `--env-file` | Run with the production settings in this file instead of the config (v1.2.0). See below. |
+| `--env-file` | Run with the production settings in this file instead of the config (v1.1.0). See below. |
 
 From config, the NA has one operator key (privileged tier) and the default
 settings. With `--env-file`, it is the production app (the one Gunicorn
@@ -110,7 +110,7 @@ and local `.node*/` smoke-test directories.
 
 ### `genesis-mesh keygen operator`
 
-> **v1.2.0** — Local Governed Network Authority
+> **v1.1.0** — Local Governed Network Authority
 
 Generates an operator (admin) key pair and, with `--env-file`, registers its
 public key and tier in a Network Authority settings file

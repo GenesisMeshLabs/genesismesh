@@ -93,7 +93,7 @@ def keygen_node(output, key_id):
 )
 @click.option('--replace', is_flag=True, help='Replace a key ID already registered with another public key')
 def keygen_operator(output, key_id, tier, env_file, replace):
-    """Generate an operator (admin) keypair, optionally registered in an NA settings file (v1.2.0)."""
+    """Generate an operator (admin) keypair, optionally registered in an NA settings file (v1.1.0)."""
     key_id = key_id.strip()
     if not key_id:
         raise click.ClickException("--key-id must not be empty")
