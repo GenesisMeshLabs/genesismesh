@@ -17,7 +17,8 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
-| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
+| 1.1.x | Supported. Rehearsed in CI from the 1.1.0 release on. Read *Upgrading to 1.2* below |
+| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.2* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
 | 0.58.x and earlier | Not supported: upgrade to 0.59.1 first, or start fresh |
 
@@ -46,6 +47,24 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.2
+
+1.2 adds no database migration, so a 1.2 Network Authority can be rolled back
+to 1.1 on the same database. Two rate-limit changes apply on upgrade:
+
+- **The admin limit rises from 30 to 300** requests per minute per client
+  address. A deployment that set `NA_RATE_LIMIT_ADMIN_PER_MINUTE` keeps its
+  value. To keep the old limit, set it to `30`.
+- **Failed admin authentications are limited to 30 per minute** per client
+  address (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`). After that, the
+  address's admin requests get `429 admin_auth_throttled` for the rest of the
+  minute, valid ones included, and the audit log records one
+  `admin_auth_throttled` event instead of one `admin_auth_failed` per request.
+  A client that retries a misconfigured key in a loop now locks its own
+  address out for a minute: fix the key rather than raising the limit.
+
+Every `429` now carries `Retry-After: 60`.
 
 ## Upgrading to 1.1
 

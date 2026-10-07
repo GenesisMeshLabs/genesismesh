@@ -10,12 +10,14 @@ from typing import Any
 
 import click
 import requests
+from flask import Flask
 from werkzeug.serving import run_simple
 
 from .atlas_ops import atlas
 from .db_ops import migrate_db, verify_db
 from .decision_ops import trust
 from .dev_ops import dev
+from .env_file import EnvFileError, read_env_file
 from .federation import federation
 from .fleet_ops import fleet
 from .init_ops import init
@@ -32,10 +34,14 @@ from ..crypto import (
     save_keypair,
 )
 from ..models import JoinCertificate
+from ..na_service.app_factory import build_app
 from ..na_service.auth import load_operator_public_keys
+from ..na_service.key_provider import KeyProviderError
 from ..na_service.server import create_app
+from ..na_service.settings import load_settings
 from ..node.node import MeshNode
 from ..node.runtime import MeshNodeRuntime
+from ..observability import redacted_exception_text
 from .config import (
     config_path_value,
     get_config_value,
@@ -62,6 +68,10 @@ from .support import (
 from .evidence_store_ops import evidence
 
 logger = logging.getLogger(__name__)
+
+#: Bind address and port of ``na start`` when neither options nor settings name one.
+DEFAULT_NA_HOST = "127.0.0.1"
+DEFAULT_NA_PORT = 8443
 
 
 def register_operational_commands(cli: click.Group) -> None:
@@ -100,6 +110,11 @@ na.add_command(verify_db)
 
 @na.command("start")
 @click.option("--config", "config_path", default=None, help="Config path.")
+@click.option(
+    "--env-file", "env_file", default=None, type=click.Path(dir_okay=False, path_type=Path),
+    help="Run with the production settings in this file instead of the config "
+    "(KEY=VALUE lines, the variables the NA container reads).",
+)
 @click.option("--host", default=None, help="Bind host.")
 @click.option("--port", default=None, type=int, help="Bind port.")
 @click.option("--db-path", default=None, help="SQLite database path.")
@@ -108,17 +123,46 @@ na.add_command(verify_db)
     help="Keep an append-only record of decisions and execution evidence (default: off).",
 )
 def na_start(
+    config_path: str | None, env_file: Path | None, host: str | None, port: int | None,
+    db_path: str | None, evidence_store: str | None,
+) -> None:
+    """Start a local Network Authority server from config or a settings file."""
+    if env_file is not None:
+        if config_path or db_path or evidence_store:
+            raise click.UsageError(
+                "--env-file is the whole configuration: set the database path and "
+                "evidence store in the file instead of --config, --db-path or --evidence-store."
+            )
+        app, file_port = _app_from_env_file(env_file)
+        bind_host = host or DEFAULT_NA_HOST
+        bind_port = port or file_port
+    else:
+        app, bind_host, bind_port = _app_from_config(config_path, host, port, db_path, evidence_store)
+    logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
+    logger.warning(
+        "Starting Werkzeug development server. For production deployments use start.sh and Gunicorn."
+    )
+    run_simple(
+        hostname=bind_host,
+        port=bind_port,
+        application=app,
+        use_reloader=False,
+        use_debugger=False,
+    )
+
+
+def _app_from_config(
     config_path: str | None, host: str | None, port: int | None, db_path: str | None,
     evidence_store: str | None,
-) -> None:
-    """Start a local Network Authority server from config."""
+) -> tuple[Flask, str, int]:
+    """The 1.1.0 behavior: one privileged operator key from the CLI config."""
     config = _load_cli_config(config_path, required=True)
     genesis_path = _required_config_path(config, "paths", "genesis")
     na_private_key_path = _required_config_path(config, "paths", "na_private_key")
     operator_public_key_path = _required_config_path(config, "paths", "operator_public_key")
     key_id = get_config_value(config, "na", "key_id", "na-local")
-    bind_host = host or get_config_value(config, "na", "host", "127.0.0.1")
-    bind_port = port or int(get_config_value(config, "na", "port", 8443))
+    bind_host = host or get_config_value(config, "na", "host", DEFAULT_NA_HOST)
+    bind_port = port or int(get_config_value(config, "na", "port", DEFAULT_NA_PORT))
     database_path = db_path or get_config_value(
         config,
         "paths",
@@ -139,17 +183,64 @@ def na_start(
         operator_key_tiers={operator_key_id: "privileged"},
         evidence_store=evidence_store or get_config_value(config, "na", "evidence_store", "off"),
     )
-    logger.info("Starting Network Authority", extra={"endpoint": f"http://{bind_host}:{bind_port}"})
-    logger.warning(
-        "Starting Werkzeug development server. For production deployments use start.sh and Gunicorn."
+    return app, bind_host, bind_port
+
+
+def _app_from_env_file(env_file: Path) -> tuple[Flask, int]:
+    """v1.2.0: the production app and settings, read from a file, and its ``PORT``.
+
+    The settings ``load_settings`` reads come only from the file, so a variable
+    left in the developer's shell cannot change the NA. What other code reads
+    from the environment still comes from there: the ``env`` key provider's
+    seed (a secret stays out of the file), Azure identity variables, and
+    ``GENESIS_LOG_*``.
+    """
+    if not env_file.is_file():
+        raise click.ClickException(f"Settings file not found: {env_file}")
+    try:
+        values = read_env_file(env_file)
+        settings = load_settings(values)
+        file_port = int(values.get("PORT", DEFAULT_NA_PORT))
+    except EnvFileError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except KeyError as exc:
+        raise click.ClickException(f"{env_file}: {exc.args[0]} is required") from exc
+    except ValueError as exc:
+        raise click.ClickException(f"{env_file}: {exc}") from exc
+    try:
+        app = build_app(settings)
+    except (OSError, ValueError, KeyProviderError) as exc:
+        raise click.ClickException(f"{env_file}: {exc}") from exc
+    except Exception as exc:
+        # A database driver error can carry connection details: log it
+        # redacted and keep the message to its type.
+        logger.error("Network Authority failed to start: %s", redacted_exception_text(exc))
+        raise click.ClickException(
+            f"{env_file}: the Network Authority could not start ({type(exc).__name__}); see the log above"
+        ) from exc
+
+    limits = settings.rate_limits
+    tiers = ", ".join(
+        f"{key_id} ({settings.operator_key_tiers.get(key_id, 'no tier')})"
+        for key_id in sorted(settings.operator_public_keys)
     )
-    run_simple(
-        hostname=bind_host,
-        port=bind_port,
-        application=app,
-        use_reloader=False,
-        use_debugger=False,
+    click.echo(f"Settings: {env_file}", err=True)
+    click.echo(f"  Boundary policy enforcement: {settings.boundary_policy_enforcement}", err=True)
+    click.echo(f"  Evidence store: {settings.evidence_store}", err=True)
+    click.echo(f"  Operator keys: {tiers or 'none'}", err=True)
+    click.echo(
+        f"  Rate limits per minute and address: admin {limits.admin}, failed admin "
+        f"authentications {limits.admin_auth_failures}, verify {limits.verify}, "
+        f"evidence {limits.evidence}, read {limits.read}",
+        err=True,
     )
+    if settings.proxy_hops:
+        click.echo(
+            f"  NA_PROXY_HOPS={settings.proxy_hops}: X-Forwarded-For is trusted for rate limits. "
+            "Set NA_PROXY_HOPS=0 when nothing sits in front of this NA.",
+            err=True,
+        )
+    return app, file_port
 
 
 @click.group()

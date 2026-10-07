@@ -65,7 +65,7 @@ what the service actually exposes.
 | `POST /*/verify` (ten endpoints) and `POST /disclosure/prove` | Public | **60/min per IP** | Stateless signature checking and proof building over caller-supplied material. Public by protocol design; see below. |
 | `POST /evidence/execution` | Executor | 120/min per IP | Signed by a registered executor key; see the [Trust API reference](../api/trust-http.md). |
 | `POST /join`, `/heartbeat`, `/renew`, `/agents`; `DELETE /agents/<key>` | Node | varies | Node-signed. |
-| `GET` and `POST /admin/*` | Operator | 30/min per IP | Operator-signed. The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
+| `GET` and `POST /admin/*` | Operator | 300/min per IP by default; 30 failed authentications/min per IP | Operator-signed. Past the failed-authentication limit an address gets `429 admin_auth_throttled` (v1.2.0; see {doc}`configuration`). The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
 
 ### Why the verification endpoints are public
 
@@ -410,7 +410,8 @@ the holder and required tiers.
 
 Configure tiers with `--operator-key-tier key-id=read|standard|privileged` or the
 `OPERATOR_KEY_TIERS_JSON` environment variable, alongside the existing key
-configuration.
+configuration. For a local NA, `genesis-mesh keygen operator --tier ... --env-file`
+writes both (v1.2.0).
 
 ### `POST /admin/operator-keys/{key_id}/revoke`
 

@@ -32,6 +32,15 @@ class RuntimeStoreMixin:
             ).fetchone()
         return int(row[0])
 
+    def rate_limit_hits(self, bucket: str, window_start: int) -> int:
+        """Return a fixed window's total without counting a request (0 if none)."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT hits FROM rate_limit_windows WHERE bucket = ? AND window_start = ?",
+                (bucket, window_start),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
     def prune_rate_limit_windows(self, older_than: int) -> int:
         """Delete windows that started before ``older_than`` (epoch seconds)."""
         with self._lock, self.conn:

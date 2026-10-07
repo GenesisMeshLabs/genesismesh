@@ -16,7 +16,9 @@ that can read and verify, but not change, its two sovereigns.
 **Auth** — admin routes require operator-signed headers (same scheme as
 `/admin/recognition-treaties`). Verification routes are unauthenticated.
 
-**Rate limits** — admin routes: 30 requests per 60 seconds per IP.
+**Rate limits** — admin routes: 300 requests per 60 seconds per IP by default,
+and 30 failed admin authentications before an address gets
+`429 admin_auth_throttled` (v1.2.0; see {doc}`../reference/configuration`).
 Unauthenticated verify/prove routes: 60 requests per 60 seconds per IP.
 `GET /data-usage/policy`: 120 requests per 60 seconds per IP.
 
@@ -209,8 +211,8 @@ Verify a signed `BoundaryDecision`. Unauthenticated.
 
 Signed, versioned declarative policies that configure trusted gate types. See
 {doc}`../examples/declarative-boundary-policy` for the model and semantics.
-All admin routes are rate limited to 30 requests/min per IP; the public verify
-route to 60/min per IP.
+All admin routes are rate limited to 300 requests/min per IP by default; the
+public verify route to 60/min per IP.
 
 ### `POST /admin/boundary-policies/validate`
 
@@ -395,7 +397,7 @@ rejection is stored (without the payload) and audited.
 
 ### Operator routes
 
-All operator-signed; rate limit 30/min per IP.
+All operator-signed; the admin rate limits apply (see *Rate limits* above).
 
 | Route | Purpose |
 |---|---|

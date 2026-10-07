@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from ..rate_limit import RateLimits
+
+#: The default admin limit, shown on every operator-signed surface (v1.2.0:
+#: derived from RateLimits so a new default needs no edit here).
+_ADMIN_RATE = f"{RateLimits().admin}/min per IP"
 
 SurfaceGroup = Literal["safe", "node_agent", "operator", "managed"]
 AccessKind = Literal["browser_safe", "node_signed", "operator_signed", "cli"]
@@ -94,18 +99,18 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("DELETE", "/agents/{node_public_key}", "Remove agent", "Delete an authenticated descriptor.", "node_agent", "node_signed", "Node PoP"),
     Surface("POST", "/admin/invite", "Invite", "Create a scoped enrollment token.", "operator", "operator_signed", "Operator signature", curated=True),
     Surface("POST", "/admin/revoke", "Revoke", "Publish a new signed CRL.", "operator", "operator_signed", "Operator signature (privileged tier)", curated=True),
-    Surface("POST", "/admin/operator-keys/{key_id}/revoke", "Revoke operator key", "Switch an operator key off at runtime without restarting. Terminal; refuses the last usable key.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit="30/min per IP"),
+    Surface("POST", "/admin/operator-keys/{key_id}/revoke", "Revoke operator key", "Switch an operator key off at runtime without restarting. Terminal; refuses the last usable key.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
     Surface("POST", "/admin/policy", "Policy publish", "Activate a signed policy version.", "operator", "operator_signed", "Operator signature (privileged tier)"),
     Surface("GET", "/admin/policy/history", "Policy history", "Inspect persisted policy versions.", "operator", "operator_signed", "Operator signature"),
     Surface("POST", "/admin/policy/rollback", "Policy rollback", "Reactivate a previous policy.", "operator", "operator_signed", "Operator signature (privileged tier)"),
-    Surface("POST", "/admin/boundary-policies/validate", "Validate boundary policy", "Dry-run a boundary policy against the trusted gate registry.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/boundary-policies", "Publish boundary policy", "Sign and store a new inactive boundary policy version.", "operator", "operator_signed", "Operator signature (privileged tier)", curated=True, rate_limit="30/min per IP"),
-    Surface("GET", "/admin/boundary-policies", "Boundary policy versions", "List every stored boundary policy version.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/boundary-policies/active", "Active boundary policies", "Active policy set, its health, and the enforcement mode.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/boundary-policies/{policy_id}/history", "Boundary policy history", "Every stored version of one boundary policy.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/boundary-policies/{policy_id}/activate", "Activate boundary policy", "Re-verify and activate a version; also the rollback path.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/boundary-policies/{policy_id}/deactivate", "Deactivate boundary policy", "Deactivate an active boundary policy version.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/boundary/evaluate", "Policy-aware boundary evaluation", "Evaluate built-in gates and active boundary policies under an agreement or an NA-issued attestation; returns a signed decision and justification proof.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit="30/min per IP"),
+    Surface("POST", "/admin/boundary-policies/validate", "Validate boundary policy", "Dry-run a boundary policy against the trusted gate registry.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/boundary-policies", "Publish boundary policy", "Sign and store a new inactive boundary policy version.", "operator", "operator_signed", "Operator signature (privileged tier)", curated=True, rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/boundary-policies", "Boundary policy versions", "List every stored boundary policy version.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/boundary-policies/active", "Active boundary policies", "Active policy set, its health, and the enforcement mode.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/boundary-policies/{policy_id}/history", "Boundary policy history", "Every stored version of one boundary policy.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/boundary-policies/{policy_id}/activate", "Activate boundary policy", "Re-verify and activate a version; also the rollback path.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/boundary-policies/{policy_id}/deactivate", "Deactivate boundary policy", "Deactivate an active boundary policy version.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/boundary/evaluate", "Policy-aware boundary evaluation", "Evaluate built-in gates and active boundary policies under an agreement or an NA-issued attestation; returns a signed decision and justification proof.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit=_ADMIN_RATE),
     Surface("POST", "/admin/attestations", "Issue attestation", "Issue portable membership evidence.", "operator", "operator_signed", "Operator signature (privileged tier)", curated=True),
     Surface("POST", "/admin/attestations/{attestation_id}/revoke", "Revoke attestation", "Publish sovereign-level attestation revocation.", "operator", "operator_signed", "Operator signature (privileged tier)"),
     Surface("POST", "/admin/recognition-policy", "Set recognition policy", "Set portable trust acceptance policy.", "operator", "operator_signed", "Operator signature (privileged tier)"),
@@ -114,17 +119,17 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("POST", "/admin/sovereign-revocation-feeds/import", "Import revocation feed", "Import revoked trust material from a recognized sovereign.", "operator", "operator_signed", "Operator signature (privileged tier)", curated=True),
     # Trust API operator routes: the NA signs as one party of an agreement,
     # decision, disclosure, vote or data-usage record.
-    Surface("POST", "/admin/agreements/offer", "Agreement offer", "Build and sign a CapabilityOffer as this sovereign.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/agreements/counter", "Agreement counter", "Build and sign a CapabilityCounter narrowing an offer.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/agreements/accept", "Agreement accept", "Accept an offer or counter-offer into a signed AgreementRecord.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/boundary/decide", "Boundary decide", "Evaluate a ContextRecord under an AgreementRecord with the built-in gates and sign a BoundaryDecision. Refused when BOUNDARY_POLICY_ENFORCEMENT=required; /admin/boundary/evaluate also applies boundary policies.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/trust-evidence", "Issue trust evidence", "Sign a TrustEvidence record from a TrustDecision.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/disclosure/commit", "Disclosure commitment", "Sign a Merkle commitment over an agreement's capabilities.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/disclosure/nullifier", "Disclosure nullifier", "Issue a signed one-time nullifier for a membership proof.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/consensus/vote", "Consensus vote", "Cast a ValidatorVote signed by this NA as validator.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/consensus/proof", "Consensus proof", "Assemble K-of-N votes into a ConsensusProof signed by this NA.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/data-usage/policy", "Publish data usage policy", "Sign a DataLicensePolicy and make it the active policy.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/data-usage/intent", "Data access intent", "Create and sign a DataAccessIntent.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
+    Surface("POST", "/admin/agreements/offer", "Agreement offer", "Build and sign a CapabilityOffer as this sovereign.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/agreements/counter", "Agreement counter", "Build and sign a CapabilityCounter narrowing an offer.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/agreements/accept", "Agreement accept", "Accept an offer or counter-offer into a signed AgreementRecord.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/boundary/decide", "Boundary decide", "Evaluate a ContextRecord under an AgreementRecord with the built-in gates and sign a BoundaryDecision. Refused when BOUNDARY_POLICY_ENFORCEMENT=required; /admin/boundary/evaluate also applies boundary policies.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/trust-evidence", "Issue trust evidence", "Sign a TrustEvidence record from a TrustDecision.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/disclosure/commit", "Disclosure commitment", "Sign a Merkle commitment over an agreement's capabilities.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/disclosure/nullifier", "Disclosure nullifier", "Issue a signed one-time nullifier for a membership proof.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/consensus/vote", "Consensus vote", "Cast a ValidatorVote signed by this NA as validator.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/consensus/proof", "Consensus proof", "Assemble K-of-N votes into a ConsensusProof signed by this NA.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/data-usage/policy", "Publish data usage policy", "Sign a DataLicensePolicy and make it the active policy.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/data-usage/intent", "Data access intent", "Create and sign a DataAccessIntent.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
     # Verification surfaces. These are public by protocol design: anyone may ask
     # this Network Authority to check a signature they already hold. They are
     # stateless, disclose no inventory, and are rate limited per source address.
@@ -136,17 +141,17 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("POST", "/trust-evidence/verify", "Verify trust evidence", "Verify a signed TrustEvidence record.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
     Surface("POST", "/disclosure/prove", "Build disclosure proof", "Build a Merkle membership proof from caller-supplied inputs; uses no NA state.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
     Surface("POST", "/evidence/execution", "Submit execution evidence", "Controllers submit signed ExecutionEvidence after acting; the NA validates it, links it to its decision and appends it to the evidence store (v0.59, opt-in).", "operator", "operator_signed", "Registered executor key signature", rate_limit="120/min per IP"),
-    Surface("GET", "/admin/evidence", "Search evidence", "Search stored decisions and execution evidence by vendor, attestation, capability, resource, outcome or time.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/resources/<resource_id>", "Resource history", "Full history of one resource (for example a secret), decision to execution, verified.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/resource-heads/<resource_id>", "Resource head", "The record the next record of a resource must link to, from one indexed lookup.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/vendors/<vendor_id>", "Vendor history", "A vendor's decisions and the evidence under them, verified.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/export", "Export evidence", "gm.evidence.event JSON Lines from a store sequence, for SIEM pipelines.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/verify", "Verify evidence store", "Verify every stored entry, chain and signature.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/status", "Evidence store status", "Store mode, size, last sequence and latest retention checkpoint.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/evidence/executor-keys", "Register executor key", "Register a controller's executor signing key.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit="30/min per IP"),
-    Surface("GET", "/admin/evidence/executor-keys", "Executor keys", "Registered executor keys, retired ones included.", "operator", "operator_signed", "Operator signature", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/evidence/executor-keys/<key_id>/retire", "Retire executor key", "Retire a key: it still verifies old records and signs no new ones.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit="30/min per IP"),
-    Surface("POST", "/admin/evidence/retention/apply", "Apply evidence retention", "Remove a verifiable prefix of old entries behind a signed retention checkpoint.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit="30/min per IP"),
+    Surface("GET", "/admin/evidence", "Search evidence", "Search stored decisions and execution evidence by vendor, attestation, capability, resource, outcome or time.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/resources/<resource_id>", "Resource history", "Full history of one resource (for example a secret), decision to execution, verified.", "operator", "operator_signed", "Operator signature", curated=True, rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/resource-heads/<resource_id>", "Resource head", "The record the next record of a resource must link to, from one indexed lookup.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/vendors/<vendor_id>", "Vendor history", "A vendor's decisions and the evidence under them, verified.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/export", "Export evidence", "gm.evidence.event JSON Lines from a store sequence, for SIEM pipelines.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/verify", "Verify evidence store", "Verify every stored entry, chain and signature.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/status", "Evidence store status", "Store mode, size, last sequence and latest retention checkpoint.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/evidence/executor-keys", "Register executor key", "Register a controller's executor signing key.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit=_ADMIN_RATE),
+    Surface("GET", "/admin/evidence/executor-keys", "Executor keys", "Registered executor keys, retired ones included.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/evidence/executor-keys/<key_id>/retire", "Retire executor key", "Retire a key: it still verifies old records and signs no new ones.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/evidence/retention/apply", "Apply evidence retention", "Remove a verifiable prefix of old entries behind a signed retention checkpoint.", "operator", "operator_signed", "Operator signature (privileged)", rate_limit=_ADMIN_RATE),
     Surface("POST", "/boundary/verify", "Verify boundary decision", "Verify a signed BoundaryDecision.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
     Surface("POST", "/boundary-policies/verify", "Verify boundary policy", "Verify a signed BoundaryPolicy.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),
     Surface("POST", "/data-usage/verify", "Verify data usage", "Verify a signed data-usage record.", "safe", "browser_safe", "None", rate_limit="60/min per IP"),

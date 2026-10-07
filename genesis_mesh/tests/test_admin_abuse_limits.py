@@ -17,6 +17,7 @@ import pytest
 from genesis_mesh.crypto import sign_data
 from genesis_mesh.na_service.auth import MAX_ADMIN_HEADER_LENGTH
 from genesis_mesh.na_service.operator_console.dashboard import build_dashboard_model
+from genesis_mesh.na_service.rate_limit import RateLimits
 
 from .na_server_helpers import join_node, make_client, make_na_service
 
@@ -43,6 +44,9 @@ def _auth_failures(service) -> list[dict]:
 @pytest.mark.parametrize(("method", "path"), ROUTES_LIMITED_SINCE_1_1)
 def test_admin_requests_are_rate_limited(method, path):
     service = make_na_service()
+    # v1.2.0: an admin limit below the failed-authentication limit, so the
+    # route's own admin limit is what refuses the request.
+    service.rate_limits = RateLimits(admin=5)
     client = service.app.test_client()
     body = {} if method == "POST" else None
     limit = service.rate_limits.admin

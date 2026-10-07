@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.0.2:
+As of v1.2.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -218,6 +218,11 @@ As of v1.0.2:
 - Every route, CLI command and SDK method is smoke-tested against a live
   Network Authority, and the Go and .NET SDKs check their typed results
   against one in CI.
+- A developer runs a governed Network Authority locally with the production
+  app and settings (`na start --env-file`), separate privileged and standard
+  operator keys, and admin limits that let signed traffic through while
+  holding failed authentications to 30 a minute per address, with
+  {doc}`../sdk/local-network-authority`.
 
 As of v1.0.0, the following are *not* yet true:
 
@@ -891,6 +896,29 @@ reference, each with a test.
 
 **What became possible:** each admin request is signed for one action on one
 Network Authority, and every SDK returns what the Network Authority answered.
+
+### v1.2.0 — Local Governed Network Authority
+
+A pilot controller built only on the TypeScript SDK, against a Network
+Authority installed from PyPI, ran the whole governed lifecycle: policies,
+attestations, governed actions, executor evidence, history, export,
+reconciliation and least privilege. It also showed what every SDK developer
+hit first. `genesis-mesh na start` could not run a governed Network
+Authority: no policy enforcement, one operator key, no settings. No command
+created an operator key. And the admin rate limit of 30 a minute per address,
+one admin call per governed action, stopped the controller within seconds.
+
+`na start --env-file` now builds the production app through the same
+`build_app` as the WSGI entry point, with the settings in a file;
+`init --env-file` writes that file and `keygen operator` registers keys in it,
+`standard` tier by default. The admin limit rose to 300, and a separate limit
+holds failed admin authentications to the old 30 per address: once reached,
+requests are refused before their signatures are checked and audited once per
+minute, so the flood protection is stronger than before. Every `429` carries
+`Retry-After`.
+
+**What became possible:** a developer on any SDK runs the Network Authority
+their controller will meet in production, with three commands.
 
 ---
 
