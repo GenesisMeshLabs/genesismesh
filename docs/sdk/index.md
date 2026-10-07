@@ -13,6 +13,9 @@ implementation and every official SDK use the same product version. Earlier
 SDK version numbers remain in their changelogs as historical first-release
 markers.
 
+To develop a controller with any SDK, run a governed Network Authority on
+your machine: {doc}`local-network-authority`.
+
 ## Current release train
 
 Version 1.0.2 is the coordinated source version. Registry publication occurs

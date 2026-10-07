@@ -754,6 +754,10 @@
       "level": "stable"
     },
     {
+      "command": "keygen operator",
+      "level": "stable"
+    },
+    {
       "command": "keygen root",
       "level": "stable"
     },
@@ -2984,6 +2988,7 @@
   "error_codes": [
     "accept_rejected",
     "admin_auth_failed",
+    "admin_auth_throttled",
     "agent_not_registered",
     "ambiguous_basis",
     "asset_not_found",

@@ -3,7 +3,8 @@
 `governedAction` composes evaluation, offline verification, a caller-supplied
 callback and signed execution evidence. It does not implement cloud operations.
 The NA needs evidence storage enabled, active policies, a privileged operator
-for setup and a registered executor key.
+for setup and a registered executor key. To run one locally, see
+{doc}`../local-network-authority`.
 
 ```typescript
 import { GenesisMeshClient, ExecutionRecorder, governedAction, seedSigner } from 'genesis-mesh-sdk';

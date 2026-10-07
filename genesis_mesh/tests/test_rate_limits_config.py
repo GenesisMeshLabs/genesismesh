@@ -26,8 +26,9 @@ def _client(**kwargs):
     return client
 
 
-def test_defaults_are_the_previous_hard_coded_limits():
-    assert RateLimits() == RateLimits(admin=30, verify=60, evidence=120, read=120)
+def test_admin_default_is_300_and_failed_authentications_stay_at_30():
+    # v1.2.0: admin rose from 30 to 300; failed admin authentications keep 30.
+    assert RateLimits() == RateLimits(admin=300, verify=60, evidence=120, read=120, admin_auth_failures=30)
     settings = load_settings({"GENESIS_FILE": "g.json"})
     assert settings.rate_limits == RateLimits()
 

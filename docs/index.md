@@ -228,6 +228,7 @@ concepts/rust-gateway
 :caption: SDK Clients
 
 sdk/index
+sdk/local-network-authority
 sdk/typescript/index
 sdk/go/index
 sdk/dotnet/index
