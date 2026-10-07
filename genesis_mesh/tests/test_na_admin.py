@@ -103,7 +103,7 @@ def test_admin_invite_rejects_malformed_signature(na_service, client):
 
 
 def test_admin_invite_rate_limit_returns_429(client):
-    """Admin endpoints return 429 after the configured request burst."""
+    """Unsigned admin requests get 429 after the failed-authentication burst (v1.2.0)."""
     body = {
         "roles": ["role:client"],
         "max_validity_hours": 168,
@@ -116,7 +116,7 @@ def test_admin_invite_rate_limit_returns_429(client):
 
     assert last_resp is not None
     assert last_resp.status_code == 429
-    assert _error_message(last_resp) == "Rate limit exceeded"
+    assert last_resp.get_json()["error"]["code"] == "admin_auth_throttled"
 
 
 def test_replayed_admin_nonce_is_audited_without_request_body(na_service, client):

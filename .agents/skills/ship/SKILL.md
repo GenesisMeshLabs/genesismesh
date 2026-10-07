@@ -173,11 +173,11 @@ Every route blueprint **must** have:
 - `create_*_blueprint(service)` factory with a one-line docstring
 - `_rate_key(prefix: str) -> str` helper: `f"{prefix}:{request.remote_addr or 'unknown'}"`
 - **Admin routes** (`/admin/...`):
-  - `service.rate_limiter.allow(_rate_key("admin"), 30, 60)` before any logic
+  - `service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60)` before any logic
   - `service._verify_admin_request(data)` check
   - `service.db.add_audit_event("event_name", {...})` after every successful signing op
 - **Public verify/prove routes**:
-  - `service.rate_limiter.allow(_rate_key("{route_key}"), 60, 60)` before any logic
+  - `service.rate_limiter.allow(_rate_key("{route_key}"), service.rate_limits.verify, 60)` before any logic
   - `service.db.add_audit_event("event_name", {...})` after every verification
 - **No `str(exc)` in API error responses** — exceptions go to `logger.warning()` only;
   clients receive a descriptive message and stable `code` string

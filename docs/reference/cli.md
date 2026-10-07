@@ -43,6 +43,7 @@ Useful options:
 | `--na-host` | Network Authority bind host to store in config. |
 | `--na-port` | Network Authority bind port to store in config. |
 | `--anchor` | Optional peer bootstrap anchor in `id:endpoint` format. Do not use the NA HTTP endpoint. |
+| `--env-file` | Also write Network Authority settings for `na start --env-file` (v1.2.0): the genesis block, the NA key, the database, `PORT` from `--na-port`, the init operator key (`privileged`), `BOUNDARY_POLICY_ENFORCEMENT=required`, `EVIDENCE_STORE=on` and `NA_PROXY_HOPS=0`. Paths are written relative to the file; no private key material. Refuses an existing file unless `--force` is given. |
 | `--force` | Replace an existing config and generated local artifacts. Refuses to delete the directory the command is running from. |
 
 `init` is suitable for local development and demos. Production key generation
@@ -66,7 +67,8 @@ genesis-mesh init \
 
 ### `genesis-mesh na start`
 
-Starts a local Network Authority from config.
+Starts a local Network Authority from config or, with `--env-file`, from a
+settings file.
 
 ```bash
 genesis-mesh na start
@@ -81,13 +83,56 @@ Useful options:
 | `--port` | Override configured bind port. |
 | `--db-path` | Override SQLite database path. |
 | `--evidence-store` | `on` keeps an append-only record of decisions and execution evidence (v0.59). Also read from `evidence_store` in the `[na]` config section; default `off`. |
+| `--env-file` | Run with the production settings in this file instead of the config (v1.2.0). See below. |
 
-This command uses Flask's local server and is intended for development. Use the
-container entry point and Gunicorn for production-style deployments.
+From config, the NA has one operator key (privileged tier) and the default
+settings. With `--env-file`, it is the production app (the one Gunicorn
+serves) with the settings in the file: boundary policy enforcement, several
+operator keys with their tiers, rate limits and every other variable in
+{doc}`configuration`. The NA's settings come only from the file, not from the
+process environment (see {doc}`configuration` for what is still read from
+it).
+`--config`, `--db-path` and `--evidence-store` are refused with `--env-file`.
+The port is `PORT` from the file (default `8443`), the host `127.0.0.1`;
+`--host` and `--port` override them. The command prints the settings that
+matter for development, without key material:
+
+```bash
+genesis-mesh na start --env-file local/na.env
+```
+
+This command uses Werkzeug's development server. Use the container entry point
+and Gunicorn for production-style deployments.
 
 If `genesis-mesh dev down` was run earlier, recreate local config first with
 `genesis-mesh init`; `dev down` removes `genesis-mesh.toml`, `.genesis-mesh/`,
 and local `.node*/` smoke-test directories.
+
+### `genesis-mesh keygen operator`
+
+> **v1.2.0** — Local Governed Network Authority
+
+Generates an operator (admin) key pair and, with `--env-file`, registers its
+public key and tier in a Network Authority settings file
+(`OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON`), keeping every
+other line. The tier defaults to `standard`: what a controller needs for
+`/admin/boundary/evaluate` and reads, without publishing policies, issuing
+attestations or registering keys. The command refuses existing key files, and
+a key ID already registered with another public key unless `--replace` is
+given. Restart the NA to load a new key.
+
+To rotate a key, remove its two files and run the command again with
+`--replace`, then restart the NA.
+
+```bash
+genesis-mesh keygen operator \
+    --output local/.genesis-mesh/keys/controller \
+    --key-id controller \
+    --tier standard \
+    --env-file local/na.env
+```
+
+Exit code 0 on success; 1 on failure.
 
 ### `genesis-mesh evidence verify-export`
 
