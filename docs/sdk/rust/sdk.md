@@ -7,6 +7,8 @@ a thin client for the Network Authority's HTTP API with Ed25519 operator
 signing. Request and response bodies are `serde_json::Value`, matching the
 wire JSON exactly. The gateway crate described in {doc}`index` is a separate
 component.
+To develop against a governed NA on your machine, see
+{doc}`../local-network-authority`.
 
 ```toml
 [dependencies]

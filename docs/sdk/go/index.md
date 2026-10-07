@@ -5,6 +5,9 @@
 Go client for the Genesis Mesh Network Authority HTTP API.
 Go ≥ 1.22 required. Zero runtime dependencies (stdlib + `github.com/google/uuid`).
 
+To develop against a governed NA on your machine, see
+{doc}`../local-network-authority`.
+
 ---
 
 ## Install

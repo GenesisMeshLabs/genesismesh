@@ -1,6 +1,8 @@
 """Rate limiting helpers for the Network Authority API.
 
-Two stores share one interface, ``allow(key, limit, window_seconds)``:
+Two stores share one interface, ``allow(key, limit, window_seconds)``, plus
+``exceeded(key, limit, window_seconds)``, which reads a bucket without
+counting a request in it (v1.2.0):
 
 * ``RateLimiter`` (in-memory, the SQLite default): a sliding window per
   process. Each gunicorn worker counts on its own.
@@ -16,24 +18,34 @@ from typing import Any, Callable
 
 RATE_LIMIT_STORES = ("memory", "database")
 
+#: Every NA rate limit counts per minute (v1.2.0: named, for ``Retry-After``).
+RATE_LIMIT_WINDOW_SECONDS = 60
+
 
 @dataclass(frozen=True)
 class RateLimits:
     """Requests per minute per client address, by route class (v0.63.1).
 
-    Defaults are the limits every earlier release hard-coded. A deployment
-    whose clients share one address (a corporate proxy or NAT) or that runs
-    busy controllers raises them; see docs/reference/configuration.md.
-    Enrollment limits (``/join``) are anti-abuse controls and stay fixed.
+    A deployment whose clients share one address (a corporate proxy or NAT)
+    or that runs busy controllers raises them; see
+    docs/reference/configuration.md. Enrollment limits (``/join``) are
+    anti-abuse controls and stay fixed.
+
+    v1.2.0: ``admin`` rose from 30 to 300, because every governed action is
+    one admin call. ``admin_auth_failures`` keeps unauthenticated traffic
+    where ``admin`` held it before: once an address has that many failed
+    admin authentications in a minute, its admin requests are refused before
+    their signatures are checked.
     """
 
-    admin: int = 30
+    admin: int = 300
     verify: int = 60
     evidence: int = 120
     read: int = 120
+    admin_auth_failures: int = 30
 
     def __post_init__(self) -> None:
-        for name in ("admin", "verify", "evidence", "read"):
+        for name in ("admin", "verify", "evidence", "read", "admin_auth_failures"):
             if getattr(self, name) < 1:
                 raise ValueError(f"rate limit {name} must be at least 1 per minute")
 
@@ -57,6 +69,21 @@ class RateLimiter:
             return False
         events.append(now)
         return True
+
+    def exceeded(self, key: str, limit: int, window_seconds: float) -> bool:
+        """Return whether the next ``allow`` would be refused, without counting a request."""
+        now = time.time()
+        events = self._events.get(key)
+        if not events:
+            return False
+        while events and now - events[0] > window_seconds:
+            events.popleft()
+        if not events:
+            # Forget an address whose window has passed (v1.2.0: the failure
+            # buckets add a key per address).
+            del self._events[key]
+            return False
+        return len(events) >= limit
 
 
 class DatabaseRateLimiter:
@@ -87,3 +114,9 @@ class DatabaseRateLimiter:
             self._last_prune = now
             self._db.prune_rate_limit_windows(int(now) - self.RETENTION_SECONDS)
         return hits <= limit
+
+    def exceeded(self, key: str, limit: int, window_seconds: float) -> bool:
+        """Return whether the next ``allow`` would be refused, without counting a request."""
+        window = max(1, int(window_seconds))
+        window_start = int(self._clock() // window) * window
+        return self._db.rate_limit_hits(f"{key}|{window}", window_start) >= limit

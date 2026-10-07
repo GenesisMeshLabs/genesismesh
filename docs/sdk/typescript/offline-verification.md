@@ -113,7 +113,7 @@ Python accepts TypeScript-signed evidence.
 
 Alternatively, set `GM_E2E_BASE_URL`, `GM_E2E_OPERATOR_SEED`,
 `GM_E2E_NA_PUBLIC_KEY` and optionally `GM_E2E_OPERATOR_KEY_ID` to use an isolated
-NA prepared for these tests. It must allow privileged setup and sufficient
-requests. Tests create attestations, policies and evidence and update the active
+NA prepared for these tests ({doc}`../local-network-authority` sets one up).
+It must allow privileged setup and sufficient requests. Tests create attestations, policies and evidence and update the active
 recognition policy, so use a disposable instance. The ordinary unit-test command
 skips live tests unless one of the E2E environment variables enables them.

@@ -10,7 +10,8 @@ from flask import request
 
 from ..crypto import verify_signature
 from ..crypto.admin_auth import admin_signing_payload
-from .errors import ForbiddenError, utc_timestamp
+from .errors import ForbiddenError, RateLimitError, utc_timestamp
+from .rate_limit import RATE_LIMIT_WINDOW_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +229,57 @@ def verify_node_request_signature(
 MAX_ADMIN_HEADER_LENGTH = 256
 
 
+def _client_address() -> str:
+    return request.remote_addr or "unknown"
+
+
+def _admin_auth_failure(service, event_type: str, details: dict) -> None:
+    """Audit a failed admin authentication or authorisation and count it.
+
+    v1.2.0: the count is what ``RateLimits.admin_auth_failures`` limits, per
+    client address, so raising the admin limit for signed traffic does not
+    give unauthenticated traffic more room.
+    """
+    _audit_auth_failure(service, event_type, details)
+    service.rate_limiter.allow(
+        f"admin_auth_failed:{_client_address()}",
+        service.rate_limits.admin_auth_failures,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def _refuse_if_admin_auth_throttled(service) -> None:
+    """Refuse an address that reached its failed admin authentication limit (v1.2.0).
+
+    Runs before any header is read or signature checked, and writes one
+    ``admin_auth_throttled`` audit event per address and window instead of one
+    per request, so a flood of bad requests can neither cost signature checks
+    nor fill the audit log.
+    """
+    address = _client_address()
+    if not service.rate_limiter.exceeded(
+        f"admin_auth_failed:{address}",
+        service.rate_limits.admin_auth_failures,
+        RATE_LIMIT_WINDOW_SECONDS,
+    ):
+        return
+    # Read first: while an address stays throttled, a refused request costs a
+    # read, not a write, after the one that records the throttling.
+    marker = f"admin_auth_throttled:{address}"
+    if not service.rate_limiter.exceeded(
+        marker, 1, RATE_LIMIT_WINDOW_SECONDS
+    ) and service.rate_limiter.allow(marker, 1, RATE_LIMIT_WINDOW_SECONDS):
+        _audit_auth_failure(
+            service,
+            "admin_auth_throttled",
+            {"reason": "too_many_failed_admin_requests"},
+        )
+    raise RateLimitError(
+        "Too many failed admin requests from this address.",
+        code="admin_auth_throttled",
+    )
+
+
 def verify_admin_request(
     service, data: dict, required_tier: OperatorTier = "standard"
 ) -> tuple[bool, str | None]:
@@ -235,8 +287,11 @@ def verify_admin_request(
 
     Returns (False, message) for authentication failures, which callers turn
     into 401. Raises ForbiddenError (403) when the key authenticates but its
-    tier does not permit the operation.
+    tier does not permit the operation, and RateLimitError (429) when the
+    client address has reached ``RateLimits.admin_auth_failures`` (v1.2.0).
     """
+    _refuse_if_admin_auth_throttled(service)
+
     key_id = request.headers.get("X-Admin-Key-Id")
     signature_b64 = request.headers.get("X-Admin-Signature")
     timestamp_str = request.headers.get("X-Admin-Timestamp")
@@ -246,7 +301,7 @@ def verify_admin_request(
         value is not None and len(value) > MAX_ADMIN_HEADER_LENGTH
         for value in (key_id, signature_b64, timestamp_str, nonce)
     ):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {
@@ -257,7 +312,7 @@ def verify_admin_request(
         return False, "Invalid admin authentication headers"
 
     if not key_id or not signature_b64 or not timestamp_str or not nonce:
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id or "missing", "reason": "missing_headers"},
@@ -274,7 +329,7 @@ def verify_admin_request(
     # audit event carries the real reason.
     public_key = service.operator_public_keys.get(key_id)
     if not public_key or service.db.is_operator_key_revoked(key_id):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {
@@ -289,7 +344,7 @@ def verify_admin_request(
         # the NA; comparing it with an aware "now" raised TypeError (a 500).
         request_time = utc_timestamp(timestamp_str)
     except (ValueError, TypeError):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "reason": "invalid_timestamp"},
@@ -299,7 +354,7 @@ def verify_admin_request(
     now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "reason": "stale_timestamp"},
@@ -308,7 +363,7 @@ def verify_admin_request(
 
     scope = f"admin:{key_id}"
     if service.db.has_nonce(scope, nonce):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
@@ -330,7 +385,7 @@ def verify_admin_request(
         nonce=nonce,
     )
     if not verify_signature(signed, signature_b64, public_key):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "reason": "invalid_signature"},
@@ -338,7 +393,7 @@ def verify_admin_request(
         return False, "Invalid admin signature"
 
     if not service.db.claim_nonce(scope, nonce, now):
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
@@ -353,7 +408,7 @@ def verify_admin_request(
     # incident.
     holder_tier = service.operator_key_tiers.get(key_id)
     if _TIER_RANK.get(holder_tier or "", -1) < _TIER_RANK[required_tier]:
-        _audit_auth_failure(
+        _admin_auth_failure(
             service,
             "admin_authz_denied",
             {

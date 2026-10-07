@@ -11,6 +11,7 @@ import click
 from ..crypto import generate_keypair, save_keypair, load_private_key, sign_model
 from ..models import GenesisBlock, NetworkAuthority, BootstrapAnchor, PolicyManifestRef
 from ..observability import configure_logging
+from .env_file import EnvFileError, register_operator_key, registered_operator_keys
 from .ops import register_operational_commands
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,68 @@ def keygen_node(output, key_id):
     click.echo(f"  Private key: {private_path}")
     click.echo(f"  Public key:  {public_path}")
     click.echo(f"\nPublic key (base64): {keypair.public_key_b64}")
+
+
+@keygen.command('operator')
+@click.option('--output', required=True, help='Output path (without extension)')
+@click.option('--key-id', required=True, help='Operator key identifier, as the NA knows it')
+@click.option(
+    '--tier', type=click.Choice(["read", "standard", "privileged"]), default="standard", show_default=True,
+    help='Operator tier: read (views), standard (evaluate, reads), privileged (policies, attestations, keys)',
+)
+@click.option(
+    '--env-file', 'env_file', type=click.Path(dir_okay=False, path_type=Path), default=None,
+    help='Register the key and its tier in this NA settings file (see na start --env-file)',
+)
+@click.option('--replace', is_flag=True, help='Replace a key ID already registered with another public key')
+def keygen_operator(output, key_id, tier, env_file, replace):
+    """Generate an operator (admin) keypair, optionally registered in an NA settings file (v1.2.0)."""
+    key_id = key_id.strip()
+    if not key_id:
+        raise click.ClickException("--key-id must not be empty")
+    base = Path(output)
+    key_files = (base.with_suffix('.key'), base.with_suffix('.pub'))
+    for path in key_files:
+        if path.exists():
+            raise click.ClickException(f"{path} already exists; choose another --output or remove it first")
+    if env_file is not None:
+        if not env_file.is_file():
+            raise click.ClickException(f"Settings file not found: {env_file} (init --env-file creates one)")
+        # Check before writing anything, so a refusal leaves no key files.
+        try:
+            registered = registered_operator_keys(env_file)
+        except EnvFileError as exc:
+            raise click.ClickException(str(exc)) from exc
+        if key_id in registered and not replace:
+            raise click.ClickException(
+                f"{env_file}: operator key {key_id!r} is already registered with another public key; "
+                "use --replace to replace it"
+            )
+
+    click.echo("Generating operator keypair...")
+    keypair = generate_keypair()
+    private_path, public_path = save_keypair(keypair, output, key_id)
+    if env_file is not None:
+        # Register only once the key files exist; undo them if that fails, so
+        # the file never names a key nobody holds.
+        try:
+            register_operator_key(env_file, key_id, keypair.public_key_b64, tier, replace=replace)
+        except Exception as exc:
+            for path in key_files:
+                path.unlink(missing_ok=True)
+            raise click.ClickException(f"{env_file}: {exc}") from exc
+
+    click.echo(f"\nOK Operator key {key_id} ({tier} tier) generated:")
+    click.echo(f"  Private key: {private_path} (signs admin requests; keep it out of version control)")
+    click.echo(f"  Public key:  {public_path}")
+    click.echo(f"\nPublic key (base64): {keypair.public_key_b64}")
+    if env_file is not None:
+        click.echo(f"Registered in {env_file}; restart the Network Authority to load it.")
+    else:
+        click.echo(
+            "\nRegister it with the NA in OPERATOR_PUBLIC_KEYS_JSON and OPERATOR_KEY_TIERS_JSON, "
+            "or rerun with --env-file."
+        )
 
 
 @cli.group()

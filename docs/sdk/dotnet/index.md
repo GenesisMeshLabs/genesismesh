@@ -5,6 +5,9 @@
 C# client for the Genesis Mesh Network Authority HTTP API.
 .NET 8 (`net8.0`) required. One runtime dependency: `NSec.Cryptography 25.4.0` (Ed25519).
 
+To develop against a governed NA on your machine, see
+{doc}`../local-network-authority`.
+
 ---
 
 ## Install
