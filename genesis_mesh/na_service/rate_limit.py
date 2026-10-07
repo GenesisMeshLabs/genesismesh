@@ -2,7 +2,7 @@
 
 Two stores share one interface, ``allow(key, limit, window_seconds)``, plus
 ``exceeded(key, limit, window_seconds)``, which reads a bucket without
-counting a request in it (v1.2.0):
+counting a request in it (v1.1.0):
 
 * ``RateLimiter`` (in-memory, the SQLite default): a sliding window per
   process. Each gunicorn worker counts on its own.
@@ -18,7 +18,7 @@ from typing import Any, Callable
 
 RATE_LIMIT_STORES = ("memory", "database")
 
-#: Every NA rate limit counts per minute (v1.2.0: named, for ``Retry-After``).
+#: Every NA rate limit counts per minute (v1.1.0: named, for ``Retry-After``).
 RATE_LIMIT_WINDOW_SECONDS = 60
 
 
@@ -31,7 +31,7 @@ class RateLimits:
     docs/reference/configuration.md. Enrollment limits (``/join``) are
     anti-abuse controls and stay fixed.
 
-    v1.2.0: ``admin`` rose from 30 to 300, because every governed action is
+    v1.1.0: ``admin`` rose from 30 to 300, because every governed action is
     one admin call. ``admin_auth_failures`` keeps unauthenticated traffic
     where ``admin`` held it before: once an address has that many failed
     admin authentications in a minute, its admin requests are refused before
@@ -79,7 +79,7 @@ class RateLimiter:
         while events and now - events[0] > window_seconds:
             events.popleft()
         if not events:
-            # Forget an address whose window has passed (v1.2.0: the failure
+            # Forget an address whose window has passed (v1.1.0: the failure
             # buckets add a key per address).
             del self._events[key]
             return False

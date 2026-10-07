@@ -4,7 +4,7 @@ A controller built on an SDK calls a Network Authority (NA) for decisions,
 attestations and evidence. To develop and test one, run the NA locally from
 the `genesis-mesh` package, configured as it will be in production: policies
 required, the evidence store on, and separate keys for setup and for the
-controller. This page sets that up with three commands (v1.2.0).
+controller. This page sets that up with three commands (v1.1.0).
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Install the NA in a virtual environment and activate it:
 ```bash
 python -m venv local/venv
 source local/venv/bin/activate          # Windows: local\venv\Scripts\Activate.ps1
-pip install "genesis-mesh>=1.2"
+pip install "genesis-mesh>=1.1"
 ```
 
 Create the network, its settings and the controller's key:

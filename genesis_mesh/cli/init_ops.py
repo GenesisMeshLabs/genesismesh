@@ -216,7 +216,7 @@ def _write_na_env_file(
     port: int,
     overwrite: bool,
 ) -> None:
-    """v1.2.0: production NA settings for this network, for na start --env-file.
+    """v1.1.0: production NA settings for this network, for na start --env-file.
 
     Paths and public keys only; the private keys stay in their files.
     """

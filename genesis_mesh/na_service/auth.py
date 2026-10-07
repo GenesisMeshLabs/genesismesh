@@ -236,7 +236,7 @@ def _client_address() -> str:
 def _admin_auth_failure(service, event_type: str, details: dict) -> None:
     """Audit a failed admin authentication or authorisation and count it.
 
-    v1.2.0: the count is what ``RateLimits.admin_auth_failures`` limits, per
+    v1.1.0: the count is what ``RateLimits.admin_auth_failures`` limits, per
     client address, so raising the admin limit for signed traffic does not
     give unauthenticated traffic more room.
     """
@@ -249,7 +249,7 @@ def _admin_auth_failure(service, event_type: str, details: dict) -> None:
 
 
 def _refuse_if_admin_auth_throttled(service) -> None:
-    """Refuse an address that reached its failed admin authentication limit (v1.2.0).
+    """Refuse an address that reached its failed admin authentication limit (v1.1.0).
 
     Runs before any header is read or signature checked, and writes one
     ``admin_auth_throttled`` audit event per address and window instead of one
@@ -288,7 +288,7 @@ def verify_admin_request(
     Returns (False, message) for authentication failures, which callers turn
     into 401. Raises ForbiddenError (403) when the key authenticates but its
     tier does not permit the operation, and RateLimitError (429) when the
-    client address has reached ``RateLimits.admin_auth_failures`` (v1.2.0).
+    client address has reached ``RateLimits.admin_auth_failures`` (v1.1.0).
     """
     _refuse_if_admin_auth_throttled(service)
 

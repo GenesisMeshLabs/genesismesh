@@ -1,4 +1,9 @@
-# Plan v1.2.0 — Local Governed Network Authority for SDK Developers
+# Plan v1.1.0 (part 2) — Local Governed Network Authority for SDK Developers
+
+Drafted as 1.2.0. It merged (genesismesh #55) before 1.1.0 was tagged, and
+the Maintainer folded it into 1.1.0 on 2026-10-07 (Decisions, 10): one
+release with the signed images of `plan-v1.1.0.md`. Its release gate is
+the one in `plan-v1.1.0.md`.
 
 ## Context
 
@@ -78,7 +83,7 @@ Move the body of `genesis_mesh/na_service/wsgi.py` (genesis load, signer,
 - With `--env-file`, `--config`, `--db-path` and `--evidence-store` are
   refused (one source of configuration); `--host` and `--port` still choose
   the bind address.
-- Without `--env-file`, `na start` behaves exactly as in 1.1.0.
+- Without `--env-file`, `na start` behaves exactly as in 1.0.2.
 - Relative paths in the file resolve against the file's directory.
 - The startup log names the file and the settings that matter for development
   (enforcement, evidence store, operator key IDs with tiers, rate limits); no
@@ -160,11 +165,11 @@ upper bound). The response body is unchanged.
 - **Rate limit raised for authenticated callers only.** Unauthenticated or
   failing admin traffic is held to 30 a minute per address, the same as
   today, and no longer writes an audit row per request once throttled, so the
-  audit-flood protection is stronger than in 1.1.0. Valid signed traffic gets
+  audit-flood protection is stronger than in 1.0.2. Valid signed traffic gets
   300; a compromised key is bounded by its tier, as before.
 - **No new trust path.** Signatures, tiers, nonces and the audience binding are
   unchanged. `na start --env-file` serves the same app as production, so a
-  developer tests the real enforcement rather than the 1.1.0 single-key
+  developer tests the real enforcement rather than the 1.0 single-key
   shortcut.
 - **Settings files hold no secrets.** `init` and `keygen operator` write paths
   and public keys only; private keys stay in their files with the existing
@@ -186,30 +191,17 @@ upper bound). The response body is unchanged.
 - [x] Admin limit and failed-auth limit tests pass for both limiter stores
       (the database store on SQLite here, on PostgreSQL in CI's PostgreSQL job)
 - [x] Every `429` has `Retry-After`
-- [x] `na start` without `--env-file` keeps its 1.1 configuration (existing
+- [x] `na start` without `--env-file` keeps its 1.0 configuration (existing
       tests); it gets the new rate-limit defaults like every NA
 - [x] Docs build under `sphinx -W`; the new page is in the SDK section
 
 ## Release Gate
 
-- [ ] 1.1.0 released first. This branch is not merged before `v1.1.0` is
-      tagged, then rebased: its CHANGELOG, history and phase J entries go
-      above 1.1.0's
-- [ ] `"1.1.0"` added to the `upgrade.yml` matrix once v1.1.0 is tagged (the
-      upgrade guide says 1.1.x is rehearsed from then on)
-- [ ] Version bumped to `1.2.0` across the release train (core, four SDKs,
-      gateway); `docs/sdk/index.md` version table and text updated
-- [ ] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
-- [ ] CHANGELOG entry (drop "(unreleased)"); SDK CHANGELOGs note the README
-      link
-- [ ] docs/development/history.md updated, with the final test count
-- [ ] All tests pass, including PostgreSQL and HA
-- [ ] SDK README links merged only after the core docs are deployed
-- [ ] Tag, push, GitHub release
+See `plan-v1.1.0.md`.
 
 ## Decisions
 
-1. **Version 1.2.0** (Maintainer, 2026-10-07): new CLI options, a new command,
+1. **Version 1.2.0, superseded by 10** (Maintainer, 2026-10-07): new CLI options, a new command,
    a new setting and a changed default are new surfaces, a minor under
    `docs/development/versioning.md`.
 2. **Admin default 300** (Maintainer, 2026-10-07): five a second per address.
@@ -243,3 +235,7 @@ Made during implementation and review (2026-10-07):
    developer at the terminal.
 9. **Ship skill 6A/6B do not apply**: no new trust primitive or signed model;
    `docs/sdk/local-network-authority.md` is the walkthrough.
+10. **Released as 1.1.0** (Maintainer, 2026-10-07): #55 merged before
+    `v1.1.0` was tagged and 1.1.0 was never released, so this work ships in
+    1.1.0 rather than a 1.2.0 that would follow it within days. Both are new
+    surfaces in a minor version; the `v1.2.0` annotations became `v1.1.0`.

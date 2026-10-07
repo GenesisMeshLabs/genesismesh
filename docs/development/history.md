@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.2.0:
+As of v1.1.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -218,6 +218,10 @@ As of v1.2.0:
 - Every route, CLI command and SDK method is smoke-tested against a live
   Network Authority, and the Go and .NET SDKs check their typed results
   against one in CI.
+- The Network Authority and the gateway ship as signed multi-architecture
+  container images with an SBOM and provenance, verifiable with `cosign`
+  against the release workflows' identities, with
+  {doc}`../operations/container-images`.
 - A developer runs a governed Network Authority locally with the production
   app and settings (`na start --env-file`), separate privileged and standard
   operator keys, and admin limits that let signed traffic through while
@@ -897,7 +901,18 @@ reference, each with a test.
 **What became possible:** each admin request is signed for one action on one
 Network Authority, and every SDK returns what the Network Authority answered.
 
-### v1.2.0 — Local Governed Network Authority
+### v1.1.0 — Signed Container Images and a Local Governed Network Authority
+
+Operators had to build the Network Authority image from the Dockerfile. 1.1.0
+publishes two images on GHCR for `linux/amd64` and `linux/arm64`: the Network
+Authority and mesh node (stable) and the gateway (beta), each with an SBOM and
+provenance, signed keylessly with Sigstore by the release workflows, pushed by
+digest and never re-tagged. The Network Authority image installs only the
+wheel and its hash-locked dependencies, runs as user 10001 without `pip` or
+key material, and must pass a vulnerability gate that blocks any critical or
+high finding. Deployment files moved into `deploy/`, every admin-authenticated
+request counts against the admin rate limit, and the legacy admin signature
+setting is gone.
 
 A pilot controller built only on the TypeScript SDK, against a Network
 Authority installed from PyPI, ran the whole governed lifecycle: policies,
@@ -917,8 +932,9 @@ requests are refused before their signatures are checked and audited once per
 minute, so the flood protection is stronger than before. Every `429` carries
 `Retry-After`.
 
-**What became possible:** a developer on any SDK runs the Network Authority
-their controller will meet in production, with three commands.
+**What became possible:** an operator runs a verified, signed image, and a
+developer on any SDK runs the Network Authority their controller will meet in
+production, with three commands.
 
 ---
 

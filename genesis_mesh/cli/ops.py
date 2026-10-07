@@ -187,7 +187,7 @@ def _app_from_config(
 
 
 def _app_from_env_file(env_file: Path) -> tuple[Flask, int]:
-    """v1.2.0: the production app and settings, read from a file, and its ``PORT``.
+    """v1.1.0: the production app and settings, read from a file, and its ``PORT``.
 
     The settings ``load_settings`` reads come only from the file, so a variable
     left in the developer's shell cannot change the NA. What other code reads

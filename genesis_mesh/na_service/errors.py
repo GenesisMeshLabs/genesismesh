@@ -92,7 +92,7 @@ class RequestValidationError(ValidationError):
     default_code = "request_validation_failed"
 
 
-#: ``Retry-After`` on every 429 (v1.2.0): the rate-limit window length.
+#: ``Retry-After`` on every 429 (v1.1.0): the rate-limit window length.
 RETRY_AFTER_SECONDS = RATE_LIMIT_WINDOW_SECONDS
 
 
@@ -255,7 +255,7 @@ def _render_api_error(error: ApiError):
     response.status_code = error.status_code
     response.headers["X-Request-ID"] = request_id
     if error.status_code == 429:
-        # v1.2.0: every rate limit counts per window, so one window is the
+        # v1.1.0: every rate limit counts per window, so one window is the
         # longest a client has to wait.
         response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)
     return response
