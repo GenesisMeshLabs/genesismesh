@@ -158,6 +158,29 @@ class TestRecordExecution:
         assert ev.sequence_no == 1
         assert ev.signature is not None
 
+    def test_executed_at_is_never_before_the_decision(self):
+        # v1.1.0: a clock behind the NA's gets the decision time.
+        decision, sk, pub = _make_decision()
+        ahead = decision.model_copy(update={"decision_made_at": _now() + timedelta(seconds=5)})
+        ev = record_execution(ahead, "bank-a", "transactions.read", "success",
+                              sk, issued_by="k", sequence_no=1)
+        assert ev.executed_at == ahead.decision_made_at
+
+    def test_executed_at_uses_the_clock_after_the_decision(self):
+        decision, sk, pub = _make_decision()
+        before = _now()
+        ev = record_execution(decision, "bank-a", "transactions.read", "success",
+                              sk, issued_by="k", sequence_no=1)
+        assert decision.decision_made_at <= ev.executed_at
+        assert before <= ev.executed_at <= _now()
+
+    def test_explicit_now_is_signed_as_given(self):
+        decision, sk, pub = _make_decision()
+        early = decision.decision_made_at - timedelta(seconds=1)
+        ev = record_execution(decision, "bank-a", "transactions.read", "success",
+                              sk, issued_by="k", sequence_no=1, now=early)
+        assert ev.executed_at == early
+
     def test_second_record_links_to_first(self):
         decision, sk, pub = _make_decision()
         ev1 = record_execution(decision, "bank-a", "transactions.read", "success",

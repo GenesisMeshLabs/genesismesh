@@ -352,3 +352,6 @@ token from a file). The images rely on them and change none of them.
     2026-10-07): it merged (#55) before `v1.1.0` was tagged; see
     `plan-v1.1.0-local-governed-na.md`. The dry runs are repeated on the
     `main` that holds both.
+13. **Execution evidence never predates its decision** (Maintainer,
+    2026-10-08): fixed in the recorders before release; see
+    `plan-v1.1.0-evidence-clock.md`.
