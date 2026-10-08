@@ -286,26 +286,26 @@ token from a file). The images rely on them and change none of them.
 ## Release Gate
 
 - [x] Maintainer decisions below recorded (2026-10-05)
-- [ ] Version bumped to `1.1.0` across the release train (core, four SDKs, gateway)
-- [ ] CHANGELOG entry (drop "(unreleased)"), `docs/development/history.md`
+- [x] Version bumped to `1.1.0` across the release train (core, four SDKs, gateway)
+- [x] CHANGELOG entry (drop "(unreleased)"), `docs/development/history.md`
       (final test count), phase J: drafted with the local NA work
-- [ ] `SECURITY.md`: 1.1.x supported, 1.0.x upgrade to 1.1;
+- [x] `SECURITY.md`: 1.1.x supported, 1.0.x upgrade to 1.1;
       `docs/sdk/index.md` version table and text at 1.1.0
-- [ ] `"1.1.0"` added to the `upgrade.yml` matrix after the release
-- [ ] SDK README links to the local NA guide (sdk-typescript #19, sdk-go
+- [x] `"1.1.0"` added to the `upgrade.yml` matrix after the release
+- [x] SDK README links to the local NA guide (sdk-typescript #19, sdk-go
       #19, sdk-dotnet #19, sdk-rust #22) merged once the docs are live,
       before the SDK version bumps
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
       (from 1.0.2 too)
-- [ ] Dry runs green on `main`: core `Publish container image` and gateway
+- [x] Dry runs green on `main`: core `Publish container image` and gateway
       `Build distribution artifacts`, each past its GHCR "already published?"
       check (the packages do not exist yet; a dry run that cannot tell stops
       the release the same way)
-- [ ] Merge order: the gateway's images PR first, then the core's (core
+- [x] Merge order: the gateway's images PR first, then the core's (core
       `main` builds the gateway from `main`)
-- [ ] Tags `v1.1.0` (signed), core first, then the SDKs and the gateway;
-      releases created
-- [ ] Both image workflows complete (packages still private); their
+- [x] Tags `v1.1.0` (signed), core first, then the SDKs and the gateway;
+      releases created (2026-10-08)
+- [x] Both image workflows complete (packages still private); their
       signatures verify with the documented identities and the harness
       passes against the published digests on both architectures
 - [ ] The Maintainer makes both GHCR packages public (irreversible);
