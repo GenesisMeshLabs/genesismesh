@@ -67,6 +67,13 @@ def _now(now: datetime | None) -> datetime:
     return now or datetime.now(timezone.utc)
 
 
+def _not_before(decided_at: datetime) -> datetime:
+    """The current UTC time, or ``decided_at`` if the clock reads earlier."""
+    if decided_at.tzinfo is None:
+        decided_at = decided_at.replace(tzinfo=timezone.utc)
+    return max(datetime.now(timezone.utc), decided_at)
+
+
 def _reject(
     reason: EvidenceChainVerificationReason,
     chain_length: int,
@@ -118,14 +125,17 @@ def record_execution(
         execution_parameters: Final parameters used.
         outcome_detail: Optional human-readable detail.
         prior_record: Previous ExecutionEvidence in the chain (None if first).
-        now: Override for the current timestamp.
+        now: The execution time, signed as given. Without it, the current
+            time, but never before ``decision.decision_made_at`` (v1.1.0): a
+            host whose clock is behind the NA's stamped evidence the NA
+            refused as ``evidence_outside_decision_window``.
         resource_id: Resource acted on, e.g. a secret identifier (v0.59).
             Never a secret value.
         resource_action: create, rotate, revoke, update or delete (v0.59).
         prior_resource_record: Previous record for the same resource, from any
             decision (None if this is the resource's first record).
     """
-    ts = _now(now)
+    ts = now if now is not None else _not_before(decision.decision_made_at)
     prev_digest: str | None = prior_record.digest() if prior_record is not None else None
 
     record = ExecutionEvidence(

@@ -44,7 +44,7 @@ def _auth_failures(service) -> list[dict]:
 @pytest.mark.parametrize(("method", "path"), ROUTES_LIMITED_SINCE_1_1)
 def test_admin_requests_are_rate_limited(method, path):
     service = make_na_service()
-    # v1.2.0: an admin limit below the failed-authentication limit, so the
+    # v1.1.0: an admin limit below the failed-authentication limit, so the
     # route's own admin limit is what refuses the request.
     service.rate_limits = RateLimits(admin=5)
     client = service.app.test_client()

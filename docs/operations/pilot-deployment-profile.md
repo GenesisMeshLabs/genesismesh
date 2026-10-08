@@ -68,7 +68,7 @@ is dropped, and a new instance verifying every record and decision.
 
 - **Rate limits are per client address.** Each governed action makes one
   `/admin/boundary/evaluate` call and one evidence submission. The admin
-  limit defaults to 300 requests per minute (30 before v1.2.0) and the
+  limit defaults to 300 requests per minute (30 before v1.1.0) and the
   evidence limit to 120. Behind a corporate proxy or NAT every client shares
   one address, and therefore one budget. Raise
   `NA_RATE_LIMIT_ADMIN_PER_MINUTE` (and `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`)
