@@ -932,6 +932,9 @@ requests are refused before their signatures are checked and audited once per
 minute, so the flood protection is stronger than before. Every `429` carries
 `Retry-After`.
 
+The release passed 1,833 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
 **What became possible:** an operator runs a verified, signed image, and a
 developer on any SDK runs the Network Authority their controller will meet in
 production, with three commands.
