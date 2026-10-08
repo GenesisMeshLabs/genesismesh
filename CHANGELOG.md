@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.1.0 - Signed Container Images and a Local Governed Network Authority (unreleased)
+## v1.1.0 - Signed Container Images and a Local Governed Network Authority
 
 Signed container images for the Network Authority and the gateway; a governed
 Network Authority on a developer's machine in three commands; and admin rate
