@@ -54,7 +54,7 @@ def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
 
 
 def _int(env: Mapping[str, str], name: str, default: int) -> int:
-    """An integer setting; a bad value names its variable (v1.2.0)."""
+    """An integer setting; a bad value names its variable (v1.1.0)."""
     raw = env.get(name)
     if raw is None:
         return default

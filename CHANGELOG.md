@@ -1,65 +1,10 @@
 # Changelog
 
-## v1.2.0 - Local Governed Network Authority (unreleased)
+## v1.1.0 - Signed Container Images and a Local Governed Network Authority
 
-A governed Network Authority on a developer's machine in three commands, and
-admin rate limits sized for governed workloads.
-
-### Added
-
-- **`genesis-mesh na start --env-file PATH`** runs the production app (the one
-  Gunicorn and the container image serve) with the settings in a file, one
-  `KEY=VALUE` per line: boundary policy enforcement, several operator keys
-  with their tiers, rate limits, the port and the other variables the app
-  reads. These settings come only from the file, not from the process
-  environment (logging and the `env` key provider's seed still do). Without
-  `--env-file`, `na start` keeps its 1.1 configuration: one privileged
-  operator key and default settings (including the new rate-limit defaults),
-  which cannot require policies.
-- **`genesis-mesh init --env-file PATH`** also writes those settings for the
-  new network: policies required, the evidence store on, `NA_PROXY_HOPS=0`,
-  the port from `--na-port`, the init operator key as `privileged`. Paths and
-  public keys only.
-- **`genesis-mesh keygen operator`** generates an operator key, `standard`
-  tier by default, and with `--env-file` registers it in a settings file. It
-  refuses existing key files and, without `--replace`, a key ID registered
-  with another public key.
-- `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` (default 30), see Security.
-- A bad integer or JSON setting names its variable when the NA refuses to
-  start, for example `NA_PROXY_HOPS must be an integer`.
-- A new page, *Develop Against a Local Network Authority*, in the SDK docs:
-  setup, keys and tiers, settings, rate limits and reset, for every SDK.
-
-### Changed
-
-- **The admin rate limit defaults to 300 requests a minute per client
-  address** (was 30). Every governed action is one admin call, so 30 a minute
-  stopped a controller within seconds. A deployment that set
-  `NA_RATE_LIMIT_ADMIN_PER_MINUTE` keeps its value.
-- Every `429` response carries `Retry-After: 60`.
-- `genesis_mesh.na_service.wsgi` builds the app through
-  `genesis_mesh.na_service.app_factory.build_app`, which `na start --env-file`
-  shares. The WSGI entry point behaves as before.
-- The pilot VM profile (`infrastructure/pilot-vm`) defaults to the new admin
-  limit and passes `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` through.
-- See *Upgrading to 1.2* in the upgrade guide: valid requests from an address
-  can now be refused after its failed admin authentications.
-
-### Security
-
-- **Failed admin authentications are limited to 30 a minute per client
-  address**, so raising the admin limit gives unauthenticated traffic no more
-  room than before. A bad or missing signature, an unknown or revoked key, a
-  stale timestamp, a replayed nonce or a key below the route's tier counts.
-  Once an address reaches the limit, its admin requests get
-  `429 admin_auth_throttled` for the rest of the minute before their
-  signatures are checked, and the audit log records one
-  `admin_auth_throttled` event per address and minute instead of one
-  `admin_auth_failed` per request.
-
-## v1.1.0 - Signed Container Images (unreleased)
-
-Signed container images for the Network Authority and the gateway.
+Signed container images for the Network Authority and the gateway; a governed
+Network Authority on a developer's machine in three commands; and admin rate
+limits sized for governed workloads.
 
 ### Removed
 
@@ -78,6 +23,28 @@ Signed container images for the Network Authority and the gateway.
   follow the newest release. The image runtime contract is stable
   (`DEPRECATION_POLICY.md`, *Container images*). See the new Container Images
   page for verifying, running and upgrading them.
+- **`genesis-mesh na start --env-file PATH`** runs the production app (the one
+  Gunicorn and the container image serve) with the settings in a file, one
+  `KEY=VALUE` per line: boundary policy enforcement, several operator keys
+  with their tiers, rate limits, the port and the other variables the app
+  reads. These settings come only from the file, not from the process
+  environment (logging and the `env` key provider's seed still do). Without
+  `--env-file`, `na start` keeps its 1.0 configuration: one privileged
+  operator key and default settings (including the new rate-limit defaults),
+  which cannot require policies.
+- **`genesis-mesh init --env-file PATH`** also writes those settings for the
+  new network: policies required, the evidence store on, `NA_PROXY_HOPS=0`,
+  the port from `--na-port`, the init operator key as `privileged`. Paths and
+  public keys only.
+- **`genesis-mesh keygen operator`** generates an operator key, `standard`
+  tier by default, and with `--env-file` registers it in a settings file. It
+  refuses existing key files and, without `--replace`, a key ID registered
+  with another public key.
+- `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` (default 30), see Security.
+- A bad integer or JSON setting names its variable when the NA refuses to
+  start, for example `NA_PROXY_HOPS must be an integer`.
+- A new page, *Develop Against a Local Network Authority*, in the SDK docs:
+  setup, keys and tiers, settings, rate limits and reset, for every SDK.
 
 ### Changed
 
@@ -121,9 +88,28 @@ Signed container images for the Network Authority and the gateway.
 - `uv.lock` is removed: it was stale (it still named version 0.22.0) and
   nothing used it but `uv run`, which synced old pins from it. The documented
   `uv run` commands use `--no-project`.
+- **The admin rate limit defaults to 300 requests a minute per client
+  address** (was 30). Every governed action is one admin call, so 30 a minute
+  stopped a controller within seconds. A deployment that set
+  `NA_RATE_LIMIT_ADMIN_PER_MINUTE` keeps its value.
+- Every `429` response carries `Retry-After: 60`.
+- `genesis_mesh.na_service.wsgi` builds the app through
+  `genesis_mesh.na_service.app_factory.build_app`, which `na start --env-file`
+  shares. The WSGI entry point behaves as before.
+- The pilot VM profile (`infrastructure/pilot-vm`) defaults to the new admin
+  limit and passes `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` through.
+- See *Upgrading to 1.1* in the upgrade guide: valid requests from an address
+  can now be refused after its failed admin authentications.
 
 ### Fixed
 
+- Execution evidence is never stamped before its decision.
+  `record_execution` (and `genesis-mesh trust execution record`) without an
+  explicit time, and the TypeScript and Rust SDK recorders, use the later of
+  the clock and `decision_made_at`. Evidence recorded in the decision's
+  millisecond (the TypeScript SDK stamps milliseconds, the NA microseconds) or
+  on a host whose clock is behind the NA's was refused with
+  `evidence_outside_decision_window`. What the NA accepts is unchanged.
 - `GET` and `DELETE /agents/{node_public_key}` work for keys whose base64 form
   starts with `/` (about 1 in 64): the route answered `404` and `405`, so such
   an agent could be neither read nor deregistered.
@@ -139,19 +125,28 @@ Signed container images for the Network Authority and the gateway.
 
 ### Security
 
-- **Every admin-authenticated request counts against the admin rate limit**
-  (30 a minute per address). `GET /admin/policy/history`,
-  `POST /admin/policy/rollback` and the operator views of `GET /nodes` and
-  `GET /attestations` did not, so failed attempts could fill the audit log
-  without limit and slow the public dashboard. `X-Admin-*` headers longer than
-  256 characters are refused before they are audited, and the dashboard reads
-  only the newest audit events of the kinds it shows.
+- **Every admin-authenticated request counts against the admin rate
+  limit.** `GET /admin/policy/history`, `POST /admin/policy/rollback` and the
+  operator views of `GET /nodes` and `GET /attestations` did not, so failed
+  attempts could fill the audit log without limit and slow the public
+  dashboard. `X-Admin-*` headers longer than 256 characters are refused
+  before they are audited, and the dashboard reads only the newest audit
+  events of the kinds it shows.
 - The CLI creates private key files readable by their owner only from the
   first byte; they were readable by other local users until the `chmod` that
   followed the write.
 - The public dashboard (`/`, `/dashboard`, `/dashboard.json`) names the
   database backend instead of its path, and logs a failed readiness check
   instead of showing its error text.
+- **Failed admin authentications are limited to 30 a minute per client
+  address**, so raising the admin limit gives unauthenticated traffic no more
+  room than before. A bad or missing signature, an unknown or revoked key, a
+  stale timestamp, a replayed nonce or a key below the route's tier counts.
+  Once an address reaches the limit, its admin requests get
+  `429 admin_auth_throttled` for the rest of the minute before their
+  signatures are checked, and the audit log records one
+  `admin_auth_throttled` event per address and minute instead of one
+  `admin_auth_failed` per request.
 
 ## v1.0.2 - Fixes from External Testing
 

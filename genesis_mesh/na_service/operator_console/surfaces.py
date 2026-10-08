@@ -7,7 +7,7 @@ from typing import Literal
 
 from ..rate_limit import RateLimits
 
-#: The default admin limit, shown on every operator-signed surface (v1.2.0:
+#: The default admin limit, shown on every operator-signed surface (v1.1.0:
 #: derived from RateLimits so a new default needs no edit here).
 _ADMIN_RATE = f"{RateLimits().admin}/min per IP"
 

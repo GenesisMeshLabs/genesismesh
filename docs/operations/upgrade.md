@@ -17,8 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
-| 1.1.x | Supported. Rehearsed in CI from the 1.1.0 release on. Read *Upgrading to 1.2* below |
-| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.2* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
+| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
 | 0.58.x and earlier | Not supported: upgrade to 0.59.1 first, or start fresh |
 
@@ -48,10 +47,19 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
-## Upgrading to 1.2
+## Upgrading to 1.1
 
-1.2 adds no database migration, so a 1.2 Network Authority can be rolled back
-to 1.1 on the same database. Two rate-limit changes apply on upgrade:
+1.1 adds no database migration: the schema version stays the same, so a
+1.1 Network Authority can be rolled back to 1.0.2 on the same database (see
+*Rollback*). Admin signature version 2 arrived in 1.0.2: coming from 1.0.0
+or 1.0.1, read *Upgrading to 1.0.2* first: 1.1 accepts only version 2 and no
+longer has `NA_ADMIN_LEGACY_SIGNATURES`, so its client migration window must
+be finished, or older clients upgraded together with the Network Authority.
+What needs planning in 1.1 is the container image and the admin rate limits.
+
+### Admin rate limits
+
+Two rate-limit changes apply on upgrade:
 
 - **The admin limit rises from 30 to 300** requests per minute per client
   address. A deployment that set `NA_RATE_LIMIT_ADMIN_PER_MINUTE` keeps its
@@ -65,16 +73,6 @@ to 1.1 on the same database. Two rate-limit changes apply on upgrade:
   address out for a minute: fix the key rather than raising the limit.
 
 Every `429` now carries `Retry-After: 60`.
-
-## Upgrading to 1.1
-
-1.1 adds no database migration: the schema version stays the same, so a
-1.1 Network Authority can be rolled back to 1.0.2 on the same database (see
-*Rollback*). Admin signature version 2 arrived in 1.0.2: coming from 1.0.0
-or 1.0.1, read *Upgrading to 1.0.2* first: 1.1 accepts only version 2 and no
-longer has `NA_ADMIN_LEGACY_SIGNATURES`, so its client migration window must
-be finished, or older clients upgraded together with the Network Authority.
-What needs planning in 1.1 is the container image.
 
 ### Container image: hand the data volume to the new user
 

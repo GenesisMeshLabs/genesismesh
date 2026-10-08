@@ -72,8 +72,8 @@ Private-key paths in this file are local secrets and must not be committed.
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
 | `NA_MAX_REQUEST_BYTES` | no | Largest accepted request body in bytes (default 2097152, 2 MiB); larger requests get `413 request_entity_too_large` before they are parsed (v0.62). |
-| `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | no | Admin requests per minute per client address (default 300; 30 before v1.2.0). Every governed action calls `/admin/boundary/evaluate`, so size this to the controllers behind one address (v0.63.1). |
-| `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` | no | Failed admin authentications per minute per client address (default 30): a bad or missing signature, an unknown or revoked key, a stale timestamp, a replayed nonce, or a key below the route's tier. Once an address reaches it, its admin requests get `429 admin_auth_throttled` before their signatures are checked, with one `admin_auth_throttled` audit event per address and minute instead of one per request (v1.2.0). |
+| `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | no | Admin requests per minute per client address (default 300; 30 before v1.1.0). Every governed action calls `/admin/boundary/evaluate`, so size this to the controllers behind one address (v0.63.1). |
+| `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` | no | Failed admin authentications per minute per client address (default 30): a bad or missing signature, an unknown or revoked key, a stale timestamp, a replayed nonce, or a key below the route's tier. Once an address reaches it, its admin requests get `429 admin_auth_throttled` before their signatures are checked, with one `admin_auth_throttled` audit event per address and minute instead of one per request (v1.1.0). |
 | `NA_RATE_LIMIT_VERIFY_PER_MINUTE` | no | Public verification and proof requests per minute per client address (default 60). |
 | `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` | no | Execution evidence submissions per minute per client address (default 120). |
 | `NA_RATE_LIMIT_READ_PER_MINUTE` | no | Public policy reads per minute per client address (default 120). Enrollment (`/join`) limits are fixed anti-abuse controls. |
@@ -88,13 +88,13 @@ Network Authority then refuses to start when the signing key does not match
 the genesis block.
 
 Every `429` response carries `Retry-After: 60`: each limit counts per minute,
-so a minute is the longest a client waits (v1.2.0).
+so a minute is the longest a client waits (v1.1.0).
 
 These variables configure the production entry point (`start.sh`, or Gunicorn
 with `genesis_mesh.na_service.wsgi:app`). The local development server reads
 them from a file: `genesis-mesh na start --env-file local/na.env` builds the
 same app as the production entry point, with the settings in that file
-(v1.2.0). The NA's settings come only from the file, not from the process
+(v1.1.0). The NA's settings come only from the file, not from the process
 environment. Still read from the environment: logging (`GENESIS_LOG_LEVEL`,
 `GENESIS_LOG_FORMAT`), the seed of the `env` key provider
 (`NA_PRIVATE_KEY_SEED` or `NA_PRIVATE_KEY_SEED_FILE`, so the secret stays out

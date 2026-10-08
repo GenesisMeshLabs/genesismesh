@@ -1,4 +1,4 @@
-"""Network Authority settings files for ``na start --env-file`` (v1.2.0).
+"""Network Authority settings files for ``na start --env-file`` (v1.1.0).
 
 A settings file holds the same variables the production NA reads from its
 environment (``na_service.settings``), one ``KEY=VALUE`` per line, close to
