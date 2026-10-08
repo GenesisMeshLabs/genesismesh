@@ -276,11 +276,11 @@ token from a file). The images rely on them and change none of them.
       material, and `genesis-mesh --version` prints `1.1.0`
 - [ ] The container harness passes in CI for both repositories and in
       `published-artifacts.yml` for `1.1.0`
-- [ ] The vulnerability gate passes and the report is kept with the run
+- [x] The vulnerability gate passes and the report is kept with the run
 - [ ] The two-sovereign scenario passes from the images: each operator acts
       with only their own key, and a forged treaty is refused
-- [ ] `docs/operations/container-images.md` builds under `sphinx -W`
-- [ ] `gateway-oci.tar` and its Sigstore bundle are on the gateway release,
+- [x] `docs/operations/container-images.md` builds under `sphinx -W`
+- [x] `gateway-oci.tar` and its Sigstore bundle are on the gateway release,
       with the same digest as the published gateway image
 
 ## Release Gate
