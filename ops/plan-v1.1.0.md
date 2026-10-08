@@ -269,15 +269,15 @@ token from a file). The images rely on them and change none of them.
 
 ## Success Criteria
 
-- [ ] Anonymous `docker pull` works for both images at `1.1.0` on amd64 and arm64
-- [ ] `cosign verify` with the documented identities succeeds for both images;
+- [x] Anonymous `docker pull` works for both images at `1.1.0` on amd64 and arm64
+- [x] `cosign verify` with the documented identities succeeds for both images;
       `1.1.0`, `1.1` and `latest` resolve to the released digest
-- [ ] The NA image runs as user 10001, contains no source tree, `pip` or key
+- [x] The NA image runs as user 10001, contains no source tree, `pip` or key
       material, and `genesis-mesh --version` prints `1.1.0`
-- [ ] The container harness passes in CI for both repositories and in
+- [x] The container harness passes in CI for both repositories and in
       `published-artifacts.yml` for `1.1.0`
 - [x] The vulnerability gate passes and the report is kept with the run
-- [ ] The two-sovereign scenario passes from the images: each operator acts
+- [x] The two-sovereign scenario passes from the images: each operator acts
       with only their own key, and a forged treaty is refused
 - [x] `docs/operations/container-images.md` builds under `sphinx -W`
 - [x] `gateway-oci.tar` and its Sigstore bundle are on the gateway release,
@@ -308,9 +308,9 @@ token from a file). The images rely on them and change none of them.
 - [x] Both image workflows complete (packages still private); their
       signatures verify with the documented identities and the harness
       passes against the published digests on both architectures
-- [ ] The Maintainer makes both GHCR packages public (irreversible);
+- [x] The Maintainer makes both GHCR packages public (irreversible);
       `published-artifacts.yml` with `version=1.1.0` passes, anonymous pull
-      included
+      included (2026-10-08)
 
 ## Decisions
 
