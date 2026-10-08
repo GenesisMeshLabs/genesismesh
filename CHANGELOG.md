@@ -103,6 +103,13 @@ limits sized for governed workloads.
 
 ### Fixed
 
+- Execution evidence is never stamped before its decision.
+  `record_execution` (and `genesis-mesh trust execution record`) without an
+  explicit time, and the TypeScript and Rust SDK recorders, use the later of
+  the clock and `decision_made_at`. Evidence recorded in the decision's
+  millisecond (the TypeScript SDK stamps milliseconds, the NA microseconds) or
+  on a host whose clock is behind the NA's was refused with
+  `evidence_outside_decision_window`. What the NA accepts is unchanged.
 - `GET` and `DELETE /agents/{node_public_key}` work for keys whose base64 form
   starts with `/` (about 1 in 64): the route answered `404` and `405`, so such
   an agent could be neither read nor deregistered.
