@@ -230,14 +230,14 @@ def _app_from_env_file(env_file: Path) -> tuple[Flask, int]:
     click.echo(f"  Operator keys: {tiers or 'none'}", err=True)
     click.echo(
         f"  Rate limits per minute and address: admin {limits.admin}, failed admin "
-        f"authentications {limits.admin_auth_failures}, verify {limits.verify}, "
+        f"authentications {limits.admin_auth_failures} (per operator key), verify {limits.verify}, "
         f"evidence {limits.evidence}, read {limits.read}",
         err=True,
     )
     if settings.proxy_hops:
         click.echo(
-            f"  NA_PROXY_HOPS={settings.proxy_hops}: X-Forwarded-For is trusted for rate limits. "
-            "Set NA_PROXY_HOPS=0 when nothing sits in front of this NA.",
+            f"  NA_PROXY_HOPS={settings.proxy_hops}: X-Forwarded-For, -Proto and -Host are trusted "
+            "from that many proxies. Set NA_PROXY_HOPS=0 when nothing sits in front of this NA.",
             err=True,
         )
     return app, file_port

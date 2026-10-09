@@ -39,6 +39,7 @@ def build_app(settings: NASettings) -> Flask:
         rate_limit_store=settings.rate_limit_store,
         max_request_bytes=settings.max_request_bytes,
         rate_limits=settings.rate_limits,
+        public_url=settings.public_url,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the
