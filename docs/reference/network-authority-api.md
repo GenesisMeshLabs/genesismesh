@@ -65,7 +65,7 @@ what the service actually exposes.
 | `POST /*/verify` (ten endpoints) and `POST /disclosure/prove` | Public | **60/min per IP** | Stateless signature checking and proof building over caller-supplied material. Public by protocol design; see below. |
 | `POST /evidence/execution` | Executor | 120/min per IP | Signed by a registered executor key; see the [Trust API reference](../api/trust-http.md). |
 | `POST /join`, `/heartbeat`, `/renew`, `/agents`; `DELETE /agents/<key>` | Node | varies | Node-signed. |
-| `GET` and `POST /admin/*` | Operator | 300/min per IP by default; 30 failed authentications/min per IP | Operator-signed. Past the failed-authentication limit an address gets `429 admin_auth_throttled` (v1.1.0; see {doc}`configuration`). The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
+| `GET` and `POST /admin/*` | Operator | 300/min per IP by default; 30 failed authentications/min per IP and operator key (per IP without a configured key) | Operator-signed. Past the failed-authentication limit the key at that address, or the address, gets `429 admin_auth_throttled` (v1.1.0, per key since v1.2.0; see {doc}`configuration`). The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
 
 ### Why the verification endpoints are public
 

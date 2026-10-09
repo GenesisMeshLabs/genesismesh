@@ -74,9 +74,11 @@ is dropped, and a new instance verifying every record and decision.
   `NA_RATE_LIMIT_ADMIN_PER_MINUTE` (and `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`)
   to the pilot's peak, and keep `NA_PROXY_HOPS` correct so the limits apply to
   real client addresses. Failed admin authentications are limited to 30 a
-  minute per address (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`): behind
-  one address, a client with a wrong key throttles every client for a minute.
-  Fix the failing client rather than raising that limit.
+  minute per address and operator key
+  (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`, per key since 1.2): behind
+  one address, a client failing with its own key throttles only that key, but
+  a client using a key ID the NA does not know throttles every client for a
+  minute. Fix the failing client rather than raising that limit.
 - **TLS-inspecting proxies.** Where outbound TLS is re-signed by a corporate
   proxy (Zscaler and similar), clients must trust the proxy's CA:
   `NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.pem` for the TypeScript SDK. Python

@@ -233,49 +233,72 @@ def _client_address() -> str:
     return request.remote_addr or "unknown"
 
 
-def _admin_auth_failure(service, event_type: str, details: dict) -> None:
+def _known_key(service, key_id: str | None) -> str | None:
+    """``key_id`` when it names a configured operator key (revoked or not)."""
+    return key_id if key_id and key_id in service.operator_public_keys else None
+
+
+def _failure_scope(service, key_id: str | None) -> str:
+    """The rate-limit scope a failed admin request counts against (v1.2.0).
+
+    Per client address and key for a configured key, so failures from one
+    operator behind a shared address (a gateway, a NAT) do not lock out the
+    others; per address for anything else (no key, an unknown key), so a
+    flood of made-up key IDs still locks out its address and cannot create
+    one bucket per guess.
+    """
+    address = _client_address()
+    known = _known_key(service, key_id)
+    return f"{address}:{known}" if known else address
+
+
+def _admin_auth_failure(service, event_type: str, details: dict, key_id: str | None = None) -> None:
     """Audit a failed admin authentication or authorisation and count it.
 
-    v1.1.0: the count is what ``RateLimits.admin_auth_failures`` limits, per
-    client address, so raising the admin limit for signed traffic does not
-    give unauthenticated traffic more room.
+    v1.1.0: the count is what ``RateLimits.admin_auth_failures`` limits, so
+    raising the admin limit for signed traffic does not give unauthenticated
+    traffic more room. v1.2.0: counted per address and key for a configured
+    key, per address otherwise (``_failure_scope``).
     """
     _audit_auth_failure(service, event_type, details)
     service.rate_limiter.allow(
-        f"admin_auth_failed:{_client_address()}",
+        f"admin_auth_failed:{_failure_scope(service, key_id)}",
         service.rate_limits.admin_auth_failures,
         RATE_LIMIT_WINDOW_SECONDS,
     )
 
 
-def _refuse_if_admin_auth_throttled(service) -> None:
-    """Refuse an address that reached its failed admin authentication limit (v1.1.0).
+def _refuse_if_admin_auth_throttled(service, key_id: str | None = None) -> None:
+    """Refuse a scope that reached its failed admin authentication limit (v1.1.0).
 
-    Runs before any header is read or signature checked, and writes one
-    ``admin_auth_throttled`` audit event per address and window instead of one
+    Without ``key_id`` it checks the client address, before any header is
+    read or signature checked; with a configured ``key_id`` (v1.2.0) it checks
+    that key at this address, before its signature is checked. Writes one
+    ``admin_auth_throttled`` audit event per scope and window instead of one
     per request, so a flood of bad requests can neither cost signature checks
     nor fill the audit log.
     """
-    address = _client_address()
+    scope = _failure_scope(service, key_id)
     if not service.rate_limiter.exceeded(
-        f"admin_auth_failed:{address}",
+        f"admin_auth_failed:{scope}",
         service.rate_limits.admin_auth_failures,
         RATE_LIMIT_WINDOW_SECONDS,
     ):
         return
-    # Read first: while an address stays throttled, a refused request costs a
+    # Read first: while a scope stays throttled, a refused request costs a
     # read, not a write, after the one that records the throttling.
-    marker = f"admin_auth_throttled:{address}"
+    marker = f"admin_auth_throttled:{scope}"
+    known = _known_key(service, key_id)
     if not service.rate_limiter.exceeded(
         marker, 1, RATE_LIMIT_WINDOW_SECONDS
     ) and service.rate_limiter.allow(marker, 1, RATE_LIMIT_WINDOW_SECONDS):
-        _audit_auth_failure(
-            service,
-            "admin_auth_throttled",
-            {"reason": "too_many_failed_admin_requests"},
-        )
+        details = {"reason": "too_many_failed_admin_requests"}
+        if known:
+            details["key_id"] = known
+        _audit_auth_failure(service, "admin_auth_throttled", details)
     raise RateLimitError(
-        "Too many failed admin requests from this address.",
+        "Too many failed admin requests for this key from this address."
+        if known else "Too many failed admin requests from this address.",
         code="admin_auth_throttled",
     )
 
@@ -288,7 +311,8 @@ def verify_admin_request(
     Returns (False, message) for authentication failures, which callers turn
     into 401. Raises ForbiddenError (403) when the key authenticates but its
     tier does not permit the operation, and RateLimitError (429) when the
-    client address has reached ``RateLimits.admin_auth_failures`` (v1.1.0).
+    client address, or this key at this address (v1.2.0), has reached
+    ``RateLimits.admin_auth_failures`` (v1.1.0).
     """
     _refuse_if_admin_auth_throttled(service)
 
@@ -319,6 +343,10 @@ def verify_admin_request(
         )
         return False, "Missing admin authentication headers"
 
+    # v1.2.0: a configured key that reached its own failure limit at this
+    # address is refused before its signature is checked.
+    _refuse_if_admin_auth_throttled(service, key_id)
+
     # F-21: a key revoked at runtime is refused here, before its signature is
     # verified and before its nonce is consumed. A revoked key therefore cannot
     # perform any admin action -- including revoking other operators -- and
@@ -336,6 +364,7 @@ def verify_admin_request(
                 "key_id": key_id,
                 "reason": "revoked_key" if public_key else "unknown_key",
             },
+            key_id=key_id,
         )
         return False, "Unknown admin key"
 
@@ -348,6 +377,7 @@ def verify_admin_request(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "reason": "invalid_timestamp"},
+            key_id=key_id,
         )
         return False, "Invalid admin timestamp"
 
@@ -358,6 +388,7 @@ def verify_admin_request(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "reason": "stale_timestamp"},
+            key_id=key_id,
         )
         return False, "Admin request timestamp too old"
 
@@ -367,6 +398,7 @@ def verify_admin_request(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
+            key_id=key_id,
         )
         return False, "Admin nonce already used"
 
@@ -389,6 +421,7 @@ def verify_admin_request(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "reason": "invalid_signature"},
+            key_id=key_id,
         )
         return False, "Invalid admin signature"
 
@@ -397,6 +430,7 @@ def verify_admin_request(
             service,
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
+            key_id=key_id,
         )
         return False, "Admin nonce already used"
 
@@ -418,6 +452,7 @@ def verify_admin_request(
                 "required_tier": required_tier,
                 "reason": "insufficient_operator_tier",
             },
+            key_id=key_id,
         )
         raise ForbiddenError(
             f"This operation requires the {required_tier} operator tier.",

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -41,11 +42,11 @@ def _client(remote_addr: str = "10.0.0.1", **kwargs):
     return client
 
 
-def _bad_admin(client, nonce: str):
+def _bad_admin(client, nonce: str, key_id: str = "operator-test"):
     return client.get(
         "/admin/boundary-policies",
         headers={
-            "X-Admin-Key-Id": "operator-test",
+            "X-Admin-Key-Id": key_id,
             "X-Admin-Signature": "AAAA",
             "X-Admin-Timestamp": "2026-01-01T00:00:00Z",
             "X-Admin-Nonce": nonce,
@@ -110,9 +111,44 @@ def test_an_address_with_too_many_failures_is_refused_before_verification():
     assert throttled.get_json()["error"]["code"] == "admin_auth_throttled"
     assert throttled.headers["Retry-After"] == str(RETRY_AFTER_SECONDS)
 
-    # A correctly signed request from the same address waits out the window too:
-    # the limit is per address, before any signature is checked.
+    # A correctly signed request with the same key from the same address waits
+    # out the window too: the limit is checked before any signature.
     assert _get(client, "/admin/boundary-policies").status_code == 429
+
+
+def test_one_keys_failures_do_not_lock_out_another_key_at_the_same_address():
+    """v1.2.0: an operator behind a shared address (a gateway) keeps working."""
+    client = _client()
+    _one_window(client)
+    statuses = [_bad_admin(client, f"n{i}", key_id="operator-std").status_code for i in range(31)]
+    assert statuses == [401] * 30 + [429]
+    assert _bad_admin(client, "n31", key_id="operator-std").get_json()["error"]["code"] == "admin_auth_throttled"
+    assert _get(client, "/admin/boundary-policies").status_code == 200
+    throttled = [e for e in client.service.db.list_audit_events() if e["event_type"] == "admin_auth_throttled"]
+    assert [e["details"].get("key_id") for e in throttled] == ["operator-std"]
+
+
+@pytest.mark.parametrize(
+    "key_id", ["someone-else", None, "x" * 300], ids=["unknown key", "no key", "oversized key"]
+)
+def test_failures_without_a_configured_key_lock_out_the_address(key_id):
+    client = _client(rate_limits=RateLimits(admin_auth_failures=2))
+    for i in range(2):
+        if key_id is None:
+            response = client.get("/admin/boundary-policies")
+        else:
+            response = _bad_admin(client, f"n{i}", key_id=key_id)
+        assert response.status_code == 401
+    assert _get(client, "/admin/boundary-policies").status_code == 429
+
+
+def test_a_revoked_key_counts_against_itself():
+    client = _client(rate_limits=RateLimits(admin_auth_failures=2))
+    client.service.db.revoke_operator_key("operator-std", "test", "operator-test", datetime.now(timezone.utc))
+    for i in range(2):
+        assert _bad_admin(client, f"n{i}", key_id="operator-std").status_code == 401
+    assert _bad_admin(client, "n2", key_id="operator-std").status_code == 429
+    assert _get(client, "/admin/boundary-policies").status_code == 200
 
 
 def test_throttled_requests_write_one_audit_event_per_window():

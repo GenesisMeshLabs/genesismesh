@@ -61,6 +61,20 @@ Right after upgrading, anchor the store and take the first copy
 1.2 is covered from that first copied anchor on, as it stands then. Then set
 up the copy schedule described in {doc}`evidence-anchors`.
 
+Two request-handling changes apply on upgrade:
+
+- **Failed admin authentications count per address and key.** A failure that
+  names a configured operator key counts against that key at the client
+  address; a failure with no key or an unknown key counts against the
+  address, as before. Behind a gateway or NAT, one operator's failures no
+  longer lock out the others. The limit
+  (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`) is unchanged.
+- **Advertised URLs follow `NA_PROXY_HOPS`.** `/sovereign.json` and
+  `/swagger.json` take their scheme and host from `X-Forwarded-Proto` and
+  `X-Forwarded-Host` only when they come from a trusted proxy. An NA that sets
+  `NA_PROXY_HOPS=0` behind a proxy now advertises its own address: set the
+  number of proxies in front of it.
+
 ## Upgrading to 1.1.1
 
 1.1.1 adds no database migration and can be rolled back to 1.1.0 on the same

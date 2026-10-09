@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from genesis_mesh.crypto import generate_keypair
 from genesis_mesh.models import SovereignRevocationFeed
 
@@ -421,8 +424,20 @@ def test_sovereign_metadata_exposes_public_trust_material(client):
     assert "private" not in str(payload).lower()
 
 
-def test_sovereign_metadata_honors_proxy_headers(client):
+def _behind_proxies(na_service, monkeypatch, hops: int):
+    """The app as ``build_app`` wraps it for ``NA_PROXY_HOPS=hops``."""
+    if hops:
+        monkeypatch.setattr(
+            na_service.app, "wsgi_app",
+            ProxyFix(na_service.app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops),
+        )
+    na_service.app.config["TESTING"] = True
+    return na_service.app.test_client()
+
+
+def test_sovereign_metadata_honors_proxy_headers(na_service, monkeypatch):
     """Public metadata should advertise the proxy-visible URL."""
+    client = _behind_proxies(na_service, monkeypatch, 1)
     resp = client.get(
         "/sovereign.json",
         base_url="http://127.0.0.1:8443",
@@ -439,6 +454,31 @@ def test_sovereign_metadata_honors_proxy_headers(client):
         payload["supported_surfaces"]["sovereign_revocation_feed"]
         == "https://na.genesismesh.org/sovereign-revocation-feed"
     )
+
+
+@pytest.mark.parametrize("path", ["/sovereign.json", "/swagger.json"])
+def test_forwarded_headers_are_ignored_without_trusted_proxies(na_service, monkeypatch, path):
+    """v1.2.0: with NA_PROXY_HOPS=0 a client cannot choose the advertised URL."""
+    client = _behind_proxies(na_service, monkeypatch, 0)
+    resp = client.get(
+        path,
+        base_url="http://na.example.test",
+        headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": "evil.example"},
+    )
+    assert resp.status_code == 200
+    assert "evil.example" not in resp.get_data(as_text=True)
+    assert "http://na.example.test" in resp.get_data(as_text=True)
+
+
+def test_only_the_trusted_proxys_forwarded_host_counts(na_service, monkeypatch):
+    """v1.2.0: a value the client put in front of the proxy's is ignored."""
+    client = _behind_proxies(na_service, monkeypatch, 1)
+    resp = client.get(
+        "/sovereign.json",
+        base_url="http://127.0.0.1:8443",
+        headers={"X-Forwarded-Proto": "http, https", "X-Forwarded-Host": "evil.example, na.genesismesh.org"},
+    )
+    assert resp.get_json()["endpoint"] == "https://na.genesismesh.org"
 
 
 def test_surface_catalog_lists_every_registered_route():
