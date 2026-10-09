@@ -139,8 +139,10 @@ fixed with the durable outbox in 1.2.0, so the SDK error API changes once.
 - [x] Dry runs green; tags `v1.1.1` (signed), releases, published-artifacts
       green (2026-10-09)
 - [x] `"1.1.1"` added to the `upgrade.yml` matrix after the release
-- [ ] Both production hosts upgraded (neither evaluates under agreements)
-- [ ] The Maintainer decides whether to publish a security advisory
+- [x] Both production hosts upgraded (2026-10-09): `na.genesismesh.org` by
+      the deploy workflow at `v1.1.1`; the droplet's NA and gateway, with a
+      demo cycle recording its governed rotation and no rejections
+- [x] Security advisory published: GHSA-x8rx-7x73-4623 (Medium, CVSS 6.5)
 
 ## Decisions
 
@@ -154,5 +156,5 @@ Open, for the Maintainer:
    recognition policy's issuers are for attestations and stay separate.
 3. **The SDK evidence fix moves to 1.2.0** (proposed, after review); the
    draft is kept as patch files outside the repositories.
-4. **A security advisory** (GitHub, after the release): the Maintainer
-   decides, knowing the fix stops fabrication, not reuse.
+4. **A security advisory** (Maintainer, 2026-10-09): published as
+   GHSA-x8rx-7x73-4623, stating that the fix stops fabrication, not reuse.
