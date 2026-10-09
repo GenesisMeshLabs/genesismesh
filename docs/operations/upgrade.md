@@ -56,13 +56,14 @@ database. Its security fixes refuse some requests that 1.1.0 accepted.
 ### Agreements: register both parties
 
 The Network Authority now decides (`/admin/boundary/evaluate`,
-`/admin/boundary/decide`) and commits (`/admin/disclosure/commit`) under an agreement only if two different parties signed it with keys
-it trusts: its own key for its own sovereign, and for any other sovereign the
-keys of an active recognition treaty the NA issued to it that grants at least
-one role. The NA's key never vouches for another sovereign, a sovereign cannot
-agree with itself, and one key cannot sign for both parties. An agreement the
-NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
-trusted when its responder holds such a treaty.
+`/admin/boundary/decide`) and commits (`/admin/disclosure/commit`) under an
+agreement only if two different parties signed it with keys it trusts: its own
+key for its own sovereign, and for any other sovereign the keys of an active
+recognition treaty the NA issued to it that grants at least one role. The NA's
+key never vouches for another sovereign, a sovereign cannot agree with itself,
+and one key cannot sign for both parties. An agreement the NA offered and
+accepted itself (`/admin/agreements/accept`, privileged) stays trusted when
+its responder holds such a treaty.
 
 Decisions under an attestation (`attestation_id`) are not affected: a Network
 Authority that only decides under attestations needs nothing.
