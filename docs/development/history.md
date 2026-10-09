@@ -961,6 +961,9 @@ exact serialized form, and consensus is assembled only over the NA's own
 proofs. The default changed without an opt-out: refusing forged input is the
 fix.
 
+The release passed 1,868 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
 **What became possible:** an NA-signed decision under an agreement means two
 recognised parties signed it, and the store holds exactly what was signed.
 
