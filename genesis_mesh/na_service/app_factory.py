@@ -33,6 +33,7 @@ def build_app(settings: NASettings) -> Flask:
         renewal_grace_seconds=settings.renewal_grace_seconds,
         boundary_policy_enforcement=settings.boundary_policy_enforcement,
         evidence_store=settings.evidence_store,
+        anchor_interval_seconds=settings.anchor_interval_seconds,
         database_url=settings.database_url,
         ha_mode=settings.ha_mode,
         rate_limit_store=settings.rate_limit_store,

@@ -35,6 +35,7 @@ class NASettings:
     renewal_grace_seconds: int = 900
     boundary_policy_enforcement: str = "optional"
     evidence_store: str = "off"
+    anchor_interval_seconds: int = 3600
     max_request_bytes: int = 2 * 1024 * 1024
     proxy_hops: int = 1
     rate_limits: RateLimits = field(default_factory=RateLimits)
@@ -88,6 +89,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         renewal_grace_seconds=_int(e, "RENEWAL_GRACE_SECONDS", 900),
         boundary_policy_enforcement=e.get("BOUNDARY_POLICY_ENFORCEMENT", "optional"),
         evidence_store=e.get("EVIDENCE_STORE", "off"),
+        anchor_interval_seconds=_int(e, "NA_ANCHOR_INTERVAL_SECONDS", 3600),
         max_request_bytes=_int(e, "NA_MAX_REQUEST_BYTES", 2 * 1024 * 1024),
         proxy_hops=_proxy_hops(e.get("NA_PROXY_HOPS", "1")),
         rate_limits=RateLimits(

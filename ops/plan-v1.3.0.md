@@ -10,8 +10,9 @@ store entry under the Stage 1 anchors.
 ## Context
 
 The evidence store admits execution evidence only after a decision; entry
-kinds are `decision`, `justification`, `execution`, `retention_checkpoint`
-and, from Stage 1, `anchor`. The reviews found that a naive design breaks in
+kinds are `decision`, `justification`, `execution` and
+`retention_checkpoint`; Stage 1 anchors sit outside the store chain. The
+reviews found that a naive design breaks in
 these ways:
 
 1. a judge who picks `as_of` can choose a time when a weaker policy was

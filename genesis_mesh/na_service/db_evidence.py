@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Sequence
 
-from ..models.evidence_store import EvidenceStoreEntry, RetentionCheckpoint
+from ..models.evidence_store import EvidenceStoreEntry, RetentionCheckpoint, StoreAnchor
 
 #: Entry columns that may be used as search filters.
 SEARCH_FIELDS: tuple[str, ...] = (
@@ -36,6 +36,9 @@ _ENTRY_COLUMNS = (
 
 #: Builds the envelope for one pending payload given (store_sequence, prev_entry_digest).
 EntryBuilder = Callable[[int, "str | None"], EvidenceStoreEntry]
+
+#: Builds the next anchor from (latest anchor, head store_sequence, head entry digest), or None.
+AnchorBuilder = Callable[["StoreAnchor | None", int, "str | None"], "StoreAnchor | None"]
 
 
 class EvidenceStoreMixin:
@@ -258,6 +261,56 @@ class EvidenceStoreMixin:
         return self.conn.execute(
             "SELECT * FROM evidence_executor_keys ORDER BY registered_at, key_id"
         ).fetchall()
+
+    # -- anchors (v1.2.0) --------------------------------------------------------
+
+    def store_head(self) -> tuple[int, str | None]:
+        """(last store_sequence, its entry digest); (0, None) for an empty store."""
+        return self._store_head()
+
+    def latest_store_anchor(self) -> StoreAnchor | None:
+        row = self.conn.execute(
+            "SELECT anchor_json FROM evidence_anchors ORDER BY anchor_sequence DESC LIMIT 1"
+        ).fetchone()
+        return StoreAnchor.model_validate_json(row["anchor_json"]) if row else None
+
+    def append_store_anchor(self, make: AnchorBuilder) -> tuple[StoreAnchor | None, bool]:
+        """Anchor the store's head inside the evidence write transaction.
+
+        ``make(latest_anchor, head_sequence, head_digest)`` checks the store
+        and returns the signed anchor to append, or None when there is nothing
+        new to anchor. Holding the write lock means the head cannot move, an
+        uncommitted append cannot be anchored, and instances anchor one at a
+        time. Returns (anchor, created).
+        """
+        with self._evidence_write():
+            latest = self.latest_store_anchor()
+            seq, digest = self._store_head()
+            anchor = make(latest, seq, digest)
+            if anchor is None:
+                return latest, False
+            self.conn.execute(
+                """INSERT INTO evidence_anchors(anchor_sequence, store_sequence, anchored_at,
+                       anchor_digest, anchor_json) VALUES (?, ?, ?, ?, ?)""",
+                (anchor.anchor_sequence, anchor.store_sequence, anchor.anchored_at.isoformat(),
+                 anchor.digest(), json.dumps(anchor.to_wire(), sort_keys=True, separators=(",", ":"))),
+            )
+        return anchor, True
+
+    def list_store_anchors(self, *, after_anchor: int = 0, limit: int = 100) -> list[StoreAnchor]:
+        rows = self.conn.execute(
+            """SELECT anchor_json FROM evidence_anchors WHERE anchor_sequence > ?
+               ORDER BY anchor_sequence LIMIT ?""",
+            (after_anchor, limit),
+        ).fetchall()
+        return [StoreAnchor.model_validate_json(r["anchor_json"]) for r in rows]
+
+    def entry_digest_at(self, store_sequence: int) -> str | None:
+        """The stored entry digest at a position; None once retention removed it."""
+        row = self.conn.execute(
+            "SELECT entry_digest FROM evidence_entries WHERE store_sequence = ?", (store_sequence,)
+        ).fetchone()
+        return row["entry_digest"] if row else None
 
     # -- retention ------------------------------------------------------------
 

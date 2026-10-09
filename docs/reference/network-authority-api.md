@@ -384,7 +384,7 @@ during an incident.
 
 | Tier | May do |
 |---|---|
-| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list), and nothing else (v1.0.2). For dashboards and other readers. |
+| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list) (v1.0.2), and list or request evidence store anchors, `GET` and `POST /admin/evidence/anchors` (v1.2.0), and nothing else. For dashboards, auditors and other readers. |
 | `standard` | Everything a read key may do, **plus** day-to-day work: invitations, admin reads, and routine operations. |
 | `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
 
