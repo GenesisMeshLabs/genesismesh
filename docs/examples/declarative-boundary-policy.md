@@ -163,6 +163,13 @@ version 1 again is the rollback, and its audit event records
 
 ### 3. Evaluate
 
+Since 1.1.1 the agreement must be signed by two different parties the NA
+knows: its own sovereign, or a sovereign with an active recognition treaty
+from this NA naming the key it signed with. An agreement the NA offered and
+accepted itself also qualifies. Otherwise the request is refused with
+`422 agreement_untrusted`. The requester and provider are the agreement's
+responder and offerer.
+
 ```text
 POST /admin/boundary/evaluate
 {

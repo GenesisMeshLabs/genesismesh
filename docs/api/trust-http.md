@@ -67,7 +67,10 @@ curl -X POST $NA/admin/agreements/offer \
 
 Build and sign a `CapabilityCounter` in response to an existing offer.
 
-**Auth** — operator signature required.
+**Auth** — operator signature, privileged tier since v1.1.1: the offerer can
+accept the counter on its own, so the NA's signature on a counter is its
+consent to the agreement. A standard-tier key gets
+`403 insufficient_operator_tier`.
 
 **Request**
 
@@ -94,8 +97,8 @@ Accept an offer or counter-offer, producing a signed `AgreementRecord`.
 
 **Auth** — operator signature (privileged tier since v0.62.0: the agreement
 grants capabilities that boundary decisions then authorize). A standard-tier
-key gets `403 insufficient_operator_tier`; offers and counters still accept a
-standard key.
+key gets `403 insufficient_operator_tier`. Offers still accept a standard key;
+counters need a privileged key since v1.1.1.
 
 **Request (accept offer)**
 
@@ -145,6 +148,27 @@ Verify a signed `AgreementRecord`. Unauthenticated.
 
 ## Boundary decisions
 
+### Agreements and their parties (v1.1.1)
+
+`/admin/boundary/decide`, `/admin/boundary/evaluate` and
+`/admin/disclosure/commit` accept an agreement only if two different parties signed it with keys
+it trusts: its own key for its own sovereign, and for any other sovereign the
+keys of an active recognition treaty the NA issued to it that grants at least
+one role. The NA's key never vouches for another sovereign, a sovereign cannot
+agree with itself, and one key cannot sign for both parties. An agreement the
+NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
+trusted when its responder holds such a treaty.
+Nothing in the request can add a trusted key. Otherwise the route returns
+`422 agreement_untrusted` with `details.reason` (`unknown_party`,
+`same_party`, `overlapping_party_keys`, or the reason `verify_agreement`
+gives) and `details.party` when one party is at fault, and records an
+`agreement_untrusted` audit event.
+
+Under an agreement the requester is the agreement's responder and the provider
+its offerer. `context.requester_sovereign_id` and
+`context.provider_sovereign_id` may repeat them; any other value is refused
+with `400 context_party_mismatch`.
+
 ### `POST /admin/boundary/decide`
 
 Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
@@ -168,8 +192,10 @@ Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
 **Response** `201` — `BoundaryDecision` JSON with `signature`.
 
 **Errors** — `400 missing_boundary_fields`, `400 invalid_agreement`,
+`400 invalid_context`, `400 context_party_mismatch` (v1.1.1),
 `401 admin_auth_failed`, `409 boundary_policy_required` (v0.58, when the NA
-runs with `boundary_policy_enforcement=required`), `422 boundary_eval_failed`.
+runs with `boundary_policy_enforcement=required`), `422 agreement_untrusted`
+(v1.1.1), `422 boundary_eval_failed`.
 
 This route does not consult boundary policies and its response never carries
 `policy_binding`. Use `POST /admin/boundary/evaluate` for policy-aware
@@ -319,7 +345,9 @@ With `attestation_id` the NA loads the attestation from its store, verifies
 its signature against the NA key, checks that it is active and not revoked
 (locally or by an imported sovereign revocation feed), that the request time is
 within `valid_from`..`expires_at`, and that `context.requester_sovereign_id`
-(default: the attestation subject) is the subject. The context's `parent_kind`
+(default: the attestation subject) is the subject. The provider is this NA's
+sovereign; since v1.1.1 a different `context.provider_sovereign_id` is
+refused with `400 context_party_mismatch`. The context's `parent_kind`
 is always `"attestation"` and its `agreement_id` and `attestation_id` carry the
 attestation id. The built-in gates are `attestation_status`,
 `attestation_validity`, `capability_check` (against `claims.capabilities`) and
@@ -345,7 +373,9 @@ attestation also returns `201` with a signed DENY whose `denial_reason` is
 `attestation_revoked`, `attestation_expired`, `attestation_not_yet_valid` or
 `attestation_subject_mismatch`. Malformed requests return
 `400 ambiguous_basis` (both or neither basis), `400 invalid_attestation_id`,
-`400 missing_boundary_fields`, `400 invalid_agreement` or `400 invalid_context`.
+`400 missing_boundary_fields`, `400 invalid_agreement`, `400 invalid_context`
+or `400 context_party_mismatch`. An agreement the NA does not trust returns
+`422 agreement_untrusted` (v1.1.1, see *Agreements and their parties*).
 
 ### `POST /boundary-policies/verify`
 
@@ -385,6 +415,12 @@ its resource's chain across decisions. `execution_parameters` and
 
 **Response** `201` `{ "entry": {...}, "entry_digest": "...", "status": "recorded" }`;
 an identical resubmission returns `200` with `"status": "duplicate"`.
+
+Since v1.1.1 the record must be exactly its serialized form: the fields of
+`ExecutionEvidence` and no others, with their types (an absent resource field
+may also be sent as `null`). Extra fields, coerced types and other variants
+are refused as `evidence_malformed` with a message naming the difference, so
+the store keeps only what the signature covers.
 
 **Errors**: `422` with `evidence_malformed`, `evidence_unknown_executor`,
 `evidence_invalid_signature`, `evidence_decision_not_found`,
@@ -500,6 +536,7 @@ Commit to a list of capabilities under an `AgreementRecord`, signed by the NA.
 **Response** `201` — `CapabilityCommitment` JSON with `signature`.
 
 **Errors** — `400 missing_commit_fields`, `401 admin_auth_failed`,
+`422 agreement_untrusted` (v1.1.1, see *Agreements and their parties*),
 `422 commit_failed`.
 
 ---
@@ -589,8 +626,12 @@ Cast a `ValidatorVote` signed by the NA as validator.
 
 **Response** `201` — `ValidatorVote` JSON with `signature`.
 
+Since v1.1.1 the justification proof must be one this NA signed; any other
+is refused with `422 justification_untrusted`.
+
 **Errors** — `400 missing_vote_fields`, `400 invalid_justification`,
-`401 admin_auth_failed`, `422 vote_failed`.
+`401 admin_auth_failed`, `422 justification_untrusted` (v1.1.1),
+`422 vote_failed`.
 
 ---
 
@@ -613,7 +654,12 @@ Assemble a `ConsensusProof` from votes, signed by the NA as assembler.
 
 **Response** `201` — `ConsensusProof` JSON with `signature`.
 
-**Errors** — `400 missing_proof_fields`, `401 admin_auth_failed`,
+Since v1.1.1 `required_threshold` must be an integer from 1 to the number of
+distinct `validator_sovereign_ids` (`400 invalid_threshold`), and the
+justification proof must be one this NA signed (`422 justification_untrusted`).
+
+**Errors** — `400 missing_proof_fields`, `400 invalid_threshold` (v1.1.1),
+`401 admin_auth_failed`, `422 justification_untrusted` (v1.1.1),
 `422 proof_assembly_failed`.
 
 ---

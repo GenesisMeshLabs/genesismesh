@@ -70,6 +70,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
             agreement = AgreementRecord.model_validate(raw_agreement)
         except Exception as exc:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
+        service.agreements.require_trusted(agreement, route="/admin/disclosure/commit")
 
         try:
             commitment = commit_capabilities(

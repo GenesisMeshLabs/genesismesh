@@ -17,7 +17,8 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
-| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
+| 1.1.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* below first |
+| 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
 | 0.58.x and earlier | Not supported: upgrade to 0.59.1 first, or start fresh |
 
@@ -46,6 +47,79 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.1.1
+
+1.1.1 adds no database migration and can be rolled back to 1.1.0 on the same
+database. Its security fixes refuse some requests that 1.1.0 accepted.
+
+### Agreements: register both parties
+
+The Network Authority now decides (`/admin/boundary/evaluate`,
+`/admin/boundary/decide`) and commits (`/admin/disclosure/commit`) under an agreement only if two different parties signed it with keys
+it trusts: its own key for its own sovereign, and for any other sovereign the
+keys of an active recognition treaty the NA issued to it that grants at least
+one role. The NA's key never vouches for another sovereign, a sovereign cannot
+agree with itself, and one key cannot sign for both parties. An agreement the
+NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
+trusted when its responder holds such a treaty.
+
+Decisions under an attestation (`attestation_id`) are not affected: a Network
+Authority that only decides under attestations needs nothing.
+
+Before upgrading one that decides under agreements its parties signed, list
+the sovereigns that sign them and issue each a treaty with the key it signs
+with (`POST /admin/recognition-treaties`, privileged tier):
+
+```json
+{ "subject_sovereign_id": "bank-a",
+  "subject_public_keys": ["<bank-a's agreement signing key>"],
+  "scope": { "allowed_roles": ["role:client"] },
+  "validity_hours": 8760 }
+```
+
+A treaty that expires or is revoked stops vouching for its sovereign: renew
+treaties before they expire. Revoking the treaty is also the only way to stop
+the NA deciding under that sovereign's agreements. A request under an
+agreement the NA does not trust gets `422 agreement_untrusted` with
+`details.reason` (`unknown_party`, `same_party`, `overlapping_party_keys`, or
+the reason `verify_agreement` gives) and `details.party` when one party is at
+fault; each refusal is audited as `agreement_untrusted`.
+
+A treaty that names the NA's own key for another sovereign no longer vouches
+for it. If an older setup did that to make NA-signed agreements usable, issue
+the treaty with the sovereign's own key instead; agreements the NA offered and
+accepted itself stay trusted.
+
+### Countering an offer needs a privileged key
+
+`POST /admin/agreements/counter` requires the privileged tier. A standard key
+gets `403 insufficient_operator_tier`. Offers still accept a standard key.
+
+### Requests may not name other parties
+
+Under an agreement, the requester is the agreement's responder and the
+provider its offerer. A context that names another `requester_sovereign_id`
+or `provider_sovereign_id` gets `400 context_party_mismatch`; naming the
+agreement's own parties, or neither, still works. Under an attestation a
+supplied `provider_sovereign_id` must be this NA's sovereign.
+
+### Execution evidence must be exactly its signed form
+
+`POST /evidence/execution` refuses a record that is not exactly its
+serialized form, for example one with an unsigned extra field, a number sent
+as a string, or a timestamp that is not UTC, with `422 evidence_malformed`
+naming the difference. The TypeScript and Rust SDKs and the Python reference
+produce exact records; a client that builds records by hand must send the
+fields it signed, with their types. Records already in the store are not
+affected.
+
+### Consensus proofs
+
+`POST /admin/consensus/vote` and `POST /admin/consensus/proof` accept only
+justification proofs this NA signed (`422 justification_untrusted`), and
+`required_threshold` must be an integer from 1 to the number of distinct
+validators (`400 invalid_threshold`).
 
 ## Upgrading to 1.1
 

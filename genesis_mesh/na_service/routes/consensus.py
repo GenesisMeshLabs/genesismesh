@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 
 from ...models.consensus import ConsensusProof, ValidatorVote
 from ...models.justification import JustificationProof
+from ...trust.justification import verify_justification_proof
 from ...trust.consensus import (
     ConsensusProofVerificationResult,
     assemble_consensus_proof,
@@ -45,6 +46,20 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
+    def _require_own_proof(j_proof: JustificationProof) -> None:
+        """v1.1.1: the NA votes on and assembles consensus only over its own proofs.
+
+        A proof is the NA's account of a decision it made; signing a vote or a
+        consensus over one the caller wrote would lend it the NA's authority.
+        """
+        result = verify_justification_proof(j_proof, [_pub_b64()])
+        if not result.valid:
+            raise RequestValidationError(
+                "The justification proof is not signed by this Network Authority",
+                code="justification_untrusted",
+                details={"reason": result.reason},
+            )
+
     # ── Signing routes (admin-authenticated) ─────────────────────────────────
 
     @bp.route("/admin/consensus/vote", methods=["POST"])
@@ -70,6 +85,7 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             j_proof = JustificationProof.model_validate(raw_proof)
         except Exception as exc:
             raise BadRequestError("Invalid justification_proof", code="invalid_justification") from exc
+        _require_own_proof(j_proof)
 
         try:
             v = cast_validator_vote(
@@ -124,6 +140,18 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             votes = [ValidatorVote.model_validate(v) for v in raw_votes]
         except Exception as exc:
             raise BadRequestError("Invalid votes or justification_proof", code="invalid_input") from exc
+        # v1.1.1: a threshold of zero, or above the validator count, is not a
+        # threshold; the first made every proof pass without a single vote.
+        if (
+            isinstance(required_threshold, bool)
+            or not isinstance(required_threshold, int)
+            or not 1 <= required_threshold <= len(set(validator_ids))
+        ):
+            raise BadRequestError(
+                "required_threshold must be an integer from 1 to the number of validators",
+                code="invalid_threshold",
+            )
+        _require_own_proof(j_proof)
 
         try:
             cp = assemble_consensus_proof(
