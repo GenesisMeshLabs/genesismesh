@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from genesis_mesh.crypto import generate_keypair
 from genesis_mesh.models import SovereignRevocationFeed
 
@@ -421,8 +424,20 @@ def test_sovereign_metadata_exposes_public_trust_material(client):
     assert "private" not in str(payload).lower()
 
 
-def test_sovereign_metadata_honors_proxy_headers(client):
+def _behind_proxies(na_service, monkeypatch, hops: int):
+    """The app as ``build_app`` wraps it for ``NA_PROXY_HOPS=hops``."""
+    if hops:
+        monkeypatch.setattr(
+            na_service.app, "wsgi_app",
+            ProxyFix(na_service.app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops),
+        )
+    na_service.app.config["TESTING"] = True
+    return na_service.app.test_client()
+
+
+def test_sovereign_metadata_honors_proxy_headers(na_service, monkeypatch):
     """Public metadata should advertise the proxy-visible URL."""
+    client = _behind_proxies(na_service, monkeypatch, 1)
     resp = client.get(
         "/sovereign.json",
         base_url="http://127.0.0.1:8443",
@@ -439,6 +454,65 @@ def test_sovereign_metadata_honors_proxy_headers(client):
         payload["supported_surfaces"]["sovereign_revocation_feed"]
         == "https://na.genesismesh.org/sovereign-revocation-feed"
     )
+
+
+def _advertised(document: dict) -> str:
+    """The base URL a public document advertises: its endpoint, or its first server."""
+    return document["endpoint"] if "endpoint" in document else document["servers"][0]["url"]
+
+
+@pytest.mark.parametrize("path", ["/sovereign.json", "/swagger.json"])
+def test_forwarded_headers_are_ignored_without_trusted_proxies(na_service, monkeypatch, path):
+    """v1.2.0: with NA_PROXY_HOPS=0 a client cannot choose the advertised URL."""
+    client = _behind_proxies(na_service, monkeypatch, 0)
+    resp = client.get(
+        path,
+        base_url="http://na.example.test",
+        headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": "evil.example"},
+    )
+    assert resp.status_code == 200
+    assert _advertised(resp.get_json()) == "http://na.example.test"
+
+
+def test_the_configured_public_url_is_advertised(na_service, monkeypatch):
+    """v1.2.0: NA_PUBLIC_URL fixes the advertised URLs, whatever the request says."""
+    monkeypatch.setattr(na_service, "public_url", "https://na.genesismesh.org")
+    client = _behind_proxies(na_service, monkeypatch, 1)
+    resp = client.get("/sovereign.json", base_url="http://evil.example", headers={"X-Forwarded-Host": "evil.example"})
+    assert resp.get_json()["endpoint"] == "https://na.genesismesh.org"
+    spec = client.get("/swagger.json", base_url="http://evil.example").get_json()
+    assert _advertised(spec) == "https://na.genesismesh.org"
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("https://na.example.org", "https://na.example.org"),
+    ("https://na.example.org/", "https://na.example.org"),
+    ("http://127.0.0.1:8443", "http://127.0.0.1:8443"),
+])
+def test_public_url_setting(value, expected):
+    from genesis_mesh.na_service.settings import load_settings
+
+    assert load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value}).public_url == expected
+    assert load_settings({"GENESIS_FILE": "g.json"}).public_url is None
+
+
+@pytest.mark.parametrize("value", ["na.example.org", "ftp://na.example.org", "https://na.example.org/na", "https://u:p@na.example.org"])
+def test_public_url_must_be_an_origin(value):
+    from genesis_mesh.na_service.settings import load_settings
+
+    with pytest.raises(ValueError, match="NA_PUBLIC_URL"):
+        load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value})
+
+
+def test_only_the_trusted_proxys_forwarded_host_counts(na_service, monkeypatch):
+    """v1.2.0: a value the client put in front of the proxy's is ignored."""
+    client = _behind_proxies(na_service, monkeypatch, 1)
+    resp = client.get(
+        "/sovereign.json",
+        base_url="http://127.0.0.1:8443",
+        headers={"X-Forwarded-Proto": "http, https", "X-Forwarded-Host": "evil.example, na.genesismesh.org"},
+    )
+    assert resp.get_json()["endpoint"] == "https://na.genesismesh.org"
 
 
 def test_surface_catalog_lists_every_registered_route():
