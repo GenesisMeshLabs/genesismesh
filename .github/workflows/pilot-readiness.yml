@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        # Docker Hub's official image, from its ECR Public mirror (Docker Hub outages failed this job).
-        image: public.ecr.aws/docker/library/postgres:17
+        # Docker Hub's official image, from Google's Docker Hub mirror (Docker Hub outages failed this job).
+        image: mirror.gcr.io/library/postgres:17
         env:
           POSTGRES_USER: genesis
           POSTGRES_PASSWORD: genesis
@@ -58,7 +58,7 @@ jobs:
 
       - name: PostgreSQL backup restored to a new instance
         # The runner's pg_dump may be older than the server; use the server's own tools.
-        run: python scripts/recovery_drill.py --postgres-url "$PG_URL" --pg-tool-prefix "docker run --rm -i --network host public.ecr.aws/docker/library/postgres:17"
+        run: python scripts/recovery_drill.py --postgres-url "$PG_URL" --pg-tool-prefix "docker run --rm -i --network host mirror.gcr.io/library/postgres:17"
 
       - name: Pilot deployment profile, recognition to revocation
         run: python scripts/pilot_rehearsal.py --postgres-url "$PG_URL"
