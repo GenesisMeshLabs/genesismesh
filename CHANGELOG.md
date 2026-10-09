@@ -23,6 +23,17 @@
   is copied out.
 - `GET /admin/evidence/verify`, `GET /admin/evidence/status` and
   `genesis-mesh na verify-db` check and report anchors.
+- **Verifiers know every field.** A verifier that copied every received field
+  into the signed form accepted a field it did not understand whenever the
+  signer covered it, so a field added later could change what a record means
+  for older verifiers. The field registry of signed records, generated from
+  the Python models, now travels to every SDK in the conformance suite
+  `canonical`; a record with a field the registry does not list is refused
+  with `unknown_field`, and an evidence export entry of an unknown kind with
+  `unknown_entry_kind`. New fields and kinds reach the verifiers before the
+  Network Authority emits them. Evidence verification names unknown fields.
+  The rules are written down in the new reference page *Canonical Form of
+  Signed Records*.
 
 ### Security
 

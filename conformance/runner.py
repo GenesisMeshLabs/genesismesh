@@ -377,6 +377,32 @@ def run_interop(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_canonical(vectors: list[dict]) -> list[str]:
+    """The field registry of signed records and the fields verifiers refuse (v1.2.0)."""
+    from genesis_mesh.models.canonical_registry import build_registry, unknown_fields
+
+    registry = build_registry()
+    data = json.loads((VECTORS_DIR / "canonical.json").read_text(encoding="utf-8"))
+    failures = []
+    if data["registry"] != registry:
+        failures.append("registry: the committed registry differs from the models; regenerate the suite")
+    for v in vectors:
+        got: dict[str, object]
+        try:
+            if v["kind"] == "unknown_fields":
+                got = {"unknown_fields": sorted(unknown_fields(v["model"], v["record"], registry))}
+            elif v["kind"] == "entry_kind":
+                got = {"known": v["entry_kind"] in registry["entry_kinds"]}
+            else:
+                failures.append(f"{v['id']}: unknown kind {v['kind']}")
+                continue
+            if got != v["expected"]:
+                failures.append(f"{v['id']}: got {got}, want {v['expected']}")
+        except Exception as exc:
+            failures.append(f"{v['id']}: {exc}")
+    return failures
+
+
 # ── Suite registry ───────────────────────────────────────────────────────────
 
 SUITE_RUNNERS: dict[str, Any] = {
@@ -391,6 +417,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "data_usage": run_data_usage,
     "interop": run_interop,
     "admin_auth": run_admin_auth,
+    "canonical": run_canonical,
 }
 
 
