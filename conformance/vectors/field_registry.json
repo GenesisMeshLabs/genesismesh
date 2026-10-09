@@ -1,5 +1,5 @@
 {
-  "suite": "canonical",
+  "suite": "field_registry",
   "version": "1.2.0",
   "registry": {
     "version": 1,
@@ -644,9 +644,111 @@
         "x_added_field": 1
       },
       "expected": {
-        "unknown_fields": [
-          "x_added_field"
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "agreementrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "AgreementRecord",
+      "record": {
+        "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
+        "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
+        "offerer_sovereign_id": "sovereign-a",
+        "responder_sovereign_id": "sovereign-b",
+        "agreed_terms": {
+          "capabilities": [
+            "transactions.read",
+            "statements.read"
+          ],
+          "scope": {
+            "region": "Z\u00fcrich \u2713",
+            "ratio": 0.25,
+            "limit": 1.0,
+            "accounts": [
+              "acc-1"
+            ]
+          },
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "freshness_commitment": 0
+        },
+        "offerer_evidence": {
+          "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
+          "issuer_sovereign_id": "sovereign-a",
+          "source_sovereign_id": "sovereign-a",
+          "target_sovereign_id": "sovereign-b",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
+            }
+          ]
+        },
+        "responder_evidence": {
+          "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
+          "issuer_sovereign_id": "sovereign-b",
+          "source_sovereign_id": "sovereign-b",
+          "target_sovereign_id": "sovereign-a",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
+            }
+          ]
+        },
+        "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+        "established_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "sig": "LX3Gc8H8velY2Ep1DJZ33GA4UsrN8/pFHpDrcbS3tV3Jhsj+OvKhMJGKWRmNeFOG4lGD/3dNob9yodAcfcNXBA==",
+            "alg": "x"
+          },
+          {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "w+VGl2dtZpcrbrb1YluAFqvjw7VgzFvE/CjvP0aM3SJ49FFlnol0+1kgv4inJVZxkhpxff7N1meIrccPCSUKAg=="
+          }
         ]
+      },
+      "expected": {
+        "unknown_fields": []
       }
     },
     {
@@ -753,6 +855,110 @@
         "unknown_fields": [
           "agreed_terms.x_added_field"
         ]
+      }
+    },
+    {
+      "id": "agreementrecord-open-agreed_terms.scope",
+      "kind": "unknown_fields",
+      "description": "AgreementTerms.scope is free-form: added keys are kept",
+      "model": "AgreementRecord",
+      "record": {
+        "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
+        "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
+        "offerer_sovereign_id": "sovereign-a",
+        "responder_sovereign_id": "sovereign-b",
+        "agreed_terms": {
+          "capabilities": [
+            "transactions.read",
+            "statements.read"
+          ],
+          "scope": {
+            "region": "Z\u00fcrich \u2713",
+            "ratio": 0.25,
+            "limit": 1.0,
+            "accounts": [
+              "acc-1"
+            ],
+            "x_added_key": 1
+          },
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "freshness_commitment": 0
+        },
+        "offerer_evidence": {
+          "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
+          "issuer_sovereign_id": "sovereign-a",
+          "source_sovereign_id": "sovereign-a",
+          "target_sovereign_id": "sovereign-b",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
+            }
+          ]
+        },
+        "responder_evidence": {
+          "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
+          "issuer_sovereign_id": "sovereign-b",
+          "source_sovereign_id": "sovereign-b",
+          "target_sovereign_id": "sovereign-a",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
+            }
+          ]
+        },
+        "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+        "established_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "sig": "LX3Gc8H8velY2Ep1DJZ33GA4UsrN8/pFHpDrcbS3tV3Jhsj+OvKhMJGKWRmNeFOG4lGD/3dNob9yodAcfcNXBA=="
+          },
+          {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "w+VGl2dtZpcrbrb1YluAFqvjw7VgzFvE/CjvP0aM3SJ49FFlnol0+1kgv4inJVZxkhpxff7N1meIrccPCSUKAg=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
       }
     },
     {
@@ -964,112 +1170,6 @@
       }
     },
     {
-      "id": "agreementrecord-nested-signatures",
-      "kind": "unknown_fields",
-      "description": "AgreementRecord.signatures[0] (Signature) with an unknown field",
-      "model": "AgreementRecord",
-      "record": {
-        "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
-        "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
-        "offerer_sovereign_id": "sovereign-a",
-        "responder_sovereign_id": "sovereign-b",
-        "agreed_terms": {
-          "capabilities": [
-            "transactions.read",
-            "statements.read"
-          ],
-          "scope": {
-            "region": "Z\u00fcrich \u2713",
-            "ratio": 0.25,
-            "limit": 1.0,
-            "accounts": [
-              "acc-1"
-            ]
-          },
-          "valid_from": "2026-01-01T00:00:00Z",
-          "valid_until": "2027-01-01T00:00:00Z",
-          "freshness_commitment": 0
-        },
-        "offerer_evidence": {
-          "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
-          "issuer_sovereign_id": "sovereign-a",
-          "source_sovereign_id": "sovereign-a",
-          "target_sovereign_id": "sovereign-b",
-          "verdict": "warn",
-          "reason": "treaty_expiring_soon",
-          "requested_roles": [],
-          "trusted": true,
-          "hop_count": 1,
-          "signals": [
-            {
-              "code": "treaty_expiring_soon",
-              "severity": "warn",
-              "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
-            }
-          ],
-          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-          "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
-          "issued_at": "2026-01-01T00:00:00Z",
-          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "metadata": {},
-          "signatures": [
-            {
-              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-              "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
-            }
-          ]
-        },
-        "responder_evidence": {
-          "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
-          "issuer_sovereign_id": "sovereign-b",
-          "source_sovereign_id": "sovereign-b",
-          "target_sovereign_id": "sovereign-a",
-          "verdict": "warn",
-          "reason": "treaty_expiring_soon",
-          "requested_roles": [],
-          "trusted": true,
-          "hop_count": 1,
-          "signals": [
-            {
-              "code": "treaty_expiring_soon",
-              "severity": "warn",
-              "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
-            }
-          ],
-          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-          "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
-          "issued_at": "2026-01-01T00:00:00Z",
-          "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-          "metadata": {},
-          "signatures": [
-            {
-              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
-            }
-          ]
-        },
-        "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-        "established_at": "2026-01-01T00:00:00Z",
-        "expires_at": "2027-01-01T00:00:00Z",
-        "signatures": [
-          {
-            "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-            "sig": "LX3Gc8H8velY2Ep1DJZ33GA4UsrN8/pFHpDrcbS3tV3Jhsj+OvKhMJGKWRmNeFOG4lGD/3dNob9yodAcfcNXBA==",
-            "x_added_field": 1
-          },
-          {
-            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-            "sig": "w+VGl2dtZpcrbrb1YluAFqvjw7VgzFvE/CjvP0aM3SJ49FFlnol0+1kgv4inJVZxkhpxff7N1meIrccPCSUKAg=="
-          }
-        ]
-      },
-      "expected": {
-        "unknown_fields": [
-          "signatures.0.x_added_field"
-        ]
-      }
-    },
-    {
       "id": "boundarydecision-clean",
       "kind": "unknown_fields",
       "description": "BoundaryDecision as the reference emits it",
@@ -1115,7 +1215,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1218,7 +1330,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1279,6 +1403,122 @@
       }
     },
     {
+      "id": "boundarydecision-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "BoundaryDecision",
+      "record": {
+        "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+        "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+        "agreement_id": "00000000-0000-4000-8000-000000000003",
+        "authorized": true,
+        "denial_reason": null,
+        "gate_results": [
+          {
+            "gate_name": "attestation_status",
+            "passed": true,
+            "detail": "attestation is active, signed by a trusted key, and not revoked"
+          },
+          {
+            "gate_name": "attestation_validity",
+            "passed": true,
+            "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+          },
+          {
+            "gate_name": "capability_check",
+            "passed": true,
+            "detail": "capability 'transactions.read' is in attested capabilities"
+          },
+          {
+            "gate_name": "freshness_check",
+            "passed": true,
+            "detail": "freshness seq 0 >= commitment 0"
+          },
+          {
+            "gate_name": "statements-read/max-rows",
+            "passed": true,
+            "detail": "request_parameters.rows satisfies <= 90.0"
+          },
+          {
+            "gate_name": "statements-read/purpose",
+            "passed": false,
+            "detail": "[observe] required fact 'attributes.purpose' is missing"
+          }
+        ],
+        "decision_made_at": "2026-01-01T01:00:00Z",
+        "decision_valid_until": "2026-01-01T01:05:00Z",
+        "operator_sovereign_id": "sovereign-c",
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "attestation_binding": {
+          "attestation_id": "00000000-0000-4000-8000-000000000003",
+          "subject_id": "sovereign-b",
+          "issuer_sovereign_id": "sovereign-c",
+          "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+          "revocation_seq_checked": 0
+        },
+        "signature": {
+          "key_id": "na-key",
+          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "boundarydecision-nested-attestation_binding",
       "kind": "unknown_fields",
       "description": "BoundaryDecision.attestation_binding (AttestationBinding) with an unknown field",
@@ -1324,7 +1564,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1385,9 +1637,245 @@
       }
     },
     {
+      "id": "boundarydecision-nested-freshness_proof",
+      "kind": "unknown_fields",
+      "description": "BoundaryDecision.freshness_proof (FreshnessProof) with an unknown field",
+      "model": "BoundaryDecision",
+      "record": {
+        "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+        "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+        "agreement_id": "00000000-0000-4000-8000-000000000003",
+        "authorized": true,
+        "denial_reason": null,
+        "gate_results": [
+          {
+            "gate_name": "attestation_status",
+            "passed": true,
+            "detail": "attestation is active, signed by a trusted key, and not revoked"
+          },
+          {
+            "gate_name": "attestation_validity",
+            "passed": true,
+            "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+          },
+          {
+            "gate_name": "capability_check",
+            "passed": true,
+            "detail": "capability 'transactions.read' is in attested capabilities"
+          },
+          {
+            "gate_name": "freshness_check",
+            "passed": true,
+            "detail": "freshness seq 0 >= commitment 0"
+          },
+          {
+            "gate_name": "statements-read/max-rows",
+            "passed": true,
+            "detail": "request_parameters.rows satisfies <= 90.0"
+          },
+          {
+            "gate_name": "statements-read/purpose",
+            "passed": false,
+            "detail": "[observe] required fact 'attributes.purpose' is missing"
+          }
+        ],
+        "decision_made_at": "2026-01-01T01:00:00Z",
+        "decision_valid_until": "2026-01-01T01:05:00Z",
+        "operator_sovereign_id": "sovereign-c",
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          },
+          "x_added_field": 1
+        },
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "attestation_binding": {
+          "attestation_id": "00000000-0000-4000-8000-000000000003",
+          "subject_id": "sovereign-b",
+          "issuer_sovereign_id": "sovereign-c",
+          "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+          "revocation_seq_checked": 0
+        },
+        "signature": {
+          "key_id": "na-key",
+          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "freshness_proof.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "boundarydecision-nested-freshness_proof.signature",
+      "kind": "unknown_fields",
+      "description": "FreshnessProof.signature (Signature) with an unknown field",
+      "model": "BoundaryDecision",
+      "record": {
+        "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+        "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+        "agreement_id": "00000000-0000-4000-8000-000000000003",
+        "authorized": true,
+        "denial_reason": null,
+        "gate_results": [
+          {
+            "gate_name": "attestation_status",
+            "passed": true,
+            "detail": "attestation is active, signed by a trusted key, and not revoked"
+          },
+          {
+            "gate_name": "attestation_validity",
+            "passed": true,
+            "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+          },
+          {
+            "gate_name": "capability_check",
+            "passed": true,
+            "detail": "capability 'transactions.read' is in attested capabilities"
+          },
+          {
+            "gate_name": "freshness_check",
+            "passed": true,
+            "detail": "freshness seq 0 >= commitment 0"
+          },
+          {
+            "gate_name": "statements-read/max-rows",
+            "passed": true,
+            "detail": "request_parameters.rows satisfies <= 90.0"
+          },
+          {
+            "gate_name": "statements-read/purpose",
+            "passed": false,
+            "detail": "[observe] required fact 'attributes.purpose' is missing"
+          }
+        ],
+        "decision_made_at": "2026-01-01T01:00:00Z",
+        "decision_valid_until": "2026-01-01T01:05:00Z",
+        "operator_sovereign_id": "sovereign-c",
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg==",
+            "x_added_field": 1
+          }
+        },
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "attestation_binding": {
+          "attestation_id": "00000000-0000-4000-8000-000000000003",
+          "subject_id": "sovereign-b",
+          "issuer_sovereign_id": "sovereign-c",
+          "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+          "revocation_seq_checked": 0
+        },
+        "signature": {
+          "key_id": "na-key",
+          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "freshness_proof.signature.x_added_field"
+        ]
+      }
+    },
+    {
       "id": "boundarydecision-nested-gate_results",
       "kind": "unknown_fields",
-      "description": "BoundaryDecision.gate_results[0] (GateResult) with an unknown field",
+      "description": "BoundaryDecision.gate_results (GateResult) with an unknown field",
       "model": "BoundaryDecision",
       "record": {
         "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
@@ -1431,7 +1919,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1536,7 +2036,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1597,9 +2109,9 @@
       }
     },
     {
-      "id": "boundarydecision-nested-signature",
+      "id": "boundarydecision-nested-policy_binding.gate_evaluations",
       "kind": "unknown_fields",
-      "description": "BoundaryDecision.signature (Signature) with an unknown field",
+      "description": "PolicyBinding.gate_evaluations (PolicyGateEvaluation) with an unknown field",
       "model": "BoundaryDecision",
       "record": {
         "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
@@ -1642,7 +2154,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": {
           "policies": [
             {
@@ -1650,6 +2174,125 @@
               "version": 1,
               "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
               "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass",
+              "x_added_field": 1
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "attestation_binding": {
+          "attestation_id": "00000000-0000-4000-8000-000000000003",
+          "subject_id": "sovereign-b",
+          "issuer_sovereign_id": "sovereign-c",
+          "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+          "revocation_seq_checked": 0
+        },
+        "signature": {
+          "key_id": "na-key",
+          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "policy_binding.gate_evaluations.0.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "boundarydecision-nested-policy_binding.policies",
+      "kind": "unknown_fields",
+      "description": "PolicyBinding.policies (AppliedPolicy) with an unknown field",
+      "model": "BoundaryDecision",
+      "record": {
+        "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+        "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+        "agreement_id": "00000000-0000-4000-8000-000000000003",
+        "authorized": true,
+        "denial_reason": null,
+        "gate_results": [
+          {
+            "gate_name": "attestation_status",
+            "passed": true,
+            "detail": "attestation is active, signed by a trusted key, and not revoked"
+          },
+          {
+            "gate_name": "attestation_validity",
+            "passed": true,
+            "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+          },
+          {
+            "gate_name": "capability_check",
+            "passed": true,
+            "detail": "capability 'transactions.read' is in attested capabilities"
+          },
+          {
+            "gate_name": "freshness_check",
+            "passed": true,
+            "detail": "freshness seq 0 >= commitment 0"
+          },
+          {
+            "gate_name": "statements-read/max-rows",
+            "passed": true,
+            "detail": "request_parameters.rows satisfies <= 90.0"
+          },
+          {
+            "gate_name": "statements-read/purpose",
+            "passed": false,
+            "detail": "[observe] required fact 'attributes.purpose' is missing"
+          }
+        ],
+        "decision_made_at": "2026-01-01T01:00:00Z",
+        "decision_valid_until": "2026-01-01T01:05:00Z",
+        "operator_sovereign_id": "sovereign-c",
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key",
+              "x_added_field": 1
             }
           ],
           "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
@@ -1692,13 +2335,12 @@
         },
         "signature": {
           "key_id": "na-key",
-          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ==",
-          "x_added_field": 1
+          "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
         }
       },
       "expected": {
         "unknown_fields": [
-          "signature.x_added_field"
+          "policy_binding.policies.0.x_added_field"
         ]
       }
     },
@@ -1820,9 +2462,67 @@
       }
     },
     {
+      "id": "boundarypolicy-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "boundarypolicy-nested-gates",
       "kind": "unknown_fields",
-      "description": "BoundaryPolicy.gates[0] (GateSpec) with an unknown field",
+      "description": "BoundaryPolicy.gates (GateSpec) with an unknown field",
       "model": "BoundaryPolicy",
       "record": {
         "policy_id": "statements-read",
@@ -1877,6 +2577,64 @@
         "unknown_fields": [
           "gates.0.x_added_field"
         ]
+      }
+    },
+    {
+      "id": "boundarypolicy-open-gates.0.config",
+      "kind": "unknown_fields",
+      "description": "GateSpec.config is free-form: added keys are kept",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90,
+              "x_added_key": 1
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
       }
     },
     {
@@ -1936,66 +2694,6 @@
       "expected": {
         "unknown_fields": [
           "selector.x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "boundarypolicy-nested-signature",
-      "kind": "unknown_fields",
-      "description": "BoundaryPolicy.signature (Signature) with an unknown field",
-      "model": "BoundaryPolicy",
-      "record": {
-        "policy_id": "statements-read",
-        "version": 1,
-        "description": "Read limits \u2014 Z\u00fcrich \u2713",
-        "valid_from": "2026-01-01T00:00:00Z",
-        "valid_until": "2027-01-01T00:00:00Z",
-        "selector": {
-          "capabilities": [
-            "transactions.*",
-            "statements.*"
-          ],
-          "requester_sovereign_ids": [],
-          "provider_sovereign_ids": [],
-          "agreement_ids": [],
-          "parent_kinds": [],
-          "parameter_equals": {}
-        },
-        "gates": [
-          {
-            "gate_id": "max-rows",
-            "gate_type": "max_value.v1",
-            "order": 0,
-            "mode": "enforce",
-            "config": {
-              "path": "request_parameters.rows",
-              "max": 90
-            },
-            "disclose_input": false
-          },
-          {
-            "gate_id": "purpose",
-            "gate_type": "required_parameter.v1",
-            "order": 1,
-            "mode": "observe",
-            "config": {
-              "path": "attributes.purpose"
-            },
-            "disclose_input": false
-          }
-        ],
-        "issued_at": "2026-01-01T00:00:00Z",
-        "issued_by": "na-key",
-        "issuer_sovereign_id": "sovereign-c",
-        "signature": {
-          "key_id": "na-key",
-          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg==",
-          "x_added_field": 1
-        }
-      },
-      "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
         ]
       }
     },
@@ -2176,9 +2874,42 @@
       }
     },
     {
+      "id": "dataaccessintent-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "DataAccessIntent",
+      "record": {
+        "intent_id": "8a6d828f-7f60-4bd7-bf9c-e649180bf027",
+        "agent_sovereign_id": "sovereign-b",
+        "decision_id": "6a17081c-ddcc-48af-b879-20bf48c18d7f",
+        "declared_sources": [
+          {
+            "source_id": "db-prod",
+            "source_type": "proprietary",
+            "owner_sovereign_id": "sovereign-a",
+            "classification_tags": []
+          }
+        ],
+        "declared_access_types": [
+          "read"
+        ],
+        "estimated_volume_bytes": 5000,
+        "declared_at": "2026-01-01T00:30:00Z",
+        "expires_at": "2026-01-01T01:30:00Z",
+        "signature": {
+          "key_id": "sovereign-b",
+          "sig": "F1JM871O5UOGw6wqzMVas1ygG7IOJIdrXY872oZtT3Bd5PrgqLgMsQCHZHXHv0esqGmJWXxFyO1NHR+5YiR2Dw==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "dataaccessintent-nested-declared_sources",
       "kind": "unknown_fields",
-      "description": "DataAccessIntent.declared_sources[0] (DataSourceDescriptor) with an unknown field",
+      "description": "DataAccessIntent.declared_sources (DataSourceDescriptor) with an unknown field",
       "model": "DataAccessIntent",
       "record": {
         "intent_id": "8a6d828f-7f60-4bd7-bf9c-e649180bf027",
@@ -2207,41 +2938,6 @@
       "expected": {
         "unknown_fields": [
           "declared_sources.0.x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "dataaccessintent-nested-signature",
-      "kind": "unknown_fields",
-      "description": "DataAccessIntent.signature (Signature) with an unknown field",
-      "model": "DataAccessIntent",
-      "record": {
-        "intent_id": "8a6d828f-7f60-4bd7-bf9c-e649180bf027",
-        "agent_sovereign_id": "sovereign-b",
-        "decision_id": "6a17081c-ddcc-48af-b879-20bf48c18d7f",
-        "declared_sources": [
-          {
-            "source_id": "db-prod",
-            "source_type": "proprietary",
-            "owner_sovereign_id": "sovereign-a",
-            "classification_tags": []
-          }
-        ],
-        "declared_access_types": [
-          "read"
-        ],
-        "estimated_volume_bytes": 5000,
-        "declared_at": "2026-01-01T00:30:00Z",
-        "expires_at": "2026-01-01T01:30:00Z",
-        "signature": {
-          "key_id": "sovereign-b",
-          "sig": "F1JM871O5UOGw6wqzMVas1ygG7IOJIdrXY872oZtT3Bd5PrgqLgMsQCHZHXHv0esqGmJWXxFyO1NHR+5YiR2Dw==",
-          "x_added_field": 1
-        }
-      },
-      "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
         ]
       }
     },
@@ -2313,9 +3009,9 @@
       }
     },
     {
-      "id": "datalicensepolicy-nested-signature",
+      "id": "datalicensepolicy-signature-extra",
       "kind": "unknown_fields",
-      "description": "DataLicensePolicy.signature (Signature) with an unknown field",
+      "description": "A field on the signature itself is outside the signed form",
       "model": "DataLicensePolicy",
       "record": {
         "policy_id": "00000000-0000-4000-8000-000000000001",
@@ -2338,13 +3034,11 @@
         "signature": {
           "key_id": "key-a",
           "sig": "qqMyQ+9rcG4jlbg2jrfVHbu4Y/5o4og9ES2o34tv4EpYCPsD/dVocqmybA+zUhy2Po7heTnI7qnvP1Pk9RAUAw==",
-          "x_added_field": 1
+          "alg": "x"
         }
       },
       "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
@@ -2478,6 +3172,41 @@
       }
     },
     {
+      "id": "executionevidence-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "ExecutionEvidence",
+      "record": {
+        "evidence_id": "00000000-0000-4000-8000-000000000001",
+        "sequence_no": 1,
+        "decision_id": "00000000-0000-4000-8000-000000000002",
+        "context_id": "00000000-0000-4000-8000-000000000003",
+        "agreement_id": "00000000-0000-4000-8000-000000000001",
+        "executor_sovereign_id": "sovereign-b",
+        "executed_capability": "secret.rotate",
+        "execution_parameters": {
+          "secret_version": "v2",
+          "note": "Z\u00fcrich \u2713"
+        },
+        "executed_at": "2026-01-01T00:00:00Z",
+        "outcome": "success",
+        "outcome_detail": null,
+        "prev_evidence_digest": null,
+        "resource_id": "kv:vault/api-key",
+        "resource_action": "rotate",
+        "resource_sequence": 2,
+        "prev_resource_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "Msc09okIir7sTNda+UYm/TRwQcwj1uVHt/E9sCXPkvM+SS/iA0V0z33wDXLl4/3YRMjBF7kIyauxCsoTfatUBg==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "executionevidence-open-execution_parameters",
       "kind": "unknown_fields",
       "description": "ExecutionEvidence.execution_parameters is free-form: added keys are kept",
@@ -2513,49 +3242,12 @@
       }
     },
     {
-      "id": "executionevidence-nested-signature",
-      "kind": "unknown_fields",
-      "description": "ExecutionEvidence.signature (Signature) with an unknown field",
-      "model": "ExecutionEvidence",
-      "record": {
-        "evidence_id": "00000000-0000-4000-8000-000000000001",
-        "sequence_no": 1,
-        "decision_id": "00000000-0000-4000-8000-000000000002",
-        "context_id": "00000000-0000-4000-8000-000000000003",
-        "agreement_id": "00000000-0000-4000-8000-000000000001",
-        "executor_sovereign_id": "sovereign-b",
-        "executed_capability": "secret.rotate",
-        "execution_parameters": {
-          "secret_version": "v2",
-          "note": "Z\u00fcrich \u2713"
-        },
-        "executed_at": "2026-01-01T00:00:00Z",
-        "outcome": "success",
-        "outcome_detail": null,
-        "prev_evidence_digest": null,
-        "resource_id": "kv:vault/api-key",
-        "resource_action": "rotate",
-        "resource_sequence": 2,
-        "prev_resource_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "Msc09okIir7sTNda+UYm/TRwQcwj1uVHt/E9sCXPkvM+SS/iA0V0z33wDXLl4/3YRMjBF7kIyauxCsoTfatUBg==",
-          "x_added_field": 1
-        }
-      },
-      "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
-        ]
-      }
-    },
-    {
       "id": "justificationproof-clean",
       "kind": "unknown_fields",
       "description": "JustificationProof as the reference emits it",
       "model": "JustificationProof",
       "record": {
-        "proof_id": "cf929df6-c95c-499c-8dca-d1ea5a09e22a",
+        "proof_id": "00000000-0000-4000-8000-000000000003",
         "decision_id": "00000000-0000-4000-8000-000000000002",
         "trace": {
           "trace_id": "00000000-0000-4000-8000-000000000001",
@@ -2583,7 +3275,7 @@
         "issuer_sovereign_id": "sovereign-a",
         "signature": {
           "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "sig": "akGzFzXnrSnCWCzfHRXVqU1eFyhXKoCbWztkcPqdC+wE6+0oukIlGGiH2zIdEWixCWeauimJajV8jKjasKiFAg=="
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw=="
         }
       },
       "expected": {
@@ -2596,7 +3288,7 @@
       "description": "JustificationProof with an unknown top-level field",
       "model": "JustificationProof",
       "record": {
-        "proof_id": "cf929df6-c95c-499c-8dca-d1ea5a09e22a",
+        "proof_id": "00000000-0000-4000-8000-000000000003",
         "decision_id": "00000000-0000-4000-8000-000000000002",
         "trace": {
           "trace_id": "00000000-0000-4000-8000-000000000001",
@@ -2624,7 +3316,7 @@
         "issuer_sovereign_id": "sovereign-a",
         "signature": {
           "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "sig": "akGzFzXnrSnCWCzfHRXVqU1eFyhXKoCbWztkcPqdC+wE6+0oukIlGGiH2zIdEWixCWeauimJajV8jKjasKiFAg=="
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw=="
         },
         "x_added_field": 1
       },
@@ -2635,12 +3327,12 @@
       }
     },
     {
-      "id": "justificationproof-nested-signature",
+      "id": "justificationproof-signature-extra",
       "kind": "unknown_fields",
-      "description": "JustificationProof.signature (Signature) with an unknown field",
+      "description": "A field on the signature itself is outside the signed form",
       "model": "JustificationProof",
       "record": {
-        "proof_id": "cf929df6-c95c-499c-8dca-d1ea5a09e22a",
+        "proof_id": "00000000-0000-4000-8000-000000000003",
         "decision_id": "00000000-0000-4000-8000-000000000002",
         "trace": {
           "trace_id": "00000000-0000-4000-8000-000000000001",
@@ -2668,14 +3360,12 @@
         "issuer_sovereign_id": "sovereign-a",
         "signature": {
           "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "sig": "akGzFzXnrSnCWCzfHRXVqU1eFyhXKoCbWztkcPqdC+wE6+0oukIlGGiH2zIdEWixCWeauimJajV8jKjasKiFAg==",
-          "x_added_field": 1
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw==",
+          "alg": "x"
         }
       },
       "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
@@ -2684,7 +3374,7 @@
       "description": "JustificationProof.trace (GateTrace) with an unknown field",
       "model": "JustificationProof",
       "record": {
-        "proof_id": "cf929df6-c95c-499c-8dca-d1ea5a09e22a",
+        "proof_id": "00000000-0000-4000-8000-000000000003",
         "decision_id": "00000000-0000-4000-8000-000000000002",
         "trace": {
           "trace_id": "00000000-0000-4000-8000-000000000001",
@@ -2713,13 +3403,99 @@
         "issuer_sovereign_id": "sovereign-a",
         "signature": {
           "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "sig": "akGzFzXnrSnCWCzfHRXVqU1eFyhXKoCbWztkcPqdC+wE6+0oukIlGGiH2zIdEWixCWeauimJajV8jKjasKiFAg=="
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw=="
         }
       },
       "expected": {
         "unknown_fields": [
           "trace.x_added_field"
         ]
+      }
+    },
+    {
+      "id": "justificationproof-nested-trace.entries",
+      "kind": "unknown_fields",
+      "description": "GateTrace.entries (GateTraceEntry) with an unknown field",
+      "model": "JustificationProof",
+      "record": {
+        "proof_id": "00000000-0000-4000-8000-000000000003",
+        "decision_id": "00000000-0000-4000-8000-000000000002",
+        "trace": {
+          "trace_id": "00000000-0000-4000-8000-000000000001",
+          "decision_id": "00000000-0000-4000-8000-000000000002",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "operator_sovereign_id": "sovereign-a",
+          "traced_at": "2026-01-01T00:00:00Z",
+          "entries": [
+            {
+              "gate_name": "capability_gate",
+              "gate_type": "capability",
+              "evaluated_at": "2026-01-01T00:00:00Z",
+              "inputs": {
+                "capability": "read"
+              },
+              "result": true,
+              "reason": "capability present",
+              "metadata": {},
+              "x_added_field": 1
+            }
+          ],
+          "short_circuited_at": null,
+          "final_authorized": true
+        },
+        "proof_issued_at": "2026-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-a",
+        "signature": {
+          "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "trace.entries.0.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "justificationproof-open-trace.entries.0.inputs",
+      "kind": "unknown_fields",
+      "description": "GateTraceEntry.inputs is free-form: added keys are kept",
+      "model": "JustificationProof",
+      "record": {
+        "proof_id": "00000000-0000-4000-8000-000000000003",
+        "decision_id": "00000000-0000-4000-8000-000000000002",
+        "trace": {
+          "trace_id": "00000000-0000-4000-8000-000000000001",
+          "decision_id": "00000000-0000-4000-8000-000000000002",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "operator_sovereign_id": "sovereign-a",
+          "traced_at": "2026-01-01T00:00:00Z",
+          "entries": [
+            {
+              "gate_name": "capability_gate",
+              "gate_type": "capability",
+              "evaluated_at": "2026-01-01T00:00:00Z",
+              "inputs": {
+                "capability": "read",
+                "x_added_key": 1
+              },
+              "result": true,
+              "reason": "capability present",
+              "metadata": {}
+            }
+          ],
+          "short_circuited_at": null,
+          "final_authorized": true
+        },
+        "proof_issued_at": "2026-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-a",
+        "signature": {
+          "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "sig": "Ma8f+hjwCNQXraMeu3lFkmcyc1F7e687u/TKLyRwBVigRiaUHwgSW8SfMElSvH4Dj+FBKGXHJroGaGpMuIfjAw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
       }
     },
     {
@@ -2800,6 +3576,44 @@
       }
     },
     {
+      "id": "membershipattestation-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "MembershipAttestation",
+      "record": {
+        "attestation_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_id": "sovereign-b",
+        "subject_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+        "roles": [
+          "role:client"
+        ],
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "claims": {
+          "capabilities": [
+            "transactions.read"
+          ],
+          "apps": [
+            "ledger"
+          ]
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "uwKrnCpIoOEVH2+FF8opGbQxaf62HrDZbImOEhNIJFmZLrMV7p9NBCpfxE0MYYv3nVub+1ENUhqa/oX5C0FIAQ==",
+            "alg": "x"
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "membershipattestation-open-claims",
       "kind": "unknown_fields",
       "description": "MembershipAttestation.claims is free-form: added keys are kept",
@@ -2835,46 +3649,6 @@
       },
       "expected": {
         "unknown_fields": []
-      }
-    },
-    {
-      "id": "membershipattestation-nested-signatures",
-      "kind": "unknown_fields",
-      "description": "MembershipAttestation.signatures[0] (Signature) with an unknown field",
-      "model": "MembershipAttestation",
-      "record": {
-        "attestation_id": "00000000-0000-4000-8000-000000000003",
-        "issuer_sovereign_id": "sovereign-c",
-        "subject_id": "sovereign-b",
-        "subject_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-        "roles": [
-          "role:client"
-        ],
-        "status": "active",
-        "issued_at": "2026-01-01T00:00:00Z",
-        "valid_from": "2026-01-01T00:00:00Z",
-        "expires_at": "2027-01-01T00:00:00Z",
-        "issued_by": "na-key",
-        "claims": {
-          "capabilities": [
-            "transactions.read"
-          ],
-          "apps": [
-            "ledger"
-          ]
-        },
-        "signatures": [
-          {
-            "key_id": "na-key",
-            "sig": "uwKrnCpIoOEVH2+FF8opGbQxaf62HrDZbImOEhNIJFmZLrMV7p9NBCpfxE0MYYv3nVub+1ENUhqa/oX5C0FIAQ==",
-            "x_added_field": 1
-          }
-        ]
-      },
-      "expected": {
-        "unknown_fields": [
-          "signatures.0.x_added_field"
-        ]
       }
     },
     {
@@ -2939,9 +3713,39 @@
       }
     },
     {
+      "id": "retentioncheckpoint-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "RetentionCheckpoint",
+      "record": {
+        "checkpoint_id": "00000000-0000-4000-8000-000000000002",
+        "created_at": "2026-01-01T00:00:00Z",
+        "cutoff": "2026-01-01T00:00:00Z",
+        "removed_through_sequence": 4,
+        "last_removed_entry_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "removed_count": 4,
+        "resource_heads": {
+          "kv:vault/api-key": {
+            "resource_sequence": 1,
+            "record_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
+        "previous_checkpoint_id": null,
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "fKG+P5s4xlk0Vj1Xh59gT01bQDQ6YCwHgxAedXXiZr5t7Er9d9BbBwYcb7vBED+VZ8BDIyexrC6MTT9qUN7YBA==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "retentioncheckpoint-nested-resource_heads",
       "kind": "unknown_fields",
-      "description": "RetentionCheckpoint.resource_heads values (ResourceHead) with an unknown field",
+      "description": "RetentionCheckpoint.resource_heads (ResourceHead) with an unknown field",
       "model": "RetentionCheckpoint",
       "record": {
         "checkpoint_id": "00000000-0000-4000-8000-000000000002",
@@ -2967,38 +3771,6 @@
       "expected": {
         "unknown_fields": [
           "resource_heads.kv:vault/api-key.x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "retentioncheckpoint-nested-signature",
-      "kind": "unknown_fields",
-      "description": "RetentionCheckpoint.signature (Signature) with an unknown field",
-      "model": "RetentionCheckpoint",
-      "record": {
-        "checkpoint_id": "00000000-0000-4000-8000-000000000002",
-        "created_at": "2026-01-01T00:00:00Z",
-        "cutoff": "2026-01-01T00:00:00Z",
-        "removed_through_sequence": 4,
-        "last_removed_entry_digest": "1111111111111111111111111111111111111111111111111111111111111111",
-        "removed_count": 4,
-        "resource_heads": {
-          "kv:vault/api-key": {
-            "resource_sequence": 1,
-            "record_digest": "2222222222222222222222222222222222222222222222222222222222222222"
-          }
-        },
-        "previous_checkpoint_id": null,
-        "issued_by": "na-key",
-        "signature": {
-          "key_id": "na-key",
-          "sig": "fKG+P5s4xlk0Vj1Xh59gT01bQDQ6YCwHgxAedXXiZr5t7Er9d9BbBwYcb7vBED+VZ8BDIyexrC6MTT9qUN7YBA==",
-          "x_added_field": 1
-        }
-      },
-      "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
         ]
       }
     },
@@ -3062,6 +3834,35 @@
       }
     },
     {
+      "id": "sovereignrevocationfeed-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "SovereignRevocationFeed",
+      "record": {
+        "feed_id": "00000000-0000-4000-8000-000000000001",
+        "issuer_sovereign_id": "sovereign-c",
+        "sequence": 1,
+        "issued_at": "2026-01-01T00:00:00Z",
+        "revoked_attestation_ids": [
+          "00000000-0000-4000-8000-000000000003"
+        ],
+        "revocation_reasons": {
+          "00000000-0000-4000-8000-000000000003": "compromised"
+        },
+        "issued_by": "na-key",
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "PUwKpSDtuf1LZlWba1a7GyUuTfFDJwaWEF6wW8y7UA2oKJgD4qroCO5QA5Z11CAE41OB9L716/GEkRKWjRIKCA==",
+            "alg": "x"
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "sovereignrevocationfeed-open-revocation_reasons",
       "kind": "unknown_fields",
       "description": "SovereignRevocationFeed.revocation_reasons is free-form: added keys are kept",
@@ -3088,37 +3889,6 @@
       },
       "expected": {
         "unknown_fields": []
-      }
-    },
-    {
-      "id": "sovereignrevocationfeed-nested-signatures",
-      "kind": "unknown_fields",
-      "description": "SovereignRevocationFeed.signatures[0] (Signature) with an unknown field",
-      "model": "SovereignRevocationFeed",
-      "record": {
-        "feed_id": "00000000-0000-4000-8000-000000000001",
-        "issuer_sovereign_id": "sovereign-c",
-        "sequence": 1,
-        "issued_at": "2026-01-01T00:00:00Z",
-        "revoked_attestation_ids": [
-          "00000000-0000-4000-8000-000000000003"
-        ],
-        "revocation_reasons": {
-          "00000000-0000-4000-8000-000000000003": "compromised"
-        },
-        "issued_by": "na-key",
-        "signatures": [
-          {
-            "key_id": "na-key",
-            "sig": "PUwKpSDtuf1LZlWba1a7GyUuTfFDJwaWEF6wW8y7UA2oKJgD4qroCO5QA5Z11CAE41OB9L716/GEkRKWjRIKCA==",
-            "x_added_field": 1
-          }
-        ]
-      },
-      "expected": {
-        "unknown_fields": [
-          "signatures.0.x_added_field"
-        ]
       }
     },
     {
@@ -3169,9 +3939,9 @@
       }
     },
     {
-      "id": "storeanchor-nested-signature",
+      "id": "storeanchor-signature-extra",
       "kind": "unknown_fields",
-      "description": "StoreAnchor.signature (Signature) with an unknown field",
+      "description": "A field on the signature itself is outside the signed form",
       "model": "StoreAnchor",
       "record": {
         "anchor_sequence": 2,
@@ -3184,19 +3954,121 @@
         "signature": {
           "key_id": "na-key",
           "sig": "6q6swBk3joiWADnmbEniwfLTYKjLcit93i9e/U4AazfF3l+4tZQSWoo2OSRcfaWpp2AJ7Z4AZmGi2GWZwcqBBg==",
-          "x_added_field": 1
+          "alg": "x"
         }
       },
       "expected": {
-        "unknown_fields": [
-          "signature.x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
-      "id": "boundarydecision-deep-policies",
+      "id": "agreementrecord-unsigned-top",
       "kind": "unknown_fields",
-      "description": "An unknown field three levels down (an applied policy)",
+      "description": "An agreement field outside its signed list is not checked",
+      "model": "AgreementRecord",
+      "record": {
+        "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
+        "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
+        "offerer_sovereign_id": "sovereign-a",
+        "responder_sovereign_id": "sovereign-b",
+        "agreed_terms": {
+          "capabilities": [
+            "transactions.read",
+            "statements.read"
+          ],
+          "scope": {
+            "region": "Z\u00fcrich \u2713",
+            "ratio": 0.25,
+            "limit": 1.0,
+            "accounts": [
+              "acc-1"
+            ]
+          },
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "freshness_commitment": 0
+        },
+        "offerer_evidence": {
+          "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
+          "issuer_sovereign_id": "sovereign-a",
+          "source_sovereign_id": "sovereign-a",
+          "target_sovereign_id": "sovereign-b",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
+            }
+          ]
+        },
+        "responder_evidence": {
+          "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
+          "issuer_sovereign_id": "sovereign-b",
+          "source_sovereign_id": "sovereign-b",
+          "target_sovereign_id": "sovereign-a",
+          "verdict": "warn",
+          "reason": "treaty_expiring_soon",
+          "requested_roles": [],
+          "trusted": true,
+          "hop_count": 1,
+          "signals": [
+            {
+              "code": "treaty_expiring_soon",
+              "severity": "warn",
+              "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
+            }
+          ],
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
+          "issued_at": "2026-01-01T00:00:00Z",
+          "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
+            }
+          ]
+        },
+        "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+        "established_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "sig": "LX3Gc8H8velY2Ep1DJZ33GA4UsrN8/pFHpDrcbS3tV3Jhsj+OvKhMJGKWRmNeFOG4lGD/3dNob9yodAcfcNXBA=="
+          },
+          {
+            "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "sig": "w+VGl2dtZpcrbrb1YluAFqvjw7VgzFvE/CjvP0aM3SJ49FFlnol0+1kgv4inJVZxkhpxff7N1meIrccPCSUKAg=="
+          }
+        ],
+        "note": "outside the signed fields"
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "boundarydecision-wrong-type",
+      "kind": "unknown_fields",
+      "description": "A value of the wrong type is left to validation",
       "model": "BoundaryDecision",
       "record": {
         "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
@@ -3239,48 +4111,20 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
-        "policy_binding": {
-          "policies": [
-            {
-              "policy_id": "statements-read",
-              "version": 1,
-              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
-              "signed_by": "na-key",
-              "x_added_field": 1
-            }
-          ],
-          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
-          "gate_evaluations": [
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "max-rows",
-              "gate_type": "max_value.v1",
-              "order": 0,
-              "mode": "enforce",
-              "passed": true,
-              "outcome": "pass"
-            },
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "purpose",
-              "gate_type": "required_parameter.v1",
-              "order": 1,
-              "mode": "observe",
-              "passed": false,
-              "outcome": "missing_context"
-            }
-          ],
-          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
-          "registry_gate_types": [
-            "max_value.v1",
-            "required_parameter.v1"
-          ],
-          "resolution_status": "resolved",
-          "resolution_failure": null
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
         },
+        "policy_binding": "not an object",
         "attestation_binding": {
           "attestation_id": "00000000-0000-4000-8000-000000000003",
           "subject_id": "sovereign-b",
@@ -3294,54 +4138,7 @@
         }
       },
       "expected": {
-        "unknown_fields": [
-          "policy_binding.policies.0.x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "justificationproof-deep-trace-entry",
-      "kind": "unknown_fields",
-      "description": "A trace entry with an unknown field and a free-form key",
-      "model": "JustificationProof",
-      "record": {
-        "proof_id": "8822543a-e943-43f2-b849-298a6296dbab",
-        "decision_id": "00000000-0000-4000-8000-000000000002",
-        "trace": {
-          "trace_id": "00000000-0000-4000-8000-000000000001",
-          "decision_id": "00000000-0000-4000-8000-000000000002",
-          "agreement_id": "00000000-0000-4000-8000-000000000003",
-          "operator_sovereign_id": "sovereign-a",
-          "traced_at": "2026-01-01T00:00:00Z",
-          "entries": [
-            {
-              "gate_name": "capability_gate",
-              "gate_type": "capability",
-              "evaluated_at": "2026-01-01T00:00:00Z",
-              "inputs": {
-                "capability": "read",
-                "x_added_key": 1
-              },
-              "result": true,
-              "reason": "capability present",
-              "metadata": {},
-              "x_added_field": 1
-            }
-          ],
-          "short_circuited_at": null,
-          "final_authorized": true
-        },
-        "proof_issued_at": "2026-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-a",
-        "signature": {
-          "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-          "sig": "i5a/s/eI9zA7lbNcdTEdplaVHiCuVRVUXVy66kUW1wWXHu1NMtftop8jMIXON/dqNtzg/LJkuQzDYRNbz+cfDw=="
-        }
-      },
-      "expected": {
-        "unknown_fields": [
-          "trace.entries.0.x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
@@ -3390,7 +4187,19 @@
         "decision_made_at": "2026-01-01T01:00:00Z",
         "decision_valid_until": "2026-01-01T01:05:00Z",
         "operator_sovereign_id": "sovereign-c",
-        "freshness_proof": null,
+        "freshness_proof": {
+          "proof_id": "00000000-0000-4000-8000-000000000001",
+          "feed_sovereign_id": "sovereign-c",
+          "feed_sequence": 3,
+          "feed_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attested_at": "2026-01-01T00:00:00Z",
+          "proof_valid_until": "2027-01-01T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "signature": {
+            "key_id": "na-key",
+            "sig": "ThwJhhFhWnVlFTdsTPPY1B5ERf+ayVCiLBU1vcRj2+phKfxaE3wazcE4kdcJIjiZpDQPr6R2W5Rl5bNSM5wsCg=="
+          }
+        },
         "policy_binding": null,
         "attestation_binding": null,
         "signature": {
@@ -3400,6 +4209,338 @@
       },
       "expected": {
         "unknown_fields": []
+      }
+    },
+    {
+      "id": "verify-decision-newer-signed-field",
+      "kind": "verify_decision",
+      "description": "A decision whose signature covers a field from a later release",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "7rP5Y5NeVgFsdLV6u1SjoY/C6R6NN3GlDUn6mzYPsr1Vm/PR1qAEA+7dDcRHSMFvgVaNWjhdFl+UHXR0HCZ1AQ=="
+          },
+          "risk_tier": "high"
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "unknown_field"
+      }
+    },
+    {
+      "id": "verify-decision-unsigned-field",
+      "kind": "verify_decision",
+      "description": "A decision with a field its signature does not cover",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+          },
+          "risk_tier": "high"
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "verify-agreement-unsigned-field",
+      "kind": "verify_agreement",
+      "description": "An agreement with a field outside its signed list still verifies",
+      "input": {
+        "offerer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ],
+        "responder_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "agreement": {
+          "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
+          "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
+          "offerer_sovereign_id": "sovereign-a",
+          "responder_sovereign_id": "sovereign-b",
+          "agreed_terms": {
+            "capabilities": [
+              "transactions.read",
+              "statements.read"
+            ],
+            "scope": {
+              "region": "Z\u00fcrich \u2713",
+              "ratio": 0.25,
+              "limit": 1.0,
+              "accounts": [
+                "acc-1"
+              ]
+            },
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z",
+            "freshness_commitment": 0
+          },
+          "offerer_evidence": {
+            "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
+            "issuer_sovereign_id": "sovereign-a",
+            "source_sovereign_id": "sovereign-a",
+            "target_sovereign_id": "sovereign-b",
+            "verdict": "warn",
+            "reason": "treaty_expiring_soon",
+            "requested_roles": [],
+            "trusted": true,
+            "hop_count": 1,
+            "signals": [
+              {
+                "code": "treaty_expiring_soon",
+                "severity": "warn",
+                "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
+              }
+            ],
+            "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+            "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
+            "issued_at": "2026-01-01T00:00:00Z",
+            "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "metadata": {},
+            "signatures": [
+              {
+                "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+                "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
+              }
+            ]
+          },
+          "responder_evidence": {
+            "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
+            "issuer_sovereign_id": "sovereign-b",
+            "source_sovereign_id": "sovereign-b",
+            "target_sovereign_id": "sovereign-a",
+            "verdict": "warn",
+            "reason": "treaty_expiring_soon",
+            "requested_roles": [],
+            "trusted": true,
+            "hop_count": 1,
+            "signals": [
+              {
+                "code": "treaty_expiring_soon",
+                "severity": "warn",
+                "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
+              }
+            ],
+            "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+            "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
+            "issued_at": "2026-01-01T00:00:00Z",
+            "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "metadata": {},
+            "signatures": [
+              {
+                "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+                "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
+              }
+            ]
+          },
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "established_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
+          "signatures": [
+            {
+              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "sig": "LX3Gc8H8velY2Ep1DJZ33GA4UsrN8/pFHpDrcbS3tV3Jhsj+OvKhMJGKWRmNeFOG4lGD/3dNob9yodAcfcNXBA=="
+            },
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "w+VGl2dtZpcrbrb1YluAFqvjw7VgzFvE/CjvP0aM3SJ49FFlnol0+1kgv4inJVZxkhpxff7N1meIrccPCSUKAg=="
+            }
+          ],
+          "note": "unsigned"
+        }
+      },
+      "expected": {
+        "accepted": true,
+        "reason": "accepted"
       }
     },
     {
@@ -3421,21 +4562,46 @@
       }
     },
     {
-      "id": "entry-kind-observation",
+      "id": "entry-kind-justification",
       "kind": "entry_kind",
-      "description": "Export entry kind 'observation'",
-      "entry_kind": "observation",
+      "description": "Export entry kind 'justification'",
+      "entry_kind": "justification",
+      "expected": {
+        "known": true
+      }
+    },
+    {
+      "id": "entry-kind-retention_checkpoint",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'retention_checkpoint'",
+      "entry_kind": "retention_checkpoint",
+      "expected": {
+        "known": true
+      }
+    },
+    {
+      "id": "entry-kind-x-unknown-kind",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'x-unknown-kind'",
+      "entry_kind": "x-unknown-kind",
       "expected": {
         "known": false
       }
     },
     {
-      "id": "entry-kind-anchor",
-      "kind": "entry_kind",
-      "description": "Export entry kind 'anchor'",
-      "entry_kind": "anchor",
+      "id": "export-unknown-entry-kind",
+      "kind": "export",
+      "description": "An export line of a kind from a later release parses and is refused per entry",
+      "input": {
+        "lines": "{\"entry\":{\"attestation_id\":null,\"capability\":null,\"context_id\":null,\"decision_id\":null,\"entry_kind\":\"x-unknown-kind\",\"evidence_id\":null,\"exec_sequence_no\":null,\"executor_sovereign_id\":null,\"outcome\":null,\"payload_digest\":\"5041bf1f713df204784353e82f6a4a535931cb64f1f4b4a5aeaffcb720918b22\",\"prev_entry_digest\":null,\"recorded_at\":\"2026-01-01T00:00:00Z\",\"resource_action\":null,\"resource_id\":null,\"resource_sequence\":null,\"store_sequence\":1,\"vendor_id\":null},\"entry_digest\":\"10f2c69a0fb584caa1679d4ad7a815c03c78fb449c55148fdf6aa37d8f744e41\",\"payload\":{\"x\":1},\"schema\":\"gm.evidence.event\",\"schema_version\":1}"
+      },
       "expected": {
-        "known": false
+        "failures": [
+          {
+            "store_sequence": 1,
+            "reason": "unknown_entry_kind"
+          }
+        ]
       }
     }
   ]
