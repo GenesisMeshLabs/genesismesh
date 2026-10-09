@@ -14,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from ..observability import redacted_exception_text
 from .rate_limit import RATE_LIMIT_WINDOW_SECONDS
+from .. import strict_json
 
 logger = logging.getLogger(__name__)
 access_logger = logging.getLogger("genesis_mesh.na_service.access")
@@ -125,8 +126,23 @@ def current_request_id() -> str:
 
 
 def request_json_object(*, required: bool = False) -> dict[str, Any]:
-    """Parse the request body as a JSON object using shared API errors."""
-    data = request.get_json(silent=True)
+    """Parse the request body as a JSON object using shared API errors.
+
+    v1.2.0: a JSON body is parsed strictly (``genesis_mesh.strict_json``), so
+    a body every implementation would not read alike (a duplicate key, a lone
+    surrogate, an integer beyond 64 bits, ...) is refused with
+    ``invalid_json`` and the reason, instead of being read one way here.
+    """
+    data = None
+    if request.is_json and request.get_data(cache=True).strip():
+        try:
+            data = strict_json.loads(request.get_data(cache=True))
+        except strict_json.StrictJSONError as exc:
+            raise BadRequestError(
+                f"request body is not accepted JSON ({exc.reason})",
+                code="invalid_json",
+                details={"reason": exc.reason},
+            ) from None
     if data is None:
         if required:
             raise BadRequestError("request body must be valid JSON", code="invalid_json")

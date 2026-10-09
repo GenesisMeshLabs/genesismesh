@@ -49,7 +49,7 @@ SOV_C = "sovereign-c"
 
 def _write(name: str, data: dict) -> None:
     path = VECTORS_DIR / f"{name}.json"
-    path.write_text(json.dumps(data, indent=2, default=str) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
     print(f"  wrote {path.name}  ({len(data['vectors'])} vectors)")
 
 
@@ -1172,6 +1172,187 @@ def gen_field_registry() -> None:
     _write("field_registry", {"suite": "field_registry", "version": "1.2.0", "registry": registry, "vectors": vectors})
 
 
+def gen_canonical() -> None:
+    """v1.2.0: input every implementation reads alike, and the canonical form of records.
+
+    ``json`` cases: JSON text and its canonical form, or the reason it is
+    refused (``genesis_mesh.strict_json``): duplicate keys, ``NaN``, numbers
+    that overflow a float, integers beyond 64 bits, ``-0``, lone surrogates,
+    and text that is not JSON. ``timestamp`` cases: whether a timestamp is in
+    canonical form. ``verify_decision`` / ``verify_agreement`` cases: a record
+    signed over a form the reference does not write is ``non_canonical_form``;
+    one received in a form its signature does not cover is
+    ``invalid_signature``. Records are deterministic, so regeneration is
+    byte-stable.
+    """
+    import copy
+
+    from genesis_mesh import strict_json
+    from genesis_mesh.crypto import sign_data
+    from genesis_mesh.models.canonical_registry import build_registry, canonical_timestamp, received_canonical
+
+    registry = build_registry()
+    vectors: list[dict] = []
+
+    def json_case(vid: str, desc: str, text: str) -> None:
+        try:
+            value = strict_json.loads(text)
+            expected: dict = {"canonical": json.dumps(value, sort_keys=True, separators=(",", ":"))}
+        except strict_json.StrictJSONError as exc:
+            expected = {"refused": exc.reason}
+        vectors.append({"id": f"json-{vid}", "kind": "json", "description": desc, "input": text,
+                        "expected": expected})
+
+    accepted = [
+        ("empty-object", "An empty object", "{}"),
+        ("scalars", "Top-level scalars are JSON", "[1,\"x\",true,false,null]"),
+        ("whitespace", "Whitespace between tokens is not part of the canonical form", " { \"b\" : 1 ,\n\t\"a\" : [ ] } "),
+        ("key-order", "Keys are ordered by code point, not UTF-16 unit", "{\"\\ud83d\\ude00\":1,\"\\ue000\":2,\"Z\":3,\"a\":4}"),
+        ("surrogate-pair", "An escaped surrogate pair is one character", "{\"x\":\"\\ud83d\\ude00\"}"),
+        ("raw-non-bmp", "A raw character outside the BMP", "{\"x\":\"\U0001f600\"}"),
+        ("raw-non-ascii", "Raw non-ASCII text is escaped in the canonical form", "{\"x\":\"\u00e9\u00df\u4e2d\"}"),
+        ("control-escapes", "Control characters are escaped", "{\"x\":\"\\u0000\\u001f\\b\\f\\n\\r\\t\"}"),
+        ("escaped-slash", "An escaped slash is a slash", "{\"x\":\"a\\/b\"}"),
+        ("line-separator", "U+2028 is escaped", "{\"x\":\"\\u2028\"}"),
+        ("empty-key", "An empty key", "{\"\":0}"),
+        ("int-limits", "The 64-bit limits are integers", "[-9223372036854775808,18446744073709551615,0,-1]"),
+        ("exponents", "Exponent spellings of floats", "[1E5,1e5,1E+5,1e-5,1.5E3,2.5e0,1e22,1e21,1e16,1e-7,123e-2]"),
+        ("floats", "Float spellings and Python's shortest repr", "[0.1,1.0,1.50,100.0,-0.0,5e-324,1.7976931348623157e308,0.30000000000000004]"),
+        ("negative-zero-float", "The float -0.0 keeps its sign", "{\"x\":-0.0}"),
+        ("nested", "Nested objects are ordered at every level", "{\"b\":{\"d\":1,\"c\":[{\"f\":1,\"e\":2}]},\"a\":null}"),
+    ]
+    refused = [
+        ("duplicate-key", "A key named twice", "{\"a\":1,\"a\":2}"),
+        ("duplicate-key-nested", "A key named twice in a nested object", "{\"x\":[{\"k\":1,\"k\":1}]}"),
+        ("duplicate-key-escaped", "A key named twice, once escaped", "{\"a\":1,\"\\u0061\":2}"),
+        ("nan", "NaN is not JSON", "{\"x\":NaN}"),
+        ("infinity", "Infinity is not JSON", "{\"x\":Infinity}"),
+        ("negative-infinity", "-Infinity is not JSON", "{\"x\":-Infinity}"),
+        ("float-overflow", "A number that overflows a float", "{\"x\":1e400}"),
+        ("float-overflow-negative", "A negative number that overflows a float", "[-1e400]"),
+        ("float-overflow-rounding", "A number that rounds past the largest float", "[1.7976931348623159e308]"),
+        ("int-above-u64", "An integer above 2**64 - 1", "[18446744073709551616]"),
+        ("int-below-i64", "An integer below -2**63", "[-9223372036854775809]"),
+        ("int-huge", "An integer far beyond 64 bits", "{\"x\":123456789012345678901234}"),
+        ("negative-zero", "The integer -0", "{\"x\":-0}"),
+        ("negative-zero-in-list", "The integer -0 in a list", "[1,-0]"),
+        ("lone-high", "A lone high surrogate", "{\"x\":\"\\ud800\"}"),
+        ("lone-low", "A lone low surrogate", "{\"x\":\"\\udc00\"}"),
+        ("reversed-pair", "A low surrogate before a high one", "{\"x\":\"\\ude00\\ud83d\"}"),
+        ("high-then-letter", "A high surrogate followed by a letter", "{\"x\":\"\\ud83dx\"}"),
+        ("lone-in-key", "A lone surrogate in a key", "{\"\\ud800\":1}"),
+        ("unclosed", "Not JSON: unclosed", "{"),
+        ("trailing-comma", "Not JSON: trailing comma", "[1,]"),
+        ("single-quotes", "Not JSON: single quotes", "{'a':1}"),
+        ("leading-zero", "Not JSON: a leading zero", "[01]"),
+        ("plus-sign", "Not JSON: a plus sign", "[+1]"),
+        ("bare-fraction", "Not JSON: a fraction without integer part", "[.5]"),
+        ("bare-point", "Not JSON: a point without fraction", "[1.]"),
+        ("raw-control", "Not JSON: a raw control character in a string", "[\"a\tb\"]"),
+        ("empty", "Not JSON: nothing", ""),
+        ("trailing-text", "Not JSON: text after the value", "{} x"),
+    ]
+    for vid, desc, text in accepted + refused:
+        json_case(vid, desc, text)
+
+    stamps = [
+        ("2026-01-01T00:00:00Z", "UTC with Z"),
+        ("2026-01-01T00:00:00.123456Z", "Six digits of microseconds"),
+        ("2026-01-01T00:00:00.100000Z", "Six digits with trailing zeros"),
+        ("2026-01-01T02:00:00+02:00", "Another offset"),
+        ("2026-01-01T00:00:00-05:30", "A negative offset with minutes"),
+        ("2026-01-01T00:00:00", "No offset"),
+        ("2024-02-29T00:00:00Z", "A leap day"),
+        ("0001-01-01T00:00:00Z", "The first year"),
+        ("9999-12-31T23:59:59.999999Z", "The last instant"),
+        ("2026-01-01T00:00:00+00:00", "UTC written as +00:00"),
+        ("2026-01-01T00:00:00-00:00", "UTC written as -00:00"),
+        ("2026-01-01T00:00:00.000Z", "Three digits of zeros"),
+        ("2026-01-01T00:00:00.000000Z", "Six digits of zeros"),
+        ("2026-01-01T00:00:00.1Z", "One digit of fraction"),
+        ("2026-01-01T00:00:00.1234567Z", "Seven digits of fraction"),
+        ("2026-01-01 00:00:00Z", "A space instead of T"),
+        ("2026-01-01t00:00:00z", "Lowercase t and z"),
+        ("2026-01-01T00:00Z", "No seconds"),
+        ("2026-01-01", "A date only"),
+        ("2026-1-1T00:00:00Z", "Unpadded month and day"),
+        ("2026-02-29T00:00:00Z", "A day that does not exist"),
+        ("2026-01-01T24:00:00Z", "Hour 24"),
+        ("2026-01-01T23:59:60Z", "A leap second"),
+        ("0000-01-01T00:00:00Z", "Year zero"),
+        ("2026-01-01T00:00:00+0200", "An offset without a colon"),
+        ("2026-01-01T00:00:00+02", "An offset without minutes"),
+        ("2026-01-01T00:00:00+24:00", "An offset of 24 hours"),
+    ]
+    for value, desc in stamps:
+        vectors.append({"id": f"timestamp-{len([v for v in vectors if v['kind'] == 'timestamp']) + 1:02d}",
+                        "kind": "timestamp", "description": desc, "input": value,
+                        "expected": {"canonical": canonical_timestamp(value)}})
+
+    interop = {v["id"]: v["input"] for v in json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))["vectors"]}
+    bd = interop["bd-003"]
+
+    def signed(model: str, record: dict, keys: list[tuple[str, str]], field: str) -> dict:
+        body = received_canonical(model, record, registry).encode("utf-8")
+        sigs = [{"key_id": key_id, "sig": sign_data(body, KEYS[key])} for key, key_id in keys]
+        record[field] = sigs if field == "signatures" else sigs[0]
+        return record
+
+    decision = copy.deepcopy(bd["decision"])
+    decision["decision_valid_until"] = "2026-01-01T01:05:00+00:00"
+    vectors.append({
+        "id": "verify-decision-signed-non-canonical-timestamp", "kind": "verify_decision",
+        "description": "A decision signed over a timestamp written +00:00, which the reference writes Z",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")},
+                  "decision": signed("BoundaryDecision", decision, [("c", "na-key")], "signature")},
+        "expected": {"accepted": False, "reason": "non_canonical_form"},
+    })
+    received = copy.deepcopy(bd["decision"])
+    received["decision_made_at"] = "2026-01-01T01:00:00.000000Z"
+    vectors.append({
+        "id": "verify-decision-received-non-canonical-timestamp", "kind": "verify_decision",
+        "description": "A decision signed over Z, received with the timestamp rewritten",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": received},
+        "expected": {"accepted": False, "reason": "invalid_signature"},
+    })
+    vectors.append({
+        "id": "verify-decision-canonical", "kind": "verify_decision",
+        "description": "The decision as the NA wrote it",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": copy.deepcopy(bd["decision"])},
+        "expected": {"accepted": True, "reason": "authorized"},
+    })
+    agr = interop["agr-002"]
+    agreement = copy.deepcopy(agr["agreement"])
+    agreement["agreed_terms"]["valid_from"] = "2026-01-01T00:00:00.000Z"
+    key_ids = [s["key_id"] for s in agr["agreement"]["signatures"]]
+    vectors.append({
+        "id": "verify-agreement-signed-non-canonical-timestamp", "kind": "verify_agreement",
+        "description": "An agreement both parties signed over a nested timestamp written .000Z",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")},
+                  "agreement": signed("AgreementRecord", agreement, [("a", key_ids[0]), ("b", key_ids[1])], "signatures")},
+        "expected": {"accepted": False, "reason": "non_canonical_form"},
+    })
+    inten = interop["int-001"]
+    intent = copy.deepcopy(inten["intent"])
+    intent["declared_at"] = "2026-01-01T00:30:00+00:00"
+    intent = signed("DataAccessIntent", intent, [("b", intent["signature"]["key_id"])], "signature")
+    vectors.append({
+        "id": "verify-intent-signed-non-canonical-timestamp", "kind": "verify_intent",
+        "description": "An intent its agent signed over a timestamp written +00:00",
+        "input": {**{k: inten[k] for k in ("policy", "agent_public_keys", "at")}, "intent": intent},
+        "expected": {"detail": "Not in canonical form: intent"},
+    })
+    policy = copy.deepcopy(inten["policy"])
+    policy["valid_from"] = "2026-01-01T00:00:00.000Z"
+    vectors.append({
+        "id": "verify-intent-policy-non-canonical-timestamp", "kind": "verify_intent",
+        "description": "A license policy with a timestamp written .000Z",
+        "input": {**{k: inten[k] for k in ("intent", "agent_public_keys", "at")}, "policy": policy},
+        "expected": {"detail": "Not in canonical form: policy"},
+    })
+    _write("canonical", {"suite": "canonical", "version": "1.2.0", "vectors": vectors})
+
+
 def _at(record: dict, steps: list):
     """The nested object at ``steps`` inside ``record``."""
     node = record
@@ -1195,6 +1376,7 @@ GENERATORS = {
     "interop": gen_interop,
     "admin_auth": gen_admin_auth,
     "field_registry": gen_field_registry,
+    "canonical": gen_canonical,
 }
 
 

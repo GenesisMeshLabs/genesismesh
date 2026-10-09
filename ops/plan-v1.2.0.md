@@ -142,14 +142,16 @@ narrower kind, and the docs say so.
      entry points and reports fields outside a stored record's signature as
      the warning `unsigned_field`; the rules are in
      `docs/reference/canonical-form.md`.
-   - **Remaining (part 2b):** a canonicalization corpus
-     (`scripts/export_reference_corpus.py --suite canonical`): timestamps
-     (`Z`, `+00:00`, other offsets, naive, `.000`, six-digit fractions),
-     numbers (int and float, exponents, integers beyond 64 bits, `NaN`),
-     strings (non-ASCII, escapes, lone surrogates), duplicate keys, legacy
-     nulls, with conformance vectors; where Python is lax (it re-serializes
-     timestamps and so accepts forms the SDKs refuse), the core is made
-     strict and the case recorded.
+   - **Built (part 2b):** the conformance suite `canonical`
+     (`python conformance/generate_vectors.py canonical`): input every
+     implementation reads alike or refuses by reason (duplicate keys, `NaN`,
+     floats that overflow, integers beyond 64 bits, `-0`, lone surrogates),
+     canonical and non-canonical timestamps, and records signed over a form
+     the reference does not write (`non_canonical_form`). Where Python was
+     lax it is now strict: it read duplicate keys, `NaN` and lone surrogates,
+     and re-wrote a received record before checking its signature; the NA
+     reads every JSON body strictly. The registry marks timestamp fields
+     (version 2) so the SDKs check their form.
 3. **Signed store anchors** (core; built, see Decision 9).
    - The NA signs the store's head (`StoreAnchor`: sequence and entry digest;
      anchors chain among themselves) after an append once

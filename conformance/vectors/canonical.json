@@ -1,0 +1,1212 @@
+{
+  "suite": "canonical",
+  "version": "1.2.0",
+  "vectors": [
+    {
+      "id": "json-empty-object",
+      "kind": "json",
+      "description": "An empty object",
+      "input": "{}",
+      "expected": {
+        "canonical": "{}"
+      }
+    },
+    {
+      "id": "json-scalars",
+      "kind": "json",
+      "description": "Top-level scalars are JSON",
+      "input": "[1,\"x\",true,false,null]",
+      "expected": {
+        "canonical": "[1,\"x\",true,false,null]"
+      }
+    },
+    {
+      "id": "json-whitespace",
+      "kind": "json",
+      "description": "Whitespace between tokens is not part of the canonical form",
+      "input": " { \"b\" : 1 ,\n\t\"a\" : [ ] } ",
+      "expected": {
+        "canonical": "{\"a\":[],\"b\":1}"
+      }
+    },
+    {
+      "id": "json-key-order",
+      "kind": "json",
+      "description": "Keys are ordered by code point, not UTF-16 unit",
+      "input": "{\"\\ud83d\\ude00\":1,\"\\ue000\":2,\"Z\":3,\"a\":4}",
+      "expected": {
+        "canonical": "{\"Z\":3,\"a\":4,\"\\ue000\":2,\"\\ud83d\\ude00\":1}"
+      }
+    },
+    {
+      "id": "json-surrogate-pair",
+      "kind": "json",
+      "description": "An escaped surrogate pair is one character",
+      "input": "{\"x\":\"\\ud83d\\ude00\"}",
+      "expected": {
+        "canonical": "{\"x\":\"\\ud83d\\ude00\"}"
+      }
+    },
+    {
+      "id": "json-raw-non-bmp",
+      "kind": "json",
+      "description": "A raw character outside the BMP",
+      "input": "{\"x\":\"\ud83d\ude00\"}",
+      "expected": {
+        "canonical": "{\"x\":\"\\ud83d\\ude00\"}"
+      }
+    },
+    {
+      "id": "json-raw-non-ascii",
+      "kind": "json",
+      "description": "Raw non-ASCII text is escaped in the canonical form",
+      "input": "{\"x\":\"\u00e9\u00df\u4e2d\"}",
+      "expected": {
+        "canonical": "{\"x\":\"\\u00e9\\u00df\\u4e2d\"}"
+      }
+    },
+    {
+      "id": "json-control-escapes",
+      "kind": "json",
+      "description": "Control characters are escaped",
+      "input": "{\"x\":\"\\u0000\\u001f\\b\\f\\n\\r\\t\"}",
+      "expected": {
+        "canonical": "{\"x\":\"\\u0000\\u001f\\b\\f\\n\\r\\t\"}"
+      }
+    },
+    {
+      "id": "json-escaped-slash",
+      "kind": "json",
+      "description": "An escaped slash is a slash",
+      "input": "{\"x\":\"a\\/b\"}",
+      "expected": {
+        "canonical": "{\"x\":\"a/b\"}"
+      }
+    },
+    {
+      "id": "json-line-separator",
+      "kind": "json",
+      "description": "U+2028 is escaped",
+      "input": "{\"x\":\"\\u2028\"}",
+      "expected": {
+        "canonical": "{\"x\":\"\\u2028\"}"
+      }
+    },
+    {
+      "id": "json-empty-key",
+      "kind": "json",
+      "description": "An empty key",
+      "input": "{\"\":0}",
+      "expected": {
+        "canonical": "{\"\":0}"
+      }
+    },
+    {
+      "id": "json-int-limits",
+      "kind": "json",
+      "description": "The 64-bit limits are integers",
+      "input": "[-9223372036854775808,18446744073709551615,0,-1]",
+      "expected": {
+        "canonical": "[-9223372036854775808,18446744073709551615,0,-1]"
+      }
+    },
+    {
+      "id": "json-exponents",
+      "kind": "json",
+      "description": "Exponent spellings of floats",
+      "input": "[1E5,1e5,1E+5,1e-5,1.5E3,2.5e0,1e22,1e21,1e16,1e-7,123e-2]",
+      "expected": {
+        "canonical": "[100000.0,100000.0,100000.0,1e-05,1500.0,2.5,1e+22,1e+21,1e+16,1e-07,1.23]"
+      }
+    },
+    {
+      "id": "json-floats",
+      "kind": "json",
+      "description": "Float spellings and Python's shortest repr",
+      "input": "[0.1,1.0,1.50,100.0,-0.0,5e-324,1.7976931348623157e308,0.30000000000000004]",
+      "expected": {
+        "canonical": "[0.1,1.0,1.5,100.0,-0.0,5e-324,1.7976931348623157e+308,0.30000000000000004]"
+      }
+    },
+    {
+      "id": "json-negative-zero-float",
+      "kind": "json",
+      "description": "The float -0.0 keeps its sign",
+      "input": "{\"x\":-0.0}",
+      "expected": {
+        "canonical": "{\"x\":-0.0}"
+      }
+    },
+    {
+      "id": "json-nested",
+      "kind": "json",
+      "description": "Nested objects are ordered at every level",
+      "input": "{\"b\":{\"d\":1,\"c\":[{\"f\":1,\"e\":2}]},\"a\":null}",
+      "expected": {
+        "canonical": "{\"a\":null,\"b\":{\"c\":[{\"e\":2,\"f\":1}],\"d\":1}}"
+      }
+    },
+    {
+      "id": "json-duplicate-key",
+      "kind": "json",
+      "description": "A key named twice",
+      "input": "{\"a\":1,\"a\":2}",
+      "expected": {
+        "refused": "duplicate_key"
+      }
+    },
+    {
+      "id": "json-duplicate-key-nested",
+      "kind": "json",
+      "description": "A key named twice in a nested object",
+      "input": "{\"x\":[{\"k\":1,\"k\":1}]}",
+      "expected": {
+        "refused": "duplicate_key"
+      }
+    },
+    {
+      "id": "json-duplicate-key-escaped",
+      "kind": "json",
+      "description": "A key named twice, once escaped",
+      "input": "{\"a\":1,\"\\u0061\":2}",
+      "expected": {
+        "refused": "duplicate_key"
+      }
+    },
+    {
+      "id": "json-nan",
+      "kind": "json",
+      "description": "NaN is not JSON",
+      "input": "{\"x\":NaN}",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-infinity",
+      "kind": "json",
+      "description": "Infinity is not JSON",
+      "input": "{\"x\":Infinity}",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-negative-infinity",
+      "kind": "json",
+      "description": "-Infinity is not JSON",
+      "input": "{\"x\":-Infinity}",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-float-overflow",
+      "kind": "json",
+      "description": "A number that overflows a float",
+      "input": "{\"x\":1e400}",
+      "expected": {
+        "refused": "non_finite_number"
+      }
+    },
+    {
+      "id": "json-float-overflow-negative",
+      "kind": "json",
+      "description": "A negative number that overflows a float",
+      "input": "[-1e400]",
+      "expected": {
+        "refused": "non_finite_number"
+      }
+    },
+    {
+      "id": "json-float-overflow-rounding",
+      "kind": "json",
+      "description": "A number that rounds past the largest float",
+      "input": "[1.7976931348623159e308]",
+      "expected": {
+        "refused": "non_finite_number"
+      }
+    },
+    {
+      "id": "json-int-above-u64",
+      "kind": "json",
+      "description": "An integer above 2**64 - 1",
+      "input": "[18446744073709551616]",
+      "expected": {
+        "refused": "integer_out_of_range"
+      }
+    },
+    {
+      "id": "json-int-below-i64",
+      "kind": "json",
+      "description": "An integer below -2**63",
+      "input": "[-9223372036854775809]",
+      "expected": {
+        "refused": "integer_out_of_range"
+      }
+    },
+    {
+      "id": "json-int-huge",
+      "kind": "json",
+      "description": "An integer far beyond 64 bits",
+      "input": "{\"x\":123456789012345678901234}",
+      "expected": {
+        "refused": "integer_out_of_range"
+      }
+    },
+    {
+      "id": "json-negative-zero",
+      "kind": "json",
+      "description": "The integer -0",
+      "input": "{\"x\":-0}",
+      "expected": {
+        "refused": "negative_zero"
+      }
+    },
+    {
+      "id": "json-negative-zero-in-list",
+      "kind": "json",
+      "description": "The integer -0 in a list",
+      "input": "[1,-0]",
+      "expected": {
+        "refused": "negative_zero"
+      }
+    },
+    {
+      "id": "json-lone-high",
+      "kind": "json",
+      "description": "A lone high surrogate",
+      "input": "{\"x\":\"\\ud800\"}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-lone-low",
+      "kind": "json",
+      "description": "A lone low surrogate",
+      "input": "{\"x\":\"\\udc00\"}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-reversed-pair",
+      "kind": "json",
+      "description": "A low surrogate before a high one",
+      "input": "{\"x\":\"\\ude00\\ud83d\"}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-high-then-letter",
+      "kind": "json",
+      "description": "A high surrogate followed by a letter",
+      "input": "{\"x\":\"\\ud83dx\"}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-lone-in-key",
+      "kind": "json",
+      "description": "A lone surrogate in a key",
+      "input": "{\"\\ud800\":1}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-unclosed",
+      "kind": "json",
+      "description": "Not JSON: unclosed",
+      "input": "{",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-trailing-comma",
+      "kind": "json",
+      "description": "Not JSON: trailing comma",
+      "input": "[1,]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-single-quotes",
+      "kind": "json",
+      "description": "Not JSON: single quotes",
+      "input": "{'a':1}",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-leading-zero",
+      "kind": "json",
+      "description": "Not JSON: a leading zero",
+      "input": "[01]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-plus-sign",
+      "kind": "json",
+      "description": "Not JSON: a plus sign",
+      "input": "[+1]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-bare-fraction",
+      "kind": "json",
+      "description": "Not JSON: a fraction without integer part",
+      "input": "[.5]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-bare-point",
+      "kind": "json",
+      "description": "Not JSON: a point without fraction",
+      "input": "[1.]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-raw-control",
+      "kind": "json",
+      "description": "Not JSON: a raw control character in a string",
+      "input": "[\"a\tb\"]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-empty",
+      "kind": "json",
+      "description": "Not JSON: nothing",
+      "input": "",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "json-trailing-text",
+      "kind": "json",
+      "description": "Not JSON: text after the value",
+      "input": "{} x",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
+      "id": "timestamp-01",
+      "kind": "timestamp",
+      "description": "UTC with Z",
+      "input": "2026-01-01T00:00:00Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-02",
+      "kind": "timestamp",
+      "description": "Six digits of microseconds",
+      "input": "2026-01-01T00:00:00.123456Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-03",
+      "kind": "timestamp",
+      "description": "Six digits with trailing zeros",
+      "input": "2026-01-01T00:00:00.100000Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-04",
+      "kind": "timestamp",
+      "description": "Another offset",
+      "input": "2026-01-01T02:00:00+02:00",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-05",
+      "kind": "timestamp",
+      "description": "A negative offset with minutes",
+      "input": "2026-01-01T00:00:00-05:30",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-06",
+      "kind": "timestamp",
+      "description": "No offset",
+      "input": "2026-01-01T00:00:00",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-07",
+      "kind": "timestamp",
+      "description": "A leap day",
+      "input": "2024-02-29T00:00:00Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-08",
+      "kind": "timestamp",
+      "description": "The first year",
+      "input": "0001-01-01T00:00:00Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-09",
+      "kind": "timestamp",
+      "description": "The last instant",
+      "input": "9999-12-31T23:59:59.999999Z",
+      "expected": {
+        "canonical": true
+      }
+    },
+    {
+      "id": "timestamp-10",
+      "kind": "timestamp",
+      "description": "UTC written as +00:00",
+      "input": "2026-01-01T00:00:00+00:00",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-11",
+      "kind": "timestamp",
+      "description": "UTC written as -00:00",
+      "input": "2026-01-01T00:00:00-00:00",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-12",
+      "kind": "timestamp",
+      "description": "Three digits of zeros",
+      "input": "2026-01-01T00:00:00.000Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-13",
+      "kind": "timestamp",
+      "description": "Six digits of zeros",
+      "input": "2026-01-01T00:00:00.000000Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-14",
+      "kind": "timestamp",
+      "description": "One digit of fraction",
+      "input": "2026-01-01T00:00:00.1Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-15",
+      "kind": "timestamp",
+      "description": "Seven digits of fraction",
+      "input": "2026-01-01T00:00:00.1234567Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-16",
+      "kind": "timestamp",
+      "description": "A space instead of T",
+      "input": "2026-01-01 00:00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-17",
+      "kind": "timestamp",
+      "description": "Lowercase t and z",
+      "input": "2026-01-01t00:00:00z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-18",
+      "kind": "timestamp",
+      "description": "No seconds",
+      "input": "2026-01-01T00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-19",
+      "kind": "timestamp",
+      "description": "A date only",
+      "input": "2026-01-01",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-20",
+      "kind": "timestamp",
+      "description": "Unpadded month and day",
+      "input": "2026-1-1T00:00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-21",
+      "kind": "timestamp",
+      "description": "A day that does not exist",
+      "input": "2026-02-29T00:00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-22",
+      "kind": "timestamp",
+      "description": "Hour 24",
+      "input": "2026-01-01T24:00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-23",
+      "kind": "timestamp",
+      "description": "A leap second",
+      "input": "2026-01-01T23:59:60Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-24",
+      "kind": "timestamp",
+      "description": "Year zero",
+      "input": "0000-01-01T00:00:00Z",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-25",
+      "kind": "timestamp",
+      "description": "An offset without a colon",
+      "input": "2026-01-01T00:00:00+0200",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-26",
+      "kind": "timestamp",
+      "description": "An offset without minutes",
+      "input": "2026-01-01T00:00:00+02",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "timestamp-27",
+      "kind": "timestamp",
+      "description": "An offset of 24 hours",
+      "input": "2026-01-01T00:00:00+24:00",
+      "expected": {
+        "canonical": false
+      }
+    },
+    {
+      "id": "verify-decision-signed-non-canonical-timestamp",
+      "kind": "verify_decision",
+      "description": "A decision signed over a timestamp written +00:00, which the reference writes Z",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00+00:00",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "WPKqVHXXubC0AMHJW2uYx+lWEvbjakMCmC23JIA0auB29mh1kWeY8ibktN0ezqS4OHKOcnnJ9KpveP2olAAaBg=="
+          }
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "non_canonical_form"
+      }
+    },
+    {
+      "id": "verify-decision-received-non-canonical-timestamp",
+      "kind": "verify_decision",
+      "description": "A decision signed over Z, received with the timestamp rewritten",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00.000000Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+          }
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "verify-decision-canonical",
+      "kind": "verify_decision",
+      "description": "The decision as the NA wrote it",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "TZN8bDXaW48m31ojgYAJqBnq6KsxsDfdaUUzAh5FnmI4U8LifmjOzNgzzzEnNuVXebD0xWuGr+u6lnYictiaDQ=="
+          }
+        }
+      },
+      "expected": {
+        "accepted": true,
+        "reason": "authorized"
+      }
+    },
+    {
+      "id": "verify-agreement-signed-non-canonical-timestamp",
+      "kind": "verify_agreement",
+      "description": "An agreement both parties signed over a nested timestamp written .000Z",
+      "input": {
+        "offerer_public_keys": [
+          "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+        ],
+        "responder_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "agreement": {
+          "agreement_id": "c035ca90-5709-44f7-8eb4-f1f995ec464a",
+          "offer_id": "fea7ad21-52d2-486d-bb79-73a4cb412ba9",
+          "offerer_sovereign_id": "sovereign-a",
+          "responder_sovereign_id": "sovereign-b",
+          "agreed_terms": {
+            "capabilities": [
+              "transactions.read",
+              "statements.read"
+            ],
+            "scope": {
+              "region": "Z\u00fcrich \u2713",
+              "ratio": 0.25,
+              "limit": 1.0,
+              "accounts": [
+                "acc-1"
+              ]
+            },
+            "valid_from": "2026-01-01T00:00:00.000Z",
+            "valid_until": "2027-01-01T00:00:00Z",
+            "freshness_commitment": 0
+          },
+          "offerer_evidence": {
+            "evidence_id": "d7c7a002-0ebf-4055-8661-f6e7191233c1",
+            "issuer_sovereign_id": "sovereign-a",
+            "source_sovereign_id": "sovereign-a",
+            "target_sovereign_id": "sovereign-b",
+            "verdict": "warn",
+            "reason": "treaty_expiring_soon",
+            "requested_roles": [],
+            "trusted": true,
+            "hop_count": 1,
+            "signals": [
+              {
+                "code": "treaty_expiring_soon",
+                "severity": "warn",
+                "detail": "treaty t-ab (sovereign-a -> sovereign-b) expires 2027-01-01T00:00:00+00:00"
+              }
+            ],
+            "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+            "evaluated_at": "2026-10-01T22:44:50.128696+00:00",
+            "issued_at": "2026-01-01T00:00:00Z",
+            "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+            "metadata": {},
+            "signatures": [
+              {
+                "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+                "sig": "l8Yl5sJ/LTsDvWEmly2d1M1Sz7CnqALk739GkRcQfr8116hcJAshTBV1qI5/eLVsNEUPlZ4WMiLayQm5+OasAQ=="
+              }
+            ]
+          },
+          "responder_evidence": {
+            "evidence_id": "ef0dab4d-672a-4a2c-b7e0-52117de7cacc",
+            "issuer_sovereign_id": "sovereign-b",
+            "source_sovereign_id": "sovereign-b",
+            "target_sovereign_id": "sovereign-a",
+            "verdict": "warn",
+            "reason": "treaty_expiring_soon",
+            "requested_roles": [],
+            "trusted": true,
+            "hop_count": 1,
+            "signals": [
+              {
+                "code": "treaty_expiring_soon",
+                "severity": "warn",
+                "detail": "treaty t-ba (sovereign-b -> sovereign-a) expires 2027-01-01T00:00:00+00:00"
+              }
+            ],
+            "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+            "evaluated_at": "2026-10-01T22:44:50.129128+00:00",
+            "issued_at": "2026-01-01T00:00:00Z",
+            "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+            "metadata": {},
+            "signatures": [
+              {
+                "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+                "sig": "oc2YZD5Y7aXv3RigTAaQODomD+PYDb7NoOJpO6+0AR61vmj/aut8niqdV6BwTSXUfa682ooQbTdWHcT6uS7GAw=="
+              }
+            ]
+          },
+          "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
+          "established_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
+          "signatures": [
+            {
+              "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "sig": "qBsHoVqg2KSzn3RSdWrl6tDcm383VrzEsWEgGcnRnPhJhdOhLY4wzVS77R/Cg9qmd60fbotisLG3K74KTwVpDQ=="
+            },
+            {
+              "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+              "sig": "W8G7U5zw0qqyfSvUKDBPLdNcw0WD6j9Svlj+1TCBvRiKktSXNmftZY2HMXXuL6KVKaMNu97Y8P+QAd2If87yBA=="
+            }
+          ]
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "non_canonical_form"
+      }
+    },
+    {
+      "id": "verify-intent-signed-non-canonical-timestamp",
+      "kind": "verify_intent",
+      "description": "An intent its agent signed over a timestamp written +00:00",
+      "input": {
+        "policy": {
+          "policy_id": "00000000-0000-4000-8000-000000000001",
+          "licensor_sovereign_id": "sovereign-a",
+          "licensee_sovereign_id": "sovereign-b",
+          "allowed_source_ids": [
+            "db-prod",
+            "db-archive"
+          ],
+          "allowed_access_types": [
+            "read",
+            "aggregate"
+          ],
+          "max_volume_bytes_per_session": 1000000,
+          "prohibited_classification_tags": [
+            "pii-raw"
+          ],
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "signature": {
+            "key_id": "key-a",
+            "sig": "qqMyQ+9rcG4jlbg2jrfVHbu4Y/5o4og9ES2o34tv4EpYCPsD/dVocqmybA+zUhy2Po7heTnI7qnvP1Pk9RAUAw=="
+          }
+        },
+        "agent_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "at": "2026-01-01T01:00:00Z",
+        "intent": {
+          "intent_id": "8a6d828f-7f60-4bd7-bf9c-e649180bf027",
+          "agent_sovereign_id": "sovereign-b",
+          "decision_id": "6a17081c-ddcc-48af-b879-20bf48c18d7f",
+          "declared_sources": [
+            {
+              "source_id": "db-prod",
+              "source_type": "proprietary",
+              "owner_sovereign_id": "sovereign-a",
+              "classification_tags": []
+            }
+          ],
+          "declared_access_types": [
+            "read"
+          ],
+          "estimated_volume_bytes": 5000,
+          "declared_at": "2026-01-01T00:30:00+00:00",
+          "expires_at": "2026-01-01T01:30:00Z",
+          "signature": {
+            "key_id": "sovereign-b",
+            "sig": "VJ+U8+BRQWlWYdsb4TjNefEeJpp/2rttIGgOnUsS+w6E3rO1fn1Tf8mPXGx2jyiaaPL3OIzLdxgE1apnI6UABg=="
+          }
+        }
+      },
+      "expected": {
+        "detail": "Not in canonical form: intent"
+      }
+    },
+    {
+      "id": "verify-intent-policy-non-canonical-timestamp",
+      "kind": "verify_intent",
+      "description": "A license policy with a timestamp written .000Z",
+      "input": {
+        "intent": {
+          "intent_id": "8a6d828f-7f60-4bd7-bf9c-e649180bf027",
+          "agent_sovereign_id": "sovereign-b",
+          "decision_id": "6a17081c-ddcc-48af-b879-20bf48c18d7f",
+          "declared_sources": [
+            {
+              "source_id": "db-prod",
+              "source_type": "proprietary",
+              "owner_sovereign_id": "sovereign-a",
+              "classification_tags": []
+            }
+          ],
+          "declared_access_types": [
+            "read"
+          ],
+          "estimated_volume_bytes": 5000,
+          "declared_at": "2026-01-01T00:30:00Z",
+          "expires_at": "2026-01-01T01:30:00Z",
+          "signature": {
+            "key_id": "sovereign-b",
+            "sig": "F1JM871O5UOGw6wqzMVas1ygG7IOJIdrXY872oZtT3Bd5PrgqLgMsQCHZHXHv0esqGmJWXxFyO1NHR+5YiR2Dw=="
+          }
+        },
+        "agent_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "at": "2026-01-01T01:00:00Z",
+        "policy": {
+          "policy_id": "00000000-0000-4000-8000-000000000001",
+          "licensor_sovereign_id": "sovereign-a",
+          "licensee_sovereign_id": "sovereign-b",
+          "allowed_source_ids": [
+            "db-prod",
+            "db-archive"
+          ],
+          "allowed_access_types": [
+            "read",
+            "aggregate"
+          ],
+          "max_volume_bytes_per_session": 1000000,
+          "prohibited_classification_tags": [
+            "pii-raw"
+          ],
+          "valid_from": "2026-01-01T00:00:00.000Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "signature": {
+            "key_id": "key-a",
+            "sig": "qqMyQ+9rcG4jlbg2jrfVHbu4Y/5o4og9ES2o34tv4EpYCPsD/dVocqmybA+zUhy2Po7heTnI7qnvP1Pk9RAUAw=="
+          }
+        }
+      },
+      "expected": {
+        "detail": "Not in canonical form: policy"
+      }
+    }
+  ]
+}

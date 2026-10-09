@@ -6,9 +6,10 @@ record it received, or the signature does not verify. The normative
 definition of canonical JSON is RFC-001, *Canonical JSON and signatures*
 ({doc}`../rfcs/rfc-001-sovereign-identity`); this page states how it applies
 to each record, and how verifiers handle fields they do not know (v1.2.0).
-The Python models are the reference implementation; the shared suite
-`conformance/vectors/field_registry.json` carries the field rules to every
-SDK.
+The Python models are the reference implementation; the shared suites
+`conformance/vectors/field_registry.json` (the field rules) and
+`conformance/vectors/canonical.json` (accepted input and canonical form,
+v1.2.0) carry the rules to every SDK.
 
 ## Canonical JSON
 
@@ -18,22 +19,73 @@ The canonical form of a record is its JSON with:
   separators);
 - non-ASCII characters escaped as `\uXXXX` (`"Zürich ✓"` is signed as
   `"Z\u00fcrich \u2713"`), as Python's `json.dumps` writes by default;
-- numbers as the reference writes them: integers of any size in full
-  (`1000000000000000000000000000000`), floats in Python's shortest round-trip
-  form, an integral float keeping its `.0` (`1.0`), small and large floats in
-  exponent form (`1e-07`);
-- timestamps as strings in UTC with a `Z` suffix and microseconds only when
-  they are not zero: `2026-01-01T00:00:00Z`, `2026-01-01T00:00:00.123000Z`;
+- numbers as the reference writes them: integers in full (only
+  `-2**63 .. 2**64 - 1` are accepted, see *Accepted input*), floats in
+  Python's shortest round-trip form, an integral float keeping its `.0`
+  (`1.0`), small and large floats in exponent form (`1e-07`);
+- timestamps as strings in their canonical form (see *Records in canonical
+  form*): `2026-01-01T00:00:00Z`, `2026-01-01T00:00:00.123000Z`;
 - the signature field (`signature`, or `signatures` for multi-signed records)
   left out.
 
 Every implementation parses the received JSON and writes it again in this
 form, so numbers are normalized everywhere (`90.00` and `9.0e1` both become
-`90.0`). Strings are kept as received: the SDKs sign over a timestamp exactly
-as it arrived, so a timestamp in another form (`+00:00`, `.000Z`) fails the
-signature there. The Python reference parses timestamps into datetimes and
-writes them in the form above, so it accepts those variants. Signers must
-emit the form above; the Network Authority always does.
+`90.0`). Strings are kept as received: verifiers sign over a timestamp exactly
+as it arrived.
+
+## Accepted input
+
+Some JSON is read differently by different parsers, so it could make two
+verifiers disagree about one record. Since 1.2.0 every implementation refuses
+it before computing a canonical form, by a named reason: the Network
+Authority answers `400 invalid_json` with the reason in `error.details`, the
+CLI and the SDKs' parsers fail with it.
+
+| Input | Reason |
+| --- | --- |
+| Not JSON, including `NaN` and `Infinity` | `invalid_json` |
+| An object naming a key twice (`{"a":1,"a":2}`), also when one is escaped | `duplicate_key` |
+| A number that overflows a 64-bit float (`1e400`) | `non_finite_number` |
+| An integer below `-2**63` or above `2**64 - 1` | `integer_out_of_range` |
+| The integer `-0` (the float `-0.0` is accepted) | `negative_zero` |
+| A string or key holding half of a UTF-16 surrogate pair (`"\ud800"`) | `lone_surrogate` |
+
+Before 1.2.0, Python kept the last duplicate key where .NET kept both, wrote
+`NaN` back as non-JSON, Go replaced a lone surrogate, and Rust read a large
+integer as a float. The Network Authority applies these rules to every JSON
+request body, so no record it signs can carry such input.
+
+## Records in canonical form
+
+A record is valid only in its canonical form: exactly what the reference
+writes back after reading it. Verifiers check the signature over the record
+as received first, then its fields (*Unknown fields*), then its form:
+
+- a record whose signature verifies over another form is refused as
+  `non_canonical_form`; its signer did not write it as the reference does;
+- a record received in a form its signature does not cover is refused as
+  `invalid_signature`, like any other change.
+
+Before 1.2.0 the Python reference re-wrote a received record before checking
+its signature, so it accepted a timestamp rewritten from `Z` to `+00:00`
+that every SDK refused. It now checks the whole record against what it
+writes back. The SDKs check timestamps, the one form the reference rewrites
+in practice: every field the registry marks `"timestamp"` must be written
+`YYYY-MM-DDTHH:MM:SS`, then six digits of microseconds when they are not all
+zero, then `Z` for UTC or `+HH:MM` / `-HH:MM` for another offset (nothing for
+a timestamp without one), and name an instant that exists:
+
+| Canonical | Not canonical |
+| --- | --- |
+| `2026-01-01T00:00:00Z` | `2026-01-01T00:00:00+00:00`, `2026-01-01T00:00:00.000Z` |
+| `2026-01-01T00:00:00.100000Z` | `2026-01-01T00:00:00.1Z`, `2026-01-01 00:00:00Z` |
+| `2026-01-01T02:00:00+02:00` | `2026-01-01T02:00:00+0200`, `2026-02-29T00:00:00Z` |
+
+A data access intent check has no reason code of its own for this; its
+`intent_exceeds_license` violation says `Not in canonical form: intent`, or
+`Not in canonical form: policy` for the license policy's timestamps. Evidence
+exports are checked when the Network Authority admits each record (1.1.1),
+not again when verified.
 
 ## Optional fields
 
@@ -103,9 +155,9 @@ field. A client that receives `unknown_field` must be upgraded. See
 
 ## Keeping verifiers in step
 
-- `python conformance/generate_vectors.py field_registry` regenerates the
-  suite from the models; a core test fails while it is stale, and another
-  pins the set of free-form fields.
+- `python conformance/generate_vectors.py field_registry canonical`
+  regenerates the suites from the models and the reference; a core test
+  fails while they are stale, and another pins the set of free-form fields.
 - Each SDK embeds a copy of the registry and runs the suite; its conformance
   test fails when the embedded copy differs from the suite, and checks that
   its own canonical rules (omitted fields, an agreement's signed fields,

@@ -24,6 +24,7 @@ from ..trust.agreement import (
 from ..models.canonical_registry import strict_refusal
 from ..trust.agreement import AgreementVerificationResult
 from ..trust.evidence import graph_digest_from_export
+from .. import strict_json
 
 
 # ---------------------------------------------------------------------------
@@ -529,7 +530,10 @@ def agree_verify(
     offerer_key = _parse_public_key(offerer_pub)
     responder_key = _parse_public_key(responder_pub)
     # v1.2.0: refuse a signed field this release does not know, as every SDK does.
-    raw = json.loads(Path(agreement_path).read_text(encoding="utf-8"))
+    try:
+        raw = strict_json.loads(Path(agreement_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Cannot load {agreement_path!r}: {exc}") from exc
     refusal = strict_refusal("AgreementRecord", raw, [offerer_key, responder_key])
     record = _load_agreement(agreement_path)
 

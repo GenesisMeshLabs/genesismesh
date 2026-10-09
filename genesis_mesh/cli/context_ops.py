@@ -16,6 +16,7 @@ from ..models.context import BoundaryDecision, ContextRecord
 from ..models.canonical_registry import strict_refusal
 from ..trust.context import BoundaryEngine, verify_boundary_decision
 from ..trust.context.decisions import BoundaryDecisionVerificationResult
+from .. import strict_json
 
 
 # ---------------------------------------------------------------------------
@@ -35,8 +36,8 @@ def context() -> None:
 
 def _load_json_file(path: str) -> dict[str, Any]:
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        return strict_json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise click.ClickException(f"Cannot load {path!r}: {exc}") from exc
 
 
@@ -316,7 +317,7 @@ def context_verify(
     """
     pub = _parse_public_key(operator_pub)
     # v1.2.0: refuse a field this release does not know, as every SDK does.
-    raw = json.loads(Path(decision_path).read_text(encoding="utf-8"))
+    raw = _load_json_file(decision_path)
     refusal = strict_refusal("BoundaryDecision", raw, [pub])
     if refusal:
         result = BoundaryDecisionVerificationResult(
