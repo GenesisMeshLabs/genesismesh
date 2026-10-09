@@ -22,6 +22,7 @@ from ..errors import (
     UnauthorizedError,
     request_json_object,
 )
+from ..services.boundary_policy import agreement_parties
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -80,17 +81,19 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             agreement = AgreementRecord.model_validate(raw_agreement)
         except Exception as exc:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
+        service.agreements.require_trusted(agreement, route="/admin/boundary/decide")
 
         ctx_data = data.get("context") or {}
+        if not isinstance(ctx_data, dict):
+            raise BadRequestError("context must be an object", code="invalid_context")
+        requester, provider = agreement_parties(ctx_data, agreement)
         try:
             context = ContextRecord(
                 context_id=ctx_data.get("context_id") or str(uuid.uuid4()),
                 agreement_id=agreement.agreement_id,
                 parent_kind=ctx_data.get("parent_kind") or "direct",
-                requester_sovereign_id=ctx_data.get("requester_sovereign_id")
-                    or agreement.responder_sovereign_id,
-                provider_sovereign_id=ctx_data.get("provider_sovereign_id")
-                    or agreement.offerer_sovereign_id,
+                requester_sovereign_id=requester,
+                provider_sovereign_id=provider,
                 requested_capability=capability,
                 request_parameters=ctx_data.get("request_parameters") or {},
                 requested_at=datetime.now(timezone.utc),

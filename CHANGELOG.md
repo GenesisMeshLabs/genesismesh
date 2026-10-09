@@ -1,5 +1,56 @@
 # Changelog
 
+## v1.1.1 - Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
+
+A patch release with security fixes. Read *Upgrading to 1.1.1* in the upgrade
+guide before upgrading a Network Authority that decides under agreements or
+assembles consensus proofs.
+
+### Security
+
+- **Fabricated agreements are refused.** `POST /admin/boundary/evaluate`,
+  `POST /admin/boundary/decide` and `POST /admin/disclosure/commit` used the
+  `AgreementRecord` in the request without verifying its signatures, so a
+  holder of a standard-tier operator key could present a fabricated agreement
+  and receive an NA-signed ALLOW for any capability no active policy covers,
+  or a signed disclosure commitment. The NA now accepts an agreement only if two different parties signed it with keys
+it trusts: its own key for its own sovereign, and for any other sovereign the
+keys of an active recognition treaty the NA issued to it that grants at least
+one role. The NA's key never vouches for another sovereign, a sovereign cannot
+agree with itself, and one key cannot sign for both parties. An agreement the
+NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
+trusted when its responder holds such a treaty.
+  Anything else is refused with `422 agreement_untrusted` and an
+  `agreement_untrusted` audit event. Operator keys are still not bound to
+  sovereigns: a standard-tier key can decide under any trusted agreement or
+  stored attestation it presents.
+- **Countering an agreement offer needs a privileged key.** The offerer can
+  accept a counter on its own, and the counter carries the NA's signature into
+  the agreement, so a standard-tier key and any recognised sovereign could
+  form an agreement the NA never approved. `POST /admin/agreements/counter`
+  now requires the privileged tier, as `accept` has since 0.62.
+- **The requester and provider are the agreement's parties.** A request could
+  name another requester or provider in its context and step outside a policy
+  whose selector names one. Under an agreement the requester is now the
+  responder and the provider the offerer; under an attestation a supplied
+  provider must be this sovereign. Naming another party is refused with
+  `400 context_party_mismatch`.
+- **Execution evidence is stored exactly as signed.** `POST /evidence/execution`
+  stored the submitted payload, so unsigned extra fields (which the secret
+  guard never saw) and coerced types were kept, exported and verified
+  offline, and the first variant submitted made the genuine record conflict.
+  A record is now admitted only if it is exactly its serialized form, with
+  UTC timestamps; anything else is refused with `422 evidence_malformed`
+  naming the difference. Records from the Python reference and the
+  TypeScript and Rust SDKs pass unchanged.
+- **Consensus is assembled only over the NA's own proofs.**
+  `POST /admin/consensus/vote` and `POST /admin/consensus/proof` signed votes
+  and consensus proofs over any justification proof the caller sent, and the
+  proof route accepted a `required_threshold` of 0, which made every proof
+  pass without a vote. Both routes now refuse a justification proof this NA
+  did not sign (`422 justification_untrusted`), and the threshold must be an
+  integer from 1 to the number of validators (`400 invalid_threshold`).
+
 ## v1.1.0 - Signed Container Images and a Local Governed Network Authority
 
 Signed container images for the Network Authority and the gateway; a governed

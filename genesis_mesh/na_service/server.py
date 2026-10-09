@@ -34,6 +34,7 @@ from .key_provider import KeyProviderConfig, Signer, as_signer, load_signer
 from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, RateLimits
 from .services import BoundaryPolicyService, EvidenceStoreService
 from .services.evidence_store import EVIDENCE_STORE_MODES
+from .services.agreement_trust import AgreementTrust
 from .services.boundary_policy import ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
@@ -202,6 +203,9 @@ class NetworkAuthorityService:
             raise ValueError(f"evidence_store must be one of {EVIDENCE_STORE_MODES}")
         self.evidence_store = evidence_store
         self.evidence_store_service = EvidenceStoreService(self)
+        # v1.1.1: agreements presented by callers must be signed by parties
+        # this NA trusts (services/agreement_trust.py).
+        self.agreements = AgreementTrust(self)
 
         # F-11: verify genesis signatures before trusting the block, mirroring
         # the node-side check (node/node.py:_verify_genesis_block).

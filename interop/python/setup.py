@@ -93,7 +93,13 @@ def main() -> int:
     tampered_agreement = json.loads(json.dumps(agreement_json))
     tampered_agreement["agreed_terms"]["capabilities"].append("transactions.write")
 
-    # 2. The NA publishes a policy and decides under the agreement and an attestation.
+    # 2. The NA recognises both sovereigns (since 1.1.1 it decides only under
+    # agreements signed by parties it trusts), publishes a policy and decides
+    # under the agreement and an attestation.
+    for sovereign_id, keypair in ((ORG_A, org), (BANK_A, bank)):
+        na.post("/admin/recognition-treaties", {
+            "subject_sovereign_id": sovereign_id, "subject_public_keys": [keypair.public_key_b64],
+            "scope": {"allowed_roles": ["role:client"]}, "validity_hours": 24})
     policy = na.post("/admin/boundary-policies", {
         "policy_id": "bank-read-limits", "description": "Row limits for bank data — Zürich ✓",
         "valid_from": (now - timedelta(hours=1)).isoformat(), "valid_until": (now + timedelta(days=30)).isoformat(),
