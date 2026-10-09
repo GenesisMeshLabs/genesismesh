@@ -21,6 +21,7 @@ from ...trust.data_usage import (
     create_data_access_intent,
     verify_data_access_intent,
 )
+from ...models.canonical_registry import intent_refusal_detail
 from ..errors import (
     utc_timestamp,
     BadRequestError,
@@ -203,6 +204,14 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
             raise BadRequestError("Invalid intent or policy object", code="invalid_input") from exc
 
         agent_keys = data.get("agent_public_keys") or [_pub_b64()]
+        # v1.2.0: refuse a signed field this release does not know, as every SDK does.
+        detail = intent_refusal_detail(raw_intent, raw_policy, agent_keys)
+        if detail:
+            return jsonify({
+                "valid": False, "violation_reason": "intent_exceeds_license", "violation_count": 1,
+                "violations": [{"violation_type": "intent_exceeds_license", "detail": detail,
+                                "intent_id": intent.intent_id, "agent_sovereign_id": intent.agent_sovereign_id}],
+            })
         valid, violation_reason, violations = verify_data_access_intent(
             intent=intent,
             policy=policy,

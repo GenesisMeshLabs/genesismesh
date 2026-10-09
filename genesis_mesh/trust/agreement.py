@@ -59,6 +59,7 @@ AgreementVerificationReason = Literal[
     "invalid_responder_signature",
     "graph_digest_mismatch",
     "terms_mismatch",
+    "unknown_field",
 ]
 
 

@@ -50,7 +50,8 @@ exception (see *What is not covered*).
   evidence-store records), the NA rejects them.
 - **Responses.** Fields may be added at any time; **clients must ignore
   fields they do not know**. A stable response field is not removed, renamed
-  or retyped within 1.x.
+  or retyped within 1.x. Signed records carried in a response are the
+  exception: their fields follow *Signed artifacts* below.
 - **Status codes and error codes.** The HTTP status of a given failure, and
   its `error.code`, are stable. A code is never removed or given a new
   meaning; new codes may be added for new failures. `error.message` and
@@ -72,10 +73,15 @@ change within a major version.
 
 ## Signed artifacts
 
-A verifier parses a signed artifact into its model and recomputes the
-canonical form. **A field the verifier does not know is dropped, so the
-signature no longer verifies**: an artifact from a newer signer fails closed
-on an older verifier; it is never accepted with the new field ignored.
+A verifier rebuilds the canonical form of a signed artifact and checks its
+signed fields against the field registry (`conformance/vectors/field_registry.json`,
+see the reference page *Canonical Form of Signed Records*). **A signed field
+the verifier does not know is refused** (`unknown_field` when the signature
+covers it, `invalid_signature` when it does not): an artifact from a newer
+signer fails closed on an older verifier; it is never accepted with the new
+field ignored or misread. Before 1.2.0 the Python reference dropped unknown
+fields (so the signature failed) and the SDKs copied them into the signed
+form (so a signed one verified); since 1.2.0 every verifier refuses them.
 Therefore, within 1.x:
 
 1. A new field in a stable signed artifact is optional and **omitted from the
@@ -84,7 +90,17 @@ Therefore, within 1.x:
    every 1.x verifier.
 2. A signer emits the new field only once every verifier that must accept the
    artifact understands it. The release notes state the first version that
-   reads it; mixed fleets upgrade verifiers first.
+   reads it; mixed fleets upgrade verifiers first. That runs both ways:
+   - for records the Network Authority signs (decisions, policies,
+     attestations, checkpoints, anchors), upgrade the SDKs and other
+     verifiers first; a new field the NA signs ships behind a setting, off by
+     default, that the operator turns on once the fleet reads it;
+   - for records clients sign and the NA admits (execution evidence, data
+     access intents, and later observations and break-glass records),
+     upgrade the NA first; an SDK emits a new field only to an NA that
+     reports a version that reads it.
+   A client that verifies a record with a field it does not know gets
+   `unknown_field`, which means: upgrade this client.
 3. Existing fields are never removed, renamed, retyped or given a new meaning.
 4. **Old artifacts stay verifiable**: an artifact signed by 0.59.0 or any
    later release verifies on every later 1.x release. Earlier artifacts are
@@ -98,7 +114,10 @@ artifacts from the previous version are handled.
 ## Evidence export schema
 
 The export event envelope (`gm.evidence.event`, `schema_version` 1) is
-stable. Readers reject a schema version they do not know. A new schema
+stable. Readers reject a schema version they do not know. New entry kinds
+may be added within version 1 (verifiers before signers, as above); a
+verifier that does not know a kind refuses that entry as
+`unknown_entry_kind` and still checks its place in the chain. A new schema
 version is introduced alongside the old one, and the NA keeps producing
 version 1 throughout 1.x.
 
@@ -107,7 +126,10 @@ version 1 throughout 1.x.
 Vector files in `conformance/vectors/` are append-only within 1.x: new
 vectors may be added; an expected output changes only to correct a vector
 that was itself wrong, and that change is announced in the CHANGELOG. The
-SDKs carry byte-identical copies, which CI checks.
+SDKs carry byte-identical copies, which CI checks. The `registry` member of
+`field_registry.json` grows with the models (fields and models are added,
+never removed within 1.x); its vectors stay valid because they use names no
+release will define (`x_added_field`, the entry kind `x-unknown-kind`).
 
 ## Configuration
 

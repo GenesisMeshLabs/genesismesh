@@ -945,6 +945,241 @@ def gen_interop() -> None:
     _write("interop", {"suite": "interop", "version": "0.61.0", "vectors": vectors})
 
 
+def _registry_samples() -> dict[str, dict]:
+    """One wire record per registry root: from the interop suite, or built here (deterministic)."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.context import ContextRecord
+    from genesis_mesh.models.evidence_store import (
+        EvidenceStoreEntry, ResourceHead, RetentionCheckpoint, StoreAnchor,
+    )
+    from genesis_mesh.models.execution import ExecutionEvidence
+    from genesis_mesh.models.freshness import FreshnessProof
+    from genesis_mesh.models.sovereign import SovereignRevocationFeed
+
+    interop = json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))
+    by_id = {v["id"]: v["input"] for v in interop["vectors"]}
+    evidence = ExecutionEvidence(
+        evidence_id=UUID1, sequence_no=1, decision_id=UUID2, context_id=UUID3, agreement_id=UUID1,
+        executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success",
+        execution_parameters={"secret_version": "v2", "note": "Zürich ✓"}, executed_at=T0,
+        resource_id="kv:vault/api-key", resource_action="rotate", resource_sequence=2,
+        prev_resource_digest="0" * 64,
+    )
+    evidence = evidence.model_copy(update={"signature": sign_model(evidence, KEYS["b"], "executor-b")})
+    checkpoint = RetentionCheckpoint(
+        checkpoint_id=UUID2, created_at=T0, cutoff=T0, removed_through_sequence=4,
+        last_removed_entry_digest="1" * 64, removed_count=4,
+        resource_heads={"kv:vault/api-key": ResourceHead(resource_sequence=1, record_digest="2" * 64)},
+        issued_by="na-key",
+    )
+    checkpoint = checkpoint.model_copy(update={"signature": sign_model(checkpoint, KEYS["c"], "na-key")})
+    anchor = StoreAnchor(
+        anchor_sequence=2, sovereign_id=SOV_C, store_sequence=9, entry_digest="3" * 64, anchored_at=T0,
+        previous_anchor_digest="4" * 64, issued_by="na-key",
+    )
+    anchor = anchor.model_copy(update={"signature": sign_model(anchor, KEYS["c"], "na-key")})
+    entry = EvidenceStoreEntry(
+        store_sequence=5, entry_kind="execution", recorded_at=T0, payload_digest="5" * 64,
+        prev_entry_digest="6" * 64, decision_id=UUID2, evidence_id=UUID1, executor_sovereign_id=SOV_B,
+        exec_sequence_no=1, resource_id="kv:vault/api-key", resource_action="rotate", resource_sequence=2,
+    )
+    feed = SovereignRevocationFeed(
+        feed_id=UUID1, issuer_sovereign_id=SOV_C, sequence=1, issued_at=T0, issued_by="na-key",
+        revoked_attestation_ids=[UUID3], revocation_reasons={UUID3: "compromised"},
+    )
+    feed.signatures.append(sign_model(feed, KEYS["c"], "na-key"))
+    context = ContextRecord(
+        context_id=UUID3, agreement_id=UUID1, parent_kind="agreement", requester_sovereign_id=SOV_B,
+        provider_sovereign_id=SOV_A, requested_capability="transactions.read",
+        request_parameters={"rows": 10}, attributes={"purpose": "statement"}, requested_at=T0,
+    )
+    proof = _make_justification_proof()
+    proof = proof.model_copy(update={"proof_id": UUID3, "signature": None})
+    proof = proof.model_copy(update={"signature": sign_model(proof, KEYS["a"], pub_b64("a"))})
+    freshness = FreshnessProof(
+        proof_id=UUID1, feed_sovereign_id=SOV_C, feed_sequence=3, feed_digest="7" * 64, attested_at=T0,
+        proof_valid_until=T1, issuer_sovereign_id=SOV_C,
+    )
+    freshness = freshness.model_copy(update={"signature": sign_model(freshness, KEYS["c"], "na-key")})
+    decision = json.loads(json.dumps(by_id["bd-003"]["decision"]))
+    decision["freshness_proof"] = _model_to_dict(freshness)  # field coverage only: not re-signed
+    return {
+        "AgreementRecord": by_id["agr-002"]["agreement"],
+        "BoundaryDecision": decision,
+        "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
+        "ContextRecord": _model_to_dict(context),
+        "DataAccessIntent": by_id["int-001"]["intent"],
+        "DataLicensePolicy": by_id["pol-001"]["policy"],
+        "EvidenceStoreEntry": _model_to_dict(entry),
+        "ExecutionEvidence": _model_to_dict(evidence),
+        "JustificationProof": _model_to_dict(proof),
+        "MembershipAttestation": by_id["bd-003"]["expected_attestation"],
+        "RetentionCheckpoint": _model_to_dict(checkpoint),
+        "SovereignRevocationFeed": _model_to_dict(feed),
+        "StoreAnchor": anchor.to_wire(),
+    }
+
+
+def gen_field_registry() -> None:
+    """v1.2.0: the field registry of signed records, and which fields verifiers refuse.
+
+    ``unknown_fields`` cases: every root clean; with an unknown top-level
+    field; at every nested model the sample reaches (first item of lists and
+    maps), a field added there; at every free-form field, a key added (kept);
+    wrong-type values (left to validation). Only the signed projection
+    counts: the signature and an agreement's unsigned fields are skipped.
+
+    ``verify_decision`` / ``verify_agreement`` cases: signed records that
+    every verifier must classify alike: a field signed by a newer signer is
+    ``unknown_field``, an unsigned one ``invalid_signature``.
+
+    ``entry_kind`` / ``export`` cases: kinds this release knows, and a full
+    export line of a kind it does not, refused per entry as
+    ``unknown_entry_kind``. Expected paths are sorted. Records are
+    deterministic, so regeneration is byte-stable.
+    """
+    import copy
+    import hashlib
+
+    from genesis_mesh.crypto import sign_data
+    from genesis_mesh.models.canonical_registry import build_registry, received_canonical, unknown_fields
+
+    registry = build_registry()
+    models = registry["models"]
+    vectors: list[dict] = []
+
+    def case(vid: str, desc: str, model: str, record: dict) -> None:
+        found = sorted(unknown_fields(model, record, registry))
+        vectors.append({"id": vid, "kind": "unknown_fields", "description": desc, "model": model,
+                        "record": record, "expected": {"unknown_fields": found}})
+
+    def walk(model: str, record: dict, value: dict, path: list, root: bool, slug: str) -> None:
+        """Add cases for every nested model and free-form field reachable in ``value``."""
+        spec = models[model]
+        for field, kind in spec["fields"].items():
+            if root and (field == spec.get("signature_field")
+                         or ("canonical_fields" in spec and field not in spec["canonical_fields"])):
+                continue
+            inner = value.get(field)
+            if inner in (None, [], {}):
+                continue
+            where = ".".join(str(p) for p in [*path, field])
+            if kind == "open" and isinstance(inner, dict):
+                changed = copy.deepcopy(record)
+                _at(changed, [*path, field])["x_added_key"] = 1
+                case(f"{slug}-open-{where}", f"{model}.{field} is free-form: added keys are kept", slug_model[slug], changed)
+            elif isinstance(kind, dict):
+                if "object" in kind and isinstance(inner, dict):
+                    child, steps = kind["object"], [*path, field]
+                    target = inner
+                elif "list" in kind and isinstance(inner, list) and isinstance(inner[0], dict):
+                    child, steps = kind["list"], [*path, field, 0]
+                    target = inner[0]
+                elif "map" in kind and isinstance(inner, dict):
+                    first = sorted(inner)[0]
+                    child, steps = kind["map"], [*path, field, first]
+                    target = inner[first]
+                else:
+                    continue
+                changed = copy.deepcopy(record)
+                _at(changed, steps)["x_added_field"] = 1
+                case(f"{slug}-nested-{where}", f"{model}.{field} ({child}) with an unknown field", slug_model[slug], changed)
+                walk(child, record, target, steps, False, slug)
+
+    samples = _registry_samples()
+    slug_model = {model.lower(): model for model in samples}
+    for model, record in sorted(samples.items()):
+        assert not unknown_fields(model, record, registry), model
+        slug = model.lower()
+        case(f"{slug}-clean", f"{model} as the reference emits it", model, record)
+        added = {**copy.deepcopy(record), "x_added_field": 1}
+        case(f"{slug}-top", f"{model} with an unknown top-level field", model, added)
+        spec = models[model]
+        if spec.get("signature_field"):
+            sig_field = spec["signature_field"]
+            unsigned = copy.deepcopy(record)
+            target = unsigned[sig_field][0] if isinstance(unsigned[sig_field], list) else unsigned[sig_field]
+            target["alg"] = "x"
+            case(f"{slug}-signature-extra", "A field on the signature itself is outside the signed form", model, unsigned)
+        walk(model, record, record, [], True, slug)
+
+    agreement = copy.deepcopy(samples["AgreementRecord"])
+    agreement["note"] = "outside the signed fields"
+    case("agreementrecord-unsigned-top", "An agreement field outside its signed list is not checked",
+         "AgreementRecord", agreement)
+    wrong = copy.deepcopy(samples["BoundaryDecision"])
+    wrong["policy_binding"] = "not an object"
+    case("boundarydecision-wrong-type", "A value of the wrong type is left to validation", "BoundaryDecision", wrong)
+    nulls = {**copy.deepcopy(samples["BoundaryDecision"]), "policy_binding": None, "attestation_binding": None}
+    case("boundarydecision-null-bindings", "Absent bindings sent as null are not unknown fields", "BoundaryDecision", nulls)
+
+    # Signed records every verifier must classify alike.
+    interop = {v["id"]: v["input"] for v in json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))["vectors"]}
+    bd = interop["bd-003"]
+
+    def resign(record: dict, model: str, key: str, key_id: str, field: str) -> dict:
+        body = received_canonical(model, record, registry).encode("utf-8")
+        signature = {"key_id": key_id, "sig": sign_data(body, KEYS[key])}
+        record[field] = [signature] if field == "signatures" else signature
+        return record
+
+    newer = resign({**copy.deepcopy(bd["decision"]), "risk_tier": "high"}, "BoundaryDecision", "c", "na-key", "signature")
+    vectors.append({
+        "id": "verify-decision-newer-signed-field", "kind": "verify_decision",
+        "description": "A decision whose signature covers a field from a later release",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": newer},
+        "expected": {"accepted": False, "reason": "unknown_field"},
+    })
+    vectors.append({
+        "id": "verify-decision-unsigned-field", "kind": "verify_decision",
+        "description": "A decision with a field its signature does not cover",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")},
+                  "decision": {**copy.deepcopy(bd["decision"]), "risk_tier": "high"}},
+        "expected": {"accepted": False, "reason": "invalid_signature"},
+    })
+    agr = interop["agr-002"]
+    vectors.append({
+        "id": "verify-agreement-unsigned-field", "kind": "verify_agreement",
+        "description": "An agreement with a field outside its signed list still verifies",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")},
+                  "agreement": {**copy.deepcopy(agr["agreement"]), "note": "unsigned"}},
+        "expected": {"accepted": True, "reason": "accepted"},
+    })
+
+    for kind in [*registry["entry_kinds"], "x-unknown-kind"]:
+        vectors.append({
+            "id": f"entry-kind-{kind}", "kind": "entry_kind", "description": f"Export entry kind {kind!r}",
+            "entry_kind": kind, "expected": {"known": kind in registry["entry_kinds"]},
+        })
+    payload = {"x": 1}
+    entry = {
+        "store_sequence": 1, "entry_kind": "x-unknown-kind", "recorded_at": "2026-01-01T00:00:00Z",
+        "payload_digest": hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "prev_entry_digest": None, "decision_id": None, "context_id": None, "vendor_id": None,
+        "attestation_id": None, "capability": None, "outcome": None, "evidence_id": None,
+        "executor_sovereign_id": None, "exec_sequence_no": None, "resource_id": None,
+        "resource_action": None, "resource_sequence": None,
+    }
+    line = {"schema": "gm.evidence.event", "schema_version": 1, "entry": entry,
+            "entry_digest": hashlib.sha256(json.dumps(entry, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "payload": payload}
+    vectors.append({
+        "id": "export-unknown-entry-kind", "kind": "export",
+        "description": "An export line of a kind from a later release parses and is refused per entry",
+        "input": {"lines": json.dumps(line, sort_keys=True, separators=(",", ":"))},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "unknown_entry_kind"}]},
+    })
+    _write("field_registry", {"suite": "field_registry", "version": "1.2.0", "registry": registry, "vectors": vectors})
+
+
+def _at(record: dict, steps: list):
+    """The nested object at ``steps`` inside ``record``."""
+    node = record
+    for step in steps:
+        node = node[step]
+    return node
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -959,6 +1194,7 @@ GENERATORS = {
     "data_usage": gen_data_usage,
     "interop": gen_interop,
     "admin_auth": gen_admin_auth,
+    "field_registry": gen_field_registry,
 }
 
 

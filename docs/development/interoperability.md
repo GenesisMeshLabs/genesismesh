@@ -47,6 +47,14 @@ python conformance/runner.py interop
   PASS  interop  (25/25)
 ```
 
+`conformance/vectors/field_registry.json` (suite `field_registry`, v1.2.0)
+holds the field registry of signed records and cases for the fields every
+verifier refuses: unknown signed fields at any depth, free-form fields that
+stay open, fields outside the signed projection, signed records from a newer
+signer (`unknown_field`) and unsigned additions (`invalid_signature`), and an
+export entry of an unknown kind. Each SDK embeds the registry and fails its
+conformance test when its copy differs. See {doc}`../reference/canonical-form`.
+
 ## The live scenario
 
 Two sovereigns, org-a and bank-a, negotiate an agreement (offer, counter,
