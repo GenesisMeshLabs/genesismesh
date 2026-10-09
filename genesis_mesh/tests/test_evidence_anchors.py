@@ -71,6 +71,18 @@ def _na_key(service) -> str:
     return service.signer.public_key_b64
 
 
+def _tamper(db, trigger: str, table: str, sql: str, params: tuple = ()) -> None:
+    """Change the database behind the NA's back: drop a guard trigger, then write.
+
+    What a database writer without the NA key can do; works on SQLite and
+    PostgreSQL alike (the suite runs on both).
+    """
+    drop = f"DROP TRIGGER {trigger}" if db.backend == "sqlite" else f"DROP TRIGGER {trigger} ON {table}"
+    with db.conn:
+        db.conn.execute(drop)
+        db.conn.execute(sql, params)
+
+
 def _activity(client, n: int = 2) -> None:
     controller = Controller(client, key_id=f"ctrl-{os.urandom(3).hex()}")
     for i in range(n):
@@ -439,12 +451,11 @@ def test_verify_db_checks_the_anchors(tmp_path):
 
     # Someone with write access to the file replaces an anchor's digest.
     db = NADatabase(str(path))
-    db.conn.execute("DROP TRIGGER evidence_anchors_no_update")
     row = db.conn.execute("SELECT anchor_json FROM evidence_anchors WHERE anchor_sequence = 2").fetchone()
     forged = json.loads(row["anchor_json"])
     forged["entry_digest"] = "0" * 64
-    db.conn.execute("UPDATE evidence_anchors SET anchor_json = ? WHERE anchor_sequence = 2", (json.dumps(forged),))
-    db.conn.commit()
+    _tamper(db, "evidence_anchors_no_update", "evidence_anchors",
+            "UPDATE evidence_anchors SET anchor_json = ? WHERE anchor_sequence = 2", (json.dumps(forged),))
     report = verify_database(NADatabase(str(path)), key)
     assert not report.ok
     assert any("anchor" in f for f in report.failures)
@@ -518,9 +529,8 @@ def test_the_nas_own_verification_detects_deleted_old_entries(client, na_service
     _activity(client, 3)
     _post(client, ANCHORS, {}, standard=True)
     db = na_service.db
-    db.conn.execute("DROP TRIGGER evidence_entries_retention_only_delete")
-    db.conn.execute("DELETE FROM evidence_entries WHERE store_sequence <= 3")
-    db.conn.commit()
+    _tamper(db, "evidence_entries_retention_only_delete", "evidence_entries",
+            "DELETE FROM evidence_entries WHERE store_sequence <= 3")
     result = _get(client, "/admin/evidence/verify").get_json()
     assert result["verified"] is False
     assert "export_not_linked_to_anchors" in {f["reason"] for f in result["failures"]}
@@ -533,12 +543,11 @@ def test_the_na_refuses_to_anchor_a_rewritten_store(client, na_service):
     _decide(client)  # recorded after the last anchor (the interval holds the automatic one)
     db = na_service.db
     head, _ = db.store_head()
-    db.conn.execute("DROP TRIGGER evidence_entries_no_update")
     row = db.conn.execute("SELECT payload_json FROM evidence_entries WHERE store_sequence = ?", (head,)).fetchone()
     payload = json.loads(row["payload_json"])
     payload["tampered"] = True
-    db.conn.execute("UPDATE evidence_entries SET payload_json = ? WHERE store_sequence = ?", (json.dumps(payload), head))
-    db.conn.commit()
+    _tamper(db, "evidence_entries_no_update", "evidence_entries",
+            "UPDATE evidence_entries SET payload_json = ? WHERE store_sequence = ?", (json.dumps(payload), head))
     refused = _post(client, ANCHORS, {}, standard=True)
     assert refused.status_code == 409
     assert refused.get_json()["error"]["code"] == "evidence_anchor_refused"
@@ -587,9 +596,7 @@ def test_fetch_fails_when_the_na_no_longer_serves_a_held_anchor(client, cli, na_
     _decide(client)
     assert run("anchors", "fetch", *base, "--out", str(out)).exit_code == 0
     db = na_service.db
-    db.conn.execute("DROP TRIGGER evidence_anchors_no_delete")
-    db.conn.execute("DELETE FROM evidence_anchors")
-    db.conn.commit()
+    _tamper(db, "evidence_anchors_no_delete", "evidence_anchors", "DELETE FROM evidence_anchors")
     result = CliRunner().invoke(evidence_cli, ["anchors", "fetch", *base, "--out", str(out)])
     assert result.exit_code != 0 and "no longer serves anchor 1" in result.output
 

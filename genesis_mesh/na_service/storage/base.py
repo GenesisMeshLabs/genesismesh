@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlsplit, urlunsplit
 
 POSTGRES_SCHEMES = ("postgresql", "postgres")
@@ -27,6 +28,9 @@ def sqlite_path_from_url(url: str) -> str:
     path = parts.path
     if path.startswith("/") and path[1:] == ":memory:":
         return ":memory:"
+    # sqlite:///C:/data/na.db names a Windows drive path, not /C:/data/na.db.
+    if re.match(r"^/[A-Za-z]:[/\\]", path):
+        return path[1:]
     return path
 
 

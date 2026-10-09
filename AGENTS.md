@@ -200,6 +200,19 @@ Every `git push` additionally runs:
 
 - `python -m pytest genesis_mesh/tests -q`
 
+Before pushing a change to the core, also run the suite on PostgreSQL, as the
+CI job "PostgreSQL backend and HA failover" does:
+
+- `python scripts/test_postgres.py`
+
+It creates a throwaway PostgreSQL cluster with the CI settings, runs the
+suite against it and removes the cluster. It needs the PostgreSQL server
+binaries (`initdb`, `pg_ctl`) on PATH, or `--pg-bin`, and
+`pip install -e ".[postgres]"`. A test that changes the database directly
+must work on both backends (for example `DROP TRIGGER name ON table` on
+PostgreSQL); timing tests must not depend on where a clock-aligned window
+falls.
+
 Install once per clone:
 
 ```bash
