@@ -29,6 +29,7 @@ BoundaryDecisionVerificationReason = Literal[
     "unauthorized_attestation_basis",
     "attestation_binding_mismatch",
     "attestation_binding_missing",
+    "unknown_field",
 ]
 
 

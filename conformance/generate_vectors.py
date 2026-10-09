@@ -945,14 +945,15 @@ def gen_interop() -> None:
     _write("interop", {"suite": "interop", "version": "0.61.0", "vectors": vectors})
 
 
-def _canonical_samples() -> dict[str, dict]:
-    """One wire record per registry root: from the interop suite, or built here."""
+def _registry_samples() -> dict[str, dict]:
+    """One wire record per registry root: from the interop suite, or built here (deterministic)."""
     from genesis_mesh.crypto import sign_model
     from genesis_mesh.models.context import ContextRecord
     from genesis_mesh.models.evidence_store import (
         EvidenceStoreEntry, ResourceHead, RetentionCheckpoint, StoreAnchor,
     )
     from genesis_mesh.models.execution import ExecutionEvidence
+    from genesis_mesh.models.freshness import FreshnessProof
     from genesis_mesh.models.sovereign import SovereignRevocationFeed
 
     interop = json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))
@@ -992,16 +993,26 @@ def _canonical_samples() -> dict[str, dict]:
         provider_sovereign_id=SOV_A, requested_capability="transactions.read",
         request_parameters={"rows": 10}, attributes={"purpose": "statement"}, requested_at=T0,
     )
+    proof = _make_justification_proof()
+    proof = proof.model_copy(update={"proof_id": UUID3, "signature": None})
+    proof = proof.model_copy(update={"signature": sign_model(proof, KEYS["a"], pub_b64("a"))})
+    freshness = FreshnessProof(
+        proof_id=UUID1, feed_sovereign_id=SOV_C, feed_sequence=3, feed_digest="7" * 64, attested_at=T0,
+        proof_valid_until=T1, issuer_sovereign_id=SOV_C,
+    )
+    freshness = freshness.model_copy(update={"signature": sign_model(freshness, KEYS["c"], "na-key")})
+    decision = json.loads(json.dumps(by_id["bd-003"]["decision"]))
+    decision["freshness_proof"] = _model_to_dict(freshness)  # field coverage only: not re-signed
     return {
         "AgreementRecord": by_id["agr-002"]["agreement"],
-        "BoundaryDecision": by_id["bd-003"]["decision"],
+        "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
         "ContextRecord": _model_to_dict(context),
         "DataAccessIntent": by_id["int-001"]["intent"],
         "DataLicensePolicy": by_id["pol-001"]["policy"],
         "EvidenceStoreEntry": _model_to_dict(entry),
         "ExecutionEvidence": _model_to_dict(evidence),
-        "JustificationProof": _model_to_dict(_make_justification_proof()),
+        "JustificationProof": _model_to_dict(proof),
         "MembershipAttestation": by_id["bd-003"]["expected_attestation"],
         "RetentionCheckpoint": _model_to_dict(checkpoint),
         "SovereignRevocationFeed": _model_to_dict(feed),
@@ -1009,19 +1020,32 @@ def _canonical_samples() -> dict[str, dict]:
     }
 
 
-def gen_canonical() -> None:
-    """v1.2.0: the field registry of signed records, and which fields each verifier refuses.
+def gen_field_registry() -> None:
+    """v1.2.0: the field registry of signed records, and which fields verifiers refuse.
 
-    Every root gets a clean record; the record with an added top-level field;
-    for each nested model present, the record with a field added inside it;
-    and for each free-form field present, the record with a key added there,
-    which is not refused. Expected paths are sorted.
+    ``unknown_fields`` cases: every root clean; with an unknown top-level
+    field; at every nested model the sample reaches (first item of lists and
+    maps), a field added there; at every free-form field, a key added (kept);
+    wrong-type values (left to validation). Only the signed projection
+    counts: the signature and an agreement's unsigned fields are skipped.
+
+    ``verify_decision`` / ``verify_agreement`` cases: signed records that
+    every verifier must classify alike: a field signed by a newer signer is
+    ``unknown_field``, an unsigned one ``invalid_signature``.
+
+    ``entry_kind`` / ``export`` cases: kinds this release knows, and a full
+    export line of a kind it does not, refused per entry as
+    ``unknown_entry_kind``. Expected paths are sorted. Records are
+    deterministic, so regeneration is byte-stable.
     """
     import copy
+    import hashlib
 
-    from genesis_mesh.models.canonical_registry import build_registry, unknown_fields
+    from genesis_mesh.crypto import sign_data
+    from genesis_mesh.models.canonical_registry import build_registry, received_canonical, unknown_fields
 
     registry = build_registry()
+    models = registry["models"]
     vectors: list[dict] = []
 
     def case(vid: str, desc: str, model: str, record: dict) -> None:
@@ -1029,50 +1053,131 @@ def gen_canonical() -> None:
         vectors.append({"id": vid, "kind": "unknown_fields", "description": desc, "model": model,
                         "record": record, "expected": {"unknown_fields": found}})
 
-    for model, record in sorted(_canonical_samples().items()):
+    def walk(model: str, record: dict, value: dict, path: list, root: bool, slug: str) -> None:
+        """Add cases for every nested model and free-form field reachable in ``value``."""
+        spec = models[model]
+        for field, kind in spec["fields"].items():
+            if root and (field == spec.get("signature_field")
+                         or ("canonical_fields" in spec and field not in spec["canonical_fields"])):
+                continue
+            inner = value.get(field)
+            if inner in (None, [], {}):
+                continue
+            where = ".".join(str(p) for p in [*path, field])
+            if kind == "open" and isinstance(inner, dict):
+                changed = copy.deepcopy(record)
+                _at(changed, [*path, field])["x_added_key"] = 1
+                case(f"{slug}-open-{where}", f"{model}.{field} is free-form: added keys are kept", slug_model[slug], changed)
+            elif isinstance(kind, dict):
+                if "object" in kind and isinstance(inner, dict):
+                    child, steps = kind["object"], [*path, field]
+                    target = inner
+                elif "list" in kind and isinstance(inner, list) and isinstance(inner[0], dict):
+                    child, steps = kind["list"], [*path, field, 0]
+                    target = inner[0]
+                elif "map" in kind and isinstance(inner, dict):
+                    first = sorted(inner)[0]
+                    child, steps = kind["map"], [*path, field, first]
+                    target = inner[first]
+                else:
+                    continue
+                changed = copy.deepcopy(record)
+                _at(changed, steps)["x_added_field"] = 1
+                case(f"{slug}-nested-{where}", f"{model}.{field} ({child}) with an unknown field", slug_model[slug], changed)
+                walk(child, record, target, steps, False, slug)
+
+    samples = _registry_samples()
+    slug_model = {model.lower(): model for model in samples}
+    for model, record in sorted(samples.items()):
         assert not unknown_fields(model, record, registry), model
         slug = model.lower()
         case(f"{slug}-clean", f"{model} as the reference emits it", model, record)
         added = {**copy.deepcopy(record), "x_added_field": 1}
         case(f"{slug}-top", f"{model} with an unknown top-level field", model, added)
-        for field, kind in registry["models"][model]["fields"].items():
-            value = record.get(field)
-            if value in (None, [], {}):
-                continue
-            inner = copy.deepcopy(record)
-            if kind == "open" and isinstance(value, dict):
-                inner[field]["x_added_key"] = 1
-                case(f"{slug}-open-{field}", f"{model}.{field} is free-form: added keys are kept", model, inner)
-            elif isinstance(kind, dict) and "object" in kind and isinstance(value, dict):
-                inner[field]["x_added_field"] = 1
-                case(f"{slug}-nested-{field}", f"{model}.{field} ({kind['object']}) with an unknown field", model, inner)
-            elif isinstance(kind, dict) and "list" in kind and isinstance(value, list) and isinstance(value[0], dict):
-                inner[field][0]["x_added_field"] = 1
-                case(f"{slug}-nested-{field}", f"{model}.{field}[0] ({kind['list']}) with an unknown field", model, inner)
-            elif isinstance(kind, dict) and "map" in kind and isinstance(value, dict):
-                first = sorted(value)[0]
-                inner[field][first]["x_added_field"] = 1
-                case(f"{slug}-nested-{field}", f"{model}.{field} values ({kind['map']}) with an unknown field", model, inner)
-    samples = _canonical_samples()
-    decision = samples["BoundaryDecision"]
-    deep = copy.deepcopy(decision)
-    deep["policy_binding"]["policies"][0]["x_added_field"] = 1
-    case("boundarydecision-deep-policies", "An unknown field three levels down (an applied policy)",
-         "BoundaryDecision", deep)
-    proof = copy.deepcopy(samples["JustificationProof"])
-    proof["trace"]["entries"][0]["x_added_field"] = 1
-    proof["trace"]["entries"][0]["inputs"]["x_added_key"] = 1
-    case("justificationproof-deep-trace-entry", "A trace entry with an unknown field and a free-form key",
-         "JustificationProof", proof)
-    nulls = {**copy.deepcopy(decision), "policy_binding": None, "attestation_binding": None}
+        spec = models[model]
+        if spec.get("signature_field"):
+            sig_field = spec["signature_field"]
+            unsigned = copy.deepcopy(record)
+            target = unsigned[sig_field][0] if isinstance(unsigned[sig_field], list) else unsigned[sig_field]
+            target["alg"] = "x"
+            case(f"{slug}-signature-extra", "A field on the signature itself is outside the signed form", model, unsigned)
+        walk(model, record, record, [], True, slug)
+
+    agreement = copy.deepcopy(samples["AgreementRecord"])
+    agreement["note"] = "outside the signed fields"
+    case("agreementrecord-unsigned-top", "An agreement field outside its signed list is not checked",
+         "AgreementRecord", agreement)
+    wrong = copy.deepcopy(samples["BoundaryDecision"])
+    wrong["policy_binding"] = "not an object"
+    case("boundarydecision-wrong-type", "A value of the wrong type is left to validation", "BoundaryDecision", wrong)
+    nulls = {**copy.deepcopy(samples["BoundaryDecision"]), "policy_binding": None, "attestation_binding": None}
     case("boundarydecision-null-bindings", "Absent bindings sent as null are not unknown fields", "BoundaryDecision", nulls)
-    for kind in ("decision", "execution", "observation", "anchor"):
+
+    # Signed records every verifier must classify alike.
+    interop = {v["id"]: v["input"] for v in json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))["vectors"]}
+    bd = interop["bd-003"]
+
+    def resign(record: dict, model: str, key: str, key_id: str, field: str) -> dict:
+        body = received_canonical(model, record, registry).encode("utf-8")
+        signature = {"key_id": key_id, "sig": sign_data(body, KEYS[key])}
+        record[field] = [signature] if field == "signatures" else signature
+        return record
+
+    newer = resign({**copy.deepcopy(bd["decision"]), "risk_tier": "high"}, "BoundaryDecision", "c", "na-key", "signature")
+    vectors.append({
+        "id": "verify-decision-newer-signed-field", "kind": "verify_decision",
+        "description": "A decision whose signature covers a field from a later release",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": newer},
+        "expected": {"accepted": False, "reason": "unknown_field"},
+    })
+    vectors.append({
+        "id": "verify-decision-unsigned-field", "kind": "verify_decision",
+        "description": "A decision with a field its signature does not cover",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")},
+                  "decision": {**copy.deepcopy(bd["decision"]), "risk_tier": "high"}},
+        "expected": {"accepted": False, "reason": "invalid_signature"},
+    })
+    agr = interop["agr-002"]
+    vectors.append({
+        "id": "verify-agreement-unsigned-field", "kind": "verify_agreement",
+        "description": "An agreement with a field outside its signed list still verifies",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")},
+                  "agreement": {**copy.deepcopy(agr["agreement"]), "note": "unsigned"}},
+        "expected": {"accepted": True, "reason": "accepted"},
+    })
+
+    for kind in [*registry["entry_kinds"], "x-unknown-kind"]:
         vectors.append({
-            "id": f"entry-kind-{kind}", "kind": "entry_kind",
-            "description": f"Export entry kind {kind!r}",
+            "id": f"entry-kind-{kind}", "kind": "entry_kind", "description": f"Export entry kind {kind!r}",
             "entry_kind": kind, "expected": {"known": kind in registry["entry_kinds"]},
         })
-    _write("canonical", {"suite": "canonical", "version": "1.2.0", "registry": registry, "vectors": vectors})
+    payload = {"x": 1}
+    entry = {
+        "store_sequence": 1, "entry_kind": "x-unknown-kind", "recorded_at": "2026-01-01T00:00:00Z",
+        "payload_digest": hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "prev_entry_digest": None, "decision_id": None, "context_id": None, "vendor_id": None,
+        "attestation_id": None, "capability": None, "outcome": None, "evidence_id": None,
+        "executor_sovereign_id": None, "exec_sequence_no": None, "resource_id": None,
+        "resource_action": None, "resource_sequence": None,
+    }
+    line = {"schema": "gm.evidence.event", "schema_version": 1, "entry": entry,
+            "entry_digest": hashlib.sha256(json.dumps(entry, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "payload": payload}
+    vectors.append({
+        "id": "export-unknown-entry-kind", "kind": "export",
+        "description": "An export line of a kind from a later release parses and is refused per entry",
+        "input": {"lines": json.dumps(line, sort_keys=True, separators=(",", ":"))},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "unknown_entry_kind"}]},
+    })
+    _write("field_registry", {"suite": "field_registry", "version": "1.2.0", "registry": registry, "vectors": vectors})
+
+
+def _at(record: dict, steps: list):
+    """The nested object at ``steps`` inside ``record``."""
+    node = record
+    for step in steps:
+        node = node[step]
+    return node
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
@@ -1089,7 +1194,7 @@ GENERATORS = {
     "data_usage": gen_data_usage,
     "interop": gen_interop,
     "admin_auth": gen_admin_auth,
-    "canonical": gen_canonical,
+    "field_registry": gen_field_registry,
 }
 
 

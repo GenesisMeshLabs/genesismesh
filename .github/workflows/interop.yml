@@ -36,7 +36,7 @@ jobs:
           ref="${REQUESTED:-}"
           if [ -z "$ref" ]; then
             ref=main
-            for sdk in sdk-go sdk-typescript sdk-dotnet; do
+            for sdk in sdk-go sdk-typescript sdk-dotnet sdk-rust; do
               if git ls-remote --exit-code --heads "https://github.com/GenesisMeshLabs/$sdk.git" "refs/heads/$BRANCH" >/dev/null; then
                 ref="$BRANCH"
               else
@@ -69,6 +69,13 @@ jobs:
           ref: ${{ env.SDK_REF }}
           path: sdks/sdk-dotnet
 
+      - name: Check out the Rust SDK (vector copies only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: GenesisMeshLabs/sdk-rust
+          ref: ${{ env.SDK_REF }}
+          path: sdks/sdk-rust
+
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -100,9 +107,12 @@ jobs:
         run: |
           python conformance/runner.py
           for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
-            for suite in interop consensus admin_auth canonical; do
+            for suite in interop consensus admin_auth field_registry; do
               cmp "conformance/vectors/$suite.json" "sdks/$sdk/conformance/$suite.json"
             done
+          done
+          for suite in admin_auth field_registry; do
+            cmp "conformance/vectors/$suite.json" "sdks/sdk-rust/tests/fixtures/$suite.json"
           done
 
       - name: Go verifier conformance

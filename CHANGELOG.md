@@ -23,17 +23,28 @@
   is copied out.
 - `GET /admin/evidence/verify`, `GET /admin/evidence/status` and
   `genesis-mesh na verify-db` check and report anchors.
-- **Verifiers know every field.** A verifier that copied every received field
-  into the signed form accepted a field it did not understand whenever the
-  signer covered it, so a field added later could change what a record means
-  for older verifiers. The field registry of signed records, generated from
+
+### Changed
+
+- **Verifiers refuse signed fields they do not know.** Before 1.2.0 the SDKs
+  copied every received field into the signed form, so a field a newer
+  signer covered verified on an older SDK and could change what a record
+  means; the Python reference dropped such fields, so the signature failed
+  without saying why. The field registry of signed records, generated from
   the Python models, now travels to every SDK in the conformance suite
-  `canonical`; a record with a field the registry does not list is refused
-  with `unknown_field`, and an evidence export entry of an unknown kind with
-  `unknown_entry_kind`. New fields and kinds reach the verifiers before the
-  Network Authority emits them. Evidence verification names unknown fields.
+  `field_registry`. Every verifier checks the signature over the record as
+  received, then refuses a signed field the registry does not list as
+  `unknown_field` (an authentic record from a newer signer); a field the
+  signature does not cover fails as `invalid_signature`. Only the signed
+  projection is checked. The Python reference applies this where it reads
+  raw JSON: `/boundary/verify`, `/agreements/verify`, `/data-usage/verify`,
+  the CLI `verify` commands and evidence verification. An export entry of an
+  unknown kind is refused per entry as `unknown_entry_kind` and still
+  chains; evidence verification reports a field outside a record's
+  signature (records stored before 1.1.1) as the warning `unsigned_field`.
   The rules are written down in the new reference page *Canonical Form of
-  Signed Records*.
+  Signed Records*, and `DEPRECATION_POLICY.md` states the upgrade order in
+  both directions.
 
 ### Security
 
@@ -47,6 +58,13 @@
 Migration 014 adds the anchors table: roll back to 1.1 by restoring the backup
 taken before the upgrade, which is an evidence-loss event for anyone holding
 anchors. Anchor and take the first copy right after upgrading.
+
+Verifiers before signers: a client on 1.2 refuses a signed field it does not
+know, so from 1.2 on a new field the Network Authority signs is turned on only
+once the clients verifying it are upgraded, and a new field clients sign only
+once the Network Authority is (see `DEPRECATION_POLICY.md`, *Signed
+artifacts*). A record carrying an unsigned extra field that verified on 1.1
+through `/boundary/verify` now fails as `invalid_signature`.
 
 ## v1.1.1 - Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
 

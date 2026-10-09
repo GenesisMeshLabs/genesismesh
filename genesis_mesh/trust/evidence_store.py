@@ -19,6 +19,7 @@ removed so the remaining history still verifies.
 from __future__ import annotations
 
 import re
+import typing
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterable, Literal, Sequence
@@ -28,6 +29,7 @@ import nacl.signing
 from ..crypto import sign_model, verify_model_signature
 from ..models.context import BoundaryDecision, ContextRecord
 from ..models.evidence_store import (
+    EntryKind,
     EvidenceEvent,
     EvidenceStoreEntry,
     RetentionCheckpoint,
@@ -367,10 +369,16 @@ class EvidenceVerification:
     failures: list[dict[str, Any]] = field(default_factory=list)
     #: Set by ``check_events_against_anchors`` (v1.2.0); absent otherwise.
     anchors: dict[str, Any] | None = None
+    #: Findings that do not fail verification (v1.2.0), such as fields a
+    #: record carries outside its signature.
+    warnings: list[dict[str, Any]] = field(default_factory=list)
 
     def fail(self, store_sequence: int | None, reason: str, detail: str = "") -> None:
         self.verified = False
         self.failures.append({"store_sequence": store_sequence, "reason": reason, "detail": detail})
+
+    def warn(self, store_sequence: int | None, reason: str, detail: str = "") -> None:
+        self.warnings.append({"store_sequence": store_sequence, "reason": reason, "detail": detail})
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -382,8 +390,12 @@ class EvidenceVerification:
         }
         if self.anchors is not None:
             out["anchors"] = self.anchors
+        if self.warnings:
+            out["warnings"] = self.warnings
         return out
 
+
+_KNOWN_ENTRY_KINDS = frozenset(typing.get_args(EntryKind))
 
 #: The model each entry kind's payload holds; a decision payload wraps two.
 _PAYLOAD_MODELS: dict[str, str] = {
@@ -393,18 +405,42 @@ _PAYLOAD_MODELS: dict[str, str] = {
 }
 
 
-def _unknown_payload_fields(kind: str, payload: Any) -> list[str]:
-    from ..models.canonical_registry import unknown_fields
+def _unknown_payload_fields(
+    kind: str,
+    payload: Any,
+    na_public_keys: Sequence[str],
+    executor_keys: dict[str, ExecutorKey],
+) -> tuple[list[str], list[str]]:
+    """(unknown signed fields, unknown unsigned fields) of one export payload.
 
+    A field the signature covers is one this release cannot read: the record
+    is refused. A field outside the signature (stored as submitted before
+    1.1.1, or in a decision payload's wrapper and context, which nothing
+    signs) changes nothing the signature proves: it is reported, not refused.
+    """
+    from ..models.canonical_registry import signed_as_received, unknown_fields
+
+    if not isinstance(payload, dict):
+        return [], []
     if kind == "decision":
-        if not isinstance(payload, dict):
-            return []
-        found = [k for k in payload if k not in ("decision", "context")]
-        found += unknown_fields("BoundaryDecision", payload.get("decision"), path="decision.")
-        found += unknown_fields("ContextRecord", payload.get("context"), path="context.")
-        return found
+        unsigned = [k for k in payload if k not in ("decision", "context")]
+        unsigned += unknown_fields("ContextRecord", payload.get("context"), path="context.")
+        decision = payload.get("decision")
+        found = unknown_fields("BoundaryDecision", decision, path="decision.")
+        if found and isinstance(decision, dict) and signed_as_received("BoundaryDecision", decision, na_public_keys):
+            return found, unsigned
+        return [], unsigned + found
     model = _PAYLOAD_MODELS.get(kind)
-    return unknown_fields(model, payload) if model else []
+    found = unknown_fields(model, payload) if model else []
+    if not found or model is None:
+        return [], []
+    if kind == "execution":
+        sig = payload.get("signature")
+        key = executor_keys.get(str(sig.get("key_id"))) if isinstance(sig, dict) else None
+        keys = [key.public_key] if key is not None else []
+    else:
+        keys = list(na_public_keys)
+    return (found, []) if signed_as_received(model, payload, keys) else ([], found)
 
 
 def _verify_payload(
@@ -416,12 +452,14 @@ def _verify_payload(
     """Verify one payload's signature; return the parsed model (or None)."""
     entry = event.entry
     kind = entry.entry_kind
-    # v1.2.0: a field this release does not know is refused by name, not
-    # silently dropped (which would surface as a signature failure).
-    unknown = _unknown_payload_fields(kind, event.payload)
-    if unknown:
-        result.fail(entry.store_sequence, "unknown_field", ", ".join(unknown))
+    # v1.2.0: a signed field this release does not know is refused by name;
+    # a field outside the signature is reported and otherwise ignored.
+    signed, unsigned = _unknown_payload_fields(kind, event.payload, na_public_keys, executor_keys)
+    if signed:
+        result.fail(entry.store_sequence, "unknown_field", ", ".join(signed))
         return None
+    if unsigned:
+        result.warn(entry.store_sequence, "unsigned_field", ", ".join(unsigned))
     try:
         if kind == "decision":
             model: Any = BoundaryDecision.model_validate(event.payload["decision"])
@@ -489,6 +527,10 @@ def verify_evidence_events(
             if entry.prev_entry_digest != checkpoint.last_removed_entry_digest:
                 result.fail(entry.store_sequence, "store_chain_break", "does not continue from the checkpoint")
         prev = entry
+        if entry.entry_kind not in _KNOWN_ENTRY_KINDS:
+            # v1.2.0: a kind from a later release; its envelope still chains.
+            result.fail(entry.store_sequence, "unknown_entry_kind", entry.entry_kind)
+            continue
 
         model = _verify_payload(event, result, na_public_keys, executor_keys)
         if model is None:
