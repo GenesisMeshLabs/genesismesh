@@ -151,18 +151,18 @@ Verify a signed `AgreementRecord`. Unauthenticated.
 ### Agreements and their parties (v1.1.1)
 
 `/admin/boundary/decide`, `/admin/boundary/evaluate` and
-`/admin/disclosure/commit` accept an agreement only if two different parties signed it with keys
-it trusts: its own key for its own sovereign, and for any other sovereign the
-keys of an active recognition treaty the NA issued to it that grants at least
-one role. The NA's key never vouches for another sovereign, a sovereign cannot
-agree with itself, and one key cannot sign for both parties. An agreement the
-NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
-trusted when its responder holds such a treaty.
-Nothing in the request can add a trusted key. Otherwise the route returns
-`422 agreement_untrusted` with `details.reason` (`unknown_party`,
-`same_party`, `overlapping_party_keys`, or the reason `verify_agreement`
-gives) and `details.party` when one party is at fault, and records an
-`agreement_untrusted` audit event.
+`/admin/disclosure/commit` accept an agreement only if two different parties
+signed it with keys the NA trusts: its own key for its own sovereign, and for
+any other sovereign the keys of an active recognition treaty the NA issued to
+it that grants at least one role. The NA's key never vouches for another
+sovereign, a sovereign cannot agree with itself, and one key cannot sign for
+both parties. An agreement the NA offered and accepted itself
+(`/admin/agreements/accept`, privileged) stays trusted when its responder
+holds such a treaty. Nothing in the request can add a trusted key. Otherwise
+the route returns `422 agreement_untrusted` with `details.reason`
+(`unknown_party`, `same_party`, `overlapping_party_keys`, or the reason
+`verify_agreement` gives) and `details.party` when one party is at fault, and
+records an `agreement_untrusted` audit event.
 
 Under an agreement the requester is the agreement's responder and the provider
 its offerer. `context.requester_sovereign_id` and

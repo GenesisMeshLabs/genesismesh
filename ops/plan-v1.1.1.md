@@ -126,18 +126,19 @@ fixed with the durable outbox in 1.2.0, so the SDK error API changes once.
       admitted
 - [x] Consensus refuses foreign justification proofs and thresholds outside
       1..validators
-- [ ] Core suite, interop, `sphinx -W` pass (rerun before commit)
+- [x] Core suite, interop, `sphinx -W` pass
 
 ## Release Gate
 
-- [ ] Version bumped to `1.1.1` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG (*Security*), `docs/development/history.md`
-- [ ] Public contract: `agreement_untrusted`, `context_party_mismatch`,
+- [x] Version bumped to `1.1.1` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG (*Security*), `docs/development/history.md`
+- [x] Public contract: `agreement_untrusted`, `context_party_mismatch`,
       `justification_untrusted` and `invalid_threshold` classified
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] SDKs: version bump only (no code change in this release)
-- [ ] Dry runs green; tags `v1.1.1`, releases, published-artifacts green
-- [ ] `"1.1.1"` added to the `upgrade.yml` matrix after the release
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] SDKs and gateway: version bump only (no code change in this release)
+- [x] Dry runs green; tags `v1.1.1` (signed), releases, published-artifacts
+      green (2026-10-09)
+- [x] `"1.1.1"` added to the `upgrade.yml` matrix after the release
 - [ ] Both production hosts upgraded (neither evaluates under agreements)
 - [ ] The Maintainer decides whether to publish a security advisory
 
