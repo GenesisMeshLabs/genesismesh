@@ -456,6 +456,11 @@ def test_sovereign_metadata_honors_proxy_headers(na_service, monkeypatch):
     )
 
 
+def _advertised(document: dict) -> str:
+    """The base URL a public document advertises: its endpoint, or its first server."""
+    return document["endpoint"] if "endpoint" in document else document["servers"][0]["url"]
+
+
 @pytest.mark.parametrize("path", ["/sovereign.json", "/swagger.json"])
 def test_forwarded_headers_are_ignored_without_trusted_proxies(na_service, monkeypatch, path):
     """v1.2.0: with NA_PROXY_HOPS=0 a client cannot choose the advertised URL."""
@@ -466,8 +471,7 @@ def test_forwarded_headers_are_ignored_without_trusted_proxies(na_service, monke
         headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": "evil.example"},
     )
     assert resp.status_code == 200
-    assert "evil.example" not in resp.get_data(as_text=True)
-    assert "http://na.example.test" in resp.get_data(as_text=True)
+    assert _advertised(resp.get_json()) == "http://na.example.test"
 
 
 def test_the_configured_public_url_is_advertised(na_service, monkeypatch):
@@ -476,8 +480,8 @@ def test_the_configured_public_url_is_advertised(na_service, monkeypatch):
     client = _behind_proxies(na_service, monkeypatch, 1)
     resp = client.get("/sovereign.json", base_url="http://evil.example", headers={"X-Forwarded-Host": "evil.example"})
     assert resp.get_json()["endpoint"] == "https://na.genesismesh.org"
-    spec = client.get("/swagger.json", base_url="http://evil.example").get_data(as_text=True)
-    assert "evil.example" not in spec
+    spec = client.get("/swagger.json", base_url="http://evil.example").get_json()
+    assert _advertised(spec) == "https://na.genesismesh.org"
 
 
 @pytest.mark.parametrize("value, expected", [
