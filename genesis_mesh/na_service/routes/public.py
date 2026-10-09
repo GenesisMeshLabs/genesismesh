@@ -18,10 +18,14 @@ from ..operator_console.rendering import (
 
 
 def _public_base_url() -> str:
-    """Return the externally visible base URL, honoring common proxy headers."""
-    scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",", 1)[0].strip()
-    host = request.headers.get("X-Forwarded-Host", request.host).split(",", 1)[0].strip()
-    return f"{scheme}://{host}".rstrip("/")
+    """Return the externally visible base URL.
+
+    v1.2.0: the scheme and host come from the request as ``ProxyFix`` leaves
+    it, which honours ``X-Forwarded-Proto`` and ``X-Forwarded-Host`` only from
+    the ``NA_PROXY_HOPS`` trusted proxies. Reading the headers here let any
+    client choose the URLs the NA advertises, even with ``NA_PROXY_HOPS=0``.
+    """
+    return f"{request.scheme}://{request.host}".rstrip("/")
 
 
 def create_public_blueprint(service) -> Blueprint:
