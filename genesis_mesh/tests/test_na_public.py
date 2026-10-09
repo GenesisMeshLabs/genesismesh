@@ -470,6 +470,36 @@ def test_forwarded_headers_are_ignored_without_trusted_proxies(na_service, monke
     assert "http://na.example.test" in resp.get_data(as_text=True)
 
 
+def test_the_configured_public_url_is_advertised(na_service, monkeypatch):
+    """v1.2.0: NA_PUBLIC_URL fixes the advertised URLs, whatever the request says."""
+    monkeypatch.setattr(na_service, "public_url", "https://na.genesismesh.org")
+    client = _behind_proxies(na_service, monkeypatch, 1)
+    resp = client.get("/sovereign.json", base_url="http://evil.example", headers={"X-Forwarded-Host": "evil.example"})
+    assert resp.get_json()["endpoint"] == "https://na.genesismesh.org"
+    spec = client.get("/swagger.json", base_url="http://evil.example").get_data(as_text=True)
+    assert "evil.example" not in spec
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("https://na.example.org", "https://na.example.org"),
+    ("https://na.example.org/", "https://na.example.org"),
+    ("http://127.0.0.1:8443", "http://127.0.0.1:8443"),
+])
+def test_public_url_setting(value, expected):
+    from genesis_mesh.na_service.settings import load_settings
+
+    assert load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value}).public_url == expected
+    assert load_settings({"GENESIS_FILE": "g.json"}).public_url is None
+
+
+@pytest.mark.parametrize("value", ["na.example.org", "ftp://na.example.org", "https://na.example.org/na", "https://u:p@na.example.org"])
+def test_public_url_must_be_an_origin(value):
+    from genesis_mesh.na_service.settings import load_settings
+
+    with pytest.raises(ValueError, match="NA_PUBLIC_URL"):
+        load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value})
+
+
 def test_only_the_trusted_proxys_forwarded_host_counts(na_service, monkeypatch):
     """v1.2.0: a value the client put in front of the proxy's is ignored."""
     client = _behind_proxies(na_service, monkeypatch, 1)

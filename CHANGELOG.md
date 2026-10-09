@@ -33,15 +33,25 @@
 - **Forwarded headers only from trusted proxies.** `/sovereign.json` and
   `/swagger.json` took their scheme and host from `X-Forwarded-Proto` and
   `X-Forwarded-Host` even with `NA_PROXY_HOPS=0`, and took the first value of
-  a list, which the client writes. Any client could choose the URLs the NA
+  a list, which the client writes, so a client could choose the URLs the NA
   advertised to it. They now come from the request as the `NA_PROXY_HOPS`
-  trusted proxies leave it.
+  trusted proxies leave it, or from the new `NA_PUBLIC_URL`, which fixes them
+  whatever the request says. The documented nginx configurations now
+  overwrite `X-Forwarded-Host`.
 - **Failed admin authentications per address and key.** A failure that names
-  a configured operator key now counts against that key at the client
-  address, so one operator failing behind a shared address (a gateway, a
-  NAT) no longer locks out every operator behind it. Failures with no key or
-  an unknown key still count against the address, which bounds both a flood
-  of guessed key IDs and the number of counters it can create.
+  an active operator key now counts against that key at the client address,
+  and a failure that names no active key (none, an unknown or a revoked one)
+  against the address, throttling only requests that name no active key. One
+  operator failing behind a shared address (a gateway, a NAT), or mistyping
+  the key ID, no longer locks out every operator behind it. All failures
+  from one address are capped at four times the limit, which keeps the
+  signature checks and audit writes one address can cause bounded. Revoked
+  keys count like unknown ones, so throttling does not reveal a revocation.
+
+### Added (configuration)
+
+- `NA_PUBLIC_URL`: the NA's public origin, advertised in `/sovereign.json` and
+  `/swagger.json`.
 
 ### Upgrading
 

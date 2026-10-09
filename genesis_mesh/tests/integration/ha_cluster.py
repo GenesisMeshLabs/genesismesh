@@ -73,6 +73,7 @@ http {{
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $na_client;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
         }}
     }}
 }}

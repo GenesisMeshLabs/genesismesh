@@ -102,9 +102,10 @@ deployment.
   process; admin callers use **operator keys**, not the NA key.
 - **Reverse-proxy IP spoofing.** The NA trusts exactly `NA_PROXY_HOPS`
   reverse proxies (default 1) for `X-Forwarded-For`, `X-Forwarded-Proto` and
-  `X-Forwarded-Host`, and none when it is set to 0, so a client can choose
-  neither the address its rate limits apply to nor the URLs the NA
-  advertises. Set it to match the deployment.
+  `X-Forwarded-Host`, and none when it is set to 0, so a client cannot choose
+  the address its rate limits apply to. Set it to match the deployment, and
+  have the proxy overwrite each of these headers. Set `NA_PUBLIC_URL` so the
+  URLs the NA advertises do not depend on the request's `Host`.
 - **Oversized requests.** Request bodies above `NA_MAX_REQUEST_BYTES`
   (default 2 MiB) are refused with 413 before they are parsed.
 - **Trust changes by routine keys.** Operator keys have tiers; issuing,
