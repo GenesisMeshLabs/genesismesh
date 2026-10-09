@@ -37,13 +37,11 @@ as it arrived.
 
 Some JSON is read differently by different parsers, so it could make two
 verifiers disagree about one record. Since 1.2.0 every implementation refuses
-it before computing a canonical form, by a named reason: the Network
-Authority answers `400 invalid_json` with the reason in `error.details`, the
-CLI and the SDKs' parsers fail with it.
+it before computing a canonical form, by a named reason:
 
 | Input | Reason |
 | --- | --- |
-| Not JSON, including `NaN` and `Infinity` | `invalid_json` |
+| Not JSON, including `NaN` and `Infinity`, a byte order mark, text that is not UTF-8, and arrays or objects nested more than 64 deep | `invalid_json` |
 | An object naming a key twice (`{"a":1,"a":2}`), also when one is escaped | `duplicate_key` |
 | A number that overflows a 64-bit float (`1e400`) | `non_finite_number` |
 | An integer below `-2**63` or above `2**64 - 1` | `integer_out_of_range` |
@@ -52,25 +50,47 @@ CLI and the SDKs' parsers fail with it.
 
 Before 1.2.0, Python kept the last duplicate key where .NET kept both, wrote
 `NaN` back as non-JSON, Go replaced a lone surrogate, and Rust read a large
-integer as a float. The Network Authority applies these rules to every JSON
-request body, so no record it signs can carry such input.
+integer as a float. The rules apply where JSON enters an implementation:
+
+- the Network Authority's JSON request bodies, refused with
+  `400 invalid_json` and the reason in `error.details`. A UTF-8 byte order
+  mark at the start of a body is removed first, as before 1.2.0; a body in
+  UTF-16 or UTF-32 is refused;
+- the CLI's record files, evidence export lines, and the decision files the
+  guard reads;
+- the SDKs' responses from the Network Authority and their verifiers'
+  input, refused with an error whose code or reason is the reason above.
+
+The Network Authority signs only records built from input read this way.
+Records it stored before 1.2.0 are not read again; one built from such input
+then (a `NaN` in a policy, say) fails to verify in the SDKs.
 
 ## Records in canonical form
 
 A record is valid only in its canonical form: exactly what the reference
-writes back after reading it. Verifiers check the signature over the record
-as received first, then its fields (*Unknown fields*), then its form:
+writes back after reading it. Every verifier checks a record in this order:
 
-- a record whose signature verifies over another form is refused as
-  `non_canonical_form`; its signer did not write it as the reference does;
-- a record received in a form its signature does not cover is refused as
-  `invalid_signature`, like any other change.
+1. what it checks before the signature: a boundary decision's signature is
+   present (`missing_signature`) and the decision has not expired
+   (`decision_expired`);
+2. the signature over the record as received (`invalid_signature`; for an
+   agreement, the offerer's and then the responder's, `missing_` or
+   `invalid_offerer_signature` and `..._responder_signature`);
+3. an agreement's graph digest, when one is expected
+   (`graph_digest_mismatch`);
+4. its fields (`unknown_field`, see *Unknown fields*);
+5. its form (`non_canonical_form`);
+6. everything else: freshness, policy and attestation bindings, terms.
+
+So a record received in a form its signature does not cover fails at step 2
+like any other change, and a record whose signature verifies over another
+form fails at step 5: its signer did not write it as the reference does.
 
 Before 1.2.0 the Python reference re-wrote a received record before checking
 its signature, so it accepted a timestamp rewritten from `Z` to `+00:00`
 that every SDK refused. It now checks the whole record against what it
 writes back. The SDKs check timestamps, the one form the reference rewrites
-in practice: every field the registry marks `"timestamp"` must be written
+in records it signs: every field the registry marks `"timestamp"` must be written
 `YYYY-MM-DDTHH:MM:SS`, then six digits of microseconds when they are not all
 zero, then `Z` for UTC or `+HH:MM` / `-HH:MM` for another offset (nothing for
 a timestamp without one), and name an instant that exists:
@@ -80,6 +100,13 @@ a timestamp without one), and name an instant that exists:
 | `2026-01-01T00:00:00Z` | `2026-01-01T00:00:00+00:00`, `2026-01-01T00:00:00.000Z` |
 | `2026-01-01T00:00:00.100000Z` | `2026-01-01T00:00:00.1Z`, `2026-01-01 00:00:00Z` |
 | `2026-01-01T02:00:00+02:00` | `2026-01-01T02:00:00+0200`, `2026-02-29T00:00:00Z` |
+
+The two checks differ for a record signed by a signer other than the
+reference over a value the reference would rewrite another way, such as an
+integer `1` in a float field (written back as `1.0`): the reference refuses
+it as `non_canonical_form` and the SDKs accept it. Records the reference
+signs are never affected. A later registry version is to mark these scalar
+kinds too, so the SDKs check them alike.
 
 A data access intent check has no reason code of its own for this; its
 `intent_exceeds_license` violation says `Not in canonical form: intent`, or

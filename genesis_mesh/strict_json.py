@@ -9,7 +9,8 @@ beyond 64 bits as a float. Such input is refused here, as in every SDK, by a
 named reason (the conformance suite ``canonical``):
 
 ``invalid_json``
-    not JSON, including ``NaN`` and ``Infinity``;
+    not JSON, including ``NaN`` and ``Infinity``, a byte order mark, text that
+    is not UTF-8, and arrays or objects nested more than 64 deep;
 ``duplicate_key``
     an object names a key twice;
 ``non_finite_number``
@@ -39,6 +40,9 @@ REASONS = (
 
 MIN_INTEGER = -(2**63)
 MAX_INTEGER = 2**64 - 1
+#: Arrays and objects nested deeper are refused (every parser in the program
+#: handles 64; .NET's reader stops there by default).
+MAX_DEPTH = 64
 
 
 class StrictJSONError(ValueError):
@@ -66,6 +70,8 @@ def _constant(name: str) -> Any:
 def _integer(literal: str) -> int:
     if literal == "-0":
         raise StrictJSONError("negative_zero", "the integer -0")
+    if len(literal.lstrip("-")) > 20:  # before int(), which is slow and capped on long literals
+        raise StrictJSONError("integer_out_of_range", "an integer longer than 20 digits")
     value = int(literal)
     if not MIN_INTEGER <= value <= MAX_INTEGER:
         raise StrictJSONError("integer_out_of_range", f"{literal} is outside the 64-bit range")
@@ -80,18 +86,23 @@ def _float(literal: str) -> float:
 
 
 def _surrogates(value: Any) -> None:
-    """Refuse a lone surrogate in any key or string (pairs were joined by the parser)."""
-    stack = [value]
+    """Refuse a lone surrogate in any key or string (pairs were joined by the parser),
+    and nesting deeper than ``MAX_DEPTH``."""
+    stack: list[tuple[Any, int]] = [(value, 0)]
     while stack:
-        item = stack.pop()
+        item, depth = stack.pop()
+        if isinstance(item, (dict, list)):
+            depth += 1
+            if depth > MAX_DEPTH:
+                raise StrictJSONError("invalid_json", f"arrays or objects nested more than {MAX_DEPTH} deep")
         if isinstance(item, str):
             texts = [item]
         elif isinstance(item, dict):
             texts = list(item)
-            stack.extend(item.values())
+            stack.extend((v, depth) for v in item.values())
         elif isinstance(item, list):
             texts = []
-            stack.extend(item)
+            stack.extend((v, depth) for v in item)
         else:
             continue
         for text in texts:

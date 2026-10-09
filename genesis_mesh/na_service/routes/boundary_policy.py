@@ -217,7 +217,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             agreement = AgreementRecord.model_validate(raw_agreement)
         except ValidationError as exc:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
-        service.agreements.require_trusted(agreement, route="/admin/boundary/evaluate")
+        service.agreements.require_trusted(agreement, route="/admin/boundary/evaluate", raw=raw_agreement)
         context = policies.build_context(data, agreement)
 
         decision, proof = policies.evaluate(context, agreement)

@@ -21,7 +21,7 @@ from ..trust.agreement import (
     cosign_agreement,
     verify_agreement,
 )
-from ..models.canonical_registry import strict_refusal
+from ..models.canonical_registry import agreement_refusal
 from ..trust.agreement import AgreementVerificationResult
 from ..trust.evidence import graph_digest_from_export
 from .. import strict_json
@@ -529,17 +529,18 @@ def agree_verify(
     """
     offerer_key = _parse_public_key(offerer_pub)
     responder_key = _parse_public_key(responder_pub)
-    # v1.2.0: refuse a signed field this release does not know, as every SDK does.
+    # v1.2.0: the signatures over the agreement as received, the graph,
+    # unknown fields and the canonical form, in every SDK's order.
     try:
         raw = strict_json.loads(Path(agreement_path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Cannot load {agreement_path!r}: {exc}") from exc
-    refusal = strict_refusal("AgreementRecord", raw, [offerer_key, responder_key])
     record = _load_agreement(agreement_path)
 
     expected_digest: str | None = None
     if graph_path:
         expected_digest = graph_digest_from_export(_load_graph(graph_path))
+    refusal = agreement_refusal(raw, [offerer_key], [responder_key], expected_digest)
 
     result = AgreementVerificationResult(
         accepted=False, reason=refusal, agreement_id=record.agreement_id,  # type: ignore[arg-type]

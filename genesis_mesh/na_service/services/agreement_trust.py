@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...crypto import verify_model_signature
 from ...models.agreement import AgreementRecord
+from ...models.canonical_registry import agreement_refusal
 from ...trust.agreement import verify_agreement
 from ..errors import RequestValidationError
 
@@ -84,14 +85,23 @@ class AgreementTrust:
             and bool(self._treaties(agreement.responder_sovereign_id))
         )
 
-    def require_trusted(self, agreement: AgreementRecord, *, route: str) -> None:
-        """Raise ``422 agreement_untrusted`` unless two parties signed with trusted keys."""
+    def require_trusted(self, agreement: AgreementRecord, *, route: str, raw: Any = None) -> None:
+        """Raise ``422 agreement_untrusted`` unless two parties signed with trusted keys.
+
+        v1.2.0: given the agreement as received (``raw``), its signatures must
+        cover that form, and it must have no field this release does not know
+        and be in canonical form, as every verifier requires.
+        """
         offerer, responder = agreement.offerer_sovereign_id, agreement.responder_sovereign_id
         party: str | None = None
         if offerer == responder:
             reason, party = "same_party", offerer
         elif self._issued_by_this_na(agreement):
-            return
+            na_key = self._na.signer.public_key_b64
+            refusal = agreement_refusal(raw, [na_key], [na_key]) if raw is not None else None
+            if refusal is None:
+                return
+            reason = refusal
         else:
             offerer_keys = self.trusted_keys(offerer)
             responder_keys = self.trusted_keys(responder)
@@ -103,9 +113,10 @@ class AgreementTrust:
                 reason = "overlapping_party_keys"
             else:
                 result = verify_agreement(agreement, offerer_keys, responder_keys)
-                if result.accepted:
+                refusal = agreement_refusal(raw, offerer_keys, responder_keys) if raw is not None else None
+                if result.accepted and refusal is None:
                     return
-                reason = result.reason or "invalid_signature"
+                reason = refusal or result.reason or "invalid_signature"
         self._na.db.add_audit_event("agreement_untrusted", {
             "route": route,
             "agreement_id": agreement.agreement_id,

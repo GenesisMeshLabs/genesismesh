@@ -13,7 +13,7 @@ import click
 from ..crypto import load_private_key
 from ..models.agreement import AgreementRecord
 from ..models.context import BoundaryDecision, ContextRecord
-from ..models.canonical_registry import strict_refusal
+from ..models.canonical_registry import decision_refusal
 from ..trust.context import BoundaryEngine, verify_boundary_decision
 from ..trust.context.decisions import BoundaryDecisionVerificationResult
 from .. import strict_json
@@ -316,9 +316,10 @@ def context_verify(
             --operator-public-key <bank-pub-b64>
     """
     pub = _parse_public_key(operator_pub)
-    # v1.2.0: refuse a field this release does not know, as every SDK does.
+    # v1.2.0: a record not signed as received, with a field this release does
+    # not know, or not in canonical form is refused, in every SDK's order.
     raw = _load_json_file(decision_path)
-    refusal = strict_refusal("BoundaryDecision", raw, [pub])
+    refusal = decision_refusal(raw, [pub])
     if refusal:
         result = BoundaryDecisionVerificationResult(
             accepted=False, reason=refusal, decision_id=str(raw.get("decision_id")),  # type: ignore[arg-type]

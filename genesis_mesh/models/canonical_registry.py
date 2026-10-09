@@ -42,10 +42,10 @@ import json
 import re
 import types
 import typing
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Sequence, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 #: Optional fields each root omits from its signed form when absent (None).
 OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
@@ -68,7 +68,7 @@ CANONICAL_FIELDS: dict[str, tuple[str, ...]] = {
 REGISTRY_VERSION = 2
 
 _TIMESTAMP = re.compile(
-    r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{6}))?(Z|[+-](\d{2}):(\d{2}))?"
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{6}))?(Z|[+-]([0-9]{2}):([0-9]{2}))?"
 )
 
 
@@ -353,6 +353,68 @@ def strict_refusal(model: str, record: Any, public_keys: Sequence[str]) -> str |
     if not signed_as_received(model, record, public_keys):
         return "invalid_signature"
     return "unknown_field" if unknown else "non_canonical_form"
+
+
+def decision_refusal(record: Any, operator_public_keys: Sequence[str], now: datetime | None = None) -> str | None:
+    """Why a raw decision fails before its other checks, in the SDKs' order, or None (v1.2.0).
+
+    ``missing_signature`` and ``decision_expired``, which every verifier
+    checks before the signature, then ``strict_refusal``.
+    """
+    if not isinstance(record, dict):
+        return None
+    if record.get("signature") is None:
+        return "missing_signature"
+    try:
+        expired = (now or datetime.now(timezone.utc)) > _DATETIME.validate_python(record.get("decision_valid_until"))
+    except (ValidationError, TypeError):
+        expired = False  # left to validation
+    if expired:
+        return "decision_expired"
+    return strict_refusal("BoundaryDecision", record, operator_public_keys)
+
+
+_DATETIME: TypeAdapter[datetime] = TypeAdapter(datetime)
+
+
+def agreement_refusal(
+    record: Any,
+    offerer_public_keys: Sequence[str],
+    responder_public_keys: Sequence[str],
+    expected_graph_digest: str | None = None,
+) -> str | None:
+    """Why a raw agreement fails before its terms are checked, in the SDKs' order, or None (v1.2.0).
+
+    The signatures over the agreement as received (an offerer's, then a
+    responder's), the graph digest, then unknown fields and the canonical
+    form: ``missing_offerer_signature``, ``invalid_offerer_signature``,
+    ``missing_responder_signature``, ``invalid_responder_signature``,
+    ``graph_digest_mismatch``, ``unknown_field``, ``non_canonical_form``.
+    """
+    from ..crypto import verify_signature
+
+    if not isinstance(record, dict):
+        return None
+    registry = _registry()
+    sigs = _signature_values("AgreementRecord", record, registry)
+    if not sigs:
+        return "missing_offerer_signature"
+    body = received_canonical("AgreementRecord", record, registry).encode("utf-8")
+
+    def signed(keys: Sequence[str]) -> bool:
+        return any(verify_signature(body, sig, key) for sig in sigs for key in keys)
+
+    if not signed(offerer_public_keys):
+        return "invalid_offerer_signature"
+    if not signed(responder_public_keys):
+        return "missing_responder_signature" if len(sigs) < 2 else "invalid_responder_signature"
+    if expected_graph_digest is not None and record.get("graph_digest") != expected_graph_digest:
+        return "graph_digest_mismatch"
+    if unknown_fields("AgreementRecord", record):
+        return "unknown_field"
+    if _non_canonical("AgreementRecord", record):
+        return "non_canonical_form"
+    return None
 
 
 def intent_refusal_detail(intent: Any, policy: Any, agent_public_keys: Sequence[str]) -> str | None:
