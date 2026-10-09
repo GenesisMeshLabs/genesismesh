@@ -47,6 +47,12 @@ python conformance/runner.py interop
   PASS  interop  (25/25)
 ```
 
+`conformance/vectors/canonical.json` (suite `canonical`, v1.2.0) holds the
+field registry of signed records and cases for the fields every verifier
+refuses: unknown fields at any depth, free-form fields that stay open, and
+unknown evidence entry kinds. Each SDK embeds the registry and fails its
+conformance test when its copy differs. See {doc}`../reference/canonical-form`.
+
 ## The live scenario
 
 Two sovereigns, org-a and bank-a, negotiate an agreement (offer, counter,

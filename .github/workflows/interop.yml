@@ -100,7 +100,7 @@ jobs:
         run: |
           python conformance/runner.py
           for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
-            for suite in interop consensus admin_auth; do
+            for suite in interop consensus admin_auth canonical; do
               cmp "conformance/vectors/$suite.json" "sdks/$sdk/conformance/$suite.json"
             done
           done

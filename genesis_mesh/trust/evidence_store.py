@@ -385,6 +385,28 @@ class EvidenceVerification:
         return out
 
 
+#: The model each entry kind's payload holds; a decision payload wraps two.
+_PAYLOAD_MODELS: dict[str, str] = {
+    "justification": "JustificationProof",
+    "execution": "ExecutionEvidence",
+    "retention_checkpoint": "RetentionCheckpoint",
+}
+
+
+def _unknown_payload_fields(kind: str, payload: Any) -> list[str]:
+    from ..models.canonical_registry import unknown_fields
+
+    if kind == "decision":
+        if not isinstance(payload, dict):
+            return []
+        found = [k for k in payload if k not in ("decision", "context")]
+        found += unknown_fields("BoundaryDecision", payload.get("decision"), path="decision.")
+        found += unknown_fields("ContextRecord", payload.get("context"), path="context.")
+        return found
+    model = _PAYLOAD_MODELS.get(kind)
+    return unknown_fields(model, payload) if model else []
+
+
 def _verify_payload(
     event: EvidenceEvent,
     result: EvidenceVerification,
@@ -394,6 +416,12 @@ def _verify_payload(
     """Verify one payload's signature; return the parsed model (or None)."""
     entry = event.entry
     kind = entry.entry_kind
+    # v1.2.0: a field this release does not know is refused by name, not
+    # silently dropped (which would surface as a signature failure).
+    unknown = _unknown_payload_fields(kind, event.payload)
+    if unknown:
+        result.fail(entry.store_sequence, "unknown_field", ", ".join(unknown))
+        return None
     try:
         if kind == "decision":
             model: Any = BoundaryDecision.model_validate(event.payload["decision"])

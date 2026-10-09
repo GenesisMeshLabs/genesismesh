@@ -945,6 +945,136 @@ def gen_interop() -> None:
     _write("interop", {"suite": "interop", "version": "0.61.0", "vectors": vectors})
 
 
+def _canonical_samples() -> dict[str, dict]:
+    """One wire record per registry root: from the interop suite, or built here."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.context import ContextRecord
+    from genesis_mesh.models.evidence_store import (
+        EvidenceStoreEntry, ResourceHead, RetentionCheckpoint, StoreAnchor,
+    )
+    from genesis_mesh.models.execution import ExecutionEvidence
+    from genesis_mesh.models.sovereign import SovereignRevocationFeed
+
+    interop = json.loads((VECTORS_DIR / "interop.json").read_text(encoding="utf-8"))
+    by_id = {v["id"]: v["input"] for v in interop["vectors"]}
+    evidence = ExecutionEvidence(
+        evidence_id=UUID1, sequence_no=1, decision_id=UUID2, context_id=UUID3, agreement_id=UUID1,
+        executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success",
+        execution_parameters={"secret_version": "v2", "note": "Zürich ✓"}, executed_at=T0,
+        resource_id="kv:vault/api-key", resource_action="rotate", resource_sequence=2,
+        prev_resource_digest="0" * 64,
+    )
+    evidence = evidence.model_copy(update={"signature": sign_model(evidence, KEYS["b"], "executor-b")})
+    checkpoint = RetentionCheckpoint(
+        checkpoint_id=UUID2, created_at=T0, cutoff=T0, removed_through_sequence=4,
+        last_removed_entry_digest="1" * 64, removed_count=4,
+        resource_heads={"kv:vault/api-key": ResourceHead(resource_sequence=1, record_digest="2" * 64)},
+        issued_by="na-key",
+    )
+    checkpoint = checkpoint.model_copy(update={"signature": sign_model(checkpoint, KEYS["c"], "na-key")})
+    anchor = StoreAnchor(
+        anchor_sequence=2, sovereign_id=SOV_C, store_sequence=9, entry_digest="3" * 64, anchored_at=T0,
+        previous_anchor_digest="4" * 64, issued_by="na-key",
+    )
+    anchor = anchor.model_copy(update={"signature": sign_model(anchor, KEYS["c"], "na-key")})
+    entry = EvidenceStoreEntry(
+        store_sequence=5, entry_kind="execution", recorded_at=T0, payload_digest="5" * 64,
+        prev_entry_digest="6" * 64, decision_id=UUID2, evidence_id=UUID1, executor_sovereign_id=SOV_B,
+        exec_sequence_no=1, resource_id="kv:vault/api-key", resource_action="rotate", resource_sequence=2,
+    )
+    feed = SovereignRevocationFeed(
+        feed_id=UUID1, issuer_sovereign_id=SOV_C, sequence=1, issued_at=T0, issued_by="na-key",
+        revoked_attestation_ids=[UUID3], revocation_reasons={UUID3: "compromised"},
+    )
+    feed.signatures.append(sign_model(feed, KEYS["c"], "na-key"))
+    context = ContextRecord(
+        context_id=UUID3, agreement_id=UUID1, parent_kind="agreement", requester_sovereign_id=SOV_B,
+        provider_sovereign_id=SOV_A, requested_capability="transactions.read",
+        request_parameters={"rows": 10}, attributes={"purpose": "statement"}, requested_at=T0,
+    )
+    return {
+        "AgreementRecord": by_id["agr-002"]["agreement"],
+        "BoundaryDecision": by_id["bd-003"]["decision"],
+        "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
+        "ContextRecord": _model_to_dict(context),
+        "DataAccessIntent": by_id["int-001"]["intent"],
+        "DataLicensePolicy": by_id["pol-001"]["policy"],
+        "EvidenceStoreEntry": _model_to_dict(entry),
+        "ExecutionEvidence": _model_to_dict(evidence),
+        "JustificationProof": _model_to_dict(_make_justification_proof()),
+        "MembershipAttestation": by_id["bd-003"]["expected_attestation"],
+        "RetentionCheckpoint": _model_to_dict(checkpoint),
+        "SovereignRevocationFeed": _model_to_dict(feed),
+        "StoreAnchor": anchor.to_wire(),
+    }
+
+
+def gen_canonical() -> None:
+    """v1.2.0: the field registry of signed records, and which fields each verifier refuses.
+
+    Every root gets a clean record; the record with an added top-level field;
+    for each nested model present, the record with a field added inside it;
+    and for each free-form field present, the record with a key added there,
+    which is not refused. Expected paths are sorted.
+    """
+    import copy
+
+    from genesis_mesh.models.canonical_registry import build_registry, unknown_fields
+
+    registry = build_registry()
+    vectors: list[dict] = []
+
+    def case(vid: str, desc: str, model: str, record: dict) -> None:
+        found = sorted(unknown_fields(model, record, registry))
+        vectors.append({"id": vid, "kind": "unknown_fields", "description": desc, "model": model,
+                        "record": record, "expected": {"unknown_fields": found}})
+
+    for model, record in sorted(_canonical_samples().items()):
+        assert not unknown_fields(model, record, registry), model
+        slug = model.lower()
+        case(f"{slug}-clean", f"{model} as the reference emits it", model, record)
+        added = {**copy.deepcopy(record), "x_added_field": 1}
+        case(f"{slug}-top", f"{model} with an unknown top-level field", model, added)
+        for field, kind in registry["models"][model]["fields"].items():
+            value = record.get(field)
+            if value in (None, [], {}):
+                continue
+            inner = copy.deepcopy(record)
+            if kind == "open" and isinstance(value, dict):
+                inner[field]["x_added_key"] = 1
+                case(f"{slug}-open-{field}", f"{model}.{field} is free-form: added keys are kept", model, inner)
+            elif isinstance(kind, dict) and "object" in kind and isinstance(value, dict):
+                inner[field]["x_added_field"] = 1
+                case(f"{slug}-nested-{field}", f"{model}.{field} ({kind['object']}) with an unknown field", model, inner)
+            elif isinstance(kind, dict) and "list" in kind and isinstance(value, list) and isinstance(value[0], dict):
+                inner[field][0]["x_added_field"] = 1
+                case(f"{slug}-nested-{field}", f"{model}.{field}[0] ({kind['list']}) with an unknown field", model, inner)
+            elif isinstance(kind, dict) and "map" in kind and isinstance(value, dict):
+                first = sorted(value)[0]
+                inner[field][first]["x_added_field"] = 1
+                case(f"{slug}-nested-{field}", f"{model}.{field} values ({kind['map']}) with an unknown field", model, inner)
+    samples = _canonical_samples()
+    decision = samples["BoundaryDecision"]
+    deep = copy.deepcopy(decision)
+    deep["policy_binding"]["policies"][0]["x_added_field"] = 1
+    case("boundarydecision-deep-policies", "An unknown field three levels down (an applied policy)",
+         "BoundaryDecision", deep)
+    proof = copy.deepcopy(samples["JustificationProof"])
+    proof["trace"]["entries"][0]["x_added_field"] = 1
+    proof["trace"]["entries"][0]["inputs"]["x_added_key"] = 1
+    case("justificationproof-deep-trace-entry", "A trace entry with an unknown field and a free-form key",
+         "JustificationProof", proof)
+    nulls = {**copy.deepcopy(decision), "policy_binding": None, "attestation_binding": None}
+    case("boundarydecision-null-bindings", "Absent bindings sent as null are not unknown fields", "BoundaryDecision", nulls)
+    for kind in ("decision", "execution", "observation", "anchor"):
+        vectors.append({
+            "id": f"entry-kind-{kind}", "kind": "entry_kind",
+            "description": f"Export entry kind {kind!r}",
+            "entry_kind": kind, "expected": {"known": kind in registry["entry_kinds"]},
+        })
+    _write("canonical", {"suite": "canonical", "version": "1.2.0", "registry": registry, "vectors": vectors})
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -959,6 +1089,7 @@ GENERATORS = {
     "data_usage": gen_data_usage,
     "interop": gen_interop,
     "admin_auth": gen_admin_auth,
+    "canonical": gen_canonical,
 }
 
 
