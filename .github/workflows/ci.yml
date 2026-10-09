@@ -101,7 +101,7 @@ jobs:
       # mirrors, falling back to Docker Hub: its outages failed every image job.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
         with:
-          driver-opts: image=public.ecr.aws/vend/moby/buildkit:buildx-stable-1
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["mirror.gcr.io"]
@@ -137,8 +137,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        # Docker Hub's official image, from its ECR Public mirror (Docker Hub outages failed this job).
-        image: public.ecr.aws/docker/library/postgres:17
+        # Docker Hub's official image, from Google's Docker Hub mirror (Docker Hub outages failed this job).
+        image: mirror.gcr.io/library/postgres:17
         env:
           POSTGRES_USER: genesis
           POSTGRES_PASSWORD: genesis
