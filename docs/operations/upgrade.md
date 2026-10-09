@@ -61,6 +61,21 @@ Right after upgrading, anchor the store and take the first copy
 1.2 is covered from that first copied anchor on, as it stands then. Then set
 up the copy schedule described in {doc}`evidence-anchors`.
 
+### Strict input and canonical records
+
+- The Network Authority reads every JSON request body strictly: a duplicate
+  key, `NaN` or `Infinity`, a number that overflows a float, an integer below
+  `-2**63` or above `2**64 - 1`, the integer `-0` or a lone surrogate is
+  refused with `400 invalid_json` and the reason in `error.details`. A
+  client that sent such values (a boundary policy selector of `10**400`, say)
+  must change them; no SDK writes them.
+- Verifiers refuse a record signed over a form the reference does not write
+  as `non_canonical_form`, and a record received in a form its signature does
+  not cover as `invalid_signature`. Records the Network Authority signs are
+  always in canonical form; a client that rewrites timestamps (`Z` to
+  `+00:00`) before passing a record on breaks it. See
+  {doc}`../reference/canonical-form`.
+
 ## Upgrading to 1.1.1
 
 1.1.1 adds no database migration and can be rolled back to 1.1.0 on the same

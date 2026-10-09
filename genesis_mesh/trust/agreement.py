@@ -60,6 +60,7 @@ AgreementVerificationReason = Literal[
     "graph_digest_mismatch",
     "terms_mismatch",
     "unknown_field",
+    "non_canonical_form",
 ]
 
 

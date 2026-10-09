@@ -45,8 +45,27 @@
   The rules are written down in the new reference page *Canonical Form of
   Signed Records*, and `DEPRECATION_POLICY.md` states the upgrade order in
   both directions.
+- **Records are valid only in their canonical form.** The Python reference
+  re-wrote a received record before checking its signature, so it accepted a
+  timestamp rewritten from `Z` to `+00:00` (or `.000Z`) that every SDK
+  refused. Every verifier now checks the signature over the record as
+  received, and refuses a record signed over a form the reference does not
+  write as `non_canonical_form`: the reference checks the whole record, the
+  SDKs its timestamps, which the field registry marks (registry version 2).
+  The conformance suite `canonical` carries the cases.
 
 ### Security
+
+- **Input every parser reads alike.** Python kept the last of two duplicate
+  keys where .NET kept both, read `NaN` and `1e400` and wrote them back as
+  non-JSON, Go replaced a lone surrogate, and Rust read an integer beyond 64
+  bits as a float, so one record could verify in one implementation and fail
+  in another. Every implementation now refuses such input by a named reason
+  (`duplicate_key`, `non_finite_number`, `integer_out_of_range`,
+  `negative_zero`, `lone_surrogate`, `invalid_json`). The Network Authority
+  applies this to every JSON request body (`400 invalid_json`, the reason in
+  `error.details`), and a JSON body sent to a route whose body is optional is
+  no longer read as empty when it does not parse.
 
 - A `read`-tier operator key may now list anchors and ask the NA to anchor its
   current head (`GET` and `POST /admin/evidence/anchors`), so an auditor
@@ -65,6 +84,11 @@ once the clients verifying it are upgraded, and a new field clients sign only
 once the Network Authority is (see `DEPRECATION_POLICY.md`, *Signed
 artifacts*). A record carrying an unsigned extra field that verified on 1.1
 through `/boundary/verify` now fails as `invalid_signature`.
+
+Strict input: a request body with a duplicate key, `NaN`, an integer beyond
+64 bits (for example a boundary policy selector of `10**400`), `-0` or a lone
+surrogate is now refused with `400 invalid_json`; before, it was read one
+way here and could be read another way by an SDK verifying the result.
 
 ## v1.1.1 - Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
 

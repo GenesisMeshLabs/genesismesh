@@ -377,6 +377,61 @@ def run_interop(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_canonical(vectors: list[dict]) -> list[str]:
+    """Input every implementation reads alike, and the canonical form of records (v1.2.0)."""
+    from genesis_mesh import strict_json
+    from genesis_mesh.models.agreement import AgreementRecord
+    from genesis_mesh.models.canonical_registry import canonical_timestamp, intent_refusal_detail, strict_refusal
+    from genesis_mesh.models.context import BoundaryDecision
+    from genesis_mesh.trust.agreement import verify_agreement
+    from genesis_mesh.trust.context import verify_boundary_decision
+
+    failures = []
+    for v in vectors:
+        got: dict[str, object]
+        kind = v["kind"]
+        try:
+            if kind == "json":
+                try:
+                    value = strict_json.loads(v["input"])
+                    got = {"canonical": json.dumps(value, sort_keys=True, separators=(",", ":"))}
+                except strict_json.StrictJSONError as exc:
+                    got = {"refused": exc.reason}
+            elif kind == "timestamp":
+                got = {"canonical": canonical_timestamp(v["input"])}
+            elif kind == "verify_decision":
+                inp = v["input"]
+                reason = strict_refusal("BoundaryDecision", inp["decision"], inp["operator_public_keys"])
+                if reason is None:
+                    result = verify_boundary_decision(BoundaryDecision.model_validate(inp["decision"]),
+                                                      inp["operator_public_keys"], now=_ts(inp["now"]))
+                    got = {"accepted": result.accepted, "reason": result.reason}
+                else:
+                    got = {"accepted": False, "reason": reason}
+            elif kind == "verify_agreement":
+                inp = v["input"]
+                keys = inp["offerer_public_keys"] + inp["responder_public_keys"]
+                reason = strict_refusal("AgreementRecord", inp["agreement"], keys)
+                if reason is None:
+                    agreed = verify_agreement(AgreementRecord.model_validate(inp["agreement"]),
+                                              inp["offerer_public_keys"], inp["responder_public_keys"])
+                    got = {"accepted": agreed.accepted, "reason": agreed.reason}
+                else:
+                    got = {"accepted": False, "reason": reason}
+            elif kind == "verify_intent":
+                inp = v["input"]
+                got = {"detail": intent_refusal_detail(inp["intent"], inp["policy"], inp["agent_public_keys"])}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind}")
+                continue
+        except Exception as exc:  # a vector the reference cannot run is a failure, not a crash
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+            continue
+        if got != v["expected"]:
+            failures.append(f"{v['id']}: expected {v['expected']}, got {got}")
+    return failures
+
+
 def run_field_registry(vectors: list[dict]) -> list[str]:
     """The field registry of signed records and the fields verifiers refuse (v1.2.0)."""
     from genesis_mesh.models.agreement import AgreementRecord
@@ -448,6 +503,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "interop": run_interop,
     "admin_auth": run_admin_auth,
     "field_registry": run_field_registry,
+    "canonical": run_canonical,
 }
 
 

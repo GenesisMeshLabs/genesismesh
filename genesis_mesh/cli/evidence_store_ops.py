@@ -24,6 +24,7 @@ from ..trust.evidence_store import (
     verify_store_anchors,
 )
 from .support import _admin_signer_from_inputs, _request_json, _signed_admin_headers, public_key_value
+from .. import strict_json
 
 ANCHOR_FILE_PREFIX = "anchor-"
 
@@ -39,16 +40,18 @@ def load_anchors(path: str) -> list[StoreAnchor]:
     try:
         if p.is_dir():
             raw: list[Any] = [
-                json.loads(f.read_text(encoding="utf-8"))
+                strict_json.loads(f.read_text(encoding="utf-8"))
                 for f in sorted(p.glob(f"{ANCHOR_FILE_PREFIX}*.json"))
             ]
         else:
             text = p.read_text(encoding="utf-8").strip()
             if text.startswith("[") or text.startswith("{"):
                 try:
-                    data = json.loads(text)
-                except ValueError:
-                    data = [json.loads(line) for line in text.splitlines() if line.strip()]
+                    data = strict_json.loads(text)
+                except strict_json.StrictJSONError as exc:
+                    if exc.reason != "invalid_json":
+                        raise
+                    data = [strict_json.loads(line) for line in text.splitlines() if line.strip()]
             else:
                 data = []
             if isinstance(data, dict):
