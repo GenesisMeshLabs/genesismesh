@@ -233,23 +233,37 @@ def _client_address() -> str:
     return request.remote_addr or "unknown"
 
 
-def _known_key(service, key_id: str | None) -> str | None:
-    """``key_id`` when it names a configured operator key (revoked or not)."""
-    return key_id if key_id and key_id in service.operator_public_keys else None
+#: Failed admin authentications one address may cause a minute, across all
+#: scopes, as a multiple of ``RateLimits.admin_auth_failures`` (v1.2.0).
+ADDRESS_FAILURE_MULTIPLE = 4
 
 
-def _failure_scope(service, key_id: str | None) -> str:
-    """The rate-limit scope a failed admin request counts against (v1.2.0).
+def _active_key(service, key_id: str | None) -> str | None:
+    """``key_id`` when it names a configured operator key that is not revoked.
 
-    Per client address and key for a configured key, so failures from one
-    operator behind a shared address (a gateway, a NAT) do not lock out the
-    others; per address for anything else (no key, an unknown key), so a
-    flood of made-up key IDs still locks out its address and cannot create
-    one bucket per guess.
+    A revoked key counts like an unknown one: both are told "Unknown admin
+    key" (F-21), and counting them apart would tell a prober which key IDs
+    were revoked.
+    """
+    if not key_id or key_id not in service.operator_public_keys:
+        return None
+    return None if service.db.is_operator_key_revoked(key_id) else key_id
+
+
+def _failure_scopes(service, key_id: str | None) -> tuple[str, str]:
+    """The rate-limit scope a failed admin request counts against, and the address cap (v1.2.0).
+
+    Per client address and key for an active operator key, so one operator
+    failing behind a shared address (a gateway, a NAT) does not lock out the
+    others; per address for anything else (no key, an unknown or revoked
+    key), which refuses only requests that name no active key. Every failure
+    also counts against the address as a whole, capped at
+    ``ADDRESS_FAILURE_MULTIPLE`` times the limit, which bounds the signature
+    checks and audit writes one address can cause.
     """
     address = _client_address()
-    known = _known_key(service, key_id)
-    return f"{address}:{known}" if known else address
+    active = _active_key(service, key_id)
+    return (f"key|{address}|{active}" if active else f"address|{address}"), f"all|{address}"
 
 
 def _admin_auth_failure(service, event_type: str, details: dict, key_id: str | None = None) -> None:
@@ -257,48 +271,52 @@ def _admin_auth_failure(service, event_type: str, details: dict, key_id: str | N
 
     v1.1.0: the count is what ``RateLimits.admin_auth_failures`` limits, so
     raising the admin limit for signed traffic does not give unauthenticated
-    traffic more room. v1.2.0: counted per address and key for a configured
-    key, per address otherwise (``_failure_scope``).
+    traffic more room. v1.2.0: counted per scope (``_failure_scopes``).
     """
     _audit_auth_failure(service, event_type, details)
+    scope, address = _failure_scopes(service, key_id)
+    limit = service.rate_limits.admin_auth_failures
+    service.rate_limiter.allow(f"admin_auth_failed:{scope}", limit, RATE_LIMIT_WINDOW_SECONDS)
     service.rate_limiter.allow(
-        f"admin_auth_failed:{_failure_scope(service, key_id)}",
-        service.rate_limits.admin_auth_failures,
-        RATE_LIMIT_WINDOW_SECONDS,
+        f"admin_auth_failed:{address}", limit * ADDRESS_FAILURE_MULTIPLE, RATE_LIMIT_WINDOW_SECONDS
     )
 
 
-def _refuse_if_admin_auth_throttled(service, key_id: str | None = None) -> None:
-    """Refuse a scope that reached its failed admin authentication limit (v1.1.0).
+def _refuse_if_admin_auth_throttled(service, key_id: str | None = None, *, scoped: bool = True) -> None:
+    """Refuse a request whose scope reached the failed admin authentication limit (v1.1.0).
 
-    Without ``key_id`` it checks the client address, before any header is
-    read or signature checked; with a configured ``key_id`` (v1.2.0) it checks
-    that key at this address, before its signature is checked. Writes one
+    With ``scoped=False`` it checks only the address-wide cap, before any
+    header is read. Then (v1.2.0) it checks the request's own scope: the
+    active key at this address, or the address for a request naming no
+    active key; this runs before any signature is checked. Writes one
     ``admin_auth_throttled`` audit event per scope and window instead of one
     per request, so a flood of bad requests can neither cost signature checks
     nor fill the audit log.
     """
-    scope = _failure_scope(service, key_id)
-    if not service.rate_limiter.exceeded(
-        f"admin_auth_failed:{scope}",
-        service.rate_limits.admin_auth_failures,
-        RATE_LIMIT_WINDOW_SECONDS,
-    ):
+    scope, address = _failure_scopes(service, key_id)
+    limit = service.rate_limits.admin_auth_failures
+    if scoped:
+        bucket, cap = scope, limit
+    else:
+        bucket, cap = address, limit * ADDRESS_FAILURE_MULTIPLE
+    if not service.rate_limiter.exceeded(f"admin_auth_failed:{bucket}", cap, RATE_LIMIT_WINDOW_SECONDS):
         return
     # Read first: while a scope stays throttled, a refused request costs a
     # read, not a write, after the one that records the throttling.
-    marker = f"admin_auth_throttled:{scope}"
-    known = _known_key(service, key_id)
+    marker = f"admin_auth_throttled:{bucket}"
+    active = scoped and bucket.startswith("key|")
     if not service.rate_limiter.exceeded(
         marker, 1, RATE_LIMIT_WINDOW_SECONDS
     ) and service.rate_limiter.allow(marker, 1, RATE_LIMIT_WINDOW_SECONDS):
-        details = {"reason": "too_many_failed_admin_requests"}
-        if known:
-            details["key_id"] = known
+        details: dict[str, str | None] = {
+            "reason": "too_many_failed_admin_requests", "scope": bucket.split("|", 1)[0],
+        }
+        if active:
+            details["key_id"] = key_id
         _audit_auth_failure(service, "admin_auth_throttled", details)
     raise RateLimitError(
         "Too many failed admin requests for this key from this address."
-        if known else "Too many failed admin requests from this address.",
+        if active else "Too many failed admin requests from this address.",
         code="admin_auth_throttled",
     )
 
@@ -311,15 +329,20 @@ def verify_admin_request(
     Returns (False, message) for authentication failures, which callers turn
     into 401. Raises ForbiddenError (403) when the key authenticates but its
     tier does not permit the operation, and RateLimitError (429) when the
-    client address, or this key at this address (v1.2.0), has reached
-    ``RateLimits.admin_auth_failures`` (v1.1.0).
+    request's scope has reached ``RateLimits.admin_auth_failures`` (v1.1.0;
+    per address and key since v1.2.0).
     """
-    _refuse_if_admin_auth_throttled(service)
+    _refuse_if_admin_auth_throttled(service, scoped=False)
 
     key_id = request.headers.get("X-Admin-Key-Id")
     signature_b64 = request.headers.get("X-Admin-Signature")
     timestamp_str = request.headers.get("X-Admin-Timestamp")
     nonce = request.headers.get("X-Admin-Nonce")
+
+    # v1.2.0: a request is refused when its own scope reached the limit (the
+    # active key at this address, or the address for no active key), before
+    # its signature is checked.
+    _refuse_if_admin_auth_throttled(service, key_id)
 
     if any(
         value is not None and len(value) > MAX_ADMIN_HEADER_LENGTH
@@ -342,10 +365,6 @@ def verify_admin_request(
             {"key_id": key_id or "missing", "reason": "missing_headers"},
         )
         return False, "Missing admin authentication headers"
-
-    # v1.2.0: a configured key that reached its own failure limit at this
-    # address is refused before its signature is checked.
-    _refuse_if_admin_auth_throttled(service, key_id)
 
     # F-21: a key revoked at runtime is refused here, before its signature is
     # verified and before its nonce is consumed. A revoked key therefore cannot
