@@ -123,11 +123,16 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
 
     @bp.route("/admin/agreements/counter", methods=["POST"])
     def build_counter_route():
-        """Build and sign a CapabilityCounter in response to an existing offer."""
+        """Build and sign a CapabilityCounter in response to an existing offer.
+
+        Privileged since v1.1.1: the offerer can accept a counter on its own,
+        and the counter carries this NA's signature into the agreement, so
+        signing one is the NA's consent to the agreement.
+        """
         if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
         data = request_json_object()
-        ok, err = service._verify_admin_request(data)
+        ok, err = service._verify_admin_request(data, required_tier="privileged")
         if not ok:
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
 

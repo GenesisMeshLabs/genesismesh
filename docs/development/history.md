@@ -939,6 +939,31 @@ interoperability, upgrade and documentation gate.
 developer on any SDK runs the Network Authority their controller will meet in
 production, with three commands.
 
+### v1.1.1 — Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
+
+A review of the plans for 1.2 and later, reading the released code they build
+on, found that three routes took the caller's agreement on trust. Boundary
+evaluation, the legacy decide route and disclosure commitment parsed the
+`AgreementRecord` in the request and never checked its signatures, so a
+standard-tier operator key could present a fabricated agreement and receive a
+signed ALLOW for any capability no policy covered. The same review found that
+a request could name its own requester and provider, and that the evidence
+store kept the submitted payload rather than the signed form, so unsigned
+fields reached exports. A second review of the fix found the same pattern in
+the consensus routes, and that a standard key could still obtain the NA's
+consent to an agreement through the counter route.
+
+The Network Authority now trusts an agreement only if two different parties
+signed it with keys from state it signed itself: its own key, or a key in an
+active recognition treaty it issued. Countering an offer is privileged, the
+parties are bound to the agreement, the store admits a record only in its
+exact serialized form, and consensus is assembled only over the NA's own
+proofs. The default changed without an opt-out: refusing forged input is the
+fix.
+
+**What became possible:** an NA-signed decision under an agreement means two
+recognised parties signed it, and the store holds exactly what was signed.
+
 ---
 
 ## 5. Where to Read More

@@ -26,9 +26,10 @@ from ...models.evidence_store import (
     EvidenceStoreEntry,
     ResourceHead,
     RetentionCheckpoint,
+    canonical_json,
     payload_digest,
 )
-from ...models.execution import ExecutionEvidence
+from ...models.execution import RESOURCE_CHAIN_FIELDS, ExecutionEvidence
 from ...models.justification import JustificationProof
 from ...trust.evidence_store import (
     EvidenceVerification,
@@ -68,6 +69,46 @@ HISTORY_LIMIT = MAX_PAGE * 10
 
 def _event(stored: dict[str, Any]) -> EvidenceEvent:
     return EvidenceEvent(entry=stored["entry"], entry_digest=stored["entry_digest"], payload=stored["payload"])
+
+
+def _serialized_form(evidence: ExecutionEvidence) -> dict[str, Any]:
+    """The payload form an execution record is admitted in (v1.1.1).
+
+    The model's JSON serialization, with the optional resource-chain fields
+    omitted when absent, exactly as the signed canonical form treats them.
+    """
+    data = evidence.model_dump(mode="json")
+    for field in RESOURCE_CHAIN_FIELDS:
+        if data.get(field) is None:
+            data.pop(field, None)
+    return data
+
+
+def _serialized_form_difference(raw: dict[str, Any], evidence: ExecutionEvidence) -> str | None:
+    """Name the first difference between a submitted payload and its exact form."""
+    # Timestamps must be UTC: a naive or offset time serializes unchanged, so
+    # the comparison below would admit it, and it cannot be ordered against
+    # the NA's own times.
+    for name in type(evidence).model_fields:
+        value = getattr(evidence, name)
+        if isinstance(value, datetime) and value.utcoffset() != timedelta(0):
+            return f"field {name!r} is not a UTC timestamp"
+    expected = _serialized_form(evidence)
+    # The optional resource-chain fields may be sent as null or left out: the
+    # signed form omits them either way, so a null carries nothing unsigned.
+    raw = {k: v for k, v in raw.items() if not (k in RESOURCE_CHAIN_FIELDS and v is None)}
+    if canonical_json(raw) == canonical_json(expected):
+        return None
+    extra = sorted(set(raw) - set(expected))
+    if extra:
+        return "unexpected field " + ", ".join(repr(k) for k in extra)
+    missing = sorted(set(expected) - set(raw))
+    if missing:
+        return "missing field " + ", ".join(repr(k) for k in missing)
+    for key in sorted(expected):
+        if canonical_json(raw[key]) != canonical_json(expected[key]):
+            return f"field {key!r} is not in its serialized form"
+    return "payload differs from its serialized form"
 
 
 class EvidenceStoreService:
@@ -186,6 +227,17 @@ class EvidenceStoreService:
             evidence = ExecutionEvidence.model_validate(raw)
         except PydanticValidationError:
             self._reject("evidence_malformed", "evidence does not match the ExecutionEvidence model", None, digest)
+        # v1.1.1: the stored payload must be exactly what the signature covers.
+        # Extra fields, coerced types or other variants would be stored and
+        # exported as received; refuse them instead of repairing them.
+        difference = _serialized_form_difference(raw, evidence)
+        if difference is not None:
+            self._reject(
+                "evidence_malformed",
+                f"evidence is not in its exact serialized form: {difference}",
+                evidence,
+                digest,
+            )
 
         duplicate = self._stored_duplicate(evidence, digest)
         if duplicate is not None:
