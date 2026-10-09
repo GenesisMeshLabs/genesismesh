@@ -29,7 +29,13 @@ from typing import Any, Optional
 from ..models.evidence_store import EvidenceEvent, EvidenceStoreEntry, payload_digest
 from ..models.revocation import CertificateRevocationList
 from ..na_service.db import NADatabase, expected_schema_version
-from ..trust.evidence_store import ExecutorKey, verify_evidence_events
+from ..trust.evidence_store import (
+    EvidenceVerification,
+    ExecutorKey,
+    check_events_against_anchors,
+    verify_evidence_events,
+    verify_store_anchors,
+)
 
 #: Runtime-only tables: recreated empty on the target, never copied.
 RUNTIME_TABLES = frozenset({"rate_limit_windows", "job_leases"})
@@ -88,6 +94,7 @@ def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: 
     checkpoint = db.latest_retention_checkpoint()
     info: dict[str, Any] = {"entries": len(stored), "signatures_checked": na_public_key is not None}
     report.checks["evidence"] = info
+    _verify_anchors(db, report, stored, na_public_key)
     if not stored:
         return
     expected_seq = checkpoint.removed_through_sequence + 1 if checkpoint else 1
@@ -117,6 +124,29 @@ def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: 
         info["signature_failures"] = result.failures
         if not result.verified:
             report.fail(f"evidence store verification failed: {len(result.failures)} failure(s)")
+
+
+def _verify_anchors(
+    db: NADatabase, report: VerificationReport, stored: list[dict[str, Any]], na_public_key: Optional[str]
+) -> None:
+    """Store anchors (v1.2.0): an unbroken chain naming the stored entries' digests."""
+    anchors = db.list_store_anchors(limit=10**9)
+    info: dict[str, Any] = {"anchors": len(anchors)}
+    report.checks["evidence_anchors"] = info
+    if not anchors:
+        return
+    chain = verify_store_anchors(anchors, na_public_keys=[na_public_key] if na_public_key else None)
+    info["chain"] = chain.to_dict()
+    if not chain.verified:
+        report.fail("store anchors fail verification: "
+                    + ", ".join(f"#{f['anchor_sequence']} {f['reason']}" for f in chain.failures[:5]))
+    events = [EvidenceEvent(entry=s["entry"], entry_digest=s["entry_digest"], payload=s["payload"]) for s in stored]
+    result = EvidenceVerification()
+    check_events_against_anchors(events, anchors, result)
+    info.update(result.anchors or {})
+    if not result.verified:
+        report.fail("evidence entries do not match their store anchors: "
+                    + ", ".join(f"#{f['store_sequence']} {f['reason']}" for f in result.failures[:5]))
 
 
 def verify_database(db: NADatabase, na_public_key: Optional[str] = None) -> VerificationReport:

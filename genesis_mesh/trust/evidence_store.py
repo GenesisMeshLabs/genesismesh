@@ -31,6 +31,7 @@ from ..models.evidence_store import (
     EvidenceEvent,
     EvidenceStoreEntry,
     RetentionCheckpoint,
+    StoreAnchor,
     payload_digest,
 )
 from ..models.execution import ExecutionEvidence
@@ -364,19 +365,24 @@ class EvidenceVerification:
     decisions: int = 0
     executions: int = 0
     failures: list[dict[str, Any]] = field(default_factory=list)
+    #: Set by ``check_events_against_anchors`` (v1.2.0); absent otherwise.
+    anchors: dict[str, Any] | None = None
 
     def fail(self, store_sequence: int | None, reason: str, detail: str = "") -> None:
         self.verified = False
         self.failures.append({"store_sequence": store_sequence, "reason": reason, "detail": detail})
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "verified": self.verified,
             "checked_entries": self.checked_entries,
             "decisions": self.decisions,
             "executions": self.executions,
             "failures": self.failures,
         }
+        if self.anchors is not None:
+            out["anchors"] = self.anchors
+        return out
 
 
 def _verify_payload(
@@ -494,6 +500,174 @@ def verify_evidence_events(
         elif entry.entry_kind == "retention_checkpoint":
             pass
     return result
+
+
+# ---------------------------------------------------------------------------
+# Store anchors (v1.2.0)
+# ---------------------------------------------------------------------------
+
+
+def sign_store_anchor(anchor: StoreAnchor, signing_key: SigningKeyLike, key_id: str) -> StoreAnchor:
+    """Return the anchor signed by the NA."""
+    return anchor.model_copy(update={"signature": sign_model(anchor, signing_key, key_id)})
+
+
+@dataclass
+class AnchorVerification:
+    """Result of verifying a run of store anchors."""
+
+    verified: bool = True
+    checked_anchors: int = 0
+    first_anchor_sequence: int | None = None
+    last_anchor_sequence: int | None = None
+    anchored_through_sequence: int | None = None
+    failures: list[dict[str, Any]] = field(default_factory=list)
+
+    def fail(self, anchor_sequence: int | None, reason: str, detail: str = "") -> None:
+        self.verified = False
+        self.failures.append({"anchor_sequence": anchor_sequence, "reason": reason, "detail": detail})
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verified": self.verified,
+            "checked_anchors": self.checked_anchors,
+            "first_anchor_sequence": self.first_anchor_sequence,
+            "last_anchor_sequence": self.last_anchor_sequence,
+            "anchored_through_sequence": self.anchored_through_sequence,
+            "failures": self.failures,
+        }
+
+
+def verify_store_anchors(
+    anchors: Sequence[StoreAnchor],
+    *,
+    na_public_keys: Sequence[str] | None,
+    sovereign_id: str | None = None,
+) -> AnchorVerification:
+    """Verify a run of anchors: signatures, the anchor chain and monotonic heads.
+
+    ``anchors`` must be ordered by ``anchor_sequence`` and need not start at 1
+    (an auditor may hold only recent anchors); a run that starts at 1 must
+    start with no previous anchor. ``sovereign_id`` pins whose anchors these
+    are. ``na_public_keys=None`` skips the signatures (a database check
+    without the NA key) and checks everything else.
+    """
+    result = AnchorVerification()
+    prev: StoreAnchor | None = None
+    for anchor in anchors:
+        n = anchor.anchor_sequence
+        result.checked_anchors += 1
+        if result.first_anchor_sequence is None:
+            result.first_anchor_sequence = n
+        result.last_anchor_sequence = n
+        sig = anchor.signature
+        if na_public_keys is not None and (
+            sig is None or not any(verify_model_signature(anchor, sig, k) for k in na_public_keys)
+        ):
+            result.fail(n, "anchor_invalid_signature")
+        if sovereign_id is not None and anchor.sovereign_id != sovereign_id:
+            result.fail(n, "anchor_sovereign_mismatch", anchor.sovereign_id)
+        if prev is None:
+            if n == 1 and anchor.previous_anchor_digest is not None:
+                result.fail(n, "anchor_chain_break", "the first anchor names a previous anchor")
+        else:
+            if n != prev.anchor_sequence + 1:
+                result.fail(n, "anchor_sequence_gap", f"after {prev.anchor_sequence}")
+            elif anchor.previous_anchor_digest != prev.digest():
+                result.fail(n, "anchor_chain_break")
+            if anchor.store_sequence <= prev.store_sequence or anchor.anchored_at < prev.anchored_at:
+                result.fail(n, "anchor_not_increasing")
+        result.anchored_through_sequence = max(result.anchored_through_sequence or 0, anchor.store_sequence)
+        prev = anchor
+    return result
+
+
+def _checkpoint_start(events: Sequence[EvidenceEvent], first: EvidenceEvent) -> bool:
+    """True when a retention checkpoint in the run explains where the run starts."""
+    for event in events:
+        if event.entry.entry_kind != "retention_checkpoint":
+            continue
+        try:
+            cp = RetentionCheckpoint.model_validate(event.payload)
+        except ValueError:
+            continue
+        if (cp.removed_through_sequence == first.entry.store_sequence - 1
+                and cp.last_removed_entry_digest == first.entry.prev_entry_digest):
+            return True
+    return False
+
+
+def check_events_against_anchors(
+    events: Sequence[EvidenceEvent],
+    anchors: Sequence[StoreAnchor],
+    result: EvidenceVerification,
+    *,
+    partial: bool = False,
+) -> None:
+    """Check a contiguous run of entries against anchors held out of band.
+
+    The run must be tied to the anchors at both ends:
+
+    * its start: the run starts at entry 1; or right after a retention
+      checkpoint recorded in the run (whose signature the event verification
+      checks); or right after a held anchor, whose digest its first entry must
+      name. An anchor before a run that starts anywhere else means entries
+      before the run are not accounted for (``export_not_linked_to_anchors``);
+    * its end: an anchor after the run's last entry means the run stops short
+      of history the anchors prove exists (``export_ends_before_anchor``).
+
+    ``partial`` accepts a deliberate slice and skips both ends. Inside the run,
+    each anchor must name its entry's digest; because entries are hash-linked,
+    a match covers every earlier entry of the run.
+    """
+    by_sequence = {e.entry.store_sequence: e for e in events}
+    ordered = sorted(events, key=lambda e: e.entry.store_sequence)
+    first = ordered[0] if ordered else None
+    last_seq = ordered[-1].entry.store_sequence if ordered else None
+    first_seq = first.entry.store_sequence if first else None
+    matched = before = beyond = 0
+    anchored_through: int | None = None
+    linked_start = first is not None and (first_seq == 1 or _checkpoint_start(ordered, first))
+    for anchor in anchors:
+        seq = anchor.store_sequence
+        if first is None or last_seq is None or first_seq is None or seq > last_seq:
+            beyond += 1
+            continue
+        if seq == first_seq - 1:
+            if first.entry.prev_entry_digest == anchor.entry_digest:
+                linked_start = True
+                matched += 1
+                anchored_through = max(anchored_through or 0, seq)
+            else:
+                result.fail(first_seq, "anchor_mismatch",
+                            f"the run does not continue from anchor {anchor.anchor_sequence}")
+            continue
+        if seq < first_seq:
+            before += 1
+            continue
+        event = by_sequence.get(seq)
+        if event is None:
+            result.fail(seq, "anchor_entry_missing", f"anchor {anchor.anchor_sequence}")
+        elif event.entry_digest != anchor.entry_digest or event.entry.digest() != anchor.entry_digest:
+            result.fail(seq, "anchor_mismatch", f"anchor {anchor.anchor_sequence}")
+        else:
+            matched += 1
+            anchored_through = max(anchored_through or 0, seq)
+    if before and not linked_start and not partial:
+        result.fail(first_seq, "export_not_linked_to_anchors",
+                    f"{before} anchor(s) before the first entry, which does not continue from any of them")
+    if beyond and not partial:
+        result.fail(last_seq, "export_ends_before_anchor", f"{beyond} anchor(s) after the last entry")
+    floor = anchored_through or 0
+    result.anchors = {
+        "anchors_checked": len(anchors),
+        "anchors_matched": matched,
+        "anchors_before_export": before,
+        "anchors_after_export": beyond,
+        "linked_start": linked_start,
+        "anchored_through_sequence": anchored_through,
+        "unanchored_entries": sum(1 for seq in by_sequence if seq > floor),
+    }
 
 
 def parse_export_lines(lines: Iterable[str]) -> list[EvidenceEvent]:

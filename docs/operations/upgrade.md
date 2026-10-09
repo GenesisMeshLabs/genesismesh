@@ -48,6 +48,19 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
+## Upgrading to 1.2 (unreleased)
+
+1.2 adds migration 014, the `evidence_anchors` table, so a 1.2 database cannot
+be opened by 1.1: roll back by restoring the backup taken before the upgrade
+(see *Rollback*). Once anchors have been copied out, such a rollback is an
+evidence-loss event for their holders; follow *After a restore* in
+{doc}`evidence-anchors`.
+
+Right after upgrading, anchor the store and take the first copy
+(`genesis-mesh evidence anchors fetch --anchor-now`): history stored before
+1.2 is covered from that first copied anchor on, as it stands then. Then set
+up the copy schedule described in {doc}`evidence-anchors`.
+
 ## Upgrading to 1.1.1
 
 1.1.1 adds no database migration and can be rolled back to 1.1.0 on the same

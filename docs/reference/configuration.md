@@ -70,6 +70,7 @@ Private-key paths in this file are local secrets and must not be committed.
 | `WEB_CONCURRENCY` | no | Gunicorn worker count. Defaults to `4`. |
 | `OPERATOR_PUBLIC_KEYS_JSON` | yes for admin APIs | JSON object mapping operator key IDs to base64 public keys. |
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
+| `NA_ANCHOR_INTERVAL_SECONDS` | no | After an append to the evidence store, sign a new store anchor once this many seconds have passed since the last one (default 3600); `0` anchors only on `POST /admin/evidence/anchors`. See {doc}`../operations/evidence-anchors` (v1.2.0). |
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
 | `NA_MAX_REQUEST_BYTES` | no | Largest accepted request body in bytes (default 2097152, 2 MiB); larger requests get `413 request_entity_too_large` before they are parsed (v0.62). |
 | `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | no | Admin requests per minute per client address (default 300; 30 before v1.1.0). Every governed action calls `/admin/boundary/evaluate`, so size this to the controllers behind one address (v0.63.1). |

@@ -15,6 +15,8 @@ Operators (operator-signed headers):
   POST /admin/evidence/executor-keys                   register an executor key (privileged)
   POST /admin/evidence/executor-keys/<key_id>/retire   retire an executor key (privileged)
   POST /admin/evidence/retention/apply                 apply retention (privileged)
+  GET  /admin/evidence/anchors                         signed store anchors (read tier, v1.2.0)
+  POST /admin/evidence/anchors                         anchor the store's head now (read tier, v1.2.0)
 """
 
 from __future__ import annotations
@@ -130,6 +132,29 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
         data = request_json_object()
         operator = _admin(data, tier="privileged")
         return jsonify(store.retire_executor_key(key_id, operator))
+
+    @bp.route("/admin/evidence/anchors", methods=["GET"])
+    def list_anchors():
+        """Signed store anchors in order, for auditors to keep outside the NA."""
+        store.require_enabled()
+        _admin({}, tier="read")
+        return jsonify(store.list_anchors(_query()))
+
+    @bp.route("/admin/evidence/anchors", methods=["POST"])
+    def create_anchor():
+        """Sign the store's current head now (idempotent while it is unchanged).
+
+        Read tier (v1.2.0): an auditor's key may ask for an anchor, so the
+        auditor, not the operator, decides how long recent entries go
+        unanchored. It only ever signs the true current head.
+        """
+        store.require_enabled()
+        data = request_json_object()
+        _admin(data, tier="read")
+        anchor, created = store.anchor()
+        body = {"anchor": anchor.to_wire() if anchor else None,
+                "status": "anchored" if created else "unchanged"}
+        return jsonify(body), (201 if created else 200)
 
     @bp.route("/admin/evidence/retention/apply", methods=["POST"])
     def apply_retention():

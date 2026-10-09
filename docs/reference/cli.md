@@ -149,7 +149,34 @@ genesis-mesh evidence verify-export \
 ```
 
 `--executor-keys` takes the response of `GET /admin/evidence/executor-keys`.
+With `--known-anchors <dir or file>` (v1.2.0) the export is also checked
+against store anchors held outside the NA: it must start at entry 1, after a
+retention checkpoint it contains, or right after a held anchor, and must not
+stop before the newest held anchor; a removed or rewritten anchored record
+fails. `--partial` accepts a deliberate slice.
 Exit code 0 when verified; 1 on any failure.
+
+### `genesis-mesh evidence anchors fetch`
+
+> **v1.2.0**: Evidence Anchors
+
+Copy the NA's store anchors into a directory you control. Each run reads
+every anchor the NA serves and compares it with the copy held: a different
+anchor at a held position, or one the NA no longer serves, writes nothing and
+fails. Otherwise the whole set is checked (NA signature, unbroken chain) and
+missing positions are written atomically; existing files are never replaced.
+`--anchor-now` first asks the NA to anchor its current head. A read-tier key
+is enough for both.
+
+```bash
+genesis-mesh evidence anchors fetch \
+    --na https://na.example.org \
+    --na-public-key na.pub \
+    --out /audit/anchors \
+    --operator-key auditor.key --operator-key-id auditor
+```
+
+See {doc}`../operations/evidence-anchors`. Exit code 0 on success; 1 on failure.
 
 ### `genesis-mesh na migrate-db`
 
