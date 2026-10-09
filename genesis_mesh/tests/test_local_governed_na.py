@@ -12,6 +12,7 @@ to 300 and holds failed admin authentications to the old 30.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -71,8 +72,21 @@ def test_failed_auth_limit_below_one_is_refused():
         RateLimits(admin_auth_failures=0)
 
 
+def _one_window(client) -> None:
+    """Keep a fixed-window limiter in a single window for the whole test.
+
+    On PostgreSQL the NA counts requests in clock-aligned minutes
+    (``DatabaseRateLimiter``), so a test whose requests straddle a minute
+    boundary would see the count reset half way.
+    """
+    if isinstance(client.service.rate_limiter, DatabaseRateLimiter):
+        frozen = time.time()
+        client.service.rate_limiter = DatabaseRateLimiter(client.service.db, clock=lambda: frozen)
+
+
 def test_300_signed_admin_requests_a_minute_pass_at_the_default():
     client = _client()
+    _one_window(client)
     statuses = [_get(client, "/admin/boundary-policies").status_code for _ in range(300)]
     assert statuses == [200] * 300
     over = _get(client, "/admin/boundary-policies")
