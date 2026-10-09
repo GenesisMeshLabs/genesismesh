@@ -235,20 +235,18 @@ narrower kind, and the docs say so.
    (Maintainer, 2026-10-08).
 3. **Pre-issued grants for edge devices** (Maintainer, 2026-10-08).
 
-Open, from the critic and skeptic reviews (2026-10-09):
+Recorded from the critic and skeptic reviews (Maintainer, 2026-10-09):
 
-4. **Six stages instead of eight** (proposed): the Rust foundations stage is
-   folded into the verifier and edge stages, the verifier into the audit
-   stage, and anchors move to Stage 1.
-5. **Stages 5 and 6 confirmed before they start** (proposed): the reviews
-   found grants and the edge agent unnecessary for the program's goals, which
-   break-glass and the outbox meet; they stay planned, by Decision 3, and are
-   confirmed or deferred when Stage 4 ships.
-6. **One Rust verifier** (proposed): the Rust SDK's `verify` module is the
-   Rust verifier; the gateway uses it rather than keeping a second one.
-7. **New kinds in three verifiers** (proposed): Python, TypeScript and Rust;
-   Go, .NET and PHP refuse them as unknown.
-8. **Resource positions stay client-chained for execution evidence**
-   (proposed): the outbox chains from the pending head and
-   `ExecutionEvidence` stays unchanged; grant evidence (Stage 5) gets
-   NA-assigned positions in its own kind.
+4. **Six stages instead of eight**: the Rust foundations stage is folded into
+   the verifier and edge stages, the verifier into the audit stage, and
+   anchors move to Stage 1.
+5. **Stages 5 and 6 confirmed before they start**: grants and the edge agent
+   stay planned, by Decision 3, and are confirmed or deferred when Stage 4
+   ships; break-glass and the outbox meet the program's goals without them.
+6. **One Rust verifier**: the Rust SDK's `verify` module is the Rust verifier;
+   `genesis-mesh-verify` and the gateway build on it.
+7. **New kinds in three verifiers**: Python, TypeScript and Rust; Go, .NET and
+   PHP refuse them as `unknown_entry_kind`.
+8. **Resource positions stay client-chained for execution evidence**: the
+   outbox chains from the pending head and `ExecutionEvidence` is unchanged;
+   grant evidence (Stage 5) gets NA-assigned positions in its own kind.
