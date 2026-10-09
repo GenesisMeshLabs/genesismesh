@@ -13,17 +13,17 @@ assembles consensus proofs.
   `AgreementRecord` in the request without verifying its signatures, so a
   holder of a standard-tier operator key could present a fabricated agreement
   and receive an NA-signed ALLOW for any capability no active policy covers,
-  or a signed disclosure commitment. The NA now accepts an agreement only if two different parties signed it with keys
-it trusts: its own key for its own sovereign, and for any other sovereign the
-keys of an active recognition treaty the NA issued to it that grants at least
-one role. The NA's key never vouches for another sovereign, a sovereign cannot
-agree with itself, and one key cannot sign for both parties. An agreement the
-NA offered and accepted itself (`/admin/agreements/accept`, privileged) stays
-trusted when its responder holds such a treaty.
-  Anything else is refused with `422 agreement_untrusted` and an
-  `agreement_untrusted` audit event. Operator keys are still not bound to
-  sovereigns: a standard-tier key can decide under any trusted agreement or
-  stored attestation it presents.
+  or a signed disclosure commitment. The NA now accepts an agreement only if
+  two different parties signed it with keys it trusts: its own key for its own
+  sovereign, and for any other sovereign the keys of an active recognition
+  treaty the NA issued to it that grants at least one role. The NA's key never
+  vouches for another sovereign, a sovereign cannot agree with itself, and one
+  key cannot sign for both parties. An agreement the NA offered and accepted
+  itself (`/admin/agreements/accept`, privileged) stays trusted when its
+  responder holds such a treaty. Anything else is refused with
+  `422 agreement_untrusted` and an `agreement_untrusted` audit event. Operator
+  keys are still not bound to sovereigns: a standard-tier key can decide under
+  any trusted agreement or stored attestation it presents.
 - **Countering an agreement offer needs a privileged key.** The offerer can
   accept a counter on its own, and the counter carries the NA's signature into
   the agreement, so a standard-tier key and any recognised sovereign could
