@@ -122,24 +122,40 @@ the reference implementation. The shared `interop` conformance vectors
      character below U+0020, DEL (U+007F) and every non-ASCII character
      escaped as `\uXXXX` with lowercase hex, characters above U+FFFF as a
      UTF-16 surrogate pair (`ü` is `\u00fc`, `😀` is `\ud83d\ude00`);
-   - integers written exactly as received, at any size;
+   - integers written exactly as received (an integer outside
+     `-2**63 .. 2**64 - 1` is refused on input, see item 5);
    - other numbers written as Python's `repr(float)`: the shortest
      round-trip digits, positional when the decimal exponent is from -4 to
      15 (`0.25`, `90.0`), otherwise `d.ddde±XX` (`1e-05`, `1e+16`). A value
      received as `1.0` stays `1.0`;
    - `true`, `false` and `null` as literals.
-2. **Timestamps** are strings in UTC, `YYYY-MM-DDTHH:MM:SS[.ffffff]Z`, with
-   six fractional digits when the microseconds are non-zero and none
-   otherwise. A signer **MUST** emit this form. A verifier **MUST**
-   canonicalize the received string as it is and **MUST NOT** re-format it.
+2. **Timestamps** are strings `YYYY-MM-DDTHH:MM:SS[.ffffff]` followed by
+   `Z` for UTC, `+HH:MM` or `-HH:MM` for another offset (never `+00:00` or
+   `-00:00`), or nothing for a timestamp without an offset, with six
+   fractional digits when the microseconds are non-zero and none otherwise,
+   and they name a date and time that exist. A signer **MUST** emit this
+   form. A verifier **MUST** canonicalize the received string as it is and
+   **MUST NOT** re-format it; since 1.2.0 it **MUST** refuse a record whose
+   signature verifies over a timestamp in another form
+   (`non_canonical_form`).
 3. **Signed bytes.** An object is signed over the canonical form of the
    object without its signature field (`signatures` for identity, treaty and
    feed documents). Absent optional fields are serialized with their defaults
    as the reference model emits them (`[]`, `{}`, `null`), so a signer
-   **MUST** include them.
+   **MUST** include them, except the fields the reference page *Canonical
+   Form of Signed Records* lists under *Optional fields*.
 4. **Signature object.** `{"key_id": "<signing key id>", "sig": "<base64
    Ed25519 signature>"}`, standard base64 with padding. Public keys are the
    32-byte Ed25519 key in standard base64.
+5. **Accepted input** (since 1.2.0). Before computing a canonical form, a
+   verifier **MUST** refuse JSON that parsers read differently: an object
+   naming a key twice (`duplicate_key`), a number that overflows a 64-bit
+   float (`non_finite_number`), an integer outside `-2**63 .. 2**64 - 1`
+   (`integer_out_of_range`), the integer `-0` (`negative_zero`), a string
+   or key holding half of a surrogate pair (`lone_surrogate`), and `NaN`,
+   `Infinity`, a byte order mark, text that is not UTF-8 or arrays and
+   objects nested more than 64 deep (`invalid_json`). The `canonical`
+   conformance vectors test these rules.
 
 ## Security considerations
 

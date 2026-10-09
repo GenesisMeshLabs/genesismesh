@@ -1222,7 +1222,18 @@ def gen_canonical() -> None:
         ("float-underflow", "A number below the smallest float reads as zero", "[1e-400,-1e-400]"),
         ("nested", "Nested objects are ordered at every level", "{\"b\":{\"d\":1,\"c\":[{\"f\":1,\"e\":2}]},\"a\":null}"),
     ]
+    accepted += [
+        ("depth-64", "Arrays nested 64 deep", "[" * 64 + "]" * 64),
+        ("depth-64-objects", "Objects and arrays nested 64 deep", "{\"a\":[" * 32 + "1" + "]}" * 32),
+    ]
     refused = [
+        ("depth-65", "Arrays nested 65 deep", "[" * 65 + "]" * 65),
+        ("depth-65-objects", "Objects nested 65 deep", "{\"a\":" * 65 + "1" + "}" * 65),
+        ("depth-deep", "Arrays nested 10,000 deep", "[" * 10000 + "]" * 10000),
+        ("byte-order-mark", "Not JSON: a byte order mark", "\ufeff{}"),
+        ("int-21-digits", "An integer of 21 digits", "[100000000000000000000]"),
+        ("int-5000-digits", "An integer of 5,000 digits", "[" + "9" * 5000 + "]"),
+        ("int-long-negative", "A negative integer of 30 digits", "[-" + "1" * 30 + "]"),
         ("duplicate-key", "A key named twice", "{\"a\":1,\"a\":2}"),
         ("duplicate-key-nested", "A key named twice in a nested object", "{\"x\":[{\"k\":1,\"k\":1}]}"),
         ("duplicate-key-escaped", "A key named twice, once escaped", "{\"a\":1,\"\\u0061\":2}"),
@@ -1284,6 +1295,9 @@ def gen_canonical() -> None:
         ("2026-01-01T00:00:00+0200", "An offset without a colon"),
         ("2026-01-01T00:00:00+02", "An offset without minutes"),
         ("2026-01-01T00:00:00+24:00", "An offset of 24 hours"),
+        ("2026-01-01T00:00:00Z\n", "A trailing newline"),
+        ("\uff12\uff10\uff12\uff16-01-01T00:00:00Z", "Fullwidth digits"),
+        ("2026-01-01T00:00:\u0660\u0660Z", "Arabic-Indic digits"),
     ]
     for value, desc in stamps:
         vectors.append({"id": f"timestamp-{len([v for v in vectors if v['kind'] == 'timestamp']) + 1:02d}",
@@ -1322,10 +1336,66 @@ def gen_canonical() -> None:
         "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": copy.deepcopy(bd["decision"])},
         "expected": {"accepted": True, "reason": "authorized"},
     })
+    # The checks every verifier makes before the form: the signature's presence
+    # and the expiry stand before an unknown field.
+    later = copy.deepcopy(bd["decision"])
+    later["future_field"] = "x"
+    vectors.append({
+        "id": "verify-decision-expired-before-form", "kind": "verify_decision",
+        "description": "An expired decision with a field this release does not know, signed as received",
+        "input": {"operator_public_keys": bd["operator_public_keys"], "now": "2026-01-01T02:00:00Z",
+                  "decision": signed("BoundaryDecision", later, [("c", "na-key")], "signature")},
+        "expected": {"accepted": False, "reason": "decision_expired"},
+    })
+    unsigned = copy.deepcopy(bd["decision"])
+    unsigned["future_field"] = "x"
+    del unsigned["signature"]
+    vectors.append({
+        "id": "verify-decision-missing-signature-before-form", "kind": "verify_decision",
+        "description": "An unsigned decision with a field this release does not know",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": unsigned},
+        "expected": {"accepted": False, "reason": "missing_signature"},
+    })
+    # Records signed before v1.2.0: a field written as null is signed as null.
+    dropped = copy.deepcopy(bd["decision"])
+    del dropped["denial_reason"]
+    vectors.append({
+        "id": "verify-decision-null-field-removed", "kind": "verify_decision",
+        "description": "A decision signed with denial_reason null, received without it",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": dropped},
+        "expected": {"accepted": False, "reason": "invalid_signature"},
+    })
+    nulled = copy.deepcopy(bd["decision"])
+    del nulled["policy_binding"]
+    nulled = signed("BoundaryDecision", nulled, [("c", "na-key")], "signature")
+    nulled["policy_binding"] = None
+    vectors.append({
+        "id": "verify-decision-omitted-field-null", "kind": "verify_decision",
+        "description": "A decision signed without a policy binding, received with policy_binding null",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": nulled},
+        "expected": {"accepted": True, "reason": "authorized"},
+    })
     agr = interop["agr-002"]
+    key_ids = [s["key_id"] for s in agr["agreement"]["signatures"]]
+    changed = copy.deepcopy(agr["agreement"])
+    changed["agreed_terms"]["future_field"] = "x"
+    vectors.append({
+        "id": "verify-agreement-unknown-field-after-signing", "kind": "verify_agreement",
+        "description": "An agreement whose terms gained a field after both parties signed",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")}, "agreement": changed},
+        "expected": {"accepted": False, "reason": "invalid_offerer_signature"},
+    })
+    stranger = copy.deepcopy(agr["agreement"])
+    stranger["agreed_terms"]["valid_from"] = "2026-01-01T00:00:00.000Z"
+    vectors.append({
+        "id": "verify-agreement-non-canonical-wrong-responder", "kind": "verify_agreement",
+        "description": "A non-canonical agreement its offerer signed, countersigned by another key",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")},
+                  "agreement": signed("AgreementRecord", stranger, [("a", key_ids[0]), ("c", key_ids[1])], "signatures")},
+        "expected": {"accepted": False, "reason": "invalid_responder_signature"},
+    })
     agreement = copy.deepcopy(agr["agreement"])
     agreement["agreed_terms"]["valid_from"] = "2026-01-01T00:00:00.000Z"
-    key_ids = [s["key_id"] for s in agr["agreement"]["signatures"]]
     vectors.append({
         "id": "verify-agreement-signed-non-canonical-timestamp", "kind": "verify_agreement",
         "description": "An agreement both parties signed over a nested timestamp written .000Z",

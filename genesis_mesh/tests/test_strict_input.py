@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import itertools
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -84,6 +84,8 @@ def _client():
 
 
 @pytest.mark.parametrize("body, reason", [
+    ('{"decision":' + "[" * 65 + "]" * 65 + "}", "invalid_json"),
+    ('{"decision":{"version":' + "9" * 5000 + "}}", "integer_out_of_range"),
     ('{"decision":{},"decision":{}}', "duplicate_key"),
     ('{"decision":{"x":"\\udc00"}}', "lone_surrogate"),
     ('{"decision":{"version":123456789012345678901234}}', "integer_out_of_range"),
@@ -95,13 +97,32 @@ def test_request_bodies_are_read_strictly(body, reason):
     assert (error["code"], error["details"]["reason"]) == ("invalid_json", reason)
 
 
+def test_a_utf8_byte_order_mark_is_accepted_and_utf16_is_not():
+    body = json.dumps({"decision": {}})
+    resp = _client().post("/boundary/verify", data=b"\xef\xbb\xbf" + body.encode(), content_type="application/json")
+    assert resp.status_code == 400 and resp.get_json()["error"]["code"] == "missing_decision"
+    resp = _client().post("/boundary/verify", data=body.encode("utf-16"), content_type="application/json")
+    assert resp.status_code == 400 and resp.get_json()["error"]["details"]["reason"] == "invalid_json"
+
+
 def test_a_body_that_is_not_json_by_content_type_is_still_no_body():
     resp = _client().post("/boundary/verify", data="{oops", content_type="text/plain")
     assert resp.status_code == 400
     assert resp.get_json()["error"]["code"] != "invalid_json"
 
 
-def test_the_verify_routes_refuse_records_not_in_canonical_form():
+class _AtVectorTime(datetime):
+    """The suite's decisions expire at 01:05 on 2026-01-01; the routes check them at 01:00."""
+
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        return datetime(2026, 1, 1, 1, 0, tzinfo=timezone.utc)
+
+
+def test_the_verify_routes_refuse_records_not_in_canonical_form(monkeypatch):
+    from genesis_mesh.na_service.routes import boundary
+
+    monkeypatch.setattr(boundary, "datetime", _AtVectorTime)
     client = _client()
     signed = VECTORS["verify-decision-signed-non-canonical-timestamp"]["input"]
     resp = client.post("/boundary/verify", json={"decision": signed["decision"],
@@ -114,6 +135,40 @@ def test_the_verify_routes_refuse_records_not_in_canonical_form():
     agreement = VECTORS["verify-agreement-signed-non-canonical-timestamp"]["input"]
     resp = client.post("/agreements/verify", json=agreement)
     assert resp.get_json()["reason"] == "non_canonical_form"
+
+
+def test_the_verify_routes_check_in_the_sdks_order(monkeypatch):
+    from genesis_mesh.na_service.routes import boundary
+
+    monkeypatch.setattr(boundary, "datetime", _AtVectorTime)
+    client = _client()
+    for vid in ("verify-decision-missing-signature-before-form", "verify-decision-null-field-removed",
+                "verify-decision-omitted-field-null"):
+        inp = VECTORS[vid]["input"]
+        resp = client.post("/boundary/verify", json={"decision": inp["decision"],
+                                                     "operator_public_keys": inp["operator_public_keys"]})
+        assert resp.get_json()["reason"] == VECTORS[vid]["expected"]["reason"], vid
+    for vid in ("verify-agreement-unknown-field-after-signing", "verify-agreement-non-canonical-wrong-responder"):
+        resp = client.post("/agreements/verify", json=VECTORS[vid]["input"])
+        assert resp.get_json()["reason"] == VECTORS[vid]["expected"]["reason"], vid
+
+
+def test_the_guard_does_not_use_a_decision_not_in_canonical_form(tmp_path):
+    from genesis_mesh.guard.daemon import GenesisGuardDaemon
+    from .test_process_level_mediation import _PY_VERSION, _sk
+
+    signed = VECTORS["verify-decision-signed-non-canonical-timestamp"]["input"]
+    canonical = VECTORS["verify-decision-canonical"]["input"]["decision"]
+    operator = canonical["operator_sovereign_id"]
+    daemon = GenesisGuardDaemon(
+        guard_sovereign_id="guard-a", signing_key=_sk(), decision_store={},
+        agent_public_keys={}, operator_public_keys={operator: signed["operator_public_keys"]},
+        token_issuer_public_keys={}, command_allowlist=[_PY_VERSION], decision_dir=tmp_path,
+    )
+    (tmp_path / "d.json").write_text(json.dumps(signed["decision"]), encoding="utf-8")
+    assert daemon._load_decision(signed["decision"]["decision_id"]) is None
+    (tmp_path / "d.json").write_text(json.dumps(canonical), encoding="utf-8")
+    assert daemon._load_decision(canonical["decision_id"]) is not None
 
 
 def test_the_cli_refuses_a_decision_file_with_a_duplicate_key(tmp_path):

@@ -95,7 +95,8 @@ def verify_export(
             --executor-keys executor-keys.json --known-anchors anchors/
     """
     try:
-        events = parse_export_lines(Path(file_path).read_text(encoding="utf-8").splitlines())
+        # Split on newlines only: splitlines() also splits inside strings on U+2028 and others.
+        events = parse_export_lines(Path(file_path).read_text(encoding="utf-8").split("\n"))
     except ValueError as exc:
         raise click.ClickException(f"Export is malformed: {exc}") from exc
     raw_keys = json.loads(Path(executor_keys_path).read_text(encoding="utf-8"))

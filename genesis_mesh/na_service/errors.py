@@ -134,9 +134,12 @@ def request_json_object(*, required: bool = False) -> dict[str, Any]:
     ``invalid_json`` and the reason, instead of being read one way here.
     """
     data = None
-    if request.is_json and request.get_data(cache=True).strip():
+    body = request.get_data(cache=True)
+    if body.startswith(b"\xef\xbb\xbf"):  # a UTF-8 byte order mark, as Flask accepted before 1.2.0
+        body = body[3:]
+    if request.is_json and body.strip():
         try:
-            data = strict_json.loads(request.get_data(cache=True))
+            data = strict_json.loads(body)
         except strict_json.StrictJSONError as exc:
             raise BadRequestError(
                 f"request body is not accepted JSON ({exc.reason})",
