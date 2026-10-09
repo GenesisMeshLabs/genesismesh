@@ -1219,6 +1219,7 @@ def gen_canonical() -> None:
         ("exponents", "Exponent spellings of floats", "[1E5,1e5,1E+5,1e-5,1.5E3,2.5e0,1e22,1e21,1e16,1e-7,123e-2]"),
         ("floats", "Float spellings and Python's shortest repr", "[0.1,1.0,1.50,100.0,-0.0,5e-324,1.7976931348623157e308,0.30000000000000004]"),
         ("negative-zero-float", "The float -0.0 keeps its sign", "{\"x\":-0.0}"),
+        ("float-underflow", "A number below the smallest float reads as zero", "[1e-400,-1e-400]"),
         ("nested", "Nested objects are ordered at every level", "{\"b\":{\"d\":1,\"c\":[{\"f\":1,\"e\":2}]},\"a\":null}"),
     ]
     refused = [
