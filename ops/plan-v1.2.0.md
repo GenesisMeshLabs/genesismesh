@@ -9,7 +9,7 @@ Python reference and the only issuer of decisions.
 
 | Stage | Plan | Delivers |
 | --- | --- | --- |
-| 1 | `plan-v1.2.0.md` | Durable SDK outbox and the evidence error API, done once; strict, forward-compatible verifiers and the canonicalization corpus; NA-signed store anchors pushed to storage the auditor controls |
+| 1 | `plan-v1.2.0.md` | Durable SDK outbox and the evidence error API, done once; strict, forward-compatible verifiers and the canonicalization corpus; NA-signed store anchors copied to storage the auditor controls |
 | 2 | `plan-v1.3.0.md` | Observations, after-the-fact judgements, break-glass when the NA is unreachable, quarantined records, anchored registries |
 | 3 | `plan-v1.4.0.md` | Remediation (cancel by rotating forward), grace window, notification, one review record with second-person approval, emergency policy |
 | 4 | `plan-v1.5.0.md` | Audit packs, NA key succession, archive before prune, and the independent verifier `genesis-mesh-verify` |
@@ -143,20 +143,24 @@ narrower kind, and the docs say so.
      keys, extra fields, legacy nulls; where Python is lax, the core is made
      strict and the case recorded;
    - conformance vectors for every case above.
-3. **Signed store anchors** (core).
-   - The NA signs store heads (sequence, entry digest, resource heads) every
-     `NA_ANCHOR_INTERVAL` (default one hour, if anything was appended) and on
-     demand; anchors are store entries and are served by
-     `GET /evidence/anchors` (read tier).
-   - **Anchor push:** the NA, or `genesis-mesh evidence push-anchors` on a
-     schedule, writes each anchor to an append-only location the auditor
-     controls (a directory, an object store with object lock, or an HTTPS
-     endpoint); a push failure raises an audit event and an alert, never
-     blocks the store.
-   - Verification of an export gains `--known-anchors <file>`: the range must
-     be continuous with anchors the verifier already holds; a rebuilt chain
-     that skips or rewrites an anchored range fails. Entries before the first
-     anchor are reported as unanchored.
+3. **Signed store anchors** (core; built, see Decision 9).
+   - The NA signs the store's head (`StoreAnchor`: sequence and entry digest;
+     anchors chain among themselves) after an append once
+     `NA_ANCHOR_INTERVAL_SECONDS` (default 3600) have passed, and on
+     `POST /admin/evidence/anchors`, which a `read`-tier key may call so the
+     auditor bounds the unanchored window. It refuses to sign over a store
+     that no longer continues from its last anchor, or when the last anchor is
+     dated ahead of its clock. Anchors are kept in their own append-only table,
+     not as store entries, and are listed by `GET /admin/evidence/anchors`.
+   - **Copies:** `genesis-mesh evidence anchors fetch` keeps a directory of
+     anchors, comparing every held anchor with what the NA serves and failing
+     on any difference. Run by the auditor (pull) or by an operator timer that
+     syncs into the auditor's write-once storage (push); failures alert.
+   - Verification of an export gains `--known-anchors`: the export must be tied
+     to the held anchors at its start (entry 1, a retention checkpoint in the
+     export, or a held anchor) and its end; a rebuilt chain that skips,
+     rewrites or truncates an anchored range fails. Entries after the newest
+     held anchor are reported as unanchored.
 4. **Independent fixes** (they can slip to a 1.2.x patch without holding the
    stage):
    - `_public_base_url` honours forwarded headers only within `NA_PROXY_HOPS`;
@@ -185,9 +189,11 @@ narrower kind, and the docs say so.
 - Strict verifiers close the gap where an older verifier accepted a record
   whose new field changed its meaning.
 - Anchors are signed by the NA key, which whoever runs the NA holds: an
-  operator could re-sign a rewritten history. Pushing anchors as they are made
-  to storage the auditor controls, and verifying continuity against them, is
-  what makes removal detectable. The docs say so plainly.
+  operator could re-sign a rewritten history. Copies made promptly to storage
+  the auditor controls, and verification against them, make removal
+  detectable; a record is unprotected against the operator until an anchor
+  covering it has been copied out, and the copy schedule sets that window. The
+  docs say so plainly, and treat a restore as an evidence-loss event.
 - Per-key failure counting keeps the 1.1.0 flood protection (an unknown key
   still counts per address) while removing the shared-address lockout.
 
@@ -205,9 +211,11 @@ narrower kind, and the docs say so.
 - [ ] Every verifier passes the canonical corpus and the legacy-null vectors,
       and refuses an unknown field and an unknown entry kind with a named
       reason; every stored 1.x decision and execution record still verifies
-- [ ] Anchors are written on the interval and pushed to a test location;
-      removing a record from an anchored range, or re-anchoring a rewritten
-      chain, fails verification with `--known-anchors`
+- [x] Anchors are written on the interval and on request (read tier) and
+      copied by `anchors fetch`; removing a record from an anchored range,
+      truncating either end, or re-anchoring a rewritten chain fails
+      verification with `--known-anchors`; the NA refuses to anchor a
+      rewritten store
 - [ ] 31 failed authentications from one key at one address do not lock out a
       second known key at that address; an unknown key still locks out its
       address
@@ -226,7 +234,7 @@ narrower kind, and the docs say so.
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.2.0`, releases, published-artifacts green
 - [ ] `"1.2.0"` added to the `upgrade.yml` matrix after the release
-- [ ] Both production hosts upgraded, anchors pushed from both
+- [ ] Both production hosts upgraded, anchors copied out from both
 
 ## Decisions
 
@@ -250,3 +258,16 @@ Recorded from the critic and skeptic reviews (Maintainer, 2026-10-09):
 8. **Resource positions stay client-chained for execution evidence**: the
    outbox chains from the pending head and `ExecutionEvidence` is unchanged;
    grant evidence (Stage 5) gets NA-assigned positions in its own kind.
+
+Open, from building and reviewing the anchors (2026-10-09):
+
+9. **Anchors outside the store chain, copied by fetch** (proposed): anchors
+   live in their own append-only table rather than as store entries, because
+   every 1.1 verifier refuses unknown entry kinds in exports and retention
+   would prune entries; copies are made by `anchors fetch` (pull by the
+   auditor, or an operator timer pushing into the auditor's storage) rather
+   than by the NA pushing, which would put the auditor's storage credentials
+   on the NA host; resource heads are left out of the anchor, since the entry
+   digest commits to every resource record before it; `read` keys may request
+   an anchor. `StoreAnchor` is classified stable: held copies must verify for
+   years.

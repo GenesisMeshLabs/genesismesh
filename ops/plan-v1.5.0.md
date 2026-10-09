@@ -11,7 +11,7 @@ archived.
 
 What exists after Stage 3: an NDJSON export (`/admin/evidence/export`) and
 offline verification (`genesis-mesh evidence verify-export`); signed anchors
-pushed to storage the auditor controls, with `--known-anchors` continuity
+copied to storage the auditor controls, with `--known-anchors` continuity
 (Stage 1); every record of the program in the store, under anchors; the Rust
 SDK's `verify` module (`sdk-rust/src/verify.rs`), which already verifies
 decisions, policies, evidence exports and checkpoints with the Python
@@ -81,7 +81,7 @@ The reviews found:
    change, recorded in `SECURITY.md`).
 8. **The independent verifier** `genesis-mesh-verify`, built from the Rust
    SDK's `verify` module (one Rust verifier):
-   - verification of every kind in the program and the 18 stable artifacts,
+   - verification of every kind in the program and the stable artifacts (19 after Stage 1),
      judged as of each record's time, against the normative spec and corpus
      (Stage 1); a difference from the Python reference is a bug in one of
      them, resolved against the spec;
@@ -127,7 +127,7 @@ The reviews found:
 - [ ] After an NA key succession, records, treaties and attestations signed
       before and after verify in the store, exports, packs and agreement trust
 - [ ] A pack verifies offline in a CI job with the network disabled, given
-      only the pack, the root key and the pushed anchors; a removed record, a
+      only the pack, the root key and the held anchors; a removed record, a
       rewritten and re-anchored range, and a tampered file each fail with a
       named reason
 - [ ] Packs from databases written by every release in `upgrade.yml` verify;

@@ -186,3 +186,19 @@ def test_current_schema_migrates_again_without_error(tmp_path):
     from genesis_mesh.na_service.db import expected_schema_version
 
     assert db.schema_version() == expected_schema_version()
+
+
+@pytest.mark.parametrize("url, path", [
+    ("sqlite:///var/lib/genesis-mesh/na.db", "/var/lib/genesis-mesh/na.db"),
+    ("sqlite:///:memory:", ":memory:"),
+    ("sqlite:///C:/data/na.db", "C:/data/na.db"),
+    ("sqlite:///d:/data/na.db", "d:/data/na.db"),
+])
+def test_sqlite_urls_name_their_file(url, path):
+    from genesis_mesh.na_service.storage.base import sqlite_path_from_url
+    assert sqlite_path_from_url(url) == path
+
+
+def test_a_windows_drive_path_with_backslashes_is_a_file_path():
+    from genesis_mesh.na_service.storage.base import sqlite_path_from_url
+    assert sqlite_path_from_url("sqlite:///C:" + chr(92) + "data" + chr(92) + "na.db") == "C:" + chr(92) + "data" + chr(92) + "na.db"

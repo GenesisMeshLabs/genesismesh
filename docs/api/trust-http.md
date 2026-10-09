@@ -448,6 +448,16 @@ All operator-signed; the admin rate limits apply (see *Rate limits* above).
 | `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}` (privileged; `409 executor_key_exists`) |
 | `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged) |
 | `POST /admin/evidence/retention/apply` | `{ "older_than_days": N }`: remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged) |
+| `GET /admin/evidence/anchors` | Signed `StoreAnchor`s in order, paged with `after_anchor` and `limit` (1-1000); `read` tier (v1.2.0) |
+| `POST /admin/evidence/anchors` | Sign the store's current head now: `201` with `"status": "anchored"`, or `200` with `"status": "unchanged"` and the latest anchor while the head has not moved; `read` tier; `409 evidence_anchor_refused` when the store no longer continues from the last anchor or the last anchor is dated ahead of the NA's clock (v1.2.0) |
+
+Since v1.2.0 the NA signs the store's head (a `StoreAnchor`: `anchor_sequence`,
+`sovereign_id`, `store_sequence`, `entry_digest`, `anchored_at`,
+`previous_anchor_digest`, `issued_by`, `signature`) after an append once
+`NA_ANCHOR_INTERVAL_SECONDS` have passed. Anchors are kept outside the store
+chain and never removed. `GET /admin/evidence/verify` checks them, and
+`GET /admin/evidence/status` reports the latest one and `unanchored_entries`.
+See {doc}`../operations/evidence-anchors`.
 
 ---
 
