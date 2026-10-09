@@ -26,7 +26,8 @@ jobs:
         from: ["0.59.1", "0.60.0", "0.61.1", "0.62.0", "0.63.0", "0.63.1", "0.64.0", "0.64.1", "0.65.0", "1.0.0", "1.0.1", "1.0.2", "1.1.0", "1.1.1"]
     services:
       postgres:
-        image: postgres:17
+        # Docker Hub's official image, from its ECR Public mirror (Docker Hub outages failed this job).
+        image: public.ecr.aws/docker/library/postgres:17
         env:
           POSTGRES_USER: genesis
           POSTGRES_PASSWORD: genesis

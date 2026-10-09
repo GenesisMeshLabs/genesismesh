@@ -652,7 +652,7 @@ def na_persistence_and_node(ctx: Context) -> str:
 
 def start_postgres(ctx: Context) -> None:
     ctx.run("pg", "-e", "POSTGRES_PASSWORD=smoke", "-e", "POSTGRES_DB=genesis",
-            "-e", "POSTGRES_INITDB_ARGS=--locale=C --encoding=UTF8", image="postgres:17-alpine")
+            "-e", "POSTGRES_INITDB_ARGS=--locale=C --encoding=UTF8", image="public.ecr.aws/docker/library/postgres:17-alpine")  # Docker Hub's image, via ECR Public
     deadline = time.monotonic() + 60
     # TCP, not the socket: the image's temporary init server answers on the socket only, then restarts.
     while docker("exec", f"gmt-{RUN}-pg", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", check=False).returncode != 0:
