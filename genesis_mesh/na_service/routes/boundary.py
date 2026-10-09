@@ -22,6 +22,7 @@ from ..errors import (
     UnauthorizedError,
     request_json_object,
 )
+from ...models.canonical_registry import strict_refusal
 from ..services.boundary_policy import agreement_parties
 
 if TYPE_CHECKING:
@@ -137,12 +138,20 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         raw = data.get("decision")
         if not raw:
             raise BadRequestError("decision is required", code="missing_decision")
+        operator_keys = data.get("operator_public_keys") or [_pub_b64()]
+        # v1.2.0: refuse a field this release does not know, as every SDK does.
+        refusal = strict_refusal("BoundaryDecision", raw, operator_keys)
+        if refusal:
+            service.db.add_audit_event("boundary_decision_verified", {
+                "decision_id": raw.get("decision_id"), "accepted": False,
+            })
+            return jsonify({"accepted": False, "authorized": raw.get("authorized") is True,
+                            "reason": refusal, "decision_id": raw.get("decision_id")})
         try:
             decision = BoundaryDecision.model_validate(raw)
         except Exception as exc:
             raise BadRequestError("Invalid decision object", code="invalid_decision") from exc
 
-        operator_keys = data.get("operator_public_keys") or [_pub_b64()]
         result = verify_boundary_decision(
             decision,
             operator_public_keys=operator_keys,

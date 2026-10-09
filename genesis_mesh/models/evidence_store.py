@@ -53,7 +53,11 @@ class EvidenceStoreEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     store_sequence: int = Field(..., ge=1, description="Gap-free position in the store")
-    entry_kind: EntryKind
+    # Any string, so an export carrying a kind from a later release parses and
+    # verification names it (``unknown_entry_kind``); the NA writes EntryKind only.
+    entry_kind: str = Field(
+        ..., description="decision, justification, execution or retention_checkpoint; later releases may add kinds"
+    )
     recorded_at: datetime = Field(..., description="UTC time the NA stored the entry")
     payload_digest: str = Field(..., description="SHA-256 of the stored payload's canonical JSON")
     prev_entry_digest: str | None = Field(

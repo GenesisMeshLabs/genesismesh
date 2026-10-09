@@ -13,7 +13,9 @@ import click
 from ..crypto import load_private_key
 from ..models.agreement import AgreementRecord
 from ..models.context import BoundaryDecision, ContextRecord
+from ..models.canonical_registry import strict_refusal
 from ..trust.context import BoundaryEngine, verify_boundary_decision
+from ..trust.context.decisions import BoundaryDecisionVerificationResult
 
 
 # ---------------------------------------------------------------------------
@@ -312,10 +314,17 @@ def context_verify(
             --decision decision.json \\
             --operator-public-key <bank-pub-b64>
     """
-    decision = _load_decision(decision_path)
     pub = _parse_public_key(operator_pub)
-
-    result = verify_boundary_decision(decision, [pub])
+    # v1.2.0: refuse a field this release does not know, as every SDK does.
+    raw = json.loads(Path(decision_path).read_text(encoding="utf-8"))
+    refusal = strict_refusal("BoundaryDecision", raw, [pub])
+    if refusal:
+        result = BoundaryDecisionVerificationResult(
+            accepted=False, reason=refusal, decision_id=str(raw.get("decision_id")),  # type: ignore[arg-type]
+            authorized=raw.get("authorized") is True,
+        )
+    else:
+        result = verify_boundary_decision(_load_decision(decision_path), [pub])
 
     if output_format == "json":
         click.echo(json.dumps(result.to_dict(), indent=2))

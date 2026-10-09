@@ -21,6 +21,8 @@ from ..trust.agreement import (
     cosign_agreement,
     verify_agreement,
 )
+from ..models.canonical_registry import strict_refusal
+from ..trust.agreement import AgreementVerificationResult
 from ..trust.evidence import graph_digest_from_export
 
 
@@ -524,15 +526,21 @@ def agree_verify(
             --responder-public-key <bank-pub-b64> \\
             --graph aspayr-graph.json
     """
-    record = _load_agreement(agreement_path)
     offerer_key = _parse_public_key(offerer_pub)
     responder_key = _parse_public_key(responder_pub)
+    # v1.2.0: refuse a signed field this release does not know, as every SDK does.
+    raw = json.loads(Path(agreement_path).read_text(encoding="utf-8"))
+    refusal = strict_refusal("AgreementRecord", raw, [offerer_key, responder_key])
+    record = _load_agreement(agreement_path)
 
     expected_digest: str | None = None
     if graph_path:
         expected_digest = graph_digest_from_export(_load_graph(graph_path))
 
-    result = verify_agreement(
+    result = AgreementVerificationResult(
+        accepted=False, reason=refusal, agreement_id=record.agreement_id,  # type: ignore[arg-type]
+        offerer_sovereign_id=record.offerer_sovereign_id, responder_sovereign_id=record.responder_sovereign_id,
+    ) if refusal else verify_agreement(
         record, [offerer_key], [responder_key],
         expected_graph_digest=expected_digest,
     )

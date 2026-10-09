@@ -53,12 +53,7 @@
           "title": "Decision Id"
         },
         "entry_kind": {
-          "enum": [
-            "decision",
-            "justification",
-            "execution",
-            "retention_checkpoint"
-          ],
+          "description": "decision, justification, execution or retention_checkpoint; later releases may add kinds",
           "title": "Entry Kind",
           "type": "string"
         },

@@ -17,6 +17,8 @@ import click
 import nacl.signing
 
 from ..crypto import load_private_key, sign_model
+from ..models.canonical_registry import intent_refusal_detail
+from ..models.data_usage import DataUsageViolation
 from ..models.data_usage import (
     DataAccessIntent,
     DataAccessRecord,
@@ -194,7 +196,21 @@ def verify_cmd(
     policy = DataLicensePolicy.model_validate_json(
         Path(policy_path).read_text(encoding="utf-8")
     )
-    ok, reason, violations = verify_data_access_intent(intent, policy, [public_key_value(k) for k in pub_keys])
+    keys = [public_key_value(k) for k in pub_keys]
+    # v1.2.0: refuse a signed field this release does not know, as every SDK does.
+    detail = intent_refusal_detail(
+        json.loads(Path(intent_path).read_text(encoding="utf-8")),
+        json.loads(Path(policy_path).read_text(encoding="utf-8")), keys,
+    )
+    reason: str | None
+    if detail:
+        ok, reason = False, "intent_exceeds_license"
+        violations = [DataUsageViolation(
+            intent_id=intent.intent_id, agent_sovereign_id=intent.agent_sovereign_id,
+            violation_type="intent_exceeds_license", detail=detail, detected_at=datetime.now(timezone.utc),
+        )]
+    else:
+        ok, reason, violations = verify_data_access_intent(intent, policy, keys)
     if fmt == "json":
         click.echo(json.dumps({
             "compliant": ok,

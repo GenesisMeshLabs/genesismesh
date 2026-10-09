@@ -47,12 +47,14 @@ its gate is green, not by date.
 - **Every record says how strongly it was governed:** `governed_by` is
   `prior_decision`, `grant` or `after_the_fact`, and every change has a
   `state` (Stage 2 defines the state table).
-- **Verifiers before signers, strictly.** Verifiers refuse unknown fields and
-  unknown entry kinds with a named reason, so a new field or kind reaches the
-  verifiers no later than the release in which the NA first emits it. New
-  kinds are verified by the Python reference, the TypeScript SDK and the Rust
-  SDK (the one Rust verifier); Go, .NET and PHP refuse them as unknown, a
-  named, documented result.
+- **Verifiers before signers, strictly.** Verifiers refuse unknown signed
+  fields and unknown entry kinds with a named reason, so a new field or kind
+  reaches the verifiers before a signer emits it, in both directions: a new
+  field the NA signs ships behind a setting, off by default, turned on once
+  the fleet's verifiers read it; a new field clients sign is emitted only to
+  an NA that reads it. New kinds are verified by the Python reference, the
+  TypeScript SDK and the Rust SDK (the one Rust verifier); Go, .NET and PHP do
+  not verify exports or the program's new record kinds.
 - **Strict, not lax.** The NA admits records only in their exact form
   (1.1.1); the canonicalization spec is normative, and where the Python
   reference is lax it is made strict rather than copied.
@@ -128,21 +130,26 @@ narrower kind, and the docs say so.
    - The guard fallback records the outcome with the identifying keys the
      guard accepted and drops only the refused ones.
 2. **Strict, forward-compatible verifiers** (Python, TypeScript, Go, .NET,
-   Rust, PHP where it verifies):
-   - per-model canonical rules written down: which optional fields are
-     omitted when absent (every field added from 1.2 on, and the 1.0 bindings)
-     and which legacy fields are signed as present nulls (listed per model);
-   - a signed record with a field the verifier does not know is refused
-     (`unknown_field`); an export entry of an unknown kind is refused
-     (`unknown_entry_kind`);
-   - the canonicalization spec in `docs/development/alternative-implementations.md`
-     and a generated corpus (`scripts/export_reference_corpus.py --suite
-     canonical`): timestamps (`Z`, `+00:00`, other offsets, naive, `.000`,
-     six-digit fractions), numbers (int and float, exponents, integers beyond
-     64 bits, `NaN`), strings (non-ASCII, escapes, lone surrogates), duplicate
-     keys, extra fields, legacy nulls; where Python is lax, the core is made
-     strict and the case recorded;
-   - conformance vectors for every case above.
+   Rust; PHP has no offline verifier).
+   - **Built (part 2):** the field registry of signed records, generated from
+     the Python models, with the omit-when-absent rules per model, shipped in
+     the conformance suite `field_registry` and embedded in every SDK; every
+     verifier checks the signature over the record as received, then refuses a
+     signed field the registry does not list (`unknown_field`; only the signed
+     projection), an unsigned addition fails as `invalid_signature`, and an
+     export entry of an unknown kind is refused per entry
+     (`unknown_entry_kind`, still chained); Python applies this at its raw
+     entry points and reports fields outside a stored record's signature as
+     the warning `unsigned_field`; the rules are in
+     `docs/reference/canonical-form.md`.
+   - **Remaining (part 2b):** a canonicalization corpus
+     (`scripts/export_reference_corpus.py --suite canonical`): timestamps
+     (`Z`, `+00:00`, other offsets, naive, `.000`, six-digit fractions),
+     numbers (int and float, exponents, integers beyond 64 bits, `NaN`),
+     strings (non-ASCII, escapes, lone surrogates), duplicate keys, legacy
+     nulls, with conformance vectors; where Python is lax (it re-serializes
+     timestamps and so accepts forms the SDKs refuse), the core is made
+     strict and the case recorded.
 3. **Signed store anchors** (core; built, see Decision 9).
    - The NA signs the store's head (`StoreAnchor`: sequence and entry digest;
      anchors chain among themselves) after an append once
@@ -208,9 +215,12 @@ narrower kind, and the docs say so.
 - [ ] A guard refusal after the action is reported as
       `governed_action_metadata_refused` with the value; the outcome is
       recorded
-- [ ] Every verifier passes the canonical corpus and the legacy-null vectors,
-      and refuses an unknown field and an unknown entry kind with a named
-      reason; every stored 1.x decision and execution record still verifies
+- [x] Every verifier refuses an unknown signed field and an unknown entry
+      kind with a named reason (suite `field_registry`); every stored 1.x
+      decision and execution record still verifies (unsigned extras from
+      before 1.1.1 are a warning)
+- [ ] Every verifier passes the canonicalization corpus and the legacy-null
+      vectors (part 2b)
 - [x] Anchors are written on the interval and on request (read tier) and
       copied by `anchors fetch`; removing a record from an anchored range,
       truncating either end, or re-anchoring a rewritten chain fails
@@ -254,7 +264,9 @@ Recorded from the critic and skeptic reviews (Maintainer, 2026-10-09):
 6. **One Rust verifier**: the Rust SDK's `verify` module is the Rust verifier;
    `genesis-mesh-verify` and the gateway build on it.
 7. **New kinds in three verifiers**: Python, TypeScript and Rust; Go, .NET and
-   PHP refuse them as `unknown_entry_kind`.
+   PHP do not verify exports or the program's new record kinds (amended after
+   the part 2 review, 2026-10-09: they have no export verifier to refuse
+   with).
 8. **Resource positions stay client-chained for execution evidence**: the
    outbox chains from the pending head and `ExecutionEvidence` is unchanged;
    grant evidence (Stage 5) gets NA-assigned positions in its own kind.

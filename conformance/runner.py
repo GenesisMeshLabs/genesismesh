@@ -377,6 +377,62 @@ def run_interop(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_field_registry(vectors: list[dict]) -> list[str]:
+    """The field registry of signed records and the fields verifiers refuse (v1.2.0)."""
+    from genesis_mesh.models.agreement import AgreementRecord
+    from genesis_mesh.models.canonical_registry import build_registry, strict_refusal, unknown_fields
+    from genesis_mesh.models.context import BoundaryDecision
+    from genesis_mesh.trust.agreement import verify_agreement
+    from genesis_mesh.trust.context import verify_boundary_decision
+    from genesis_mesh.trust.evidence_store import parse_export_lines, verify_evidence_events
+
+    registry = build_registry()
+    data = json.loads((VECTORS_DIR / "field_registry.json").read_text(encoding="utf-8"))
+    failures = []
+    if data["registry"] != registry:
+        failures.append("registry: the committed registry differs from the models; regenerate the suite")
+    for v in vectors:
+        got: dict[str, object]
+        try:
+            kind = v["kind"]
+            if kind == "unknown_fields":
+                got = {"unknown_fields": sorted(unknown_fields(v["model"], v["record"], registry))}
+            elif kind == "entry_kind":
+                got = {"known": v["entry_kind"] in registry["entry_kinds"]}
+            elif kind == "verify_decision":
+                inp = v["input"]
+                reason = strict_refusal("BoundaryDecision", inp["decision"], inp["operator_public_keys"])
+                if reason is None:
+                    result = verify_boundary_decision(BoundaryDecision.model_validate(inp["decision"]),
+                                                      inp["operator_public_keys"], now=_ts(inp["now"]))
+                    got = {"accepted": result.accepted, "reason": result.reason}
+                else:
+                    got = {"accepted": False, "reason": reason}
+            elif kind == "verify_agreement":
+                inp = v["input"]
+                keys = [*inp["offerer_public_keys"], *inp["responder_public_keys"]]
+                reason = strict_refusal("AgreementRecord", inp["agreement"], keys)
+                if reason is None:
+                    ag = verify_agreement(AgreementRecord.model_validate(inp["agreement"]),
+                                          inp["offerer_public_keys"], inp["responder_public_keys"])
+                    got = {"accepted": ag.accepted, "reason": ag.reason}
+                else:
+                    got = {"accepted": False, "reason": reason}
+            elif kind == "export":
+                events = parse_export_lines(v["input"]["lines"].splitlines())
+                checked = verify_evidence_events(events, na_public_keys=[], executor_keys={})
+                got = {"failures": [{"store_sequence": f["store_sequence"], "reason": f["reason"]}
+                                    for f in checked.failures]}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind}")
+                continue
+            if got != v["expected"]:
+                failures.append(f"{v['id']}: got {got}, want {v['expected']}")
+        except Exception as exc:
+            failures.append(f"{v['id']}: {exc}")
+    return failures
+
+
 # ── Suite registry ───────────────────────────────────────────────────────────
 
 SUITE_RUNNERS: dict[str, Any] = {
@@ -391,6 +447,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "data_usage": run_data_usage,
     "interop": run_interop,
     "admin_auth": run_admin_auth,
+    "field_registry": run_field_registry,
 }
 
 

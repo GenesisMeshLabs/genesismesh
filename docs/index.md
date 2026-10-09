@@ -262,6 +262,7 @@ reference/cli
 reference/network-authority-api
 reference/configuration
 reference/evidence-event-schema
+reference/canonical-form
 api/trust-http
 ```
 
