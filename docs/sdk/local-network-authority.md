@@ -117,17 +117,18 @@ variables.
 Every governed action is one admin call (`/admin/boundary/evaluate`). The NA
 allows 300 admin requests a minute per client address
 (`NA_RATE_LIMIT_ADMIN_PER_MINUTE`). It also allows 30 failed admin
-authentications a minute per address
-(`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`): a bad or missing signature,
-an unknown or revoked key, a stale timestamp, a replayed nonce, or a key below
-the route's tier. After that, the address is refused for the rest of the
-minute, valid requests included, with `429 admin_auth_throttled`. A `429`
-carries `Retry-After`.
+authentications a minute (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`): a
+bad or missing signature, an unknown or revoked key, a stale timestamp, a
+replayed nonce, or a key below the route's tier. Failures with an active
+operator key count against that key at your address; once it reaches the
+limit, that key is refused for the rest of the minute, valid requests
+included, with `429 admin_auth_throttled`. Failures with no key, or a key the
+NA does not know or has revoked, count against the address and refuse only
+requests that name no active key. A `429` carries `Retry-After`.
 
-Locally, every client is `127.0.0.1` and shares that budget: a controller
-retrying with a wrong key ID, or a key added without restarting the NA, also
-blocks your setup scripts for a minute. Fix the failing client rather than
-raising the limit.
+Locally, every client is `127.0.0.1`: a controller failing with one key blocks
+that key for a minute, and 120 failures in a minute from all clients together
+block everything. Fix the failing client rather than raising the limit.
 
 In production, size the admin limit to the controllers that share one
 address: a batch that rotates 1,000 secrets makes 1,000 admin calls.

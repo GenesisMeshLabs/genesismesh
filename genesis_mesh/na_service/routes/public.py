@@ -17,11 +17,18 @@ from ..operator_console.rendering import (
 )
 
 
-def _public_base_url() -> str:
-    """Return the externally visible base URL, honoring common proxy headers."""
-    scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",", 1)[0].strip()
-    host = request.headers.get("X-Forwarded-Host", request.host).split(",", 1)[0].strip()
-    return f"{scheme}://{host}".rstrip("/")
+def _public_base_url(service) -> str:
+    """Return the externally visible base URL.
+
+    v1.2.0: ``NA_PUBLIC_URL`` when set. Otherwise the scheme and host come
+    from the request as ``ProxyFix`` leaves it, which honours
+    ``X-Forwarded-Proto`` and ``X-Forwarded-Host`` only from the
+    ``NA_PROXY_HOPS`` trusted proxies; reading the headers here let any client
+    choose the URLs the NA advertises, even with ``NA_PROXY_HOPS=0``.
+    """
+    if getattr(service, "public_url", None):
+        return service.public_url
+    return f"{request.scheme}://{request.host}".rstrip("/")
 
 
 def create_public_blueprint(service) -> Blueprint:
@@ -82,7 +89,7 @@ def create_public_blueprint(service) -> Blueprint:
     @bp.route("/swagger.json", methods=["GET"])
     def swagger_json():
         """Return generated OpenAPI-compatible metadata."""
-        return jsonify(build_swagger_spec(service.genesis_block, _public_base_url()))
+        return jsonify(build_swagger_spec(service.genesis_block, _public_base_url(service)))
 
     @bp.route("/api-reference", methods=["GET"])
     def api_reference():
@@ -122,7 +129,7 @@ def create_public_blueprint(service) -> Blueprint:
     def sovereign_metadata():
         """Return operator-safe public metadata for this sovereign."""
         genesis = service.genesis_block
-        base_url = _public_base_url()
+        base_url = _public_base_url(service)
         return jsonify({
             "sovereign_id": genesis.network_name,
             "network_name": genesis.network_name,
