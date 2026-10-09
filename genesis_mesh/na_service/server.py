@@ -112,6 +112,7 @@ class NetworkAuthorityService:
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
         anchor_interval_seconds: int = 3600,
+        public_url: Optional[str] = None,
     ):
         """
         Initialize the Network Authority service.
@@ -242,6 +243,9 @@ class NetworkAuthorityService:
         if max_request_bytes <= 0:
             raise ValueError("max_request_bytes must be positive")
         self.app.config["MAX_CONTENT_LENGTH"] = max_request_bytes
+        # The origin the NA advertises in /sovereign.json and /swagger.json
+        # (v1.2.0, NA_PUBLIC_URL); None takes it from each request.
+        self.public_url = public_url
         # Lets tooling (and test clients) reach the service from the app.
         self.app.extensions["genesis_mesh_na"] = self
         register_error_handlers(self.app)
@@ -477,6 +481,7 @@ def create_app(
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
     anchor_interval_seconds: int = 3600,
+    public_url: Optional[str] = None,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -496,6 +501,7 @@ def create_app(
         max_request_bytes=max_request_bytes,
         rate_limits=rate_limits,
         anchor_interval_seconds=anchor_interval_seconds,
+        public_url=public_url,
     )
     return service.app
 

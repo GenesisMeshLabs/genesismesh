@@ -73,11 +73,32 @@
   (`400 invalid_json`, the reason in `error.details.reason`), and a JSON
   body sent to a route whose body is optional is no longer read as empty
   when it does not parse.
-
 - A `read`-tier operator key may now list anchors and ask the NA to anchor its
   current head (`GET` and `POST /admin/evidence/anchors`), so an auditor
   decides how long recent entries go unanchored. It signs only the true
   current head and is idempotent.
+- **Forwarded headers only from trusted proxies.** `/sovereign.json` and
+  `/swagger.json` took their scheme and host from `X-Forwarded-Proto` and
+  `X-Forwarded-Host` even with `NA_PROXY_HOPS=0`, and took the first value of
+  a list, which the client writes, so a client could choose the URLs the NA
+  advertised to it. They now come from the request as the `NA_PROXY_HOPS`
+  trusted proxies leave it, or from the new `NA_PUBLIC_URL`, which fixes them
+  whatever the request says. The documented nginx configurations now
+  overwrite `X-Forwarded-Host`.
+- **Failed admin authentications per address and key.** A failure that names
+  an active operator key now counts against that key at the client address,
+  and a failure that names no active key (none, an unknown or a revoked one)
+  against the address, throttling only requests that name no active key. One
+  operator failing behind a shared address (a gateway, a NAT), or mistyping
+  the key ID, no longer locks out every operator behind it. All failures
+  from one address are capped at four times the limit, which keeps the
+  signature checks and audit writes one address can cause bounded. Revoked
+  keys count like unknown ones, so throttling does not reveal a revocation.
+
+### Added (configuration)
+
+- `NA_PUBLIC_URL`: the NA's public origin, advertised in `/sovereign.json` and
+  `/swagger.json`.
 
 ### Upgrading
 

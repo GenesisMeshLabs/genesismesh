@@ -17,8 +17,9 @@ that can read and verify, but not change, its two sovereigns.
 `/admin/recognition-treaties`). Verification routes are unauthenticated.
 
 **Rate limits** — admin routes: 300 requests per 60 seconds per IP by default,
-and 30 failed admin authentications before an address gets
-`429 admin_auth_throttled` (v1.1.0; see {doc}`../reference/configuration`).
+and 30 failed admin authentications per operator key and address before that
+key gets `429 admin_auth_throttled` there (v1.1.0, per key since v1.2.0; see
+{doc}`../reference/configuration`).
 Unauthenticated verify/prove routes: 60 requests per 60 seconds per IP.
 `GET /data-usage/policy`: 120 requests per 60 seconds per IP.
 

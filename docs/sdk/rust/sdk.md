@@ -84,6 +84,25 @@ that record cannot be submitted, `ActionUnrecorded` carries both errors.
 Evidence metadata is checked for secret material and size before anything is
 signed (`SecretMaterial`, code `evidence_secret_material`).
 
+### Evidence outbox
+
+Since 1.2.0 a client can keep signed evidence in an outbox
+(`ClientOptions::with_outbox`, e.g. `FileOutbox::new("/var/lib/controller/gm-outbox")`):
+`governed_action` writes each record there before submitting it and removes it
+once the NA admits it. With an outbox, a failed submission is not an error:
+`result.queued` holds the outbox entry, pending after a failure a later attempt
+can overcome, or a dead letter after a refusal no retry can overcome
+(`PERMANENT_REFUSALS`) or behind a refused record. Dead letters are kept, never
+dropped. `evidence_store.flush_pending(FlushOptions::default())` submits pending
+records in order; run it at startup and on a timer. A resource with pending
+records chains from the newest of them, which the next action on it submits
+first. A guard refusal after the action records the outcome without the refused
+fields and returns `MetadataRefused`; a failure to keep the record returns
+`EvidenceNotKept`; both carry the action's value (`take_action_value`). Without
+an outbox, `governed_action` behaves as in 1.1. `FileOutbox` is for one process
+per directory and writes the format the TypeScript SDK uses; the `EvidenceOutbox`
+trait takes other storage. See the crate's README for the details.
+
 ## Offline verification
 
 `genesis_mesh_sdk::verify` ports the Python reference with the same reason

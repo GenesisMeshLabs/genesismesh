@@ -114,19 +114,27 @@ narrower kind, and the docs say so.
    - A governed action writes its signed evidence to the outbox before
      submitting it, and removes it on admission.
    - `flushPending()` (`flush_pending`) submits in order. Errors are
-     classified: transient (network, timeout, `5xx`, `429`) stay pending with
-     a retry time; permanent (`4xx` other than `429`) move the record to a
-     dead-letter state with its rejection code, and Stage 2 admits it to the
-     store as quarantined.
+     classified: a refusal no retry of the same record can overcome (the NA's
+     malformed, signature, decision, window, chain-mismatch and conflict
+     codes, and the SDK's secret-material refusal) moves the record to a
+     dead-letter state with its code, and Stage 2 admits it to the store as
+     quarantined; everything else (network, timeout, `5xx`, `429`, an
+     executor key not registered yet, a chain gap, a disabled store, a
+     proxy's error page) stays pending with a retry time. A record behind a
+     dead letter is dead-lettered with it. (Amended after the part 3 review,
+     2026-10-09: "every `4xx` other than `429`" would dead-letter records a
+     retry admits.)
    - A governed action on a resource with pending records chains from the
-     pending head, not the NA's.
-   - **The error API, done once:** the success path never throws because a
-     submission failed; it returns the result with `submission: pending` and
-     the record in the outbox. A guard refusal after the action is a distinct
-     error (`governed_action_metadata_refused`) carrying the value and the
-     recorded evidence, so a caller knows the action ran. The Rust error enum
-     becomes `#[non_exhaustive]`. Both SDKs file this under *Changed
-     (breaking)* in their changelogs.
+     pending head, not the NA's, and submits those records first.
+   - **The error API, done once, behind the outbox:** with an outbox, the
+     success path never throws because a submission failed; it returns the
+     result with the record `queued` in the outbox. A guard refusal after the
+     action is a distinct error (`governed_action_metadata_refused`) carrying
+     the value and the recorded evidence, so a caller knows the action ran.
+     Without an outbox, `governedAction` behaves as in 1.1 (see Decision 10).
+     The Rust error enum becomes `#[non_exhaustive]`; the Rust SDK (beta)
+     files its type changes under *Changed (breaking)*, the TypeScript SDK
+     (stable) files the outbox under *Added*.
    - The guard fallback records the outcome with the identifying keys the
      guard accepted and drops only the refused ones.
 2. **Strict, forward-compatible verifiers** (Python, TypeScript, Go, .NET,
@@ -175,9 +183,12 @@ narrower kind, and the docs say so.
      held anchor are reported as unanchored.
 4. **Independent fixes** (they can slip to a 1.2.x patch without holding the
    stage):
-   - `_public_base_url` honours forwarded headers only within `NA_PROXY_HOPS`;
-   - failed admin authentications are counted per (address, key ID) for known
-     keys and per address for unknown keys;
+   - `_public_base_url` honours forwarded headers only within `NA_PROXY_HOPS`,
+     and `NA_PUBLIC_URL` fixes the advertised origin;
+   - failed admin authentications are counted per (address, key ID) for
+     active keys and per address for requests naming no active key, each
+     scope throttling only its own requests, with an address-wide cap at four
+     times the limit (see Decision 11);
    - the gateway forwards the authority's `Retry-After`, and its request ID as
      `X-Upstream-Request-ID`; the quota `429`'s `Retry-After` comes from the
      quota window; the console explains `429`, `admin_auth_throttled`, `401`
@@ -214,9 +225,9 @@ narrower kind, and the docs say so.
 - [ ] With the NA stopped after an action, the TypeScript and Rust SDKs keep
       the evidence in the outbox and return the action's value;
       `flushPending()` admits it in order after the NA returns
-- [ ] A transient error stays pending; a permanent one is dead-lettered with
-      its code; a second action on the same resource chains from the pending
-      head and both records are admitted
+- [ ] A transient error stays pending; a permanent refusal is dead-lettered
+      with its code; a second action on the same resource chains from the
+      pending head and both records are admitted
 - [ ] A guard refusal after the action is reported as
       `governed_action_metadata_refused` with the value; the outcome is
       recorded
@@ -234,8 +245,9 @@ narrower kind, and the docs say so.
       verification with `--known-anchors`; the NA refuses to anchor a
       rewritten store
 - [ ] 31 failed authentications from one key at one address do not lock out a
-      second known key at that address; an unknown key still locks out its
-      address
+      second active key at that address; failures naming no active key
+      throttle only requests naming no active key; all failures from one
+      address are capped at four times the limit
 - [ ] Core, SDK and gateway suites, `sphinx -W`, security and SLO checks pass
 
 ## Release Gate
@@ -243,7 +255,7 @@ narrower kind, and the docs say so.
 - [ ] 1.1.1 released
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries (SDKs: *Changed (breaking)* for the error API),
+- [ ] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
       `history.md`, `phase-n.md`, `roadmap.md`
 - [ ] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
 - [ ] Public contract and `docs/stability.md`: changed surfaces classified
@@ -290,6 +302,25 @@ Open, from building and reviewing the anchors (2026-10-09):
    digest commits to every resource record before it; `read` keys may request
    an anchor. `StoreAnchor` is classified stable: held copies must verify for
    years.
+
+Open, from the part 3 and part 4 reviews (2026-10-09):
+
+10. **The outbox is opt-in** (proposed): `genesis-mesh-sdk` (npm) and its
+    `governedAction` are classified stable, and making the outbox required
+    would break them within 1.x, against the deprecation policy. With an
+    outbox (`ClientOptions.outbox`, `with_outbox`), the 1.2 error API applies;
+    without one, `governedAction` behaves as in 1.1, and the docs recommend an
+    outbox. Requiring it can be decided for 2.0. The Rust SDK, beta, follows
+    the same opt-in for one behaviour across SDKs.
+11. **Admin failure scopes** (proposed): the plan's "an unknown key still
+    locks out its address" kept the shared-address lockout for an operator
+    who mistypes the key ID, which the problem statement set out to remove.
+    Failures naming no active key (none, unknown or revoked) now throttle
+    only requests naming no active key, and an address-wide cap at four
+    times the limit keeps the cost one address can cause bounded. Revoked
+    keys count like unknown ones, so throttling does not reveal a
+    revocation. The gateway caps operator headers at the NA's 256
+    characters.
 
 Open, from building and reviewing the canonicalization corpus (2026-10-10):
 
