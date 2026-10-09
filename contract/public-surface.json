@@ -155,6 +155,14 @@
         "GET",
         "POST"
       ],
+      "path": "/admin/evidence/anchors",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
       "path": "/admin/evidence/executor-keys",
       "level": "stable"
     },
@@ -695,6 +703,10 @@
     },
     {
       "command": "discover",
+      "level": "beta"
+    },
+    {
+      "command": "evidence anchors fetch",
       "level": "beta"
     },
     {
@@ -2860,6 +2872,11 @@
       "level": "stable"
     },
     {
+      "model": "genesis_mesh.models.evidence_store:StoreAnchor",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
       "model": "genesis_mesh.models.execution:ExecutionEvidence",
       "signature_field": "signature",
       "level": "stable"
@@ -3019,6 +3036,7 @@
     "descriptor_network_mismatch",
     "descriptor_signature_required",
     "empty_subject_public_keys",
+    "evidence_anchor_refused",
     "evidence_build_failed",
     "evidence_store_disabled",
     "evidence_store_unavailable",

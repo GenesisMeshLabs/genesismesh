@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.2.0 - Nothing Lost, Anchored (unreleased)
+
+### Added
+
+- **Signed store anchors.** The evidence store's hash chain proved order, not
+  completeness: whoever could write the database could remove an entry and
+  recompute every later link. The Network Authority now signs the store's
+  head (`StoreAnchor`), after an append once `NA_ANCHOR_INTERVAL_SECONDS`
+  (default 3600) have passed and on `POST /admin/evidence/anchors`. It refuses
+  (`409 evidence_anchor_refused`) to sign over a store that no longer
+  continues from its last anchor. Anchors live outside the store chain, so
+  exports keep their format, and retention never removes them.
+- `genesis-mesh evidence anchors fetch` keeps copies of the anchors in a
+  directory the NA's operators do not control. Each run compares every held
+  anchor with what the NA serves and fails, writing nothing, when the NA's
+  anchor history was rewritten or removed.
+  `genesis-mesh evidence verify-export --known-anchors` checks an export
+  against those copies: it must be tied to them at both ends, so removed,
+  rewritten or truncated history fails. Against the NA's operator, who holds
+  the NA key, this protects records from the moment an anchor covering them
+  is copied out.
+- `GET /admin/evidence/verify`, `GET /admin/evidence/status` and
+  `genesis-mesh na verify-db` check and report anchors.
+
+### Security
+
+- A `read`-tier operator key may now list anchors and ask the NA to anchor its
+  current head (`GET` and `POST /admin/evidence/anchors`), so an auditor
+  decides how long recent entries go unanchored. It signs only the true
+  current head and is idempotent.
+
+### Upgrading
+
+Migration 014 adds the anchors table: roll back to 1.1 by restoring the backup
+taken before the upgrade, which is an evidence-loss event for anyone holding
+anchors. Anchor and take the first copy right after upgrading.
+
 ## v1.1.1 - Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
 
 A patch release with security fixes. Read *Upgrading to 1.1.1* in the upgrade

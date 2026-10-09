@@ -111,6 +111,7 @@ class NetworkAuthorityService:
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
+        anchor_interval_seconds: int = 3600,
     ):
         """
         Initialize the Network Authority service.
@@ -145,6 +146,9 @@ class NetworkAuthorityService:
                 and the shared rate limiter (v0.60).
             rate_limit_store: "memory" (per process) or "database" (shared).
                 Defaults to "database" on PostgreSQL and "memory" on SQLite.
+            anchor_interval_seconds: sign the evidence store's head after an
+                append once this long has passed since the last anchor
+                (v1.2.0); 0 anchors only on request.
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
@@ -202,6 +206,10 @@ class NetworkAuthorityService:
         if evidence_store not in EVIDENCE_STORE_MODES:
             raise ValueError(f"evidence_store must be one of {EVIDENCE_STORE_MODES}")
         self.evidence_store = evidence_store
+        if isinstance(anchor_interval_seconds, bool) or not isinstance(anchor_interval_seconds, int) \
+                or anchor_interval_seconds < 0:
+            raise ValueError("anchor_interval_seconds must be 0 or more")
+        self.anchor_interval_seconds = anchor_interval_seconds
         self.evidence_store_service = EvidenceStoreService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
         # this NA trusts (services/agreement_trust.py).
@@ -468,6 +476,7 @@ def create_app(
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
+    anchor_interval_seconds: int = 3600,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -486,6 +495,7 @@ def create_app(
         rate_limit_store=rate_limit_store,
         max_request_bytes=max_request_bytes,
         rate_limits=rate_limits,
+        anchor_interval_seconds=anchor_interval_seconds,
     )
     return service.app
 

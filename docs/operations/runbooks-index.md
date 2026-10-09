@@ -13,6 +13,7 @@ operational event on a running Network Authority or sovereign.
 
 monitoring
 audit-export
+evidence-anchors
 incident-response
 backup-restore
 upgrade
@@ -38,6 +39,14 @@ Healthz, readyz, metrics, and external uptime checks.
 :link-type: doc
 
 Exporting trust-decision events for downstream review or SIEM ingest.
+:::
+
+:::{grid-item-card} Evidence Anchors
+:link: evidence-anchors
+:link-type: doc
+
+Signed store anchors, and how an auditor keeps copies that prove nothing was
+removed from the evidence store.
 :::
 
 :::{grid-item-card} Incident Response Runbooks

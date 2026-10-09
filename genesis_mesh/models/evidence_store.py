@@ -24,10 +24,10 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .genesis import Signature
 
@@ -110,6 +110,54 @@ class RetentionCheckpoint(BaseModel):
     def to_canonical_json(self) -> str:
         """Canonical form the NA signs (excludes ``signature`` only)."""
         return canonical_json(self.model_dump(exclude={"signature"}, mode="json"))
+
+
+class StoreAnchor(BaseModel):
+    """NA-signed statement of the store's head at one moment (v1.2.0).
+
+    The store chain is hashed, not signed: whoever can write the database can
+    remove entries and rebuild the links. An anchor signs the head's
+    ``store_sequence`` and entry digest, and every entry links to the one
+    before it, so one anchor covers every earlier entry. Anchors form their
+    own chain (``anchor_sequence``, ``previous_anchor_digest``) and are kept
+    outside the store chain, so exports keep their format.
+
+    Anchors protect history only against someone who does not hold the NA
+    key, or against copies of the anchors kept outside the operator's reach:
+    an auditor verifies an export against the anchors it already holds.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    anchor_sequence: int = Field(..., ge=1, description="Gap-free position in the anchor chain")
+    sovereign_id: str = Field(..., description="The NA's sovereign (genesis network_name)")
+    store_sequence: int = Field(..., ge=1, description="The anchored head's store_sequence")
+    entry_digest: str = Field(..., description="EvidenceStoreEntry.digest() of the anchored head")
+    anchored_at: datetime = Field(..., description="UTC time the NA signed the anchor")
+    previous_anchor_digest: str | None = Field(
+        default=None, description="digest() of the previous anchor; absent for the first"
+    )
+    issued_by: str = Field(..., description="NA key id")
+    signature: Signature | None = None
+
+    @field_validator("anchored_at")
+    @classmethod
+    def _utc(cls, value: datetime) -> datetime:
+        if value.utcoffset() != timedelta(0):
+            raise ValueError("anchored_at must be a UTC timestamp")
+        return value
+
+    def to_canonical_json(self) -> str:
+        """Canonical form the NA signs: ``signature`` excluded, an absent previous digest omitted."""
+        return canonical_json(self.model_dump(exclude={"signature"}, exclude_none=True, mode="json"))
+
+    def to_wire(self) -> dict[str, Any]:
+        """The JSON form served and kept: the canonical fields plus the signature."""
+        return self.model_dump(exclude_none=True, mode="json")
+
+    def digest(self) -> str:
+        """SHA-256 of the signed form; the next anchor links to it."""
+        return hashlib.sha256(self.to_canonical_json().encode("utf-8")).hexdigest()
 
 
 class EvidenceEvent(BaseModel):

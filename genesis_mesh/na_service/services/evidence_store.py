@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
@@ -26,6 +27,7 @@ from ...models.evidence_store import (
     EvidenceStoreEntry,
     ResourceHead,
     RetentionCheckpoint,
+    StoreAnchor,
     canonical_json,
     payload_digest,
 )
@@ -37,12 +39,16 @@ from ...trust.evidence_store import (
     ResourceHeadState,
     RetentionCandidate,
     build_entry,
+    check_events_against_anchors,
     decision_index,
     execution_index,
     plan_retention,
     sign_retention_checkpoint,
+    sign_store_anchor,
     validate_execution,
+    verify_retention_checkpoint,
     verify_evidence_events,
+    verify_store_anchors,
 )
 from ..errors import (
     BadRequestError,
@@ -111,11 +117,17 @@ def _serialized_form_difference(raw: dict[str, Any], evidence: ExecutionEvidence
     return "payload differs from its serialized form"
 
 
+class _AnchorRefused(Exception):
+    """The store cannot be anchored; raised inside the write transaction."""
+
+
 class EvidenceStoreService:
     """NA application logic for the append-only evidence store."""
 
     def __init__(self, service: "NetworkAuthorityService") -> None:
         self._na = service
+        # Monotonic time before which no automatic anchor is due (per process).
+        self._next_anchor_check = 0.0
 
     # -- configuration ----------------------------------------------------------
 
@@ -191,6 +203,7 @@ class EvidenceStoreService:
             "vendor_id": index["vendor_id"],
             "authorized": decision.authorized,
         })
+        self.maybe_anchor()
 
     # -- execution evidence ---------------------------------------------------
 
@@ -305,6 +318,7 @@ class EvidenceStoreService:
             "store_sequence": entries[0].store_sequence,
             "executor_sovereign_id": evidence.executor_sovereign_id,
         })
+        self.maybe_anchor()
         return self._entry_body(stored), True
 
     def _stored_duplicate(self, evidence: ExecutionEvidence, digest: str) -> dict[str, Any] | None:
@@ -503,22 +517,196 @@ class EvidenceStoreService:
         """Verify the whole store from the latest checkpoint onward."""
         self.require_enabled()
         rows = self._na.db.search_evidence({}, limit=10**9)
+        events = [_event(r) for r in rows]
         result = verify_evidence_events(
-            [_event(r) for r in rows],
+            events,
             na_public_keys=self.na_public_keys(),
             executor_keys=self.executor_keys(),
             contiguous=True,
             checkpoint=self._na.db.latest_retention_checkpoint(),
         )
+        # v1.2.0: the NA's own anchors must form an unbroken signed chain and
+        # name the digests of the entries still stored.
+        anchors = self._na.db.list_store_anchors(limit=10**9)
+        chain = verify_store_anchors(
+            anchors, na_public_keys=self.na_public_keys(), sovereign_id=self._na.genesis_block.network_name
+        )
+        check_events_against_anchors(events, anchors, result)
+        assert result.anchors is not None
+        result.anchors["chain"] = chain.to_dict()
+        for failure in chain.failures:
+            result.fail(None, failure["reason"], f"anchor {failure['anchor_sequence']} {failure['detail']}".rstrip())
         return result.to_dict()
 
     def status(self) -> dict[str, Any]:
         stats = self._na.db.evidence_stats() if self.enabled else {}
         cp = self._na.db.latest_retention_checkpoint() if self.enabled else None
-        return {
+        out: dict[str, Any] = {
             "evidence_store": self._na.evidence_store,
             **stats,
             "retention_checkpoint": cp.removed_through_sequence if cp else None,
+        }
+        if self.enabled:
+            anchor = self._na.db.latest_store_anchor()
+            head, _ = self._na.db.store_head()
+            out["latest_anchor"] = {
+                "anchor_sequence": anchor.anchor_sequence,
+                "store_sequence": anchor.store_sequence,
+                "anchored_at": anchor.anchored_at.isoformat(),
+            } if anchor else None
+            out["unanchored_entries"] = max(0, head - (anchor.store_sequence if anchor else 0))
+        return out
+
+    # -- anchors (v1.2.0) -------------------------------------------------------
+
+    #: Largest lead the last anchor's time may have over this instance's clock.
+    ANCHOR_CLOCK_TOLERANCE = timedelta(minutes=5)
+
+    def _continuity_problem(self, latest: StoreAnchor, head_seq: int, head_digest: str | None) -> str | None:
+        """Why the store does not continue from the latest anchor, or None.
+
+        The NA signs a new anchor only over a store that still contains what
+        it anchored last: otherwise a database writer without the NA key
+        could rewrite history and have the NA extend its signed chain over it.
+        """
+        db = self._na.db
+        if head_seq < latest.store_sequence or head_digest is None:
+            return f"the store ends at {head_seq}, before anchored entry {latest.store_sequence}"
+        start_seq, prev = latest.store_sequence, latest.entry_digest
+        stored = db.entry_digest_at(latest.store_sequence)
+        if stored is not None:
+            if stored != latest.entry_digest:
+                return f"entry {latest.store_sequence} no longer has the digest anchor {latest.anchor_sequence} names"
+        else:
+            cp = db.latest_retention_checkpoint()
+            if cp is None or cp.removed_through_sequence < latest.store_sequence:
+                return f"anchored entry {latest.store_sequence} is gone and no retention checkpoint covers it"
+            if not verify_retention_checkpoint(cp, self.na_public_keys()):
+                return "the retention checkpoint that removed the anchored entry is not signed by this NA"
+            if cp.removed_through_sequence == latest.store_sequence and cp.last_removed_entry_digest != prev:
+                return f"the retention checkpoint names another digest for anchored entry {latest.store_sequence}"
+            start_seq, prev = cp.removed_through_sequence, cp.last_removed_entry_digest
+        expected = start_seq + 1
+        for row in db.search_evidence({}, after_sequence=start_seq, limit=10**9):
+            entry: EvidenceStoreEntry = row["entry"]
+            if entry.store_sequence != expected:
+                return f"entry {expected} is missing"
+            if (entry.prev_entry_digest != prev or entry.digest() != row["entry_digest"]
+                    or payload_digest(row["payload"]) != entry.payload_digest):
+                return f"entry {entry.store_sequence} does not continue the anchored chain"
+            prev, expected = row["entry_digest"], expected + 1
+        if expected - 1 != head_seq or prev != head_digest:
+            return "the store head does not continue the anchored chain"
+        return None
+
+    def anchor(self) -> tuple[StoreAnchor | None, bool]:
+        """Sign the store's current head. Returns (anchor, created).
+
+        When the head is already anchored (or the store is empty) nothing new
+        is signed and the latest anchor is returned with created=False. Runs
+        inside the evidence write transaction, so the head cannot move while
+        it is checked and signed. Refuses (``409 evidence_anchor_refused``)
+        when the store no longer continues from the last anchor, or when the
+        last anchor's time is far ahead of this instance's clock.
+        """
+        self.require_enabled()
+        now = datetime.now(timezone.utc)
+
+        def make(latest: StoreAnchor | None, seq: int, digest: str | None) -> StoreAnchor | None:
+            if seq == 0 or digest is None or (latest is not None and latest.store_sequence >= seq):
+                return None
+            anchored_at = now
+            if latest is not None:
+                problem = self._continuity_problem(latest, seq, digest)
+                if problem:
+                    raise _AnchorRefused(problem)
+                if latest.anchored_at > now:
+                    if latest.anchored_at - now > self.ANCHOR_CLOCK_TOLERANCE:
+                        raise _AnchorRefused(
+                            f"anchor {latest.anchor_sequence} is dated {latest.anchored_at.isoformat()}, "
+                            "ahead of this instance's clock"
+                        )
+                    anchored_at = latest.anchored_at  # small skew between instances
+            return sign_store_anchor(
+                StoreAnchor(
+                    anchor_sequence=latest.anchor_sequence + 1 if latest else 1,
+                    sovereign_id=self._na.genesis_block.network_name,
+                    store_sequence=seq,
+                    entry_digest=digest,
+                    anchored_at=anchored_at,
+                    previous_anchor_digest=latest.digest() if latest else None,
+                    issued_by=self._na.key_id,
+                ),
+                self._na.signer,
+                self._na.key_id,
+            )
+
+        try:
+            anchor, created = self._na.db.append_store_anchor(make)
+        except _AnchorRefused as exc:
+            logger.error("evidence store anchor refused: %s", exc)
+            self._na.db.add_audit_event("evidence_anchor_refused", {"reason": str(exc)})
+            raise ConflictError(
+                "The evidence store cannot be anchored: " + str(exc), code="evidence_anchor_refused"
+            ) from exc
+        except self._na.db.integrity_errors:
+            # Defence in depth: the write lock serializes anchoring, so another
+            # writer taking this position means it anchored first.
+            return self._na.db.latest_store_anchor(), False
+        if created:
+            assert anchor is not None
+            self._na.db.add_audit_event("evidence_anchored", {
+                "anchor_sequence": anchor.anchor_sequence,
+                "store_sequence": anchor.store_sequence,
+            })
+        return anchor, created
+
+    def maybe_anchor(self) -> None:
+        """Anchor after an append once the interval has passed; never fails the caller.
+
+        The append has already succeeded: a failed or refused anchor is
+        logged and audited, and this worker tries again on an append after a
+        back-off of at most a minute (or on ``POST /admin/evidence/anchors``).
+        """
+        interval = self._na.anchor_interval_seconds
+        clock = time.monotonic()
+        if interval <= 0 or clock < self._next_anchor_check:
+            return
+        try:
+            latest = self._na.db.latest_store_anchor()
+            if latest is not None:
+                due = latest.anchored_at + timedelta(seconds=interval)
+                wait = (due - datetime.now(timezone.utc)).total_seconds()
+                if wait > 0:
+                    self._next_anchor_check = clock + min(wait, interval)
+                    return
+            self.anchor()
+            self._next_anchor_check = clock + interval
+        except Exception as exc:  # noqa: BLE001 -- anchoring must never fail a stored append
+            logger.warning("evidence store anchor failed: %s", exc)
+            self._next_anchor_check = clock + min(interval, 60)
+            if not isinstance(exc, ConflictError):  # a refusal is already audited
+                try:
+                    self._na.db.add_audit_event("evidence_anchor_failed", {"error": type(exc).__name__})
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def list_anchors(self, args: dict[str, str]) -> dict[str, Any]:
+        self.require_enabled()
+        try:
+            after = int(args.get("after_anchor") or 0)
+            limit = int(args.get("limit") or 100)
+        except ValueError as exc:
+            raise BadRequestError("after_anchor and limit must be integers", code="invalid_page") from exc
+        if after < 0:
+            raise BadRequestError("after_anchor must be 0 or more", code="invalid_page")
+        if not 1 <= limit <= MAX_PAGE:
+            raise BadRequestError(f"limit must be 1..{MAX_PAGE}", code="invalid_page")
+        anchors = self._na.db.list_store_anchors(after_anchor=after, limit=limit)
+        return {
+            "count": len(anchors),
+            "next_after_anchor": anchors[-1].anchor_sequence if len(anchors) == limit else None,
+            "anchors": [a.to_wire() for a in anchors],
         }
 
     # -- retention ------------------------------------------------------------
@@ -609,4 +797,5 @@ class EvidenceStoreService:
             "checkpoint_store_sequence": entry.store_sequence,
             "applied_by": applied_by,
         })
+        self.maybe_anchor()
         return {"removed_count": len(removed), "checkpoint": payload}

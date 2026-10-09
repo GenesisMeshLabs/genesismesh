@@ -112,7 +112,10 @@ in group 0.
    curl http://localhost:8443/connectome.json
    ```
 
-7. Verify the restored database before serving it:
+7. If evidence store anchors were copied out of this NA (v1.2.0), restoring a
+   backup older than the newest copy is an evidence-loss event for their
+   holders: follow *After a restore* in {doc}`evidence-anchors`.
+8. Verify the restored database before serving it:
 
    ```bash
    genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db \
