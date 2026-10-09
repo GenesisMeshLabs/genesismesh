@@ -4,12 +4,14 @@ name: Interoperability
 # the Python, Go, TypeScript and C# implementations run one scenario, and the
 # job fails if any two of them disagree on any protocol decision.
 
+# No workflow_dispatch: a manual run on the default branch would check out SDK
+# code by a ref derived from the run (CodeQL: cache poisoning). Pushes to main
+# and pull requests cover every change.
 on:
   push:
     branches:
       - main
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
