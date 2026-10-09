@@ -72,6 +72,26 @@ class PolicyHealth:
     problems: list[dict[str, Any]]
 
 
+
+def agreement_parties(ctx: dict[str, Any], agreement: AgreementRecord) -> tuple[str, str]:
+    """Return (requester, provider) bound to the agreement's roles (v1.1.1).
+
+    The requester is the agreement's responder and the provider its offerer; a
+    context naming another party is refused, so a caller cannot step outside a
+    policy whose selector names the requester.
+    """
+    requester = agreement.responder_sovereign_id
+    provider = agreement.offerer_sovereign_id
+    for field, bound in (("requester_sovereign_id", requester), ("provider_sovereign_id", provider)):
+        supplied = ctx.get(field)
+        if supplied is not None and supplied != bound:
+            raise BadRequestError(
+                f"{field} must be the agreement's party ({bound})",
+                code="context_party_mismatch",
+            )
+    return requester, provider
+
+
 class BoundaryPolicyService:
     """NA application logic for declarative boundary policies."""
 
@@ -295,13 +315,14 @@ class BoundaryPolicyService:
         ctx = data.get("context") or {}
         if not isinstance(ctx, dict):
             raise BadRequestError("context must be an object", code="invalid_context")
+        requester, provider = agreement_parties(ctx, agreement)
         try:
             return ContextRecord(
                 context_id=ctx.get("context_id") or str(uuid.uuid4()),
                 agreement_id=agreement.agreement_id,
                 parent_kind=ctx.get("parent_kind") or "direct",
-                requester_sovereign_id=ctx.get("requester_sovereign_id") or agreement.responder_sovereign_id,
-                provider_sovereign_id=ctx.get("provider_sovereign_id") or agreement.offerer_sovereign_id,
+                requester_sovereign_id=requester,
+                provider_sovereign_id=provider,
                 requested_capability=data["requested_capability"],
                 request_parameters=ctx.get("request_parameters") or {},
                 attributes=ctx.get("attributes") or {},
@@ -366,6 +387,14 @@ class BoundaryPolicyService:
         ctx = data.get("context") or {}
         if not isinstance(ctx, dict):
             raise BadRequestError("context must be an object", code="invalid_context")
+        own_id = self._na.genesis_block.network_name
+        supplied_provider = ctx.get("provider_sovereign_id")
+        if supplied_provider is not None and supplied_provider != own_id:
+            # v1.1.1: under an attestation this NA is the provider.
+            raise BadRequestError(
+                f"provider_sovereign_id must be this sovereign ({own_id})",
+                code="context_party_mismatch",
+            )
         try:
             return ContextRecord(
                 context_id=ctx.get("context_id") or str(uuid.uuid4()),
@@ -373,7 +402,7 @@ class BoundaryPolicyService:
                 attestation_id=attestation_id,
                 parent_kind="attestation",
                 requester_sovereign_id=requester_id,
-                provider_sovereign_id=ctx.get("provider_sovereign_id") or self._na.genesis_block.network_name,
+                provider_sovereign_id=own_id,
                 requested_capability=data["requested_capability"],
                 request_parameters=ctx.get("request_parameters") or {},
                 attributes=ctx.get("attributes") or {},

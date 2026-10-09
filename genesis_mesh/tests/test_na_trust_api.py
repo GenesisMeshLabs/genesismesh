@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from genesis_mesh.crypto import generate_keypair
+
 from .na_server_helpers import admin_headers
 
 
@@ -25,10 +27,14 @@ def _post_admin(client, url: str, body: dict):
 
 
 def _issue_treaty_for_sovereign(client, na_service, sovereign_id: str = "sovereign-b"):
-    """Issue a recognition treaty so the NA graph recognises the target sovereign."""
+    """Issue a recognition treaty so the NA graph recognises the target sovereign.
+
+    The treaty names the sovereign's own key, never the NA's: agreements the NA
+    offers and accepts itself are trusted as NA-issued (v1.1.1).
+    """
     body = {
         "subject_sovereign_id": sovereign_id,
-        "subject_public_keys": [na_service.genesis_block.network_authority.public_key],
+        "subject_public_keys": [generate_keypair().public_key_b64],
         "scope": {"allowed_roles": ["role:client"]},
         "validity_hours": 24,
     }
@@ -723,6 +729,31 @@ def test_consensus_vote_proof_and_verify_over_http(client, na_service):
     })
     assert verified.status_code == 200
     assert verified.get_json()["valid"] is True
+
+
+def test_consensus_refuses_proofs_this_na_did_not_sign(client, na_service):
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.justification import JustificationProof
+
+    forged = JustificationProof.model_validate(_justification_proof(na_service))
+    forged.signature = sign_model(forged, generate_keypair().private_key, "someone")
+    body = forged.model_dump(mode="json")
+    vote = _post_admin(client, "/admin/consensus/vote", {"justification_proof": body, "vote": True})
+    assert vote.status_code == 422 and vote.get_json()["error"]["code"] == "justification_untrusted"
+    assembled = _post_admin(client, "/admin/consensus/proof", {
+        "justification_proof": body, "votes": [], "required_threshold": 1,
+        "validator_sovereign_ids": [na_service.genesis_block.network_name],
+    })
+    assert assembled.status_code == 422 and assembled.get_json()["error"]["code"] == "justification_untrusted"
+
+
+@pytest.mark.parametrize("threshold", [0, -1, 2, "1", True, 1.5])
+def test_consensus_threshold_must_be_between_one_and_the_validator_count(client, na_service, threshold):
+    resp = _post_admin(client, "/admin/consensus/proof", {
+        "justification_proof": _justification_proof(na_service), "votes": [], "required_threshold": threshold,
+        "validator_sovereign_ids": [na_service.genesis_block.network_name],
+    })
+    assert resp.status_code == 400 and resp.get_json()["error"]["code"] == "invalid_threshold"
 
 
 def test_consensus_vote_rejects_bad_input(client, na_service):

@@ -472,3 +472,48 @@ def test_records_without_resource_fields_keep_their_bytes():
         sort_keys=True, separators=(",", ":"),
     )
     assert record.to_canonical_json() == expected
+
+
+# ---------------------------------------------------------------------------
+# Strict admission (v1.1.1): the stored payload is exactly what was signed
+# ---------------------------------------------------------------------------
+
+def test_unsigned_extra_field_is_refused_not_stored(client, na_service):
+    controller = Controller(client)
+    record = controller.record(_decide(client)).model_dump(mode="json")
+    record["secret_value"] = "hunter2"
+    resp = _submit(client, record)
+    assert resp.status_code == 422 and _code(resp) == "evidence_malformed"
+    assert "secret_value" in resp.get_json()["error"]["message"]
+    stats = na_service.db.evidence_stats()
+    assert stats["entries"] == 2 and stats["rejections"] == 1  # the decision and its justification only
+
+
+def test_coerced_types_are_refused(client):
+    controller = Controller(client)
+    record = controller.record(_decide(client)).model_dump(mode="json")
+    record["sequence_no"] = str(record["sequence_no"])
+    resp = _submit(client, record)
+    assert resp.status_code == 422 and _code(resp) == "evidence_malformed"
+
+
+def test_absent_and_null_resource_fields_are_both_admitted(client):
+    controller = Controller(client)
+    with_nulls = controller.record(_decide(client), resource=None).model_dump(mode="json")
+    assert with_nulls["resource_id"] is None
+    assert _submit(client, with_nulls).status_code == 201
+
+    without = controller.record(_decide(client), resource=None).model_dump(mode="json", exclude_none=True)
+    without["prev_evidence_digest"] = None
+    without["outcome_detail"] = None
+    assert "resource_id" not in without
+    assert _submit(client, without).status_code == 201, _submit(client, without).get_json()
+
+
+def test_timestamps_must_be_utc(client):
+    controller = Controller(client)
+    plus_two = timezone(timedelta(hours=2))
+    record = controller.record(_decide(client), when=datetime.now(timezone.utc).astimezone(plus_two))
+    resp = _submit(client, record)
+    assert resp.status_code == 422 and _code(resp) == "evidence_malformed"
+    assert "'executed_at' is not a UTC timestamp" in resp.get_json()["error"]["message"]

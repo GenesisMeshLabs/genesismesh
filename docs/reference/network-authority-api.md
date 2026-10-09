@@ -397,7 +397,8 @@ true.
 `POST /admin/attestations/{id}/revoke`, `POST /admin/recognition-treaties`,
 `POST /admin/recognition-treaties/{id}/revoke`,
 `POST /admin/recognition-policy`,
-`POST /admin/sovereign-revocation-feeds/import`.
+`POST /admin/sovereign-revocation-feeds/import`, `POST /admin/agreements/accept`
+and, since v1.1.1, `POST /admin/agreements/counter`.
 
 Every other admin route requires `standard`, so a `read` key gets `403` on
 all of them.
