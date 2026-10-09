@@ -138,6 +138,15 @@
       }
     },
     {
+      "id": "json-float-underflow",
+      "kind": "json",
+      "description": "A number below the smallest float reads as zero",
+      "input": "[1e-400,-1e-400]",
+      "expected": {
+        "canonical": "[0.0,-0.0]"
+      }
+    },
+    {
       "id": "json-nested",
       "kind": "json",
       "description": "Nested objects are ordered at every level",
