@@ -32,7 +32,6 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     """Create observation, break-glass, judgement and holder routes."""
     bp = Blueprint("out_of_band", __name__)
     oob = service.out_of_band_service
-    store = service.evidence_store_service
 
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
@@ -40,7 +39,7 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def _submission() -> None:
         if not service.rate_limiter.allow(_rate_key("observations"), service.rate_limits.observations, 60):
             raise RateLimitError()
-        store.require_enabled()
+        oob.require_enabled()
 
     def _admin(data: dict, tier: str = "standard") -> str:
         if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
@@ -76,7 +75,7 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/admin/evidence/observations/<observation_id>/judge", methods=["POST"])
     def judge_observation(observation_id: str):
         """Judge an observation once; returns the existing judgement when it is already judged."""
-        store.require_enabled()
+        oob.require_enabled()
         _admin(request_json_object())
         body, status = oob.judge("observation", observation_id)
         return jsonify(body), status
@@ -84,7 +83,7 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/admin/evidence/break-glass/<break_glass_id>/judge", methods=["POST"])
     def judge_break_glass(break_glass_id: str):
         """Judge a break-glass record once; returns the existing judgement when it is already judged."""
-        store.require_enabled()
+        oob.require_enabled()
         _admin(request_json_object())
         body, status = oob.judge("break_glass", break_glass_id)
         return jsonify(body), status
@@ -92,14 +91,14 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/admin/evidence/changes/<path:resource_id>", methods=["GET"])
     def resource_changes(resource_id: str):
         """Every change to a resource: how it was governed and its state."""
-        store.require_enabled()
+        oob.require_enabled()
         _admin({}, tier="read")
         return jsonify(oob.resource_changes(resource_id))
 
     @bp.route("/admin/evidence/operator-holders", methods=["GET"])
     def operator_holders():
         """Operator key holders as the evidence store records them."""
-        store.require_enabled()
+        oob.require_enabled()
         _admin({}, tier="read")
         return jsonify({"holders": sorted(oob.operator_holders().values(), key=lambda h: h["key_id"])})
 

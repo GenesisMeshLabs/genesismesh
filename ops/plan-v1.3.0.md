@@ -237,3 +237,7 @@ Open, from building Stage 2 (2026-10-10):
     unchanged after its checkpoint, so judgements never lose the history.
 12. **Go, .NET and PHP** (proposed): they do not verify exports, so they have
     nothing to refuse; their embedded field registry lists the new kinds.
+13. **Off until the verifiers are upgraded** (proposed): a 1.2 verifier
+    refuses the new entry kinds, so an NA upgraded to 1.3 records none of
+    them until `EVIDENCE_OUT_OF_BAND=on`. The backfill and the holder record
+    run at the first start with it on.

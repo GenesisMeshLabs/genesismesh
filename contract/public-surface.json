@@ -3251,6 +3251,7 @@
     "observation_secret_material",
     "observation_unknown_key",
     "offer_rejected",
+    "out_of_band_disabled",
     "policy_not_found",
     "policy_sign_failed",
     "proof_assembly_failed",

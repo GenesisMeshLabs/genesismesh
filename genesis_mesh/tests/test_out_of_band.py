@@ -56,7 +56,7 @@ def clock(monkeypatch):
 
 @pytest.fixture
 def na_service(clock):
-    return _make_service(evidence_store="on")
+    return _make_service(evidence_store="on", evidence_out_of_band="on")
 
 
 @pytest.fixture
@@ -140,7 +140,7 @@ def _same_na(service, db_path: str):
     restarted = NetworkAuthorityService(
         genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id,
         db_path=db_path, operator_public_keys=service.operator_public_keys,
-        operator_key_tiers=service.operator_key_tiers, evidence_store="on",
+        operator_key_tiers=service.operator_key_tiers, evidence_store="on", evidence_out_of_band="on",
     )
     setattr(restarted, "_test_operator_keypair", service._test_operator_keypair)
     setattr(restarted, "_std_keypair", service._std_keypair)
@@ -345,7 +345,7 @@ def test_a_change_known_only_within_a_window_must_agree_at_both_ends(client, clo
 
 
 def test_judging_is_once_per_record_and_can_wait_for_the_judge_route(clock):
-    service = _make_service(evidence_store="on", judge_on_admission=False)
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", judge_on_admission=False)
     client = _client(service)
     observer = Observer(client)
     body = _observe(client, observer.observe(clock)).get_json()
@@ -570,7 +570,7 @@ def test_the_backfill_reproduces_the_audit_event_history(clock, tmp_path):
 
 
 def test_holders_are_recorded_at_start_and_change_only_with_a_second_holder(clock):
-    service = _make_service(evidence_store="on", operator_key_holders={"operator-test": "alice"})
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", operator_key_holders={"operator-test": "alice"})
     client = _client(service)
     holders = {h["key_id"]: h for h in _get(client, "/admin/evidence/operator-holders").get_json()["holders"]}
     assert holders["operator-test"]["holder"] == "alice" and holders["operator-std"]["holder"] == "operator-std"
@@ -598,8 +598,8 @@ def test_holders_are_recorded_at_start_and_change_only_with_a_second_holder(cloc
 
 def test_a_configured_holder_does_not_override_the_recorded_one(clock, tmp_path):
     db = str(tmp_path / "na.db")
-    _make_service(evidence_store="on", db_path=db, operator_key_holders={"operator-test": "alice"}).db.close()
-    later = _make_service(evidence_store="on", db_path=db, operator_key_holders={"operator-test": "mallory"})
+    _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db, operator_key_holders={"operator-test": "alice"}).db.close()
+    later = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db, operator_key_holders={"operator-test": "mallory"})
     # The operator keys are new each time _make_service runs, so the key is recorded afresh, but the
     # holder stays the one the store recorded for that key id.
     assert later.out_of_band_service.operator_holders()["operator-test"]["holder"] == "alice"
@@ -643,7 +643,7 @@ def test_retention_keeps_records_with_their_judgements_and_carries_the_registry(
 
 
 def test_an_unjudged_record_stops_retention(clock, monkeypatch):
-    service = _make_service(evidence_store="on", judge_on_admission=False)
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", judge_on_admission=False)
     client = _client(service)
     observer = Observer(client)
     _observe(client, observer.observe(clock))
@@ -664,6 +664,7 @@ def test_an_unjudged_record_stops_retention(clock, monkeypatch):
     assert "observation" in kinds, result
 
 
+@pytest.mark.sqlite_only  # monkeypatch.undo() also drops the PostgreSQL redirect; PostgreSQL adds columns in place
 def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, tmp_path, monkeypatch):
     """Migration 015 rebuilds the entries table; nothing a 1.2 store held may change."""
     import genesis_mesh.na_service.db as db_module
@@ -674,7 +675,7 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     monkeypatch.setattr(OutOfBandService, "ensure_registry", lambda self: None)
     monkeypatch.setattr(OutOfBandService, "key_registered", lambda self, *a, **k: None)
     monkeypatch.setattr(OutOfBandService, "policy_activated", lambda self, *a, **k: None)
-    old = _make_service(evidence_store="on", db_path=db)
+    old = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
     old.db.conn.execute("ALTER TABLE evidence_executor_keys ADD COLUMN key_role TEXT")  # read by 1.3 code only
     old.db.conn.execute("ALTER TABLE evidence_executor_keys ADD COLUMN resource_prefix TEXT")
     for column in ("record_id", "subject_id", "matched_evidence_id", "observation_sequence", "dedupe_key", "version_id"):
@@ -728,9 +729,36 @@ def test_settings_read_the_stage_2_options():
         load_settings({**base, "NA_JUDGE_ON_ADMISSION": "sometimes"})
 
 
+def test_with_the_switch_off_the_store_stays_readable_by_1_2(clock):
+    service = _make_service(evidence_store="on")
+    client = _client(service)
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    observer = Observer(client)
+    resp = _observe(client, observer.observe(clock))
+    assert resp.status_code == 404 and _code(resp) == "out_of_band_disabled"
+    assert _code(_get(client, f"/admin/evidence/changes/{SECRET}")) == "out_of_band_disabled"
+    controller = Controller(client)
+    resp = _submit(client, controller.record(_decide(client, capability="secret.other")))
+    assert _code(resp) == "evidence_decision_denied"
+    assert "quarantine_id" not in (resp.get_json()["error"].get("details") or {})
+    kinds = {e["entry"]["entry_kind"] for e in _get(client, "/admin/evidence").get_json()["entries"]}
+    assert kinds <= {"decision", "justification", "execution"}
+    assert _verify(client)["verified"] is True
+    assert load_settings_value("EVIDENCE_OUT_OF_BAND", None) == "off"
+    assert load_settings_value("EVIDENCE_OUT_OF_BAND", "on") == "on"
+    with pytest.raises(ValueError, match="needs evidence_store"):
+        _make_service(evidence_out_of_band="on")
+
+
+def load_settings_value(name: str, value: str | None) -> str:
+    from genesis_mesh.na_service.settings import load_settings
+    env = {"GENESIS_FILE": "g.json", **({name: value} if value is not None else {})}
+    return load_settings(env).evidence_out_of_band
+
+
 def test_holders_must_name_configured_keys():
     with pytest.raises(ValueError, match="not configured"):
-        _make_service(evidence_store="on", operator_key_holders={"nobody": "x"})
+        _make_service(evidence_store="on", evidence_out_of_band="on", operator_key_holders={"nobody": "x"})
 
 
 def test_executor_keys_take_a_role_and_a_prefix(client):

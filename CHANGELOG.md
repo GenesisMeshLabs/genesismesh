@@ -31,13 +31,16 @@
     outside their time bounds.
 
   `GET /admin/evidence/changes/<resource_id>` lists every change to a
-  resource with how it was governed and its state. See *Changes Outside the
+  resource with how it was governed and its state. All of it is off until
+  `EVIDENCE_OUT_OF_BAND=on` (with `EVIDENCE_STORE=on`), so a store stays
+  readable by 1.2 verifiers until they are upgraded. See *Changes Outside the
   Controlled Path* in the runbooks.
 - **The NA's own state is in the evidence store.** Policy activations and
   deactivations, executor and observer keys, and which holder each operator
   key belongs to are signed `registry` entries, under the anchors. A store
   upgraded from 1.2 is backfilled from its audit events (marked
-  `reconstructed`). Operator key holders are recorded at first start
+  `reconstructed`). Operator key holders are recorded at the first start
+  with `EVIDENCE_OUT_OF_BAND=on`
   (`OPERATOR_KEY_HOLDERS_JSON`) and change only with a second holder's
   approval (`POST /admin/operator-keys/<key_id>/holder`, then
   `.../holder-changes/<id>/approve`).
@@ -46,7 +49,7 @@
   `record_id`, `subject_id`, `matched_evidence_id` and `observation_sequence`,
   left out when absent. The conformance suite `out_of_band` carries the
   records' signed forms and their verification.
-- Settings `NA_OBSERVATION_MAX_BACKLOG_SECONDS` (7 days),
+- Settings `EVIDENCE_OUT_OF_BAND` (`off`), `NA_OBSERVATION_MAX_BACKLOG_SECONDS` (7 days),
   `NA_OBSERVATION_CLOCK_SKEW_SECONDS` (300), `NA_JUDGE_ON_ADMISSION` (`on`),
   `NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE` (120) and
   `OPERATOR_KEY_HOLDERS_JSON`.
