@@ -12,9 +12,11 @@
    feed, NA attestations (one revoked), an active boundary policy, decisions
    and a resource's execution chain, all through its stable HTTP routes.
 2. Back the database up (SQLite online backup).
-3. Start the current release on the database (``verify``): migrations run,
-   and every record and decision is checked through the current HTTP routes
-   and offline verifiers, then the resource chain is extended.
+3. Start the current release on the database (``verify``), with the store's
+   out-of-band records on (``EVIDENCE_OUT_OF_BAND=on``): migrations run, the
+   policy history is backfilled from the past release's audit log, every
+   record and decision is checked through the current HTTP routes and offline
+   verifiers, an observation is judged, then the resource chain is extended.
 4. Restore the backup and verify again.
 5. With --postgres-url, migrate the restored database to PostgreSQL and
    verify it there.
@@ -62,13 +64,15 @@ def _pub(key) -> str:
     return base64.b64encode(bytes(key.verify_key)).decode()
 
 
-def _service(state: dict, *, db_path: str | None = None, database_url: str | None = None):
+def _service(state: dict, *, db_path: str | None = None, database_url: str | None = None, out_of_band: bool = False):
     from genesis_mesh.models import GenesisBlock
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
     kwargs: dict[str, Any] = {}
     if database_url:
         kwargs["database_url"] = database_url
+    if out_of_band:  # 1.3+ only: past releases populate without it
+        kwargs["evidence_out_of_band"] = "on"
     service = NetworkAuthorityService(
         genesis_block=GenesisBlock.model_validate(state["genesis"]),
         na_private_key=_key(state["seeds"]["na"]), key_id="na-upgrade",
@@ -266,7 +270,7 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
         if not ok:
             failures.append(f"{label}: {name}: {detail}")
 
-    service = _service(state, db_path=db_path, database_url=database_url)
+    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=True)
     api = Api(service, state["seeds"]["operator"])
     na_key = _pub(_key(state["seeds"]["na"]))
     partner_key = _pub(_key(state["seeds"]["partner"]))
@@ -320,12 +324,30 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
         check(f"decision {i + 1} from the old release verifies with its bindings", result.accepted
               and result.authorized, result.reason)
 
+    # The store runs with its out-of-band records on: the policy history starts from the past
+    # release's audit log, and a change seen outside the controlled path is judged against it.
+    status = api.expect(api.admin("GET", "/admin/evidence/status"), 200)
+    check("policy history backfilled from the audit log", status.get("policy_history_started") is not None
+          and status.get("registry_healthy") is True, status)
+    active = service.out_of_band_service.policy_history().active_at(datetime.now(timezone.utc)) or {}
+    check("the past release's active policy is in the policy history", POLICY_ID in active, active)
+    observer = _observer_key()
+    api.expect(api.admin("POST", "/admin/evidence/executor-keys", {
+        "key_id": "obs-1", "public_key": _pub(observer), "executor_sovereign_id": "cloud-observer",
+        "role": "observer"}), 201)
+    seen = api.client.post("/evidence/observations", json={"observation": _observation(observer)})
+    judged = (seen.get_json() or {}).get("judgement") or {}
+    check("an observation is admitted and judged after the upgrade", seen.status_code == 201
+          and judged.get("payload", {}).get("subject_kind") == "observation", seen.get_json())
+
     store = api.expect(api.admin("GET", "/admin/evidence/verify"), 200)
     check("evidence store verifies", store.get("verified") is True, store)
     lines = api.admin("GET", "/admin/evidence/export").get_data(as_text=True).splitlines()
     events = [EvidenceEvent.model_validate_json(line) for line in lines if line.strip()]
     keys = {"ctrl-1": ExecutorKey(key_id="ctrl-1", public_key=_pub(_key(state["seeds"]["executor"])),
-                                  executor_sovereign_id=EXECUTOR)}
+                                  executor_sovereign_id=EXECUTOR),
+            "obs-1": ExecutorKey(key_id="obs-1", public_key=_pub(observer), executor_sovereign_id="cloud-observer",
+                                 role="observer")}
     offline = verify_evidence_events(events, na_public_keys=[na_key], executor_keys=keys)
     check("evidence export verifies offline", offline.verified, offline.failures)
 
@@ -343,6 +365,26 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
           history.get("verification"))
     service.db.close()
     return failures
+
+
+def _observer_key():
+    import nacl.signing
+
+    return nacl.signing.SigningKey.generate()
+
+
+def _observation(key) -> dict:
+    """A signed observation of the rehearsal resource (1.3+)."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.out_of_band import ObservationRecord
+
+    now = datetime.now(timezone.utc)
+    record = ObservationRecord(
+        observer_sovereign_id="cloud-observer", resource_id=RESOURCE, action="rotate", capability="secret.rotate",
+        changed_at=now - timedelta(minutes=1), observed_at=now, source="cloud-activity-log",
+        source_event_id=str(uuid.uuid4()), metadata={"secret_version": "v9"},
+    )
+    return record.model_copy(update={"signature": sign_model(record, key, "obs-1")}).to_wire()
 
 
 def _backup(src: str, dst: str) -> None:
