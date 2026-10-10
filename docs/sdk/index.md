@@ -18,7 +18,7 @@ your machine: {doc}`local-network-authority`.
 
 ## Current release train
 
-Version 1.1.1 is the coordinated source version. Registry publication occurs
+Version 1.2.0 is the coordinated source version. Registry publication occurs
 only after the complete release gate passes in every component repository.
 
 The TypeScript SDK is the most complete client: from 0.59.1 it covers
@@ -36,11 +36,11 @@ shared `interop` conformance vectors, and the cross-language scenario in
 
 | SDK | Package | Version | Repo |
 |-----|---------|---------|------|
-| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 1.1.1 | `GenesisMeshLabs/sdk-typescript` |
-| Go | `github.com/GenesisMeshLabs/sdk-go` | 1.1.1 | `GenesisMeshLabs/sdk-go` |
-| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 1.1.1 | `GenesisMeshLabs/sdk-dotnet` |
-| Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 1.1.1 | `GenesisMeshLabs/sdk-rust` |
-| Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 1.1.1 | `GenesisMeshLabs/gateway` |
+| TypeScript / Node.js | `genesis-mesh-sdk` on npm | 1.2.0 | `GenesisMeshLabs/sdk-typescript` |
+| Go | `github.com/GenesisMeshLabs/sdk-go` | 1.2.0 | `GenesisMeshLabs/sdk-go` |
+| C# / .NET | `genesismesh-sdk-dotnet` on NuGet | 1.2.0 | `GenesisMeshLabs/sdk-dotnet` |
+| Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 1.2.0 | `GenesisMeshLabs/sdk-rust` |
+| Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 1.2.0 | `GenesisMeshLabs/gateway` |
 
 Rust has two components. The Rust SDK (`genesis-mesh-sdk`) is an NA client
 like the other three, including governed actions and offline evidence

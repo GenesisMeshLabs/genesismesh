@@ -258,11 +258,11 @@ narrower kind, and the docs say so.
 
 - [x] 1.1.1 released (2026-10-09)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
+- [x] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
       `history.md`, `phase-n.md`, `roadmap.md`
-- [ ] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
-- [ ] Public contract and `docs/stability.md`: changed surfaces classified
+- [x] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
+- [x] Public contract and `docs/stability.md`: changed surfaces classified
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.2.0`, releases, published-artifacts green
