@@ -420,9 +420,14 @@ Gate" must be checked or checkable right now. If any is not, implement what is
 missing, then re-run 7A–7F. Mark all checkboxes `[x]` once satisfied.
 
 ### 7H — CHANGELOG
-`CHANGELOG.md` must contain an entry for `v{X.Y.Z}` above all prior versions.
-If missing: write it following the format of prior entries (added/changed/fixed
-sections, bullet points). Do NOT create a separate release-notes file.
+Feature work never edits `CHANGELOG.md`: it adds `changelog.d/{X.Y.Z}/<name>.md`
+fragments (see `docs/development/versioning.md`, *Changelogs*). The release PR,
+on a branch named `release/{X.Y.Z}`, folds them in with
+`python scripts/changelog.py release {X.Y.Z} --heading "## v{X.Y.Z} - {Title}"`
+(SDKs: `"## [{X.Y.Z}] - {date}"`), in every repository of the train, so
+`CHANGELOG.md` contains an entry for `v{X.Y.Z}` above all prior versions. Remove
+the `*Unreleased.*` markers under the version's documentation headings in the
+same PR. Do NOT create a separate release-notes file.
 
 ### 7I — SECURITY.md Supported Versions
 Open `SECURITY.md` and check the Supported Versions table. If the new version
