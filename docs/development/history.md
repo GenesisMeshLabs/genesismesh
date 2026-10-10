@@ -53,7 +53,8 @@ copied; relationships cannot.
 
 ## 2. The Journey, in Phases
 
-Ten phases, each answering one open question.
+Eleven phases, each answering one open question. Phases K, L and M were the
+TypeScript, Go and .NET SDK releases, told in the narrative below.
 
 | Phase | Versions | Theme | Detail |
 |-------|----------|-------|--------|
@@ -66,7 +67,8 @@ Ten phases, each answering one open question.
 | G | v0.22.0 – v0.25.0 | Application Layer | {doc}`phases/phase-g` |
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
-| J | v0.38.0 – v0.52.1 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| J | v0.38.0 – v1.1.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| N | v1.2.0 – | Governed Changes and Edge Trust | {doc}`phases/phase-n` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
 proved it carries real workloads and crosses real cloud boundaries.
@@ -77,7 +79,10 @@ execution, bounded freshness, and machine-checked lemmas. Phase I made
 those relationships usable at runtime — bearer tokens, human oversight,
 selective disclosure, consensus authorization, and peer risk signals.
 Phase J hardened the full pipeline against adversarial behavior and
-modelled key properties in Tamarin.
+modelled key properties in Tamarin, then carried it to a stable 1.0
+contract. Phase N makes every change leave a signed record that survives
+the Network Authority being unreachable and that an auditor can verify
+years later without trusting whoever runs it.
 
 ---
 
@@ -971,7 +976,7 @@ recognised parties signed it, and the store holds exactly what was signed.
 
 ## 5. Where to Read More
 
-- Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`
+- Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-n`
 - Coordinated product version policy: {doc}`versioning`
 - Architecture and design philosophy: {doc}`strategy`
 - Per-release plans: `ops/plan-v0.*.md`
