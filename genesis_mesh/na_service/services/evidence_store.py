@@ -425,7 +425,9 @@ class EvidenceStoreService:
         if not self._na.db.retire_executor_key(key_id, retired_by):
             raise ConflictError("executor key is already retired", code="executor_key_retired")
         self._na.db.add_audit_event("executor_key_retired", {"key_id": key_id, "retired_by": retired_by})
-        self._na.out_of_band_service.key_retired(key_id, retired_by)
+        row = self._na.db.get_executor_key(key_id)
+        assert row is not None
+        self._na.out_of_band_service.key_retired(key_id, str(row["retired_at"]), retired_by)
         return {"key_id": key_id, "active": False}
 
     def list_executor_keys(self) -> list[dict[str, Any]]:
@@ -602,6 +604,9 @@ class EvidenceStoreService:
                 "anchored_at": anchor.anchored_at.isoformat(),
             } if anchor else None
             out["unanchored_entries"] = max(0, head - (anchor.store_sequence if anchor else 0))
+            if self._na.out_of_band_service.enabled:
+                # v1.3.0: a record not judged yet holds retention back; judge it on the judge routes.
+                out["unjudged_records"] = self._na.db.unjudged_count()
         return out
 
     # -- anchors (v1.2.0) -------------------------------------------------------
@@ -622,7 +627,11 @@ class EvidenceStoreService:
         start_seq, prev = latest.store_sequence, latest.entry_digest
         stored = db.entry_digest_at(latest.store_sequence)
         if stored is not None:
-            if stored != latest.entry_digest:
+            # The anchored entry itself, recomputed: its digest column alone could have been rewritten.
+            rows = db.search_evidence({}, after_sequence=latest.store_sequence - 1, limit=1)
+            row = rows[0] if rows else None
+            if stored != latest.entry_digest or row is None or row["entry"].digest() != latest.entry_digest \
+                    or payload_digest(row["payload"]) != row["entry"].payload_digest:
                 return f"entry {latest.store_sequence} no longer has the digest anchor {latest.anchor_sequence} names"
         else:
             cp = db.latest_retention_checkpoint()
@@ -660,6 +669,12 @@ class EvidenceStoreService:
         now = datetime.now(timezone.utc)
 
         def make(latest: StoreAnchor | None, seq: int, digest: str | None) -> StoreAnchor | None:
+            if latest is not None and (seq < latest.store_sequence or (
+                    seq == latest.store_sequence and digest != latest.entry_digest)):
+                # The store was cut back below, or rewritten at, what was anchored last.
+                refusal = self._continuity_problem(latest, seq, digest) \
+                    or f"the store head no longer matches anchor {latest.anchor_sequence}"
+                raise _AnchorRefused(refusal)
             if seq == 0 or digest is None or (latest is not None and latest.store_sequence >= seq):
                 return None
             anchored_at = now
@@ -771,6 +786,17 @@ class EvidenceStoreService:
         self.require_enabled()
         if isinstance(older_than_days, bool) or not isinstance(older_than_days, int) or older_than_days < 1:
             raise BadRequestError("older_than_days must be a positive integer", code="invalid_retention")
+        # v1.3.0: an observation's dedupe key leaves with it, so the cut-off stays behind the
+        # time bounds: an observation older than them is quarantined, never admitted again.
+        oob = self._na.out_of_band_service
+        if oob.enabled:
+            floor = oob.bounds.max_backlog + oob.bounds.skew
+            if timedelta(days=older_than_days) <= floor:
+                minimum = int(floor.total_seconds() // 86400) + 1
+                raise BadRequestError(
+                    f"older_than_days must be at least {minimum}: observations within the backlog "
+                    f"(NA_OBSERVATION_MAX_BACKLOG_SECONDS plus skew) are kept", code="invalid_retention",
+                )
         holder = self._na.instance_id
         if not self._na.db.claim_lease(self.RETENTION_LEASE, holder, self.RETENTION_LEASE_TTL_SECONDS):
             raise ConflictError("Retention is already running on another instance", code="retention_in_progress")

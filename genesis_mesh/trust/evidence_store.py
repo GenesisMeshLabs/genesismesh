@@ -44,6 +44,8 @@ from .. import strict_json
 EvidenceRejectionCode = Literal[
     "evidence_malformed",
     "evidence_unknown_executor",
+    "evidence_executor_key_retired",
+    "evidence_out_of_scope",
     "evidence_invalid_signature",
     "evidence_decision_not_found",
     "evidence_decision_denied",
@@ -187,17 +189,21 @@ def validate_execution(
         return reject("evidence_invalid_signature", "evidence is not signed")
     if executor_key is None or executor_key.executor_sovereign_id != evidence.executor_sovereign_id:
         return reject("evidence_unknown_executor", "signing key is not registered for this executor")
-    if executor_key.retired:
-        return reject("evidence_unknown_executor", "signing key is retired")
-    # v1.3.0: an observer key never signs execution evidence, and a key with a
-    # resource prefix signs only for resources under it.
-    if executor_key.role != "executor":
-        return reject("evidence_unknown_executor", f"signing key is an {executor_key.role} key")
-    if evidence.resource_id is not None and not executor_key.covers(evidence.resource_id):
-        return reject("evidence_unknown_executor", f"signing key covers only resources starting with "
-                      f"{executor_key.resource_prefix!r}")
     if not verify_model_signature(evidence, evidence.signature, executor_key.public_key):
         return reject("evidence_invalid_signature", "signature does not verify")
+    # v1.3.0: refusals no retry overcomes have their own codes, checked once the
+    # signature verifies: a retired key, an observer key (which never signs
+    # execution evidence), and a key with a resource prefix outside it (or
+    # without a resource: a scoped key always names one).
+    if executor_key.retired:
+        return reject("evidence_executor_key_retired", "signing key is retired")
+    if executor_key.role != "executor":
+        return reject("evidence_out_of_scope", f"signing key is an {executor_key.role} key")
+    if executor_key.resource_prefix is not None and (
+        evidence.resource_id is None or not executor_key.covers(evidence.resource_id)
+    ):
+        return reject("evidence_out_of_scope", f"signing key covers only resources starting with "
+                      f"{executor_key.resource_prefix!r}")
 
     if decision is None or context is None:
         return reject("evidence_decision_not_found", f"decision {evidence.decision_id!r} is not in the store")
@@ -532,10 +538,23 @@ def _verify_payload(
         sovereign = model.observer_sovereign_id if kind == "observation" else model.executor_sovereign_id
         role = "observer" if kind == "observation" else "executor"
         key = executor_keys.get(sig.key_id) if sig is not None else None
-        ok = sig is not None and key is not None and key.executor_sovereign_id == sovereign \
-            and key.role == role and verify_model_signature(model, sig, key.public_key)
+        keys = [key.public_key] if key is not None and key.executor_sovereign_id == sovereign \
+            and key.role == role else []
     else:
-        ok = sig is not None and any(verify_model_signature(model, sig, k) for k in na_public_keys)
+        keys = list(na_public_keys)
+    ok = sig is not None and any(verify_model_signature(model, sig, k) for k in keys)
+    # v1.3.0: the signature must cover the record as received, in the form the reference
+    # writes, as every SDK verifier checks it: a record rewritten into another spelling of
+    # the same values (a timestamp's offset) is not the record that was signed.
+    model_name = "BoundaryDecision" if kind == "decision" else _PAYLOAD_MODELS.get(kind)
+    raw = event.payload.get("decision") if kind == "decision" else event.payload
+    if model_name is not None and isinstance(raw, dict) and not unsigned and sig is not None:
+        from ..models.canonical_registry import strict_refusal
+
+        refusal = strict_refusal(model_name, raw, keys)
+        if refusal is not None:
+            result.fail(entry.store_sequence, "invalid_signature" if refusal == "unknown_field" else refusal, kind)
+            return model
     if not ok:
         result.fail(entry.store_sequence, "invalid_signature", kind)
     return model
@@ -765,6 +784,10 @@ def verify_store_anchors(
 
 def _checkpoint_start(events: Sequence[EvidenceEvent], first: EvidenceEvent) -> bool:
     """True when a retention checkpoint in the run explains where the run starts."""
+    return _starting_checkpoint(events, first) is not None
+
+
+def _starting_checkpoint(events: Sequence[EvidenceEvent], first: EvidenceEvent) -> RetentionCheckpoint | None:
     for event in events:
         if event.entry.entry_kind != "retention_checkpoint":
             continue
@@ -774,8 +797,21 @@ def _checkpoint_start(events: Sequence[EvidenceEvent], first: EvidenceEvent) -> 
             continue
         if (cp.removed_through_sequence == first.entry.store_sequence - 1
                 and cp.last_removed_entry_digest == first.entry.prev_entry_digest):
-            return True
-    return False
+            return cp
+    return None
+
+
+def export_checkpoint(events: Sequence[EvidenceEvent]) -> RetentionCheckpoint | None:
+    """The retention checkpoint in an export that explains where it starts, or None.
+
+    An export of a store after retention starts right after what was
+    removed; its chains continue from the checkpoint's resource and
+    observation positions, so pass it to ``verify_evidence_events``. The
+    checkpoint is itself an entry of the export, verified with the rest.
+    """
+    if not events:
+        return None
+    return _starting_checkpoint(events, min(events, key=lambda e: e.entry.store_sequence))
 
 
 def check_events_against_anchors(
@@ -865,7 +901,7 @@ def parse_export_lines(lines: Iterable[str]) -> list[EvidenceEvent]:
     """
     events = []
     for line in lines:
-        line = line.strip()
+        line = line.strip(" \t\r\n")  # JSON whitespace only, as every SDK trims a line
         if line:
             events.append(EvidenceEvent.model_validate(strict_json.loads(line)))
     return events

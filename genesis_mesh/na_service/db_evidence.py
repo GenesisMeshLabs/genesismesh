@@ -233,15 +233,15 @@ class EvidenceStoreMixin:
         return int((cp.observation_heads or {}).get(resource_id, 0)) if cp is not None else 0
 
     def unmatched_executions(
-        self, resource_id: str, resource_action: str, version_id: str | None, limit: int = 50
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50
     ) -> list[dict[str, Any]]:
-        """Execution and break-glass records of a resource and action no judgement has matched.
+        """Execution and break-glass records of a resource, action and capability no judgement has matched.
 
         With ``version_id``, only records naming that version, oldest first (the
         match); without it, the most recent records (candidates for a hint).
         """
         version_clause = "AND e.version_id = ?" if version_id is not None else ""
-        params: list[Any] = [resource_id, resource_action]
+        params: list[Any] = [resource_id, resource_action, capability]
         if version_id is not None:
             params.append(version_id)
         order = "ASC" if version_id is not None else "DESC"
@@ -249,13 +249,45 @@ class EvidenceStoreMixin:
         rows = self.conn.execute(
             f"""SELECT e.* FROM evidence_entries e
                 WHERE e.entry_kind IN ('execution', 'break_glass') AND e.resource_id = ?
-                  AND e.resource_action = ? {version_clause}
+                  AND e.resource_action = ? AND e.capability = ? {version_clause}
                   AND NOT EXISTS (SELECT 1 FROM evidence_entries j
                                   WHERE j.matched_evidence_id = COALESCE(e.evidence_id, e.record_id))
                 ORDER BY e.store_sequence {order} LIMIT ?""",
             (*params, limit),
         ).fetchall()
         return [self._row_to_stored(r) for r in rows]
+
+    def matched_executions(
+        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1
+    ) -> list[dict[str, Any]]:
+        """Execution records of this change a judgement has already matched, oldest first."""
+        rows = self.conn.execute(
+            """SELECT e.* FROM evidence_entries e
+               WHERE e.entry_kind = 'execution' AND e.resource_id = ? AND e.resource_action = ?
+                 AND e.capability = ? AND e.version_id = ?
+                 AND EXISTS (SELECT 1 FROM evidence_entries j WHERE j.matched_evidence_id = e.evidence_id)
+               ORDER BY e.store_sequence ASC LIMIT ?""",
+            (resource_id, resource_action, capability, version_id, limit),
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    def dedupe_keys(self, prefix: str) -> set[str]:
+        """Every stored dedupe key starting with ``prefix``."""
+        rows = self.conn.execute(
+            "SELECT dedupe_key FROM evidence_entries WHERE dedupe_key >= ? AND dedupe_key < ?",
+            (prefix, prefix + "\uffff"),
+        ).fetchall()
+        return {r["dedupe_key"] for r in rows}
+
+    def unjudged_count(self) -> int:
+        """Observations and break-glass records no judgement covers yet."""
+        row = self.conn.execute(
+            """SELECT COUNT(*) AS n FROM evidence_entries e
+               WHERE e.entry_kind IN ('observation', 'break_glass')
+                 AND NOT EXISTS (SELECT 1 FROM evidence_entries j
+                                 WHERE j.entry_kind = 'judgement' AND j.subject_id = e.record_id)"""
+        ).fetchone()
+        return int(row["n"])
 
     def registry_entries(self) -> list[dict[str, Any]]:
         """Every registry record in store order."""
@@ -289,13 +321,13 @@ class EvidenceStoreMixin:
             "SELECT * FROM operator_holder_proposals WHERE proposal_id = ?", (proposal_id,)
         ).fetchone()
 
-    def approve_holder_proposal(self, proposal_id: str, approved_by: str, registry_record_id: str) -> bool:
-        with self._lock, self.conn:
-            cur = self.conn.execute(
-                """UPDATE operator_holder_proposals SET approved_by = ?, approved_at = ?, registry_record_id = ?
-                   WHERE proposal_id = ? AND approved_by IS NULL""",
-                (approved_by, datetime.now(timezone.utc).isoformat(), registry_record_id, proposal_id),
-            )
+    def mark_holder_proposal_approved(self, proposal_id: str, approved_by: str, registry_record_id: str) -> bool:
+        """Mark a proposal approved inside the caller's write transaction (``append_evidence_entries_with``)."""
+        cur = self.conn.execute(
+            """UPDATE operator_holder_proposals SET approved_by = ?, approved_at = ?, registry_record_id = ?
+               WHERE proposal_id = ? AND approved_by IS NULL""",
+            (approved_by, datetime.now(timezone.utc).isoformat(), registry_record_id, proposal_id),
+        )
         return cur.rowcount > 0
 
     def search_evidence(

@@ -17,14 +17,17 @@
   - the NA judges each change once (`JudgementRecord`), at admission or on
     `POST /admin/evidence/observations/<id>/judge` and
     `/break-glass/<id>/judge`. A change that matches recorded execution
-    evidence by version ID is governed by that evidence's decision, and the
-    evidence cannot match a second change. Any other change is judged as of
-    when it happened, under the policies active then, and a break-glass
-    record with its attestation's state then; the judgement is flagged when
-    today's policies would differ, and is `indeterminate` when no policy
-    covered the change or the store's history does not reach back to it.
-    A judgement has no `authorized` field, and execution evidence can never
-    rest on one;
+    evidence (same resource, action, capability and version ID) is governed
+    by that evidence's decision, unless the observer's own facts are denied
+    by the policies active then; the evidence is matched once, and another
+    observer's report of the same version is the same change. Any other
+    change is judged as of when it happened, under the policies active then
+    (for a change known within a window, at every policy change inside it),
+    and a break-glass record with its attestation's state then (without an
+    attestation it is `indeterminate`); the judgement is flagged when today's
+    policies would differ, and is `indeterminate` when no policy covered the
+    change or the store's history does not reach back to it. A judgement has
+    no `authorized` field, and execution evidence can never rest on one;
   - an authentic record the NA refuses after its action happened is kept as
     a `quarantine` entry: execution evidence refused for good (the refusal
     names the `quarantine_id`), and observations or break-glass records
@@ -65,6 +68,34 @@
 - Execution evidence names the version it produced as
   `execution_parameters.version_id` for observations to match.
 
+- Execution evidence signed by a retired executor key is refused as
+  `evidence_executor_key_retired`, and by a key whose role or resource prefix
+  does not cover it (a prefixed key must name a resource) as
+  `evidence_out_of_scope`; both were `evidence_unknown_executor`, which the
+  SDK outboxes retry. Both are quarantined like the other final refusals.
+  The key's role and scope are checked only after its signature verifies.
+- Text with several faults is refused for the first in text order
+  (`genesis_mesh.strict_json`), as the SDKs refuse it: one input, one reason.
+- Export verification checks every stored record as received: one whose
+  signature does not cover it in the form received is `invalid_signature`
+  (a respelled timestamp verified before), one signed over a form the
+  reference does not write is `non_canonical_form`. Export lines are trimmed
+  of JSON whitespace only, as the SDKs trim them.
+
+### Fixed
+
+- `genesis-mesh evidence verify-export` continues from the retention
+  checkpoint an export carries; an honest export after retention failed with
+  `resource_chain_break`.
+- `POST /admin/evidence/anchors` refuses a store cut back below its last
+  anchor, or rewritten at the anchored entry, instead of reporting it
+  unchanged; the anchored entry's digest is recomputed, not read from its
+  column.
+- Anchor files written by `genesis-mesh evidence anchors fetch` are synced
+  to disk before they are reported as copied.
+- The reference HA load balancer (`deploy/compose/ha/nginx.conf`) forwards
+  the port the client used, so the URLs the NA advertises point back at it.
+
 ### Security
 
 - A run of entries verified against held anchors must be tied to them at its
@@ -76,10 +107,12 @@
 ### Upgrading
 
 Migration 015 rebuilds the evidence table on SQLite (PostgreSQL alters it in
-place); entries, digests and anchors are unchanged. At first start the NA
-backfills its registry from the audit events and records the configured
-operator keys' holders: set `OPERATOR_KEY_HOLDERS_JSON` before that start.
-Roll back to 1.2 by restoring the backup taken before the upgrade.
+place); entries, digests and anchors are unchanged. At the first start with
+`EVIDENCE_OUT_OF_BAND=on` the NA backfills its registry from the audit events
+and records the configured operator keys' holders: name every privileged
+key's holder in `OPERATOR_KEY_HOLDERS_JSON`, since holder changes need two
+named holders. Roll back to 1.2 by restoring the backup taken before the
+upgrade.
 
 ## v1.2.0 - Nothing Lost, Anchored (unreleased)
 

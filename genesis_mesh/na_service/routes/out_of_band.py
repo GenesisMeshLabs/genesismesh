@@ -63,7 +63,12 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
         """Admit up to 100 observations in order of their change times; one result each."""
         _submission()
         data = request_json_object()
-        return jsonify({"results": oob.submit_observations(data.get("observations"))})
+        items = data.get("observations")
+        # Each observation in a batch counts against the submission rate, as it would alone.
+        for _ in range(1, min(len(items), 100) if isinstance(items, list) else 1):
+            if not service.rate_limiter.allow(_rate_key("observations"), service.rate_limits.observations, 60):
+                raise RateLimitError()
+        return jsonify({"results": oob.submit_observations(items)})
 
     @bp.route("/evidence/break-glass", methods=["POST"])
     def submit_break_glass():

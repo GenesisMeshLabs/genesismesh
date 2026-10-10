@@ -646,3 +646,44 @@ def test_verify_db_without_the_key_still_checks_the_anchor_chain(tmp_path):
     report = verify_database(NADatabase(str(path)))
     assert report.ok, report.to_dict()
     assert report.checks["evidence_anchors"]["chain"]["checked_anchors"] == 2
+
+
+def test_the_na_refuses_to_anchor_a_store_cut_back_below_its_last_anchor(client, na_service):
+    """Removing entries the last anchor covers is refused, not reported as unchanged (v1.3.0)."""
+    _activity(client, 2)
+    assert _post(client, ANCHORS, {}, standard=True).status_code == 201
+    db = na_service.db
+    head, _ = db.store_head()
+    _tamper(db, "evidence_entries_retention_only_delete", "evidence_entries",
+            "DELETE FROM evidence_entries WHERE store_sequence = ?", (head,))
+    refused = _post(client, ANCHORS, {}, standard=True)
+    assert refused.status_code == 409 and refused.get_json()["error"]["code"] == "evidence_anchor_refused"
+
+
+def test_verify_export_after_retention_continues_from_the_checkpoint(client, cli, tmp_path, monkeypatch):
+    run, base, tmp = cli
+    controller = Controller(client)
+    first = controller.record(_decide(client))
+    assert _submit(client, first).status_code == 201
+    second = controller.record(_decide(client), action="rotate", prior_resource=first)
+    assert _submit(client, second).status_code == 201
+    import genesis_mesh.na_service.services.evidence_store as svc
+
+    class Later(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + timedelta(days=400)
+
+    monkeypatch.setattr(svc, "datetime", Later)
+    third_decision = _decide(client)
+    assert _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).status_code == 200
+    monkeypatch.undo()
+    third = controller.record(third_decision, action="rotate", prior_resource=second, sequence_no=1)
+    assert _submit(client, third).status_code == 201
+    export = tmp_path / "export.jsonl"
+    export.write_text(_get(client, "/admin/evidence/export").get_data(as_text=True), encoding="utf-8")
+    keys = tmp_path / "keys.json"
+    keys.write_text(json.dumps(_get(client, "/admin/evidence/executor-keys").get_json()), encoding="utf-8")
+    result = CliRunner().invoke(evidence_cli, ["verify-export", "--file", str(export), "--na-public-key",
+                                               str(tmp / "na.pub"), "--executor-keys", str(keys)])
+    assert result.exit_code == 0, result.output

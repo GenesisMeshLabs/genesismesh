@@ -475,7 +475,8 @@ def run_field_registry(vectors: list[dict]) -> list[str]:
                     got = {"accepted": False, "reason": reason}
             elif kind == "export":
                 events = parse_export_lines(v["input"]["lines"].splitlines())
-                checked = verify_evidence_events(events, na_public_keys=[], executor_keys={})
+                checked = verify_evidence_events(events, na_public_keys=v["input"].get("na_public_keys", []),
+                                                 executor_keys={})
                 got = {"failures": [{"store_sequence": f["store_sequence"], "reason": f["reason"]}
                                     for f in checked.failures]}
             else:

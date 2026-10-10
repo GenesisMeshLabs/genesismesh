@@ -21,12 +21,16 @@ named reason (the conformance suite ``canonical``):
     the integer ``-0``;
 ``lone_surrogate``
     a string or key holds half of a UTF-16 surrogate pair.
+
+Text with several faults is refused for the first one in text order, as
+every SDK reads it (v1.3.0): one input, one reason, in every implementation.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any
 
 REASONS = (
@@ -85,37 +89,168 @@ def _float(literal: str) -> float:
     return value
 
 
-def _surrogates(value: Any) -> None:
-    """Refuse a lone surrogate in any key or string (pairs were joined by the parser),
-    and nesting deeper than ``MAX_DEPTH``."""
-    stack: list[tuple[Any, int]] = [(value, 0)]
-    while stack:
-        item, depth = stack.pop()
-        if isinstance(item, (dict, list)):
-            depth += 1
-            if depth > MAX_DEPTH:
-                raise StrictJSONError("invalid_json", f"arrays or objects nested more than {MAX_DEPTH} deep")
-        if isinstance(item, str):
-            texts = [item]
-        elif isinstance(item, dict):
-            texts = list(item)
-            stack.extend((v, depth) for v in item.values())
-        elif isinstance(item, list):
-            texts = []
-            stack.extend((v, depth) for v in item)
+_SPACE = re.compile(r"[ \t\n\r]*")
+_NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
+_INTEGER = re.compile(r"-?[0-9]+")
+_HEX4 = re.compile(r"[0-9a-fA-F]{4}")
+#: A run of string text with nothing to check: no quote, backslash, control character or surrogate.
+_PLAIN = re.compile(r'[^"\\\x00-\x1f\ud800-\udfff]*')
+_ESCAPES = {'"': 0x22, "\\": 0x5C, "/": 0x2F, "b": 8, "f": 12, "n": 10, "r": 13, "t": 9}
+_LITERALS = ("true", "false", "null")
+
+
+class _Scanner:
+    """One pass over the text, refusing its first fault in text order, as the SDKs' scanners do."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.i = 0
+        self.depth = 0
+
+    def space(self) -> None:
+        self.i = _SPACE.match(self.text, self.i).end()  # type: ignore[union-attr]
+
+    def string(self, keep: bool) -> str:
+        text, n = self.text, len(self.text)
+        self.i += 1
+        out: list[str] = []
+        pending = -1  # a high surrogate waiting for its low half
+        while True:
+            run = _PLAIN.match(text, self.i).end()  # type: ignore[union-attr]
+            if run > self.i:
+                if pending >= 0:
+                    raise StrictJSONError("lone_surrogate", "a high surrogate without its low half")
+                if keep:
+                    out.append(text[self.i:run])
+                self.i = run
+            if self.i >= n:
+                raise StrictJSONError("invalid_json", "a string is not closed")
+            unit = ord(text[self.i])
+            if unit == 0x22:
+                self.i += 1
+                break
+            if unit < 0x20:
+                raise StrictJSONError("invalid_json", "a control character in a string")
+            if unit == 0x5C:
+                escape = text[self.i + 1] if self.i + 1 < n else ""
+                if escape == "u":
+                    digits = text[self.i + 2:self.i + 6]
+                    if not _HEX4.fullmatch(digits):
+                        raise StrictJSONError("invalid_json", "a malformed \\u escape")
+                    unit = int(digits, 16)
+                    self.i += 6
+                else:
+                    if escape not in _ESCAPES:
+                        raise StrictJSONError("invalid_json", "an unknown escape")
+                    unit = _ESCAPES[escape]
+                    self.i += 2
+            else:
+                self.i += 1  # a raw surrogate (text decoded with surrogateescape)
+            if pending >= 0:
+                if not 0xDC00 <= unit <= 0xDFFF:
+                    raise StrictJSONError("lone_surrogate", "a high surrogate without its low half")
+                if keep:
+                    out.append(chr(0x10000 + ((pending - 0xD800) << 10) + (unit - 0xDC00)))
+                pending = -1
+            elif 0xD800 <= unit <= 0xDBFF:
+                pending = unit
+            elif 0xDC00 <= unit <= 0xDFFF:
+                raise StrictJSONError("lone_surrogate", "a low surrogate without its high half")
+            elif keep:
+                out.append(chr(unit))
+        if pending >= 0:
+            raise StrictJSONError("lone_surrogate", "a high surrogate without its low half")
+        return "".join(out)
+
+    def number(self) -> None:
+        match = _NUMBER.match(self.text, self.i)
+        if match is None:
+            raise StrictJSONError("invalid_json", "a malformed number")
+        literal = match.group()
+        self.i = match.end()
+        if _INTEGER.fullmatch(literal):
+            _integer(literal)
         else:
-            continue
-        for text in texts:
-            if any(0xD800 <= ord(c) <= 0xDFFF for c in text):
-                raise StrictJSONError("lone_surrogate", "a string holds half of a surrogate pair")
+            _float(literal)
+
+    def value(self) -> None:
+        self.space()
+        text, i = self.text, self.i
+        c = text[i] if i < len(text) else ""
+        if c in ("{", "["):
+            self.depth += 1
+            if self.depth > MAX_DEPTH:
+                raise StrictJSONError("invalid_json", f"arrays or objects nested more than {MAX_DEPTH} deep")
+            self.container(c)
+            self.depth -= 1
+        elif c == '"':
+            self.string(False)
+        elif c == "-" or "0" <= c <= "9":
+            self.number()
+        else:
+            for literal in _LITERALS:
+                if text.startswith(literal, i):
+                    self.i += len(literal)
+                    return
+            raise StrictJSONError("invalid_json", "no value" if not c else f"unexpected {c!r}")
+
+    def expect(self, close: str) -> bool:
+        """After a member or element: True at the closing bracket, False after a comma."""
+        self.space()
+        c = self.text[self.i] if self.i < len(self.text) else ""
+        self.i += 1
+        if c == ",":
+            return False
+        if c == close:
+            return True
+        raise StrictJSONError("invalid_json", f'expected "," or "{close}"')
+
+    def container(self, c: str) -> None:
+        self.i += 1
+        self.space()
+        close = "}" if c == "{" else "]"
+        if self.text.startswith(close, self.i):
+            self.i += 1
+            return
+        keys: set[str] = set()
+        while True:
+            if c == "{":
+                self.space()
+                if not self.text.startswith('"', self.i):
+                    raise StrictJSONError("invalid_json", "expected a key")
+                key = self.string(True)
+                if key in keys:
+                    raise StrictJSONError("duplicate_key", f"key {key!r} appears twice")
+                keys.add(key)
+                self.space()
+                if not self.text.startswith(":", self.i):
+                    raise StrictJSONError("invalid_json", 'expected ":"')
+                self.i += 1
+            self.value()
+            if self.expect(close):
+                return
+
+    def scan(self) -> None:
+        self.value()
+        self.space()
+        if self.i != len(self.text):
+            raise StrictJSONError("invalid_json", "text after the value")
 
 
 def loads(text: str | bytes) -> Any:
-    """Parse JSON for a signed record or a request body, refusing ambiguous input."""
-    try:
-        if isinstance(text, (bytes, bytearray)):
+    """Parse JSON for a signed record or a request body, refusing ambiguous input.
+
+    The text is scanned first, so that with several faults the first in text
+    order is named, as in every SDK; then parsed.
+    """
+    if isinstance(text, (bytes, bytearray)):
+        try:
             text = bytes(text).decode("utf-8")
-        value = json.loads(
+        except UnicodeDecodeError:
+            raise StrictJSONError("invalid_json", "the text is not UTF-8") from None
+    _Scanner(text).scan()
+    try:
+        return json.loads(
             text,
             object_pairs_hook=_pairs,
             parse_constant=_constant,
@@ -126,5 +261,3 @@ def loads(text: str | bytes) -> Any:
         raise
     except (ValueError, RecursionError) as exc:
         raise StrictJSONError("invalid_json", str(exc)) from None
-    _surrogates(value)
-    return value

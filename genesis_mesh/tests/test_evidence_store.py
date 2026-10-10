@@ -212,7 +212,7 @@ def test_retired_key_cannot_sign_new_evidence(client):
     controller = Controller(client)
     decision = _decide(client)
     assert _post(client, f"/admin/evidence/executor-keys/{controller.key_id}/retire", {}).status_code == 200
-    assert _code(_submit(client, controller.record(decision))) == "evidence_unknown_executor"
+    assert _code(_submit(client, controller.record(decision))) == "evidence_executor_key_retired"
     assert _code(_post(client, f"/admin/evidence/executor-keys/{controller.key_id}/retire", {})) == "executor_key_retired"
 
 
