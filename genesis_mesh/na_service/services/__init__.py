@@ -2,5 +2,6 @@
 
 from .boundary_policy import BoundaryPolicyService
 from .evidence_store import EvidenceStoreService
+from .out_of_band import OutOfBandService
 
-__all__ = ["BoundaryPolicyService", "EvidenceStoreService"]
+__all__ = ["BoundaryPolicyService", "EvidenceStoreService", "OutOfBandService"]

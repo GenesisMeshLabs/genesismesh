@@ -53,7 +53,16 @@ OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
     "ContextRecord": ("attestation_id",),
     "ExecutionEvidence": ("resource_id", "resource_action", "resource_sequence", "prev_resource_digest"),
     "StoreAnchor": ("previous_anchor_digest",),
+    # v1.3.0: envelope fields added to every entry, omitted when absent.
+    "EvidenceStoreEntry": ("record_id", "subject_id", "matched_evidence_id", "observation_sequence"),
+    "RetentionCheckpoint": ("observation_heads",),
 }
+
+
+def _out_of_band_omissions() -> dict[str, tuple[str, ...]]:
+    from .out_of_band import OUT_OF_BAND_OMIT_WHEN_NONE
+
+    return OUT_OF_BAND_OMIT_WHEN_NONE
 
 #: Roots signed over a fixed list of fields rather than all of them.
 CANONICAL_FIELDS: dict[str, tuple[str, ...]] = {
@@ -103,12 +112,14 @@ def _roots() -> list[type[BaseModel]]:
     from .evidence_store import EvidenceStoreEntry, RetentionCheckpoint, StoreAnchor
     from .execution import ExecutionEvidence
     from .justification import JustificationProof
+    from .out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord
     from .sovereign import MembershipAttestation, SovereignRevocationFeed
 
     return [
-        AgreementRecord, BoundaryDecision, BoundaryPolicy, ContextRecord, DataAccessIntent,
-        DataLicensePolicy, EvidenceStoreEntry, ExecutionEvidence, JustificationProof,
-        MembershipAttestation, RetentionCheckpoint, SovereignRevocationFeed, StoreAnchor,
+        AgreementRecord, BoundaryDecision, BoundaryPolicy, BreakGlassRecord, ContextRecord, DataAccessIntent,
+        DataLicensePolicy, EvidenceStoreEntry, ExecutionEvidence, JudgementRecord, JustificationProof,
+        MembershipAttestation, ObservationRecord, QuarantineRecord, RegistryRecord, RetentionCheckpoint,
+        SovereignRevocationFeed, StoreAnchor,
     ]
 
 
@@ -201,8 +212,9 @@ def build_registry() -> dict[str, Any]:
         spec = done[model.__name__]
         spec["root"] = True
         spec["signature_field"] = next((f for f in ("signature", "signatures") if f in spec["fields"]), None)
-        if model.__name__ in OMIT_WHEN_NONE:
-            spec["omit_when_none"] = list(OMIT_WHEN_NONE[model.__name__])
+        omitted = OMIT_WHEN_NONE.get(model.__name__) or _out_of_band_omissions().get(model.__name__)
+        if omitted:
+            spec["omit_when_none"] = list(omitted)
         if model.__name__ in CANONICAL_FIELDS:
             spec["canonical_fields"] = list(CANONICAL_FIELDS[model.__name__])
     from .evidence_store import EntryKind

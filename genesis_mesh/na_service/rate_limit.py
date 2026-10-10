@@ -43,9 +43,12 @@ class RateLimits:
     evidence: int = 120
     read: int = 120
     admin_auth_failures: int = 30
+    #: v1.3.0: observations and break-glass records, a bucket of their own so
+    #: an observer's backlog does not crowd out controllers' evidence.
+    observations: int = 120
 
     def __post_init__(self) -> None:
-        for name in ("admin", "verify", "evidence", "read", "admin_auth_failures"):
+        for name in ("admin", "verify", "evidence", "read", "admin_auth_failures", "observations"):
             if getattr(self, name) < 1:
                 raise ValueError(f"rate limit {name} must be at least 1 per minute")
 

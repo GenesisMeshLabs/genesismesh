@@ -160,6 +160,20 @@
     },
     {
       "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/break-glass/<break_glass_id>/judge",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/changes/<path:resource_id>",
+      "level": "beta"
+    },
+    {
+      "methods": [
         "GET",
         "POST"
       ],
@@ -179,6 +193,20 @@
       ],
       "path": "/admin/evidence/export",
       "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/observations/<observation_id>/judge",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/operator-holders",
+      "level": "beta"
     },
     {
       "methods": [
@@ -233,8 +261,22 @@
       "methods": [
         "POST"
       ],
+      "path": "/admin/operator-keys/<key_id>/holder",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
       "path": "/admin/operator-keys/<key_id>/revoke",
       "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/operator-keys/holder-changes/<proposal_id>/approve",
+      "level": "beta"
     },
     {
       "methods": [
@@ -473,8 +515,29 @@
       "methods": [
         "POST"
       ],
+      "path": "/evidence/break-glass",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
       "path": "/evidence/execution",
       "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/evidence/observations",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/evidence/observations/batch",
+      "level": "beta"
     },
     {
       "methods": [
@@ -2917,6 +2980,31 @@
       "level": "beta"
     },
     {
+      "model": "genesis_mesh.models.out_of_band:BreakGlassRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.out_of_band:JudgementRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.out_of_band:ObservationRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.out_of_band:QuarantineRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.out_of_band:RegistryRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
       "model": "genesis_mesh.models.overlay_discovery:DiscoveryFeed",
       "signature_field": "signature",
       "level": "beta"
@@ -3022,6 +3110,12 @@
     "boundary_policy_not_found",
     "boundary_policy_required",
     "boundary_policy_version_conflict",
+    "break_glass_conflict",
+    "break_glass_invalid_signature",
+    "break_glass_malformed",
+    "break_glass_out_of_scope",
+    "break_glass_secret_material",
+    "break_glass_unknown_key",
     "caller_keys_not_accepted",
     "certificate_key_mismatch",
     "certificate_not_found",
@@ -3038,13 +3132,28 @@
     "empty_subject_public_keys",
     "evidence_anchor_refused",
     "evidence_build_failed",
+    "evidence_capability_mismatch",
+    "evidence_chain_gap",
+    "evidence_chain_mismatch",
+    "evidence_conflict",
+    "evidence_decision_denied",
+    "evidence_decision_mismatch",
+    "evidence_decision_not_found",
+    "evidence_invalid_signature",
+    "evidence_malformed",
+    "evidence_outside_decision_window",
+    "evidence_secret_material",
     "evidence_store_disabled",
     "evidence_store_unavailable",
+    "evidence_unknown_executor",
     "executor_key_exists",
     "executor_key_not_found",
     "executor_key_retired",
     "feed_issuer_mismatch",
     "forbidden",
+    "holder_change_already_approved",
+    "holder_change_needs_second_holder",
+    "holder_change_not_found",
     "insufficient_operator_tier",
     "intent_create_failed",
     "internal_server_error",
@@ -3054,16 +3163,20 @@
     "invalid_attestation_or_policy",
     "invalid_attestation_or_treaty",
     "invalid_boundary_policy",
+    "invalid_break_glass",
     "invalid_commitment",
     "invalid_context",
     "invalid_decision",
     "invalid_evidence",
+    "invalid_holder",
     "invalid_input",
     "invalid_invite_token",
     "invalid_json",
     "invalid_json_object",
     "invalid_justification",
+    "invalid_key_role",
     "invalid_max_validity_hours",
+    "invalid_observation",
     "invalid_offer",
     "invalid_page",
     "invalid_policy",
@@ -3074,6 +3187,7 @@
     "invalid_recipient_public_key",
     "invalid_recognition_policy",
     "invalid_recognition_treaty",
+    "invalid_resource_prefix",
     "invalid_retention",
     "invalid_revocation_reason",
     "invalid_role",
@@ -3089,6 +3203,8 @@
     "invalid_validity_hours",
     "invalid_verdict",
     "invalid_vote_type",
+    "judgement_conflict",
+    "judgement_subject_not_found",
     "justification_untrusted",
     "last_active_operator_key",
     "missing_accept_fields",
@@ -3128,6 +3244,12 @@
     "node_key_revoked",
     "not_found",
     "nullifier_failed",
+    "observation_conflict",
+    "observation_invalid_signature",
+    "observation_malformed",
+    "observation_out_of_scope",
+    "observation_secret_material",
+    "observation_unknown_key",
     "offer_rejected",
     "policy_not_found",
     "policy_sign_failed",
@@ -3137,6 +3259,8 @@
     "recognition_policy_not_configured",
     "renewal_role_change_forbidden",
     "request_validation_failed",
+    "resource_chain_gap",
+    "resource_chain_mismatch",
     "resource_not_found",
     "retention_in_progress",
     "service_not_ready",

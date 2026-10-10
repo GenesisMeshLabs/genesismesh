@@ -74,12 +74,23 @@ _JWT = re.compile(r"^eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*$")
 
 @dataclass(frozen=True)
 class ExecutorKey:
-    """A registered executor signing key."""
+    """A registered signing key: an executor's, or (v1.3.0) an observer's.
+
+    ``role`` says what the key signs: execution evidence and break-glass
+    records (``executor``), or observations (``observer``). A key with a
+    ``resource_prefix`` signs only for resources whose id starts with it.
+    """
 
     key_id: str
     public_key: str
     executor_sovereign_id: str
     retired: bool = False
+    role: str = "executor"
+    resource_prefix: str | None = None
+
+    def covers(self, resource_id: str | None) -> bool:
+        """True when this key may sign for ``resource_id``."""
+        return self.resource_prefix is None or (resource_id or "").startswith(self.resource_prefix)
 
 
 @dataclass(frozen=True)
@@ -178,6 +189,13 @@ def validate_execution(
         return reject("evidence_unknown_executor", "signing key is not registered for this executor")
     if executor_key.retired:
         return reject("evidence_unknown_executor", "signing key is retired")
+    # v1.3.0: an observer key never signs execution evidence, and a key with a
+    # resource prefix signs only for resources under it.
+    if executor_key.role != "executor":
+        return reject("evidence_unknown_executor", f"signing key is an {executor_key.role} key")
+    if evidence.resource_id is not None and not executor_key.covers(evidence.resource_id):
+        return reject("evidence_unknown_executor", f"signing key covers only resources starting with "
+                      f"{executor_key.resource_prefix!r}")
     if not verify_model_signature(evidence, evidence.signature, executor_key.public_key):
         return reject("evidence_invalid_signature", "signature does not verify")
 
@@ -297,6 +315,11 @@ class RetentionCandidate:
     resource_id: str | None
     resource_sequence: int | None
     decision_valid_until: datetime | None
+    #: v1.3.0: entries that must stay together (an observation or break-glass
+    #: record and its judgement) share a group; a pinned entry (a record not
+    #: judged yet) stops retention before it.
+    group_id: str | None = None
+    pinned: bool = False
 
 
 def plan_retention(
@@ -311,32 +334,37 @@ def plan_retention(
     Only a prefix of the store is ever removed, so every chain loses a prefix
     and stays verifiable from the checkpoint.  The prefix stops before the
     first entry that is newer than the cut-off, is the latest record of its
-    resource, or belongs to a decision still inside its validity window, and
-    never splits a decision from its justification or evidence.
+    resource, belongs to a decision still inside its validity window, or (v1.3.0)
+    is a record not judged yet, and never splits a decision from its
+    justification or evidence, or (v1.3.0) a record from its judgement.
     """
     ordered = sorted(entries, key=lambda e: e.store_sequence)
     n = 0
     for e in ordered:
         if e.recorded_at >= cutoff:
             break
-        if e.resource_id is not None and resource_latest.get(e.resource_id) == e.resource_sequence:
+        if e.resource_sequence is not None and e.resource_id is not None \
+                and resource_latest.get(e.resource_id) == e.resource_sequence:
             break
         if e.decision_valid_until is not None and e.decision_valid_until >= now:
+            break
+        if e.pinned:
             break
         n = e.store_sequence
     changed = True
     while changed and n > 0:
         changed = False
-        first_by_decision: dict[str, int] = {}
+        first_by_group: dict[str, int] = {}
         split: set[str] = set()
         for e in ordered:
-            if e.decision_id is None:
+            group = e.decision_id or e.group_id
+            if group is None:
                 continue
-            first_by_decision.setdefault(e.decision_id, e.store_sequence)
-            if e.store_sequence > n and first_by_decision[e.decision_id] <= n:
-                split.add(e.decision_id)
+            first_by_group.setdefault(group, e.store_sequence)
+            if e.store_sequence > n and first_by_group[group] <= n:
+                split.add(group)
         if split:
-            n = min(first_by_decision[d] for d in split) - 1
+            n = min(first_by_group[g] for g in split) - 1
             changed = True
     return max(n, 0)
 
@@ -368,6 +396,11 @@ class EvidenceVerification:
     decisions: int = 0
     executions: int = 0
     failures: list[dict[str, Any]] = field(default_factory=list)
+    #: v1.3.0 counts, reported only when the run holds such entries.
+    observations: int = 0
+    break_glass: int = 0
+    judgements: int = 0
+    quarantined: int = 0
     #: Set by ``check_events_against_anchors`` (v1.2.0); absent otherwise.
     anchors: dict[str, Any] | None = None
     #: Findings that do not fail verification (v1.2.0), such as fields a
@@ -389,6 +422,9 @@ class EvidenceVerification:
             "executions": self.executions,
             "failures": self.failures,
         }
+        for name in ("observations", "break_glass", "judgements", "quarantined"):
+            if getattr(self, name):
+                out[name] = getattr(self, name)
         if self.anchors is not None:
             out["anchors"] = self.anchors
         if self.warnings:
@@ -403,7 +439,16 @@ _PAYLOAD_MODELS: dict[str, str] = {
     "justification": "JustificationProof",
     "execution": "ExecutionEvidence",
     "retention_checkpoint": "RetentionCheckpoint",
+    # v1.3.0
+    "observation": "ObservationRecord",
+    "break_glass": "BreakGlassRecord",
+    "judgement": "JudgementRecord",
+    "quarantine": "QuarantineRecord",
+    "registry": "RegistryRecord",
 }
+
+#: Kinds signed by a registered key (the rest are signed by the NA).
+_KEY_SIGNED_KINDS = frozenset({"execution", "observation", "break_glass"})
 
 
 def _unknown_payload_fields(
@@ -435,7 +480,7 @@ def _unknown_payload_fields(
     found = unknown_fields(model, payload) if model else []
     if not found or model is None:
         return [], []
-    if kind == "execution":
+    if kind in _KEY_SIGNED_KINDS:
         sig = payload.get("signature")
         key = executor_keys.get(str(sig.get("key_id"))) if isinstance(sig, dict) else None
         keys = [key.public_key] if key is not None else []
@@ -461,6 +506,12 @@ def _verify_payload(
         return None
     if unsigned:
         result.warn(entry.store_sequence, "unsigned_field", ", ".join(unsigned))
+    from ..models import out_of_band as oob
+
+    stage2: dict[str, Any] = {
+        "observation": oob.ObservationRecord, "break_glass": oob.BreakGlassRecord,
+        "judgement": oob.JudgementRecord, "quarantine": oob.QuarantineRecord, "registry": oob.RegistryRecord,
+    }
     try:
         if kind == "decision":
             model: Any = BoundaryDecision.model_validate(event.payload["decision"])
@@ -468,16 +519,21 @@ def _verify_payload(
             model = JustificationProof.model_validate(event.payload)
         elif kind == "execution":
             model = ExecutionEvidence.model_validate(event.payload)
+        elif kind in stage2:
+            model = stage2[kind].model_validate(event.payload)
         else:
             model = RetentionCheckpoint.model_validate(event.payload)
     except (ValueError, KeyError, TypeError):
         result.fail(entry.store_sequence, "payload_invalid")
         return None
     sig = model.signature
-    if kind == "execution":
+    if kind in _KEY_SIGNED_KINDS:
+        # The key must belong to the record's sovereign and sign for its role (v1.3.0).
+        sovereign = model.observer_sovereign_id if kind == "observation" else model.executor_sovereign_id
+        role = "observer" if kind == "observation" else "executor"
         key = executor_keys.get(sig.key_id) if sig is not None else None
-        ok = sig is not None and key is not None and key.executor_sovereign_id == model.executor_sovereign_id \
-            and verify_model_signature(model, sig, key.public_key)
+        ok = sig is not None and key is not None and key.executor_sovereign_id == sovereign \
+            and key.role == role and verify_model_signature(model, sig, key.public_key)
     else:
         ok = sig is not None and any(verify_model_signature(model, sig, k) for k in na_public_keys)
     if not ok:
@@ -512,6 +568,14 @@ def verify_evidence_events(
             rid: ResourceHeadState(h.resource_sequence, h.record_digest)
             for rid, h in checkpoint.resource_heads.items()
         }
+    # v1.3.0: observation positions per resource, judged records, matched evidence.
+    observation_heads: dict[str, int] = dict((checkpoint.observation_heads or {}) if checkpoint else {})
+    subjects: dict[str, tuple[str, int]] = {}
+    judged: set[str] = set()
+    matched: set[str] = set()
+    not_decisions: set[str] = set()
+    first_sequence: int | None = None
+    from_start = False
     for event in events:
         entry = event.entry
         result.checked_entries += 1
@@ -527,6 +591,11 @@ def verify_evidence_events(
         elif prev is None and checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1:
             if entry.prev_entry_digest != checkpoint.last_removed_entry_digest:
                 result.fail(entry.store_sequence, "store_chain_break", "does not continue from the checkpoint")
+        if first_sequence is None:
+            first_sequence = entry.store_sequence
+            from_start = entry.store_sequence == 1 or (
+                checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1
+            )
         prev = entry
         if entry.entry_kind not in _KNOWN_ENTRY_KINDS:
             # v1.2.0: a kind from a later release; its envelope still chains.
@@ -555,6 +624,9 @@ def verify_evidence_events(
                     result.fail(entry.store_sequence, "evidence_outside_decision_window")
                 elif ctx is not None and ev.executed_capability != ctx.requested_capability:
                     result.fail(entry.store_sequence, "evidence_capability_mismatch")
+            if ev.decision_id in not_decisions:
+                # v1.3.0: execution evidence never rests on a judgement or a record of one.
+                result.fail(entry.store_sequence, "evidence_cites_judgement", ev.decision_id)
             prior = last_exec.get(ev.decision_id)
             expected_seq = prior.sequence_no + 1 if prior else None
             if prior is not None and (ev.sequence_no != expected_seq or ev.prev_evidence_digest != prior.digest()):
@@ -570,6 +642,44 @@ def verify_evidence_events(
                 resource_heads[ev.resource_id] = ResourceHeadState(ev.resource_sequence or 0, ev.digest())
         elif entry.entry_kind == "retention_checkpoint":
             pass
+        elif entry.entry_kind in ("observation", "break_glass"):
+            record_id = model.observation_id if entry.entry_kind == "observation" else model.break_glass_id
+            if entry.record_id != record_id or entry.resource_id != model.resource_id:
+                result.fail(entry.store_sequence, "envelope_mismatch", entry.entry_kind)
+            subjects[record_id] = (entry.payload_digest, entry.store_sequence)
+            not_decisions.add(record_id)
+            if entry.entry_kind == "observation":
+                result.observations += 1
+                rid = model.resource_id
+                position = entry.observation_sequence
+                if rid in observation_heads or from_start:
+                    if position != observation_heads.get(rid, 0) + 1:
+                        result.fail(entry.store_sequence, "observation_chain_break", rid)
+                observation_heads[rid] = position or observation_heads.get(rid, 0)
+            else:
+                result.break_glass += 1
+        elif entry.entry_kind == "judgement":
+            result.judgements += 1
+            not_decisions.add(model.judgement_id)
+            if entry.subject_id != model.subject_id or entry.record_id != model.judgement_id:
+                result.fail(entry.store_sequence, "envelope_mismatch", "judgement")
+            if model.subject_id in judged:
+                result.fail(entry.store_sequence, "duplicate_judgement", model.subject_id)
+            judged.add(model.subject_id)
+            subject = subjects.get(model.subject_id)
+            if subject is not None:
+                if subject != (model.subject_digest, model.subject_store_sequence):
+                    result.fail(entry.store_sequence, "judgement_subject_mismatch", model.subject_id)
+            elif contiguous and first_sequence is not None and model.subject_store_sequence >= first_sequence:
+                result.fail(entry.store_sequence, "judgement_subject_missing", model.subject_id)
+            if model.matched_evidence_id is not None:
+                if model.matched_evidence_id in matched:
+                    result.fail(entry.store_sequence, "match_reused", model.matched_evidence_id)
+                matched.add(model.matched_evidence_id)
+        elif entry.entry_kind == "quarantine":
+            result.quarantined += 1
+            if payload_digest(model.record) != model.record_digest:
+                result.fail(entry.store_sequence, "quarantine_digest_mismatch")
     return result
 
 
@@ -724,9 +834,15 @@ def check_events_against_anchors(
         else:
             matched += 1
             anchored_through = max(anchored_through or 0, seq)
-    if before and not linked_start and not partial:
+    # A held anchor commits to every entry before the one it names, so a run
+    # that is not tied at its start (entry 1, a checkpoint in the run, a held
+    # anchor) leaves entries the anchors prove exist unaccounted for, whether
+    # the anchors fall before the run or inside it (fixed in 1.3.0: only
+    # anchors before the run were counted).
+    if anchors and first is not None and not linked_start and not partial:
         result.fail(first_seq, "export_not_linked_to_anchors",
-                    f"{before} anchor(s) before the first entry, which does not continue from any of them")
+                    f"the first entry continues from no held anchor, retention checkpoint or entry 1 "
+                    f"({before} anchor(s) before it)")
     if beyond and not partial:
         result.fail(last_seq, "export_ends_before_anchor", f"{beyond} anchor(s) after the last entry")
     floor = anchored_through or 0

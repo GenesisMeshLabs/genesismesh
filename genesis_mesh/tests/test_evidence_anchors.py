@@ -211,10 +211,11 @@ def test_anchors_survive_retention_and_the_store_still_verifies(client, na_servi
         def now(cls, tz=None):
             return datetime.now(tz) + timedelta(days=400)
 
+    registry = _get(client, "/admin/evidence?entry_kind=registry").get_json()["count"]
     monkeypatch.setattr(svc, "datetime", Later)
     result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
     monkeypatch.undo()
-    assert result["removed_count"] == 3
+    assert result["removed_count"] == 3 + registry  # registry records are carried forward (v1.3.0)
     assert _anchors(client)[: len(before)] == before, "retention never removes or changes anchors"
     verified = _get(client, "/admin/evidence/verify").get_json()
     assert verified["verified"] is True, verified["failures"]
@@ -285,7 +286,8 @@ def test_re_anchoring_with_the_na_key_does_not_fool_held_anchors(client, na_serv
     _activity(client)
     _post(client, ANCHORS, {}, standard=True)
     held = _held(client)
-    forged = _rebuild_without(_export(client), drop_sequence=3)
+    # Remove an entry after the first held anchor, which still fits the forged chain.
+    forged = _rebuild_without(_export(client), drop_sequence=held[0].store_sequence + 1)
     head = forged[-1]
     fake = sign_store_anchor(StoreAnchor(
         anchor_sequence=held[-1].anchor_sequence, sovereign_id="TEST", store_sequence=head.entry.store_sequence,
@@ -529,8 +531,9 @@ def test_the_nas_own_verification_detects_deleted_old_entries(client, na_service
     _activity(client, 3)
     _post(client, ANCHORS, {}, standard=True)
     db = na_service.db
+    first_anchored = _held(client)[0].store_sequence
     _tamper(db, "evidence_entries_retention_only_delete", "evidence_entries",
-            "DELETE FROM evidence_entries WHERE store_sequence <= 3")
+            "DELETE FROM evidence_entries WHERE store_sequence <= ?", (first_anchored + 1,))
     result = _get(client, "/admin/evidence/verify").get_json()
     assert result["verified"] is False
     assert "export_not_linked_to_anchors" in {f["reason"] for f in result["failures"]}

@@ -41,6 +41,11 @@ class NASettings:
     proxy_hops: int = 1
     public_url: Optional[str] = None
     rate_limits: RateLimits = field(default_factory=RateLimits)
+    # v1.3.0 (Stage 2)
+    operator_key_holders: dict[str, str] = field(default_factory=dict)
+    observation_max_backlog_seconds: int = 7 * 24 * 3600
+    observation_clock_skew_seconds: int = 300
+    judge_on_admission: bool = True
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -101,8 +106,26 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
             evidence=_int(e, "NA_RATE_LIMIT_EVIDENCE_PER_MINUTE", 120),
             read=_int(e, "NA_RATE_LIMIT_READ_PER_MINUTE", 120),
             admin_auth_failures=_int(e, "NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE", 30),
+            observations=_int(e, "NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE", 120),
         ),
+        operator_key_holders=_json_object(e, "OPERATOR_KEY_HOLDERS_JSON"),
+        observation_max_backlog_seconds=_int(e, "NA_OBSERVATION_MAX_BACKLOG_SECONDS", 7 * 24 * 3600),
+        observation_clock_skew_seconds=_int(e, "NA_OBSERVATION_CLOCK_SKEW_SECONDS", 300),
+        judge_on_admission=_on_off(e, "NA_JUDGE_ON_ADMISSION", True),
     )
+
+
+def _on_off(env: Mapping[str, str], name: str, default: bool) -> bool:
+    """An on/off setting (v1.3.0); a bad value names its variable."""
+    raw = env.get(name)
+    if raw is None or raw == "":
+        return default
+    value = raw.strip().lower()
+    if value in ("on", "true", "1", "yes"):
+        return True
+    if value in ("off", "false", "0", "no"):
+        return False
+    raise ValueError(f"{name} must be on or off")
 
 
 def _public_url(raw: Optional[str]) -> Optional[str]:
