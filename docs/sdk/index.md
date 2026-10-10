@@ -42,6 +42,12 @@ shared `interop` conformance vectors, and the cross-language scenario in
 | Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 1.3.0 | `GenesisMeshLabs/sdk-rust` |
 | Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 1.3.0 | `GenesisMeshLabs/gateway` |
 
+The Go and .NET SDKs share the version number but not the whole surface: they
+have no evidence store client and no observation, break-glass or outbox API,
+and do not verify evidence exports. To record changes made outside the
+controlled path, use the TypeScript or Rust SDK, or the HTTP routes in
+{doc}`../operations/out-of-band-changes`.
+
 Rust has two components. The Rust SDK (`genesis-mesh-sdk`) is an NA client
 like the other three, including governed actions and offline evidence
 verification since 0.64.0 ({doc}`rust/sdk`). The gateway crate ships the
