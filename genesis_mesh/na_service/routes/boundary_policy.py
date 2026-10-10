@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any
 
 from flask import Blueprint, jsonify, request
@@ -127,18 +128,18 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         data = request_json_object()
         _admin(data, "privileged")
         version = _version_field(data)
-        policy, previous = policies.activate(policy_id, version)
-        audit_event_id = service.db.add_audit_event("boundary_policy_activated", {
+        # v1.3.0: judgements replay the activation history from the evidence store; since
+        # v1.3.1 its registry record commits with the activation and names this audit event.
+        audit_event_id = str(uuid.uuid4())
+        policy, previous = policies.activate(policy_id, version, recorded_by=request.headers.get("X-Admin-Key-Id"),
+                                             audit_event_id=audit_event_id)
+        service.db.add_audit_event("boundary_policy_activated", {
             "policy_id": policy_id,
             "version": version,
             "previous_version": previous,
             "policy_digest": policy.digest(),
             "rollback": previous is not None and previous > version,
-        })
-        # v1.3.0: judgements replay the activation history from the evidence store.
-        service.out_of_band_service.policy_activated(
-            policy, previous, request.headers.get("X-Admin-Key-Id"), audit_event_id,
-        )
+        }, event_id=audit_event_id)
         return jsonify({
             "policy_id": policy_id,
             "version": version,
@@ -152,14 +153,13 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         data = request_json_object()
         _admin(data, "privileged")
         version = _version_field(data)
-        policies.deactivate(policy_id, version)
-        audit_event_id = service.db.add_audit_event("boundary_policy_deactivated", {
+        audit_event_id = str(uuid.uuid4())
+        policies.deactivate(policy_id, version, recorded_by=request.headers.get("X-Admin-Key-Id"),
+                            audit_event_id=audit_event_id)
+        service.db.add_audit_event("boundary_policy_deactivated", {
             "policy_id": policy_id,
             "version": version,
-        })
-        service.out_of_band_service.policy_deactivated(
-            policy_id, version, request.headers.get("X-Admin-Key-Id"), audit_event_id,
-        )
+        }, event_id=audit_event_id)
         return jsonify({"policy_id": policy_id, "version": version, "active": False})
 
     def _evaluate_attestation(data: dict, attestation_id: object, capability: str):

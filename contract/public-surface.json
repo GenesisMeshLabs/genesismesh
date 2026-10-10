@@ -3158,6 +3158,7 @@
     "holder_change_needs_named_holders",
     "holder_change_needs_second_holder",
     "holder_change_not_found",
+    "holder_change_proposer_revoked",
     "insufficient_operator_tier",
     "intent_create_failed",
     "internal_server_error",

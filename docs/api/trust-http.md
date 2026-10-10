@@ -462,8 +462,11 @@ See {doc}`../operations/evidence-anchors`.
 
 Since v1.3.0 an authentic execution record refused for good (its decision
 denied, mismatched or outside its window, the wrong capability, a chain
-mismatch or a conflict) is kept as a `quarantine` entry; the `422` or `409`
-names it in `error.details.quarantine_id`.
+mismatch or a conflict, a retired key or a key outside its scope) is kept as
+a `quarantine` entry; the `422` or `409` names it in
+`error.details.quarantine_id`. Quarantine needs `EVIDENCE_OUT_OF_BAND=on`:
+with the switch off nothing is quarantined and the refusal carries no
+`quarantine_id`.
 
 ### Changes outside the controlled path (v1.3.0)
 
@@ -489,35 +492,51 @@ bounds; `200` with `"status": "duplicate"` for the same observation again.
 
 **Errors**: `422` with `observation_malformed`,
 `observation_invalid_signature`, `observation_unknown_key`,
-`observation_out_of_scope` or `observation_secret_material`;
-`409 observation_conflict` for a different observation of the same source
-event.
+`observation_key_retired`, `observation_out_of_scope` or
+`observation_secret_material`; `409 observation_conflict` for a different
+observation of the same source event, another observation with the same
+`observation_id`, or (since 1.3.1) a break-glass record with that id. An
+observation refused with `observation_key_retired` or
+`observation_out_of_scope` is authentic, so since 1.3.1 it is also kept as a
+`quarantine` entry, named in `error.details.quarantine_id` (never one that
+may carry secret material).
 
 #### `POST /evidence/observations/batch`
 
 `{ "observations": [...] }`, up to 100, admitted in order of their change
 times. **Response** `200` `{ "results": [...] }` in request order, each with
 `index` and the single route's body, or `"status": "refused"` with its
-`error`.
+`error` (`code`, `message`, and since 1.3.1 `details` when the refusal names
+a `quarantine_id`).
 
 #### `POST /evidence/break-glass`
 
 Submit one signed `BreakGlassRecord`, `{ "record": {...} }`. **Auth**: the
 record's signature, by a registered, active executor key. Responses as for
 observations; errors `break_glass_malformed`, `break_glass_invalid_signature`,
-`break_glass_unknown_key`, `break_glass_out_of_scope`,
-`break_glass_secret_material`, `409 break_glass_conflict`.
+`break_glass_unknown_key`, `break_glass_key_retired`,
+`break_glass_out_of_scope`, `break_glass_secret_material`,
+`409 break_glass_conflict` (another record with the same `break_glass_id`, or
+since 1.3.1 an observation with that id). `break_glass_key_retired` and
+`break_glass_out_of_scope` quarantine the record as for observations.
 
 #### Operator routes
 
 | Route | Purpose |
 |---|---|
-| `POST /admin/evidence/observations/<observation_id>/judge` | Judge an observation once: `201` with `"status": "judged"`, or `200` with `"status": "existing"`; `404 judgement_subject_not_found` |
+| `POST /admin/evidence/observations/<observation_id>/judge` | Judge an observation once: `201` with `"status": "judged"`, or `200` with `"status": "existing"`; `404 judgement_subject_not_found`; `409 judgement_conflict` when a break-glass record with the same id holds the id's judgement (a store written by 1.3.0) |
 | `POST /admin/evidence/break-glass/<break_glass_id>/judge` | The same for a break-glass record |
 | `GET /admin/evidence/changes/<resource_id>` | Every change to a resource, oldest first: `kind`, `action`, `at`, `governed_by`, `state` (`recorded`, `matched`, `judged_allowed`, `judged_denied`, `indeterminate`, `observed`, `quarantined`), and the verdict, flag, hint or justification where there is one; `read` tier |
 | `GET /admin/evidence/operator-holders` | The holder the store records for each operator key; `read` tier |
 | `POST /admin/operator-keys/<key_id>/holder` | Propose `{ "holder": "..." }` for an operator key (privileged): `201` with a `proposal_id` |
-| `POST /admin/operator-keys/holder-changes/<proposal_id>/approve` | Approve it with a privileged key of a different holder; recorded in the store; `409 holder_change_needs_second_holder`, `409 holder_change_already_approved`, `404 holder_change_not_found` |
+| `POST /admin/operator-keys/holder-changes/<proposal_id>/approve` | Approve it with a privileged key of a different holder; recorded in the store; `409 holder_change_needs_named_holders` (the proposing or approving key has no named holder in the store), `409 holder_change_needs_second_holder`, `409 holder_change_proposer_revoked` (since 1.3.1: the proposing key was revoked, removed from the configuration or re-keyed since it proposed), `409 holder_change_already_approved`, `404 holder_change_not_found` |
+
+With the records on, `GET /admin/evidence/status` also reports
+`unjudged_records` and, since 1.3.1, `policy_history_started` (how far back
+the policy history reaches, or `null` when it has not started and every
+change is judged `indeterminate`), `registry_healthy` and
+`registry_problems` (a registry check that failed at start, a policy history
+that has not started, or active policies the registry has not recorded).
 
 ---
 

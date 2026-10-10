@@ -325,8 +325,7 @@ class TrustStoreMixin:
                     ON CONFLICT(issuer_sovereign_id, attestation_id) DO UPDATE SET
                         feed_id = excluded.feed_id,
                         sequence = excluded.sequence,
-                        reason = excluded.reason,
-                        imported_at = excluded.imported_at
+                        reason = excluded.reason
                     """,
                     (
                         feed.issuer_sovereign_id,
@@ -364,6 +363,39 @@ class TrustStoreMixin:
             }
             for row in rows
         ]
+    def get_imported_sovereign_revocation(self, issuer_sovereign_id: str, attestation_id: str) -> dict | None:
+        """One imported revocation, or None (v1.3.1).
+
+        ``imported_at`` is when a feed first listed the attestation: a later
+        cumulative feed that lists it again does not move it (since 1.3.1;
+        a row written by 1.3.0 may carry the later import, see
+        ``first_feed_import``).
+        """
+        row = self.conn.execute(
+            """
+            SELECT issuer_sovereign_id, attestation_id, feed_id, sequence, reason, imported_at
+            FROM imported_sovereign_revocations
+            WHERE issuer_sovereign_id = ? AND attestation_id = ?
+            """,
+            (issuer_sovereign_id, attestation_id),
+        ).fetchone()
+        return dict(row) if row else None
+    def first_feed_import(self, issuer_sovereign_id: str, attestation_id: str) -> str | None:
+        """When the first imported feed of an issuer that lists an attestation was imported (v1.3.1)."""
+        rows = self.conn.execute(
+            """
+            SELECT feed_json, imported_at
+            FROM sovereign_revocation_feeds
+            WHERE issuer_sovereign_id = ?
+            ORDER BY sequence ASC
+            """,
+            (issuer_sovereign_id,),
+        ).fetchall()
+        for row in rows:
+            feed = SovereignRevocationFeed.model_validate_json(row["feed_json"])
+            if attestation_id in feed.revoked_attestation_ids:
+                return str(row["imported_at"])
+        return None
     def get_imported_revoked_attestation_ids(self, issuer_sovereign_id: str) -> set[str]:
         """Return attestation IDs revoked by imported feeds for an issuer."""
         rows = self.conn.execute(

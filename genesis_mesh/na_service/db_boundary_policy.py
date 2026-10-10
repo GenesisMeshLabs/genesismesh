@@ -115,36 +115,52 @@ class BoundaryPolicyStoreMixin:
         Returns the previously active version (or None).  Raises KeyError for an
         unknown version.  Both changes commit in one transaction.
         """
-        now = datetime.now(timezone.utc).isoformat()
         with self._lock, self.conn:
-            if self.get_boundary_policy_row(policy_id, version) is None:
-                raise KeyError(f"{policy_id}@{version}")
-            prev = self.conn.execute(
-                "SELECT version FROM boundary_policy_versions WHERE policy_id = ? AND active = 1",
-                (policy_id,),
-            ).fetchone()
-            previous = int(prev["version"]) if prev else None
-            if previous == version:
-                return previous
-            self.conn.execute(
-                "UPDATE boundary_policy_versions SET active = 0, deactivated_at = ? "
-                "WHERE policy_id = ? AND active = 1",
-                (now, policy_id),
-            )
-            self.conn.execute(
-                "UPDATE boundary_policy_versions SET active = 1, activated_at = ? "
-                "WHERE policy_id = ? AND version = ?",
-                (now, policy_id, version),
-            )
+            return self.activate_boundary_policy_rows(policy_id, version)
+
+    def activate_boundary_policy_rows(self, policy_id: str, version: int) -> Optional[int]:
+        """``activate_boundary_policy`` inside the caller's transaction (v1.3.1: the evidence
+        store's write transaction, so the activation and its registry record land together)."""
+        now = datetime.now(timezone.utc).isoformat()
+        if self.get_boundary_policy_row(policy_id, version) is None:
+            raise KeyError(f"{policy_id}@{version}")
+        prev = self.conn.execute(
+            "SELECT version FROM boundary_policy_versions WHERE policy_id = ? AND active = 1",
+            (policy_id,),
+        ).fetchone()
+        previous = int(prev["version"]) if prev else None
+        if previous == version:
+            return previous
+        self.conn.execute(
+            "UPDATE boundary_policy_versions SET active = 0, deactivated_at = ? "
+            "WHERE policy_id = ? AND active = 1",
+            (now, policy_id),
+        )
+        self.conn.execute(
+            "UPDATE boundary_policy_versions SET active = 1, activated_at = ? "
+            "WHERE policy_id = ? AND version = ?",
+            (now, policy_id, version),
+        )
         return previous
 
     def deactivate_boundary_policy(self, policy_id: str, version: int) -> bool:
         """Deactivate one version.  Returns False if it was not active."""
-        now = datetime.now(timezone.utc).isoformat()
         with self._lock, self.conn:
-            cur = self.conn.execute(
-                "UPDATE boundary_policy_versions SET active = 0, deactivated_at = ? "
-                "WHERE policy_id = ? AND version = ? AND active = 1",
-                (now, policy_id, version),
-            )
-        return cur.rowcount > 0
+            return self.deactivate_boundary_policy_rows(policy_id, version)
+
+    def deactivate_boundary_policy_rows(self, policy_id: str, version: int) -> bool:
+        """``deactivate_boundary_policy`` inside the caller's transaction (v1.3.1)."""
+        now = datetime.now(timezone.utc).isoformat()
+        cur = self.conn.execute(
+            "UPDATE boundary_policy_versions SET active = 0, deactivated_at = ? "
+            "WHERE policy_id = ? AND version = ? AND active = 1",
+            (now, policy_id, version),
+        )
+        return bool(cur.rowcount > 0)
+
+    def active_boundary_policy_versions(self) -> dict[str, tuple[int, str]]:
+        """policy_id -> (version, stored digest) of every active row, without parsing it (v1.3.1)."""
+        rows = self.conn.execute(
+            "SELECT policy_id, version, policy_digest FROM boundary_policy_versions WHERE active = 1"
+        ).fetchall()
+        return {r["policy_id"]: (int(r["version"]), r["policy_digest"]) for r in rows}
