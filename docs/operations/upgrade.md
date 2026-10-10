@@ -50,8 +50,6 @@ built wheel before every release.
 
 ## Upgrading to 1.3
 
-*Unreleased.*
-
 1.3 adds migration 015. On SQLite it rebuilds the evidence table (to accept
 the new entry kinds), so allow for one copy of the table on disk; on
 PostgreSQL the table is altered in place. Entries, their digests and the

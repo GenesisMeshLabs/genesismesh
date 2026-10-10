@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.2.0:
+As of v1.3.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.2.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,010 tests pass. The layer rule and public boundary rule are enforced
+- 2,044 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -186,11 +186,11 @@ As of v1.2.0:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 92 HTTP routes, 127 CLI
-  commands, the public Python API, 52 signed artifacts and every API error
+  as the Public Contract page) classifies all 101 HTTP routes, 127 CLI
+  commands, the public Python API, 57 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.1.1, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.2.0, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.2.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 13 suites and 209
+- A protocol conformance suite exists in `conformance/`: 14 suites and 284
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -229,6 +229,12 @@ As of v1.2.0:
   signed evidence until the Network Authority admits it, so evidence survives
   the Network Authority being unreachable and the action's value is never
   lost with it.
+- A change made outside a governed action, seen at its source by an observer
+  or made under break-glass while the Network Authority was unreachable, is
+  recorded in the evidence store and judged once, as of when it happened,
+  under the policies the store's signed registry says were active then; a
+  judgement is never an approval, and an authentic record refused after its
+  action happened is kept, with {doc}`../operations/out-of-band-changes`.
 - The public contract is stable for the 1.x line, security support covers
   the latest minor line, and all six components of the release train ship the same version.
 - An operator's admin signature covers the whole request: method, path, query
@@ -1025,6 +1031,50 @@ interoperability, upgrade and documentation gate.
 Authority being unreachable, one record gets one verdict in every
 implementation, and removing anchored evidence is detectable by whoever holds
 the anchors.
+
+### v1.3.0 — Observations, Judgements and Break-Glass
+
+The second stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). The evidence store recorded only changes made
+through a governed action: a secret changed in the cloud console, or by a
+controller that could not reach the Network Authority, left no record at all,
+and no one could say whether it was allowed.
+
+An observer now signs what it sees at a change's source, an activity log
+entry or a reconciliation finding, as an observation; a controller whose
+evaluation failed because the Network Authority could not be reached can run
+the action anyway on a caller's justification and sign a break-glass record,
+never after a DENY. The Network Authority judges each record once, as of when
+the change happened: a change that matches recorded execution evidence by
+version is governed by that evidence's decision, unless the observer's own
+facts are denied; any other change is judged under the policy versions active
+then, replayed from signed registry records of every activation, key and
+operator key holder, which the store keeps under its anchors and through
+retention. A judgement has no `authorized` field, and execution evidence can
+never rest on one. An authentic record refused after its action happened is
+kept as a quarantine entry, never with secret material. The TypeScript and
+Rust SDKs record observations, keep them and break-glass records in an
+outbox, and verify the new records offline; every implementation's field
+registry lists them, and the `out_of_band` conformance suite carries them.
+The records stay off until `EVIDENCE_OUT_OF_BAND=on`, so a store remains
+readable by 1.2 verifiers until they are upgraded.
+
+Two critic and skeptic review rounds, over 1.2 and 1.3, closed gaps before
+the release: matching needs the same capability, a change known only within
+a window is judged at every policy change inside it, the registry is
+reconciled from the audit log, holder changes need two named holders, the
+glass never breaks after the Network Authority has answered, and the
+implementations agree on several malformed inputs they read differently.
+Pull requests now add changelog fragments, so the next version's work never
+conflicts with a release.
+
+The release passed 2,044 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** every change to a governed resource, governed or
+not, is on the record with a verdict as of its time, and an outage of the
+Network Authority no longer forces a choice between acting and keeping
+evidence.
 
 ---
 

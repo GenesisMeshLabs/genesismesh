@@ -160,28 +160,28 @@ Choices made in building it are Decisions 5 to 12 below.
       verdict that differs under current policy is flagged
 - [x] No verifier reports a judgement as an authorisation; execution evidence
       citing one is refused
-- [ ] With the NA stopped, a break-glass action runs, its record is kept in
+- [x] With the NA stopped, a break-glass action runs, its record is kept in
       the outbox, admitted on reconnect and judged; a DENY is not broken
-      through
+      through (sdk-typescript e2e, against a live NA)
 - [x] A dead-lettered record appears in the store as quarantined
 - [x] Registry entries are in the store and under anchors; the backfill
       reproduces audit-event history; a holder change needs a second holder
 - [x] A 1.2 database upgrades with every policy, anchor and the store chain
       verifying
-- [ ] `out_of_band.json` passes in the Python, TypeScript and Rust verifiers;
+- [x] `out_of_band.json` passes in the Python, TypeScript and Rust verifiers;
       Go, .NET and PHP do not verify exports (unchanged), and their copy of
       the field registry lists the new kinds (Decision 12)
 
 ## Release Gate
 
-- [ ] Stage 1 (1.2.0) released
+- [x] Stage 1 (1.2.0) released (2026-10-10)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.3.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries, `history.md`, `phase-n.md`
-- [ ] `SECURITY.md`: 1.3.x supported, 1.2.x upgrade to 1.3
-- [ ] Public contract: new routes (beta, with stable bytes), models, entry
+- [x] Version bumped to `1.3.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries, `history.md`, `phase-n.md`
+- [x] `SECURITY.md`: 1.3.x supported, 1.2.x upgrade to 1.3
+- [x] Public contract: new routes (beta, with stable bytes), models, entry
       kinds and error codes classified
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.3.0`, releases, published-artifacts green
 - [ ] `"1.3.0"` added to the `upgrade.yml` matrix after the release
