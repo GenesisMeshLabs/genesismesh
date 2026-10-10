@@ -215,11 +215,21 @@ class EvidenceStoreMixin:
         ).fetchone()
         return self._row_to_stored(row) if row else None
 
-    def get_judgement_for(self, subject_id: str) -> dict[str, Any] | None:
+    def get_judgement_for(self, subject_kind: str, subject_id: str) -> dict[str, Any] | None:
+        """The judgement of one observation or break-glass record (v1.3.1: of that kind only).
+
+        Migration 015 allows one judgement per ``subject_id``; since 1.3.1 an
+        observation and a break-glass record cannot share an id, but a 1.3.0
+        store may hold such a pair, and the judgement of one is never the
+        other's.
+        """
         row = self.conn.execute(
             "SELECT * FROM evidence_entries WHERE entry_kind = 'judgement' AND subject_id = ?", (subject_id,)
         ).fetchone()
-        return self._row_to_stored(row) if row else None
+        if row is None:
+            return None
+        stored = self._row_to_stored(row)
+        return stored if stored["payload"].get("subject_kind") == subject_kind else None
 
     def last_observation_sequence(self, resource_id: str) -> int:
         """The resource's latest observation position, honouring retention (0 when none)."""
@@ -233,43 +243,63 @@ class EvidenceStoreMixin:
         return int((cp.observation_heads or {}).get(resource_id, 0)) if cp is not None else 0
 
     def unmatched_executions(
-        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50,
+        recorded_since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Execution and break-glass records of a resource, action and capability no judgement has matched.
 
         With ``version_id``, only records naming that version, oldest first (the
         match); without it, the most recent records (candidates for a hint).
+        ``recorded_since`` (v1.3.1) leaves out records stored before it.
         """
-        version_clause = "AND e.version_id = ?" if version_id is not None else ""
+        return self._executions_of(resource_id, resource_action, version_id, capability, limit,
+                                   recorded_since, matched=False)
+
+    def matched_executions(
+        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1,
+        recorded_since: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Execution and break-glass records of this change a judgement has already matched, oldest first.
+
+        v1.3.1: break-glass records too, so another observer's report of a
+        break-glass change is that change, not a new one.
+        """
+        return self._executions_of(resource_id, resource_action, version_id, capability, limit,
+                                   recorded_since, matched=True)
+
+    def _executions_of(
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int,
+        recorded_since: datetime | None, *, matched: bool,
+    ) -> list[dict[str, Any]]:
+        clauses = ["e.entry_kind IN ('execution', 'break_glass')", "e.resource_id = ?", "e.resource_action = ?",
+                   "e.capability = ?"]
         params: list[Any] = [resource_id, resource_action, capability]
         if version_id is not None:
+            clauses.append("e.version_id = ?")
             params.append(version_id)
-        order = "ASC" if version_id is not None else "DESC"
+        if recorded_since is not None:
+            clauses.append("e.recorded_at >= ?")
+            params.append(recorded_since.isoformat())
         # Execution evidence is identified by evidence_id, a break-glass record by record_id.
+        exists = "EXISTS" if matched else "NOT EXISTS"
+        clauses.append(f"""{exists} (SELECT 1 FROM evidence_entries j
+                                   WHERE j.matched_evidence_id = COALESCE(e.evidence_id, e.record_id))""")
+        order = "ASC" if version_id is not None else "DESC"
         rows = self.conn.execute(
-            f"""SELECT e.* FROM evidence_entries e
-                WHERE e.entry_kind IN ('execution', 'break_glass') AND e.resource_id = ?
-                  AND e.resource_action = ? AND e.capability = ? {version_clause}
-                  AND NOT EXISTS (SELECT 1 FROM evidence_entries j
-                                  WHERE j.matched_evidence_id = COALESCE(e.evidence_id, e.record_id))
-                ORDER BY e.store_sequence {order} LIMIT ?""",
+            f"SELECT e.* FROM evidence_entries e WHERE {' AND '.join(clauses)} ORDER BY e.store_sequence {order} LIMIT ?",
             (*params, limit),
         ).fetchall()
         return [self._row_to_stored(r) for r in rows]
 
-    def matched_executions(
-        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1
-    ) -> list[dict[str, Any]]:
-        """Execution records of this change a judgement has already matched, oldest first."""
-        rows = self.conn.execute(
-            """SELECT e.* FROM evidence_entries e
-               WHERE e.entry_kind = 'execution' AND e.resource_id = ? AND e.resource_action = ?
-                 AND e.capability = ? AND e.version_id = ?
-                 AND EXISTS (SELECT 1 FROM evidence_entries j WHERE j.matched_evidence_id = e.evidence_id)
-               ORDER BY e.store_sequence ASC LIMIT ?""",
-            (resource_id, resource_action, capability, version_id, limit),
-        ).fetchall()
-        return [self._row_to_stored(r) for r in rows]
+    def executed_for_attestation(self, executor_sovereign_id: str, attestation_id: str, before_sequence: int) -> bool:
+        """Whether this executor recorded execution evidence under a decision for this attestation
+        before a store position (v1.3.1)."""
+        row = self.conn.execute(
+            """SELECT 1 FROM evidence_entries WHERE entry_kind = 'execution' AND attestation_id = ?
+                 AND executor_sovereign_id = ? AND store_sequence < ? LIMIT 1""",
+            (attestation_id, executor_sovereign_id, before_sequence),
+        ).fetchone()
+        return row is not None
 
     def dedupe_keys(self, prefix: str) -> set[str]:
         """Every stored dedupe key starting with ``prefix``."""
@@ -279,22 +309,53 @@ class EvidenceStoreMixin:
         ).fetchall()
         return {r["dedupe_key"] for r in rows}
 
-    def unjudged_count(self) -> int:
-        """Observations and break-glass records no judgement covers yet."""
-        row = self.conn.execute(
-            """SELECT COUNT(*) AS n FROM evidence_entries e
-               WHERE e.entry_kind IN ('observation', 'break_glass')
+    _UNJUDGED = """e.entry_kind IN ('observation', 'break_glass')
                  AND NOT EXISTS (SELECT 1 FROM evidence_entries j
                                  WHERE j.entry_kind = 'judgement' AND j.subject_id = e.record_id)"""
+
+    def unjudged_count(self) -> int:
+        """Observations and break-glass records no judgement covers yet."""
+        row = self.conn.execute(f"SELECT COUNT(*) AS n FROM evidence_entries e WHERE {self._UNJUDGED}").fetchone()
+        # v1.3.1: of an observation and a break-glass record sharing an id (a 1.3.0 store),
+        # a judgement covers one only.
+        shared = self.conn.execute(
+            """SELECT COUNT(*) AS n FROM evidence_entries o
+               JOIN evidence_entries b ON b.entry_kind = 'break_glass' AND b.record_id = o.record_id
+               WHERE o.entry_kind = 'observation'
+                 AND EXISTS (SELECT 1 FROM evidence_entries j
+                             WHERE j.entry_kind = 'judgement' AND j.subject_id = o.record_id)"""
         ).fetchone()
-        return int(row["n"])
+        return int(row["n"]) + int(shared["n"])
+
+    def unjudged_records(self, limit: int) -> list[tuple[str, str]]:
+        """(entry_kind, record_id) of the oldest records no judgement covers yet (v1.3.1)."""
+        rows = self.conn.execute(
+            f"""SELECT e.entry_kind, e.record_id FROM evidence_entries e WHERE {self._UNJUDGED}
+                ORDER BY e.store_sequence LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [(r["entry_kind"], r["record_id"]) for r in rows]
 
     def registry_entries(self) -> list[dict[str, Any]]:
-        """Every registry record in store order."""
+        """Every registry record in store order, with its dedupe key (v1.3.1)."""
         rows = self.conn.execute(
             "SELECT * FROM evidence_entries WHERE entry_kind = 'registry' ORDER BY store_sequence"
         ).fetchall()
-        return [self._row_to_stored(r) for r in rows]
+        return [{**self._row_to_stored(r), "dedupe_key": r["dedupe_key"]} for r in rows]
+
+    def registry_floor(self) -> datetime | None:
+        """The latest time the store already holds (v1.3.1): its newest entry's ``recorded_at``
+        and its latest anchor's ``anchored_at``. A record the NA reconstructs takes effect no earlier."""
+        times: list[datetime] = []
+        row = self.conn.execute(
+            "SELECT recorded_at FROM evidence_entries ORDER BY store_sequence DESC LIMIT 1"
+        ).fetchone()
+        if row is not None:
+            times.append(datetime.fromisoformat(str(row["recorded_at"])))
+        anchor = self.latest_store_anchor()
+        if anchor is not None:
+            times.append(anchor.anchored_at)
+        return max(times) if times else None
 
     def resource_changes(self, resource_id: str, limit: int) -> list[dict[str, Any]]:
         """A resource's execution records, observations, break-glass records, judgements and quarantine entries."""

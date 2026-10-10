@@ -133,14 +133,15 @@ def _lifetime_policy(client, max_days: int, *, extra_gates=(), selector=None) ->
     return resp.get_json()["version"]
 
 
-def _same_na(service, db_path: str):
+def _same_na(service, db_path: str, **overrides):
     """The same NA (genesis, key, operator keys) on a database file, as after a restart."""
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
+    settings = {"operator_public_keys": service.operator_public_keys, "operator_key_tiers": service.operator_key_tiers,
+                "evidence_store": "on", "evidence_out_of_band": "on", **overrides}
     restarted = NetworkAuthorityService(
         genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id,
-        db_path=db_path, operator_public_keys=service.operator_public_keys,
-        operator_key_tiers=service.operator_key_tiers, evidence_store="on", evidence_out_of_band="on",
+        db_path=db_path, **settings,
     )
     setattr(restarted, "_test_operator_keypair", service._test_operator_keypair)
     setattr(restarted, "_std_keypair", service._std_keypair)
@@ -262,6 +263,7 @@ def test_a_governed_change_seen_by_an_observer_is_matched_once(client, clock):
     controller = Controller(client)
     evidence = controller.record(_decide(client), params={"version_id": "v7"})
     assert _submit(client, evidence).status_code == 201
+    clock.at = evidence.executed_at + timedelta(minutes=1)  # observers report the change made then
     observer = Observer(client)
     seen = _observe(client, observer.observe(clock, action="create", version_id="v7"))
     judgement = _judgement(seen.get_json())
@@ -284,7 +286,7 @@ def test_a_match_needs_the_same_capability_and_the_observers_facts_still_count(c
     evidence = controller.record(_decide(client), params={"version_id": "v8"})
     assert _submit(client, evidence).status_code == 201
     _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
-    clock.advance(minutes=2)  # the changes below happen under the policy
+    clock.at = evidence.executed_at + timedelta(minutes=1)  # the change happened then, under the policy
     observer = Observer(client)
     # A decision for another capability governs nothing here: judged on its own.
     elsewhere = _judgement(_observe(client, observer.observe(
@@ -591,8 +593,29 @@ def test_the_backfill_reproduces_the_audit_event_history(clock, tmp_path):
     assert len(third.out_of_band_service._registry_records()) == len(records)
 
 
+def _first_start(holders: dict[str, str], extra_keys: dict, **kwargs):
+    """An NA whose store first runs with the records on with these extra privileged operator keys
+    and these holders (``OPERATOR_KEY_HOLDERS_JSON`` names holders at this start only)."""
+    service = _make_service(evidence_store="on", **kwargs)  # records off: no holder recorded yet
+    for key_id, keypair in extra_keys.items():
+        service.operator_public_keys[key_id] = keypair.public_key_b64
+        service.operator_key_tiers[key_id] = "privileged"
+    service.operator_key_holders.update(holders)
+    service.evidence_out_of_band = "on"
+    service.out_of_band_service.ensure_registry()
+    return service
+
+
+def _approve(client, keypair, key_id: str, proposal: str):
+    from .test_na_boundary_policy import _headers
+
+    url = f"/admin/operator-keys/holder-changes/{proposal}/approve"
+    return client.post(url, json={}, headers=_headers(keypair, key_id, {}, client=client, method="POST", url=url))
+
+
 def test_holders_are_recorded_at_start_and_change_only_with_a_second_holder(clock):
-    service = _make_service(evidence_store="on", evidence_out_of_band="on", operator_key_holders={"operator-test": "alice"})
+    carol = generate_keypair()
+    service = _first_start({"operator-test": "alice", "operator-carol": "carol"}, {"operator-carol": carol})
     client = _client(service)
     holders = {h["key_id"]: h for h in _get(client, "/admin/evidence/operator-holders").get_json()["holders"]}
     assert holders["operator-test"]["holder"] == "alice" and holders["operator-std"]["holder"] == "operator-std"
@@ -603,34 +626,30 @@ def test_holders_are_recorded_at_start_and_change_only_with_a_second_holder(cloc
     same = _post(client, f"/admin/operator-keys/holder-changes/{proposal}/approve", {})
     assert same.status_code == 409 and _code(same) == "holder_change_needs_second_holder"
 
-    second = generate_keypair()
-    service.operator_public_keys["operator-carol"] = second.public_key_b64
-    service.operator_key_tiers["operator-carol"] = "privileged"
-    from .test_na_boundary_policy import _headers
-    url = f"/admin/operator-keys/holder-changes/{proposal}/approve"
     # A key the store does not record, or records without a named holder, is no second person.
-    unrecorded = client.post(url, json={}, headers=_headers(second, "operator-carol", {}, client=client,
-                                                             method="POST", url=url))
+    dave = generate_keypair()
+    service.operator_public_keys["operator-dave"] = dave.public_key_b64
+    service.operator_key_tiers["operator-dave"] = "privileged"
+    unrecorded = _approve(client, dave, "operator-dave", proposal)
     assert unrecorded.status_code == 409 and _code(unrecorded) == "holder_change_needs_named_holders"
-    service.operator_key_holders["operator-carol"] = "carol"
-    service.out_of_band_service.ensure_registry()  # as at the next start
-    approved = client.post(url, json={}, headers=_headers(second, "operator-carol", {}, client=client,
-                                                           method="POST", url=url))
+    approved = _approve(client, carol, "operator-carol", proposal)
     assert approved.status_code == 200, approved.get_json()
     holders = {h["key_id"]: h for h in _get(client, "/admin/evidence/operator-holders").get_json()["holders"]}
     assert holders["operator-std"]["holder"] == "bob" and holders["operator-std"]["approved_by"] == "operator-carol"
-    again = client.post(url, json={}, headers=_headers(second, "operator-carol", {}, client=client,
-                                                        method="POST", url=url))
+    again = _approve(client, carol, "operator-carol", proposal)
     assert again.status_code == 409 and _code(again) == "holder_change_already_approved"
 
 
 def test_a_configured_holder_does_not_override_the_recorded_one(clock, tmp_path):
     db = str(tmp_path / "na.db")
-    _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db, operator_key_holders={"operator-test": "alice"}).db.close()
-    later = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db, operator_key_holders={"operator-test": "mallory"})
-    # The operator keys are new each time _make_service runs, so the key is recorded afresh, but the
-    # holder stays the one the store recorded for that key id.
-    assert later.out_of_band_service.operator_holders()["operator-test"]["holder"] == "alice"
+    first = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db,
+                          operator_key_holders={"operator-test": "alice"})
+    first.db.close()
+    later = _same_na(first, db, operator_key_holders={"operator-test": "mallory", "operator-std": "bob"})
+    holders = later.out_of_band_service.operator_holders()
+    assert holders["operator-test"]["holder"] == "alice"
+    # v1.3.1: after the first start the configuration names no holder, not even for an unnamed key.
+    assert holders["operator-std"]["holder"] == "operator-std"
 
 
 # ---------------------------------------------------------------------------
@@ -692,44 +711,44 @@ def test_an_unjudged_record_stops_retention(clock, monkeypatch):
     assert "observation" in kinds, result
 
 
-@pytest.mark.sqlite_only  # monkeypatch.undo() also drops the PostgreSQL redirect; PostgreSQL adds columns in place
 def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, tmp_path, monkeypatch):
-    """Migration 015 rebuilds the entries table; nothing a 1.2 store held may change."""
+    """Migration 015 rebuilds the entries table (SQLite) or adds its columns (PostgreSQL); nothing a
+    1.2 store held may change, and the backfill starts the policy history at the audit log's times."""
     import genesis_mesh.na_service.db as db_module
 
     db = str(tmp_path / "na.db")
     real = db_module.migration_files
-    monkeypatch.setattr(db_module, "migration_files", lambda backend: [m for m in real(backend) if m[0] <= 14])
-    monkeypatch.setattr(OutOfBandService, "ensure_registry", lambda self: None)
-    monkeypatch.setattr(OutOfBandService, "key_registered", lambda self, *a, **k: None)
-    monkeypatch.setattr(OutOfBandService, "policy_activated", lambda self, *a, **k: None)
-    old = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
+    new_columns = ("record_id", "subject_id", "matched_evidence_id", "observation_sequence", "dedupe_key",
+                   "version_id")
+    # A 1.2 NA: migrations up to 014 and no out-of-band records. The patches stay inside this
+    # block: undoing the test's monkeypatch would also undo the PostgreSQL redirect.
+    with monkeypatch.context() as patch:
+        patch.setattr(db_module, "migration_files", lambda backend: [m for m in real(backend) if m[0] <= 14])
+        old = _make_service(evidence_store="on", db_path=db)
     old.db.conn.execute("ALTER TABLE evidence_executor_keys ADD COLUMN key_role TEXT")  # read by 1.3 code only
     old.db.conn.execute("ALTER TABLE evidence_executor_keys ADD COLUMN resource_prefix TEXT")
-    for column in ("record_id", "subject_id", "matched_evidence_id", "observation_sequence", "dedupe_key", "version_id"):
+    for column in new_columns:
         old.db.conn.execute(f"ALTER TABLE evidence_entries ADD COLUMN {column} TEXT")
     old.db.conn.commit()
     client = _client(old)
     controller = Controller(client)
     assert _submit(client, controller.record(_decide(client))).status_code == 201
-    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    assert _activate(client, "secret-lifetime", _lifetime_policy(client, 90)).status_code == 200
     assert _post(client, "/admin/evidence/anchors", {}, standard=True).status_code == 201
     before = {r["store_sequence"]: r["entry_digest"] for r in old.db.conn.execute(
         "SELECT store_sequence, entry_digest FROM evidence_entries").fetchall()}
     anchors_before = [a.to_wire() for a in old.db.list_store_anchors(limit=100)]
-    old.db.conn.execute("DELETE FROM schema_version WHERE version = 15")
+    activated = [e["created_at"] for e in old.db.list_audit_events(event_types=["boundary_policy_activated"])]
     # Back to the 1.2 columns, as a 1.2 NA leaves the table.
-    for column in ("record_id", "subject_id", "matched_evidence_id", "observation_sequence", "dedupe_key", "version_id"):
+    for column in new_columns:
         old.db.conn.execute(f"ALTER TABLE evidence_entries DROP COLUMN {column}")
     old.db.conn.execute("ALTER TABLE evidence_executor_keys DROP COLUMN key_role")
     old.db.conn.execute("ALTER TABLE evidence_executor_keys DROP COLUMN resource_prefix")
     old.db.conn.commit()
     old.db.close()
-    monkeypatch.undo()
-    clock_fixture_now = clock.now()  # the clock fixture's patch was undone with the rest
-    monkeypatch.setattr(OutOfBandService, "_now", lambda self: clock_fixture_now)
 
     upgraded = _same_na(old, db)
+    assert upgraded.db.schema_version() >= 15
     after = {r["store_sequence"]: r["entry_digest"] for r in upgraded.db.conn.execute(
         "SELECT store_sequence, entry_digest FROM evidence_entries WHERE entry_kind != 'registry'").fetchall()}
     assert after == before
@@ -737,9 +756,14 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     verified = _client(upgraded)
     result = _get(verified, "/admin/evidence/verify").get_json()
     assert result["verified"] is True, result["failures"]
-    assert upgraded.boundary_policies.health().healthy if hasattr(upgraded.boundary_policies.health(), "healthy") else True
     history = upgraded.out_of_band_service.policy_history()
     assert history.active_at(datetime.now(timezone.utc)) is not None
+    assert history.started_at == datetime.fromisoformat(activated[0])
+    records = [r for _, r in upgraded.out_of_band_service._registry_records()]
+    assert [r.reconstructed for r in records if r.event == "policy_activated"] == [True]
+    assert any(r.event == "executor_key_registered" and r.reconstructed for r in records)
+    status = _get(verified, "/admin/evidence/status").get_json()
+    assert status["registry_healthy"] is True and status["policy_history_started"] == activated[0]
 
 
 def test_settings_read_the_stage_2_options():
@@ -855,12 +879,15 @@ def test_a_window_reaching_back_before_the_history_is_indeterminate(client, cloc
     assert judgement.verdict == "indeterminate" and "policy history starts" in (judgement.reason or "")
 
 
-def test_activations_made_while_the_records_were_off_keep_their_times(clock, tmp_path):
+def test_activations_made_while_the_records_were_off_are_recorded_late_and_flag_judgements(clock, tmp_path):
+    """v1.3.1: the audit log's times are not trusted after the upgrade backfill. An activation the
+    registry missed takes effect when the NA finds it, and a change made before that is flagged."""
     # The audit log records real time: the NA's clock is real time here too.
     clock.at = datetime.now(timezone.utc) - timedelta(minutes=10)
     db = str(tmp_path / "na.db")
     first = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
     client = _client(first)
+    observer = Observer(client)
     v1 = _lifetime_policy(client, 90)
     v2 = _lifetime_policy(client, 30)
     assert _activate(client, "secret-lifetime", v1).status_code == 200  # recorded 10 minutes ago
@@ -871,26 +898,45 @@ def test_activations_made_while_the_records_were_off_keep_their_times(clock, tmp
     activated_v2 = datetime.now(timezone.utc)
     off.db.close()
     clock.at = datetime.now(timezone.utc) + timedelta(seconds=1)
-    on = _same_na(first, db)  # switched on again: the audit log fills the gap
+    on = _same_na(first, db)  # switched on again: the gap is recorded, late
+    found_at = clock.now()
     history = on.out_of_band_service.policy_history()
-    active = history.active_at(activated_v2 + timedelta(seconds=1))
-    assert active is not None and active["secret-lifetime"][0] == v2
-    assert history.active_at(activated_v2 - timedelta(minutes=1))["secret-lifetime"][0] == v1
-    v2_records = [r for _, r in on.out_of_band_service._registry_records()
-                  if r.event == "policy_activated" and r.policy_version == v2]
-    assert len(v2_records) == 1 and v2_records[0].reconstructed and v2_records[0].effective_at <= activated_v2
+    assert history.active_at(found_at)["secret-lifetime"][0] == v2
+    assert history.active_at(activated_v2)["secret-lifetime"][0] == v1  # not backdated
+    rows = on.out_of_band_service._registry_rows()
+    late = [(r, d) for _, r, d in rows if r.event == "policy_activated" and r.policy_version == v2]
+    assert len(late) == 1 and late[0][0].reconstructed and late[0][0].effective_at >= found_at
+    assert late[0][1].startswith("registry:late:")
+    # A change made in the gap is judged under the policies recorded then, and flagged.
+    client = _client(on)
+    clock.advance(minutes=1)
+    gap = _judgement(_observe(client, observer.observe(clock, changed_at=activated_v2,
+                                                       metadata={"lifetime_days": 60})).get_json())
+    assert gap.verdict == "allow" and gap.flagged_for_review is True
+    assert "recorded after the change" in (gap.reason or "")
+    after = _judgement(_observe(client, observer.observe(clock, metadata={"lifetime_days": 60})).get_json())
+    assert after.verdict == "deny" and after.flagged_for_review is None
 
 
-def test_a_failed_registry_write_is_reconciled_before_the_next_judgement(client, na_service, clock, monkeypatch):
+def test_an_activation_and_its_registry_record_commit_together(client, na_service, clock, monkeypatch):
+    """v1.3.1: no activation without its registry record: a failed write leaves the policy inactive."""
     oob = na_service.out_of_band_service
-    real = oob._record
-    monkeypatch.setattr(oob, "_record", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("store down")))
-    assert _activate(client, "secret-lifetime", _lifetime_policy(client, 30)).status_code == 200
-    monkeypatch.setattr(oob, "_record", real)
+    version = _lifetime_policy(client, 30)
+
+    def failing(record):
+        raise na_service.db.database_errors[0]("store down")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(oob, "_sign", failing)
+        failed = _activate(client, "secret-lifetime", version)
+    assert failed.status_code == 503 and _code(failed) == "evidence_store_unavailable"
+    assert na_service.db.active_boundary_policy_versions() == {}
+    assert not na_service.db.list_audit_events(event_types=["boundary_policy_activated"])
+    assert _activate(client, "secret-lifetime", version).status_code == 200
     clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
     observer = Observer(client)
     judgement = _judgement(_observe(client, observer.observe(clock, metadata={"lifetime_days": 60})).get_json())
-    assert judgement.verdict == "deny"  # the activation was recorded, at its time, before judging
+    assert judgement.verdict == "deny" and judgement.flagged_for_review is None
 
 
 def test_a_refused_record_with_secret_material_is_never_quarantined(client, clock):
@@ -982,3 +1028,454 @@ def test_status_reports_records_waiting_for_a_judgement(clock):
     observer = Observer(client)
     assert _observe(client, observer.observe(clock)).status_code == 201
     assert _get(client, "/admin/evidence/status").get_json()["unjudged_records"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Review fixes (1.3.1)
+# ---------------------------------------------------------------------------
+
+
+def _resigned(record, key, key_id: str, **changes):
+    """A copy of a signed record with fields changed, signed again by its signer."""
+    unsigned = record.model_copy(update={**changes, "signature": None})
+    return unsigned.model_copy(update={"signature": sign_model(unsigned, key, key_id)})
+
+
+def _capped(client, policy_id: str, max_days: int, valid_from: datetime, valid_until: datetime) -> int:
+    """Publish a lifetime cap with its own validity window; returns its version."""
+    resp = _post(client, "/admin/boundary-policies", {
+        "policy_id": policy_id, "description": policy_id,
+        "valid_from": valid_from.isoformat(), "valid_until": valid_until.isoformat(),
+        "selector": {"capabilities": [CAPABILITY]},
+        "gates": [{"gate_id": "max-lifetime", "gate_type": "max_value.v1", "order": 0,
+                   "config": {"path": "request_parameters.lifetime_days", "max": max_days}}],
+    })
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()["version"]
+
+
+def _later(monkeypatch, days: int):
+    """The evidence store's clock, ``days`` ahead (retention)."""
+    import genesis_mesh.na_service.services.evidence_store as svc
+
+    class Later(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + timedelta(days=days)
+
+    monkeypatch.setattr(svc, "datetime", Later)
+
+
+def test_a_revocation_feed_imported_again_keeps_its_first_import_time(client, na_service, clock, monkeypatch):
+    """Finding: a cumulative feed listing a revocation again moved its time past changes made after it."""
+    import genesis_mesh.na_service.db_trust as db_trust
+    from genesis_mesh.models.sovereign import SovereignRevocationFeed
+
+    controller = Controller(client)
+    attestation = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)
+    issued = datetime.now(timezone.utc)
+
+    def import_feed(sequence: int, at: datetime) -> None:
+        class At(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return at
+
+        with monkeypatch.context() as patch:
+            patch.setattr(db_trust, "datetime", At)
+            na_service.db.save_sovereign_revocation_feed(SovereignRevocationFeed(
+                feed_id=str(uuid.uuid4()), issuer_sovereign_id=attestation["issuer_sovereign_id"],
+                sequence=sequence, issued_at=at, revoked_attestation_ids=[attestation["attestation_id"]],
+                issued_by="peer-key"))
+
+    import_feed(1, issued + timedelta(minutes=1))  # revoked from here on
+    import_feed(2, issued + timedelta(minutes=3))  # the next cumulative feed lists it again
+    row = na_service.db.get_imported_sovereign_revocation(attestation["issuer_sovereign_id"],
+                                                         attestation["attestation_id"])
+    assert row["sequence"] == 2 and datetime.fromisoformat(row["imported_at"]) == issued + timedelta(minutes=1)
+    clock.at = issued + timedelta(minutes=4)
+    executed = issued + timedelta(minutes=2)  # after the first feed, before the second
+    first = _judgement(client.post("/evidence/break-glass", json={"record": _break_glass(
+        controller, clock, attestation_id=attestation["attestation_id"], executed_at=executed).to_wire()}).get_json())
+    assert first.verdict == "deny" and "attestation_revoked" in (first.reason or "")
+    # A row 1.3.0 moved to the later import is read from the feeds themselves.
+    with na_service.db.conn:
+        na_service.db.conn.execute("UPDATE imported_sovereign_revocations SET imported_at = ?",
+                                   ((issued + timedelta(minutes=3)).isoformat(),))
+    second = _judgement(client.post("/evidence/break-glass", json={"record": _break_glass(
+        controller, clock, attestation_id=attestation["attestation_id"], executed_at=executed).to_wire()}).get_json())
+    assert second.verdict == "deny"
+
+
+def test_another_observers_report_of_a_break_glass_change_is_the_same_change(client, clock):
+    """Finding: the second observation of a denied break-glass change was judged afresh and allowed."""
+    controller = Controller(client)
+    attestation_id = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)["attestation_id"]
+    no_break_glass = {"gate_id": "no-break-glass", "gate_type": "denylist.v1", "order": 1,
+                      "config": {"path": "parent_kind", "values": ["break_glass"]}}
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90, extra_gates=[no_break_glass]))
+    clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    glass = _break_glass(controller, clock, attestation_id=attestation_id, version_id="v9")
+    assert _judgement(client.post("/evidence/break-glass", json={"record": glass.to_wire()}).get_json()).verdict \
+        == "deny"
+    first = _judgement(_observe(client, Observer(client).observe(clock, version_id="v9")).get_json())
+    assert first.verdict == "deny" and first.matched_evidence_id == glass.break_glass_id
+    other = Observer(client, key_id="observer-2", sovereign="other-observer")
+    second = _judgement(_observe(client, other.observe(clock, version_id="v9")).get_json())
+    assert second.verdict == "deny" and second.matched_evidence_id is None
+    assert f"the same change as break-glass record {glass.break_glass_id}" in (second.reason or "")
+    states = [c["state"] for c in _changes(client)]
+    assert states == ["judged_denied", "judged_denied", "judged_denied"]
+    assert _verify(client)["verified"] is True
+
+
+def test_audit_rows_written_to_the_database_do_not_rewrite_the_policy_history(clock, tmp_path):
+    """Finding: two inserted audit rows became NA-signed, backdated policy history and turned a deny into an allow."""
+    db = str(tmp_path / "na.db")
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
+    client = _client(service)
+    observer = Observer(client)
+    t0 = clock.now()
+    assert _activate(client, "secret-lifetime", _lifetime_policy(client, 10)).status_code == 200
+    judged_at = clock.advance(minutes=10)
+    change = t0 + timedelta(minutes=3)
+
+    def judged(client):
+        record = observer.observe(clock, changed_at=change, metadata={"lifetime_days": 60})
+        return _judgement(_observe(client, record).get_json())
+
+    assert judged(client).verdict == "deny"
+    # A database writer adds two audit rows: the policy "was off" from t0+1m to t0+5m.
+    for event_type, at in (("boundary_policy_deactivated", t0 + timedelta(minutes=1)),
+                           ("boundary_policy_activated", t0 + timedelta(minutes=5))):
+        payload = {"event_id": str(uuid.uuid4()), "event_type": event_type, "created_at": at.isoformat(),
+                   "details": {"policy_id": "secret-lifetime", "version": 1}}
+        with service.db.conn:
+            service.db.conn.execute("INSERT INTO audit_events(event_id, event_json, created_at) VALUES (?, ?, ?)",
+                                    (payload["event_id"], json.dumps(payload, sort_keys=True), at.isoformat()))
+    # Judging does not read the audit log: nothing changes.
+    same = judged(client)
+    assert same.verdict == "deny" and same.flagged_for_review is None
+    service.db.close()
+    # At the next start the NA records what the audit log holds and the registry lacks: late, at
+    # the time it found it, never before what the store already holds.
+    restarted = _same_na(service, db)
+    late = [(r, d) for _, r, d in restarted.out_of_band_service._registry_rows() if d and d.startswith("registry:late:")]
+    assert [r.event for r, _ in late] == ["policy_deactivated", "policy_activated"]
+    assert all(r.reconstructed and r.effective_at >= judged_at for r, _ in late)
+    after = judged(_client(restarted))
+    assert after.verdict == "deny" and after.flagged_for_review is True
+    assert "recorded after the change" in (after.reason or "")
+    assert _verify(_client(restarted))["verified"] is True
+
+
+def test_audit_event_types_are_matched_exactly(na_service):
+    """Finding: ``_`` matched any character, and an event type inside ``details`` matched too."""
+    db = na_service.db
+    db.add_audit_event("boundaryXpolicy_activated", {"policy_id": "p", "version": 1})
+    db.add_audit_event("note", {"event_type": "boundary_policy_activated", "policy_id": "p", "version": 1})
+    real = db.add_audit_event("boundary_policy_activated", {"policy_id": "p", "version": 1})
+    assert [e["event_id"] for e in db.list_audit_events(event_types=["boundary_policy_activated"])] == [real]
+    assert OutOfBandService._policy_record_from_audit(
+        {"event_type": "note", "created_at": datetime.now(timezone.utc).isoformat(),
+         "details": {"policy_id": "p", "version": 1}}, {"issuer_sovereign_id": "x", "issued_by": "k"}) is None
+
+
+def test_judging_reads_no_audit_log_and_the_registry_once(client, na_service, clock, monkeypatch):
+    """Finding: every judgement scanned the whole audit log and re-read the registry at every point."""
+    observer = Observer(client)
+    v1 = _lifetime_policy(client, 90)
+    v2 = _lifetime_policy(client, 30)
+    start = clock.now()
+    for version in (v1, v2, v1):
+        clock.advance(minutes=1)
+        assert _activate(client, "secret-lifetime", version).status_code == 200
+    end = clock.advance(minutes=1)
+    for _ in range(300):
+        na_service.db.add_audit_event("evidence_recorded", {"evidence_id": str(uuid.uuid4())})
+    calls = {"audit": 0, "registry": 0}
+    audit, registry = na_service.db.list_audit_events, na_service.db.registry_entries
+
+    def counted(name, real):
+        def call(*args, **kwargs):
+            calls[name] += 1
+            return real(*args, **kwargs)
+        return call
+
+    monkeypatch.setattr(na_service.db, "list_audit_events", counted("audit", audit))
+    monkeypatch.setattr(na_service.db, "registry_entries", counted("registry", registry))
+    for _ in range(3):  # a window with three policy changes inside: five points each
+        record = observer.observe(clock, window=(start, end), metadata={"lifetime_days": 60})
+        assert _judgement(_observe(client, record).get_json()).verdict == "indeterminate"
+    assert calls == {"audit": 0, "registry": 3}
+
+
+def test_an_observation_and_a_break_glass_record_never_share_an_id(clock):
+    """Finding: a break-glass record reusing an observation's id took that observation's judgement."""
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", judge_on_admission=False)
+    client = _client(service)
+    observer = Observer(client)
+    controller = Controller(client)
+    observation = observer.observe(clock)
+    assert _observe(client, observation).status_code == 201
+    clash = _resigned(_break_glass(controller, clock), controller.key, controller.key_id,
+                      break_glass_id=observation.observation_id)
+    resp = client.post("/evidence/break-glass", json={"record": clash.to_wire()})
+    assert resp.status_code == 409 and _code(resp) == "break_glass_conflict"
+    glass = _break_glass(controller, clock)
+    assert client.post("/evidence/break-glass", json={"record": glass.to_wire()}).status_code == 201
+    reused = _resigned(observer.observe(clock), observer.key, observer.key_id, observation_id=glass.break_glass_id)
+    resp = _observe(client, reused)
+    assert resp.status_code == 409 and _code(resp) == "observation_conflict"
+
+
+def test_a_shared_id_in_a_1_3_0_store_is_judged_as_its_own_kind(clock, monkeypatch):
+    """A 1.3.0 store may hold an observation and a break-glass record with one id: the judgement of
+    one is never the other's, for the judge routes, the status count and retention."""
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", judge_on_admission=False)
+    client = _client(service)
+    oob = service.out_of_band_service
+    observer = Observer(client)
+    controller = Controller(client)
+    observation = observer.observe(clock)
+    assert _observe(client, observation).status_code == 201
+    glass = _resigned(_break_glass(controller, clock), controller.key, controller.key_id,
+                      break_glass_id=observation.observation_id)
+    service.db.append_evidence_entries([oob._pending("break_glass", glass, now=clock.now(),
+                                                     lookup={"dedupe_key": "b:" + glass.break_glass_id})])
+    judged = _post(client, f"/admin/evidence/break-glass/{glass.break_glass_id}/judge", {})
+    assert judged.status_code == 201 and judged.get_json()["payload"]["subject_kind"] == "break_glass"
+    resp = _post(client, f"/admin/evidence/observations/{observation.observation_id}/judge", {})
+    assert resp.status_code == 409 and _code(resp) == "judgement_conflict"
+    assert service.db.get_judgement_for("observation", observation.observation_id) is None
+    assert _get(client, "/admin/evidence/status").get_json()["unjudged_records"] == 1
+    states = {c["kind"]: c["state"] for c in _changes(client)}
+    assert states == {"observation": "observed", "break_glass": "indeterminate"}
+    with monkeypatch.context() as patch:
+        _later(patch, 400)
+        _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30})
+    assert service.db.get_entry_by_record("observation", observation.observation_id) is not None
+
+
+def test_a_version_is_the_same_change_only_at_the_records_time(client, clock):
+    """Finding: a version matched evidence days apart, and a reused version ("null") matched forever."""
+    controller = Controller(client)
+    evidence = controller.record(_decide(client), params={"version_id": "null"})
+    assert _submit(client, evidence).status_code == 201
+    observer = Observer(client)
+    clock.at = evidence.executed_at + timedelta(days=2)
+    before = _judgement(_observe(client, observer.observe(
+        clock, action="create", version_id="null", changed_at=evidence.executed_at - timedelta(days=3))).get_json())
+    assert before.governed_by == "after_the_fact" and before.verdict == "indeterminate"
+    assert before.matched_evidence_id is None
+    seen = _judgement(_observe(client, observer.observe(
+        clock, action="create", version_id="null", changed_at=evidence.executed_at)).get_json())
+    assert seen.governed_by == "prior_decision" and seen.matched_evidence_id == evidence.evidence_id
+    later = _judgement(_observe(client, observer.observe(
+        clock, action="create", version_id="null", changed_at=evidence.executed_at + timedelta(days=1))).get_json())
+    assert later.governed_by == "after_the_fact" and later.verdict == "indeterminate"
+    other = Observer(client, key_id="observer-2")
+    again = _judgement(_observe(client, other.observe(
+        clock, action="create", version_id="null", changed_at=evidence.executed_at)).get_json())
+    assert again.governed_by == "prior_decision" and again.matched_decision_id == evidence.decision_id
+
+
+def test_a_window_is_judged_where_a_scheduled_policy_starts(client, clock):
+    """Finding: a freeze in force inside a window, between two registry events, was not seen."""
+    t0 = clock.at = datetime.now(timezone.utc)
+    observer = Observer(client)
+    assert _activate(client, "lifetime-cap", _capped(client, "lifetime-cap", 90, t0 - timedelta(hours=1),
+                                                     t0 + timedelta(days=7))).status_code == 200
+    freeze = _capped(client, "freeze", 10, t0 + timedelta(minutes=2), t0 + timedelta(days=7))
+    assert _activate(client, "freeze", freeze).status_code == 200
+    clock.advance(minutes=3)
+    assert _post(client, "/admin/boundary-policies/freeze/deactivate", {"version": freeze}).status_code == 200
+    clock.advance(minutes=3)
+    during = _judgement(_observe(client, observer.observe(
+        clock, changed_at=t0 + timedelta(minutes=2, seconds=30), metadata={"lifetime_days": 60})).get_json())
+    window = _judgement(_observe(client, observer.observe(
+        clock, window=(t0 + timedelta(minutes=1), t0 + timedelta(minutes=5)),
+        metadata={"lifetime_days": 60})).get_json())
+    assert during.verdict == "deny"
+    assert window.verdict == "indeterminate"
+    assert f"deny at {(t0 + timedelta(minutes=2)).isoformat()}" in (window.reason or "")
+
+
+def test_a_window_is_judged_where_an_active_policy_expires(client, clock):
+    t0 = clock.at = datetime.now(timezone.utc)
+    observer = Observer(client)
+    assert _activate(client, "lifetime-cap", _capped(client, "lifetime-cap", 90, t0 - timedelta(hours=1),
+                                                     t0 + timedelta(days=7))).status_code == 200
+    short = _capped(client, "short", 90, t0 - timedelta(hours=1), t0 + timedelta(minutes=2))
+    assert _activate(client, "short", short).status_code == 200
+    clock.advance(minutes=3)  # past its validity while still active: it denies as expired until deactivated
+    assert _post(client, "/admin/boundary-policies/short/deactivate", {"version": short}).status_code == 200
+    clock.advance(minutes=3)
+    window = _judgement(_observe(client, observer.observe(
+        clock, window=(t0 + timedelta(minutes=1), t0 + timedelta(minutes=5)),
+        metadata={"lifetime_days": 60})).get_json())
+    expired = t0 + timedelta(minutes=2, microseconds=1)
+    assert window.verdict == "indeterminate" and f"deny at {expired.isoformat()}" in (window.reason or "")
+
+
+def test_validity_change_times_include_valid_from_and_just_after_valid_until():
+    from genesis_mesh.trust.out_of_band import validity_change_times
+
+    t = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    bounds = [(t + timedelta(minutes=2), t + timedelta(minutes=4)), (t - timedelta(days=1), t + timedelta(days=1))]
+    assert validity_change_times(bounds, t, t + timedelta(minutes=5)) == [
+        t + timedelta(minutes=2), t + timedelta(minutes=4, microseconds=1)]
+
+
+def test_after_the_first_start_holders_change_only_with_approval(clock, tmp_path):
+    """Finding: the configuration named new keys' holders, and a re-keyed key kept its holder."""
+    db = str(tmp_path / "na.db")
+    first = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db,
+                          operator_key_holders={"operator-test": "alice", "operator-std": "bob"})
+    first.db.close()
+    dave, rekeyed = generate_keypair(), generate_keypair()
+    keys = {**first.operator_public_keys, "operator-dave": dave.public_key_b64, "operator-std": rekeyed.public_key_b64}
+    tiers = {**first.operator_key_tiers, "operator-dave": "privileged"}
+    later = _same_na(first, db, operator_public_keys=keys, operator_key_tiers=tiers,
+                     operator_key_holders={"operator-test": "mallory", "operator-dave": "dave", "operator-std": "bob"})
+    holders = later.out_of_band_service.operator_holders()
+    assert holders["operator-test"]["holder"] == "alice"  # the configuration renames nobody
+    assert holders["operator-dave"]["holder"] == "operator-dave"  # a new key is unnamed until approved
+    assert holders["operator-std"]["holder"] == "operator-std"  # a new public key does not keep the holder
+    assert holders["operator-std"]["public_key"] == rekeyed.public_key_b64
+
+
+def test_holder_names_are_validated():
+    from genesis_mesh.na_service.settings import load_settings
+
+    with pytest.raises(ValueError, match="values must be strings"):
+        load_settings({"GENESIS_FILE": "g.json", "OPERATOR_KEY_HOLDERS_JSON": '{"operator-test": null}'})
+    with pytest.raises(ValueError, match="1 to 128 characters"):
+        _make_service(evidence_store="on", evidence_out_of_band="on", operator_key_holders={"operator-test": ""})
+
+
+def test_a_holder_change_proposed_by_a_key_revoked_or_rekeyed_since_is_not_approved(clock):
+    carol = generate_keypair()
+    service = _first_start({"operator-test": "alice", "operator-carol": "carol"}, {"operator-carol": carol})
+    client = _client(service)
+    proposal = _post(client, "/admin/operator-keys/operator-std/holder", {"holder": "bob"}).get_json()["proposal_id"]
+    service.db.revoke_operator_key("operator-test", "lost laptop", "operator-carol", datetime.now(timezone.utc))
+    resp = _approve(client, carol, "operator-carol", proposal)
+    assert resp.status_code == 409 and _code(resp) == "holder_change_proposer_revoked"
+
+    service = _first_start({"operator-test": "alice", "operator-carol": "carol"}, {"operator-carol": carol})
+    client = _client(service)
+    proposal = _post(client, "/admin/operator-keys/operator-std/holder", {"holder": "bob"}).get_json()["proposal_id"]
+    clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    service.operator_public_keys["operator-test"] = generate_keypair().public_key_b64  # re-keyed at the next start
+    service.out_of_band_service.ensure_registry()
+    resp = _approve(client, carol, "operator-carol", proposal)
+    assert resp.status_code == 409 and _code(resp) == "holder_change_proposer_revoked"
+
+
+def test_retention_never_reverts_an_approved_holder_change(clock, monkeypatch):
+    """Finding: retention carried the first-start holder records after the approved change, which then lost."""
+    carol = generate_keypair()
+    service = _first_start({"operator-test": "alice", "operator-carol": "carol", "operator-std": "bob"},
+                           {"operator-carol": carol})
+    client = _client(service)
+    clock.advance(days=100)
+    proposal = _post(client, "/admin/operator-keys/operator-std/holder", {"holder": "alice"}).get_json()["proposal_id"]
+    assert _approve(client, carol, "operator-carol", proposal).status_code == 200
+    service.operator_key_tiers["operator-std"] = "privileged"  # alice now holds two privileged keys
+    own = _post(client, "/admin/operator-keys/operator-test/holder", {"holder": "mallory"}).get_json()["proposal_id"]
+    assert _code(_approve(client, service._std_keypair, "operator-std", own)) == "holder_change_needs_second_holder"
+
+    with monkeypatch.context() as patch:
+        _later(patch, 120)
+        result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
+    assert result["removed_count"] > 0
+    holders = service.out_of_band_service.operator_holders()
+    assert holders["operator-std"]["holder"] == "alice" and holders["operator-std"]["approved_by"] == "operator-carol"
+    assert _code(_approve(client, service._std_keypair, "operator-std", own)) == "holder_change_needs_second_holder"
+    service.operator_key_holders["operator-std"] = "mallory"  # the configuration at the next start
+    service.out_of_band_service.ensure_registry()
+    assert service.out_of_band_service.operator_holders()["operator-std"]["holder"] == "alice"
+
+
+def test_break_glass_by_an_executor_not_tied_to_the_attestation_is_flagged(client, clock):
+    """Finding: any executor key could name any attestation and be judged allowed with no one involved."""
+    controller = Controller(client)
+    attestation_id = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)["attestation_id"]
+    clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    untied = _judgement(client.post("/evidence/break-glass", json={"record": _break_glass(
+        controller, clock, attestation_id=attestation_id).to_wire()}).get_json())
+    assert untied.verdict == "allow" and untied.flagged_for_review is True
+    assert f"nothing the NA holds ties executor {EXECUTOR}" in (untied.reason or "")
+    # Once the controller executed a decision for the attestation, its break-glass is tied to it.
+    assert _submit(client, controller.record(_decide(client, attestation_id=attestation_id))).status_code == 201
+    tied = _judgement(client.post("/evidence/break-glass", json={"record": _break_glass(
+        controller, clock, attestation_id=attestation_id).to_wire()}).get_json())
+    assert tied.verdict == "allow" and tied.flagged_for_review is None
+
+
+def test_records_refused_for_a_retired_or_out_of_scope_key_are_quarantined(client, clock):
+    """Finding: authentic observations and break-glass records refused after the fact left no trace."""
+    scoped = Observer(client, key_id="observer-scoped", prefix="kv:other/")
+    resp = _observe(client, scoped.observe(clock))
+    assert _code(resp) == "observation_out_of_scope" and resp.get_json()["error"]["details"]["quarantine_id"]
+    retired = Observer(client, key_id="observer-old")
+    assert _post(client, "/admin/evidence/executor-keys/observer-old/retire", {}).status_code == 200
+    resp = _observe(client, retired.observe(clock))
+    assert _code(resp) == "observation_key_retired" and resp.get_json()["error"]["details"]["quarantine_id"]
+    # Never one that may carry secret material.
+    resp = _observe(client, retired.observe(clock, metadata={"password": "hunter2-correct-horse"}))
+    assert _code(resp) == "observation_key_retired" and not resp.get_json()["error"].get("details")
+    controller = Controller(client, key_id="ctrl-old")
+    assert _post(client, "/admin/evidence/executor-keys/ctrl-old/retire", {}).status_code == 200
+    resp = client.post("/evidence/break-glass", json={"record": _break_glass(controller, clock).to_wire()})
+    assert _code(resp) == "break_glass_key_retired" and resp.get_json()["error"]["details"]["quarantine_id"]
+    stored = _get(client, "/admin/evidence?entry_kind=quarantine").get_json()["entries"]
+    assert sorted(e["payload"]["rejection_code"] for e in stored) == [
+        "break_glass_key_retired", "observation_key_retired", "observation_out_of_scope"]
+    assert all("hunter2" not in json.dumps(e["payload"]) for e in stored)
+    assert _verify(client)["verified"] is True
+
+
+def test_status_reports_the_policy_history_and_the_registry(clock, monkeypatch):
+    service = _make_service(evidence_store="on", evidence_out_of_band="on")
+    status = _get(_client(service), "/admin/evidence/status").get_json()
+    assert status["policy_history_started"] is not None and status["registry_healthy"] is True
+    assert status["registry_problems"] == []
+
+    def broken(self):
+        raise RuntimeError("audit log unreadable")
+
+    monkeypatch.setattr(OutOfBandService, "_backfill", broken)
+    failed = _make_service(evidence_store="on", evidence_out_of_band="on")
+    status = _get(_client(failed), "/admin/evidence/status").get_json()
+    assert status["policy_history_started"] is None and status["registry_healthy"] is False
+    assert any("backfill failed at start" in p for p in status["registry_problems"])
+    assert any("has not started" in p for p in status["registry_problems"])
+
+
+def test_a_judgement_that_failed_at_admission_is_judged_by_the_sweep(clock, monkeypatch, tmp_path):
+    import genesis_mesh.na_service.services.out_of_band as oob_module
+
+    db = str(tmp_path / "na.db")
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
+    client = _client(service)
+    observer = Observer(client)
+
+    def fails(self, kind, stored):
+        raise RuntimeError("judging failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(OutOfBandService, "_judge", fails)
+        assert _observe(client, observer.observe(clock)).get_json()["judgement"] is None
+        assert _observe(client, observer.observe(clock)).get_json()["judgement"] is None
+    assert _get(client, "/admin/evidence/status").get_json()["unjudged_records"] == 2
+    # A later admission, once the sweep interval has passed, judges what is waiting.
+    monkeypatch.setattr(oob_module, "SWEEP_BATCH", 1)
+    monkeypatch.setattr(oob_module, "SWEEP_INTERVAL_SECONDS", 0)
+    assert _observe(client, observer.observe(clock)).get_json()["judgement"] is not None
+    assert _get(client, "/admin/evidence/status").get_json()["unjudged_records"] == 1
+    # So does the next start.
+    service.db.close()
+    restarted = _same_na(service, db)
+    assert _get(_client(restarted), "/admin/evidence/status").get_json()["unjudged_records"] == 0

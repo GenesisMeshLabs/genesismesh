@@ -204,8 +204,14 @@ class BoundaryPolicyService:
             )
         return row, policy
 
-    def activate(self, policy_id: str, version: int) -> tuple[BoundaryPolicy, int | None]:
-        """Re-verify a stored version and make it the active one for its policy_id."""
+    def activate(
+        self, policy_id: str, version: int, *, recorded_by: str | None = None, audit_event_id: str | None = None,
+    ) -> tuple[BoundaryPolicy, int | None]:
+        """Re-verify a stored version and make it the active one for its policy_id.
+
+        v1.3.1: with ``EVIDENCE_OUT_OF_BAND=on`` the activation and its registry
+        records (named by ``audit_event_id``) commit in one transaction.
+        """
         _, policy = self._stored(policy_id, version)
         failure = check_active_policy(policy, self.registry, self.policy_public_keys())
         if failure is not None:
@@ -219,7 +225,7 @@ class BoundaryPolicyService:
                 details={"reason": "policy_expired"},
             )
         try:
-            previous = self._na.db.activate_boundary_policy(policy_id, version)
+            previous = self._na.out_of_band_service.activate_policy(policy, recorded_by, audit_event_id)
         except self._na.db.integrity_errors as exc:
             # The one-active-version index refused a concurrent activation.
             raise ConflictError(
@@ -228,10 +234,12 @@ class BoundaryPolicyService:
             ) from exc
         return policy, previous
 
-    def deactivate(self, policy_id: str, version: int) -> None:
+    def deactivate(
+        self, policy_id: str, version: int, *, recorded_by: str | None = None, audit_event_id: str | None = None,
+    ) -> None:
         if self._na.db.get_boundary_policy_row(policy_id, version) is None:
             raise NotFoundError("unknown boundary policy version", code="boundary_policy_not_found")
-        if not self._na.db.deactivate_boundary_policy(policy_id, version):
+        if not self._na.out_of_band_service.deactivate_policy(policy_id, version, recorded_by, audit_event_id):
             raise ConflictError("boundary policy version is not active", code="boundary_policy_not_active")
 
     # -- inspection ---------------------------------------------------------

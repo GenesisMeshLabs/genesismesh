@@ -59,7 +59,10 @@ def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
         raise ValueError(f"{name} is not valid JSON") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{name} must be a JSON object")
-    return {str(k): str(v) for k, v in value.items()}
+    # v1.3.1: a value is a string as written; null, numbers and objects are refused, not turned into text.
+    if not all(isinstance(v, str) for v in value.values()):
+        raise ValueError(f"{name} values must be strings")
+    return {str(k): v for k, v in value.items()}
 
 
 def _int(env: Mapping[str, str], name: str, default: int) -> int:
