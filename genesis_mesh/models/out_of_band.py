@@ -29,9 +29,10 @@ module holds the records that bring them into the evidence store:
 
 Canonical forms
 ---------------
-Each record signs its fields except ``signature``, with optional fields
-omitted when absent (``to_canonical_json``): the forms are frozen from 1.3.0
-on, because these records sit in audit packs for years. Timestamps are UTC.
+Each record signs its fields except ``signature``, with optional top-level
+fields omitted when absent (``to_canonical_json``); nested models keep their
+usual form. The forms are frozen from 1.3.0 on, because these records sit in
+audit packs for years. Timestamps are UTC.
 """
 
 from __future__ import annotations
@@ -93,13 +94,19 @@ class _SignedRecord(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    def _fields(self, *, signature: bool) -> dict[str, Any]:
+        # Absent optional fields are left out at the top level only: a nested
+        # model (a judgement's PolicyBinding) keeps the form it has everywhere.
+        data = self.model_dump(exclude=None if signature else {"signature"}, mode="json")
+        return {k: v for k, v in data.items() if v is not None}
+
     def to_canonical_json(self) -> str:
         """Canonical form the signer signs: ``signature`` excluded, absent optional fields omitted."""
-        return _canonical(self.model_dump(exclude={"signature"}, exclude_none=True, mode="json"))
+        return _canonical(self._fields(signature=False))
 
     def to_wire(self) -> dict[str, Any]:
         """The JSON form submitted, stored and exported: the canonical fields plus the signature."""
-        return self.model_dump(exclude_none=True, mode="json")
+        return self._fields(signature=True)
 
     def digest(self) -> str:
         """SHA-256 of the canonical form."""
