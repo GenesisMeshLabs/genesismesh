@@ -15,7 +15,7 @@ Authority stays the Python reference and the only issuer of decisions.
 
 | Stage | Release | Delivers | Status |
 |-------|---------|----------|--------|
-| 1 | v1.2.0 | Durable SDK evidence outbox; strict, forward-compatible verifiers and the canonicalization corpus; signed store anchors copied to storage the auditor controls | Built, not released |
+| 1 | v1.2.0 | Durable SDK evidence outbox; strict, forward-compatible verifiers and the canonicalization corpus; signed store anchors copied to storage the auditor controls | Released |
 | 2 | v1.3.0 | Observations, after-the-fact judgements, break-glass when the Network Authority is unreachable, quarantined records | Planned |
 | 3 | v1.4.0 | Remediation (cancel by rotating forward), notification, one review record with second-person approval | Planned |
 | 4 | v1.5.0 | Audit packs, key succession, archive before prune, the independent verifier `genesis-mesh-verify` | Planned |
@@ -91,4 +91,4 @@ hand an auditor a pack to verify independently.
 
 | Version | Milestone |
 |---------|-----------|
-| v1.2.0 | Stage 1, Nothing Lost, Anchored (not yet released): evidence outbox, strict verifiers and the field registry, the canonicalization corpus, signed store anchors |
+| v1.2.0 | Stage 1, Nothing Lost, Anchored: evidence outbox, strict verifiers and the field registry, the canonicalization corpus, signed store anchors |
