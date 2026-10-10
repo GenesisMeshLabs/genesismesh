@@ -82,6 +82,30 @@ Two request-handling changes apply on upgrade:
   {doc}`vm-bootstrap`). SDKs read only the NA's public key from
   `/sovereign.json`, so they are not affected.
 
+### Strict input and canonical records
+
+- The Network Authority reads every JSON request body strictly: a duplicate
+  key, `NaN` or `Infinity`, a number that overflows a float, an integer below
+  `-2**63` or above `2**64 - 1`, the integer `-0`, a lone surrogate, arrays
+  or objects nested more than 64 deep, or a body that is not UTF-8 is
+  refused with `400 invalid_json`, the reason in `error.details.reason`. A
+  UTF-8 byte order mark is still accepted; a UTF-16 or UTF-32 body, which
+  Flask accepted before, is not. A client that sent such values (a boundary
+  policy selector of `10**400`, say) must change them.
+- Go's `encoding/json` and .NET's `System.Text.Json` write the float `-0.0`
+  as `-0`, which is now refused as `negative_zero`. A Go or .NET client that
+  can send a negative zero (a computed metadata value, say) must send `0`
+  instead. The SDKs never write one in the records they build.
+- Verifiers refuse a record signed over a form the reference does not write
+  as `non_canonical_form`, and a record received in a form its signature does
+  not cover as `invalid_signature`. Records the Network Authority signs are
+  always in canonical form; a client that rewrites timestamps (`Z` to
+  `+00:00`) before passing a record on breaks it. The routes that take an
+  agreement (`/admin/boundary/evaluate`, `/admin/boundary/decide`,
+  `/admin/disclosure/commit`) check it as received too, and refuse one
+  that fails with `422 agreement_untrusted`. See
+  {doc}`../reference/canonical-form`.
+
 ## Upgrading to 1.1.1
 
 1.1.1 adds no database migration and can be rolled back to 1.1.0 on the same

@@ -22,7 +22,7 @@ from ..errors import (
     UnauthorizedError,
     request_json_object,
 )
-from ...models.canonical_registry import strict_refusal
+from ...models.canonical_registry import decision_refusal
 from ..services.boundary_policy import agreement_parties
 
 if TYPE_CHECKING:
@@ -82,7 +82,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             agreement = AgreementRecord.model_validate(raw_agreement)
         except Exception as exc:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
-        service.agreements.require_trusted(agreement, route="/admin/boundary/decide")
+        service.agreements.require_trusted(agreement, route="/admin/boundary/decide", raw=raw_agreement)
 
         ctx_data = data.get("context") or {}
         if not isinstance(ctx_data, dict):
@@ -139,8 +139,11 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         if not raw:
             raise BadRequestError("decision is required", code="missing_decision")
         operator_keys = data.get("operator_public_keys") or [_pub_b64()]
-        # v1.2.0: refuse a field this release does not know, as every SDK does.
-        refusal = strict_refusal("BoundaryDecision", raw, operator_keys)
+        now = datetime.now(timezone.utc)
+        # v1.2.0: after the signature's presence and the expiry, a record not
+        # signed as received, with a field this release does not know, or not
+        # in canonical form is refused, in every SDK's order.
+        refusal = decision_refusal(raw, operator_keys, now)
         if refusal:
             service.db.add_audit_event("boundary_decision_verified", {
                 "decision_id": raw.get("decision_id"), "accepted": False,
@@ -152,11 +155,7 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         except Exception as exc:
             raise BadRequestError("Invalid decision object", code="invalid_decision") from exc
 
-        result = verify_boundary_decision(
-            decision,
-            operator_public_keys=operator_keys,
-            now=datetime.now(timezone.utc),
-        )
+        result = verify_boundary_decision(decision, operator_public_keys=operator_keys, now=now)
         service.db.add_audit_event("boundary_decision_verified", {
             "decision_id": result.decision_id,
             "accepted": result.accepted,

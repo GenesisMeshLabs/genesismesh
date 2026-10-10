@@ -39,6 +39,7 @@ from ..models.evidence_store import (
 from ..models.execution import ExecutionEvidence
 from ..models.justification import JustificationProof
 from genesis_mesh.crypto.signing import SigningKeyLike
+from .. import strict_json
 
 EvidenceRejectionCode = Literal[
     "evidence_malformed",
@@ -741,10 +742,14 @@ def check_events_against_anchors(
 
 
 def parse_export_lines(lines: Iterable[str]) -> list[EvidenceEvent]:
-    """Parse ``gm.evidence.event`` JSON Lines (blank lines ignored)."""
+    """Parse ``gm.evidence.event`` JSON Lines (blank lines ignored).
+
+    v1.2.0: each line is parsed strictly (``genesis_mesh.strict_json``); a
+    line every implementation would not read alike raises ``StrictJSONError``.
+    """
     events = []
     for line in lines:
         line = line.strip()
         if line:
-            events.append(EvidenceEvent.model_validate_json(line))
+            events.append(EvidenceEvent.model_validate(strict_json.loads(line)))
     return events

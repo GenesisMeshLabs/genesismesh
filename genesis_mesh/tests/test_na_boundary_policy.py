@@ -347,16 +347,30 @@ def test_evaluate_missing_fact_denies(client, na_service):
     assert decision["policy_binding"]["gate_evaluations"][0]["outcome"] == "missing_context"
 
 
-@pytest.mark.parametrize("allowed,matches", [(10**400, True), (1, False)])
+@pytest.mark.parametrize("allowed,matches", [(2**64 - 1, True), (1, False)])
 def test_large_integer_selector_returns_signed_http_decision(client, na_service, allowed, matches):
     _publish(client, selector={"parameter_equals": {"request_parameters.rows": [allowed]}})
     assert _activate(client, "read-limits", 1).status_code == 200
-    response = _evaluate(client, na_service, rows=10**400)
+    response = _evaluate(client, na_service, rows=2**64 - 1)
     assert response.status_code == 201
     decision = BoundaryDecision.model_validate(response.get_json()["decision"])
     assert decision.authorized is (not matches)
     pub = na_service.na_private_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
     assert verify_boundary_decision(decision, [pub]).accepted
+
+
+def test_an_integer_beyond_64_bits_is_refused_before_it_is_signed(client, na_service):
+    """v1.2.0: the SDKs cannot all read it alike, so no signed record may carry it."""
+    response = _post(
+        client, "/admin/boundary-policies", _intent(selector={"parameter_equals": {"request_parameters.rows": [10**400]}})
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"]["details"]["reason"] == "integer_out_of_range"
+    _publish(client)
+    _activate(client, "read-limits", 1)
+    response = _evaluate(client, na_service, rows=2**64)
+    assert response.status_code == 400
+    assert response.get_json()["error"]["code"] == "invalid_json"
 
 
 def test_evaluate_audit_never_records_values(client, na_service):
