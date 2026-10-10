@@ -21,7 +21,7 @@ from ...trust.agreement import (
     graph_digest_from_export,
     verify_agreement,
 )
-from ...models.canonical_registry import strict_refusal
+from ...models.canonical_registry import agreement_refusal
 from ..errors import (
     utc_timestamp,
     BadRequestError,
@@ -265,8 +265,12 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         responder_keys = data.get("responder_public_keys") or []
         if not raw:
             raise BadRequestError("agreement is required", code="missing_agreement")
-        # v1.2.0: refuse a signed field this release does not know, as every SDK does.
-        refusal = strict_refusal("AgreementRecord", raw, [*offerer_keys, *responder_keys] or [_pub_b64()])
+        graph = service.db.export_recognition_graph()
+        expected_digest = graph_digest_from_export(graph) if not offerer_keys else None
+        # v1.2.0: the signatures over the agreement as received, the graph,
+        # unknown fields and the canonical form, in every SDK's order.
+        refusal = agreement_refusal(raw, offerer_keys or [_pub_b64()], responder_keys or [_pub_b64()],
+                                    expected_digest)
         if refusal:
             service.db.add_audit_event("agreement_verified", {
                 "agreement_id": raw.get("agreement_id"), "accepted": False,
@@ -276,9 +280,6 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             agreement = AgreementRecord.model_validate(raw)
         except Exception as exc:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
-
-        graph = service.db.export_recognition_graph()
-        expected_digest = graph_digest_from_export(graph) if not offerer_keys else None
         result = verify_agreement(
             agreement,
             offerer_public_keys=offerer_keys or [_pub_b64()],

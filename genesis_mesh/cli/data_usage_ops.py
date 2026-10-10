@@ -30,6 +30,7 @@ from ..trust.data_usage import (
     verify_data_access_intent,
 )
 from .support import ensure_parent, public_key_value
+from .. import strict_json
 
 
 @click.group("data")
@@ -198,10 +199,12 @@ def verify_cmd(
     )
     keys = [public_key_value(k) for k in pub_keys]
     # v1.2.0: refuse a signed field this release does not know, as every SDK does.
-    detail = intent_refusal_detail(
-        json.loads(Path(intent_path).read_text(encoding="utf-8")),
-        json.loads(Path(policy_path).read_text(encoding="utf-8")), keys,
-    )
+    try:
+        raw_intent = strict_json.loads(Path(intent_path).read_text(encoding="utf-8"))
+        raw_policy = strict_json.loads(Path(policy_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Cannot load the intent or the policy: {exc}") from exc
+    detail = intent_refusal_detail(raw_intent, raw_policy, keys)
     reason: str | None
     if detail:
         ok, reason = False, "intent_exceeds_license"

@@ -207,9 +207,12 @@ def test_an_unknown_entry_kind_is_named_and_still_chains(suite):
     ]
 
 
-def test_the_verify_routes_refuse_unknown_fields(suite):
+def test_the_verify_routes_refuse_unknown_fields(suite, monkeypatch):
+    from genesis_mesh.na_service.routes import boundary
     from .test_na_boundary_policy import _make_service
+    from .test_strict_input import _AtVectorTime
 
+    monkeypatch.setattr(boundary, "datetime", _AtVectorTime)  # before the suite's decisions expire
     service = _make_service()
     client = service.app.test_client()
     by_id = {v["id"]: v["input"] for v in suite["vectors"] if v["kind"].startswith("verify_")}

@@ -230,6 +230,31 @@ def test_context_cannot_name_another_party(client, field, value):
     assert resp.status_code == 400 and _error(resp)["code"] == "context_party_mismatch"
 
 
+def test_an_agreement_is_checked_as_received(client):
+    """v1.2.0: a field added after signing, dropped by the model, still breaks the signatures."""
+    agreement, org, bank = _foreign_agreement()
+    _recognise(client, ORG, org.public_key_b64)
+    _recognise(client, BANK, bank.public_key_b64)
+    changed = copy.deepcopy(agreement)
+    changed["agreed_terms"]["future_field"] = "x"
+    for route, body in [
+        ("/admin/boundary/evaluate", {"agreement": changed, "requested_capability": "transactions.read"}),
+        ("/admin/boundary/decide", {"agreement": changed, "requested_capability": "transactions.read"}),
+        ("/admin/disclosure/commit", {"agreement": changed, "capabilities": ["transactions.read"]}),
+    ]:
+        resp = _post(client, route, body)
+        assert resp.status_code == 422, (route, resp.get_json())
+        assert _error(resp)["details"]["reason"] == "invalid_offerer_signature", route
+
+
+def test_an_agreement_this_na_issued_is_checked_as_received(client):
+    from .test_na_trust_api import _make_agreement
+    agreement = _make_agreement(client, client.service)
+    agreement["agreed_terms"]["future_field"] = "x"
+    resp = _post(client, "/admin/boundary/evaluate", {"agreement": agreement, "requested_capability": "read"})
+    assert resp.status_code == 422 and _error(resp)["details"]["reason"] == "invalid_offerer_signature"
+
+
 def test_an_agreement_this_na_issued_itself_is_trusted(client):
     from .test_na_trust_api import _make_agreement
     agreement = _make_agreement(client, client.service)

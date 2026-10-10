@@ -30,6 +30,7 @@ BoundaryDecisionVerificationReason = Literal[
     "attestation_binding_mismatch",
     "attestation_binding_missing",
     "unknown_field",
+    "non_canonical_form",
 ]
 
 
