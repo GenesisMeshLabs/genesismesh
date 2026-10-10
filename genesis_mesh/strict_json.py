@@ -28,6 +28,7 @@ every SDK reads it (v1.3.0): one input, one reason, in every implementation.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -237,27 +238,72 @@ class _Scanner:
             raise StrictJSONError("invalid_json", "text after the value")
 
 
+#: Text that may hold a lone surrogate: a surrogate escape, or a raw surrogate.
+_SURROGATE_HINT = re.compile(r"\\u[dD][89a-fA-F]|[\ud800-\udfff]")
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
+_STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.DOTALL)
+_NOT_BRACKET = re.compile(r"[^\[\]{}]+")
+_NESTING = {"[": 1, "{": 1, "]": -1, "}": -1}
+
+
+def _holds_surrogate(value: Any) -> bool:
+    """True when a key or string of a parsed value holds a surrogate code point.
+
+    The parser joins an escaped surrogate pair into one character, so only a
+    lone half (or a raw pair in text that was not decoded from UTF-8) is left.
+    """
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            if _SURROGATE.search(item):
+                return True
+        elif isinstance(item, dict):
+            stack.extend(item)
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return False
+
+
+def _depth(text: str) -> int:
+    """How deep arrays and objects nest in JSON text the parser accepted."""
+    brackets = _NOT_BRACKET.sub("", _STRING.sub("", text))
+    return max(itertools.accumulate(map(_NESTING.__getitem__, brackets)), default=0)
+
+
 def loads(text: str | bytes) -> Any:
     """Parse JSON for a signed record or a request body, refusing ambiguous input.
 
-    The text is scanned first, so that with several faults the first in text
-    order is named, as in every SDK; then parsed.
+    With several faults the first in text order is named, as in every SDK:
+    the scanner decides every refusal. v1.3.1: it runs only when it may
+    refuse, which kept the text being scanned in Python on every request.
+    The standard parser, with the hooks below, refuses everything the
+    scanner refuses except a lone surrogate and nesting deeper than
+    ``MAX_DEPTH``; so the text is scanned when the parser refuses it, or
+    when it may hold one of those two. A rule added to the scanner that the
+    parser does not share must be added to that condition.
     """
     if isinstance(text, (bytes, bytearray)):
         try:
             text = bytes(text).decode("utf-8")
         except UnicodeDecodeError:
             raise StrictJSONError("invalid_json", "the text is not UTF-8") from None
-    _Scanner(text).scan()
     try:
-        return json.loads(
+        value = json.loads(
             text,
             object_pairs_hook=_pairs,
             parse_constant=_constant,
             parse_int=_integer,
             parse_float=_float,
         )
-    except StrictJSONError:
-        raise
-    except (ValueError, RecursionError) as exc:
+    except (ValueError, RecursionError) as exc:  # StrictJSONError is a ValueError
+        _Scanner(text).scan()  # names the first fault in text order
+        if isinstance(exc, StrictJSONError):
+            raise
         raise StrictJSONError("invalid_json", str(exc)) from None
+    if (_SURROGATE_HINT.search(text) and _holds_surrogate(value)) or (
+        text.count("[") + text.count("{") > MAX_DEPTH and _depth(text) > MAX_DEPTH
+    ):
+        _Scanner(text).scan()
+    return value
