@@ -10,6 +10,7 @@ from typing import Any
 import click
 
 from ..crypto import load_private_key
+from .. import strict_json
 from ..interop import spiffe, w3c_vc, jose as jose_bridge
 from ..models.agreement import AgreementRecord
 from ..models.context import BoundaryDecision
@@ -64,8 +65,8 @@ def interop_to_spiffe(agreement_path: str, output: str) -> None:
             --output svid.json
     """
     try:
-        record = AgreementRecord.model_validate_json(
-            Path(agreement_path).read_text(encoding="utf-8")
+        record = AgreementRecord.model_validate(
+            strict_json.loads(Path(agreement_path).read_text(encoding="utf-8"))
         )
     except Exception as exc:
         raise click.ClickException(f"Cannot load agreement {agreement_path!r}: {exc}") from exc
@@ -116,8 +117,8 @@ def interop_to_vc(
 
     if agreement_path is not None:
         try:
-            record = AgreementRecord.model_validate_json(
-                Path(agreement_path).read_text(encoding="utf-8")
+            record = AgreementRecord.model_validate(
+                strict_json.loads(Path(agreement_path).read_text(encoding="utf-8"))
             )
         except Exception as exc:
             raise click.ClickException(f"Cannot load agreement: {exc}") from exc
@@ -126,8 +127,8 @@ def interop_to_vc(
     else:
         assert evidence_path is not None
         try:
-            evidence = TrustEvidence.model_validate_json(
-                Path(evidence_path).read_text(encoding="utf-8")
+            evidence = TrustEvidence.model_validate(
+                strict_json.loads(Path(evidence_path).read_text(encoding="utf-8"))
             )
         except Exception as exc:
             raise click.ClickException(f"Cannot load evidence: {exc}") from exc
@@ -177,8 +178,8 @@ def interop_to_jwt(
             --output decision.jwt
     """
     try:
-        decision = BoundaryDecision.model_validate_json(
-            Path(decision_path).read_text(encoding="utf-8")
+        decision = BoundaryDecision.model_validate(
+            strict_json.loads(Path(decision_path).read_text(encoding="utf-8"))
         )
     except Exception as exc:
         raise click.ClickException(f"Cannot load decision {decision_path!r}: {exc}") from exc

@@ -27,6 +27,8 @@ from typing import Any
 
 import nacl.signing
 
+from .. import strict_json
+from ..models.canonical_registry import strict_refusal
 from ..models.context import BoundaryDecision
 from ..models.mediation import (
     ExecutionMediationRequest,
@@ -163,12 +165,19 @@ class GenesisGuardDaemon:
             return None
         for path in candidates:
             try:
-                decision = BoundaryDecision.model_validate_json(path.read_text(encoding="utf-8"))
+                raw = strict_json.loads(path.read_text(encoding="utf-8"))
+                decision = BoundaryDecision.model_validate(raw)
             except (OSError, ValueError):
                 continue
-            if decision.decision_id == decision_id:
-                self.decision_store[decision_id] = decision
-                return decision
+            if decision.decision_id != decision_id:
+                continue
+            # v1.2.0: a decision not signed as written, with a field this release
+            # does not know, or not in canonical form is not used.
+            keys = self.operator_public_keys.get(decision.operator_sovereign_id, [])
+            if strict_refusal("BoundaryDecision", raw, keys):
+                continue
+            self.decision_store[decision_id] = decision
+            return decision
         return None
 
     def handle_request(

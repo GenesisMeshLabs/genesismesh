@@ -55,6 +55,12 @@ signer (`unknown_field`) and unsigned additions (`invalid_signature`), and an
 export entry of an unknown kind. Each SDK embeds the registry and fails its
 conformance test when its copy differs. See {doc}`../reference/canonical-form`.
 
+`conformance/vectors/canonical.json` (suite `canonical`, v1.2.0) holds the
+input every implementation must read alike or refuse by reason (duplicate
+keys, `NaN`, floats that overflow, integers beyond 64 bits, `-0`, lone
+surrogates), canonical and non-canonical timestamps, and records signed over
+a form the reference does not write (`non_canonical_form`).
+
 ## The live scenario
 
 Two sovereigns, org-a and bank-a, negotiate an agreement (offer, counter,

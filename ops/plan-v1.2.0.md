@@ -150,14 +150,19 @@ narrower kind, and the docs say so.
      entry points and reports fields outside a stored record's signature as
      the warning `unsigned_field`; the rules are in
      `docs/reference/canonical-form.md`.
-   - **Remaining (part 2b):** a canonicalization corpus
-     (`scripts/export_reference_corpus.py --suite canonical`): timestamps
-     (`Z`, `+00:00`, other offsets, naive, `.000`, six-digit fractions),
-     numbers (int and float, exponents, integers beyond 64 bits, `NaN`),
-     strings (non-ASCII, escapes, lone surrogates), duplicate keys, legacy
-     nulls, with conformance vectors; where Python is lax (it re-serializes
-     timestamps and so accepts forms the SDKs refuse), the core is made
-     strict and the case recorded.
+   - **Built (part 2b):** the conformance suite `canonical`
+     (`python conformance/generate_vectors.py canonical`): input every
+     implementation reads alike or refuses by reason (duplicate keys, `NaN`,
+     floats that overflow, integers beyond 64 bits, `-0`, lone surrogates),
+     canonical and non-canonical timestamps, and records signed over a form
+     the reference does not write (`non_canonical_form`). Where Python was
+     lax it is now strict: it read duplicate keys, `NaN` and lone surrogates,
+     and re-wrote a received record before checking its signature; the NA
+     reads every JSON body strictly. The registry marks timestamp fields
+     (version 2) so the SDKs check their form. Every implementation checks a
+     record in one order (Decision 12), and the NA also checks agreements as
+     received where it acts on them (evaluate, decide, disclosure commit), as
+     does the guard for the decision files it reads.
 3. **Signed store anchors** (core; built, see Decision 9).
    - The NA signs the store's head (`StoreAnchor`: sequence and entry digest;
      anchors chain among themselves) after an append once
@@ -230,8 +235,10 @@ narrower kind, and the docs say so.
       kind with a named reason (suite `field_registry`); every stored 1.x
       decision and execution record still verifies (unsigned extras from
       before 1.1.1 are a warning)
-- [ ] Every verifier passes the canonicalization corpus and the legacy-null
-      vectors (part 2b)
+- [x] Every verifier passes the canonicalization corpus and the legacy-null
+      vectors (part 2b): a field signed as `null` and removed fails as
+      `invalid_signature`; an omit-when-absent field received as `null` is
+      accepted
 - [x] Anchors are written on the interval and on request (read tier) and
       copied by `anchors fetch`; removing a record from an anchored range,
       truncating either end, or re-anchoring a rewritten chain fails
@@ -314,3 +321,16 @@ Open, from the part 3 and part 4 reviews (2026-10-09):
     keys count like unknown ones, so throttling does not reveal a
     revocation. The gateway caps operator headers at the NA's 256
     characters.
+
+Open, from building and reviewing the canonicalization corpus (2026-10-10):
+
+12. **Input limits and one check order** (proposed): integers are 64-bit
+    (`-2**63 .. 2**64 - 1`, the union of the signed and unsigned ranges every
+    parser reads exactly) and nesting is 64 deep (.NET's reader stops there
+    by default); both are refused as input everywhere and stated in RFC-001.
+    Every implementation checks a record in the SDKs' order: what comes
+    before the signature (a decision's signature present, its expiry), the
+    signature over the record as received, an agreement's graph digest,
+    unknown fields, then the form. The SDKs check only timestamps for form,
+    where the reference compares the whole record; a later registry version
+    marks scalar kinds (a float field given `1`) so they check those too.
