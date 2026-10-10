@@ -105,6 +105,8 @@ def verify_export(
         r["key_id"]: ExecutorKey(
             key_id=r["key_id"], public_key=r["public_key"],
             executor_sovereign_id=r["executor_sovereign_id"], retired=bool(r.get("retired_at")),
+            # v1.3.0: observer keys sign observations only.
+            role=r.get("role") or "executor", resource_prefix=r.get("resource_prefix"),
         )
         for r in rows
     }
@@ -124,6 +126,10 @@ def verify_export(
         click.echo(f"Entries    : {result.checked_entries}")
         click.echo(f"Decisions  : {result.decisions}")
         click.echo(f"Executions : {result.executions}")
+        for label, count in (("Observations", result.observations), ("Break-glass", result.break_glass),
+                             ("Judgements", result.judgements), ("Quarantined", result.quarantined)):
+            if count:
+                click.echo(f"{label:<11}: {count}")
         if result.anchors is not None:
             a = result.anchors
             click.echo(f"Anchors    : {a['anchors_matched']} matched of {a['anchors_checked']}; "

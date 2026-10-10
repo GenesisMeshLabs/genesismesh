@@ -48,6 +48,30 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
+## Upgrading to 1.3 (unreleased)
+
+1.3 adds migration 015. On SQLite it rebuilds the evidence table (to accept
+the new entry kinds), so allow for one copy of the table on disk; on
+PostgreSQL the table is altered in place. Entries, their digests and the
+anchors are unchanged, and `genesis-mesh na verify-db` verifies them after
+the upgrade. A 1.3 database cannot be opened by 1.2: roll back by restoring
+the backup taken before the upgrade.
+
+At its first start on 1.3 the NA:
+
+- backfills the store's registry from the audit events (policy activations
+  and deactivations, executor keys), marked `reconstructed`, and records how
+  far back its policy history reaches; changes before that are judged
+  `indeterminate`;
+- records which holder each configured operator key belongs to, from
+  `OPERATOR_KEY_HOLDERS_JSON` (a key without an entry is its own holder). Set
+  it before that start: afterwards a holder changes only with a second
+  holder's approval.
+
+Controllers that want their changes matched to observations report the
+version they produced as `execution_parameters.version_id`. See
+{doc}`out-of-band-changes`.
+
 ## Upgrading to 1.2 (unreleased)
 
 1.2 adds migration 014, the `evidence_anchors` table, so a 1.2 database cannot

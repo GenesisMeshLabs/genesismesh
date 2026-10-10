@@ -8,6 +8,7 @@ data usage attestation for post-execution audit.
 
 execution-evidence-chain
 evidence-store
+out-of-band-changes
 freshness-proofs
 justification-proofs
 data-usage-attestation
