@@ -40,6 +40,11 @@ _BUILTIN_GATE_NAMES = frozenset(
 ) | _ATTESTATION_GATE_NAMES
 
 
+def _utc(value: datetime) -> datetime:
+    """A timestamp without an offset is read as UTC, as every SDK reads it (v1.3.1)."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
 @dataclass(frozen=True)
 class BoundaryDecisionVerificationResult:
     accepted: bool
@@ -80,7 +85,7 @@ def verify_boundary_decision(
     AttestationBinding naming that attestation, its subject and issuer, with a
     digest equal to the attestation's canonical signed body.
     """
-    ts = now or datetime.now(timezone.utc)
+    ts = _utc(now or datetime.now(timezone.utc))
 
     def _reject(reason: BoundaryDecisionVerificationReason) -> BoundaryDecisionVerificationResult:
         return BoundaryDecisionVerificationResult(
@@ -89,7 +94,8 @@ def verify_boundary_decision(
 
     if decision.signature is None:
         return _reject("missing_signature")
-    if ts > decision.decision_valid_until:
+    # v1.3.1: a timestamp without an offset compares as UTC (it raised TypeError before).
+    if ts > _utc(decision.decision_valid_until):
         return _reject("decision_expired")
     if not any(verify_model_signature(decision, decision.signature, pub) for pub in operator_public_keys):
         return _reject("invalid_signature")
@@ -105,7 +111,7 @@ def verify_boundary_decision(
             proof_sig_valid = False
         if not proof_sig_valid:
             return _reject("freshness_proof_invalid_signature")
-        if proof.proof_valid_until < decision.decision_made_at:
+        if _utc(proof.proof_valid_until) < _utc(decision.decision_made_at):
             return _reject("freshness_proof_expired")
 
     binding = decision.policy_binding
