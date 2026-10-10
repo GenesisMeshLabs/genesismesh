@@ -144,8 +144,10 @@ readinessProbe:
 - Keep the NA private key and operator keys inside Kubernetes secrets or an
   external secret manager (Vault, External Secrets, etc.). Admin callers should
   use operator keys, not the NA private key.
-- Expose only the Network Authority HTTP API through ingress. Peer runtime
-  WebSocket ports belong to mesh nodes, not the NA Service.
+- Expose only the Network Authority HTTP API through ingress, and set
+  `NA_PROXY_HOPS` to `1` in the Deployment once an Ingress proxies to it, so
+  rate limits apply to the client's address. Peer runtime WebSocket ports
+  belong to mesh nodes, not the NA Service.
 - Add a `NetworkPolicy` if you only want specific namespaces to reach the NA.
 
 ## When To Use a Kubernetes Service Mesh Too

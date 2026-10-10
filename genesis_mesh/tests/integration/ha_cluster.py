@@ -172,6 +172,8 @@ class HACluster:
             "OPERATOR_KEY_TIERS_JSON": json.dumps({self.operator_key_id: "privileged"}),
             "EVIDENCE_STORE": self.evidence_store,
             "BOUNDARY_POLICY_ENFORCEMENT": self.boundary_policy_enforcement,
+            # Behind nginx: the client address comes from X-Forwarded-For (v1.3.1: 0 by default).
+            "NA_PROXY_HOPS": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
         })
         env.pop("NA_PRIVATE_KEY_FILE", None)

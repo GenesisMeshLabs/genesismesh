@@ -152,7 +152,9 @@ Configure the load balancer to:
 - pass a request on to another instance only when it could not reach the
   first (connection refused, timeout, 502 or 503), never after the request was
   delivered;
-- forward the client address (`X-Forwarded-For`). The NA trusts one proxy hop.
+- forward the client address (`X-Forwarded-For`), and set `NA_PROXY_HOPS=1`
+  on the instances so they trust that one proxy hop (the default, `0` since
+  1.3.1, is for an NA that clients reach directly).
 
 `deploy/compose/ha/nginx.conf` is a working example.
 

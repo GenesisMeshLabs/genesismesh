@@ -48,6 +48,19 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
+## Upgrading to 1.3.1
+
+*Unreleased.*
+
+- **`NA_PROXY_HOPS` defaults to `0`.** It was `1`, so an NA that clients
+  reach directly trusted the `X-Forwarded-For` they sent and a client could
+  choose the address its rate limits apply to. An NA behind one reverse
+  proxy or load balancer must now set `NA_PROXY_HOPS=1` (the HA compose
+  file, the systemd unit and the VM bootstrap script in this repository do);
+  without it every client counts as the proxy's address, and the advertised
+  URLs take the proxy's view of the scheme and host. Set `NA_PUBLIC_URL` too
+  (below).
+
 ## Upgrading to 1.3
 
 1.3 adds migration 015. On SQLite it rebuilds the evidence table (to accept
