@@ -71,8 +71,11 @@ await gm.evidenceStore.enqueueRecord(observation);
 a pseudonymous identifier, never a credential. `metadata` passes the secret
 guard: names, versions and times, never values. Name the version
 (`version_id`) when the source reports one: the NA matches the observation to
-execution evidence that reports the same `execution_parameters.version_id`,
-and the change is then governed by that evidence's decision.
+execution evidence for the same resource, action and capability that reports
+the same `execution_parameters.version_id`, and the change is then governed
+by that evidence's decision, unless the observer's own facts are denied by
+the policies active then. A second observer's report of the same version is
+the same change.
 
 A reconciliation finding knows only that a resource changed between two
 scans. `observationFromFinding` turns one into an observation input with
@@ -102,10 +105,13 @@ if ('brokeGlass' in result) {
 }
 ```
 
-A DENY never breaks the glass, nor does a decision that fails verification
-or any other error. `breakGlass` needs a record outbox and `resource_id`, and
-checks the justification and the context against the secret guard before
-anything is evaluated or run. Every use shows in the resource's changes, with
+A DENY never breaks the glass, nor does a decision that fails verification,
+the NA throttling failed operator signatures (`429 admin_auth_throttled`),
+an evaluation it could not store (`503 evidence_store_unavailable`), or any
+other error. `breakGlass` needs a record outbox, `resource_id` and an
+attestation-based evaluation (`attestation_id`: an agreement-based one cannot
+be judged after the fact), and checks the justification and the context
+against the secret guard before anything is evaluated or run. Every use shows in the resource's changes, with
 its justification; a policy can forbid it for a capability (a `denylist.v1`
 gate on `parent_kind` with the value `break_glass`).
 
