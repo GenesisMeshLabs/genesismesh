@@ -187,7 +187,7 @@ jobs:
         with:
           fetch-depth: 0
       # Pull requests add changelog.d/<version>/<name>.md; only a release PR
-      # (branch release/...) folds them into CHANGELOG.md, so a feature PR for
+      # (branch release/<version>) folds them into CHANGELOG.md, so a feature PR for
       # the next version never conflicts with the release of this one.
       - name: Pull requests add fragments; only a release edits CHANGELOG.md
         env:
