@@ -6,7 +6,7 @@ from importlib.resources import files
 
 from flask import Blueprint, Response, jsonify, request
 
-from ..errors import NotFoundError
+from ..errors import BadRequestError, NotFoundError
 from ..operator_console.atlas import render_atlas
 from ..operator_console.dashboard import build_dashboard_model, render_dashboard
 from ..operator_console.openapi import build_swagger_spec
@@ -15,6 +15,7 @@ from ..operator_console.rendering import (
     render_cli_reference,
     render_homepage,
 )
+from ..settings import public_origin
 
 
 def _public_base_url(service) -> str:
@@ -25,10 +26,17 @@ def _public_base_url(service) -> str:
     ``X-Forwarded-Proto`` and ``X-Forwarded-Host`` only from the
     ``NA_PROXY_HOPS`` trusted proxies; reading the headers here let any client
     choose the URLs the NA advertises, even with ``NA_PROXY_HOPS=0``.
+    v1.3.1: a host that is not a valid origin (``na.example:8443@evil``
+    advertised ``https:``) is refused rather than advertised.
     """
     if getattr(service, "public_url", None):
         return service.public_url
-    return f"{request.scheme}://{request.host}".rstrip("/")
+    try:
+        return public_origin(f"{request.scheme}://{request.host}")
+    except ValueError:
+        raise BadRequestError(
+            "The request does not name a valid host (set NA_PUBLIC_URL to advertise a fixed one)"
+        ) from None
 
 
 def create_public_blueprint(service) -> Blueprint:
