@@ -2892,10 +2892,6 @@
       "description": "BreakGlassRecord as the reference emits it",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -2916,6 +2912,10 @@
         "outcome_detail": "rotated",
         "execution_parameters": {
           "version_id": "v3"
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
         }
       },
       "expected": {
@@ -2928,10 +2928,6 @@
       "description": "BreakGlassRecord with an unknown top-level field",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -2952,6 +2948,10 @@
         "outcome_detail": "rotated",
         "execution_parameters": {
           "version_id": "v3"
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
         },
         "x_added_field": 1
       },
@@ -2967,11 +2967,6 @@
       "description": "A field on the signature itself is outside the signed form",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ==",
-          "alg": "x"
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -2992,6 +2987,11 @@
         "outcome_detail": "rotated",
         "execution_parameters": {
           "version_id": "v3"
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ==",
+          "alg": "x"
         }
       },
       "expected": {
@@ -3004,10 +3004,6 @@
       "description": "BreakGlassRecord.attributes is free-form: added keys are kept",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -3029,6 +3025,10 @@
         "outcome_detail": "rotated",
         "execution_parameters": {
           "version_id": "v3"
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
         }
       },
       "expected": {
@@ -3041,10 +3041,6 @@
       "description": "BreakGlassRecord.execution_parameters is free-form: added keys are kept",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -3066,6 +3062,10 @@
         "execution_parameters": {
           "version_id": "v3",
           "x_added_key": 1
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
         }
       },
       "expected": {
@@ -3078,10 +3078,6 @@
       "description": "BreakGlassRecord.request_parameters is free-form: added keys are kept",
       "model": "BreakGlassRecord",
       "record": {
-        "signature": {
-          "key_id": "executor-b",
-          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
-        },
         "break_glass_id": "00000000-0000-4000-8000-000000000003",
         "executor_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -3103,6 +3099,10 @@
         "outcome_detail": "rotated",
         "execution_parameters": {
           "version_id": "v3"
+        },
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "2Sx/8NFTkaPAdDOwDWv5SE9DbbympvO1SXe4+O67tu1xb9NzEMePQ+WDEQTtumcVUqDfWYunF276NCrAf2CTBQ=="
         }
       },
       "expected": {
@@ -3659,349 +3659,6 @@
       "description": "JudgementRecord as the reference emits it",
       "model": "JudgementRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
-        "judgement_id": "00000000-0000-4000-8000-000000000002",
-        "subject_kind": "observation",
-        "subject_id": "00000000-0000-4000-8000-000000000002",
-        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
-        "subject_store_sequence": 7,
-        "resource_id": "kv:vault/api-key",
-        "action": "update",
-        "capability": "secret.update",
-        "governed_by": "after_the_fact",
-        "verdict": "deny",
-        "reason": "policy gate 'max-lifetime' failed",
-        "evaluated_as_of": "2027-01-01T00:00:00Z",
-        "evaluated_from": "2026-01-01T00:00:00Z",
-        "policy_binding": {
-          "policies": [
-            {
-              "policy_id": "statements-read",
-              "version": 1,
-              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
-              "signed_by": "na-key"
-            }
-          ],
-          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
-          "gate_evaluations": [
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "max-rows",
-              "gate_type": "max_value.v1",
-              "order": 0,
-              "mode": "enforce",
-              "passed": true,
-              "outcome": "pass"
-            },
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "purpose",
-              "gate_type": "required_parameter.v1",
-              "order": 1,
-              "mode": "observe",
-              "passed": false,
-              "outcome": "missing_context"
-            }
-          ],
-          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
-          "registry_gate_types": [
-            "max_value.v1",
-            "required_parameter.v1"
-          ],
-          "resolution_status": "resolved"
-        },
-        "gate_results": [
-          {
-            "gate_name": "max-lifetime",
-            "passed": false,
-            "detail": "lifetime_days 400 > 90"
-          }
-        ],
-        "current_verdict": "allow",
-        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "flagged_for_review": true,
-        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
-        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
-        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
-        "judged_at": "2027-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
-      },
-      "expected": {
-        "unknown_fields": []
-      }
-    },
-    {
-      "id": "judgementrecord-top",
-      "kind": "unknown_fields",
-      "description": "JudgementRecord with an unknown top-level field",
-      "model": "JudgementRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
-        "judgement_id": "00000000-0000-4000-8000-000000000002",
-        "subject_kind": "observation",
-        "subject_id": "00000000-0000-4000-8000-000000000002",
-        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
-        "subject_store_sequence": 7,
-        "resource_id": "kv:vault/api-key",
-        "action": "update",
-        "capability": "secret.update",
-        "governed_by": "after_the_fact",
-        "verdict": "deny",
-        "reason": "policy gate 'max-lifetime' failed",
-        "evaluated_as_of": "2027-01-01T00:00:00Z",
-        "evaluated_from": "2026-01-01T00:00:00Z",
-        "policy_binding": {
-          "policies": [
-            {
-              "policy_id": "statements-read",
-              "version": 1,
-              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
-              "signed_by": "na-key"
-            }
-          ],
-          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
-          "gate_evaluations": [
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "max-rows",
-              "gate_type": "max_value.v1",
-              "order": 0,
-              "mode": "enforce",
-              "passed": true,
-              "outcome": "pass"
-            },
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "purpose",
-              "gate_type": "required_parameter.v1",
-              "order": 1,
-              "mode": "observe",
-              "passed": false,
-              "outcome": "missing_context"
-            }
-          ],
-          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
-          "registry_gate_types": [
-            "max_value.v1",
-            "required_parameter.v1"
-          ],
-          "resolution_status": "resolved"
-        },
-        "gate_results": [
-          {
-            "gate_name": "max-lifetime",
-            "passed": false,
-            "detail": "lifetime_days 400 > 90"
-          }
-        ],
-        "current_verdict": "allow",
-        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "flagged_for_review": true,
-        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
-        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
-        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
-        "judged_at": "2027-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key",
-        "x_added_field": 1
-      },
-      "expected": {
-        "unknown_fields": [
-          "x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "judgementrecord-signature-extra",
-      "kind": "unknown_fields",
-      "description": "A field on the signature itself is outside the signed form",
-      "model": "JudgementRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA==",
-          "alg": "x"
-        },
-        "judgement_id": "00000000-0000-4000-8000-000000000002",
-        "subject_kind": "observation",
-        "subject_id": "00000000-0000-4000-8000-000000000002",
-        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
-        "subject_store_sequence": 7,
-        "resource_id": "kv:vault/api-key",
-        "action": "update",
-        "capability": "secret.update",
-        "governed_by": "after_the_fact",
-        "verdict": "deny",
-        "reason": "policy gate 'max-lifetime' failed",
-        "evaluated_as_of": "2027-01-01T00:00:00Z",
-        "evaluated_from": "2026-01-01T00:00:00Z",
-        "policy_binding": {
-          "policies": [
-            {
-              "policy_id": "statements-read",
-              "version": 1,
-              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
-              "signed_by": "na-key"
-            }
-          ],
-          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
-          "gate_evaluations": [
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "max-rows",
-              "gate_type": "max_value.v1",
-              "order": 0,
-              "mode": "enforce",
-              "passed": true,
-              "outcome": "pass"
-            },
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "purpose",
-              "gate_type": "required_parameter.v1",
-              "order": 1,
-              "mode": "observe",
-              "passed": false,
-              "outcome": "missing_context"
-            }
-          ],
-          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
-          "registry_gate_types": [
-            "max_value.v1",
-            "required_parameter.v1"
-          ],
-          "resolution_status": "resolved"
-        },
-        "gate_results": [
-          {
-            "gate_name": "max-lifetime",
-            "passed": false,
-            "detail": "lifetime_days 400 > 90"
-          }
-        ],
-        "current_verdict": "allow",
-        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "flagged_for_review": true,
-        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
-        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
-        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
-        "judged_at": "2027-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
-      },
-      "expected": {
-        "unknown_fields": []
-      }
-    },
-    {
-      "id": "judgementrecord-nested-gate_results",
-      "kind": "unknown_fields",
-      "description": "JudgementRecord.gate_results (GateResult) with an unknown field",
-      "model": "JudgementRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
-        "judgement_id": "00000000-0000-4000-8000-000000000002",
-        "subject_kind": "observation",
-        "subject_id": "00000000-0000-4000-8000-000000000002",
-        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
-        "subject_store_sequence": 7,
-        "resource_id": "kv:vault/api-key",
-        "action": "update",
-        "capability": "secret.update",
-        "governed_by": "after_the_fact",
-        "verdict": "deny",
-        "reason": "policy gate 'max-lifetime' failed",
-        "evaluated_as_of": "2027-01-01T00:00:00Z",
-        "evaluated_from": "2026-01-01T00:00:00Z",
-        "policy_binding": {
-          "policies": [
-            {
-              "policy_id": "statements-read",
-              "version": 1,
-              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
-              "signed_by": "na-key"
-            }
-          ],
-          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
-          "gate_evaluations": [
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "max-rows",
-              "gate_type": "max_value.v1",
-              "order": 0,
-              "mode": "enforce",
-              "passed": true,
-              "outcome": "pass"
-            },
-            {
-              "policy_id": "statements-read",
-              "policy_version": 1,
-              "gate_id": "purpose",
-              "gate_type": "required_parameter.v1",
-              "order": 1,
-              "mode": "observe",
-              "passed": false,
-              "outcome": "missing_context"
-            }
-          ],
-          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
-          "registry_gate_types": [
-            "max_value.v1",
-            "required_parameter.v1"
-          ],
-          "resolution_status": "resolved"
-        },
-        "gate_results": [
-          {
-            "gate_name": "max-lifetime",
-            "passed": false,
-            "detail": "lifetime_days 400 > 90",
-            "x_added_field": 1
-          }
-        ],
-        "current_verdict": "allow",
-        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "flagged_for_review": true,
-        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
-        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
-        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
-        "judged_at": "2027-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
-      },
-      "expected": {
-        "unknown_fields": [
-          "gate_results.0.x_added_field"
-        ]
-      }
-    },
-    {
-      "id": "judgementrecord-nested-policy_binding",
-      "kind": "unknown_fields",
-      "description": "JudgementRecord.policy_binding (PolicyBinding) with an unknown field",
-      "model": "JudgementRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
         "judgement_id": "00000000-0000-4000-8000-000000000002",
         "subject_kind": "observation",
         "subject_id": "00000000-0000-4000-8000-000000000002",
@@ -4053,6 +3710,350 @@
             "required_parameter.v1"
           ],
           "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "gate_results": [
+          {
+            "gate_name": "max-lifetime",
+            "passed": false,
+            "detail": "lifetime_days 400 > 90"
+          }
+        ],
+        "current_verdict": "allow",
+        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "flagged_for_review": true,
+        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
+        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
+        "judged_at": "2027-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "judgementrecord-top",
+      "kind": "unknown_fields",
+      "description": "JudgementRecord with an unknown top-level field",
+      "model": "JudgementRecord",
+      "record": {
+        "judgement_id": "00000000-0000-4000-8000-000000000002",
+        "subject_kind": "observation",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "subject_store_sequence": 7,
+        "resource_id": "kv:vault/api-key",
+        "action": "update",
+        "capability": "secret.update",
+        "governed_by": "after_the_fact",
+        "verdict": "deny",
+        "reason": "policy gate 'max-lifetime' failed",
+        "evaluated_as_of": "2027-01-01T00:00:00Z",
+        "evaluated_from": "2026-01-01T00:00:00Z",
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "gate_results": [
+          {
+            "gate_name": "max-lifetime",
+            "passed": false,
+            "detail": "lifetime_days 400 > 90"
+          }
+        ],
+        "current_verdict": "allow",
+        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "flagged_for_review": true,
+        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
+        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
+        "judged_at": "2027-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "judgementrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "JudgementRecord",
+      "record": {
+        "judgement_id": "00000000-0000-4000-8000-000000000002",
+        "subject_kind": "observation",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "subject_store_sequence": 7,
+        "resource_id": "kv:vault/api-key",
+        "action": "update",
+        "capability": "secret.update",
+        "governed_by": "after_the_fact",
+        "verdict": "deny",
+        "reason": "policy gate 'max-lifetime' failed",
+        "evaluated_as_of": "2027-01-01T00:00:00Z",
+        "evaluated_from": "2026-01-01T00:00:00Z",
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "gate_results": [
+          {
+            "gate_name": "max-lifetime",
+            "passed": false,
+            "detail": "lifetime_days 400 > 90"
+          }
+        ],
+        "current_verdict": "allow",
+        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "flagged_for_review": true,
+        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
+        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
+        "judged_at": "2027-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "judgementrecord-nested-gate_results",
+      "kind": "unknown_fields",
+      "description": "JudgementRecord.gate_results (GateResult) with an unknown field",
+      "model": "JudgementRecord",
+      "record": {
+        "judgement_id": "00000000-0000-4000-8000-000000000002",
+        "subject_kind": "observation",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "subject_store_sequence": 7,
+        "resource_id": "kv:vault/api-key",
+        "action": "update",
+        "capability": "secret.update",
+        "governed_by": "after_the_fact",
+        "verdict": "deny",
+        "reason": "policy gate 'max-lifetime' failed",
+        "evaluated_as_of": "2027-01-01T00:00:00Z",
+        "evaluated_from": "2026-01-01T00:00:00Z",
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null
+        },
+        "gate_results": [
+          {
+            "gate_name": "max-lifetime",
+            "passed": false,
+            "detail": "lifetime_days 400 > 90",
+            "x_added_field": 1
+          }
+        ],
+        "current_verdict": "allow",
+        "current_policy_set_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "flagged_for_review": true,
+        "matched_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "matched_decision_id": "00000000-0000-4000-8000-000000000002",
+        "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
+        "judged_at": "2027-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "gate_results.0.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "judgementrecord-nested-policy_binding",
+      "kind": "unknown_fields",
+      "description": "JudgementRecord.policy_binding (PolicyBinding) with an unknown field",
+      "model": "JudgementRecord",
+      "record": {
+        "judgement_id": "00000000-0000-4000-8000-000000000002",
+        "subject_kind": "observation",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "subject_store_sequence": 7,
+        "resource_id": "kv:vault/api-key",
+        "action": "update",
+        "capability": "secret.update",
+        "governed_by": "after_the_fact",
+        "verdict": "deny",
+        "reason": "policy gate 'max-lifetime' failed",
+        "evaluated_as_of": "2027-01-01T00:00:00Z",
+        "evaluated_from": "2026-01-01T00:00:00Z",
+        "policy_binding": {
+          "policies": [
+            {
+              "policy_id": "statements-read",
+              "version": 1,
+              "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+              "signed_by": "na-key"
+            }
+          ],
+          "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+          "gate_evaluations": [
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "max-rows",
+              "gate_type": "max_value.v1",
+              "order": 0,
+              "mode": "enforce",
+              "passed": true,
+              "outcome": "pass"
+            },
+            {
+              "policy_id": "statements-read",
+              "policy_version": 1,
+              "gate_id": "purpose",
+              "gate_type": "required_parameter.v1",
+              "order": 1,
+              "mode": "observe",
+              "passed": false,
+              "outcome": "missing_context"
+            }
+          ],
+          "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+          "registry_gate_types": [
+            "max_value.v1",
+            "required_parameter.v1"
+          ],
+          "resolution_status": "resolved",
+          "resolution_failure": null,
           "x_added_field": 1
         },
         "gate_results": [
@@ -4070,7 +4071,11 @@
         "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
         "judged_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        }
       },
       "expected": {
         "unknown_fields": [
@@ -4084,10 +4089,6 @@
       "description": "PolicyBinding.gate_evaluations (PolicyGateEvaluation) with an unknown field",
       "model": "JudgementRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
         "judgement_id": "00000000-0000-4000-8000-000000000002",
         "subject_kind": "observation",
         "subject_id": "00000000-0000-4000-8000-000000000002",
@@ -4139,7 +4140,8 @@
             "max_value.v1",
             "required_parameter.v1"
           ],
-          "resolution_status": "resolved"
+          "resolution_status": "resolved",
+          "resolution_failure": null
         },
         "gate_results": [
           {
@@ -4156,7 +4158,11 @@
         "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
         "judged_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        }
       },
       "expected": {
         "unknown_fields": [
@@ -4170,10 +4176,6 @@
       "description": "PolicyBinding.policies (AppliedPolicy) with an unknown field",
       "model": "JudgementRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "cE9fyDaVJSo4gxKU23+5KGXjbaC8zeSUkjvjmVKFR8EV1Jl1pjKz4B3OxPyhPqk5B5D3xNmQMdQrd4fGwj50AA=="
-        },
         "judgement_id": "00000000-0000-4000-8000-000000000002",
         "subject_kind": "observation",
         "subject_id": "00000000-0000-4000-8000-000000000002",
@@ -4225,7 +4227,8 @@
             "max_value.v1",
             "required_parameter.v1"
           ],
-          "resolution_status": "resolved"
+          "resolution_status": "resolved",
+          "resolution_failure": null
         },
         "gate_results": [
           {
@@ -4242,7 +4245,11 @@
         "possible_match_evidence_id": "00000000-0000-4000-8000-000000000003",
         "judged_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "YlUXx5Uk1LlwEHExUPTCkitWSCW1FVrcPsbNN5/CGqBfGIb93Hql8HKjyn57GKITCPgeizqU2ZVkDoZRWJT9Cg=="
+        }
       },
       "expected": {
         "unknown_fields": [
@@ -4666,10 +4673,6 @@
       "description": "ObservationRecord as the reference emits it",
       "model": "ObservationRecord",
       "record": {
-        "signature": {
-          "key_id": "observer-b",
-          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
-        },
         "observation_id": "00000000-0000-4000-8000-000000000001",
         "observer_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -4684,6 +4687,10 @@
         "metadata": {
           "secret_version": "v2",
           "operation": "SetSecret"
+        },
+        "signature": {
+          "key_id": "observer-b",
+          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
         }
       },
       "expected": {
@@ -4696,10 +4703,6 @@
       "description": "ObservationRecord with an unknown top-level field",
       "model": "ObservationRecord",
       "record": {
-        "signature": {
-          "key_id": "observer-b",
-          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
-        },
         "observation_id": "00000000-0000-4000-8000-000000000001",
         "observer_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -4714,6 +4717,10 @@
         "metadata": {
           "secret_version": "v2",
           "operation": "SetSecret"
+        },
+        "signature": {
+          "key_id": "observer-b",
+          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
         },
         "x_added_field": 1
       },
@@ -4729,11 +4736,6 @@
       "description": "A field on the signature itself is outside the signed form",
       "model": "ObservationRecord",
       "record": {
-        "signature": {
-          "key_id": "observer-b",
-          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg==",
-          "alg": "x"
-        },
         "observation_id": "00000000-0000-4000-8000-000000000001",
         "observer_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -4748,6 +4750,11 @@
         "metadata": {
           "secret_version": "v2",
           "operation": "SetSecret"
+        },
+        "signature": {
+          "key_id": "observer-b",
+          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg==",
+          "alg": "x"
         }
       },
       "expected": {
@@ -4760,10 +4767,6 @@
       "description": "ObservationRecord.metadata is free-form: added keys are kept",
       "model": "ObservationRecord",
       "record": {
-        "signature": {
-          "key_id": "observer-b",
-          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
-        },
         "observation_id": "00000000-0000-4000-8000-000000000001",
         "observer_sovereign_id": "sovereign-b",
         "resource_id": "kv:vault/api-key",
@@ -4779,6 +4782,10 @@
           "secret_version": "v2",
           "operation": "SetSecret",
           "x_added_key": 1
+        },
+        "signature": {
+          "key_id": "observer-b",
+          "sig": "VN5bahkCQb10vwR/k+V0DhdFhJuWV0UkpP7GX96MezHCxoLtZPyJjX3XlVOhYv88tHIMEaZcDLZ6dqZlIPjPDg=="
         }
       },
       "expected": {
@@ -4791,59 +4798,6 @@
       "description": "QuarantineRecord as the reference emits it",
       "model": "QuarantineRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
-        },
-        "quarantine_id": "00000000-0000-4000-8000-000000000003",
-        "record_kind": "execution",
-        "record": {
-          "evidence_id": "00000000-0000-4000-8000-000000000001",
-          "sequence_no": 1,
-          "decision_id": "00000000-0000-4000-8000-000000000002",
-          "context_id": "00000000-0000-4000-8000-000000000003",
-          "agreement_id": "00000000-0000-4000-8000-000000000001",
-          "executor_sovereign_id": "sovereign-b",
-          "executed_capability": "secret.rotate",
-          "execution_parameters": {
-            "secret_version": "v2",
-            "note": "Z\u00fcrich \u2713"
-          },
-          "executed_at": "2026-01-01T00:00:00Z",
-          "outcome": "success",
-          "outcome_detail": null,
-          "prev_evidence_digest": null,
-          "resource_id": "kv:vault/api-key",
-          "resource_action": "rotate",
-          "resource_sequence": 2,
-          "prev_resource_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-          "signature": {
-            "key_id": "executor-b",
-            "sig": "Msc09okIir7sTNda+UYm/TRwQcwj1uVHt/E9sCXPkvM+SS/iA0V0z33wDXLl4/3YRMjBF7kIyauxCsoTfatUBg=="
-          }
-        },
-        "record_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        "rejection_code": "evidence_decision_denied",
-        "detail": "the decision denied the request",
-        "resource_id": "kv:vault/api-key",
-        "quarantined_at": "2027-01-01T00:00:00Z",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
-      },
-      "expected": {
-        "unknown_fields": []
-      }
-    },
-    {
-      "id": "quarantinerecord-top",
-      "kind": "unknown_fields",
-      "description": "QuarantineRecord with an unknown top-level field",
-      "model": "QuarantineRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
-        },
         "quarantine_id": "00000000-0000-4000-8000-000000000003",
         "record_kind": "execution",
         "record": {
@@ -4878,25 +4832,21 @@
         "quarantined_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
         "issued_by": "na-key",
-        "x_added_field": 1
+        "signature": {
+          "key_id": "na-key",
+          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
+        }
       },
       "expected": {
-        "unknown_fields": [
-          "x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
-      "id": "quarantinerecord-signature-extra",
+      "id": "quarantinerecord-top",
       "kind": "unknown_fields",
-      "description": "A field on the signature itself is outside the signed form",
+      "description": "QuarantineRecord with an unknown top-level field",
       "model": "QuarantineRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw==",
-          "alg": "x"
-        },
         "quarantine_id": "00000000-0000-4000-8000-000000000003",
         "record_kind": "execution",
         "record": {
@@ -4930,7 +4880,64 @@
         "resource_id": "kv:vault/api-key",
         "quarantined_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "quarantinerecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "QuarantineRecord",
+      "record": {
+        "quarantine_id": "00000000-0000-4000-8000-000000000003",
+        "record_kind": "execution",
+        "record": {
+          "evidence_id": "00000000-0000-4000-8000-000000000001",
+          "sequence_no": 1,
+          "decision_id": "00000000-0000-4000-8000-000000000002",
+          "context_id": "00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000001",
+          "executor_sovereign_id": "sovereign-b",
+          "executed_capability": "secret.rotate",
+          "execution_parameters": {
+            "secret_version": "v2",
+            "note": "Z\u00fcrich \u2713"
+          },
+          "executed_at": "2026-01-01T00:00:00Z",
+          "outcome": "success",
+          "outcome_detail": null,
+          "prev_evidence_digest": null,
+          "resource_id": "kv:vault/api-key",
+          "resource_action": "rotate",
+          "resource_sequence": 2,
+          "prev_resource_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "signature": {
+            "key_id": "executor-b",
+            "sig": "Msc09okIir7sTNda+UYm/TRwQcwj1uVHt/E9sCXPkvM+SS/iA0V0z33wDXLl4/3YRMjBF7kIyauxCsoTfatUBg=="
+          }
+        },
+        "record_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rejection_code": "evidence_decision_denied",
+        "detail": "the decision denied the request",
+        "resource_id": "kv:vault/api-key",
+        "quarantined_at": "2027-01-01T00:00:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw==",
+          "alg": "x"
+        }
       },
       "expected": {
         "unknown_fields": []
@@ -4942,10 +4949,6 @@
       "description": "QuarantineRecord.record is free-form: added keys are kept",
       "model": "QuarantineRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
-        },
         "quarantine_id": "00000000-0000-4000-8000-000000000003",
         "record_kind": "execution",
         "record": {
@@ -4980,7 +4983,11 @@
         "resource_id": "kv:vault/api-key",
         "quarantined_at": "2027-01-01T00:00:00Z",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "zz3uxNQgRnCxTlr1k0wGDyUELeTPjWhYaLdgCwUlGpclaAfn/Cmwu/fovoc2Ow+H/iWAB0eU1i9LqSekXo/KAw=="
+        }
       },
       "expected": {
         "unknown_fields": []
@@ -4992,43 +4999,6 @@
       "description": "RegistryRecord as the reference emits it",
       "model": "RegistryRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ=="
-        },
-        "registry_record_id": "00000000-0000-4000-8000-000000000001",
-        "event": "executor_key_registered",
-        "effective_at": "2026-01-01T00:00:00Z",
-        "reconstructed": true,
-        "policy_id": "secret-rotation",
-        "policy_version": 2,
-        "policy_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "key_id": "observer-b",
-        "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-        "executor_sovereign_id": "sovereign-b",
-        "key_role": "observer",
-        "resource_prefix": "kv:vault/",
-        "operator_tier": "privileged",
-        "holder": "holder-1",
-        "approved_by": "operator-2",
-        "recorded_by": "operator-1",
-        "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
-      },
-      "expected": {
-        "unknown_fields": []
-      }
-    },
-    {
-      "id": "registryrecord-top",
-      "kind": "unknown_fields",
-      "description": "RegistryRecord with an unknown top-level field",
-      "model": "RegistryRecord",
-      "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ=="
-        },
         "registry_record_id": "00000000-0000-4000-8000-000000000001",
         "event": "executor_key_registered",
         "effective_at": "2026-01-01T00:00:00Z",
@@ -5047,25 +5017,21 @@
         "recorded_by": "operator-1",
         "issuer_sovereign_id": "sovereign-c",
         "issued_by": "na-key",
-        "x_added_field": 1
+        "signature": {
+          "key_id": "na-key",
+          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ=="
+        }
       },
       "expected": {
-        "unknown_fields": [
-          "x_added_field"
-        ]
+        "unknown_fields": []
       }
     },
     {
-      "id": "registryrecord-signature-extra",
+      "id": "registryrecord-top",
       "kind": "unknown_fields",
-      "description": "A field on the signature itself is outside the signed form",
+      "description": "RegistryRecord with an unknown top-level field",
       "model": "RegistryRecord",
       "record": {
-        "signature": {
-          "key_id": "na-key",
-          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ==",
-          "alg": "x"
-        },
         "registry_record_id": "00000000-0000-4000-8000-000000000001",
         "event": "executor_key_registered",
         "effective_at": "2026-01-01T00:00:00Z",
@@ -5083,7 +5049,48 @@
         "approved_by": "operator-2",
         "recorded_by": "operator-1",
         "issuer_sovereign_id": "sovereign-c",
-        "issued_by": "na-key"
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "registryrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "RegistryRecord",
+      "record": {
+        "registry_record_id": "00000000-0000-4000-8000-000000000001",
+        "event": "executor_key_registered",
+        "effective_at": "2026-01-01T00:00:00Z",
+        "reconstructed": true,
+        "policy_id": "secret-rotation",
+        "policy_version": 2,
+        "policy_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "key_id": "observer-b",
+        "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+        "executor_sovereign_id": "sovereign-b",
+        "key_role": "observer",
+        "resource_prefix": "kv:vault/",
+        "operator_tier": "privileged",
+        "holder": "holder-1",
+        "approved_by": "operator-2",
+        "recorded_by": "operator-1",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "vsSUskAGZiJ7urBdGO0rgFlPlo/5XWU2iXopT2ZU9Whxl+WO9MxNBYovPC7ehZhHSkuSCVHZ9m6IgV8WmYcMBQ==",
+          "alg": "x"
+        }
       },
       "expected": {
         "unknown_fields": []

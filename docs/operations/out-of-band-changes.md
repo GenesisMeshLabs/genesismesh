@@ -156,12 +156,12 @@ changes, with its justification.
 An authentic record that the NA refuses after its action happened is kept as
 a `quarantine` entry, once per record, with the refusal:
 
-- execution evidence refused for good: its decision is unknown, denied,
-  mismatched, outside its window, for another capability, or the chain or
-  position conflicts (`evidence_decision_denied`, ...). The refusal response
-  names the `quarantine_id`. Evidence refused for a chain gap is not
-  quarantined (its predecessor may still arrive), and evidence carrying
-  secret material is never stored;
+- execution evidence refused for good: its decision is denied, mismatched,
+  outside its window or for another capability, or the chain or position
+  conflicts (`evidence_decision_denied`, ...), the refusals the SDKs
+  dead-letter. The refusal response names the `quarantine_id`. Evidence
+  refused for a chain gap or an unknown decision is not quarantined (the
+  SDKs retry it), and evidence carrying secret material is never stored;
 - an observation or break-glass record outside its time bounds.
 
 A record that is not authentic (unsigned, signed by an unknown key, not in

@@ -461,9 +461,9 @@ chain and never removed. `GET /admin/evidence/verify` checks them, and
 See {doc}`../operations/evidence-anchors`.
 
 Since v1.3.0 an authentic execution record refused for good (its decision
-unknown, denied, mismatched or outside its window, the wrong capability, a
-chain mismatch or a conflict) is kept as a `quarantine` entry; the `422` or
-`409` names it in `error.details.quarantine_id`.
+denied, mismatched or outside its window, the wrong capability, a chain
+mismatch or a conflict) is kept as a `quarantine` entry; the `422` or `409`
+names it in `error.details.quarantine_id`.
 
 ### Changes outside the controlled path (v1.3.0)
 

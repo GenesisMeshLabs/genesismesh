@@ -53,11 +53,11 @@ OutOfBandRejectionCode = Literal[
 ]
 
 #: Refusals of an authentic execution record that no later attempt can
-#: overcome. The record is then kept as a quarantine entry: the action it
-#: describes already happened. Chain gaps are left out (the predecessor may
-#: still arrive), and so is secret material, which is never stored.
+#: overcome: the SDKs' permanent refusals. The record is then kept as a
+#: quarantine entry, since the action it describes already happened. Left
+#: out: chain gaps and an unknown decision (the SDKs retry them), and secret
+#: material, which is never stored.
 QUARANTINED_EXECUTION_CODES: frozenset[str] = frozenset({
-    "evidence_decision_not_found",
     "evidence_decision_denied",
     "evidence_decision_mismatch",
     "evidence_outside_decision_window",
