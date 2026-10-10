@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Iterable, Literal
+from typing import Any, Collection, Iterable, Literal, Sequence
 
 from ..crypto import sign_model, verify_model_signature
 from ..models.boundary_policy import PolicyBinding
@@ -69,6 +69,17 @@ QUARANTINED_EXECUTION_CODES: frozenset[str] = frozenset({
     "evidence_chain_mismatch",
     "resource_chain_mismatch",
     "evidence_conflict",
+})
+
+#: Refusals of an authentic observation or break-glass record (its signature
+#: verifies) that are final, so the record is kept as a quarantine entry
+#: (v1.3.1): the change it reports already happened. A record carrying secret
+#: material is never stored.
+QUARANTINED_OUT_OF_BAND_CODES: frozenset[str] = frozenset({
+    "observation_key_retired",
+    "observation_out_of_scope",
+    "break_glass_key_retired",
+    "break_glass_out_of_scope",
 })
 
 
@@ -145,14 +156,32 @@ def check_observation(observation: ObservationRecord, key: ExecutorKey | None) -
     problem = _key_permits(key, "observer", observation.resource_id, "observation")
     if problem is not None:
         return EvidenceCheck(*problem)  # type: ignore[arg-type]
-    # The source's own strings pass the guard too: an actor is a pseudonym, never a credential.
-    secret = metadata_problem({k: v for k, v in {
-        "metadata": observation.metadata, "actor": observation.actor,
-        "source_event_id": observation.source_event_id, "version_id": observation.version_id,
-    }.items() if v is not None})
+    secret = observation_secret_problem(observation)
     if secret:
         return EvidenceCheck("observation_secret_material", secret)  # type: ignore[arg-type]
     return EvidenceCheck(None, "accepted")
+
+
+def observation_secret_problem(observation: ObservationRecord) -> str | None:
+    """Why an observation may carry secret material, or None.
+
+    The source's own strings pass the guard too: an actor is a pseudonym, never a credential.
+    """
+    return metadata_problem({k: v for k, v in {
+        "metadata": observation.metadata, "actor": observation.actor,
+        "source_event_id": observation.source_event_id, "version_id": observation.version_id,
+    }.items() if v is not None})
+
+
+def break_glass_secret_problem(record: BreakGlassRecord) -> str | None:
+    """Why a break-glass record may carry secret material, or None."""
+    return metadata_problem({
+        "execution_parameters": record.execution_parameters,
+        "request_parameters": record.request_parameters,
+        "attributes": record.attributes,
+        "outcome_detail": record.outcome_detail or "",
+        "justification": record.justification,
+    })
 
 
 def check_break_glass(record: BreakGlassRecord, key: ExecutorKey | None) -> EvidenceCheck:
@@ -167,13 +196,7 @@ def check_break_glass(record: BreakGlassRecord, key: ExecutorKey | None) -> Evid
     problem = _key_permits(key, "executor", record.resource_id, "break_glass")
     if problem is not None:
         return EvidenceCheck(*problem)  # type: ignore[arg-type]
-    secret = metadata_problem({
-        "execution_parameters": record.execution_parameters,
-        "request_parameters": record.request_parameters,
-        "attributes": record.attributes,
-        "outcome_detail": record.outcome_detail or "",
-        "justification": record.justification,
-    })
+    secret = break_glass_secret_problem(record)
     if secret:
         return EvidenceCheck("break_glass_secret_material", secret)  # type: ignore[arg-type]
     return EvidenceCheck(None, "accepted")
@@ -192,6 +215,10 @@ class PolicyEvent:
     policy_id: str
     version: int
     digest: str | None
+    #: v1.3.1: the registry record's id, and whether the NA recorded it late (after the upgrade
+    #: backfill, from its audit log or its policy table, for a change it had not recorded).
+    record_id: str | None = None
+    late: bool = False
 
 
 @dataclass(frozen=True)
@@ -207,7 +234,10 @@ class PolicyHistory:
     events: tuple[PolicyEvent, ...]
 
     @classmethod
-    def from_records(cls, records: Iterable[tuple[int, RegistryRecord]]) -> "PolicyHistory":
+    def from_records(
+        cls, records: Iterable[tuple[int, RegistryRecord]], late: Collection[str] = ()
+    ) -> "PolicyHistory":
+        """Replay registry records; ``late`` names the records the NA recorded late (v1.3.1)."""
         started: datetime | None = None
         events: list[PolicyEvent] = []
         for seq, record in records:
@@ -216,7 +246,8 @@ class PolicyHistory:
             elif record.event in ("policy_activated", "policy_deactivated") and record.policy_id is not None \
                     and record.policy_version is not None:
                 events.append(PolicyEvent(record.effective_at, seq, record.event, record.policy_id,
-                                          record.policy_version, record.policy_digest))
+                                          record.policy_version, record.policy_digest,
+                                          record.registry_record_id, record.registry_record_id in late))
         events.sort(key=lambda e: (e.effective_at, e.store_sequence))
         return cls(started, tuple(events))
 
@@ -228,15 +259,49 @@ class PolicyHistory:
         """policy_id -> (version, digest) active at ``at``; None before the history starts."""
         if self.started_at is None or at < self.started_at:
             return None
+        return self._replay(e for e in self.events if e.effective_at <= at)
+
+    def latest(self) -> dict[str, tuple[int, str | None]]:
+        """policy_id -> (version, digest) after every recorded event, whatever its time (v1.3.1)."""
+        return self._replay(self.events)
+
+    def late_after(self, at: datetime) -> list[PolicyEvent]:
+        """Events recorded late that take effect after ``at`` (v1.3.1).
+
+        A late record takes effect when the NA recorded it, not when its
+        source says the change happened, so a change made before it may
+        have been made under it: a judgement of that change rests on it.
+        """
+        return [e for e in self.events if e.late and e.effective_at > at]
+
+    @staticmethod
+    def _replay(events: Iterable[PolicyEvent]) -> dict[str, tuple[int, str | None]]:
         active: dict[str, tuple[int, str | None]] = {}
-        for event in self.events:
-            if event.effective_at > at:
-                break
+        for event in events:
             if event.event == "policy_activated":
                 active[event.policy_id] = (event.version, event.digest)
             elif active.get(event.policy_id, (None, None))[0] == event.version:
                 del active[event.policy_id]
         return active
+
+
+#: How long after ``valid_until`` a policy is first evaluated as expired (it applies up to and at ``valid_until``).
+_JUST_AFTER = timedelta(microseconds=1)
+
+
+def validity_change_times(bounds: Iterable[tuple[datetime, datetime]], start: datetime, end: datetime) -> list[datetime]:
+    """When a policy's own validity window changes what applies, strictly after ``start`` and up to ``end`` (v1.3.1).
+
+    ``bounds`` are the ``(valid_from, valid_until)`` of the policies active in
+    the window: a scheduled policy starts to apply at ``valid_from``, and one
+    past ``valid_until`` denies as expired from just after it.
+    """
+    times: set[datetime] = set()
+    for valid_from, valid_until in bounds:
+        for at in (valid_from, valid_until + _JUST_AFTER):
+            if start < at <= end:
+                times.add(at)
+    return sorted(times)
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +363,7 @@ def judgement_from(
     matched_decision_id: str | None = None,
     possible_match_evidence_id: str | None = None,
     same_change_as: str | None = None,
+    review_notes: Sequence[str] = (),
 ) -> JudgementRecord:
     """Assemble the NA's verdict on one change (unsigned).
 
@@ -310,7 +376,13 @@ def judgement_from(
     the fact: ``verdict`` as of the change, ``current`` under today's
     policies, flagged when they differ. ``history_reason`` (no verdict)
     makes it ``indeterminate``.
+
+    ``review_notes`` (v1.3.1) are reasons the verdict on the change's own
+    facts needs a person to look at it (history the NA recorded late, a
+    break-glass executor the NA cannot tie to its attestation): each is
+    added to the reason and flags the judgement, unless a decision governs it.
     """
+    notes = "; ".join(review_notes)
     base: dict[str, Any] = dict(
         subject_kind=subject.subject_kind,
         subject_id=subject.subject_id,
@@ -329,9 +401,10 @@ def judgement_from(
         matched = ("matched recorded execution evidence" if same_change_as is None
                    else f"the same change as recorded execution evidence {same_change_as}, already matched")
         if verdict is not None and verdict.verdict == "deny":
+            denied = f"{matched}, but the observed change is denied on its own facts: {verdict.reason}"
             return JudgementRecord(
                 **base, governed_by="prior_decision", verdict="deny",
-                reason=f"{matched}, but the observed change is denied on its own facts: {verdict.reason}"[:1024],
+                reason=(denied + (f"; {notes}" if notes else ""))[:1024],
                 policy_binding=verdict.binding, gate_results=list(verdict.gate_results), flagged_for_review=True,
                 matched_evidence_id=matched_evidence_id, matched_decision_id=matched_decision_id,
             )
@@ -342,8 +415,10 @@ def judgement_from(
     binding: PolicyBinding | None = verdict.binding if verdict is not None else None
     outcome = verdict.verdict if verdict is not None else "indeterminate"
     reason = verdict.reason if verdict is not None else history_reason
+    if notes:
+        reason = (f"{reason}; {notes}" if reason else notes)[:1024]
     current_verdict = current.verdict if current is not None else None
-    flagged = current_verdict is not None and current_verdict != outcome
+    flagged = bool(notes) or (current_verdict is not None and current_verdict != outcome)
     return JudgementRecord(
         **base,
         governed_by="after_the_fact",
