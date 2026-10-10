@@ -30,9 +30,10 @@ Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEP
 
 | Version | Status |
 |---|---|
-| `1.2.x` | Supported |
-| `1.1.x` | Unsupported: upgrade to 1.2 |
-| `1.0.x` | Unsupported: upgrade to 1.2 |
+| `1.3.x` | Supported |
+| `1.2.x` | Unsupported: upgrade to 1.3 |
+| `1.1.x` | Unsupported: upgrade to 1.3 |
+| `1.0.x` | Unsupported: upgrade to 1.3 |
 | `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
