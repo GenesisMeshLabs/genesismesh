@@ -41,6 +41,7 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise RateLimitError()
         oob.require_enabled()
 
+    # Operators authenticate before learning whether the records are kept.
     def _admin(data: dict, tier: str = "standard") -> str:
         if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
             raise RateLimitError()
@@ -75,31 +76,30 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     @bp.route("/admin/evidence/observations/<observation_id>/judge", methods=["POST"])
     def judge_observation(observation_id: str):
         """Judge an observation once; returns the existing judgement when it is already judged."""
-        oob.require_enabled()
         _admin(request_json_object())
+        oob.require_enabled()
         body, status = oob.judge("observation", observation_id)
         return jsonify(body), status
 
     @bp.route("/admin/evidence/break-glass/<break_glass_id>/judge", methods=["POST"])
     def judge_break_glass(break_glass_id: str):
         """Judge a break-glass record once; returns the existing judgement when it is already judged."""
-        oob.require_enabled()
         _admin(request_json_object())
+        oob.require_enabled()
         body, status = oob.judge("break_glass", break_glass_id)
         return jsonify(body), status
 
     @bp.route("/admin/evidence/changes/<path:resource_id>", methods=["GET"])
     def resource_changes(resource_id: str):
         """Every change to a resource: how it was governed and its state."""
-        oob.require_enabled()
         _admin({}, tier="read")
         return jsonify(oob.resource_changes(resource_id))
 
     @bp.route("/admin/evidence/operator-holders", methods=["GET"])
     def operator_holders():
         """Operator key holders as the evidence store records them."""
-        oob.require_enabled()
         _admin({}, tier="read")
+        oob.require_enabled()
         return jsonify({"holders": sorted(oob.operator_holders().values(), key=lambda h: h["key_id"])})
 
     @bp.route("/admin/operator-keys/<key_id>/holder", methods=["POST"])
