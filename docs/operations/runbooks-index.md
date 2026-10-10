@@ -14,6 +14,7 @@ operational event on a running Network Authority or sovereign.
 monitoring
 audit-export
 evidence-anchors
+out-of-band-changes
 incident-response
 backup-restore
 upgrade
@@ -47,6 +48,14 @@ Exporting trust-decision events for downstream review or SIEM ingest.
 
 Signed store anchors, and how an auditor keeps copies that prove nothing was
 removed from the evidence store.
+:::
+
+:::{grid-item-card} Changes Outside the Controlled Path
+:link: out-of-band-changes
+:link-type: doc
+
+Observers, break-glass, judgements and quarantine: how changes made outside
+governed actions are recorded and judged.
 :::
 
 :::{grid-item-card} Incident Response Runbooks

@@ -445,8 +445,8 @@ All operator-signed; the admin rate limits apply (see *Rate limits* above).
 | `GET /admin/evidence/verify` | Verify every stored entry, chain and signature |
 | `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint |
 | `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |
-| `GET /admin/evidence/executor-keys` | Registered executor keys, including retired ones |
-| `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}` (privileged; `409 executor_key_exists`) |
+| `GET /admin/evidence/executor-keys` | Registered executor and observer keys, including retired ones, with their `role` and `resource_prefix` |
+| `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}`, and since v1.3.0 `role` (`executor`, the default, or `observer`) and `resource_prefix` (the key signs only for resources whose ID starts with it) (privileged; `409 executor_key_exists`, `400 invalid_key_role`, `400 invalid_resource_prefix`) |
 | `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged) |
 | `POST /admin/evidence/retention/apply` | `{ "older_than_days": N }`: remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged) |
 | `GET /admin/evidence/anchors` | Signed `StoreAnchor`s in order, paged with `after_anchor` and `limit` (1-1000); `read` tier (v1.2.0) |
@@ -459,6 +459,65 @@ Since v1.2.0 the NA signs the store's head (a `StoreAnchor`: `anchor_sequence`,
 chain and never removed. `GET /admin/evidence/verify` checks them, and
 `GET /admin/evidence/status` reports the latest one and `unanchored_entries`.
 See {doc}`../operations/evidence-anchors`.
+
+Since v1.3.0 an authentic execution record refused for good (its decision
+unknown, denied, mismatched or outside its window, the wrong capability, a
+chain mismatch or a conflict) is kept as a `quarantine` entry; the `422` or
+`409` names it in `error.details.quarantine_id`.
+
+### Changes outside the controlled path (v1.3.0)
+
+Observations, break-glass records, judgements, quarantine and registry
+records. The routes are beta until 1.5.0; the records' signed forms are
+stable. See {doc}`../operations/out-of-band-changes`.
+
+#### `POST /evidence/observations`
+
+Submit one signed `ObservationRecord`. **Auth**: the record's signature, by a
+registered, active observer key for its `observer_sovereign_id` whose
+`resource_prefix` covers the resource. Rate limit
+`NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE` (120/min per IP).
+
+**Request** `{ "observation": { "<ObservationRecord>": "..." } }`, in its exact
+serialized form (absent optional fields left out, UTC timestamps).
+
+**Response** `201` with `entry`, `entry_digest`, `payload` and
+`"status": "recorded"`, and with automatic judgement on, `judgement` (the
+judgement entry, or `null` when judging failed and is left to the judge
+route); `"status": "quarantined"` when the observation is outside its time
+bounds; `200` with `"status": "duplicate"` for the same observation again.
+
+**Errors**: `422` with `observation_malformed`,
+`observation_invalid_signature`, `observation_unknown_key`,
+`observation_out_of_scope` or `observation_secret_material`;
+`409 observation_conflict` for a different observation of the same source
+event.
+
+#### `POST /evidence/observations/batch`
+
+`{ "observations": [...] }`, up to 100, admitted in order of their change
+times. **Response** `200` `{ "results": [...] }` in request order, each with
+`index` and the single route's body, or `"status": "refused"` with its
+`error`.
+
+#### `POST /evidence/break-glass`
+
+Submit one signed `BreakGlassRecord`, `{ "record": {...} }`. **Auth**: the
+record's signature, by a registered, active executor key. Responses as for
+observations; errors `break_glass_malformed`, `break_glass_invalid_signature`,
+`break_glass_unknown_key`, `break_glass_out_of_scope`,
+`break_glass_secret_material`, `409 break_glass_conflict`.
+
+#### Operator routes
+
+| Route | Purpose |
+|---|---|
+| `POST /admin/evidence/observations/<observation_id>/judge` | Judge an observation once: `201` with `"status": "judged"`, or `200` with `"status": "existing"`; `404 judgement_subject_not_found` |
+| `POST /admin/evidence/break-glass/<break_glass_id>/judge` | The same for a break-glass record |
+| `GET /admin/evidence/changes/<resource_id>` | Every change to a resource, oldest first: `kind`, `action`, `at`, `governed_by`, `state` (`recorded`, `matched`, `judged_allowed`, `judged_denied`, `indeterminate`, `observed`, `quarantined`), and the verdict, flag, hint or justification where there is one; `read` tier |
+| `GET /admin/evidence/operator-holders` | The holder the store records for each operator key; `read` tier |
+| `POST /admin/operator-keys/<key_id>/holder` | Propose `{ "holder": "..." }` for an operator key (privileged): `201` with a `proposal_id` |
+| `POST /admin/operator-keys/holder-changes/<proposal_id>/approve` | Approve it with a privileged key of a different holder; recorded in the store; `409 holder_change_needs_second_holder`, `409 holder_change_already_approved`, `404 holder_change_not_found` |
 
 ---
 

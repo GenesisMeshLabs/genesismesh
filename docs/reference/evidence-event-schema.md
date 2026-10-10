@@ -10,12 +10,28 @@ Each event has three parts:
 - `entry`: the store envelope (`store_sequence`, `entry_kind`, `recorded_at`,
   `payload_digest`, `prev_entry_digest`) and the search fields (`decision_id`,
   `vendor_id`, `attestation_id`, `capability`, `outcome`, `resource_id`,
-  `resource_action`, `resource_sequence`, `executor_sovereign_id`, ...).
+  `resource_action`, `resource_sequence`, `executor_sovereign_id`, ...). Since
+  1.3.0 also `record_id`, `subject_id`, `matched_evidence_id` and
+  `observation_sequence`, which are left out when absent, so entries written
+  before 1.3.0 keep their digests.
 - `entry_digest`: SHA-256 of the canonical envelope; the next event's
   `entry.prev_entry_digest` equals it, so the export is one hash chain.
-- `payload`: the stored signed record, unchanged: a decision with its context
-  (`entry_kind` `decision`), a justification proof, the controller's signed
-  execution evidence, or a signed retention checkpoint.
+- `payload`: the stored signed record, unchanged:
+
+  | `entry_kind` | `payload` | Signed by |
+  | --- | --- | --- |
+  | `decision` | `{decision, context}` | the NA (the decision) |
+  | `justification` | `JustificationProof` | the NA |
+  | `execution` | `ExecutionEvidence` | an executor key |
+  | `retention_checkpoint` | `RetentionCheckpoint` | the NA |
+  | `observation` (1.3.0) | `ObservationRecord` | an observer key |
+  | `break_glass` (1.3.0) | `BreakGlassRecord` | an executor key |
+  | `judgement` (1.3.0) | `JudgementRecord` | the NA |
+  | `quarantine` (1.3.0) | `QuarantineRecord` | the NA |
+  | `registry` (1.3.0) | `RegistryRecord` | the NA |
+
+  Entry kinds are added within schema version 1. A verifier refuses a kind it
+  does not know by name (`unknown_entry_kind`) and keeps it in the chain.
 
 Verify an export offline with `genesis-mesh evidence verify-export` (see the
 {doc}`CLI reference <cli>`).
