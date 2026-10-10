@@ -146,6 +146,15 @@ decision from its evidence are kept. The NA signs a `RetentionCheckpoint`
 recording what was removed, including each affected secret's last removed
 record, so the remaining history still verifies. The run is audited.
 
+Since 1.3.1 the NA signs a checkpoint only over a store it can vouch for: the
+store starts at entry 1 or right after the previous checkpoint, holds every
+entry, continues from the latest anchor, and each entry to remove recomputes
+and links to the one before it. Otherwise retention is refused with
+`409 evidence_retention_refused` and nothing is removed (anchoring is refused
+the same way, with `409 evidence_anchor_refused`): entries deleted outside
+retention are a finding to investigate, not something a routine retention
+run absorbs.
+
 ## CLI usage
 
 ```bash

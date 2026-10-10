@@ -567,14 +567,19 @@ class EvidenceStoreMixin:
 
     def apply_retention_checkpoint(
         self, checkpoint: RetentionCheckpoint, build_entry: EntryBuilder, carried: Sequence[Any] = (),
+        check: Callable[[], None] | None = None,
     ) -> EvidenceStoreEntry:
         """Record the checkpoint, remove entries it covers, append its entry.
 
         ``carried`` (v1.3.0): pending entries appended after the checkpoint in
         the same transaction (registry records the removal would lose).
+        ``check`` (v1.3.1) runs first, inside the same transaction: an error it
+        raises leaves the store unchanged.
         """
         payload = json.loads(checkpoint.model_dump_json())
         with self._evidence_write():
+            if check is not None:
+                check()
             seq, prev = self._store_head()
             self.conn.execute(
                 """INSERT INTO evidence_retention_checkpoints(checkpoint_id, removed_through_sequence,
