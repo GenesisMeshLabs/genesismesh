@@ -150,10 +150,14 @@ genesis-mesh evidence verify-export \
 
 `--executor-keys` takes the response of `GET /admin/evidence/executor-keys`.
 With `--known-anchors <dir or file>` (v1.2.0) the export is also checked
-against store anchors held outside the NA: it must start at entry 1, after a
-retention checkpoint it contains, or right after a held anchor, and must not
-stop before the newest held anchor; a removed or rewritten anchored record
-fails. `--partial` accepts a deliberate slice.
+against store anchors held outside the NA: it must start at entry 1 or right
+after a retention checkpoint it contains (an export after retention must hold
+the checkpoint's entry), and must not stop before the newest held anchor; a
+removed or rewritten anchored record fails. `--from-anchor` (v1.3.1) accepts
+an export since an anchored position, which starts right after a held anchor
+whose digest its first entry names; before 1.3.1 every such export was
+accepted. `--partial` accepts a deliberate slice and checks neither end.
+The reason codes are listed in {doc}`evidence-event-schema`.
 Exit code 0 when verified; 1 on any failure.
 
 ### `genesis-mesh evidence anchors fetch`
