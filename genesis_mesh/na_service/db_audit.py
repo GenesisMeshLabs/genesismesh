@@ -27,9 +27,13 @@ class AuditStoreMixin:
             self.conn.backup(dest)
         finally:
             dest.close()
-    def add_audit_event(self, event_type: str, details: dict) -> str:
-        """Persist a lightweight Network Authority audit event."""
-        event_id = str(uuid.uuid4())
+    def add_audit_event(self, event_type: str, details: dict, *, event_id: str | None = None) -> str:
+        """Persist a lightweight Network Authority audit event.
+
+        ``event_id`` (v1.3.1) lets a caller name the event before it is
+        written, so a record made in an earlier transaction can refer to it.
+        """
+        event_id = event_id or str(uuid.uuid4())
         payload = {
             "event_id": event_id,
             "event_type": event_type,
@@ -57,7 +61,9 @@ class AuditStoreMixin:
         ``event_types`` keeps only those types and ``exclude_event_types``
         leaves those out, both in SQL; ``limit`` keeps the newest ``limit``
         events. The public dashboard uses them so that its cost does not grow
-        with the whole table (v1.1.0).
+        with the whole table (v1.1.0). v1.3.1: an event is kept only when its
+        own ``event_type`` is one of ``event_types``; the SQL match is a
+        prefilter (a ``details`` value can look like an event type).
         """
         clauses: list[str] = []
         params: list[Any] = []
@@ -79,16 +85,22 @@ class AuditStoreMixin:
                 f"SELECT event_json FROM audit_events{where} ORDER BY created_at DESC LIMIT ?",
                 [*params, int(limit)],
             ).fetchall()[::-1]
-        return [json.loads(row["event_json"]) for row in rows]
+        events = [json.loads(row["event_json"]) for row in rows]
+        if event_types:
+            wanted = set(event_types)
+            events = [e for e in events if isinstance(e, dict) and e.get("event_type") in wanted]
+        return events
 
 
 def _event_type_match(event_type: str) -> tuple[str, list[str]]:
     """SQL matching one event type in ``event_json`` (written with sort_keys).
 
     Both separator spellings are accepted, so a row copied by another tool
-    still matches; the closing quote makes the match exact.
+    still matches; the closing quote ends the type. ``%`` and ``_`` in the
+    type are matched literally (v1.3.1; ``_`` matched any character before).
     """
+    literal = event_type.replace("!", "!!").replace("%", "!%").replace("_", "!_")
     return (
-        "(event_json LIKE ? OR event_json LIKE ?)",
-        [f'%"event_type": "{event_type}"%', f'%"event_type":"{event_type}"%'],
+        "(event_json LIKE ? ESCAPE '!' OR event_json LIKE ? ESCAPE '!')",
+        [f'%"event_type": "{literal}"%', f'%"event_type":"{literal}"%'],
     )

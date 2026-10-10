@@ -250,6 +250,11 @@ class NetworkAuthorityService:
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
             raise ValueError(f"operator key holders name keys that are not configured: {unknown_holders}")
+        # v1.3.1: a holder is a name of 1 to 128 characters, as a holder change requires.
+        bad_holders = sorted(k for k, v in self.operator_key_holders.items()
+                             if not isinstance(v, str) or not 1 <= len(v.strip()) <= 128 or len(v) > 128)
+        if bad_holders:
+            raise ValueError(f"operator key holders must be names of 1 to 128 characters: {bad_holders}")
         self.evidence_store_service = EvidenceStoreService(self)
         self.out_of_band_service = OutOfBandService(self)
         # v1.1.1: agreements presented by callers must be signed by parties

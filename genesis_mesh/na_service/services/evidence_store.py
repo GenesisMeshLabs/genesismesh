@@ -607,6 +607,8 @@ class EvidenceStoreService:
             if self._na.out_of_band_service.enabled:
                 # v1.3.0: a record not judged yet holds retention back; judge it on the judge routes.
                 out["unjudged_records"] = self._na.db.unjudged_count()
+                # v1.3.1: how far back the policy history reaches, and the registry's health.
+                out.update(self._na.out_of_band_service.registry_status())
         return out
 
     # -- anchors (v1.2.0) -------------------------------------------------------
@@ -810,13 +812,14 @@ class EvidenceStoreService:
         cutoff = now - timedelta(days=older_than_days)
         rows = self._na.db.retention_candidates()
         valid_until: dict[str, datetime] = {}
-        judged: set[str] = set()
+        judged: set[tuple[str, str]] = set()
         for r in rows:
             if r["entry_kind"] == "decision":
                 d = json.loads(r["payload_json"])["decision"]
                 valid_until[r["decision_id"]] = datetime.fromisoformat(d["decision_valid_until"])
             elif r["entry_kind"] == "judgement" and r["subject_id"]:
-                judged.add(r["subject_id"])
+                # v1.3.1: a judgement covers the record of its own kind only.
+                judged.add((json.loads(r["payload_json"]).get("subject_kind"), r["subject_id"]))
 
         def group(r: Any) -> str | None:
             # v1.3.0: an observation or break-glass record stays with its judgement.
@@ -835,7 +838,8 @@ class EvidenceStoreService:
                 resource_sequence=r["resource_sequence"],
                 decision_valid_until=valid_until.get(r["decision_id"]) if r["decision_id"] else None,
                 group_id=group(r),
-                pinned=r["entry_kind"] in ("observation", "break_glass") and r["record_id"] not in judged,
+                pinned=r["entry_kind"] in ("observation", "break_glass")
+                and (r["entry_kind"], r["record_id"]) not in judged,
             )
             for r in rows
         ]
