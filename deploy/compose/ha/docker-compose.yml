@@ -41,6 +41,9 @@ x-na: &na
     # Behind one proxy (nginx below): trust its X-Forwarded-* headers. The
     # default, 0, is for an NA that clients reach directly.
     NA_PROXY_HOPS: "1"
+    # The URL clients use to reach the balancer; /sovereign.json and /swagger.json
+    # advertise it whatever a request's Host says.
+    NA_PUBLIC_URL: ${NA_PUBLIC_URL:-http://localhost:8443}
   secrets:
     - na_seed
   depends_on:

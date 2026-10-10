@@ -13,8 +13,10 @@ at ``DB_PATH``, the key file at ``NA_PRIVATE_KEY_FILE``, in-memory rate limits.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Mapping, Optional
 
@@ -137,11 +139,57 @@ def _public_url(raw: Optional[str]) -> Optional[str]:
     """The NA's public origin (v1.2.0): ``https://host[:port]``, nothing after it."""
     if not raw:
         return None
-    parsed = urlsplit(raw.strip())
-    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password \
-            or parsed.path not in ("", "/") or parsed.query or parsed.fragment:
-        raise ValueError("NA_PUBLIC_URL must be an http(s) origin: a scheme and a host, nothing after it")
-    return f"{parsed.scheme}://{parsed.netloc}"
+    try:
+        return public_origin(raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"NA_PUBLIC_URL must be an http(s) origin: a scheme and a host, nothing after it ({exc})"
+        ) from None
+
+
+_HOST_LABEL = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$")
+
+
+def public_origin(value: str) -> str:
+    """``value`` as an origin, ``http(s)://host[:port]``; ``ValueError`` naming why it is not one.
+
+    v1.3.1: strict. The host is a DNS name or an IP address (IPv6 in
+    brackets), a port is 1 to 65535 in plain digits, and nothing else may
+    appear: no user, path, query, fragment, whitespace or control character.
+    A trailing ``/`` is dropped.
+    """
+    if any(c.isspace() or not c.isprintable() for c in value):
+        raise ValueError("whitespace or a control character")
+    if any(c in value for c in "?#@\\"):
+        raise ValueError("a user, query or fragment")
+    parsed = urlsplit(value)
+    if parsed.scheme not in ("http", "https") or not value.lower().startswith(parsed.scheme + "://"):
+        raise ValueError("the scheme is not http or https")
+    if parsed.path not in ("", "/"):
+        raise ValueError("a path")
+    netloc = parsed.netloc
+    if netloc.startswith("["):
+        host, _, rest = netloc[1:].partition("]")
+        if rest and not rest.startswith(":"):
+            raise ValueError(f"the host {netloc!r}")
+        sep, port = (":", rest[1:]) if rest else ("", "")
+        try:
+            ipaddress.IPv6Address(host)
+        except ValueError:
+            raise ValueError(f"the IPv6 address {host!r}") from None
+    else:
+        host, sep, port = netloc.partition(":")
+        labels = host.split(".")
+        if len(host) > 253 or not all(_HOST_LABEL.match(label) for label in labels):
+            raise ValueError(f"the host {host!r}")
+        if all(label.isdigit() for label in labels):
+            try:
+                ipaddress.IPv4Address(host)
+            except ValueError:
+                raise ValueError(f"the IPv4 address {host!r}") from None
+    if sep and not (port.isascii() and port.isdigit() and str(int(port)) == port and 1 <= int(port) <= 65535):
+        raise ValueError(f"the port {port!r}")
+    return f"{parsed.scheme}://{netloc}"
 
 
 def _proxy_hops(raw: str) -> int:
