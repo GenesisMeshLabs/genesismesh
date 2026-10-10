@@ -110,6 +110,9 @@ jobs:
           for suite in admin_auth field_registry canonical; do
             cmp "conformance/vectors/$suite.json" "sdks/sdk-rust/tests/fixtures/$suite.json"
           done
+          # v1.3.0: the SDKs that verify exports run the out_of_band suite.
+          cmp conformance/vectors/out_of_band.json sdks/sdk-typescript/tests/fixtures/conformance/out_of_band.json
+          cmp conformance/vectors/out_of_band.json sdks/sdk-rust/tests/fixtures/out_of_band.json
 
       - name: Go verifier conformance
         working-directory: sdks/sdk-go
