@@ -41,12 +41,14 @@ OutOfBandRejectionCode = Literal[
     "observation_malformed",
     "observation_invalid_signature",
     "observation_unknown_key",
+    "observation_key_retired",
     "observation_out_of_scope",
     "observation_secret_material",
     "observation_conflict",
     "break_glass_malformed",
     "break_glass_invalid_signature",
     "break_glass_unknown_key",
+    "break_glass_key_retired",
     "break_glass_out_of_scope",
     "break_glass_secret_material",
     "break_glass_conflict",
@@ -55,9 +57,11 @@ OutOfBandRejectionCode = Literal[
 #: Refusals of an authentic execution record that no later attempt can
 #: overcome: the SDKs' permanent refusals. The record is then kept as a
 #: quarantine entry, since the action it describes already happened. Left
-#: out: chain gaps and an unknown decision (the SDKs retry them), and secret
-#: material, which is never stored.
+#: out: chain gaps and an unknown decision (the SDKs retry them). A record
+#: carrying secret material is never stored, whatever it was refused for.
 QUARANTINED_EXECUTION_CODES: frozenset[str] = frozenset({
+    "evidence_executor_key_retired",
+    "evidence_out_of_scope",
     "evidence_decision_denied",
     "evidence_decision_mismatch",
     "evidence_outside_decision_window",
@@ -113,31 +117,39 @@ def metadata_problem(values: dict[str, Any]) -> str | None:
     return None
 
 
-def _key_problem(
-    key: ExecutorKey | None, sovereign_id: str, role: str, resource_id: str, kind: str
-) -> tuple[str, str] | None:
-    if key is None or key.executor_sovereign_id != sovereign_id:
-        return f"{kind}_unknown_key", f"signing key is not registered for {sovereign_id!r}"
+def _key_permits(key: ExecutorKey, role: str, resource_id: str, kind: str) -> tuple[str, str] | None:
+    """After the signature verifies: whether the key may sign this record. Retired keys and
+    records outside a key's role or scope are refused for good, so the SDKs stop retrying."""
     if key.retired:
-        return f"{kind}_unknown_key", "signing key is retired"
+        return f"{kind}_key_retired", "signing key is retired"
     if key.role != role:
-        return f"{kind}_unknown_key", f"signing key is an {key.role} key, not an {role} key"
+        return f"{kind}_out_of_scope", f"signing key is an {key.role} key, not an {role} key"
     if not key.covers(resource_id):
         return f"{kind}_out_of_scope", f"signing key covers only resources starting with {key.resource_prefix!r}"
     return None
 
 
 def check_observation(observation: ObservationRecord, key: ExecutorKey | None) -> EvidenceCheck:
-    """Whether an observation is authentic, in its key's scope and free of secret material."""
+    """Whether an observation is authentic, in its key's scope and free of secret material.
+
+    The key's role and scope are checked only once the signature verifies, so
+    a caller without the key learns nothing about it.
+    """
     if observation.signature is None:
         return EvidenceCheck("observation_invalid_signature", "observation is not signed")  # type: ignore[arg-type]
-    problem = _key_problem(key, observation.observer_sovereign_id, "observer", observation.resource_id, "observation")
-    if problem is not None:
-        return EvidenceCheck(*problem)  # type: ignore[arg-type]
-    assert key is not None
+    if key is None or key.executor_sovereign_id != observation.observer_sovereign_id:
+        return EvidenceCheck("observation_unknown_key",  # type: ignore[arg-type]
+                             f"signing key is not registered for {observation.observer_sovereign_id!r}")
     if not verify_model_signature(observation, observation.signature, key.public_key):
         return EvidenceCheck("observation_invalid_signature", "signature does not verify")  # type: ignore[arg-type]
-    secret = metadata_problem({"metadata": observation.metadata})
+    problem = _key_permits(key, "observer", observation.resource_id, "observation")
+    if problem is not None:
+        return EvidenceCheck(*problem)  # type: ignore[arg-type]
+    # The source's own strings pass the guard too: an actor is a pseudonym, never a credential.
+    secret = metadata_problem({k: v for k, v in {
+        "metadata": observation.metadata, "actor": observation.actor,
+        "source_event_id": observation.source_event_id, "version_id": observation.version_id,
+    }.items() if v is not None})
     if secret:
         return EvidenceCheck("observation_secret_material", secret)  # type: ignore[arg-type]
     return EvidenceCheck(None, "accepted")
@@ -147,12 +159,14 @@ def check_break_glass(record: BreakGlassRecord, key: ExecutorKey | None) -> Evid
     """Whether a break-glass record is authentic, in its key's scope and free of secret material."""
     if record.signature is None:
         return EvidenceCheck("break_glass_invalid_signature", "record is not signed")  # type: ignore[arg-type]
-    problem = _key_problem(key, record.executor_sovereign_id, "executor", record.resource_id, "break_glass")
-    if problem is not None:
-        return EvidenceCheck(*problem)  # type: ignore[arg-type]
-    assert key is not None
+    if key is None or key.executor_sovereign_id != record.executor_sovereign_id:
+        return EvidenceCheck("break_glass_unknown_key",  # type: ignore[arg-type]
+                             f"signing key is not registered for {record.executor_sovereign_id!r}")
     if not verify_model_signature(record, record.signature, key.public_key):
         return EvidenceCheck("break_glass_invalid_signature", "signature does not verify")  # type: ignore[arg-type]
+    problem = _key_permits(key, "executor", record.resource_id, "break_glass")
+    if problem is not None:
+        return EvidenceCheck(*problem)  # type: ignore[arg-type]
     secret = metadata_problem({
         "execution_parameters": record.execution_parameters,
         "request_parameters": record.request_parameters,
@@ -206,6 +220,10 @@ class PolicyHistory:
         events.sort(key=lambda e: (e.effective_at, e.store_sequence))
         return cls(started, tuple(events))
 
+    def change_times(self, start: datetime, end: datetime) -> list[datetime]:
+        """When the active policies may have changed strictly after ``start`` and up to ``end``."""
+        return sorted({e.effective_at for e in self.events if start < e.effective_at <= end})
+
     def active_at(self, at: datetime) -> dict[str, tuple[int, str | None]] | None:
         """policy_id -> (version, digest) active at ``at``; None before the history starts."""
         if self.started_at is None or at < self.started_at:
@@ -239,16 +257,30 @@ class JudgementInput:
     capability: str
 
 
-def combine_window(start: PolicyVerdict, end: PolicyVerdict) -> PolicyVerdict:
-    """One verdict for a change known only within a window: the two ends must agree."""
-    if start.verdict == end.verdict:
+def combine_window(points: list[tuple[datetime, PolicyVerdict]]) -> PolicyVerdict:
+    """One verdict for a change known only within a window, from its verdict at the window's
+    start and after every policy change inside it (the last point is the window's end): they
+    must all agree, or the NA cannot tell which applied."""
+    end = points[-1][1]
+    differing = [(at, v) for at, v in points if v.verdict != end.verdict]
+    if not differing:
         return end
+    at, other = differing[0]
     return PolicyVerdict(
         "indeterminate",
-        f"the verdict changes within the change window ({start.verdict} at its start, {end.verdict} at its end)",
+        f"the verdict changes within the change window ({other.verdict} at {at.isoformat()}, "
+        f"{end.verdict} at its end)",
         end.binding,
         end.gate_results,
     )
+
+
+_STRICTNESS = {"allow": 0, "indeterminate": 1, "deny": 2}
+
+
+def stricter(a: str, b: str) -> str:
+    """The stricter of two verdicts: deny over indeterminate over allow."""
+    return a if _STRICTNESS[a] >= _STRICTNESS[b] else b
 
 
 def judgement_from(
@@ -265,14 +297,19 @@ def judgement_from(
     matched_evidence_id: str | None = None,
     matched_decision_id: str | None = None,
     possible_match_evidence_id: str | None = None,
+    same_change_as: str | None = None,
 ) -> JudgementRecord:
     """Assemble the NA's verdict on one change (unsigned).
 
-    A change matched to execution evidence is ``governed_by:
-    prior_decision`` and allowed: the decision that evidence rests on
-    authorized it. Otherwise it is judged after the fact: ``verdict`` as of
-    the change, ``current`` under today's policies, flagged when they
-    differ. ``history_reason`` (no verdict) makes it ``indeterminate``.
+    A change matched to execution evidence (``matched_evidence_id``, or
+    ``same_change_as`` for a further observation of evidence already
+    matched) is ``governed_by: prior_decision`` and allowed: the decision
+    that evidence rests on authorized it, unless the observed change is
+    denied on its own facts (``verdict``), which the decision could not see:
+    then it is denied and flagged for review. Otherwise it is judged after
+    the fact: ``verdict`` as of the change, ``current`` under today's
+    policies, flagged when they differ. ``history_reason`` (no verdict)
+    makes it ``indeterminate``.
     """
     base: dict[str, Any] = dict(
         subject_kind=subject.subject_kind,
@@ -288,10 +325,18 @@ def judgement_from(
         issuer_sovereign_id=issuer_sovereign_id,
         issued_by=issued_by,
     )
-    if matched_evidence_id is not None:
+    if matched_evidence_id is not None or same_change_as is not None:
+        matched = ("matched recorded execution evidence" if same_change_as is None
+                   else f"the same change as recorded execution evidence {same_change_as}, already matched")
+        if verdict is not None and verdict.verdict == "deny":
+            return JudgementRecord(
+                **base, governed_by="prior_decision", verdict="deny",
+                reason=f"{matched}, but the observed change is denied on its own facts: {verdict.reason}"[:1024],
+                policy_binding=verdict.binding, gate_results=list(verdict.gate_results), flagged_for_review=True,
+                matched_evidence_id=matched_evidence_id, matched_decision_id=matched_decision_id,
+            )
         return JudgementRecord(
-            **base, governed_by="prior_decision", verdict="allow",
-            reason="matched recorded execution evidence",
+            **base, governed_by="prior_decision", verdict="allow", reason=matched,
             matched_evidence_id=matched_evidence_id, matched_decision_id=matched_decision_id,
         )
     binding: PolicyBinding | None = verdict.binding if verdict is not None else None

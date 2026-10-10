@@ -69,12 +69,18 @@ that compares the store with the provider's state
    ```
 
    An observer key signs observations only, and only for resources whose ID
-   starts with its prefix. An executor key never signs observations, and an
-   observer key never signs execution evidence or break-glass records.
+   starts with its prefix; end a prefix with a separator (`kv:prod/`, not
+   `kv:prod`, which also covers `kv:production/`). An executor key never
+   signs observations, and an observer key never signs execution evidence or
+   break-glass records. An executor key with a prefix signs only execution
+   evidence that names a resource under it. A record signed by a retired key,
+   or outside its key's role or prefix, is refused for good
+   (`*_key_retired`, `*_out_of_scope`), so the SDKs stop retrying it.
 2. For each change, sign an `ObservationRecord` and submit it to
    `POST /evidence/observations` (or up to 100 at a time to
    `POST /evidence/observations/batch`, which admits them in order of their
-   change times). Use the SDKs' `ObservationRecorder`, with an outbox, so a
+   change times; each counts against `NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE`
+   as it would alone). Use the SDKs' `ObservationRecorder`, with an outbox, so a
    change seen while the NA is unreachable is kept until it is admitted.
 3. Name the change's version when the source reports one (`version_id`):
    that is how a change made through a governed action is told apart from one
@@ -85,8 +91,9 @@ that compares the store with the provider's state
 
 An observation proves only what its observer saw. The `actor` is recorded as
 the source reported it and is not authenticated; record a pseudonymous
-identifier, never a credential. `metadata` passes the same guard as execution
-metadata: field names, versions and times, never values.
+identifier, never a credential. `metadata`, and the `actor`, source event and
+version strings, pass the same guard as execution metadata: field names,
+versions and times, never values.
 
 ### Time bounds
 
@@ -105,15 +112,26 @@ backdating a change into a time when a weaker policy was active.
 ## Matching governed changes
 
 An observation that names a version is matched to recorded execution
-evidence for the same resource, action and version, oldest first. The match
-consumes that evidence: it cannot match a second observation, so a change
-made outside the controlled path right after a governed one is judged, not
-hidden behind it. An observation without a version is judged; execution
-evidence that may be the same change is recorded in the judgement as
-`possible_match_evidence_id`, a hint for review, not a match.
+evidence for the same resource, action, capability and version, oldest
+first: a decision for another capability governs nothing here. The match
+consumes that evidence. Another observer's report of the same version is the
+same change: it is governed by the same decision (`matched`) and names the
+evidence in its reason, without consuming it again. An observation without a
+version is judged; execution evidence that may be the same change is
+recorded in the judgement as `possible_match_evidence_id`, a hint for review,
+not a match.
+
+A decision vouches for what its controller asked for, not for what the
+observer saw. A matched observation is therefore also judged on its own
+facts: when the policies active then deny it (a lifetime longer than the
+request's, say), it is `judged_denied` and flagged for review, though
+governed by the decision.
 
 An observation that matches a break-glass record (by its
-`execution_parameters.version_id`) shares that record's verdict.
+`execution_parameters.version_id`) takes the stricter of that record's
+verdict and its own (deny, then `indeterminate`, then allow), flagged for
+review when they differ: the break-glass record is the controller's own
+account of the change.
 
 When an observer reports a governed change before its controller's evidence
 arrives, the observation is judged on its own. Let observers lag the source by
@@ -127,8 +145,11 @@ Each observation and break-glass record is judged once: at admission
 `POST /admin/evidence/break-glass/<id>/judge`, which return the existing
 judgement when there is one.
 
-The NA judges a change as of the time it happened (`changed_at`, the end of
-the window, or a break-glass record's `executed_at`):
+The NA judges a change as of the time it happened (`changed_at`, or a
+break-glass record's `executed_at`). A change known only within a window is
+judged at its start, after every policy activation or deactivation inside
+it, and at its end: when these verdicts differ, or the window reaches back
+before the policy history starts, it is `indeterminate`.
 
 - the policies are the versions the store's registry says were active then,
   evaluated against a context built from the record (`parent_kind`
@@ -137,7 +158,9 @@ the window, or a break-glass record's `executed_at`):
   action, source, actor and version as `attributes`);
 - a break-glass record made under an attestation is judged with the
   attestation's state then: revoked by its issuer before the change, or by an
-  imported revocation feed imported before it, it denies;
+  imported revocation feed imported before it, it denies. A break-glass
+  record without an attestation (an agreement-based evaluation, which the
+  record does not carry) is `indeterminate`;
 - no policy covering the change makes it `indeterminate`: nothing the NA
   holds says it was allowed.
 
@@ -156,8 +179,11 @@ the action anyway when the caller passes a justification
 (`breakGlass: { justification }`), sign a `BreakGlassRecord` into the outbox
 and submit it when the NA is back. The NA judges it as the failed evaluation
 would have gone. A DENY is never broken through: the SDK breaks the glass
-only when there was no decision at all. Every use shows in the resource's
-changes, with its justification.
+only when there was no decision at all, never on `429 admin_auth_throttled`
+(failed operator signatures) or `503 evidence_store_unavailable` (an
+evaluation the NA could not store), and only for an attestation-based
+evaluation. Every use shows in the resource's changes, with its
+justification.
 
 ## Quarantine
 
@@ -167,9 +193,11 @@ a `quarantine` entry, once per record, with the refusal:
 - execution evidence refused for good: its decision is denied, mismatched,
   outside its window or for another capability, or the chain or position
   conflicts (`evidence_decision_denied`, ...), the refusals the SDKs
-  dead-letter. The refusal response names the `quarantine_id`. Evidence
-  refused for a chain gap or an unknown decision is not quarantined (the
-  SDKs retry it), and evidence carrying secret material is never stored;
+  dead-letter, and evidence signed by a retired key or outside its key's
+  scope. The refusal response names the `quarantine_id`. Evidence refused
+  for a chain gap or an unknown decision is not quarantined (the SDKs retry
+  it). A record carrying secret material is never stored, whatever it was
+  refused for;
 - an observation or break-glass record outside its time bounds.
 
 A record that is not authentic (unsigned, signed by an unknown key, not in
@@ -183,36 +211,52 @@ The NA records in the store, signed, every change judgements depend on:
 - executor and observer key registrations and retirements;
 - which holder (a person or team) each operator key belongs to.
 
-When a 1.2 store first starts with `EVIDENCE_OUT_OF_BAND=on`, the history is backfilled from the
-audit events (`boundary_policy_activated` and `boundary_policy_deactivated`,
-and the activation times migration 010 kept for active versions), marked
-`reconstructed`. A `policy_history_started` record marks how far back the
-policy history reaches: a change before it is judged `indeterminate`. The
-registry is never lost to retention: records a retention run removes are
-carried forward unchanged after its checkpoint.
+When a 1.2 store first starts with `EVIDENCE_OUT_OF_BAND=on`, the history is
+backfilled from the audit events (`boundary_policy_activated` and
+`boundary_policy_deactivated`, and the activation times migration 010 kept
+for active versions), marked `reconstructed`. A `policy_history_started`
+record marks how far back the policy history reaches: a change before it is
+judged `indeterminate`.
+
+Each registry record names the audit event or key it records. At every start,
+and before every judgement, the NA records, at the times they happened, the
+activations and key changes its audit log and key table hold and the
+registry does not: a write that failed, or a period with
+`EVIDENCE_OUT_OF_BAND=off`. Turning the records off and on again therefore
+leaves no gap in the history judgements replay. The registry is never lost to
+retention: records a retention run removes are carried forward unchanged
+after its checkpoint.
 
 ### Operator key holders
 
-Operator keys are mapped to holders at the NA's first start with
-`EVIDENCE_OUT_OF_BAND=on`, from
-`OPERATOR_KEY_HOLDERS_JSON` (`{"key-id": "holder"}`; a key without an entry is
-its own holder). After that the configuration no longer changes a holder: a
-change takes two holders.
+Operator keys are mapped to holders from `OPERATOR_KEY_HOLDERS_JSON`
+(`{"key-id": "holder"}`) when the NA starts with `EVIDENCE_OUT_OF_BAND=on`. A
+key without an entry is its own holder until the configuration names one;
+once the store records a named holder, the configuration no longer changes
+it: a change takes two holders. A key whose public key or tier changes under
+the same key ID keeps its holder.
 
 1. A privileged key proposes it: `POST /admin/operator-keys/<key_id>/holder`
    with `{"holder": "new-holder"}`.
 2. A privileged key of a different holder approves it:
    `POST /admin/operator-keys/holder-changes/<proposal_id>/approve`. The
-   change is recorded in the store, naming both.
+   approval and its record land together. Both keys must have named holders
+   in the store (`409 holder_change_needs_named_holders` otherwise): two keys
+   nobody named could belong to one person.
 
 `GET /admin/evidence/operator-holders` lists the holders the store records.
 
 ## Retention
 
 Retention keeps an observation or break-glass record with its judgement, and
-stops before a record that has not been judged yet. The positions of removed
-observations are recorded in the retention checkpoint, so a resource's
-remaining observations still verify.
+stops before a record that has not been judged yet
+(`GET /admin/evidence/status` reports `unjudged_records`). The positions of
+removed observations are recorded in the retention checkpoint, so a
+resource's remaining observations still verify. While the records are on,
+retention keeps at least the observation backlog
+(`NA_OBSERVATION_MAX_BACKLOG_SECONDS` plus the skew, so `older_than_days` of
+at least 8 by default): an observation removed sooner could be submitted
+again and admitted twice.
 
 ## Settings
 

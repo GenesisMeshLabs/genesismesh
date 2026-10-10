@@ -37,7 +37,7 @@ from ...models.out_of_band import (
 )
 from ...trust.context.attestation_basis import AttestationBasis, assess_attestation_basis
 from ...trust.context.engine import PolicyVerdict, evaluate_policies_as_of
-from ...trust.evidence_store import ExecutorKey, build_entry
+from ...trust.evidence_store import ExecutorKey, build_entry, check_metadata_only
 from ...trust.out_of_band import (
     QUARANTINED_EXECUTION_CODES,
     JudgementInput,
@@ -49,6 +49,7 @@ from ...trust.out_of_band import (
     entry_index,
     judgement_from,
     sign_na_record,
+    stricter,
     time_bounds_problem,
 )
 from ..errors import BadRequestError, ConflictError, NotFoundError, ServiceUnavailableError, ValidationError
@@ -65,6 +66,10 @@ OBSERVATION_BATCH_LIMIT = 100
 
 #: Most changes ``resource_changes`` returns (the oldest); longer histories report ``truncated``.
 CHANGES_LIMIT = 10_000
+
+
+class _AlreadyApproved(Exception):
+    """The holder change was approved by another request first."""
 
 
 class _AlreadyJudged(Exception):
@@ -210,9 +215,12 @@ class OutOfBandService:
         key = self._key(evidence.signature.key_id)
         from ...crypto import verify_model_signature
 
-        if key is None or key.retired or key.role != "executor" \
-                or key.executor_sovereign_id != evidence.executor_sovereign_id \
+        if key is None or key.executor_sovereign_id != evidence.executor_sovereign_id \
                 or not verify_model_signature(evidence, evidence.signature, key.public_key):
+            return None
+        # A quarantine entry keeps the record as received: one carrying secret
+        # material is refused without being stored, whatever it was refused for.
+        if check_metadata_only(evidence) is not None:
             return None
         try:
             stored = self.quarantine("execution", raw, code, detail, evidence.resource_id)
@@ -284,6 +292,9 @@ class OutOfBandService:
             duplicate = self._duplicate(dedupe, digest, "observation")
             if duplicate is not None:
                 return duplicate, 200
+            if self._na.db.get_entry_by_record("observation", observation.observation_id) is not None:
+                raise ConflictError("another observation with this observation_id is stored",
+                                    code="observation_conflict")
             raise ConflictError("the observation's position was taken; retry", code="observation_conflict")
         except self._na.db.database_errors as exc:
             raise ServiceUnavailableError("The observation could not be stored",
@@ -308,12 +319,17 @@ class OutOfBandService:
             raise BadRequestError(f"at most {OBSERVATION_BATCH_LIMIT} observations per batch",
                                   code="invalid_observation")
 
-        def order(item: Any) -> tuple[int, str]:
+        def order(item: Any) -> tuple[int, datetime]:
             if isinstance(item, dict):
                 at = item.get("changed_at") or item.get("changed_not_before")
                 if isinstance(at, str):
-                    return 0, at
-            return 1, ""
+                    try:
+                        parsed = datetime.fromisoformat(at.replace("Z", "+00:00"))
+                    except ValueError:
+                        parsed = None
+                    if parsed is not None:
+                        return 0, parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            return 1, datetime.min.replace(tzinfo=timezone.utc)
 
         results: list[dict[str, Any]] = []
         for index, item in sorted(enumerate(raw), key=lambda pair: order(pair[1])):
@@ -408,6 +424,12 @@ class OutOfBandService:
             return None
 
     def _judge(self, kind: SubjectKind, stored: dict[str, Any]) -> dict[str, Any]:
+        # The history a judgement replays must hold every activation first (a
+        # failed write, a period with the switch off, another instance).
+        try:
+            self._reconcile_registry()
+        except Exception as exc:  # noqa: BLE001 -- judge with what the store holds
+            logger.warning("registry reconciliation before judging failed: %s", exc)
         entry: EvidenceStoreEntry = stored["entry"]
         record: ObservationRecord | BreakGlassRecord = (
             ObservationRecord.model_validate(stored["payload"]) if kind == "observation"
@@ -435,9 +457,19 @@ class OutOfBandService:
 
         verdict, history_reason = self._evaluate(record, latest)
         if verdict is not None and earliest != latest:
-            start, _ = self._evaluate(record, earliest)
-            if start is not None:
-                verdict = combine_window(start, verdict)
+            # Known only within a window: the verdict at its start and after every
+            # policy change inside it must agree; before the history starts it cannot.
+            points: list[tuple[datetime, PolicyVerdict]] = []
+            for at in [earliest, *self.policy_history().change_times(earliest, latest)]:
+                if at == latest:
+                    continue
+                other, why = self._evaluate(record, at)
+                if other is None:
+                    verdict, history_reason = None, why
+                    break
+                points.append((at, other))
+            if verdict is not None:
+                verdict = combine_window([*points, (latest, verdict)])
         current, _ = self._evaluate(record, now, current=True)
         hint = self._hint(record, action, earliest, latest) if isinstance(record, ObservationRecord) \
             and record.version_id is None else None
@@ -454,7 +486,19 @@ class OutOfBandService:
             if isinstance(record, ObservationRecord) and record.version_id is not None:
                 matched = self._match_candidate(record, action, db=db)
                 if matched is not None:
-                    judgement = self._matched_judgement(subject, matched, latest, earliest, now, db)
+                    judgement = self._matched_judgement(subject, matched, latest, earliest, now, db, verdict)
+                else:
+                    # A further observation of a governed change (another observer, the
+                    # same version): the same change, not a new one.
+                    seen = db.matched_executions(record.resource_id, action, record.version_id,
+                                                 record.capability, limit=1)
+                    if seen:
+                        prior: EvidenceStoreEntry = seen[0]["entry"]
+                        judgement = self._sign(judgement_from(
+                            subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest,
+                            verdict=verdict, same_change_as=prior.evidence_id,
+                            matched_decision_id=prior.decision_id, **issuer,
+                        ))
             return [self._pending("judgement", judgement, now=now)]
 
         try:
@@ -484,39 +528,51 @@ class OutOfBandService:
         return self._body(stored_judgement, status="judged")
 
     def _match_candidate(self, record: ObservationRecord, action: str, db: Any = None) -> dict[str, Any] | None:
-        """The oldest unmatched execution or break-glass record of this change (same resource, action, version)."""
+        """The oldest unmatched execution or break-glass record of this change: same resource,
+        action, version and capability (a decision for another capability governs nothing here)."""
         if record.version_id is None:
             return None
         db = db or self._na.db
-        found = db.unmatched_executions(record.resource_id, action, record.version_id, limit=1)
+        found = db.unmatched_executions(record.resource_id, action, record.version_id, record.capability, limit=1)
         return found[0] if found else None
 
     def _matched_judgement(
         self, subject: JudgementInput, matched: dict[str, Any], latest: datetime, earliest: datetime,
-        now: datetime, db: Any,
+        now: datetime, db: Any, own: PolicyVerdict | None,
     ) -> JudgementRecord:
+        """The judgement of an observation matched to recorded evidence. ``own`` is the verdict on the
+        observer's own facts, which the matched record cannot vouch for: a deny always stands."""
         entry: EvidenceStoreEntry = matched["entry"]
         issuer = self._issuer()
         if entry.entry_kind == "execution":
             return self._sign(judgement_from(
-                subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest,
+                subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest, verdict=own,
                 matched_evidence_id=entry.evidence_id, matched_decision_id=entry.decision_id, **issuer,
             ))
-        # A break-glass record of the same change: its judgement is this change's verdict.
+        # A break-glass record of the same change is the controller's own account: the
+        # observation takes the stricter of its verdict and the observer's facts.
         assert entry.record_id is not None
         prior = db.get_judgement_for(entry.record_id)
         prior_record = JudgementRecord.model_validate(prior["payload"]) if prior is not None else None
+        theirs = prior_record.verdict if prior_record is not None else "indeterminate"
+        mine = own.verdict if own is not None else "indeterminate"
+        verdict = stricter(theirs, mine)
+        reason = f"matched break-glass record {entry.record_id} ({theirs})"
+        if mine != theirs:
+            reason += f"; on the observer's facts {mine}" + (f": {own.reason}" if own is not None and own.reason else "")
+        elif prior_record is not None and prior_record.reason:
+            reason += f": {prior_record.reason}"
         judgement = JudgementRecord(
             subject_kind=subject.subject_kind, subject_id=subject.subject_id, subject_digest=subject.subject_digest,
             subject_store_sequence=subject.subject_store_sequence, resource_id=subject.resource_id,
             action=subject.action, capability=subject.capability,  # type: ignore[arg-type]
-            governed_by="after_the_fact",
-            verdict=prior_record.verdict if prior_record is not None else "indeterminate",
-            reason=f"matched break-glass record {entry.record_id}"
-            + (f": {prior_record.reason}" if prior_record is not None and prior_record.reason else ""),
+            governed_by="after_the_fact", verdict=verdict, reason=reason[:1024],  # type: ignore[arg-type]
             evaluated_as_of=latest, evaluated_from=earliest if earliest != latest else None,
+            policy_binding=own.binding if own is not None and verdict == mine else None,
+            gate_results=list(own.gate_results) if own is not None and verdict == mine else [],
             current_verdict=prior_record.current_verdict if prior_record is not None else None,
-            flagged_for_review=prior_record.flagged_for_review if prior_record is not None else None,
+            flagged_for_review=True if mine != theirs or (prior_record is not None and prior_record.flagged_for_review)
+            else None,
             matched_evidence_id=entry.record_id, judged_at=now, **issuer,
         )
         return self._sign(judgement)
@@ -525,7 +581,7 @@ class OutOfBandService:
         """Unmatched execution evidence that may be this change: no version ID to confirm it."""
         skew = self.bounds.skew
         best: tuple[timedelta, str] | None = None
-        for stored in self._na.db.unmatched_executions(record.resource_id, action, None, limit=50):
+        for stored in self._na.db.unmatched_executions(record.resource_id, action, None, record.capability, limit=50):
             entry: EvidenceStoreEntry = stored["entry"]
             raw_at = stored["payload"].get("executed_at")
             try:
@@ -598,6 +654,10 @@ class OutOfBandService:
     ) -> tuple[PolicyVerdict | None, str | None]:
         """The verdict on a change at ``at`` (or under today's policies), or (None, why it cannot be told)."""
         policies_service = self._na.boundary_policies
+        if isinstance(record, BreakGlassRecord) and record.attestation_id is None:
+            # An agreement-based evaluation rests on the agreement, its signers and its
+            # term, none of which the record carries: nothing the NA holds can say.
+            return None, "the break-glass record names no attestation; the NA cannot judge the evaluation it skipped"
         integrity: list[str] = []
         if current:
             loaded = self._na.db.load_active_boundary_policies()
@@ -651,7 +711,12 @@ class OutOfBandService:
         pending = [self._pending("registry", self._sign(r), now=now, lookup={"dedupe_key": d}) for r, d in records]
         return self._append(pending, anchor=anchor)
 
-    def policy_activated(self, policy: BoundaryPolicy, previous: int | None, recorded_by: str | None) -> None:
+    # Each registry record names its source in its dedupe key (an audit event, a
+    # key row), so reconciliation adds exactly the records the store is missing.
+
+    def policy_activated(
+        self, policy: BoundaryPolicy, previous: int | None, recorded_by: str | None, audit_event_id: str,
+    ) -> None:
         """Record an activation (and the version it replaced) in the store."""
         if not self.enabled:
             return
@@ -659,18 +724,20 @@ class OutOfBandService:
         records: list[tuple[RegistryRecord, str | None]] = []
         if previous is not None and previous != policy.version:
             records.append((RegistryRecord(event="policy_deactivated", effective_at=now, policy_id=policy.policy_id,
-                                           policy_version=previous, recorded_by=recorded_by, **self._issuer()), None))
+                                           policy_version=previous, recorded_by=recorded_by, **self._issuer()),
+                            f"registry:audit:{audit_event_id}:previous"))
         records.append((RegistryRecord(event="policy_activated", effective_at=now, policy_id=policy.policy_id,
                                        policy_version=policy.version, policy_digest=policy.digest(),
-                                       recorded_by=recorded_by, **self._issuer()), None))
+                                       recorded_by=recorded_by, **self._issuer()), f"registry:audit:{audit_event_id}"))
         self._record_safely(records, "policy activation")
 
-    def policy_deactivated(self, policy_id: str, version: int, recorded_by: str | None) -> None:
+    def policy_deactivated(self, policy_id: str, version: int, recorded_by: str | None, audit_event_id: str) -> None:
         if not self.enabled:
             return
         self._record_safely([(RegistryRecord(event="policy_deactivated", effective_at=self._now(),
                                              policy_id=policy_id, policy_version=version, recorded_by=recorded_by,
-                                             **self._issuer()), None)], "policy deactivation")
+                                             **self._issuer()), f"registry:audit:{audit_event_id}")],
+                            "policy deactivation")
 
     def key_registered(self, key: ExecutorKey, registered_at: str, recorded_by: str | None) -> None:
         if not self.enabled:
@@ -680,13 +747,14 @@ class OutOfBandService:
             key_id=key.key_id, public_key=key.public_key, executor_sovereign_id=key.executor_sovereign_id,
             key_role=key.role, resource_prefix=key.resource_prefix,  # type: ignore[arg-type]
             recorded_by=recorded_by, **self._issuer(),
-        ), None)], "key registration")
+        ), f"registry:key:{key.key_id}:registered")], "key registration")
 
-    def key_retired(self, key_id: str, recorded_by: str | None) -> None:
+    def key_retired(self, key_id: str, retired_at: str, recorded_by: str | None) -> None:
         if not self.enabled:
             return
-        self._record_safely([(RegistryRecord(event="executor_key_retired", effective_at=self._now(), key_id=key_id,
-                                             recorded_by=recorded_by, **self._issuer()), None)], "key retirement")
+        self._record_safely([(RegistryRecord(event="executor_key_retired", effective_at=datetime.fromisoformat(retired_at),
+                                             key_id=key_id, recorded_by=recorded_by, **self._issuer()),
+                              f"registry:key:{key_id}:retired")], "key retirement")
 
     def _record_safely(self, records: Sequence[tuple[RegistryRecord, str | None]], what: str) -> None:
         """Record registry history after a change already made; a failure is logged and repaired at start."""
@@ -700,73 +768,110 @@ class OutOfBandService:
                 pass
 
     def ensure_registry(self) -> None:
-        """At start: backfill a store upgraded to 1.3.0, record operator keys, repair drift. Never fails start."""
+        """At start: backfill a store upgraded to 1.3.0, add what the registry is missing,
+        repair drift and record operator keys. Each step runs on its own; none fails start."""
         if not self.enabled:
             return
-        try:
-            self._backfill()
-            self._repair_policy_drift()
-            self._record_operator_keys()
-        except Exception as exc:  # noqa: BLE001
-            logger.error("evidence store registry check failed: %s", exc)
+        for step in (self._backfill, self._reconcile_registry, self._repair_policy_drift, self._record_operator_keys):
+            try:
+                step()
+            except Exception as exc:  # noqa: BLE001
+                logger.error("evidence store registry check (%s) failed: %s", step.__name__, exc)
+
+    _POLICY_AUDIT_EVENTS = ("boundary_policy_activated", "boundary_policy_deactivated")
 
     def _backfill(self) -> None:
-        """Reconstruct registry history from audit events once, when a store first runs 1.3.0."""
+        """Mark how far back the policy history reaches, once, when a store first runs with the
+        records on; the activations themselves come from the audit log (``_reconcile_registry``)."""
         if self._na.db.get_entry_by_dedupe_key("registry:policy_history_started") is not None:
             return
         issuer = self._issuer()
-        reconstructed: list[RegistryRecord] = []
-        for event in self._na.db.list_audit_events(
-            event_types=["boundary_policy_activated", "boundary_policy_deactivated"]
-        ):
-            details = event.get("details") or {}
-            try:
-                at = datetime.fromisoformat(str(event["created_at"]))
-                version = int(details["version"])
-                policy_id = str(details["policy_id"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            activated = event["event_type"] == "boundary_policy_activated"
-            reconstructed.append(RegistryRecord(
-                event="policy_activated" if activated else "policy_deactivated", effective_at=at,
-                reconstructed=True, policy_id=policy_id, policy_version=version,
-                policy_digest=details.get("policy_digest") if activated else None, **issuer,
-            ))
+        times: list[datetime] = []
+        explained: set[tuple[str, int]] = set()
+        for event in self._na.db.list_audit_events(event_types=list(self._POLICY_AUDIT_EVENTS)):
+            record = self._policy_record_from_audit(event, issuer)
+            if record is not None:
+                times.append(record.effective_at)
+                if record.event == "policy_activated" and record.policy_id is not None \
+                        and record.policy_version is not None:
+                    explained.add((record.policy_id, record.policy_version))
         # Active versions no audit event explains (an older audit log): their activation columns.
-        explained = {(r.policy_id, r.policy_version) for r in reconstructed if r.event == "policy_activated"}
+        reconstructed: list[tuple[RegistryRecord, str | None]] = []
         for row in self._na.db.list_boundary_policy_rows():
             if not row.get("active") or (row["policy_id"], int(row["version"])) in explained:
                 continue
             policy = self._na.db.parse_boundary_policy_row(row)
-            at_raw = row.get("activated_at") or row.get("created_at")
-            reconstructed.append(RegistryRecord(
-                event="policy_activated", effective_at=datetime.fromisoformat(str(at_raw)),
-                reconstructed=True, policy_id=row["policy_id"], policy_version=int(row["version"]),
-                policy_digest=policy.digest() if policy is not None else None, **issuer,
-            ))
-        for row in self._na.db.list_executor_keys():
-            key = self._store.key_from_row(row)
-            reconstructed.append(RegistryRecord(
-                event="executor_key_registered", effective_at=datetime.fromisoformat(str(row["registered_at"])),
-                reconstructed=True, key_id=key.key_id, public_key=key.public_key,
-                executor_sovereign_id=key.executor_sovereign_id, key_role=key.role,  # type: ignore[arg-type]
-                resource_prefix=key.resource_prefix, **issuer,
-            ))
-            if row["retired_at"]:
-                reconstructed.append(RegistryRecord(
-                    event="executor_key_retired", effective_at=datetime.fromisoformat(str(row["retired_at"])),
-                    reconstructed=True, key_id=key.key_id, **issuer,
-                ))
-        policy_times = [r.effective_at for r in reconstructed if r.policy_id is not None]
-        started = RegistryRecord(event="policy_history_started",
-                                 effective_at=min(policy_times) if policy_times else self._now(), **issuer)
-        records: list[tuple[RegistryRecord, str | None]] = [(started, "registry:policy_history_started")]
-        records += [(r, None) for r in sorted(reconstructed, key=lambda r: r.effective_at)]
+            at = datetime.fromisoformat(str(row.get("activated_at") or row.get("created_at")))
+            times.append(at)
+            reconstructed.append((RegistryRecord(
+                event="policy_activated", effective_at=at, reconstructed=True, policy_id=row["policy_id"],
+                policy_version=int(row["version"]), policy_digest=policy.digest() if policy is not None else None,
+                **issuer,
+            ), f"registry:active:{row['policy_id']}:{row['version']}"))
+        started = RegistryRecord(event="policy_history_started", effective_at=min(times) if times else self._now(),
+                                 **issuer)
         try:
-            self._record(records, anchor=False)
+            self._record([(started, "registry:policy_history_started"), *reconstructed], anchor=False)
         except self._na.db.integrity_errors:
             return  # another instance backfilled first
         self._na.db.add_audit_event("registry_backfilled", {"reconstructed_records": len(reconstructed)})
+
+    @staticmethod
+    def _policy_record_from_audit(event: dict[str, Any], issuer: dict[str, Any]) -> RegistryRecord | None:
+        details = event.get("details") or {}
+        try:
+            at = datetime.fromisoformat(str(event["created_at"]))
+            version = int(details["version"])
+            policy_id = str(details["policy_id"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        activated = event["event_type"] == "boundary_policy_activated"
+        return RegistryRecord(
+            event="policy_activated" if activated else "policy_deactivated", effective_at=at,
+            reconstructed=True, policy_id=policy_id, policy_version=version,
+            policy_digest=details.get("policy_digest") if activated else None, **issuer,
+        )
+
+    def _reconcile_registry(self) -> int:
+        """Record, at the times they happened, every policy activation and deactivation the
+        audit log holds and every executor key registration and retirement the key table holds
+        that the registry does not: a failed write, a period with the records switched off.
+        Idempotent; returns how many records it added."""
+        if self._na.db.get_entry_by_dedupe_key("registry:policy_history_started") is None:
+            return 0  # nothing to reconcile before the history starts
+        have = self._na.db.dedupe_keys("registry:")
+        issuer = self._issuer()
+        missing: list[tuple[RegistryRecord, str | None]] = []
+        for event in self._na.db.list_audit_events(event_types=list(self._POLICY_AUDIT_EVENTS)):
+            dedupe = f"registry:audit:{event.get('event_id')}"
+            if dedupe in have:
+                continue
+            record = self._policy_record_from_audit(event, issuer)
+            if record is not None:
+                missing.append((record, dedupe))
+        for row in self._na.db.list_executor_keys():
+            key = self._store.key_from_row(row)
+            if f"registry:key:{key.key_id}:registered" not in have:
+                missing.append((RegistryRecord(
+                    event="executor_key_registered", effective_at=datetime.fromisoformat(str(row["registered_at"])),
+                    reconstructed=True, key_id=key.key_id, public_key=key.public_key,
+                    executor_sovereign_id=key.executor_sovereign_id, key_role=key.role,  # type: ignore[arg-type]
+                    resource_prefix=key.resource_prefix, **issuer,
+                ), f"registry:key:{key.key_id}:registered"))
+            if row["retired_at"] and f"registry:key:{key.key_id}:retired" not in have:
+                missing.append((RegistryRecord(
+                    event="executor_key_retired", effective_at=datetime.fromisoformat(str(row["retired_at"])),
+                    reconstructed=True, key_id=key.key_id, **issuer,
+                ), f"registry:key:{key.key_id}:retired"))
+        if not missing:
+            return 0
+        missing.sort(key=lambda r: r[0].effective_at)
+        try:
+            self._record(missing, anchor=False)
+        except self._na.db.integrity_errors:
+            return 0  # another instance reconciled at the same time
+        self._na.db.add_audit_event("registry_reconciled", {"records": len(missing)})
+        return len(missing)
 
     def _repair_policy_drift(self) -> None:
         """Record activations the store missed (a failed write after a change), as reconstructed."""
@@ -805,29 +910,33 @@ class OutOfBandService:
         return out
 
     def _record_operator_keys(self) -> None:
-        """Record configured operator keys the store does not hold yet, under their configured holder."""
+        """Record configured operator keys the store does not hold, or holds with another public key
+        or tier, one key at a time. A key keeps the holder the store records once one is named;
+        until then (its holder is the key itself) the configuration may name one."""
         recorded = self.operator_holders()
-        records: list[tuple[RegistryRecord, str | None]] = []
         for key_id, public_key in sorted(self._na.operator_public_keys.items()):
             tier = self._na.operator_key_tiers.get(key_id)
-            configured = self._na.operator_key_holders.get(key_id, key_id)
+            configured = self._na.operator_key_holders.get(key_id)
             known = recorded.get(key_id)
-            if known is not None and known["public_key"] == public_key and known["operator_tier"] == tier:
-                if known["holder"] != configured:
+            if known is None:
+                holder, dedupe = configured or key_id, f"holder:{key_id}:first"
+            else:
+                named = known["holder"] != key_id
+                if named and configured is not None and configured != known["holder"]:
                     logger.warning("operator key %s: the store records holder %r; the configured %r is ignored "
                                    "(a holder changes only with a second holder's approval)",
                                    key_id, known["holder"], configured)
-                continue
-            holder = known["holder"] if known is not None else configured
-            digest = hashlib.sha256(f"{key_id}\x00{public_key}\x00{tier}".encode()).hexdigest()
-            records.append((RegistryRecord(event="operator_key_holder", effective_at=self._now(), key_id=key_id,
-                                           public_key=public_key, operator_tier=tier, holder=holder,
-                                           **self._issuer()), f"holder:{digest}"))
-        if records:
+                holder = known["holder"] if named or configured is None else configured
+                if known["public_key"] == public_key and known["operator_tier"] == tier and holder == known["holder"]:
+                    continue
+                # Keyed on the record it replaces, so two instances cannot both record this change.
+                dedupe = f"holder:{key_id}:after:{known['registry_record_id']}"
+            record = RegistryRecord(event="operator_key_holder", effective_at=self._now(), key_id=key_id,
+                                    public_key=public_key, operator_tier=tier, holder=holder, **self._issuer())
             try:
-                self._record(records, anchor=False)
+                self._record([(record, dedupe)], anchor=False)
             except self._na.db.integrity_errors:
-                pass  # another instance recorded them
+                continue  # another instance recorded it
 
     def propose_holder(self, key_id: str, holder: Any, proposed_by: str) -> dict[str, Any]:
         self.require_enabled()
@@ -852,8 +961,15 @@ class OutOfBandService:
         if row["approved_by"] is not None:
             raise ConflictError("this holder change is already approved", code="holder_change_already_approved")
         holders = self.operator_holders()
-        proposer = (holders.get(row["proposed_by"]) or {}).get("holder", row["proposed_by"])
-        approver = (holders.get(approved_by) or {}).get("holder", approved_by)
+        # Two holders means two named holders: a key the store does not record, or whose holder
+        # was never named (it is its own holder), cannot stand for a second person.
+        for key in (row["proposed_by"], approved_by):
+            known = holders.get(key)
+            if known is None or known["holder"] == key:
+                raise ConflictError(f"operator key {key} has no named holder in the store (OPERATOR_KEY_HOLDERS_JSON)",
+                                    code="holder_change_needs_named_holders")
+        proposer = holders[row["proposed_by"]]["holder"]
+        approver = holders[approved_by]["holder"]
         if approved_by == row["proposed_by"] or approver == proposer:
             raise ConflictError("a holder change needs the approval of a different holder",
                                 code="holder_change_needs_second_holder")
@@ -863,9 +979,24 @@ class OutOfBandService:
             operator_tier=self._na.operator_key_tiers.get(row["key_id"]), holder=row["holder"],
             approved_by=approved_by, recorded_by=row["proposed_by"], **self._issuer(),
         )
-        if not self._na.db.approve_holder_proposal(proposal_id, approved_by, record.registry_record_id):
-            raise ConflictError("this holder change is already approved", code="holder_change_already_approved")
-        entries = self._record([(record, None)])
+        signed = self._sign(record)
+        now = self._now()
+
+        def make(db: Any) -> list[Any]:
+            # The approval and its record land together, or neither does.
+            if not db.mark_holder_proposal_approved(proposal_id, approved_by, record.registry_record_id):
+                raise _AlreadyApproved()
+            return [self._pending("registry", signed, now=now)]
+
+        try:
+            entries = self._na.db.append_evidence_entries_with(make)
+        except _AlreadyApproved:
+            raise ConflictError("this holder change is already approved",
+                                code="holder_change_already_approved") from None
+        except self._na.db.database_errors as exc:
+            raise ServiceUnavailableError("The holder change could not be stored",
+                                          code="evidence_store_unavailable") from exc
+        self._store.maybe_anchor()
         self._na.db.add_audit_event("operator_holder_changed", {
             "proposal_id": proposal_id, "key_id": row["key_id"], "holder": row["holder"],
             "proposed_by": row["proposed_by"], "approved_by": approved_by,
@@ -929,5 +1060,6 @@ class OutOfBandService:
         if judgement is None:
             return "observed"
         if judgement["governed_by"] == "prior_decision":
-            return "matched"
+            # Matched, unless the observer's own facts deny what the decision allowed.
+            return "judged_denied" if judgement["verdict"] == "deny" else "matched"
         return {"allow": "judged_allowed", "deny": "judged_denied"}.get(judgement["verdict"], "indeterminate")

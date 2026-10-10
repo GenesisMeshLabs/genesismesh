@@ -1236,6 +1236,54 @@ def gen_field_registry() -> None:
         "input": {"lines": json.dumps(line, sort_keys=True, separators=(",", ":"))},
         "expected": {"failures": [{"store_sequence": 1, "reason": "unknown_entry_kind"}]},
     })
+
+    # v1.3.0: a stored record verifies only as received, in the form the reference writes.
+    def decision_line(decision: dict) -> str:
+        context = {
+            "context_id": decision["context_id"], "agreement_id": decision["agreement_id"],
+            "parent_kind": "agreement", "requester_sovereign_id": "sovereign-a",
+            "provider_sovereign_id": "sovereign-b", "requested_capability": "read",
+            "request_parameters": {}, "requested_at": "2026-01-01T00:00:00Z", "context_freshness_seq": 0,
+            "attributes": {},
+        }
+        stored = {"decision": decision, "context": context}
+        digest = hashlib.sha256(json.dumps(stored, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        envelope = {**entry, "entry_kind": "decision", "payload_digest": digest,
+                    "decision_id": decision["decision_id"], "context_id": decision["context_id"],
+                    "outcome": "authorized" if decision["authorized"] else "denied"}
+        event = {"schema": "gm.evidence.event", "schema_version": 1, "entry": envelope,
+                 "entry_digest": hashlib.sha256(json.dumps(envelope, sort_keys=True,
+                                                           separators=(",", ":")).encode()).hexdigest(),
+                 "payload": stored}
+        return json.dumps(event, sort_keys=True, separators=(",", ":"))
+
+    def offset(stamp: str) -> str:
+        return stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp
+
+    keys = {"na_public_keys": bd["operator_public_keys"]}
+    rewritten = copy.deepcopy(bd["decision"])
+    rewritten["decision_made_at"] = offset(rewritten["decision_made_at"])
+    vectors.append({
+        "id": "export-rewritten-timestamp", "kind": "export",
+        "description": "A stored decision whose timestamp was respelled after signing (same instant)",
+        "input": {"lines": decision_line(rewritten), **keys},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "invalid_signature"}]},
+    })
+    loose = copy.deepcopy(bd["decision"])
+    loose["decision_made_at"] = offset(loose["decision_made_at"])
+    loose = resign(loose, "BoundaryDecision", "c", "na-key", "signature")
+    vectors.append({
+        "id": "export-non-canonical-decision", "kind": "export",
+        "description": "A stored decision signed over a form the reference does not write",
+        "input": {"lines": decision_line(loose), **keys},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "non_canonical_form"}]},
+    })
+    vectors.append({
+        "id": "export-decision", "kind": "export",
+        "description": "A stored decision as the reference writes it verifies",
+        "input": {"lines": decision_line(copy.deepcopy(bd["decision"])), **keys},
+        "expected": {"failures": []},
+    })
     _write("field_registry", {"suite": "field_registry", "version": "1.2.0", "registry": registry, "vectors": vectors})
 
 
@@ -1330,6 +1378,15 @@ def gen_canonical() -> None:
         ("raw-control", "Not JSON: a raw control character in a string", "[\"a\tb\"]"),
         ("empty", "Not JSON: nothing", ""),
         ("trailing-text", "Not JSON: text after the value", "{} x"),
+        # v1.3.0: with several faults, the first in text order is named everywhere.
+        ("first-fault-duplicate-then-zero", "Two faults: a duplicate key, then -0", "{\"a\":1,\"a\":-0}"),
+        ("first-fault-duplicate-unclosed", "Two faults: a duplicate key in an unclosed object", "{\"a\":1,\"a\":2"),
+        ("first-fault-surrogate-then-zero", "Two faults: a lone surrogate, then -0", "[\"\\ud800\",-0]"),
+        ("first-fault-surrogate-then-text", "Two faults: a lone surrogate, then text after the value",
+         "[\"\\ud800\"] x"),
+        ("first-fault-surrogate-keys", "Two faults: a lone surrogate in a key named twice",
+         "{\"\\ud800\":1,\"\\ud800\":2}"),
+        ("first-fault-depth-then-zero", "Two faults: nesting 65 deep around -0", "[" * 65 + "-0" + "]" * 65),
     ]
     for vid, desc, text in accepted + refused:
         json_case(vid, desc, text)
@@ -1431,6 +1488,16 @@ def gen_canonical() -> None:
         "description": "A decision signed with denial_reason null, received without it",
         "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": dropped},
         "expected": {"accepted": False, "reason": "invalid_signature"},
+    })
+    # v1.3.0: a field the reference always writes, left out and signed that way.
+    absent = copy.deepcopy(bd["decision"])
+    del absent["denial_reason"]
+    absent = signed("BoundaryDecision", absent, [("c", "na-key")], "signature")
+    vectors.append({
+        "id": "verify-decision-signed-without-a-field", "kind": "verify_decision",
+        "description": "A decision signed without denial_reason, which the reference always writes",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": absent},
+        "expected": {"accepted": False, "reason": "non_canonical_form"},
     })
     nulled = copy.deepcopy(bd["decision"])
     del nulled["policy_binding"]

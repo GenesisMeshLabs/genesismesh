@@ -203,7 +203,7 @@ def test_observations_must_be_authentic_and_in_scope(client, na_service, clock):
     controller = Controller(client)  # an executor key may not sign observations
     as_executor = Observer(client, key_id=controller.key_id, sovereign=EXECUTOR, register=False)
     as_executor.key = controller.key
-    assert _code(_observe(client, as_executor.observe(clock))) == "observation_unknown_key"
+    assert _code(_observe(client, as_executor.observe(clock))) == "observation_out_of_scope"
 
     observer = Observer(client)
     forged = observer.observe(clock).to_wire()
@@ -222,7 +222,7 @@ def test_observations_must_be_authentic_and_in_scope(client, na_service, clock):
     from genesis_mesh.trust.execution import record_execution
     evidence = record_execution(decision, OBSERVER, CAPABILITY, "success", observer.key, issued_by=observer.key_id,
                                 sequence_no=1, resource_id=SECRET, resource_action="create")
-    assert _code(_submit(client, evidence)) == "evidence_unknown_executor"
+    assert _code(_submit(client, evidence)) == "evidence_out_of_scope"
 
 
 def test_an_observation_outside_its_time_bounds_is_quarantined_not_judged(client, clock):
@@ -268,13 +268,35 @@ def test_a_governed_change_seen_by_an_observer_is_matched_once(client, clock):
     assert judgement.governed_by == "prior_decision" and judgement.verdict == "allow"
     assert judgement.matched_evidence_id == evidence.evidence_id
     assert judgement.matched_decision_id == evidence.decision_id
-    # A second change right after it, with the same version, is not the governed one.
-    again = _judgement(_observe(client, observer.observe(clock, action="create", version_id="v7")).get_json())
-    assert again.governed_by == "after_the_fact" and again.matched_evidence_id is None
+    # Another observer's report of the same version is the same change: governed, the
+    # evidence not matched twice.
+    other = Observer(client, key_id="observer-2")
+    again = _judgement(_observe(client, other.observe(clock, action="create", version_id="v7")).get_json())
+    assert again.governed_by == "prior_decision" and again.matched_evidence_id is None
+    assert again.matched_decision_id == evidence.decision_id and evidence.evidence_id in (again.reason or "")
     by_kind = [(c["kind"], c["state"]) for c in _changes(client)]
-    assert ("execution", "recorded") in by_kind and ("observation", "matched") in by_kind
-    assert ("observation", "indeterminate") in by_kind  # no policy covers it
+    assert by_kind.count(("observation", "matched")) == 2 and ("execution", "recorded") in by_kind
     assert _verify(client)["verified"] is True
+
+
+def test_a_match_needs_the_same_capability_and_the_observers_facts_still_count(client, clock):
+    controller = Controller(client)
+    evidence = controller.record(_decide(client), params={"version_id": "v8"})
+    assert _submit(client, evidence).status_code == 201
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    clock.advance(minutes=2)  # the changes below happen under the policy
+    observer = Observer(client)
+    # A decision for another capability governs nothing here: judged on its own.
+    elsewhere = _judgement(_observe(client, observer.observe(
+        clock, action="create", version_id="v8", capability="secret.other")).get_json())
+    assert elsewhere.governed_by == "after_the_fact"
+    # The same capability matches, but the observer saw a change the policies deny.
+    denied = _judgement(_observe(client, observer.observe(
+        clock, action="create", version_id="v8", metadata={"lifetime_days": 400})).get_json())
+    assert denied.governed_by == "prior_decision" and denied.verdict == "deny" and denied.flagged_for_review
+    assert denied.matched_evidence_id == evidence.evidence_id
+    states = {c["record_id"]: c["state"] for c in _changes(client)}
+    assert states[denied.subject_id] == "judged_denied"
 
 
 def test_without_a_version_the_possible_match_is_only_a_hint(client, clock):
@@ -486,7 +508,7 @@ def test_break_glass_records_must_be_authentic(client, clock):
     as_observer = Controller(client, key_id=observer.key_id, sovereign=OBSERVER, register=False)
     as_observer.key = observer.key
     resp = client.post("/evidence/break-glass", json={"record": _break_glass(as_observer, clock).to_wire()})
-    assert resp.status_code == 422 and _code(resp) == "break_glass_unknown_key"
+    assert resp.status_code == 422 and _code(resp) == "break_glass_out_of_scope"
     controller = Controller(client)
     stale = _break_glass(controller, clock, executed_at=clock.now() - timedelta(days=9))
     assert client.post("/evidence/break-glass", json={"record": stale.to_wire()}).get_json()["status"] == "quarantined"
@@ -586,6 +608,12 @@ def test_holders_are_recorded_at_start_and_change_only_with_a_second_holder(cloc
     service.operator_key_tiers["operator-carol"] = "privileged"
     from .test_na_boundary_policy import _headers
     url = f"/admin/operator-keys/holder-changes/{proposal}/approve"
+    # A key the store does not record, or records without a named holder, is no second person.
+    unrecorded = client.post(url, json={}, headers=_headers(second, "operator-carol", {}, client=client,
+                                                             method="POST", url=url))
+    assert unrecorded.status_code == 409 and _code(unrecorded) == "holder_change_needs_named_holders"
+    service.operator_key_holders["operator-carol"] = "carol"
+    service.out_of_band_service.ensure_registry()  # as at the next start
     approved = client.post(url, json={}, headers=_headers(second, "operator-carol", {}, client=client,
                                                            method="POST", url=url))
     assert approved.status_code == 200, approved.get_json()
@@ -792,3 +820,165 @@ def test_an_export_line_of_a_stage_2_kind_parses_and_verifies(client, na_service
     result = verify_evidence_events(parse_export_lines(lines), na_public_keys=[na_service.signer.public_key_b64],
                                     executor_keys=keys)
     assert result.verified, result.failures
+
+
+# ---------------------------------------------------------------------------
+# Review fixes (1.3.0)
+# ---------------------------------------------------------------------------
+
+
+def test_a_policy_change_inside_a_window_makes_it_indeterminate(client, clock):
+    """The verdict is checked at every policy change in the window, not only at its ends."""
+    observer = Observer(client)
+    v1 = _lifetime_policy(client, 90)
+    v2 = _lifetime_policy(client, 30)
+    assert _activate(client, "secret-lifetime", v1).status_code == 200
+    start = clock.advance(minutes=1)
+    clock.advance(minutes=1)
+    assert _activate(client, "secret-lifetime", v2).status_code == 200
+    clock.advance(minutes=1)
+    assert _activate(client, "secret-lifetime", v1).status_code == 200  # rolled back
+    end = clock.advance(minutes=1)
+    record = observer.observe(clock, window=(start, end), metadata={"lifetime_days": 60})
+    judgement = _judgement(_observe(client, record).get_json())
+    assert judgement.verdict == "indeterminate" and "deny at" in (judgement.reason or "")
+
+
+def test_a_window_reaching_back_before_the_history_is_indeterminate(client, clock):
+    observer = Observer(client)
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    history = client.application.extensions["genesis_mesh_na"].out_of_band_service.policy_history()
+    end = clock.advance(minutes=2)
+    record = observer.observe(clock, window=(history.started_at - timedelta(minutes=1), end),
+                              metadata={"lifetime_days": 30})
+    judgement = _judgement(_observe(client, record).get_json())
+    assert judgement.verdict == "indeterminate" and "policy history starts" in (judgement.reason or "")
+
+
+def test_activations_made_while_the_records_were_off_keep_their_times(clock, tmp_path):
+    # The audit log records real time: the NA's clock is real time here too.
+    clock.at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db = str(tmp_path / "na.db")
+    first = _make_service(evidence_store="on", evidence_out_of_band="on", db_path=db)
+    client = _client(first)
+    v1 = _lifetime_policy(client, 90)
+    v2 = _lifetime_policy(client, 30)
+    assert _activate(client, "secret-lifetime", v1).status_code == 200  # recorded 10 minutes ago
+    first.db.close()
+    off = _same_na(first, db)
+    off.evidence_out_of_band = "off"
+    assert _activate(_client(off), "secret-lifetime", v2).status_code == 200  # not recorded
+    activated_v2 = datetime.now(timezone.utc)
+    off.db.close()
+    clock.at = datetime.now(timezone.utc) + timedelta(seconds=1)
+    on = _same_na(first, db)  # switched on again: the audit log fills the gap
+    history = on.out_of_band_service.policy_history()
+    active = history.active_at(activated_v2 + timedelta(seconds=1))
+    assert active is not None and active["secret-lifetime"][0] == v2
+    assert history.active_at(activated_v2 - timedelta(minutes=1))["secret-lifetime"][0] == v1
+    v2_records = [r for _, r in on.out_of_band_service._registry_records()
+                  if r.event == "policy_activated" and r.policy_version == v2]
+    assert len(v2_records) == 1 and v2_records[0].reconstructed and v2_records[0].effective_at <= activated_v2
+
+
+def test_a_failed_registry_write_is_reconciled_before_the_next_judgement(client, na_service, clock, monkeypatch):
+    oob = na_service.out_of_band_service
+    real = oob._record
+    monkeypatch.setattr(oob, "_record", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("store down")))
+    assert _activate(client, "secret-lifetime", _lifetime_policy(client, 30)).status_code == 200
+    monkeypatch.setattr(oob, "_record", real)
+    clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    observer = Observer(client)
+    judgement = _judgement(_observe(client, observer.observe(clock, metadata={"lifetime_days": 60})).get_json())
+    assert judgement.verdict == "deny"  # the activation was recorded, at its time, before judging
+
+
+def test_a_refused_record_with_secret_material_is_never_quarantined(client, clock):
+    controller = Controller(client)
+    denied = _decide(client, capability="secret.other")
+    resp = _submit(client, controller.record(denied, params={"password": "hunter2-correct-horse"}))
+    assert resp.status_code == 422 and "quarantine_id" not in (resp.get_json()["error"].get("details") or {})
+    assert _get(client, "/admin/evidence?entry_kind=quarantine").get_json()["count"] == 0
+
+
+def test_retired_and_out_of_scope_keys_are_refused_for_good(client, clock):
+    scoped = Controller(client, key_id="ctrl-scoped", register=False)
+    assert _post(client, "/admin/evidence/executor-keys", {
+        "key_id": scoped.key_id, "public_key": scoped.public_key, "executor_sovereign_id": scoped.sovereign,
+        "resource_prefix": "kv:team-a/"}).status_code == 201
+    decision = _decide(client)
+    from genesis_mesh.trust.execution import record_execution
+    no_resource = record_execution(decision, scoped.sovereign, CAPABILITY, "success", scoped.key,
+                                   issued_by=scoped.key_id, sequence_no=1)
+    assert _code(_submit(client, no_resource)) == "evidence_out_of_scope"
+    retired = Controller(client, key_id="ctrl-retired")
+    assert _post(client, f"/admin/evidence/executor-keys/{retired.key_id}/retire", {}).status_code == 200
+    resp = _submit(client, retired.record(_decide(client)))
+    assert _code(resp) == "evidence_executor_key_retired"
+    assert resp.get_json()["error"]["details"]["quarantine_id"]  # authentic, and its action happened
+
+
+def test_an_observers_strings_pass_the_secret_guard(client, clock):
+    observer = Observer(client)
+    pem = "-----BEGIN PRIVATE KEY-----\nMIIBVgIBADANBgkqhkiG9w0BAQEFAASCAUAwggE8AgEAAkEA\n-----END PRIVATE KEY-----"
+    assert _code(_observe(client, observer.observe(clock, actor=pem))) == "observation_secret_material"
+
+
+def test_break_glass_without_an_attestation_is_indeterminate(client, clock):
+    controller = Controller(client)
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    clock.advance(minutes=2)
+    resp = client.post("/evidence/break-glass", json={"record": _break_glass(controller, clock).to_wire()})
+    judgement = _judgement(resp.get_json())
+    assert judgement.verdict == "indeterminate" and "names no attestation" in (judgement.reason or "")
+
+
+def test_an_observation_of_a_break_glass_change_takes_the_stricter_verdict(client, clock):
+    controller = Controller(client)
+    attestation_id = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)["attestation_id"]
+    _activate(client, "secret-lifetime", _lifetime_policy(client, 90))
+    clock.at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    glass = _break_glass(controller, clock, attestation_id=attestation_id, version_id="v10", lifetime=30)
+    assert _judgement(client.post("/evidence/break-glass", json={"record": glass.to_wire()}).get_json()).verdict \
+        == "allow"
+    observer = Observer(client)
+    seen = _judgement(_observe(client, observer.observe(clock, version_id="v10", metadata={"lifetime_days": 400}))
+                      .get_json())
+    assert seen.matched_evidence_id == glass.break_glass_id
+    assert seen.verdict == "deny" and seen.flagged_for_review is True
+
+
+def test_a_batch_counts_each_observation_against_the_rate(clock):
+    service = _make_service(evidence_store="on", evidence_out_of_band="on")
+    client = _client(service)
+    import dataclasses
+    service.rate_limits = dataclasses.replace(service.rate_limits, observations=5)
+    observer = Observer(client)
+    items = [observer.observe(clock).to_wire() for _ in range(6)]
+    resp = client.post("/evidence/observations/batch", json={"observations": items})
+    assert resp.status_code == 429
+
+
+def test_retention_keeps_the_observation_backlog(client):
+    resp = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 7}, standard=False)
+    assert resp.status_code == 400 and _code(resp) == "invalid_retention"
+    assert "at least 8" in resp.get_json()["error"]["message"]
+
+
+def test_a_batch_is_ordered_by_time_not_by_text(client, clock):
+    observer = Observer(client)
+    base = clock.now() - timedelta(minutes=5)
+    later = observer.observe(clock, changed_at=base + timedelta(milliseconds=500), event_id="later")
+    earlier = observer.observe(clock, changed_at=base, event_id="earlier")
+    results = client.post("/evidence/observations/batch",
+                          json={"observations": [later.to_wire(), earlier.to_wire()]}).get_json()["results"]
+    positions = {r["index"]: r["entry"]["observation_sequence"] for r in results}
+    assert positions[1] < positions[0]
+
+
+def test_status_reports_records_waiting_for_a_judgement(clock):
+    service = _make_service(evidence_store="on", evidence_out_of_band="on", judge_on_admission=False)
+    client = _client(service)
+    observer = Observer(client)
+    assert _observe(client, observer.observe(clock)).status_code == 201
+    assert _get(client, "/admin/evidence/status").get_json()["unjudged_records"] == 1
