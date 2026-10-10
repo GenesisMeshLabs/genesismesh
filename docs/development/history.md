@@ -53,7 +53,8 @@ copied; relationships cannot.
 
 ## 2. The Journey, in Phases
 
-Ten phases, each answering one open question.
+Eleven phases, each answering one open question. Phases K, L and M were the
+TypeScript, Go and .NET SDK releases, told in the narrative below.
 
 | Phase | Versions | Theme | Detail |
 |-------|----------|-------|--------|
@@ -66,7 +67,8 @@ Ten phases, each answering one open question.
 | G | v0.22.0 – v0.25.0 | Application Layer | {doc}`phases/phase-g` |
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
-| J | v0.38.0 – v0.52.1 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| J | v0.38.0 – v1.1.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| N | v1.2.0 – | Governed Changes and Edge Trust | {doc}`phases/phase-n` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
 proved it carries real workloads and crosses real cloud boundaries.
@@ -77,7 +79,10 @@ execution, bounded freshness, and machine-checked lemmas. Phase I made
 those relationships usable at runtime — bearer tokens, human oversight,
 selective disclosure, consensus authorization, and peer risk signals.
 Phase J hardened the full pipeline against adversarial behavior and
-modelled key properties in Tamarin.
+modelled key properties in Tamarin, then carried it to a stable 1.0
+contract. Phase N makes every change leave a signed record that survives
+the Network Authority being unreachable and that an auditor can verify
+years later without trusting whoever runs it.
 
 ---
 
@@ -123,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.1.0:
+As of v1.2.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -158,6 +163,10 @@ As of v1.1.0:
   the Go, TypeScript and C# SDKs, and a TypeScript-signed data access intent
   by C#. A live four-language scenario in CI fails if any two
   implementations disagree on any protocol decision.
+- Every implementation reads JSON alike, admits a signed record only in its
+  canonical form, and refuses a signed field or an entry kind it does not
+  know by name, in one check order, so one record gets one verdict
+  everywhere (the `field_registry` and `canonical` conformance suites).
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
@@ -169,7 +178,7 @@ As of v1.1.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 1,791 tests pass. The layer rule and public boundary rule are enforced
+- 2,010 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -177,11 +186,11 @@ As of v1.1.0:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 91 HTTP routes, 125 CLI
-  commands, the public Python API, 51 signed artifacts and every API error
+  as the Public Contract page) classifies all 92 HTTP routes, 127 CLI
+  commands, the public Python API, 52 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.0.1, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.1.1, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -189,8 +198,9 @@ As of v1.1.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 10 suites and 36
-  deterministic vectors, run by a reference runner and by every official SDK.
+- A protocol conformance suite exists in `conformance/`: 13 suites and 209
+  deterministic vectors, run by a reference runner; every official SDK runs
+  the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
   6 new NA route blueprints (agreement, boundary, evidence, disclosure,
   consensus, data usage), with a full HTTP reference at
@@ -211,8 +221,16 @@ As of v1.1.0:
   store on, it keeps every decision it signs and the signed execution evidence
   controllers submit, in an append-only hash chain with one verifiable history
   per secret, with {doc}`../examples/evidence-store`.
+- The Network Authority signs its store's head, and an export verified
+  against anchors copied to storage the auditor controls fails if an anchored
+  entry was removed, rewritten or truncated, even by whoever runs the
+  Network Authority, with {doc}`../operations/evidence-anchors`.
+- With an outbox, the TypeScript and Rust SDKs keep a governed action's
+  signed evidence until the Network Authority admits it, so evidence survives
+  the Network Authority being unreachable and the action's value is never
+  lost with it.
 - The public contract is stable for the 1.x line, security support covers
-  1.0.x, and all six components of the release train ship the same version.
+  the latest minor line, and all six components of the release train ship the same version.
 - An operator's admin signature covers the whole request: method, path, query
   and the target Network Authority's public key (signature version 2).
 - Every route, CLI command and SDK method is smoke-tested against a live
@@ -225,7 +243,8 @@ As of v1.1.0:
 - A developer runs a governed Network Authority locally with the production
   app and settings (`na start --env-file`), separate privileged and standard
   operator keys, and admin limits that let signed traffic through while
-  holding failed authentications to 30 a minute per address, with
+  holding failed authentications to 30 a minute per key at each address
+  (all failures from one address capped at four times that), with
   {doc}`../sdk/local-network-authority`.
 
 As of v1.0.0, the following are *not* yet true:
@@ -967,11 +986,51 @@ interoperability, upgrade and documentation gate.
 **What became possible:** an NA-signed decision under an agreement means two
 recognised parties signed it, and the store holds exactly what was signed.
 
+### v1.2.0 — Nothing Lost, Anchored
+
+The first stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). Three gaps stood between the evidence store and an
+audit that still holds years later. A governed action whose evidence could
+not be submitted lost its record: the TypeScript and Rust SDKs raised the
+submission error without the signed evidence or the action's value.
+Verifiers copied fields they did not know into the signed form, so a field a
+newer signer covered still verified and could change what a record means,
+and a survey of the five implementations found that they read some JSON
+differently: duplicate keys, `NaN`, lone surrogates, integers beyond 64 bits.
+And the store's hash chain proved order, not completeness: whoever could
+write the database could remove an entry and rebuild the chain.
+
+The TypeScript and Rust SDKs gain an opt-in evidence outbox: each signed
+record is kept in storage the caller supplies until the Network Authority
+admits it, the action's value is always returned, a refusal no retry can
+overcome is dead-lettered with its code, and a second action on the same
+resource chains from the pending record. Every verifier embeds a field
+registry generated from the Python models, checks the signature over the
+record as received, and refuses a signed field it does not know
+(`unknown_field`), an export entry of an unknown kind (`unknown_entry_kind`),
+JSON the implementations would read differently, and a record not in
+canonical form (`non_canonical_form`), in one order everywhere; the
+conformance suites `field_registry` and `canonical` carry 170 vectors. The
+Network Authority signs its store's head (`StoreAnchor`) on an interval and
+on request, and verification against anchors copied to storage the auditor
+controls fails on a removed, rewritten or truncated anchored range. Forwarded
+headers are honoured only from trusted proxies, and failed admin
+authentications count per key, so one operator's failures no longer lock out
+the others behind a shared address.
+
+The release passed 2,010 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** evidence of a governed change survives the Network
+Authority being unreachable, one record gets one verdict in every
+implementation, and removing anchored evidence is detectable by whoever holds
+the anchors.
+
 ---
 
 ## 5. Where to Read More
 
-- Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-j`
+- Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-n`
 - Coordinated product version policy: {doc}`versioning`
 - Architecture and design philosophy: {doc}`strategy`
 - Per-release plans: `ops/plan-v0.*.md`

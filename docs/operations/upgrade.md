@@ -77,7 +77,7 @@ Controllers that want their changes matched to observations report the
 version they produced as `execution_parameters.version_id`. See
 {doc}`out-of-band-changes`.
 
-## Upgrading to 1.2 (unreleased)
+## Upgrading to 1.2
 
 1.2 adds migration 014, the `evidence_anchors` table, so a 1.2 database cannot
 be opened by 1.1: roll back by restoring the backup taken before the upgrade

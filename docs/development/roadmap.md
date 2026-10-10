@@ -6,11 +6,30 @@ external operators and implementers can evaluate and run.
 
 The current baseline is:
 
-- **Baseline date:** 2026-06-08
-- **Baseline release:** v0.20.0 ecosystem baseline
+- **Baseline date:** 2026-10-10
+- **Baseline release:** v1.2.0
 - **Current phase:** Phase 2 - Externalization
+- **Current release program:** Governed Changes and Edge Trust (1.2 to 1.7),
+  Phase N in {doc}`phases/index`
 
 For the detailed Phase 2 plan, see {doc}`externalization`.
+
+## Release program: Governed Changes and Edge Trust
+
+Six stages, one per minor release, each a release of the whole train that
+ships when its gate is green. The Network Authority stays the Python
+reference and the only issuer of decisions.
+
+| Release | Stage | Status |
+|---------|-------|--------|
+| v1.2.0 | Nothing lost, anchored: SDK evidence outbox, strict verifiers and the canonicalization corpus, signed store anchors | Released |
+| v1.3.0 | Observations, after-the-fact judgements, break-glass when the Network Authority is unreachable | Planned |
+| v1.4.0 | Remediation by rotating forward, notification, reviews with second-person approval | Planned |
+| v1.5.0 | Audit packs, key succession, the independent verifier `genesis-mesh-verify` | Planned |
+| v1.6.0 | Pre-issued grants | To be confirmed after v1.5.0 |
+| v1.7.0 | The Rust edge agent | To be confirmed after v1.5.0 |
+
+{doc}`phases/phase-n` describes what each stage changes as it ships.
 
 ## Current position
 

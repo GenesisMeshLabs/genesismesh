@@ -199,6 +199,10 @@ narrower kind, and the docs say so.
    in `history.md` §2 and the phase J range (closed at v1.1.0) updated; the
    ship skill's step 6F generalised from `phase-j.md`;
    `docs/development/roadmap.md`; SDK pages on the outbox and the error API.
+   - **Built:** the phase page, its rows in the phase index and the history
+     table (phase J closed at v1.1.0), the program on the roadmap, step 6F
+     reading the current phase from the index; the SDK pages came with the
+     outbox docs (#65).
 
 ### Out of scope
 
@@ -222,13 +226,13 @@ narrower kind, and the docs say so.
 
 ## Success Criteria
 
-- [ ] With the NA stopped after an action, the TypeScript and Rust SDKs keep
+- [x] With the NA stopped after an action, the TypeScript and Rust SDKs keep
       the evidence in the outbox and return the action's value;
       `flushPending()` admits it in order after the NA returns
-- [ ] A transient error stays pending; a permanent refusal is dead-lettered
+- [x] A transient error stays pending; a permanent refusal is dead-lettered
       with its code; a second action on the same resource chains from the
       pending head and both records are admitted
-- [ ] A guard refusal after the action is reported as
+- [x] A guard refusal after the action is reported as
       `governed_action_metadata_refused` with the value; the outcome is
       recorded
 - [x] Every verifier refuses an unknown signed field and an unknown entry
@@ -244,7 +248,7 @@ narrower kind, and the docs say so.
       truncating either end, or re-anchoring a rewritten chain fails
       verification with `--known-anchors`; the NA refuses to anchor a
       rewritten store
-- [ ] 31 failed authentications from one key at one address do not lock out a
+- [x] 31 failed authentications from one key at one address do not lock out a
       second active key at that address; failures naming no active key
       throttle only requests naming no active key; all failures from one
       address are capped at four times the limit
@@ -252,13 +256,13 @@ narrower kind, and the docs say so.
 
 ## Release Gate
 
-- [ ] 1.1.1 released
+- [x] 1.1.1 released (2026-10-09)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
+- [x] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
       `history.md`, `phase-n.md`, `roadmap.md`
-- [ ] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
-- [ ] Public contract and `docs/stability.md`: changed surfaces classified
+- [x] `SECURITY.md`: 1.2.x supported, 1.1.x upgrade to 1.2
+- [x] Public contract and `docs/stability.md`: changed surfaces classified
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.2.0`, releases, published-artifacts green
