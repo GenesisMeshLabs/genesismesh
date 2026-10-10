@@ -48,11 +48,18 @@ the `anchored_at` the NA wrote.
 - `GET /admin/evidence/anchors` (`read` tier) lists anchors in order, paged
   with `after_anchor` and `limit`.
 - Before signing, the NA checks that the store still contains the entry its
-  last anchor names, with that digest, and that every later entry links on to
-  the head. It also refuses when the last anchor is dated more than five
-  minutes ahead of its clock, rather than carrying a wrong time forward.
+  last anchor names, with that digest (recomputed, so a rewritten head that
+  is already anchored is refused, not reported as unchanged), and that every
+  later entry links on to the head. Since 1.3.1 it also checks that the
+  store starts at entry 1, or right after the latest retention checkpoint,
+  and holds every entry up to the head: a store whose oldest entries were
+  deleted is refused even when what remains continues from an anchor. The NA
+  also refuses when the last anchor is dated more than five minutes ahead of
+  its clock, rather than carrying a wrong time forward.
 - `GET /admin/evidence/status` reports the latest anchor and
-  `unanchored_entries`, the entries recorded after it.
+  `unanchored_entries`, the entries recorded after it. While the latest
+  anchor is dated more than five minutes ahead of the instance's clock, it
+  also reports `anchoring_blocked` (v1.3.1).
 - Anchors are kept in their own append-only table, outside the store chain.
   Retention never removes them, and exports keep their format.
 
@@ -60,6 +67,21 @@ An anchor is a signed `StoreAnchor`: `anchor_sequence`, `sovereign_id`,
 `store_sequence`, `entry_digest`, `anchored_at` (UTC),
 `previous_anchor_digest` (absent on the first; anchors form their own chain),
 `issued_by` and the NA's `signature`.
+
+### An instance whose clock runs ahead
+
+Anchor times only move forward, so an anchor signed by an NA instance whose
+clock runs ahead stops every instance from anchoring until their clocks reach
+its time: they refuse with `409 evidence_anchor_refused`, and
+`GET /admin/evidence/status` reports `anchoring_blocked` with the anchor and
+how far ahead it is. Correct the clocks of the NA instances (NTP). Anchoring
+resumes on its own once the instances' clocks pass that time; nothing has to
+be repaired in the store. Until then recent entries stay unanchored.
+
+`evidence anchors fetch --anchor-now` still checks and copies the anchors the
+NA serves when the NA refuses to anchor, prints the NA's reason and exits
+with an error (v1.3.1), so a scheduled copy alerts without losing the anchors
+it could copy.
 
 ## Keeping copies
 

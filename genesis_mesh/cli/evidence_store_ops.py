@@ -28,6 +28,8 @@ from .support import _admin_signer_from_inputs, _request_json, _signed_admin_hea
 from .. import strict_json
 
 ANCHOR_FILE_PREFIX = "anchor-"
+#: The whitespace JSON allows around a value (RFC 8259); str.strip() alone also strips others.
+JSON_WHITESPACE = " \t\r\n"
 
 
 @click.group("evidence")
@@ -40,19 +42,22 @@ def load_anchors(path: str) -> list[StoreAnchor]:
     p = Path(path)
     try:
         if p.is_dir():
+            # An empty file is an interrupted write (see _place): it holds no anchor.
             raw: list[Any] = [
                 strict_json.loads(f.read_text(encoding="utf-8"))
-                for f in sorted(p.glob(f"{ANCHOR_FILE_PREFIX}*.json"))
+                for f in sorted(p.glob(f"{ANCHOR_FILE_PREFIX}*.json")) if f.stat().st_size
             ]
         else:
-            text = p.read_text(encoding="utf-8").strip()
+            # v1.3.1: no newline translation, and JSON Lines split on LF only, as every SDK
+            # reads them: a lone CR is JSON whitespace, not a line break.
+            text = p.read_bytes().decode("utf-8").strip(JSON_WHITESPACE)
             if text.startswith("[") or text.startswith("{"):
                 try:
                     data = strict_json.loads(text)
                 except strict_json.StrictJSONError as exc:
                     if exc.reason != "invalid_json":
                         raise
-                    data = [strict_json.loads(line) for line in text.splitlines() if line.strip()]
+                    data = [strict_json.loads(line) for line in text.split("\n") if line.strip(JSON_WHITESPACE)]
             else:
                 data = []
             if isinstance(data, dict):
@@ -97,7 +102,8 @@ def verify_export(
     """
     try:
         # Split on newlines only: splitlines() also splits inside strings on U+2028 and others.
-        events = parse_export_lines(Path(file_path).read_text(encoding="utf-8").split("\n"))
+        # v1.3.1: read without newline translation, which turned a lone CR into a line break.
+        events = parse_export_lines(Path(file_path).read_bytes().decode("utf-8").split("\n"))
     except ValueError as exc:
         raise click.ClickException(f"Export is malformed: {exc}") from exc
     raw_keys = json.loads(Path(executor_keys_path).read_text(encoding="utf-8"))
@@ -172,13 +178,40 @@ def _sync_directory(directory: Path) -> None:
         os.close(fd)
 
 
+def _place(tmp: Path, path: Path) -> None:
+    """Move a complete file to ``path`` atomically; ``FileExistsError`` when an anchor is there.
+
+    A hard link never replaces a file. Without hard links (v1.3.1; before,
+    the file was written in place, so a crash could leave it truncated), a
+    rename on Windows never replaces a file either; elsewhere the name is
+    first claimed with an empty file, which the rename then replaces. An empty
+    file left by an interrupted write holds no anchor and is taken over.
+    """
+    try:
+        os.link(tmp, path)
+        return
+    except FileExistsError:
+        raise
+    except OSError:
+        pass  # a filesystem without hard links
+    if os.name != "nt":
+        try:
+            with open(path, "x", encoding="utf-8"):
+                pass
+        except FileExistsError:
+            if path.stat().st_size:
+                raise
+    os.rename(tmp, path)
+
+
 def _write_anchor(directory: Path, anchor: StoreAnchor) -> None:
     """Write one anchor file atomically, never replacing an existing one.
 
-    The file is written under a temporary name, synced, and hard-linked into
-    place, then the directory is synced: a crash never leaves a truncated
-    anchor, an anchor reported as copied is on disk, and an existing file is
-    never replaced. An existing file holding the same anchor is accepted.
+    The file is written under a temporary name, synced, and moved into place
+    (``_place``), then the directory is synced: a crash never leaves a
+    truncated anchor, an anchor reported as copied is on disk, and an
+    existing file is never replaced. An existing file holding the same
+    anchor is accepted.
     """
     path = _anchor_path(directory, anchor)
     data = json.dumps(anchor.to_wire(), indent=2, sort_keys=True) + "\n"
@@ -189,18 +222,12 @@ def _write_anchor(directory: Path, anchor: StoreAnchor) -> None:
             f.flush()
             os.fsync(f.fileno())
         try:
-            os.link(tmp, path)
+            _place(tmp, path)
         except FileExistsError:
             existing = StoreAnchor.model_validate_json(path.read_text(encoding="utf-8"))
             if not _same(existing, anchor):
                 raise click.ClickException(f"{path} holds a different anchor {anchor.anchor_sequence}") from None
             return
-        except OSError:
-            # A filesystem without hard links: exclusive create is still never a replacement.
-            with open(path, "x", encoding="utf-8", newline="\n") as f:
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
     finally:
         tmp.unlink(missing_ok=True)
     _sync_directory(directory)
@@ -258,13 +285,18 @@ def fetch_anchors(
     session = requests.Session()
     path = "/admin/evidence/anchors"
 
+    refused: str | None = None
     if anchor_now:
         resp = session.post(
             f"{base}{path}", json={}, timeout=20,
             headers=_signed_admin_headers(key_id, key_path, {}, method="POST", base_url=base, path=path),
         )
-        if resp.status_code not in (200, 201):
+        refused = _anchor_refusal(resp)
+        if refused is None and resp.status_code not in (200, 201):
             raise click.ClickException(f"Anchor request failed: {resp.status_code} {resp.text[:300]}")
+        if refused is not None:
+            # v1.3.1: the anchors the NA serves are still copied; the refusal is reported at the end.
+            click.echo(f"Warning: the NA refused to anchor its head: {refused}", err=True)
 
     served: dict[int, StoreAnchor] = {}
     after = 0
@@ -314,11 +346,29 @@ def fetch_anchors(
         _write_anchor(directory, anchor)
     if not ordered:
         click.echo("The NA has no anchors yet.")
-        return
-    latest = ordered[-1]
-    refilled = sum(1 for a in written if held and a.anchor_sequence < max(held_sequences))
-    note = f" ({refilled} missing position(s) refilled)" if refilled else ""
-    click.echo(
-        f"{len(written)} new anchor(s){note}; latest #{latest.anchor_sequence} covers store sequence "
-        f"{latest.store_sequence} ({latest.anchored_at.isoformat()})"
-    )
+    else:
+        latest = ordered[-1]
+        refilled = sum(1 for a in written if held and a.anchor_sequence < max(held_sequences))
+        note = f" ({refilled} missing position(s) refilled)" if refilled else ""
+        click.echo(
+            f"{len(written)} new anchor(s){note}; latest #{latest.anchor_sequence} covers store sequence "
+            f"{latest.store_sequence} ({latest.anchored_at.isoformat()})"
+        )
+    if refused is not None:
+        raise click.ClickException(
+            f"The NA refused to anchor its head, so recent entries are not covered: {refused.rstrip('.')}. "
+            "The anchors it serves were checked and copied (see the Evidence Anchors operations page)."
+        )
+
+
+def _anchor_refusal(resp: Any) -> str | None:
+    """The NA's reason when it refused to anchor (``409 evidence_anchor_refused``), or None."""
+    if resp.status_code != 409:
+        return None
+    try:
+        error = resp.json().get("error") or {}
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(error, dict) or error.get("code") != "evidence_anchor_refused":
+        return None
+    return str(error.get("message") or "no reason given")
