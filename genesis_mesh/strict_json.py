@@ -24,6 +24,16 @@ named reason (the conformance suite ``canonical``):
 
 Text with several faults is refused for the first one in text order, as
 every SDK reads it (v1.3.0): one input, one reason, in every implementation.
+
+A number is read by the RFC 8259 grammar first (v1.3.1): ``-``, then ``0`` or
+a digit 1-9 and more digits; a ``.`` must be followed by a digit, and an ``e``
+or ``E`` by an optional sign and a digit. A number that breaks off there
+(``-0.``, ``1e``, ``1E+``, ``1.e5``) is ``invalid_json``, as text that is not
+JSON; only a whole number goes on to ``negative_zero`` and the range checks.
+What follows a whole number is read as the next token: ``[01]`` is
+``invalid_json`` for the ``1``, ``[-01]`` is ``negative_zero`` for the
+``-0`` before it. An integer of more than 20 digits is
+``integer_out_of_range`` without being converted (no 64-bit integer has more).
 """
 
 from __future__ import annotations
@@ -90,6 +100,9 @@ def _float(literal: str) -> float:
 
 
 _SPACE = re.compile(r"[ \t\n\r]*")
+#: A number token as a scanner reads it: a ``.`` or an exponent letter commits
+#: to a fraction or an exponent (v1.3.1), which ``_NUMBER`` then requires whole.
+_NUMBER_TOKEN = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]*)?(?:[eE][+-]?[0-9]*)?")
 _NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 _INTEGER = re.compile(r"-?[0-9]+")
 _HEX4 = re.compile(r"[0-9a-fA-F]{4}")
@@ -163,8 +176,8 @@ class _Scanner:
         return "".join(out)
 
     def number(self) -> None:
-        match = _NUMBER.match(self.text, self.i)
-        if match is None:
+        match = _NUMBER_TOKEN.match(self.text, self.i)
+        if match is None or not _NUMBER.fullmatch(match.group()):
             raise StrictJSONError("invalid_json", "a malformed number")
         literal = match.group()
         self.i = match.end()
