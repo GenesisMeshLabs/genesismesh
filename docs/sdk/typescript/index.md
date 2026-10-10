@@ -56,6 +56,8 @@ The SDK covers the controller side of the secret governance pilots:
   without the NA, and the canonical JSON rules
 - {doc}`high-availability` (v0.60): failover across NA instances, readiness,
   and retryable conflicts
+- {doc}`out-of-band-changes` (1.3.0): observations, break-glass records,
+  judgements and the record outbox
 
 ---
 
@@ -80,4 +82,5 @@ governance
 evidence-store
 offline-verification
 high-availability
+out-of-band-changes
 ```

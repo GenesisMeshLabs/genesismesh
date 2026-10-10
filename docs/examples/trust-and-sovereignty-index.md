@@ -167,6 +167,15 @@ signed execution evidence controllers submit, with one verifiable chain per
 secret. Opt-in (`EVIDENCE_STORE=on`); metadata only, never secret values.
 :::
 
+:::{grid-item-card} Changes Outside the Controlled Path
+:link: out-of-band-changes
+:link-type: doc
+
+A secret changed in the cloud console or while the NA was down is recorded by
+an observer or a break-glass record and judged as of when it happened, under
+the policies active then (v1.3.0).
+:::
+
 :::{grid-item-card} Freshness Proofs
 :link: freshness-proofs
 :link-type: doc

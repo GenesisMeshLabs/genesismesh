@@ -19,6 +19,7 @@ from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from ..trust.context import GateRegistry
+from ..trust.out_of_band import TimeBounds
 from .auth import (
     OperatorTier,
     load_operator_public_keys,
@@ -32,7 +33,7 @@ from .db_policy import CrlSequenceConflict
 from .errors import ConflictError, register_error_handlers
 from .key_provider import KeyProviderConfig, Signer, as_signer, load_signer
 from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, RateLimits
-from .services import BoundaryPolicyService, EvidenceStoreService
+from .services import BoundaryPolicyService, EvidenceStoreService, OutOfBandService
 from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.agreement_trust import AgreementTrust
 from .services.boundary_policy import ENFORCEMENT_MODES
@@ -53,6 +54,7 @@ from .routes import (
     create_health_blueprint,
     create_public_blueprint,
     create_treaty_blueprint,
+    create_out_of_band_blueprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,11 +110,16 @@ class NetworkAuthorityService:
         evidence_store: str = "off",
         database_url: Optional[str] = None,
         ha_mode: str = "off",
+        evidence_out_of_band: str = "off",
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
         anchor_interval_seconds: int = 3600,
         public_url: Optional[str] = None,
+        operator_key_holders: Optional[dict[str, str]] = None,
+        observation_max_backlog_seconds: int = 7 * 24 * 3600,
+        observation_clock_skew_seconds: int = 300,
+        judge_on_admission: bool = True,
     ):
         """
         Initialize the Network Authority service.
@@ -150,6 +157,20 @@ class NetworkAuthorityService:
             anchor_interval_seconds: sign the evidence store's head after an
                 append once this long has passed since the last anchor
                 (v1.2.0); 0 anchors only on request.
+            operator_key_holders: operator key ID -> the person or team that
+                holds it, recorded in the evidence store at first start
+                (v1.3.0); a key's holder defaults to its ID.
+            observation_max_backlog_seconds: how long after a change an
+                observation or break-glass record is still admitted (v1.3.0).
+            observation_clock_skew_seconds: clock skew tolerated between
+                observers, controllers and the NA (v1.3.0).
+            judge_on_admission: judge each observation and break-glass record
+                when it is admitted (v1.3.0); off leaves judging to the judge routes.
+            evidence_out_of_band: "off" (default) or "on" (v1.3.0): record
+                observations, break-glass records, judgements, quarantine and
+                registry entries in the evidence store. Off keeps the store
+                readable by 1.2 verifiers; turn it on once every verifier that
+                reads exports runs 1.3. Needs ``evidence_store="on"``.
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
@@ -211,7 +232,26 @@ class NetworkAuthorityService:
                 or anchor_interval_seconds < 0:
             raise ValueError("anchor_interval_seconds must be 0 or more")
         self.anchor_interval_seconds = anchor_interval_seconds
+        for name, value in (("observation_max_backlog_seconds", observation_max_backlog_seconds),
+                            ("observation_clock_skew_seconds", observation_clock_skew_seconds)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be 0 or more")
+        self.observation_time_bounds = TimeBounds(
+            max_backlog=timedelta(seconds=observation_max_backlog_seconds),
+            skew=timedelta(seconds=observation_clock_skew_seconds),
+        )
+        self.judge_on_admission = bool(judge_on_admission)
+        if evidence_out_of_band not in ("off", "on"):
+            raise ValueError("evidence_out_of_band must be 'off' or 'on'")
+        if evidence_out_of_band == "on" and evidence_store != "on":
+            raise ValueError("evidence_out_of_band='on' needs evidence_store='on'")
+        self.evidence_out_of_band = evidence_out_of_band
+        self.operator_key_holders = dict(operator_key_holders or {})
+        unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
+        if unknown_holders:
+            raise ValueError(f"operator key holders name keys that are not configured: {unknown_holders}")
         self.evidence_store_service = EvidenceStoreService(self)
+        self.out_of_band_service = OutOfBandService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
         # this NA trusts (services/agreement_trust.py).
         self.agreements = AgreementTrust(self)
@@ -250,6 +290,8 @@ class NetworkAuthorityService:
         self.app.extensions["genesis_mesh_na"] = self
         register_error_handlers(self.app)
         self._register_blueprints()
+        # v1.3.0: the registry judgements rest on (backfilled once on upgrade).
+        self.out_of_band_service.ensure_registry()
         logger.info(
             "Network Authority service initialized for network: %s",
             genesis_block.network_name,
@@ -270,6 +312,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_boundary_policy_blueprint(self))
         self.app.register_blueprint(create_evidence_blueprint(self))
         self.app.register_blueprint(create_evidence_store_blueprint(self))
+        self.app.register_blueprint(create_out_of_band_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
         self.app.register_blueprint(create_data_usage_blueprint(self))
@@ -477,11 +520,16 @@ def create_app(
     evidence_store: str = "off",
     database_url: Optional[str] = None,
     ha_mode: str = "off",
+    evidence_out_of_band: str = "off",
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
     anchor_interval_seconds: int = 3600,
     public_url: Optional[str] = None,
+    operator_key_holders: Optional[dict[str, str]] = None,
+    observation_max_backlog_seconds: int = 7 * 24 * 3600,
+    observation_clock_skew_seconds: int = 300,
+    judge_on_admission: bool = True,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -495,6 +543,7 @@ def create_app(
         gate_registry=gate_registry,
         boundary_policy_enforcement=boundary_policy_enforcement,
         evidence_store=evidence_store,
+        evidence_out_of_band=evidence_out_of_band,
         database_url=database_url,
         ha_mode=ha_mode,
         rate_limit_store=rate_limit_store,
@@ -502,6 +551,10 @@ def create_app(
         rate_limits=rate_limits,
         anchor_interval_seconds=anchor_interval_seconds,
         public_url=public_url,
+        operator_key_holders=operator_key_holders,
+        observation_max_backlog_seconds=observation_max_backlog_seconds,
+        observation_clock_skew_seconds=observation_clock_skew_seconds,
+        judge_on_admission=judge_on_admission,
     )
     return service.app
 

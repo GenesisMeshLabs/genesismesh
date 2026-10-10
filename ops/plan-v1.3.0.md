@@ -121,6 +121,13 @@ these ways:
     pages; a worked example `docs/examples/out-of-band-changes.md` (ship
     skill 6A, 6B).
 
+**Built (core, 2026-10-10):** items 1 to 11, 13 and 15 in the core
+(`models/out_of_band.py`, `trust/out_of_band.py`,
+`na_service/services/out_of_band.py`, migration 015), with the runbook
+`docs/operations/out-of-band-changes.md`; item 14 is the resource-changes
+route the gateway console shows; item 12 is in the SDK pull requests.
+Choices made in building it are Decisions 5 to 12 below.
+
 ### Out of scope
 
 - Remediation, reviews, notification and the emergency policy (Stage 3);
@@ -143,26 +150,27 @@ these ways:
 
 ## Success Criteria
 
-- [ ] Observations are admitted without a prior decision, never take a
+- [x] Observations are admitted without a prior decision, never take a
       resource sequence, are idempotent by source event ID, and are refused or
       quarantined outside the time bounds
-- [ ] A governed change seen by an observer is matched once, by version ID;
+- [x] A governed change seen by an observer is matched once, by version ID;
       a second observation of a different change right after it is judged
-- [ ] Judging uses `changed_at`, once per observation, with tests that
+- [x] Judging uses `changed_at`, once per observation, with tests that
       activate, deactivate and re-activate policy versions around it; a
       verdict that differs under current policy is flagged
-- [ ] No verifier reports a judgement as an authorisation; execution evidence
+- [x] No verifier reports a judgement as an authorisation; execution evidence
       citing one is refused
 - [ ] With the NA stopped, a break-glass action runs, its record is kept in
       the outbox, admitted on reconnect and judged; a DENY is not broken
       through
-- [ ] A dead-lettered record appears in the store as quarantined
-- [ ] Registry entries are in the store and under anchors; the backfill
+- [x] A dead-lettered record appears in the store as quarantined
+- [x] Registry entries are in the store and under anchors; the backfill
       reproduces audit-event history; a holder change needs a second holder
-- [ ] A 1.2 database upgrades with every policy, anchor and the store chain
+- [x] A 1.2 database upgrades with every policy, anchor and the store chain
       verifying
 - [ ] `out_of_band.json` passes in the Python, TypeScript and Rust verifiers;
-      Go, .NET and PHP refuse the new kinds as unknown
+      Go, .NET and PHP do not verify exports (unchanged), and their copy of
+      the field registry lists the new kinds (Decision 12)
 
 ## Release Gate
 
@@ -191,3 +199,45 @@ Open, for the Maintainer:
    emergency capability.
 4. **Entry kinds additive within event schema v1** (proposed), with strict
    verifiers refusing unknown kinds, rather than a v2 schema.
+
+Open, from building Stage 2 (2026-10-10):
+
+5. **Observations name their capability** (proposed): an observation carries
+   the `capability` the change exercises, as a governed action would request
+   it, so policies select it the same way. The judging context is
+   `parent_kind` `observation` (or `break_glass`), the capability, the
+   metadata (or request parameters) as `request_parameters`, and the
+   observation's resource, action, source, actor and version as `attributes`.
+6. **Matching by `execution_parameters.version_id`** (proposed): execution
+   evidence names the version it produced there rather than in a new signed
+   field, so 1.2 verifiers keep reading 1.3 execution records. An
+   observation also matches a break-glass record of the same change and
+   shares its verdict.
+7. **Break-glass carries its evaluation** (proposed): the attestation, request
+   parameters and attributes, besides the failed request's digest, so the NA
+   judges it as that evaluation would have gone, with the attestation's state
+   then. A policy forbids break-glass with a `denylist.v1` gate on
+   `parent_kind`; no new policy field (which would change every 1.2 SDK's
+   reading of policies).
+8. **No policy is `indeterminate`** (proposed): a change no policy covered,
+   outside an attestation, is not allowed by default; under an attestation it
+   is judged as the evaluation would have been (allowed when the attestation
+   gates pass).
+9. **Automatic judgement can race the controller's evidence** (proposed): an
+   observation seen before its controller's evidence arrives is judged on its
+   own; the docs advise observers to lag the source, and the hint field
+   records likely matches when no version is named.
+10. **A per-resource observation position** (proposed): the
+    "per-resource observation chain" is an envelope position
+    (`observation_sequence`), gap-free per resource and carried through
+    retention, rather than a signed link observers cannot know.
+11. **Registry at start, carried through retention** (proposed): the
+    registry is backfilled at first start and holders recorded then; start
+    writes do not anchor. Retention re-appends removed registry records
+    unchanged after its checkpoint, so judgements never lose the history.
+12. **Go, .NET and PHP** (proposed): they do not verify exports, so they have
+    nothing to refuse; their embedded field registry lists the new kinds.
+13. **Off until the verifiers are upgraded** (proposed): a 1.2 verifier
+    refuses the new entry kinds, so an NA upgraded to 1.3 records none of
+    them until `EVIDENCE_OUT_OF_BAND=on`. The backfill and the holder record
+    run at the first start with it on.

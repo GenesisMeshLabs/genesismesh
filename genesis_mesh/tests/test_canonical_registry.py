@@ -37,6 +37,10 @@ FREE_FORM = {
     ("ExecutionEvidence", "execution_parameters"), ("GateSpec", "config"), ("GateTraceEntry", "inputs"),
     ("GateTraceEntry", "metadata"), ("MembershipAttestation", "claims"), ("PolicySelector", "parameter_equals"),
     ("SovereignRevocationFeed", "revocation_reasons"),
+    # v1.3.0
+    ("BreakGlassRecord", "attributes"), ("BreakGlassRecord", "execution_parameters"),
+    ("BreakGlassRecord", "request_parameters"), ("ObservationRecord", "metadata"), ("QuarantineRecord", "record"),
+    ("RetentionCheckpoint", "observation_heads"),
 }
 
 
@@ -112,7 +116,13 @@ def test_the_entry_digest_covers_every_envelope_field(suite, registry):
     from genesis_mesh.models.evidence_store import EvidenceStoreEntry
 
     entry = EvidenceStoreEntry.model_validate(_samples(suite)["EvidenceStoreEntry"])
-    assert set(entry.model_dump(mode="json")) == set(registry["models"]["EvidenceStoreEntry"]["fields"])
+    spec = registry["models"]["EvidenceStoreEntry"]
+    # v1.3.0: the envelope fields added in 1.3.0 are left out when absent, so
+    # earlier entries keep their digests.
+    assert set(entry.model_dump(mode="json")) == set(spec["fields"]) - set(spec["omit_when_none"])
+    full = entry.model_copy(update={name: "x" if name != "observation_sequence" else 1
+                                    for name in spec["omit_when_none"]})
+    assert set(full.model_dump(mode="json")) == set(spec["fields"])
 
 
 def test_only_the_signed_projection_is_checked(registry):
@@ -132,7 +142,10 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 
 
 def test_entry_kinds_are_the_models(registry):
-    assert registry["entry_kinds"] == ["decision", "execution", "justification", "retention_checkpoint"]
+    assert registry["entry_kinds"] == [
+        "break_glass", "decision", "execution", "judgement", "justification", "observation", "quarantine",
+        "registry", "retention_checkpoint",
+    ]
 
 
 def test_strict_refusal_tells_a_newer_signer_from_a_forgery(suite):

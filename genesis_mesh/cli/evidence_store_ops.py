@@ -20,6 +20,7 @@ from ..trust.evidence_store import (
     ExecutorKey,
     check_events_against_anchors,
     parse_export_lines,
+    export_checkpoint,
     verify_evidence_events,
     verify_store_anchors,
 )
@@ -105,11 +106,16 @@ def verify_export(
         r["key_id"]: ExecutorKey(
             key_id=r["key_id"], public_key=r["public_key"],
             executor_sovereign_id=r["executor_sovereign_id"], retired=bool(r.get("retired_at")),
+            # v1.3.0: observer keys sign observations only.
+            role=r.get("role") or "executor", resource_prefix=r.get("resource_prefix"),
         )
         for r in rows
     }
     na_public_keys = [public_key_value(k) for k in na_keys]
-    result = verify_evidence_events(events, na_public_keys=na_public_keys, executor_keys=keys, contiguous=True)
+    # An export that starts after a retention checkpoint continues from it (its resource and
+    # observation positions): verify against the checkpoint the export carries.
+    result = verify_evidence_events(events, na_public_keys=na_public_keys, executor_keys=keys, contiguous=True,
+                                    checkpoint=export_checkpoint(events))
     if anchors_path is not None:
         anchors = load_anchors(anchors_path)
         if not anchors:
@@ -124,6 +130,10 @@ def verify_export(
         click.echo(f"Entries    : {result.checked_entries}")
         click.echo(f"Decisions  : {result.decisions}")
         click.echo(f"Executions : {result.executions}")
+        for label, count in (("Observations", result.observations), ("Break-glass", result.break_glass),
+                             ("Judgements", result.judgements), ("Quarantined", result.quarantined)):
+            if count:
+                click.echo(f"{label:<11}: {count}")
         if result.anchors is not None:
             a = result.anchors
             click.echo(f"Anchors    : {a['anchors_matched']} matched of {a['anchors_checked']}; "
@@ -149,18 +159,35 @@ def _same(a: StoreAnchor, b: StoreAnchor) -> bool:
     return a.to_wire() == b.to_wire()
 
 
+def _sync_directory(directory: Path) -> None:
+    """Make a new directory entry durable on POSIX; Windows cannot open a directory to sync it."""
+    if os.name != "posix":
+        return
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass  # some file systems cannot sync a directory
+    finally:
+        os.close(fd)
+
+
 def _write_anchor(directory: Path, anchor: StoreAnchor) -> None:
     """Write one anchor file atomically, never replacing an existing one.
 
-    The file is written under a temporary name and hard-linked into place, so
-    a crash never leaves a truncated anchor and an existing file is never
-    replaced. An existing file holding the same anchor is accepted.
+    The file is written under a temporary name, synced, and hard-linked into
+    place, then the directory is synced: a crash never leaves a truncated
+    anchor, an anchor reported as copied is on disk, and an existing file is
+    never replaced. An existing file holding the same anchor is accepted.
     """
     path = _anchor_path(directory, anchor)
     data = json.dumps(anchor.to_wire(), indent=2, sort_keys=True) + "\n"
     tmp = directory / f".{path.name}.{os.getpid()}.tmp"
     try:
-        tmp.write_text(data, encoding="utf-8", newline="\n")
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
         try:
             os.link(tmp, path)
         except FileExistsError:
@@ -172,8 +199,11 @@ def _write_anchor(directory: Path, anchor: StoreAnchor) -> None:
             # A filesystem without hard links: exclusive create is still never a replacement.
             with open(path, "x", encoding="utf-8", newline="\n") as f:
                 f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
     finally:
         tmp.unlink(missing_ok=True)
+    _sync_directory(directory)
     try:
         os.chmod(path, 0o444)
     except OSError:

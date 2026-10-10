@@ -13,7 +13,8 @@ from __future__ import annotations
 import base64
 import json
 import sys
-from datetime import datetime, timezone
+from typing import Any
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import nacl.signing
@@ -1003,7 +1004,9 @@ def _registry_samples() -> dict[str, dict]:
     freshness = freshness.model_copy(update={"signature": sign_model(freshness, KEYS["c"], "na-key")})
     decision = json.loads(json.dumps(by_id["bd-003"]["decision"]))
     decision["freshness_proof"] = _model_to_dict(freshness)  # field coverage only: not re-signed
+    out_of_band = _out_of_band_samples(evidence, decision)
     return {
+        **out_of_band,
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1017,6 +1020,70 @@ def _registry_samples() -> dict[str, dict]:
         "RetentionCheckpoint": _model_to_dict(checkpoint),
         "SovereignRevocationFeed": _model_to_dict(feed),
         "StoreAnchor": anchor.to_wire(),
+    }
+
+
+def _out_of_band_samples(evidence: Any, decision: dict) -> dict[str, dict]:
+    """v1.3.0: one signed sample of each Stage 2 record, every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.boundary_policy import PolicyBinding
+    from genesis_mesh.models.context import GateResult
+    from genesis_mesh.models.out_of_band import (
+        BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord,
+    )
+
+    def signed(record: Any, key: str, key_id: str) -> dict:
+        return record.model_copy(update={"signature": sign_model(record, KEYS[key], key_id)}).to_wire()
+
+    observation = ObservationRecord(
+        observation_id=UUID1, observer_sovereign_id=SOV_B, resource_id="kv:vault/api-key", action="rotate",
+        capability="secret.rotate", changed_at=T0, observed_at=T0, actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-0001", version_id="v2",
+        metadata={"secret_version": "v2", "operation": "SetSecret"},
+    )
+    window = ObservationRecord(
+        observation_id=UUID2, observer_sovereign_id=SOV_B, resource_id="kv:vault/api-key", action="update",
+        capability="secret.update", changed_not_before=T0, changed_not_after=T1, observed_at=T1,
+        source="reconciliation", source_event_id="scan-0002",
+    )
+    break_glass = BreakGlassRecord(
+        break_glass_id=UUID3, executor_sovereign_id=SOV_B, resource_id="kv:vault/api-key", resource_action="rotate",
+        capability="secret.rotate", attestation_id=UUID2, request_parameters={"lifetime_days": 30},
+        attributes={"owner": "team-a"}, justification="Leaked key, NA unreachable", evaluation_request_digest="8" * 64,
+        evaluation_failure="network_error", executed_at=T0, outcome="success", outcome_detail="rotated",
+        execution_parameters={"version_id": "v3"},
+    )
+    binding = PolicyBinding.model_validate(decision["policy_binding"])
+    judgement = JudgementRecord(
+        judgement_id=UUID2, subject_kind="observation", subject_id=UUID2, subject_digest="9" * 64,
+        subject_store_sequence=7, resource_id="kv:vault/api-key", action="update", capability="secret.update",
+        governed_by="after_the_fact", verdict="deny", reason="policy gate 'max-lifetime' failed",
+        evaluated_as_of=T1, evaluated_from=T0, policy_binding=binding,
+        gate_results=[GateResult(gate_name="max-lifetime", passed=False, detail="lifetime_days 400 > 90")],
+        current_verdict="allow", current_policy_set_digest="a" * 64, flagged_for_review=True,
+        matched_evidence_id=UUID1, matched_decision_id=UUID2, possible_match_evidence_id=UUID3,
+        judged_at=T1, issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    quarantine = QuarantineRecord(
+        quarantine_id=UUID3, record_kind="execution", record=_model_to_dict(evidence),
+        record_digest="b" * 64, rejection_code="evidence_decision_denied", detail="the decision denied the request",
+        resource_id="kv:vault/api-key", quarantined_at=T1, issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    registry = RegistryRecord(
+        registry_record_id=UUID1, event="executor_key_registered", effective_at=T0, reconstructed=True,
+        policy_id="secret-rotation", policy_version=2, policy_digest="c" * 64, key_id="observer-b",
+        public_key=pub_b64("b"), executor_sovereign_id=SOV_B, key_role="observer", resource_prefix="kv:vault/",
+        operator_tier="privileged", holder="holder-1", approved_by="operator-2", recorded_by="operator-1",
+        issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    return {
+        "BreakGlassRecord": signed(break_glass, "b", "executor-b"),
+        "JudgementRecord": signed(judgement, "c", "na-key"),
+        "ObservationRecord": signed(observation, "b", "observer-b"),
+        "QuarantineRecord": signed(quarantine, "c", "na-key"),
+        "RegistryRecord": signed(registry, "c", "na-key"),
+        # A second observation, known only within a window (not a registry root sample).
+        "_ObservationWindow": signed(window, "b", "observer-b"),
     }
 
 
@@ -1086,7 +1153,7 @@ def gen_field_registry() -> None:
                 case(f"{slug}-nested-{where}", f"{model}.{field} ({child}) with an unknown field", slug_model[slug], changed)
                 walk(child, record, target, steps, False, slug)
 
-    samples = _registry_samples()
+    samples = {k: v for k, v in _registry_samples().items() if not k.startswith("_")}
     slug_model = {model.lower(): model for model in samples}
     for model, record in sorted(samples.items()):
         assert not unknown_fields(model, record, registry), model
@@ -1168,6 +1235,54 @@ def gen_field_registry() -> None:
         "description": "An export line of a kind from a later release parses and is refused per entry",
         "input": {"lines": json.dumps(line, sort_keys=True, separators=(",", ":"))},
         "expected": {"failures": [{"store_sequence": 1, "reason": "unknown_entry_kind"}]},
+    })
+
+    # v1.3.0: a stored record verifies only as received, in the form the reference writes.
+    def decision_line(decision: dict) -> str:
+        context = {
+            "context_id": decision["context_id"], "agreement_id": decision["agreement_id"],
+            "parent_kind": "agreement", "requester_sovereign_id": "sovereign-a",
+            "provider_sovereign_id": "sovereign-b", "requested_capability": "read",
+            "request_parameters": {}, "requested_at": "2026-01-01T00:00:00Z", "context_freshness_seq": 0,
+            "attributes": {},
+        }
+        stored = {"decision": decision, "context": context}
+        digest = hashlib.sha256(json.dumps(stored, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        envelope = {**entry, "entry_kind": "decision", "payload_digest": digest,
+                    "decision_id": decision["decision_id"], "context_id": decision["context_id"],
+                    "outcome": "authorized" if decision["authorized"] else "denied"}
+        event = {"schema": "gm.evidence.event", "schema_version": 1, "entry": envelope,
+                 "entry_digest": hashlib.sha256(json.dumps(envelope, sort_keys=True,
+                                                           separators=(",", ":")).encode()).hexdigest(),
+                 "payload": stored}
+        return json.dumps(event, sort_keys=True, separators=(",", ":"))
+
+    def offset(stamp: str) -> str:
+        return stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp
+
+    keys = {"na_public_keys": bd["operator_public_keys"]}
+    rewritten = copy.deepcopy(bd["decision"])
+    rewritten["decision_made_at"] = offset(rewritten["decision_made_at"])
+    vectors.append({
+        "id": "export-rewritten-timestamp", "kind": "export",
+        "description": "A stored decision whose timestamp was respelled after signing (same instant)",
+        "input": {"lines": decision_line(rewritten), **keys},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "invalid_signature"}]},
+    })
+    loose = copy.deepcopy(bd["decision"])
+    loose["decision_made_at"] = offset(loose["decision_made_at"])
+    loose = resign(loose, "BoundaryDecision", "c", "na-key", "signature")
+    vectors.append({
+        "id": "export-non-canonical-decision", "kind": "export",
+        "description": "A stored decision signed over a form the reference does not write",
+        "input": {"lines": decision_line(loose), **keys},
+        "expected": {"failures": [{"store_sequence": 1, "reason": "non_canonical_form"}]},
+    })
+    vectors.append({
+        "id": "export-decision", "kind": "export",
+        "description": "A stored decision as the reference writes it verifies",
+        "input": {"lines": decision_line(copy.deepcopy(bd["decision"])), **keys},
+        "expected": {"failures": []},
     })
     _write("field_registry", {"suite": "field_registry", "version": "1.2.0", "registry": registry, "vectors": vectors})
 
@@ -1263,6 +1378,15 @@ def gen_canonical() -> None:
         ("raw-control", "Not JSON: a raw control character in a string", "[\"a\tb\"]"),
         ("empty", "Not JSON: nothing", ""),
         ("trailing-text", "Not JSON: text after the value", "{} x"),
+        # v1.3.0: with several faults, the first in text order is named everywhere.
+        ("first-fault-duplicate-then-zero", "Two faults: a duplicate key, then -0", "{\"a\":1,\"a\":-0}"),
+        ("first-fault-duplicate-unclosed", "Two faults: a duplicate key in an unclosed object", "{\"a\":1,\"a\":2"),
+        ("first-fault-surrogate-then-zero", "Two faults: a lone surrogate, then -0", "[\"\\ud800\",-0]"),
+        ("first-fault-surrogate-then-text", "Two faults: a lone surrogate, then text after the value",
+         "[\"\\ud800\"] x"),
+        ("first-fault-surrogate-keys", "Two faults: a lone surrogate in a key named twice",
+         "{\"\\ud800\":1,\"\\ud800\":2}"),
+        ("first-fault-depth-then-zero", "Two faults: nesting 65 deep around -0", "[" * 65 + "-0" + "]" * 65),
     ]
     for vid, desc, text in accepted + refused:
         json_case(vid, desc, text)
@@ -1365,6 +1489,16 @@ def gen_canonical() -> None:
         "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": dropped},
         "expected": {"accepted": False, "reason": "invalid_signature"},
     })
+    # v1.3.0: a field the reference always writes, left out and signed that way.
+    absent = copy.deepcopy(bd["decision"])
+    del absent["denial_reason"]
+    absent = signed("BoundaryDecision", absent, [("c", "na-key")], "signature")
+    vectors.append({
+        "id": "verify-decision-signed-without-a-field", "kind": "verify_decision",
+        "description": "A decision signed without denial_reason, which the reference always writes",
+        "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": absent},
+        "expected": {"accepted": False, "reason": "non_canonical_form"},
+    })
     nulled = copy.deepcopy(bd["decision"])
     del nulled["policy_binding"]
     nulled = signed("BoundaryDecision", nulled, [("c", "na-key")], "signature")
@@ -1424,6 +1558,342 @@ def gen_canonical() -> None:
     _write("canonical", {"suite": "canonical", "version": "1.2.0", "vectors": vectors})
 
 
+def _iso_z(at) -> str:
+    """A UTC datetime as the reference writes it."""
+    return at.isoformat().replace("+00:00", "Z")
+
+
+def gen_out_of_band() -> None:
+    """v1.3.0: observations, break-glass records, judgements, quarantine and registry records.
+
+    ``canonical_form`` cases: each record's signed form (signature left out,
+    absent optional fields omitted) and its SHA-256, frozen from 1.3.0 on.
+    ``verify_record`` cases: whether a record's signature verifies, for the
+    key and role that must sign it. ``verify_export`` cases: a store holding
+    every kind, which verifies, and variants that verifiers refuse by named
+    reason (``judgement_subject_mismatch``, ``duplicate_judgement``,
+    ``match_reused``, ``observation_chain_break``, ``envelope_mismatch``,
+    ``quarantine_digest_mismatch``, ``evidence_cites_judgement``,
+    ``invalid_signature`` for a record signed by a key of the wrong role).
+    ``time_bounds`` and ``policy_history`` cases are the Network Authority's
+    own rules (the reference runs them; SDKs may skip them). Records are
+    deterministic, so regeneration is byte-stable.
+    """
+    import copy
+    import hashlib
+
+    from genesis_mesh.crypto import sign_model, verify_model_signature
+    from genesis_mesh.models.evidence_store import EvidenceEvent, payload_digest
+    from genesis_mesh.models.execution import ExecutionEvidence
+    from genesis_mesh.models.out_of_band import (
+        BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord,
+    )
+    from genesis_mesh.trust.evidence_store import ExecutorKey, build_entry, verify_evidence_events
+    from genesis_mesh.trust.out_of_band import PolicyHistory, TimeBounds, entry_index, time_bounds_problem
+
+    vectors: list[dict] = []
+    resource = "kv:vault/api-key"
+    t = [T0 + timedelta(minutes=i) for i in range(20)]
+    na = {"issuer_sovereign_id": SOV_C, "issued_by": "na-key"}
+    keys = [
+        {"key_id": "executor-b", "public_key": pub_b64("b"), "executor_sovereign_id": SOV_B, "role": "executor"},
+        {"key_id": "observer-a", "public_key": pub_b64("a"), "executor_sovereign_id": SOV_A, "role": "observer",
+         "resource_prefix": "kv:"},
+    ]
+    executor_keys = {k["key_id"]: ExecutorKey(**k) for k in keys}
+
+    def signed(record, key: str, key_id: str):
+        return record.model_copy(update={"signature": sign_model(record, KEYS[key], key_id)})
+
+    def uid(n: int) -> str:
+        return f"00000000-0000-4000-8000-{n:012d}"
+
+    o1 = signed(ObservationRecord(
+        observation_id=uid(11), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[1], observed_at=t[2], actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-1", metadata={"lifetime_days": 400},
+    ), "a", "observer-a")
+    b1 = signed(BreakGlassRecord(
+        break_glass_id=uid(12), executor_sovereign_id=SOV_B, resource_id=resource, resource_action="rotate",
+        capability="secret.rotate", attestation_id=UUID2, request_parameters={"lifetime_days": 30},
+        attributes={"owner": "team-a"}, justification="Leaked key; the NA is unreachable",
+        evaluation_request_digest="8" * 64, evaluation_failure="timeout", executed_at=t[3], outcome="success",
+        execution_parameters={"version_id": "v3"},
+    ), "b", "executor-b")
+    o2 = signed(ObservationRecord(
+        observation_id=uid(13), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[3], observed_at=t[5], source="cloud-activity-log",
+        source_event_id="event-2", version_id="v3",
+    ), "a", "observer-a")
+    o_window = signed(ObservationRecord(
+        observation_id=uid(14), observer_sovereign_id=SOV_A, resource_id="kv:vault/db-password", action="update",
+        capability="secret.update", changed_not_before=t[0], changed_not_after=t[6], observed_at=t[6],
+        source="reconciliation", source_event_id="scan-7",
+    ), "a", "observer-a")
+    denied = ExecutionEvidence(
+        evidence_id=uid(15), sequence_no=1, decision_id=UUID3, context_id=UUID3, agreement_id=UUID1,
+        executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success",
+        execution_parameters={"version_id": "v4"}, executed_at=t[7], resource_id=resource,
+        resource_action="rotate", resource_sequence=1,
+    )
+    denied = denied.model_copy(update={"signature": sign_model(denied, KEYS["b"], "executor-b")})
+    denied_wire = _model_to_dict(denied)
+    for f in ("resource_id", "resource_action", "resource_sequence", "prev_resource_digest"):
+        if denied_wire.get(f) is None:
+            denied_wire.pop(f, None)
+
+    def judgement(n: int, subject, seq: int, *, verdict="deny", matched=None, reason=None, at=None) -> JudgementRecord:
+        kind = "observation" if isinstance(subject, ObservationRecord) else "break_glass"
+        sid = subject.observation_id if kind == "observation" else subject.break_glass_id
+        action = subject.action if kind == "observation" else subject.resource_action
+        record = JudgementRecord(
+            judgement_id=uid(n), subject_kind=kind, subject_id=sid, subject_digest=payload_digest(subject.to_wire()),
+            subject_store_sequence=seq, resource_id=subject.resource_id, action=action,
+            capability=subject.capability, governed_by="after_the_fact", verdict=verdict,
+            reason=reason or ("policy gate 'max-lifetime' failed" if verdict == "deny" else None),
+            evaluated_as_of=subject.change_window[1] if kind == "observation" else subject.executed_at,
+            current_verdict=verdict, matched_evidence_id=matched, judged_at=at or t[8], **na,
+        )
+        return signed(record, "c", "na-key")
+
+    registry = [
+        signed(RegistryRecord(registry_record_id=uid(1), event="policy_history_started", effective_at=T0, **na),
+               "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(2), event="executor_key_registered", effective_at=T0,
+                              key_id="executor-b", public_key=pub_b64("b"), executor_sovereign_id=SOV_B,
+                              key_role="executor", **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(3), event="executor_key_registered", effective_at=T0,
+                              key_id="observer-a", public_key=pub_b64("a"), executor_sovereign_id=SOV_A,
+                              key_role="observer", resource_prefix="kv:", **na), "c", "na-key"),
+    ]
+    quarantine = signed(QuarantineRecord(
+        quarantine_id=uid(16), record_kind="execution", record=denied_wire, record_digest=payload_digest(denied_wire),
+        rejection_code="evidence_decision_denied", detail="the decision denied the request",
+        resource_id=resource, quarantined_at=t[9], **na,
+    ), "c", "na-key")
+
+    def item(kind, record, **override) -> tuple[str, dict, dict]:
+        index = {**entry_index(kind, record), **override}
+        return kind, record.to_wire(), {k: v for k, v in index.items() if v is not None or k in override}
+
+    def store(items) -> list[str]:
+        lines, prev = [], None
+        for seq, (kind, payload, index) in enumerate(items, start=1):
+            entry = build_entry(store_sequence=seq, entry_kind=kind, recorded_at=t[10] + timedelta(seconds=seq),
+                                payload=payload, prev_entry_digest=prev, index=index)
+            prev = entry.digest()
+            lines.append(EvidenceEvent(entry=entry, entry_digest=prev, payload=payload).to_json_line())
+        return lines
+
+    base = [
+        *[item("registry", r) for r in registry],
+        item("observation", o1, observation_sequence=1),
+        item("judgement", judgement(21, o1, 4)),
+        item("break_glass", b1),
+        item("judgement", judgement(22, b1, 6, verdict="allow")),
+        item("observation", o2, observation_sequence=2),
+        item("judgement", judgement(23, o2, 8, verdict="allow", matched=b1.break_glass_id,
+                                    reason=f"matched break-glass record {b1.break_glass_id}")),
+        item("observation", o_window, observation_sequence=1),
+        item("judgement", judgement(24, o_window, 10, verdict="indeterminate",
+                                    reason="the verdict changes within the change window")),
+        item("quarantine", quarantine),
+    ]
+
+    def export_case(vid: str, desc: str, items, *, contiguous: bool = True, expect: list | None = None) -> None:
+        lines = store(items)
+        events = [EvidenceEvent.model_validate(json.loads(line)) for line in lines]
+        result = verify_evidence_events(events, na_public_keys=[pub_b64("c")], executor_keys=executor_keys,
+                                        contiguous=contiguous)
+        failures = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
+                          key=lambda f: (f[0] or 0, f[1]))
+        got = [{"store_sequence": s, "reason": r} for s, r in failures]
+        if expect is not None:
+            assert got == expect, (vid, got)
+        counts = {k: v for k, v in result.to_dict().items()
+                  if k in ("observations", "break_glass", "judgements", "quarantined")}
+        vectors.append({
+            "id": f"export-{vid}", "kind": "verify_export", "description": desc,
+            "input": {"lines": "\n".join(lines), "na_public_keys": [pub_b64("c")], "executor_keys": keys,
+                      "contiguous": contiguous},
+            "expected": {"verified": not got, "failures": got, "counts": counts},
+        })
+
+    export_case("valid", "Registry, observations, break-glass, judgements and quarantine all verify", base, expect=[])
+
+    tampered = copy.deepcopy(base)
+    j1 = judgement(21, o1, 4).model_copy(update={"subject_digest": "f" * 64, "signature": None})
+    tampered[4] = item("judgement", signed(j1, "c", "na-key"))
+    export_case("judgement-subject-mismatch", "A judgement that names another digest for its record", tampered,
+                expect=[{"store_sequence": 5, "reason": "judgement_subject_mismatch"}])
+
+    twice = [*copy.deepcopy(base), item("judgement", judgement(25, o1, 4))]
+    export_case("duplicate-judgement", "A second judgement of one record", twice,
+                expect=[{"store_sequence": 13, "reason": "duplicate_judgement"}])
+
+    o3 = signed(ObservationRecord(
+        observation_id=uid(17), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[4], observed_at=t[5], source="cloud-activity-log",
+        source_event_id="event-3", version_id="v3",
+    ), "a", "observer-a")
+    reused = [*copy.deepcopy(base), item("observation", o3, observation_sequence=3),
+              item("judgement", judgement(26, o3, 13, verdict="allow", matched=b1.break_glass_id))]
+    export_case("match-reused", "Two judgements that match one break-glass record", reused,
+                expect=[{"store_sequence": 14, "reason": "match_reused"}])
+
+    gap = copy.deepcopy(base)
+    gap[7] = item("observation", o2, observation_sequence=3)
+    export_case("observation-gap", "A resource's observation positions skip one", gap,
+                expect=[{"store_sequence": 8, "reason": "observation_chain_break"}])
+
+    by_executor = signed(o1.model_copy(update={"signature": None}), "b", "executor-b")
+    wrong_role = copy.deepcopy(base)
+    wrong_role[3] = item("observation", by_executor, observation_sequence=1)
+    wrong_role[4] = item("judgement", judgement(21, by_executor, 4))
+    export_case("observation-signed-by-an-executor-key", "An observation signed by an executor key", wrong_role,
+                expect=[{"store_sequence": 4, "reason": "invalid_signature"}])
+
+    envelope = copy.deepcopy(base)
+    envelope[3] = item("observation", o1, observation_sequence=1, record_id=uid(99))
+    export_case("envelope-mismatch", "An envelope naming another record than its payload", envelope,
+                expect=[{"store_sequence": 4, "reason": "envelope_mismatch"}])
+
+    bad_digest = copy.deepcopy(base)
+    q = quarantine.model_copy(update={"record_digest": "0" * 64, "signature": None})
+    bad_digest[11] = item("quarantine", signed(q, "c", "na-key"))
+    export_case("quarantine-digest-mismatch", "A quarantine record whose digest is not its record's", bad_digest,
+                expect=[{"store_sequence": 12, "reason": "quarantine_digest_mismatch"}])
+
+    # v1.3.0 (review): records the reference never stores, each appended as an observation of
+    # another resource, signed over exactly what is sent (the signer is the observer).
+    from genesis_mesh.crypto import sign_data
+    from genesis_mesh.models.canonical_registry import received_canonical
+
+    def raw_observation(n: int, **changes) -> tuple[str, dict, dict]:
+        wire = signed(ObservationRecord(
+            observation_id=uid(n), observer_sovereign_id=SOV_A, resource_id=f"kv:vault/other-{n}",
+            action="update", capability="secret.update", changed_at=t[2], observed_at=t[3],
+            source="cloud-activity-log", source_event_id=f"event-{n}",
+        ), "a", "observer-a").to_wire()
+        wire.pop("signature")
+        for key, value in changes.items():
+            if value is None:
+                wire.pop(key, None)
+            else:
+                wire[key] = value
+        body = received_canonical("ObservationRecord", wire).encode("utf-8")
+        wire["signature"] = {"key_id": "observer-a", "sig": sign_data(body, KEYS["a"])}
+        index = {"record_id": uid(n), "resource_id": wire["resource_id"], "resource_action": "update",
+                 "capability": "secret.update", "executor_sovereign_id": SOV_A, "observation_sequence": 1}
+        return "observation", wire, index
+
+    extra = signed(ObservationRecord(
+        observation_id=uid(31), observer_sovereign_id=SOV_A, resource_id="kv:vault/other-31", action="update",
+        capability="secret.update", changed_at=t[2], observed_at=t[3], source="cloud-activity-log",
+        source_event_id="event-31",
+    ), "a", "observer-a").to_wire()
+    extra["note"] = "added after signing"
+    export_case("unsigned-extra-field", "An observation carrying a field its signature does not cover",
+                [*copy.deepcopy(base), ("observation", extra, {
+                    "record_id": uid(31), "resource_id": "kv:vault/other-31", "resource_action": "update",
+                    "capability": "secret.update", "executor_sovereign_id": SOV_A, "observation_sequence": 1})],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("missing-defaulted-field", "An observation signed without metadata, which the reference writes",
+                [*copy.deepcopy(base), raw_observation(32, metadata=None)],
+                expect=[{"store_sequence": 13, "reason": "non_canonical_form"}])
+    export_case("non-utc-timestamp", "An observation dated in another offset than UTC",
+                [*copy.deepcopy(base), raw_observation(33, observed_at="2026-01-01T02:00:00+02:00")],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("two-change-times", "An observation giving both a change time and a window",
+                [*copy.deepcopy(base), raw_observation(34, changed_not_before=_iso_z(t[1]),
+                                                       changed_not_after=_iso_z(t[2]))],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("reversed-window", "An observation whose window ends before it starts",
+                [*copy.deepcopy(base), raw_observation(35, changed_at=None, changed_not_before=_iso_z(t[3]),
+                                                       changed_not_after=_iso_z(t[1]))],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+
+    cites = ExecutionEvidence(
+        evidence_id=uid(18), sequence_no=1, decision_id=uid(21), context_id=UUID3, agreement_id=UUID1,
+        executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success", executed_at=t[9],
+    )
+    cites = cites.model_copy(update={"signature": sign_model(cites, KEYS["b"], "executor-b")})
+    cites_wire = {k: v for k, v in _model_to_dict(cites).items()
+                  if not (k in ("resource_id", "resource_action", "resource_sequence", "prev_resource_digest")
+                          and v is None)}
+    citing = [*copy.deepcopy(base), ("execution", cites_wire, {
+        "decision_id": cites.decision_id, "context_id": cites.context_id, "evidence_id": cites.evidence_id,
+        "executor_sovereign_id": SOV_B, "exec_sequence_no": 1, "capability": "secret.rotate", "outcome": "success",
+    })]
+    export_case("execution-cites-a-judgement", "Execution evidence resting on a judgement", citing,
+                expect=[{"store_sequence": 13, "reason": "evidence_cites_judgement"}])
+
+    for name, record in (("observation", o1), ("observation-window", o_window), ("break-glass", b1),
+                         ("judgement", judgement(21, o1, 4)), ("quarantine", quarantine),
+                         ("registry", registry[2])):
+        wire = record.to_wire()
+        canonical = record.to_canonical_json()
+        vectors.append({
+            "id": f"canonical-{name}", "kind": "canonical_form", "description": f"The signed form of a {name} record",
+            "model": type(record).__name__, "record": wire,
+            "expected": {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest()},
+        })
+
+    for vid, record, key_id, ok in (
+        ("observation-observer-key", o1, "observer-a", True),
+        ("break-glass-executor-key", b1, "executor-b", True),
+        ("observation-wrong-key", o1, "executor-b", False),
+        ("judgement-na-key", judgement(21, o1, 4), None, True),
+    ):
+        public = pub_b64("c") if key_id is None else next(k["public_key"] for k in keys if k["key_id"] == key_id)
+        assert verify_model_signature(record, record.signature, public) is ok
+        vectors.append({
+            "id": f"signature-{vid}", "kind": "verify_record", "description": f"{type(record).__name__} signature",
+            "model": type(record).__name__, "record": record.to_wire(), "public_key": public,
+            "expected": {"valid": ok},
+        })
+
+    bounds = TimeBounds(max_backlog=timedelta(days=7), skew=timedelta(minutes=5))
+    for vid, earliest, latest, observed, recorded in (
+        ("within", T0, T0, T0 + timedelta(minutes=1), T0 + timedelta(minutes=2)),
+        ("backlog-exceeded", T0, T0, T0 + timedelta(days=8), T0 + timedelta(days=8)),
+        ("backlog-edge", T0, T0, T0 + timedelta(days=7), T0 + timedelta(days=7)),
+        ("changed-after-observed", T0 + timedelta(minutes=10), T0 + timedelta(minutes=10), T0, T0 + timedelta(minutes=1)),
+        ("within-skew", T0 + timedelta(minutes=4), T0 + timedelta(minutes=4), T0, T0),
+        ("observed-in-the-future", T0, T0, T0 + timedelta(minutes=6), T0),
+        ("window", T0, T0 + timedelta(hours=1), T0 + timedelta(hours=1), T0 + timedelta(hours=2)),
+    ):
+        vectors.append({
+            "id": f"time-bounds-{vid}", "kind": "time_bounds", "description": f"Time bounds: {vid}",
+            "input": {"earliest": earliest.isoformat().replace("+00:00", "Z"),
+                      "latest": latest.isoformat().replace("+00:00", "Z"),
+                      "observed_at": observed.isoformat().replace("+00:00", "Z"),
+                      "recorded_at": recorded.isoformat().replace("+00:00", "Z"),
+                      "max_backlog_seconds": 7 * 24 * 3600, "skew_seconds": 300},
+            "expected": {"within": time_bounds_problem(earliest, latest, observed, recorded, bounds) is None},
+        })
+
+    history_records = [
+        signed(RegistryRecord(registry_record_id=uid(31), event="policy_history_started", effective_at=t[1], **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(32), event="policy_activated", effective_at=t[2],
+                              policy_id="p", policy_version=1, policy_digest="d1", **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(33), event="policy_deactivated", effective_at=t[4],
+                              policy_id="p", policy_version=1, **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(34), event="policy_activated", effective_at=t[6],
+                              policy_id="p", policy_version=2, policy_digest="d2", **na), "c", "na-key"),
+    ]
+    history = PolicyHistory.from_records(enumerate(history_records, start=1))
+    for vid, at in (("before-start", t[0]), ("started", t[1]), ("v1", t[3]), ("off", t[5]), ("v2", t[7])):
+        active = history.active_at(at)
+        vectors.append({
+            "id": f"policy-history-{vid}", "kind": "policy_history",
+            "description": f"Policies active at {vid}", "records": [r.to_wire() for r in history_records],
+            "at": at.isoformat().replace("+00:00", "Z"),
+            "expected": {"active": None if active is None else {k: v[0] for k, v in sorted(active.items())}},
+        })
+    _write("out_of_band", {"suite": "out_of_band", "version": "1.3.0", "vectors": vectors})
+
+
 def _at(record: dict, steps: list):
     """The nested object at ``steps`` inside ``record``."""
     node = record
@@ -1448,6 +1918,7 @@ GENERATORS = {
     "admin_auth": gen_admin_auth,
     "field_registry": gen_field_registry,
     "canonical": gen_canonical,
+    "out_of_band": gen_out_of_band,
 }
 
 

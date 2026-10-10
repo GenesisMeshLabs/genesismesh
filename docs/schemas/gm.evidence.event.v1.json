@@ -53,7 +53,7 @@
           "title": "Decision Id"
         },
         "entry_kind": {
-          "description": "decision, justification, execution or retention_checkpoint; later releases may add kinds",
+          "description": "decision, justification, execution, retention_checkpoint, observation, break_glass, judgement, quarantine or registry; later releases may add kinds",
           "title": "Entry Kind",
           "type": "string"
         },
@@ -93,6 +93,31 @@
           "default": null,
           "title": "Executor Sovereign Id"
         },
+        "matched_evidence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matched Evidence Id"
+        },
+        "observation_sequence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observation Sequence"
+        },
         "outcome": {
           "anyOf": [
             {
@@ -123,6 +148,18 @@
           "default": null,
           "description": "digest() of the previous entry (None for the first)",
           "title": "Prev Entry Digest"
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Id"
         },
         "recorded_at": {
           "description": "UTC time the NA stored the entry",
@@ -171,6 +208,18 @@
           "minimum": 1,
           "title": "Store Sequence",
           "type": "integer"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Id"
         },
         "vendor_id": {
           "anyOf": [

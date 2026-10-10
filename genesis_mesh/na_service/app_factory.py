@@ -33,6 +33,7 @@ def build_app(settings: NASettings) -> Flask:
         renewal_grace_seconds=settings.renewal_grace_seconds,
         boundary_policy_enforcement=settings.boundary_policy_enforcement,
         evidence_store=settings.evidence_store,
+        evidence_out_of_band=settings.evidence_out_of_band,
         anchor_interval_seconds=settings.anchor_interval_seconds,
         database_url=settings.database_url,
         ha_mode=settings.ha_mode,
@@ -40,6 +41,10 @@ def build_app(settings: NASettings) -> Flask:
         max_request_bytes=settings.max_request_bytes,
         rate_limits=settings.rate_limits,
         public_url=settings.public_url,
+        operator_key_holders=settings.operator_key_holders,
+        observation_max_backlog_seconds=settings.observation_max_backlog_seconds,
+        observation_clock_skew_seconds=settings.observation_clock_skew_seconds,
+        judge_on_admission=settings.judge_on_admission,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the

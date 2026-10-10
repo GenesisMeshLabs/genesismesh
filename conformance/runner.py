@@ -475,7 +475,8 @@ def run_field_registry(vectors: list[dict]) -> list[str]:
                     got = {"accepted": False, "reason": reason}
             elif kind == "export":
                 events = parse_export_lines(v["input"]["lines"].splitlines())
-                checked = verify_evidence_events(events, na_public_keys=[], executor_keys={})
+                checked = verify_evidence_events(events, na_public_keys=v["input"].get("na_public_keys", []),
+                                                 executor_keys={})
                 got = {"failures": [{"store_sequence": f["store_sequence"], "reason": f["reason"]}
                                     for f in checked.failures]}
             else:
@@ -485,6 +486,65 @@ def run_field_registry(vectors: list[dict]) -> list[str]:
                 failures.append(f"{v['id']}: got {got}, want {v['expected']}")
         except Exception as exc:
             failures.append(f"{v['id']}: {exc}")
+    return failures
+
+
+def run_out_of_band(vectors: list[dict]) -> list[str]:
+    """v1.3.0: Stage 2 records, their verification and the NA's time and history rules."""
+    import hashlib
+    from datetime import datetime, timedelta
+
+    from genesis_mesh.crypto import verify_model_signature
+    from genesis_mesh.models import out_of_band as oob
+    from genesis_mesh.trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
+    from genesis_mesh.trust.out_of_band import PolicyHistory, TimeBounds, time_bounds_problem
+
+    def ts(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    failures: list[str] = []
+    for v in vectors:
+        try:
+            kind = v["kind"]
+            got: dict[str, object]
+            if kind == "verify_export":
+                inp = v["input"]
+                keys = {k["key_id"]: ExecutorKey(**k) for k in inp["executor_keys"]}
+                result = verify_evidence_events(parse_export_lines(inp["lines"].split("\n")),
+                                                na_public_keys=inp["na_public_keys"], executor_keys=keys,
+                                                contiguous=inp["contiguous"])
+                found = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
+                               key=lambda f: (f[0] or 0, f[1]))
+                counts = {k: val for k, val in result.to_dict().items()
+                          if k in ("observations", "break_glass", "judgements", "quarantined")}
+                got = {"verified": result.verified,
+                       "failures": [{"store_sequence": s, "reason": r} for s, r in found], "counts": counts}
+            elif kind == "canonical_form":
+                record = getattr(oob, v["model"]).model_validate(v["record"])
+                canonical = record.to_canonical_json()
+                got = {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest()}
+            elif kind == "verify_record":
+                record = getattr(oob, v["model"]).model_validate(v["record"])
+                got = {"valid": record.signature is not None
+                       and verify_model_signature(record, record.signature, v["public_key"])}
+            elif kind == "time_bounds":
+                inp = v["input"]
+                bounds = TimeBounds(max_backlog=timedelta(seconds=inp["max_backlog_seconds"]),
+                                    skew=timedelta(seconds=inp["skew_seconds"]))
+                got = {"within": time_bounds_problem(ts(inp["earliest"]), ts(inp["latest"]), ts(inp["observed_at"]),
+                                                     ts(inp["recorded_at"]), bounds) is None}
+            elif kind == "policy_history":
+                records = [oob.RegistryRecord.model_validate(r) for r in v["records"]]
+                active = PolicyHistory.from_records(enumerate(records, start=1)).active_at(ts(v["at"]))
+                got = {"active": None if active is None else {k: val[0] for k, val in sorted(active.items())}}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind}")
+                continue
+        except Exception as exc:  # a vector the reference cannot run is a failure, not a crash
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+            continue
+        if got != v["expected"]:
+            failures.append(f"{v['id']}: expected {v['expected']}, got {got}")
     return failures
 
 
@@ -504,6 +564,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "admin_auth": run_admin_auth,
     "field_registry": run_field_registry,
     "canonical": run_canonical,
+    "out_of_band": run_out_of_band,
 }
 
 

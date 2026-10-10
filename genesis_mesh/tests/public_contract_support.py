@@ -91,11 +91,15 @@ def error_codes() -> set[str]:
     """Every error code the Network Authority can put in its error envelope.
 
     Literal ``code=`` arguments and default codes in genesis_mesh/na_service,
-    plus the revocation-feed reasons the feed import returns as codes. Codes
+    plus the revocation-feed reasons the feed import returns as codes and the
+    refusal codes of submitted records (``EvidenceRejectionCode``,
+    ``OutOfBandRejectionCode``). Codes
     derived from a plain HTTP status (``not_found``, ``method_not_allowed``)
     are covered by the contract's rule for them, not listed here.
     """
     from genesis_mesh.na_service import errors
+    from genesis_mesh.trust.evidence_store import EvidenceRejectionCode
+    from genesis_mesh.trust.out_of_band import OutOfBandRejectionCode
     from genesis_mesh.trust.treaty import RevocationFeedReason
 
     codes: set[str] = set()
@@ -105,6 +109,10 @@ def error_codes() -> set[str]:
         if inspect.isclass(obj) and issubclass(obj, errors.ApiError):
             codes.add(obj.default_code)
     codes.update(r for r in typing.get_args(RevocationFeedReason) if r != "accepted")
+    # Refusals of submitted records, raised with the reason as the code (listed
+    # since 1.3.0; the evidence codes were missing before).
+    codes.update(typing.get_args(EvidenceRejectionCode))
+    codes.update(typing.get_args(OutOfBandRejectionCode))
     return codes
 
 
