@@ -114,7 +114,7 @@ key's holder in `OPERATOR_KEY_HOLDERS_JSON`, since holder changes need two
 named holders. Roll back to 1.2 by restoring the backup taken before the
 upgrade.
 
-## v1.2.0 - Nothing Lost, Anchored (unreleased)
+## v1.2.0 - Nothing Lost, Anchored
 
 ### Added
 
