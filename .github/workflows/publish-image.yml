@@ -38,7 +38,7 @@ concurrency:
 env:
   IMAGE: ghcr.io/genesismeshlabs/genesis-mesh
   PUBLISH: ${{ github.event_name == 'release' }}
-  TRIVY: aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+  TRIVY: ghcr.io/aquasecurity/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
 
 jobs:
   image:
@@ -73,7 +73,14 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      # BuildKit and the Dockerfiles' base images (pinned by digest) come through
+      # mirrors, falling back to Docker Hub: its outages failed every image job.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -283,7 +290,14 @@ jobs:
         with:
           python-version: "3.14"
 
+      # BuildKit and the Dockerfiles' base images (pinned by digest) come through
+      # mirrors, falling back to Docker Hub: its outages failed every image job.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
