@@ -80,18 +80,24 @@ def load_anchors(path: str) -> list[StoreAnchor]:
 @click.option("--known-anchors", "anchors_path", default=None, type=click.Path(exists=True),
               help="Anchors you hold: a directory from 'evidence anchors fetch', or a JSON file (v1.2.0).")
 @click.option("--partial", is_flag=True,
-              help="The export is a deliberate slice: anchors after its last entry are not a failure.")
+              help="The export is a deliberate slice: neither its start nor anchors after its last entry "
+                   "are checked against the anchors.")
+@click.option("--from-anchor", "from_anchor", is_flag=True,
+              help="The export continues from a held anchor (an export since an anchored position): it may "
+                   "start right after that anchor's entry (v1.3.1).")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human")
 def verify_export(
     file_path: str, na_keys: tuple[str, ...], executor_keys_path: str,
-    anchors_path: str | None, partial: bool, fmt: str,
+    anchors_path: str | None, partial: bool, from_anchor: bool, fmt: str,
 ) -> None:
     """Verify an evidence export: envelopes, store chain, signatures and chains.
 
     With --known-anchors, the export is also checked against anchors kept
     outside the Network Authority: a record removed or rewritten before an
     anchored position, or an export that stops before the newest anchor,
-    fails.
+    fails. The export must start at entry 1 or, after retention, contain the
+    retention checkpoint that removed the entries before it; --from-anchor
+    accepts an export that starts right after a held anchor instead.
 
     Example:
 
@@ -129,7 +135,7 @@ def verify_export(
         chain = verify_store_anchors(anchors, na_public_keys=na_public_keys)
         for f in chain.failures:
             result.fail(None, f["reason"], f"anchor {f['anchor_sequence']} {f['detail']}".rstrip())
-        check_events_against_anchors(events, anchors, result, partial=partial)
+        check_events_against_anchors(events, anchors, result, partial=partial, from_anchor=from_anchor)
     if fmt == "json":
         click.echo(json.dumps(result.to_dict(), indent=2))
     else:

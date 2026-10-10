@@ -18,10 +18,11 @@ removed so the remaining history still verifies.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import typing
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable, Literal, Sequence
 
 import nacl.signing
@@ -211,7 +212,8 @@ def validate_execution(
         return reject("evidence_decision_denied", "the decision denied the request")
     if evidence.context_id != decision.context_id or evidence.agreement_id != decision.agreement_id:
         return reject("evidence_decision_mismatch", "context_id or agreement_id does not match the decision")
-    if not (decision.decision_made_at <= evidence.executed_at <= decision.decision_valid_until):
+    made, until = _utc(decision.decision_made_at), _utc(decision.decision_valid_until)
+    if not (made <= _utc(evidence.executed_at) <= until):
         return reject(
             "evidence_outside_decision_window",
             f"executed_at {evidence.executed_at.isoformat()} is outside "
@@ -456,6 +458,43 @@ _PAYLOAD_MODELS: dict[str, str] = {
 #: Kinds signed by a registered key (the rest are signed by the NA).
 _KEY_SIGNED_KINDS = frozenset({"execution", "observation", "break_glass"})
 
+#: v1.3.1: the payload field holding each kind's record ID, which appears once
+#: per kind in a run (``duplicate_record``); a decision's is its decision's.
+_RECORD_ID: dict[str, str] = {
+    "decision": "decision_id",
+    "justification": "proof_id",
+    "execution": "evidence_id",
+    "retention_checkpoint": "checkpoint_id",
+    "observation": "observation_id",
+    "break_glass": "break_glass_id",
+    "judgement": "judgement_id",
+    "quarantine": "quarantine_id",
+    "registry": "registry_record_id",
+}
+
+#: v1.3.1: envelope field -> payload field, for the envelope fields a Stage 2
+#: entry derives from its record (``trust.out_of_band.entry_index``, as the NA
+#: writes them; an absent field is null). The NA searches and matches on
+#: them, so each must name what the signed record says (``envelope_mismatch``).
+_ENVELOPE_FIELDS: dict[str, dict[str, str]] = {
+    "observation": {
+        "record_id": "observation_id", "resource_id": "resource_id", "resource_action": "action",
+        "capability": "capability", "executor_sovereign_id": "observer_sovereign_id",
+    },
+    "break_glass": {
+        "record_id": "break_glass_id", "resource_id": "resource_id", "resource_action": "resource_action",
+        "capability": "capability", "executor_sovereign_id": "executor_sovereign_id",
+        "attestation_id": "attestation_id", "outcome": "outcome",
+    },
+    "judgement": {
+        "record_id": "judgement_id", "subject_id": "subject_id", "resource_id": "resource_id",
+        "resource_action": "action", "capability": "capability", "outcome": "verdict",
+        "matched_evidence_id": "matched_evidence_id",
+    },
+    "quarantine": {"record_id": "quarantine_id", "resource_id": "resource_id", "outcome": "rejection_code"},
+    "registry": {"record_id": "registry_record_id", "outcome": "event"},
+}
+
 
 def _unknown_payload_fields(
     kind: str,
@@ -493,6 +532,23 @@ def _unknown_payload_fields(
     else:
         keys = list(na_public_keys)
     return (found, []) if signed_as_received(model, payload, keys) else ([], found)
+
+
+def _utc(value: datetime) -> datetime:
+    """A timestamp without an offset is read as UTC, as every SDK reads it (v1.3.1: it raised TypeError)."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def _received_digest(model: str, payload: dict[str, Any]) -> str:
+    """SHA-256 of a record's signed form as received (v1.3.1), unknown fields set aside.
+
+    What every SDK hashes for a chain link; equal to the model's ``digest()``
+    for a record in canonical form.
+    """
+    from ..models.canonical_registry import received_canonical, without_unknown_fields
+
+    body = received_canonical(model, without_unknown_fields(model, payload))
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 def _verify_payload(
@@ -546,12 +602,14 @@ def _verify_payload(
     # v1.3.0: the signature must cover the record as received, in the form the reference
     # writes, as every SDK verifier checks it: a record rewritten into another spelling of
     # the same values (a timestamp's offset) is not the record that was signed.
+    # v1.3.1: also when it carries fields outside its signature: those are set aside and the
+    # part the signer signed is checked as received (1.3.0 skipped the check for such a record).
     model_name = "BoundaryDecision" if kind == "decision" else _PAYLOAD_MODELS.get(kind)
     raw = event.payload.get("decision") if kind == "decision" else event.payload
-    if model_name is not None and isinstance(raw, dict) and not unsigned and sig is not None:
-        from ..models.canonical_registry import strict_refusal
+    if model_name is not None and isinstance(raw, dict) and sig is not None:
+        from ..models.canonical_registry import strict_refusal, without_unknown_fields
 
-        refusal = strict_refusal(model_name, raw, keys)
+        refusal = strict_refusal(model_name, without_unknown_fields(model_name, raw) if unsigned else raw, keys)
         if refusal is not None:
             result.fail(entry.store_sequence, "invalid_signature" if refusal == "unknown_field" else refusal, kind)
             return model
@@ -574,13 +632,38 @@ def verify_evidence_events(
     export or the whole store); for a filtered history (one resource or vendor)
     set it False: store links are then checked only between adjacent
     positions.  ``checkpoint`` supplies resource heads for chains whose early
-    records were removed by retention.
+    records were removed by retention; since 1.3.1 its NA signature must
+    verify, as every SDK checks it, or nothing else is checked.
+
+    A run that starts at entry 1, or right after ``checkpoint``, holds each
+    chain from its start. A run that starts anywhere else (a later export
+    page, an export since a position) takes the first record it holds of
+    each resource as that chain's start (v1.3.1, as for observations since
+    1.3.0).
+
+    v1.3.1, records of changes made outside the controlled path and the store
+    itself (``docs/reference/evidence-event-schema.md``):
+
+    * a record's ID appears once per kind (``duplicate_record``): a copied
+      entry is a replay, not a second record;
+    * a Stage 2 entry's envelope names what its payload says
+      (``envelope_mismatch``, every field ``_ENVELOPE_FIELDS`` lists);
+    * a judgement's matched record is in the run when the run starts at entry
+      1 (``judgement_match_missing``), as its subject is when the run reaches
+      back to the subject's position (``judgement_subject_missing``);
+    * a retention checkpoint removed as many entries as positions
+      (``retention_count_mismatch``), checked against the checkpoint before it
+      when the run holds that one, or from entry 1 when there is none.
     """
     result = EvidenceVerification()
+    if checkpoint is not None and not verify_retention_checkpoint(checkpoint, na_public_keys):
+        result.fail(None, "invalid_signature", "retention_checkpoint")
+        return result
     prev: EvidenceStoreEntry | None = None
+    prev_digest: str | None = None
     decisions: dict[str, BoundaryDecision] = {}
     contexts: dict[str, ContextRecord] = {}
-    last_exec: dict[str, ExecutionEvidence] = {}
+    last_exec: dict[str, tuple[ExecutionEvidence, str]] = {}
     resource_heads: dict[str, ResourceHeadState] = {}
     if checkpoint is not None:
         resource_heads = {
@@ -589,23 +672,30 @@ def verify_evidence_events(
         }
     # v1.3.0: observation positions per resource, judged records, matched evidence.
     observation_heads: dict[str, int] = dict((checkpoint.observation_heads or {}) if checkpoint else {})
-    subjects: dict[str, tuple[str, int]] = {}
-    judged: set[str] = set()
+    # v1.3.1: judgement subjects and judged records by kind and ID.
+    subjects: dict[tuple[str, str], tuple[str, int]] = {}
+    judged: set[tuple[str, str]] = set()
     matched: set[str] = set()
     not_decisions: set[str] = set()
+    # v1.3.1: the record IDs seen per kind, the records a judgement can match,
+    # and the retention checkpoints seen.
+    record_ids: dict[str, set[str]] = {}
+    matchable: set[str] = set()
+    checkpoints: dict[str, RetentionCheckpoint] = {}
     first_sequence: int | None = None
     from_start = False
     for event in events:
         entry = event.entry
+        digest = event.received_entry_digest()
         result.checked_entries += 1
-        if entry.digest() != event.entry_digest:
+        if digest != event.entry_digest:
             result.fail(entry.store_sequence, "entry_digest_mismatch")
         if payload_digest(event.payload) != entry.payload_digest:
             result.fail(entry.store_sequence, "payload_digest_mismatch")
         if prev is not None and (contiguous or entry.store_sequence == prev.store_sequence + 1):
             if entry.store_sequence != prev.store_sequence + 1:
                 result.fail(entry.store_sequence, "store_sequence_gap")
-            elif entry.prev_entry_digest != prev.digest():
+            elif entry.prev_entry_digest != prev_digest:
                 result.fail(entry.store_sequence, "store_chain_break")
         elif prev is None and checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1:
             if entry.prev_entry_digest != checkpoint.last_removed_entry_digest:
@@ -615,7 +705,7 @@ def verify_evidence_events(
             from_start = entry.store_sequence == 1 or (
                 checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1
             )
-        prev = entry
+        prev, prev_digest = entry, digest
         if entry.entry_kind not in _KNOWN_ENTRY_KINDS:
             # v1.2.0: a kind from a later release; its envelope still chains.
             result.fail(entry.store_sequence, "unknown_entry_kind", entry.entry_kind)
@@ -624,6 +714,16 @@ def verify_evidence_events(
         model = _verify_payload(event, result, na_public_keys, executor_keys)
         if model is None:
             continue
+        record_id = str(getattr(model, _RECORD_ID[entry.entry_kind]))
+        seen = record_ids.setdefault(entry.entry_kind, set())
+        if record_id in seen:
+            result.fail(entry.store_sequence, "duplicate_record", f"{entry.entry_kind} {record_id}")
+        seen.add(record_id)
+        expected_envelope = _ENVELOPE_FIELDS.get(entry.entry_kind)
+        if expected_envelope is not None:
+            wrong = [f for f, source in expected_envelope.items() if getattr(entry, f) != getattr(model, source)]
+            if wrong:
+                result.fail(entry.store_sequence, "envelope_mismatch", f"{entry.entry_kind}: {', '.join(wrong)}")
         if entry.entry_kind == "decision":
             result.decisions += 1
             decisions[model.decision_id] = model
@@ -639,33 +739,46 @@ def verify_evidence_events(
                 ctx = contexts.get(ev.decision_id)
                 if not decision.authorized:
                     result.fail(entry.store_sequence, "evidence_decision_denied")
-                elif not (decision.decision_made_at <= ev.executed_at <= decision.decision_valid_until):
+                elif not (_utc(decision.decision_made_at) <= _utc(ev.executed_at)
+                          <= _utc(decision.decision_valid_until)):
                     result.fail(entry.store_sequence, "evidence_outside_decision_window")
                 elif ctx is not None and ev.executed_capability != ctx.requested_capability:
                     result.fail(entry.store_sequence, "evidence_capability_mismatch")
             if ev.decision_id in not_decisions:
                 # v1.3.0: execution evidence never rests on a judgement or a record of one.
                 result.fail(entry.store_sequence, "evidence_cites_judgement", ev.decision_id)
-            prior = last_exec.get(ev.decision_id)
+            # v1.3.1: the chains link to each record as received, as every SDK hashes it.
+            received = _received_digest("ExecutionEvidence", event.payload)
+            prior, prior_digest = last_exec.get(ev.decision_id, (None, None))
             expected_seq = prior.sequence_no + 1 if prior else None
-            if prior is not None and (ev.sequence_no != expected_seq or ev.prev_evidence_digest != prior.digest()):
+            if prior is not None and (ev.sequence_no != expected_seq or ev.prev_evidence_digest != prior_digest):
                 result.fail(entry.store_sequence, "evidence_chain_break")
             elif prior is None and decision is not None and (ev.sequence_no != 1 or ev.prev_evidence_digest is not None):
                 result.fail(entry.store_sequence, "evidence_chain_break")
-            last_exec[ev.decision_id] = ev
+            last_exec[ev.decision_id] = (ev, received)
+            matchable.add(ev.evidence_id)
             if ev.resource_id is not None:
                 head = resource_heads.get(ev.resource_id)
-                exp = head.resource_sequence + 1 if head else 1
-                if ev.resource_sequence != exp or ev.prev_resource_digest != (head.record_digest if head else None):
-                    result.fail(entry.store_sequence, "resource_chain_break", ev.resource_id)
-                resource_heads[ev.resource_id] = ResourceHeadState(ev.resource_sequence or 0, ev.digest())
+                # v1.3.1: a run that does not start at entry 1 or right after the checkpoint
+                # takes the first record it holds of a resource as that chain's start.
+                if head is not None or from_start:
+                    exp = head.resource_sequence + 1 if head else 1
+                    if ev.resource_sequence != exp or ev.prev_resource_digest != (head.record_digest if head else None):
+                        result.fail(entry.store_sequence, "resource_chain_break", ev.resource_id)
+                resource_heads[ev.resource_id] = ResourceHeadState(ev.resource_sequence or 0, received)
         elif entry.entry_kind == "retention_checkpoint":
-            pass
+            # v1.3.1: a checkpoint signed over a store missing entries removed fewer than it says.
+            cp: RetentionCheckpoint = model
+            before = checkpoints.get(cp.previous_checkpoint_id) if cp.previous_checkpoint_id else None
+            if cp.previous_checkpoint_id is None or before is not None:
+                start = before.removed_through_sequence if before is not None else 0
+                if cp.removed_count != cp.removed_through_sequence - start:
+                    result.fail(entry.store_sequence, "retention_count_mismatch",
+                                f"removed {cp.removed_count} of {cp.removed_through_sequence - start} entries "
+                                f"after #{start} through #{cp.removed_through_sequence}")
+            checkpoints[cp.checkpoint_id] = cp
         elif entry.entry_kind in ("observation", "break_glass"):
-            record_id = model.observation_id if entry.entry_kind == "observation" else model.break_glass_id
-            if entry.record_id != record_id or entry.resource_id != model.resource_id:
-                result.fail(entry.store_sequence, "envelope_mismatch", entry.entry_kind)
-            subjects[record_id] = (entry.payload_digest, entry.store_sequence)
+            subjects[(entry.entry_kind, record_id)] = (entry.payload_digest, entry.store_sequence)
             not_decisions.add(record_id)
             if entry.entry_kind == "observation":
                 result.observations += 1
@@ -677,15 +790,15 @@ def verify_evidence_events(
                 observation_heads[rid] = position or observation_heads.get(rid, 0)
             else:
                 result.break_glass += 1
+                matchable.add(record_id)
         elif entry.entry_kind == "judgement":
             result.judgements += 1
             not_decisions.add(model.judgement_id)
-            if entry.subject_id != model.subject_id or entry.record_id != model.judgement_id:
-                result.fail(entry.store_sequence, "envelope_mismatch", "judgement")
-            if model.subject_id in judged:
+            key = (model.subject_kind, model.subject_id)
+            if key in judged:
                 result.fail(entry.store_sequence, "duplicate_judgement", model.subject_id)
-            judged.add(model.subject_id)
-            subject = subjects.get(model.subject_id)
+            judged.add(key)
+            subject = subjects.get(key)
             if subject is not None:
                 if subject != (model.subject_digest, model.subject_store_sequence):
                     result.fail(entry.store_sequence, "judgement_subject_mismatch", model.subject_id)
@@ -695,6 +808,9 @@ def verify_evidence_events(
                 if model.matched_evidence_id in matched:
                     result.fail(entry.store_sequence, "match_reused", model.matched_evidence_id)
                 matched.add(model.matched_evidence_id)
+                # v1.3.1: the NA matches a record it already holds, so a run from entry 1 holds it.
+                if contiguous and first_sequence == 1 and model.matched_evidence_id not in matchable:
+                    result.fail(entry.store_sequence, "judgement_match_missing", model.matched_evidence_id)
         elif entry.entry_kind == "quarantine":
             result.quarantined += 1
             if payload_digest(model.record) != model.record_digest:
@@ -820,22 +936,27 @@ def check_events_against_anchors(
     result: EvidenceVerification,
     *,
     partial: bool = False,
+    from_anchor: bool = False,
 ) -> None:
     """Check a contiguous run of entries against anchors held out of band.
 
     The run must be tied to the anchors at both ends:
 
-    * its start: the run starts at entry 1; or right after a retention
-      checkpoint recorded in the run (whose signature the event verification
-      checks); or right after a held anchor, whose digest its first entry must
-      name. An anchor before a run that starts anywhere else means entries
-      before the run are not accounted for (``export_not_linked_to_anchors``);
+    * its start: the run starts at entry 1, or right after a retention
+      checkpoint recorded in the run (whose signature and count the event
+      verification checks). With ``from_anchor`` (v1.3.1), also right after a
+      held anchor whose digest its first entry names: an export since an
+      anchored position, which says nothing of the entries before it. Without
+      it such a run is not tied (1.2 and 1.3.0 accepted it, so a store whose
+      entries through an anchored one were deleted still verified). A run
+      that is not tied while anchors are held leaves entries before it
+      unaccounted for (``export_not_linked_to_anchors``);
     * its end: an anchor after the run's last entry means the run stops short
       of history the anchors prove exists (``export_ends_before_anchor``).
 
     ``partial`` accepts a deliberate slice and skips both ends. Inside the run,
-    each anchor must name its entry's digest; because entries are hash-linked,
-    a match covers every earlier entry of the run.
+    each anchor must name its entry's digest as received; because entries are
+    hash-linked, a match covers every earlier entry of the run.
     """
     by_sequence = {e.entry.store_sequence: e for e in events}
     ordered = sorted(events, key=lambda e: e.entry.store_sequence)
@@ -845,6 +966,7 @@ def check_events_against_anchors(
     matched = before = beyond = 0
     anchored_through: int | None = None
     linked_start = first is not None and (first_seq == 1 or _checkpoint_start(ordered, first))
+    after_anchor: int | None = None
     for anchor in anchors:
         seq = anchor.store_sequence
         if first is None or last_seq is None or first_seq is None or seq > last_seq:
@@ -852,7 +974,8 @@ def check_events_against_anchors(
             continue
         if seq == first_seq - 1:
             if first.entry.prev_entry_digest == anchor.entry_digest:
-                linked_start = True
+                after_anchor = anchor.anchor_sequence
+                linked_start = linked_start or from_anchor
                 matched += 1
                 anchored_through = max(anchored_through or 0, seq)
             else:
@@ -865,20 +988,27 @@ def check_events_against_anchors(
         event = by_sequence.get(seq)
         if event is None:
             result.fail(seq, "anchor_entry_missing", f"anchor {anchor.anchor_sequence}")
-        elif event.entry_digest != anchor.entry_digest or event.entry.digest() != anchor.entry_digest:
+        elif event.entry_digest != anchor.entry_digest or event.received_entry_digest() != anchor.entry_digest:
             result.fail(seq, "anchor_mismatch", f"anchor {anchor.anchor_sequence}")
         else:
             matched += 1
             anchored_through = max(anchored_through or 0, seq)
     # A held anchor commits to every entry before the one it names, so a run
-    # that is not tied at its start (entry 1, a checkpoint in the run, a held
-    # anchor) leaves entries the anchors prove exist unaccounted for, whether
-    # the anchors fall before the run or inside it (fixed in 1.3.0: only
-    # anchors before the run were counted).
+    # that is not tied at its start (entry 1, a checkpoint in the run, or a
+    # held anchor the caller says it continues from) leaves entries the anchors
+    # prove exist unaccounted for, whether the anchors fall before the run or
+    # inside it (fixed in 1.3.0: only anchors before the run were counted).
     if anchors and first is not None and not linked_start and not partial:
-        result.fail(first_seq, "export_not_linked_to_anchors",
-                    f"the first entry continues from no held anchor, retention checkpoint or entry 1 "
-                    f"({before} anchor(s) before it)")
+        if after_anchor is not None:
+            why = (f"the export starts right after held anchor {after_anchor}, which proves the entries "
+                   f"before it existed, not that they are kept: export from entry 1 (with the retention "
+                   f"checkpoint that removed entries, if any), or verify it as an export since that anchor "
+                   f"(--from-anchor)")
+        else:
+            why = (f"the export starts at entry {first_seq} and holds neither entry 1 nor the retention "
+                   f"checkpoint that removed the entries before it ({before} held anchor(s) before it): "
+                   f"export from entry 1, or include that checkpoint's entry")
+        result.fail(first_seq, "export_not_linked_to_anchors", why)
     if beyond and not partial:
         result.fail(last_seq, "export_ends_before_anchor", f"{beyond} anchor(s) after the last entry")
     floor = anchored_through or 0
@@ -893,15 +1023,89 @@ def check_events_against_anchors(
     }
 
 
+#: v1.3.1: the envelope of an export line as every SDK reads it.
+_ENVELOPE_NULLABLE_STRINGS = (
+    "prev_entry_digest", "decision_id", "context_id", "vendor_id", "attestation_id", "capability", "outcome",
+    "evidence_id", "executor_sovereign_id", "resource_id", "resource_action",
+)
+_ENVELOPE_ABSENT_STRINGS = ("record_id", "subject_id", "matched_evidence_id")
+_EVENT_KEYS = frozenset({"schema", "schema_version", "entry", "entry_digest", "payload"})
+_ENVELOPE_KEYS = frozenset({
+    "store_sequence", "entry_kind", "recorded_at", "payload_digest", "exec_sequence_no", "resource_sequence",
+    "observation_sequence", *_ENVELOPE_NULLABLE_STRINGS, *_ENVELOPE_ABSENT_STRINGS,
+})
+#: JavaScript's safe integers: what every SDK reads as an integer exactly.
+_MAX_SAFE_INTEGER = 2**53 - 1
+_RECEIVED_TIMESTAMP = re.compile(
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]{1,6})?(?:Z|[+-]([0-9]{2}):([0-9]{2}))?"
+)
+
+
+def _safe_integer(value: Any, minimum: int | None = None) -> bool:
+    return type(value) is int and abs(value) <= _MAX_SAFE_INTEGER and (minimum is None or value >= minimum)
+
+
+def _received_timestamp(value: Any) -> bool:
+    match = _RECEIVED_TIMESTAMP.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        return False
+    year, month, day, hour, minute, second, zone_h, zone_m = match.groups()
+    if zone_h is not None and (int(zone_h) > 23 or int(zone_m) > 59):
+        return False
+    try:
+        datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
+    except ValueError:
+        return False
+    return True
+
+
+def _valid_event(data: Any) -> bool:
+    """Whether an export line is a ``gm.evidence.event`` as every SDK reads it (v1.3.1).
+
+    Exactly the event's five fields; ``schema_version`` the integer 1; an
+    envelope with exactly its fields: every 1.2 search field present as a
+    string or null, ``store_sequence`` a positive integer and the sequence
+    numbers integers (within 2**53 - 1), ``recorded_at`` an ISO 8601
+    timestamp (``YYYY-MM-DDTHH:MM:SS``, up to six fraction digits, ``Z`` or an
+    offset), and the 1.3.0 fields absent, null or of their type.
+    """
+    if not isinstance(data, dict) or set(data) != _EVENT_KEYS:
+        return False
+    entry = data["entry"]
+    if (data["schema"] != "gm.evidence.event" or not _safe_integer(data["schema_version"])
+            or data["schema_version"] != 1 or not isinstance(data["entry_digest"], str)
+            or not isinstance(data["payload"], dict)
+            or not isinstance(entry, dict) or not set(entry) <= _ENVELOPE_KEYS):
+        return False
+    return (
+        all(k in entry and (entry[k] is None or isinstance(entry[k], str)) for k in _ENVELOPE_NULLABLE_STRINGS)
+        and all(entry.get(k) is None or isinstance(entry[k], str) for k in _ENVELOPE_ABSENT_STRINGS)
+        and _safe_integer(entry.get("store_sequence"), 1)
+        and isinstance(entry.get("entry_kind"), str)
+        and _received_timestamp(entry.get("recorded_at"))
+        and isinstance(entry.get("payload_digest"), str)
+        and all(k in entry and (entry[k] is None or _safe_integer(entry[k])) for k in ("exec_sequence_no",
+                                                                                      "resource_sequence"))
+        and (entry.get("observation_sequence") is None or _safe_integer(entry["observation_sequence"], 1))
+    )
+
+
 def parse_export_lines(lines: Iterable[str]) -> list[EvidenceEvent]:
     """Parse ``gm.evidence.event`` JSON Lines (blank lines ignored).
 
     v1.2.0: each line is parsed strictly (``genesis_mesh.strict_json``); a
     line every implementation would not read alike raises ``StrictJSONError``.
+    v1.3.1: a line that is not an event as every SDK reads it (``_valid_event``:
+    a ``store_sequence`` written ``"6"``, a missing search field) raises
+    ``ValueError``, and each event keeps the digest of its envelope as received,
+    which verification checks (``EvidenceEvent.received``).
     """
     events = []
     for line in lines:
         line = line.strip(" \t\r\n")  # JSON whitespace only, as every SDK trims a line
         if line:
-            events.append(EvidenceEvent.model_validate(strict_json.loads(line)))
+            data = strict_json.loads(line)
+            if not _valid_event(data):
+                raise ValueError("invalid evidence event envelope or unsupported schema")
+            events.append(EvidenceEvent.received(data))
     return events

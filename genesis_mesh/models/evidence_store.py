@@ -30,9 +30,9 @@ import hashlib
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from .genesis import Signature
 
@@ -212,6 +212,30 @@ class EvidenceEvent(BaseModel):
     entry: EvidenceStoreEntry
     entry_digest: str
     payload: dict[str, Any] = Field(..., description="The stored signed record, unchanged")
+
+    # v1.3.1: an event read from an export keeps the digest of its envelope as
+    # received, which verification checks as every SDK does: the parsed
+    # envelope writes a respelled field (a timestamp's offset) back in the form
+    # the NA wrote, so its digest() would hide the change. The fields added in
+    # 1.3.0 read the same absent or null. Kept with the parsed envelope's own
+    # digest, so it no longer applies once the envelope changes.
+    _received_digests: tuple[str, str] | None = PrivateAttr(default=None)
+
+    @classmethod
+    def received(cls, data: dict[str, Any]) -> Self:
+        """An event read from an export line, keeping the digest of its envelope as received."""
+        event = cls.model_validate(data)
+        envelope = {k: v for k, v in data["entry"].items() if not (k in ENVELOPE_OMIT_WHEN_NONE and v is None)}
+        received = hashlib.sha256(canonical_json(envelope).encode("utf-8")).hexdigest()
+        event._received_digests = (event.entry.digest(), received)
+        return event
+
+    def received_entry_digest(self) -> str:
+        """SHA-256 over the envelope as received; ``entry.digest()`` for an envelope built or changed in memory."""
+        digest = self.entry.digest()
+        if self._received_digests is not None and self._received_digests[0] == digest:
+            return self._received_digests[1]
+        return digest
 
     def to_json_line(self) -> str:
         """One export line (canonical JSON, no trailing newline)."""
