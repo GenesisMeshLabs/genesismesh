@@ -325,8 +325,9 @@ def test_cli_atlas_lookup_hit() -> None:
         key_path.write_text(base64.b64encode(bytes(sk)).decode(), encoding="utf-8")
 
         g = _simple_graph()
+        # The CLI reads the clock: build the cache now, not at import (a slow run outlasts its TTL).
         cache = build_trust_path_cache(
-            [("sovereign-a", "sovereign-b")], g, "op-1", sk, now=_NOW
+            [("sovereign-a", "sovereign-b")], g, "op-1", sk, now=datetime.now(timezone.utc)
         )
         cache_path = p / "cache.json"
         cache_path.write_text(cache.model_dump_json(indent=2), encoding="utf-8")
