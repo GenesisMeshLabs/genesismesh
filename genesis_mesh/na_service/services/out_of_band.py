@@ -112,6 +112,17 @@ class OutOfBandService:
         return self._na.evidence_store_service
 
     @property
+    def enabled(self) -> bool:
+        """Stage 2 records are kept: the store is on and ``EVIDENCE_OUT_OF_BAND=on``."""
+        return self._store.enabled and self._na.evidence_out_of_band == "on"
+
+    def require_enabled(self) -> None:
+        self._store.require_enabled()
+        if not self.enabled:
+            raise NotFoundError("Changes outside the controlled path are not recorded (EVIDENCE_OUT_OF_BAND=off)",
+                                code="out_of_band_disabled")
+
+    @property
     def bounds(self) -> TimeBounds:
         return self._na.observation_time_bounds
 
@@ -194,7 +205,7 @@ class OutOfBandService:
 
         Returns the quarantine id, or None when the record is not quarantined.
         """
-        if not self._store.enabled or code not in QUARANTINED_EXECUTION_CODES or evidence.signature is None:
+        if not self.enabled or code not in QUARANTINED_EXECUTION_CODES or evidence.signature is None:
             return None
         key = self._key(evidence.signature.key_id)
         from ...crypto import verify_model_signature
@@ -231,7 +242,7 @@ class OutOfBandService:
 
     def submit_observation(self, raw: Any) -> tuple[dict[str, Any], int]:
         """Admit one signed observation. Returns (body, HTTP status)."""
-        self._store.require_enabled()
+        self.require_enabled()
         if not isinstance(raw, dict):
             raise BadRequestError("observation must be an object", code="invalid_observation")
         digest = payload_digest(raw)
@@ -290,7 +301,7 @@ class OutOfBandService:
 
     def submit_observations(self, raw: Any) -> list[dict[str, Any]]:
         """Admit a backlog of observations, in order of their change times; one result per observation."""
-        self._store.require_enabled()
+        self.require_enabled()
         if not isinstance(raw, list) or not raw:
             raise BadRequestError("observations must be a non-empty list", code="invalid_observation")
         if len(raw) > OBSERVATION_BATCH_LIMIT:
@@ -327,7 +338,7 @@ class OutOfBandService:
 
     def submit_break_glass(self, raw: Any) -> tuple[dict[str, Any], int]:
         """Admit one signed break-glass record. Returns (body, HTTP status)."""
-        self._store.require_enabled()
+        self.require_enabled()
         if not isinstance(raw, dict):
             raise BadRequestError("record must be an object", code="invalid_break_glass")
         digest = payload_digest(raw)
@@ -378,7 +389,7 @@ class OutOfBandService:
 
     def judge(self, kind: SubjectKind, record_id: str) -> tuple[dict[str, Any], int]:
         """Judge a stored observation or break-glass record once; idempotent."""
-        self._store.require_enabled()
+        self.require_enabled()
         stored = self._na.db.get_entry_by_record(kind, record_id)
         if stored is None:
             raise NotFoundError(f"no {kind.replace('_', '-')} record {record_id!r} is stored",
@@ -642,7 +653,7 @@ class OutOfBandService:
 
     def policy_activated(self, policy: BoundaryPolicy, previous: int | None, recorded_by: str | None) -> None:
         """Record an activation (and the version it replaced) in the store."""
-        if not self._store.enabled:
+        if not self.enabled:
             return
         now = self._now()
         records: list[tuple[RegistryRecord, str | None]] = []
@@ -655,14 +666,14 @@ class OutOfBandService:
         self._record_safely(records, "policy activation")
 
     def policy_deactivated(self, policy_id: str, version: int, recorded_by: str | None) -> None:
-        if not self._store.enabled:
+        if not self.enabled:
             return
         self._record_safely([(RegistryRecord(event="policy_deactivated", effective_at=self._now(),
                                              policy_id=policy_id, policy_version=version, recorded_by=recorded_by,
                                              **self._issuer()), None)], "policy deactivation")
 
     def key_registered(self, key: ExecutorKey, registered_at: str, recorded_by: str | None) -> None:
-        if not self._store.enabled:
+        if not self.enabled:
             return
         self._record_safely([(RegistryRecord(
             event="executor_key_registered", effective_at=datetime.fromisoformat(registered_at),
@@ -672,7 +683,7 @@ class OutOfBandService:
         ), None)], "key registration")
 
     def key_retired(self, key_id: str, recorded_by: str | None) -> None:
-        if not self._store.enabled:
+        if not self.enabled:
             return
         self._record_safely([(RegistryRecord(event="executor_key_retired", effective_at=self._now(), key_id=key_id,
                                              recorded_by=recorded_by, **self._issuer()), None)], "key retirement")
@@ -690,7 +701,7 @@ class OutOfBandService:
 
     def ensure_registry(self) -> None:
         """At start: backfill a store upgraded to 1.3.0, record operator keys, repair drift. Never fails start."""
-        if not self._store.enabled:
+        if not self.enabled:
             return
         try:
             self._backfill()
@@ -819,7 +830,7 @@ class OutOfBandService:
                 pass  # another instance recorded them
 
     def propose_holder(self, key_id: str, holder: Any, proposed_by: str) -> dict[str, Any]:
-        self._store.require_enabled()
+        self.require_enabled()
         if key_id not in self._na.operator_public_keys:
             raise NotFoundError("unknown operator key", code="unknown_operator_key")
         if not isinstance(holder, str) or not 1 <= len(holder) <= 128:
@@ -834,7 +845,7 @@ class OutOfBandService:
 
     def approve_holder(self, proposal_id: str, approved_by: str) -> dict[str, Any]:
         """Approve a holder change with a privileged key of another holder; the change is recorded in the store."""
-        self._store.require_enabled()
+        self.require_enabled()
         row = self._na.db.get_holder_proposal(proposal_id)
         if row is None:
             raise NotFoundError("unknown holder change", code="holder_change_not_found")
@@ -867,7 +878,7 @@ class OutOfBandService:
 
     def resource_changes(self, resource_id: str) -> dict[str, Any]:
         """Every change to a resource, with how it was governed and its state (oldest first)."""
-        self._store.require_enabled()
+        self.require_enabled()
         rows = self._na.db.resource_changes(resource_id, CHANGES_LIMIT + 1)
         truncated = len(rows) > CHANGES_LIMIT
         rows = rows[:CHANGES_LIMIT]

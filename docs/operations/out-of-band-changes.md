@@ -22,6 +22,14 @@ Every one of them is a store entry, in the hash chain and under the
 {doc}`anchors <evidence-anchors>`, so removing one is as detectable as
 removing a decision.
 
+## Turning it on
+
+Set `EVIDENCE_OUT_OF_BAND=on` (with `EVIDENCE_STORE=on`). Until then the NA
+records none of these entries and their routes answer `404
+out_of_band_disabled`. A 1.2 verifier refuses the new entry kinds, so turn it
+on only once every verifier that reads exports (the SDKs, the CLI, anchor
+holders' tooling) runs 1.3.
+
 ## How a change is governed and its state
 
 Each change on a resource is shown with how the NA came to know it
@@ -175,7 +183,7 @@ The NA records in the store, signed, every change judgements depend on:
 - executor and observer key registrations and retirements;
 - which holder (a person or team) each operator key belongs to.
 
-When a 1.2 store first starts on 1.3.0, the history is backfilled from the
+When a 1.2 store first starts with `EVIDENCE_OUT_OF_BAND=on`, the history is backfilled from the
 audit events (`boundary_policy_activated` and `boundary_policy_deactivated`,
 and the activation times migration 010 kept for active versions), marked
 `reconstructed`. A `policy_history_started` record marks how far back the
@@ -185,7 +193,8 @@ carried forward unchanged after its checkpoint.
 
 ### Operator key holders
 
-Operator keys are mapped to holders at the NA's first start on 1.3.0, from
+Operator keys are mapped to holders at the NA's first start with
+`EVIDENCE_OUT_OF_BAND=on`, from
 `OPERATOR_KEY_HOLDERS_JSON` (`{"key-id": "holder"}`; a key without an entry is
 its own holder). After that the configuration no longer changes a holder: a
 change takes two holders.
@@ -209,6 +218,7 @@ remaining observations still verify.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
+| `EVIDENCE_OUT_OF_BAND` | `off` | Record the entries on this page; needs `EVIDENCE_STORE=on` |
 | `NA_OBSERVATION_MAX_BACKLOG_SECONDS` | `604800` (7 days) | How long after a change it may still be reported |
 | `NA_OBSERVATION_CLOCK_SKEW_SECONDS` | `300` | Clock skew tolerated between observers, controllers and the NA |
 | `NA_JUDGE_ON_ADMISSION` | `on` | Judge each observation and break-glass record when it is admitted |

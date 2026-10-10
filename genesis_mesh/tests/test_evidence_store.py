@@ -134,7 +134,7 @@ def test_decisions_and_proofs_are_stored_for_every_decision_route(client, na_ser
         "agreement": agreement, "requested_capability": "read",
     }).status_code == 201  # legacy route: decision only
     kinds = [e["entry"]["entry_kind"] for e in _get(client, "/admin/evidence").get_json()["entries"]]
-    # v1.3.0: the registry (operator key holders, the policy history) is recorded at start.
+    # v1.3.0: the registry (operator key holders, the policy history) is recorded at start, when switched on.
     assert [k for k in kinds if k != "registry"] == ["decision", "justification", "decision", "justification", "decision"]
     assert client.get("/health").get_json()["evidence_store"] == "on"
     events = json.dumps(na_service.db.list_audit_events())

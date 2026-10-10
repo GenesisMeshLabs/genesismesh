@@ -110,6 +110,7 @@ class NetworkAuthorityService:
         evidence_store: str = "off",
         database_url: Optional[str] = None,
         ha_mode: str = "off",
+        evidence_out_of_band: str = "off",
         rate_limit_store: Optional[str] = None,
         max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
         rate_limits: Optional[RateLimits] = None,
@@ -165,6 +166,11 @@ class NetworkAuthorityService:
                 observers, controllers and the NA (v1.3.0).
             judge_on_admission: judge each observation and break-glass record
                 when it is admitted (v1.3.0); off leaves judging to the judge routes.
+            evidence_out_of_band: "off" (default) or "on" (v1.3.0): record
+                observations, break-glass records, judgements, quarantine and
+                registry entries in the evidence store. Off keeps the store
+                readable by 1.2 verifiers; turn it on once every verifier that
+                reads exports runs 1.3. Needs ``evidence_store="on"``.
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
@@ -235,6 +241,11 @@ class NetworkAuthorityService:
             skew=timedelta(seconds=observation_clock_skew_seconds),
         )
         self.judge_on_admission = bool(judge_on_admission)
+        if evidence_out_of_band not in ("off", "on"):
+            raise ValueError("evidence_out_of_band must be 'off' or 'on'")
+        if evidence_out_of_band == "on" and evidence_store != "on":
+            raise ValueError("evidence_out_of_band='on' needs evidence_store='on'")
+        self.evidence_out_of_band = evidence_out_of_band
         self.operator_key_holders = dict(operator_key_holders or {})
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
@@ -509,6 +520,7 @@ def create_app(
     evidence_store: str = "off",
     database_url: Optional[str] = None,
     ha_mode: str = "off",
+    evidence_out_of_band: str = "off",
     rate_limit_store: Optional[str] = None,
     max_request_bytes: int = DEFAULT_MAX_REQUEST_BYTES,
     rate_limits: Optional[RateLimits] = None,
@@ -531,6 +543,7 @@ def create_app(
         gate_registry=gate_registry,
         boundary_policy_enforcement=boundary_policy_enforcement,
         evidence_store=evidence_store,
+        evidence_out_of_band=evidence_out_of_band,
         database_url=database_url,
         ha_mode=ha_mode,
         rate_limit_store=rate_limit_store,

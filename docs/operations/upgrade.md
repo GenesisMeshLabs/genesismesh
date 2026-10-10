@@ -57,7 +57,12 @@ anchors are unchanged, and `genesis-mesh na verify-db` verifies them after
 the upgrade. A 1.3 database cannot be opened by 1.2: roll back by restoring
 the backup taken before the upgrade.
 
-At its first start on 1.3 the NA:
+The new records are off until `EVIDENCE_OUT_OF_BAND=on`: a store that has
+them cannot be verified by 1.2 SDKs or the 1.2 CLI, which refuse the new entry
+kinds. Upgrade every verifier that reads exports (the SDKs, the CLI, anchor
+holders' tooling) to 1.3 first, then turn it on.
+
+At its first start with `EVIDENCE_OUT_OF_BAND=on` the NA:
 
 - backfills the store's registry from the audit events (policy activations
   and deactivations, executor keys), marked `reconstructed`, and records how
