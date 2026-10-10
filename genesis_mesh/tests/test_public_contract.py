@@ -3,8 +3,9 @@
 A route, CLI command, signed model or error code that exists but is not
 classified fails here, as does a listed item that disappeared or a public
 signature that changed. Changing the contract is deliberate: edit the
-contract file, re-render the page, and record the change in the CHANGELOG
-(DEPRECATION_POLICY.md says which changes need a deprecation cycle).
+contract file, re-render the page, and record the change in a changelog
+fragment, changelog.d/<version>/ (DEPRECATION_POLICY.md says which changes
+need a deprecation cycle).
 """
 
 from __future__ import annotations

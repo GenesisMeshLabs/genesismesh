@@ -43,6 +43,41 @@ component may release ahead of it. Two automated gates enforce this:
 A component that needs a fix between coordinated releases waits for, or triggers,
 the next coordinated patch release; it does not take the next number on its own.
 
+A release tag is tested against the core release of the same version, never
+core `main`, which may already carry the next version's changes: the core's
+image workflow builds the gateway's tag of its version, and the SDKs' and the
+gateway's tag builds check out the core tag of theirs.
+
+## Changelogs: fragments, folded at release
+
+Work for the next version often starts before the current release merges. Two
+pull requests that edit the top of a changelog conflict: the release PR dates
+the version heading, the feature PR adds the next version's section right
+above it. So pull requests never edit `CHANGELOG.md` (every repository of the
+train, since 1.3.0):
+
+1. A change adds its entry as a fragment, `changelog.d/<version>/<name>.md`,
+   written as the changelog entry under `### Added`, `### Changed`, `### Fixed`,
+   `### Security`, `### Upgrading` (or another `###` heading). Any number of
+   pull requests can add fragments for one version.
+2. The release PR (branch `release/<version>`) folds them into `CHANGELOG.md`
+   and removes them:
+
+   ```bash
+   python scripts/changelog.py preview 1.3.0
+   python scripts/changelog.py release 1.3.0 --heading "## v1.3.0 - Observations, Judgements and Break-Glass"
+   ```
+
+   SDKs use their own heading form (`## [1.3.0] - 2026-10-11`).
+3. CI (`Changelog fragments`) checks every fragment, refuses one for a version
+   already released, and refuses lines a pull request other than a release
+   adds to `CHANGELOG.md`.
+
+Documentation follows the same rule for versioned headings: a section for an
+unreleased version carries its marker on a line of its own below the heading
+(`*Unreleased.*`), never in the heading, so the release removes a line no
+feature pull request for the next version touches.
+
 ### v0.57: a skipped version
 
 Before the gateway and the Rust SDK joined the train, the gateway released
