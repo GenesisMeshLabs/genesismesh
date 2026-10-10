@@ -53,8 +53,8 @@ gateway's tag builds check out the core tag of theirs.
 Work for the next version often starts before the current release merges. Two
 pull requests that edit the top of a changelog conflict: the release PR dates
 the version heading, the feature PR adds the next version's section right
-above it. So pull requests never edit `CHANGELOG.md` (every repository of the
-train, since 1.3.0):
+above it. So pull requests never edit `CHANGELOG.md` (the core and the four
+SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
 
 1. A change adds its entry as a fragment, `changelog.d/<version>/<name>.md`,
    written as the changelog entry under `### Added`, `### Changed`, `### Fixed`,

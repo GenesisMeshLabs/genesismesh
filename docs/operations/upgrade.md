@@ -65,13 +65,23 @@ holders' tooling) to 1.3 first, then turn it on.
 At its first start with `EVIDENCE_OUT_OF_BAND=on` the NA:
 
 - backfills the store's registry from the audit events (policy activations
-  and deactivations, executor keys), marked `reconstructed`, and records how
-  far back its policy history reaches; changes before that are judged
-  `indeterminate`;
+  and deactivations) and the key table (executor and observer keys), at the
+  times they record, marked `reconstructed`, and records how far back its
+  policy history reaches; changes before that are judged `indeterminate`.
+  Nothing signs the audit log: that part of the history rests on the audit
+  log as it stands at this start, so check it (and restrict writes to the
+  database) before turning the records on. Since 1.3.1 the NA reads times
+  from the audit log at this start only; see *What the history rests on* in
+  {doc}`out-of-band-changes`;
 - records which holder each configured operator key belongs to, from
   `OPERATOR_KEY_HOLDERS_JSON` (a key without an entry is its own holder). Set
   it before that start: afterwards a holder changes only with a second
-  holder's approval.
+  holder's approval. Since 1.3.1 that holds for every key: the configuration
+  no longer names a holder after this start, so a key added later, or given
+  a new public key, is its own holder until a holder change names one.
+
+`GET /admin/evidence/status` reports `policy_history_started` and
+`registry_healthy` (since 1.3.1): check them after that start.
 
 Controllers that want their changes matched to observations report the
 version they produced as `execution_parameters.version_id`. See

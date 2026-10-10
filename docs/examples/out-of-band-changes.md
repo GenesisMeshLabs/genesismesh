@@ -83,10 +83,14 @@ seen = seen.model_copy(update={"signature": sign_model(seen, observer_key, "acti
 # POST /evidence/observations {"observation": seen.to_wire()}
 ```
 
-The NA matches it to the controller's record (same resource, action and
-version) and records a judgement with `governed_by: prior_decision`. The
-match consumes the execution record: a second observation of version `v7`
-would not match it again.
+The NA matches it to the controller's record (same resource, action,
+capability and version, made at the same time give or take the clock skew)
+and records a judgement with `governed_by: prior_decision`. The match
+consumes the execution record. A second observer's report of the same `v7`
+rotation is the same change: it is judged `governed_by: prior_decision` too,
+naming the record in its reason, without consuming it again. A later change
+that happens to report version `v7` again is a different change, judged on
+its own.
 
 ### 3. A rotation in the cloud console
 
