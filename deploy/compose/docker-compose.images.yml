@@ -17,7 +17,7 @@ name: genesis-mesh
 
 services:
   na:
-    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.2.0}
+    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.3.0}
     environment:
       GENESIS_FILE: /run/config/genesis.signed.json
       # The seed is a mounted secret file, not an environment value.
@@ -42,7 +42,7 @@ services:
 
   # One-off tools (steps 3 and 4); `docker compose run` starts them.
   preflight:
-    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.2.0}
+    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.3.0}
     profiles: [tools]
     user: "0:0"
     entrypoint: ["/usr/local/bin/genesis-mesh-operator"]
@@ -64,7 +64,7 @@ services:
         condition: service_healthy
 
   policy:
-    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.2.0}
+    image: ${GENESIS_MESH_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh:1.3.0}
     profiles: [tools]
     user: "0:0"
     entrypoint: ["python", "-c"]
@@ -84,7 +84,7 @@ services:
       - gateway-config:/work
 
   gateway:
-    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.2.0}
+    image: ${GATEWAY_IMAGE:-ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.3.0}
     environment:
       GATEWAY_ADDR: 0.0.0.0:8080
       GATEWAY_POLICY_FILE: /run/gateway/policy.json
