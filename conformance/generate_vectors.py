@@ -1558,6 +1558,11 @@ def gen_canonical() -> None:
     _write("canonical", {"suite": "canonical", "version": "1.2.0", "vectors": vectors})
 
 
+def _iso_z(at) -> str:
+    """A UTC datetime as the reference writes it."""
+    return at.isoformat().replace("+00:00", "Z")
+
+
 def gen_out_of_band() -> None:
     """v1.3.0: observations, break-glass records, judgements, quarantine and registry records.
 
@@ -1758,6 +1763,55 @@ def gen_out_of_band() -> None:
     bad_digest[11] = item("quarantine", signed(q, "c", "na-key"))
     export_case("quarantine-digest-mismatch", "A quarantine record whose digest is not its record's", bad_digest,
                 expect=[{"store_sequence": 12, "reason": "quarantine_digest_mismatch"}])
+
+    # v1.3.0 (review): records the reference never stores, each appended as an observation of
+    # another resource, signed over exactly what is sent (the signer is the observer).
+    from genesis_mesh.crypto import sign_data
+    from genesis_mesh.models.canonical_registry import received_canonical
+
+    def raw_observation(n: int, **changes) -> tuple[str, dict, dict]:
+        wire = signed(ObservationRecord(
+            observation_id=uid(n), observer_sovereign_id=SOV_A, resource_id=f"kv:vault/other-{n}",
+            action="update", capability="secret.update", changed_at=t[2], observed_at=t[3],
+            source="cloud-activity-log", source_event_id=f"event-{n}",
+        ), "a", "observer-a").to_wire()
+        wire.pop("signature")
+        for key, value in changes.items():
+            if value is None:
+                wire.pop(key, None)
+            else:
+                wire[key] = value
+        body = received_canonical("ObservationRecord", wire).encode("utf-8")
+        wire["signature"] = {"key_id": "observer-a", "sig": sign_data(body, KEYS["a"])}
+        index = {"record_id": uid(n), "resource_id": wire["resource_id"], "resource_action": "update",
+                 "capability": "secret.update", "executor_sovereign_id": SOV_A, "observation_sequence": 1}
+        return "observation", wire, index
+
+    extra = signed(ObservationRecord(
+        observation_id=uid(31), observer_sovereign_id=SOV_A, resource_id="kv:vault/other-31", action="update",
+        capability="secret.update", changed_at=t[2], observed_at=t[3], source="cloud-activity-log",
+        source_event_id="event-31",
+    ), "a", "observer-a").to_wire()
+    extra["note"] = "added after signing"
+    export_case("unsigned-extra-field", "An observation carrying a field its signature does not cover",
+                [*copy.deepcopy(base), ("observation", extra, {
+                    "record_id": uid(31), "resource_id": "kv:vault/other-31", "resource_action": "update",
+                    "capability": "secret.update", "executor_sovereign_id": SOV_A, "observation_sequence": 1})],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("missing-defaulted-field", "An observation signed without metadata, which the reference writes",
+                [*copy.deepcopy(base), raw_observation(32, metadata=None)],
+                expect=[{"store_sequence": 13, "reason": "non_canonical_form"}])
+    export_case("non-utc-timestamp", "An observation dated in another offset than UTC",
+                [*copy.deepcopy(base), raw_observation(33, observed_at="2026-01-01T02:00:00+02:00")],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("two-change-times", "An observation giving both a change time and a window",
+                [*copy.deepcopy(base), raw_observation(34, changed_not_before=_iso_z(t[1]),
+                                                       changed_not_after=_iso_z(t[2]))],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
+    export_case("reversed-window", "An observation whose window ends before it starts",
+                [*copy.deepcopy(base), raw_observation(35, changed_at=None, changed_not_before=_iso_z(t[3]),
+                                                       changed_not_after=_iso_z(t[1]))],
+                expect=[{"store_sequence": 13, "reason": "payload_invalid"}])
 
     cites = ExecutionEvidence(
         evidence_id=uid(18), sequence_no=1, decision_id=uid(21), context_id=UUID3, agreement_id=UUID1,
