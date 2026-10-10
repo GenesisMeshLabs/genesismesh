@@ -25,6 +25,8 @@ from ..models.evidence_store import EvidenceStoreEntry, RetentionCheckpoint, Sto
 SEARCH_FIELDS: tuple[str, ...] = (
     "vendor_id", "attestation_id", "capability", "resource_id", "outcome",
     "entry_kind", "decision_id", "executor_sovereign_id",
+    # v1.3.0
+    "record_id", "subject_id",
 )
 
 _ENTRY_COLUMNS = (
@@ -32,10 +34,19 @@ _ENTRY_COLUMNS = (
     "prev_entry_digest", "payload_json", "decision_id", "context_id", "vendor_id",
     "attestation_id", "capability", "outcome", "evidence_id", "executor_sovereign_id",
     "exec_sequence_no", "resource_id", "resource_action", "resource_sequence",
+    # v1.3.0: envelope fields, then lookup columns outside the envelope.
+    "record_id", "subject_id", "matched_evidence_id", "observation_sequence",
+    "dedupe_key", "version_id",
 )
+
+#: Lookup columns (v1.3.0) a pending entry may set besides its envelope.
+LOOKUP_COLUMNS: tuple[str, ...] = ("dedupe_key", "version_id")
 
 #: Builds the envelope for one pending payload given (store_sequence, prev_entry_digest).
 EntryBuilder = Callable[[int, "str | None"], EvidenceStoreEntry]
+
+#: A pending append: (builder, payload) or (builder, payload, lookup columns).
+PendingEntry = "tuple[EntryBuilder, dict[str, Any]] | tuple[EntryBuilder, dict[str, Any], dict[str, Any]]"
 
 #: Builds the next anchor from (latest anchor, head store_sequence, head entry digest), or None.
 AnchorBuilder = Callable[["StoreAnchor | None", int, "str | None"], "StoreAnchor | None"]
@@ -65,7 +76,12 @@ class EvidenceStoreMixin:
             return cp.removed_through_sequence, cp.last_removed_entry_digest
         return 0, None
 
-    def _insert_entry(self, entry: EvidenceStoreEntry, payload: dict[str, Any]) -> None:
+    def _insert_entry(
+        self, entry: EvidenceStoreEntry, payload: dict[str, Any], lookup: dict[str, Any] | None = None
+    ) -> None:
+        unknown = set(lookup or {}) - set(LOOKUP_COLUMNS)
+        if unknown:
+            raise ValueError(f"unknown lookup columns {sorted(unknown)}")
         values = {
             "store_sequence": entry.store_sequence,
             "entry_kind": entry.entry_kind,
@@ -86,6 +102,12 @@ class EvidenceStoreMixin:
             "resource_id": entry.resource_id,
             "resource_action": entry.resource_action,
             "resource_sequence": entry.resource_sequence,
+            "record_id": entry.record_id,
+            "subject_id": entry.subject_id,
+            "matched_evidence_id": entry.matched_evidence_id,
+            "observation_sequence": entry.observation_sequence,
+            "dedupe_key": (lookup or {}).get("dedupe_key"),
+            "version_id": (lookup or {}).get("version_id"),
         }
         cols = ", ".join(_ENTRY_COLUMNS)
         marks = ", ".join("?" for _ in _ENTRY_COLUMNS)
@@ -94,21 +116,47 @@ class EvidenceStoreMixin:
             tuple(values[c] for c in _ENTRY_COLUMNS),
         )
 
-    def append_evidence_entries(
-        self, pending: Sequence[tuple[EntryBuilder, dict[str, Any]]]
-    ) -> list[EvidenceStoreEntry]:
+    def append_evidence_entries(self, pending: Sequence[Any]) -> list[EvidenceStoreEntry]:
         """Append entries atomically, each linked to the one before it.
 
-        Raises the backend's integrity error (``db.integrity_errors``) when a
-        unique position is already taken (the caller maps that to a conflict).
+        Each pending item is ``(builder, payload)`` or, since v1.3.0,
+        ``(builder, payload, lookup)`` with lookup columns outside the
+        envelope (``LOOKUP_COLUMNS``). Raises the backend's integrity error
+        (``db.integrity_errors``) when a unique position is already taken (the
+        caller maps that to a conflict).
         """
         written: list[EvidenceStoreEntry] = []
         with self._evidence_write():
             seq, prev = self._store_head()
-            for build, payload in pending:
+            for item in pending:
+                build, payload = item[0], item[1]
+                lookup = item[2] if len(item) > 2 else None
                 seq += 1
                 entry = build(seq, prev)
-                self._insert_entry(entry, payload)
+                self._insert_entry(entry, payload, lookup)
+                prev = entry.digest()
+                written.append(entry)
+        return written
+
+    def append_evidence_entries_with(
+        self, make: Callable[["EvidenceStoreMixin"], Sequence[Any]]
+    ) -> list[EvidenceStoreEntry]:
+        """Build pending entries from state read inside the write lock, then append them (v1.3.0).
+
+        ``make(db)`` runs under the same exclusive transaction as the append,
+        so what it reads (the next observation position, whether a record is
+        already judged or matched) cannot change before the entries land.
+        """
+        written: list[EvidenceStoreEntry] = []
+        with self._evidence_write():
+            pending = make(self)
+            seq, prev = self._store_head()
+            for item in pending:
+                build, payload = item[0], item[1]
+                lookup = item[2] if len(item) > 2 else None
+                seq += 1
+                entry = build(seq, prev)
+                self._insert_entry(entry, payload, lookup)
                 prev = entry.digest()
                 written.append(entry)
         return written
@@ -145,12 +193,142 @@ class EvidenceStoreMixin:
         return self._row_to_stored(row) if row else None
 
     def last_resource_record(self, resource_id: str) -> dict[str, Any] | None:
+        """The resource's latest execution record (v1.3.0: observations name a resource without taking a position)."""
         row = self.conn.execute(
-            """SELECT * FROM evidence_entries WHERE resource_id = ?
+            """SELECT * FROM evidence_entries WHERE resource_id = ? AND entry_kind = 'execution'
                ORDER BY resource_sequence DESC LIMIT 1""",
             (resource_id,),
         ).fetchone()
         return self._row_to_stored(row) if row else None
+
+    # -- v1.3.0: observations, judgements, quarantine, registry ---------------
+
+    def get_entry_by_record(self, entry_kind: str, record_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM evidence_entries WHERE entry_kind = ? AND record_id = ?", (entry_kind, record_id)
+        ).fetchone()
+        return self._row_to_stored(row) if row else None
+
+    def get_entry_by_dedupe_key(self, dedupe_key: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM evidence_entries WHERE dedupe_key = ?", (dedupe_key,)
+        ).fetchone()
+        return self._row_to_stored(row) if row else None
+
+    def get_judgement_for(self, subject_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM evidence_entries WHERE entry_kind = 'judgement' AND subject_id = ?", (subject_id,)
+        ).fetchone()
+        return self._row_to_stored(row) if row else None
+
+    def last_observation_sequence(self, resource_id: str) -> int:
+        """The resource's latest observation position, honouring retention (0 when none)."""
+        row = self.conn.execute(
+            "SELECT MAX(observation_sequence) AS seq FROM evidence_entries WHERE resource_id = ?",
+            (resource_id,),
+        ).fetchone()
+        if row is not None and row["seq"] is not None:
+            return int(row["seq"])
+        cp = self.latest_retention_checkpoint()
+        return int((cp.observation_heads or {}).get(resource_id, 0)) if cp is not None else 0
+
+    def unmatched_executions(
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Execution and break-glass records of a resource, action and capability no judgement has matched.
+
+        With ``version_id``, only records naming that version, oldest first (the
+        match); without it, the most recent records (candidates for a hint).
+        """
+        version_clause = "AND e.version_id = ?" if version_id is not None else ""
+        params: list[Any] = [resource_id, resource_action, capability]
+        if version_id is not None:
+            params.append(version_id)
+        order = "ASC" if version_id is not None else "DESC"
+        # Execution evidence is identified by evidence_id, a break-glass record by record_id.
+        rows = self.conn.execute(
+            f"""SELECT e.* FROM evidence_entries e
+                WHERE e.entry_kind IN ('execution', 'break_glass') AND e.resource_id = ?
+                  AND e.resource_action = ? AND e.capability = ? {version_clause}
+                  AND NOT EXISTS (SELECT 1 FROM evidence_entries j
+                                  WHERE j.matched_evidence_id = COALESCE(e.evidence_id, e.record_id))
+                ORDER BY e.store_sequence {order} LIMIT ?""",
+            (*params, limit),
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    def matched_executions(
+        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1
+    ) -> list[dict[str, Any]]:
+        """Execution records of this change a judgement has already matched, oldest first."""
+        rows = self.conn.execute(
+            """SELECT e.* FROM evidence_entries e
+               WHERE e.entry_kind = 'execution' AND e.resource_id = ? AND e.resource_action = ?
+                 AND e.capability = ? AND e.version_id = ?
+                 AND EXISTS (SELECT 1 FROM evidence_entries j WHERE j.matched_evidence_id = e.evidence_id)
+               ORDER BY e.store_sequence ASC LIMIT ?""",
+            (resource_id, resource_action, capability, version_id, limit),
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    def dedupe_keys(self, prefix: str) -> set[str]:
+        """Every stored dedupe key starting with ``prefix``."""
+        rows = self.conn.execute(
+            "SELECT dedupe_key FROM evidence_entries WHERE dedupe_key >= ? AND dedupe_key < ?",
+            (prefix, prefix + "\uffff"),
+        ).fetchall()
+        return {r["dedupe_key"] for r in rows}
+
+    def unjudged_count(self) -> int:
+        """Observations and break-glass records no judgement covers yet."""
+        row = self.conn.execute(
+            """SELECT COUNT(*) AS n FROM evidence_entries e
+               WHERE e.entry_kind IN ('observation', 'break_glass')
+                 AND NOT EXISTS (SELECT 1 FROM evidence_entries j
+                                 WHERE j.entry_kind = 'judgement' AND j.subject_id = e.record_id)"""
+        ).fetchone()
+        return int(row["n"])
+
+    def registry_entries(self) -> list[dict[str, Any]]:
+        """Every registry record in store order."""
+        rows = self.conn.execute(
+            "SELECT * FROM evidence_entries WHERE entry_kind = 'registry' ORDER BY store_sequence"
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    def resource_changes(self, resource_id: str, limit: int) -> list[dict[str, Any]]:
+        """A resource's execution records, observations, break-glass records, judgements and quarantine entries."""
+        rows = self.conn.execute(
+            """SELECT * FROM evidence_entries WHERE resource_id = ?
+               AND entry_kind IN ('execution', 'observation', 'break_glass', 'judgement', 'quarantine')
+               ORDER BY store_sequence LIMIT ?""",
+            (resource_id, limit),
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    # -- operator key holders (v1.3.0) ------------------------------------------
+
+    def add_holder_proposal(self, proposal_id: str, key_id: str, holder: str, proposed_by: str) -> None:
+        with self._lock, self.conn:
+            self.conn.execute(
+                """INSERT INTO operator_holder_proposals(proposal_id, key_id, holder, proposed_by, proposed_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (proposal_id, key_id, holder, proposed_by, datetime.now(timezone.utc).isoformat()),
+            )
+
+    def get_holder_proposal(self, proposal_id: str) -> Any | None:
+        return self.conn.execute(
+            "SELECT * FROM operator_holder_proposals WHERE proposal_id = ?", (proposal_id,)
+        ).fetchone()
+
+    def mark_holder_proposal_approved(self, proposal_id: str, approved_by: str, registry_record_id: str) -> bool:
+        """Mark a proposal approved inside the caller's write transaction (``append_evidence_entries_with``)."""
+        cur = self.conn.execute(
+            """UPDATE operator_holder_proposals SET approved_by = ?, approved_at = ?, registry_record_id = ?
+               WHERE proposal_id = ? AND approved_by IS NULL""",
+            (approved_by, datetime.now(timezone.utc).isoformat(), registry_record_id, proposal_id),
+        )
+        return cur.rowcount > 0
 
     def search_evidence(
         self, filters: dict[str, str], *, since: str | None = None, until: str | None = None,
@@ -203,14 +381,15 @@ class EvidenceStoreMixin:
     def retention_candidates(self) -> list[Any]:
         return self.conn.execute(
             """SELECT e.store_sequence, e.recorded_at, e.decision_id, e.resource_id,
-                      e.resource_sequence, e.entry_kind, e.entry_digest, e.payload_json
+                      e.resource_sequence, e.entry_kind, e.entry_digest, e.payload_json,
+                      e.record_id, e.subject_id, e.observation_sequence, e.dedupe_key
                FROM evidence_entries e ORDER BY e.store_sequence"""
         ).fetchall()
 
     def resource_latest_sequences(self) -> dict[str, int]:
         rows = self.conn.execute(
             """SELECT resource_id, MAX(resource_sequence) AS seq FROM evidence_entries
-               WHERE resource_id IS NOT NULL GROUP BY resource_id"""
+               WHERE resource_id IS NOT NULL AND entry_kind = 'execution' GROUP BY resource_id"""
         ).fetchall()
         return {r["resource_id"]: int(r["seq"]) for r in rows}
 
@@ -234,14 +413,18 @@ class EvidenceStoreMixin:
     # -- executor keys --------------------------------------------------------
 
     def register_executor_key(
-        self, key_id: str, public_key: str, executor_sovereign_id: str, registered_by: str
-    ) -> None:
+        self, key_id: str, public_key: str, executor_sovereign_id: str, registered_by: str,
+        role: str = "executor", resource_prefix: str | None = None,
+    ) -> str:
+        """Register a key; returns its registration time (ISO 8601)."""
+        registered_at = datetime.now(timezone.utc).isoformat()
         with self._lock, self.conn:
             self.conn.execute(
                 """INSERT INTO evidence_executor_keys(key_id, public_key, executor_sovereign_id,
-                       registered_at, registered_by) VALUES (?, ?, ?, ?, ?)""",
-                (key_id, public_key, executor_sovereign_id, datetime.now(timezone.utc).isoformat(), registered_by),
+                       registered_at, registered_by, key_role, resource_prefix) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (key_id, public_key, executor_sovereign_id, registered_at, registered_by, role, resource_prefix),
             )
+        return registered_at
 
     def retire_executor_key(self, key_id: str, retired_by: str) -> bool:
         with self._lock, self.conn:
@@ -322,9 +505,13 @@ class EvidenceStoreMixin:
         return RetentionCheckpoint.model_validate_json(row["checkpoint_json"]) if row else None
 
     def apply_retention_checkpoint(
-        self, checkpoint: RetentionCheckpoint, build_entry: EntryBuilder
+        self, checkpoint: RetentionCheckpoint, build_entry: EntryBuilder, carried: Sequence[Any] = (),
     ) -> EvidenceStoreEntry:
-        """Record the checkpoint, remove entries it covers, append its entry."""
+        """Record the checkpoint, remove entries it covers, append its entry.
+
+        ``carried`` (v1.3.0): pending entries appended after the checkpoint in
+        the same transaction (registry records the removal would lose).
+        """
         payload = json.loads(checkpoint.model_dump_json())
         with self._evidence_write():
             seq, prev = self._store_head()
@@ -340,4 +527,10 @@ class EvidenceStoreMixin:
             )
             entry = build_entry(seq + 1, prev)
             self._insert_entry(entry, payload)
+            prev_digest, next_seq = entry.digest(), seq + 2
+            for item in carried:
+                build, carried_payload = item[0], item[1]
+                carried_entry = build(next_seq, prev_digest)
+                self._insert_entry(carried_entry, carried_payload, item[2] if len(item) > 2 else None)
+                prev_digest, next_seq = carried_entry.digest(), next_seq + 1
         return entry

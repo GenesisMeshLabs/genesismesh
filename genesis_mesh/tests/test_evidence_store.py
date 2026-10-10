@@ -134,7 +134,8 @@ def test_decisions_and_proofs_are_stored_for_every_decision_route(client, na_ser
         "agreement": agreement, "requested_capability": "read",
     }).status_code == 201  # legacy route: decision only
     kinds = [e["entry"]["entry_kind"] for e in _get(client, "/admin/evidence").get_json()["entries"]]
-    assert kinds == ["decision", "justification", "decision", "justification", "decision"]
+    # v1.3.0: the registry (operator key holders, the policy history) is recorded at start, when switched on.
+    assert [k for k in kinds if k != "registry"] == ["decision", "justification", "decision", "justification", "decision"]
     assert client.get("/health").get_json()["evidence_store"] == "on"
     events = json.dumps(na_service.db.list_audit_events())
     assert "decision_stored" in events
@@ -211,7 +212,7 @@ def test_retired_key_cannot_sign_new_evidence(client):
     controller = Controller(client)
     decision = _decide(client)
     assert _post(client, f"/admin/evidence/executor-keys/{controller.key_id}/retire", {}).status_code == 200
-    assert _code(_submit(client, controller.record(decision))) == "evidence_unknown_executor"
+    assert _code(_submit(client, controller.record(decision))) == "evidence_executor_key_retired"
     assert _code(_post(client, f"/admin/evidence/executor-keys/{controller.key_id}/retire", {})) == "executor_key_retired"
 
 
@@ -274,15 +275,18 @@ def _sign(controller: Controller, record: ExecutionEvidence):
 
 def test_database_refuses_duplicate_positions(na_service):
     db = na_service.db
+    head = db.store_head()[0]
     db.conn.execute(
         "INSERT INTO evidence_entries(store_sequence, entry_kind, recorded_at, entry_json, entry_digest, "
-        "payload_json, resource_id, resource_sequence) VALUES (1,'execution','t','{}','a','{}','r',1)"
+        "payload_json, resource_id, resource_sequence) VALUES (?,'execution','t','{}','a','{}','r',1)",
+        (head + 1,),
     )
     db.conn.commit()
     with pytest.raises(db.integrity_errors):
         db.conn.execute(
             "INSERT INTO evidence_entries(store_sequence, entry_kind, recorded_at, entry_json, entry_digest, "
-            "payload_json, resource_id, resource_sequence) VALUES (2,'execution','t','{}','b','{}','r',1)"
+            "payload_json, resource_id, resource_sequence) VALUES (?,'execution','t','{}','b','{}','r',1)",
+            (head + 2,),
         )
     db.conn.rollback()
 
@@ -293,13 +297,14 @@ def test_database_refuses_duplicate_positions(na_service):
 
 
 def test_entries_cannot_be_edited_or_deleted(client, na_service):
+    start = na_service.db.evidence_stats()["entries"]
     _decide(client)
     conn = na_service.db.conn
     for sql in ("UPDATE evidence_entries SET outcome = 'authorized'", "DELETE FROM evidence_entries"):
         with pytest.raises(na_service.db.database_errors):
             conn.execute(sql)
         conn.rollback()
-    assert na_service.db.evidence_stats()["entries"] == 2
+    assert na_service.db.evidence_stats()["entries"] == start + 2
 
 
 def test_tampering_that_bypasses_the_triggers_is_detected(client, na_service):
@@ -339,7 +344,7 @@ def test_search_by_vendor_attestation_capability_outcome_and_time(client):
     assert count("outcome=authorized") == 2  # the decision and its justification proof
     assert count("outcome=authorized&entry_kind=decision") == 1
     assert count(f"resource_id={SECRET}") == 1
-    assert count("since=2000-01-01T00:00:00+00:00") == 3
+    assert count("since=2000-01-01T00:00:00+00:00") == 3 + count("entry_kind=registry")
     assert count("until=2000-01-01T00:00:00+00:00") == 0
     assert _code(_get(client, "/admin/evidence?limit=0")) == "invalid_page"
 
@@ -422,10 +427,14 @@ def test_retention_removes_a_prefix_and_history_still_verifies(client, na_servic
         def now(cls, tz=None):
             return datetime.now(tz) + timedelta(days=400)
 
+    registry = _get(client, "/admin/evidence?entry_kind=registry").get_json()["count"]
     monkeypatch.setattr(svc, "datetime", Later)
     result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
     monkeypatch.undo()
-    assert result["removed_count"] == 3  # decision, proof and first record; the latest record stays
+    # The decision, proof and first record, and the registry records before them
+    # (carried forward after the checkpoint, v1.3.0); the latest record stays.
+    assert result["removed_count"] == 3 + registry
+    assert _get(client, "/admin/evidence?entry_kind=registry").get_json()["count"] == registry
     assert result["checkpoint"]["resource_heads"][SECRET]["resource_sequence"] == 1
 
     assert _get(client, "/admin/evidence/verify").get_json()["verified"]
@@ -480,13 +489,14 @@ def test_records_without_resource_fields_keep_their_bytes():
 
 def test_unsigned_extra_field_is_refused_not_stored(client, na_service):
     controller = Controller(client)
+    start = na_service.db.evidence_stats()["entries"]
     record = controller.record(_decide(client)).model_dump(mode="json")
     record["secret_value"] = "hunter2"
     resp = _submit(client, record)
     assert resp.status_code == 422 and _code(resp) == "evidence_malformed"
     assert "secret_value" in resp.get_json()["error"]["message"]
     stats = na_service.db.evidence_stats()
-    assert stats["entries"] == 2 and stats["rejections"] == 1  # the decision and its justification only
+    assert stats["entries"] == start + 2 and stats["rejections"] == 1  # the decision and its justification only
 
 
 def test_coerced_types_are_refused(client):

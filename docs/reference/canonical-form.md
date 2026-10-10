@@ -101,7 +101,10 @@ a timestamp without one), and name an instant that exists:
 | `2026-01-01T00:00:00.100000Z` | `2026-01-01T00:00:00.1Z`, `2026-01-01 00:00:00Z` |
 | `2026-01-01T02:00:00+02:00` | `2026-01-01T02:00:00+0200`, `2026-02-29T00:00:00Z` |
 
-The two checks differ for a record signed by a signer other than the
+From 1.3.0 the SDKs also refuse a record that leaves out a field the
+reference always writes (a decision without `denial_reason`); a field the
+reference leaves out when absent reads the same whether absent or `null`.
+The two checks still differ for a record signed by a signer other than the
 reference over a value the reference would rewrite another way, such as an
 integer `1` in a float field (written back as `1.0`): the reference refuses
 it as `non_canonical_form` and the SDKs accept it. Records the reference
@@ -112,7 +115,9 @@ A data access intent check has no reason code of its own for this; its
 `intent_exceeds_license` violation says `Not in canonical form: intent`, or
 `Not in canonical form: policy` for the license policy's timestamps. Evidence
 exports are checked when the Network Authority admits each record (1.1.1),
-not again when verified.
+and again when verified (1.3.0): a stored record whose signature does not
+cover it as received is `invalid_signature`, one signed over a form the
+reference does not write `non_canonical_form`.
 
 ## Optional fields
 

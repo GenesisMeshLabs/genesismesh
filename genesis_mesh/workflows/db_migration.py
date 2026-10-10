@@ -31,7 +31,6 @@ from ..models.revocation import CertificateRevocationList
 from ..na_service.db import NADatabase, expected_schema_version
 from ..trust.evidence_store import (
     EvidenceVerification,
-    ExecutorKey,
     check_events_against_anchors,
     verify_evidence_events,
     verify_store_anchors,
@@ -113,10 +112,10 @@ def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: 
         prev_digest = entry.digest()
         expected_seq += 1
     if na_public_key:
-        keys = {
-            r["key_id"]: ExecutorKey(r["key_id"], r["public_key"], r["executor_sovereign_id"], r["retired_at"] is not None)
-            for r in db.list_executor_keys()
-        }
+        from ..na_service.services.evidence_store import EvidenceStoreService
+
+        # v1.3.0: keys with their role (observer keys sign observations only).
+        keys = {r["key_id"]: EvidenceStoreService.key_from_row(r) for r in db.list_executor_keys()}
         events = [EvidenceEvent(entry=s["entry"], entry_digest=s["entry_digest"], payload=s["payload"]) for s in stored]
         result = verify_evidence_events(
             events, na_public_keys=[na_public_key], executor_keys=keys, contiguous=True, checkpoint=checkpoint

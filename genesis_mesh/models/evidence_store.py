@@ -17,6 +17,11 @@ Signing and digest invariants
 ``EvidenceStoreEntry.digest()`` covers every envelope field (sorted keys,
 compact separators).  ``RetentionCheckpoint.to_canonical_json()`` excludes
 ``signature`` only; the NA signs it.
+
+Envelope fields added in 1.3.0 (``ENVELOPE_OMIT_WHEN_NONE``) and a
+checkpoint's ``observation_heads`` are left out of every serialized form when
+absent or empty, so entries and checkpoints written before 1.3.0 keep their
+bytes and digests.
 """
 
 from __future__ import annotations
@@ -31,7 +36,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .genesis import Signature
 
-EntryKind = Literal["decision", "justification", "execution", "retention_checkpoint"]
+EntryKind = Literal[
+    "decision", "justification", "execution", "retention_checkpoint",
+    # v1.3.0 (Stage 2): changes made outside the controlled path, and the NA's
+    # own registries. Strict verifiers refuse kinds they do not know.
+    "observation", "break_glass", "judgement", "quarantine", "registry",
+]
+
+#: Envelope fields added in 1.3.0, left out of every serialized form when absent.
+ENVELOPE_OMIT_WHEN_NONE: tuple[str, ...] = (
+    "record_id", "subject_id", "matched_evidence_id", "observation_sequence",
+)
 
 EVENT_SCHEMA = "gm.evidence.event"
 EVENT_SCHEMA_VERSION = 1
@@ -40,6 +55,11 @@ EVENT_SCHEMA_VERSION = 1
 def canonical_json(data: Any) -> str:
     """Deterministic JSON used for evidence digests."""
     return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+
+def _absent(value: Any) -> bool:
+    """Fields added in 1.3.0 are left out of every serialized form when absent."""
+    return value is None
 
 
 def payload_digest(payload: dict[str, Any]) -> str:
@@ -56,7 +76,8 @@ class EvidenceStoreEntry(BaseModel):
     # Any string, so an export carrying a kind from a later release parses and
     # verification names it (``unknown_entry_kind``); the NA writes EntryKind only.
     entry_kind: str = Field(
-        ..., description="decision, justification, execution or retention_checkpoint; later releases may add kinds"
+        ..., description="decision, justification, execution, retention_checkpoint, observation, break_glass, "
+        "judgement, quarantine or registry; later releases may add kinds"
     )
     recorded_at: datetime = Field(..., description="UTC time the NA stored the entry")
     payload_digest: str = Field(..., description="SHA-256 of the stored payload's canonical JSON")
@@ -77,6 +98,14 @@ class EvidenceStoreEntry(BaseModel):
     resource_id: str | None = None
     resource_action: str | None = None
     resource_sequence: int | None = None
+    # v1.3.0: the record's own id (observation, break-glass, judgement,
+    # quarantine or registry record), the record a judgement is about, the
+    # execution evidence a judgement matched, and an observation's 1-based
+    # position among the observations of its resource.
+    record_id: str | None = Field(default=None, exclude_if=_absent)
+    subject_id: str | None = Field(default=None, exclude_if=_absent)
+    matched_evidence_id: str | None = Field(default=None, exclude_if=_absent)
+    observation_sequence: int | None = Field(default=None, ge=1, exclude_if=_absent)
 
     def digest(self) -> str:
         """SHA-256 over the canonical envelope; the next entry links to it."""
@@ -110,9 +139,14 @@ class RetentionCheckpoint(BaseModel):
     previous_checkpoint_id: str | None = None
     issued_by: str = Field(..., description="NA key id")
     signature: Signature | None = None
+    observation_heads: dict[str, int] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="resource_id -> last removed observation_sequence (v1.3.0; omitted when absent)",
+    )
 
     def to_canonical_json(self) -> str:
-        """Canonical form the NA signs (excludes ``signature`` only)."""
+        """Canonical form the NA signs (excludes ``signature`` only; absent ``observation_heads`` omitted)."""
         return canonical_json(self.model_dump(exclude={"signature"}, mode="json"))
 
 

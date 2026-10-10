@@ -498,6 +498,60 @@
       }
     },
     {
+      "id": "json-first-fault-duplicate-then-zero",
+      "kind": "json",
+      "description": "Two faults: a duplicate key, then -0",
+      "input": "{\"a\":1,\"a\":-0}",
+      "expected": {
+        "refused": "duplicate_key"
+      }
+    },
+    {
+      "id": "json-first-fault-duplicate-unclosed",
+      "kind": "json",
+      "description": "Two faults: a duplicate key in an unclosed object",
+      "input": "{\"a\":1,\"a\":2",
+      "expected": {
+        "refused": "duplicate_key"
+      }
+    },
+    {
+      "id": "json-first-fault-surrogate-then-zero",
+      "kind": "json",
+      "description": "Two faults: a lone surrogate, then -0",
+      "input": "[\"\\ud800\",-0]",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-first-fault-surrogate-then-text",
+      "kind": "json",
+      "description": "Two faults: a lone surrogate, then text after the value",
+      "input": "[\"\\ud800\"] x",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-first-fault-surrogate-keys",
+      "kind": "json",
+      "description": "Two faults: a lone surrogate in a key named twice",
+      "input": "{\"\\ud800\":1,\"\\ud800\":2}",
+      "expected": {
+        "refused": "lone_surrogate"
+      }
+    },
+    {
+      "id": "json-first-fault-depth-then-zero",
+      "kind": "json",
+      "description": "Two faults: nesting 65 deep around -0",
+      "input": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[-0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "expected": {
+        "refused": "invalid_json"
+      }
+    },
+    {
       "id": "timestamp-01",
       "kind": "timestamp",
       "description": "UTC with Z",
@@ -1416,6 +1470,114 @@
       "expected": {
         "accepted": false,
         "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "verify-decision-signed-without-a-field",
+      "kind": "verify_decision",
+      "description": "A decision signed without denial_reason, which the reference always writes",
+      "input": {
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "decision": {
+          "decision_id": "662762db-7fd1-4b4d-9c34-5853f0b316ef",
+          "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
+          "agreement_id": "00000000-0000-4000-8000-000000000003",
+          "authorized": true,
+          "gate_results": [
+            {
+              "gate_name": "attestation_status",
+              "passed": true,
+              "detail": "attestation is active, signed by a trusted key, and not revoked"
+            },
+            {
+              "gate_name": "attestation_validity",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in attested capabilities"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e0c65741049eabb9b793ce152123993252ad811b931d836377103002d24b8569",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": {
+            "attestation_id": "00000000-0000-4000-8000-000000000003",
+            "subject_id": "sovereign-b",
+            "issuer_sovereign_id": "sovereign-c",
+            "attestation_digest": "a7100be2fdfa6e2a3bfcc1b9fe2805018a755033e276d882e1f9618ad2383957",
+            "revocation_seq_checked": 0
+          },
+          "signature": {
+            "key_id": "na-key",
+            "sig": "teE4gysM2BEOUuGpKyiYSph4qRSUbJelKH9HDn2vPdRYRE4Ucy0XzH73d3h9DbS0H0Oq9l/5pDJ7Eeowy067BA=="
+          }
+        }
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "non_canonical_form"
       }
     },
     {
