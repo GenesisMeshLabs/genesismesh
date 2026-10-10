@@ -221,13 +221,13 @@ narrower kind, and the docs say so.
 
 ## Success Criteria
 
-- [ ] With the NA stopped after an action, the TypeScript and Rust SDKs keep
+- [x] With the NA stopped after an action, the TypeScript and Rust SDKs keep
       the evidence in the outbox and return the action's value;
       `flushPending()` admits it in order after the NA returns
-- [ ] A transient error stays pending; a permanent refusal is dead-lettered
+- [x] A transient error stays pending; a permanent refusal is dead-lettered
       with its code; a second action on the same resource chains from the
       pending head and both records are admitted
-- [ ] A guard refusal after the action is reported as
+- [x] A guard refusal after the action is reported as
       `governed_action_metadata_refused` with the value; the outcome is
       recorded
 - [x] Every verifier refuses an unknown signed field and an unknown entry
@@ -241,7 +241,7 @@ narrower kind, and the docs say so.
       truncating either end, or re-anchoring a rewritten chain fails
       verification with `--known-anchors`; the NA refuses to anchor a
       rewritten store
-- [ ] 31 failed authentications from one key at one address do not lock out a
+- [x] 31 failed authentications from one key at one address do not lock out a
       second active key at that address; failures naming no active key
       throttle only requests naming no active key; all failures from one
       address are capped at four times the limit
@@ -249,7 +249,7 @@ narrower kind, and the docs say so.
 
 ## Release Gate
 
-- [ ] 1.1.1 released
+- [x] 1.1.1 released (2026-10-09)
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.2.0` across the release train; `docs/sdk/index.md`
 - [ ] CHANGELOG entries (Rust SDK: *Changed (breaking)* for the error API),
