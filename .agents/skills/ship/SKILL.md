@@ -60,8 +60,8 @@ Read all of the following in parallel before writing a single line of code:
 
 6. **docs/development/history.md** — to understand all five update targets (see Phase 7).
 
-7. **docs/development/phases/phase-j.md** — to understand the current phase doc
-   structure before adding to it.
+7. **The current phase doc** — the last row of `docs/development/phases/index.md`
+   (`phase-n.md` since v1.2.0) — to understand its structure before adding to it.
 
 8. **docs/stability.md** — to understand which symbols are already stable and what
    format new additions use.
@@ -334,13 +334,18 @@ feature name. Example pattern:
 in the "not yet true" section, remove or reword that bullet. If this release
 reveals a new gap, add it.
 
-### 6F — Phase doc: `docs/development/phases/phase-j.md`
+### 6F — Phase doc: the current phase, `docs/development/phases/phase-{letter}.md`
+
+The current phase is the last row of `docs/development/phases/index.md`
+(Phase N, `phase-n.md`, since v1.2.0). A release that opens a new phase adds
+its page, its row in that index and in the table in `history.md` §2, its
+toctree entry, and closes the previous phase's version range.
 
 Three changes:
 
 **1. Update the version range in the header:**
 ```
-**Versions**: v0.38.0 – v{X.Y.Z}
+**Versions**: v{first} – v{X.Y.Z}
 ```
 
 **2. Add a bold paragraph to "What Changed":**
