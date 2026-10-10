@@ -39,6 +39,11 @@ from genesis_mesh.trust.logic_attestation import (
 # Relative to the real clock: the code under test checks expiry against it.
 _NOW = datetime.now(timezone.utc).replace(microsecond=0)
 _FUTURE = _NOW + timedelta(days=365)
+
+
+def _now() -> datetime:
+    """The time now, for checks that read the clock: _NOW is minutes old by the end of a slow run."""
+    return datetime.now(timezone.utc).replace(microsecond=0)
 _MODEL_ID = "claude-sonnet-4-6"
 _VERSION = "20251001"
 _PROMPT = "You are a helpful assistant."
@@ -364,7 +369,7 @@ def test_two_agents_same_tools_same_hash() -> None:
 
 def test_gate_passes_on_valid() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk)
+    attestation = _make_attestation(sk, now=_now())
     policy = _make_policy()
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -374,7 +379,7 @@ def test_gate_passes_on_valid() -> None:
 
 def test_gate_blocks_model_not_permitted() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk, model_id="other-model")
+    attestation = _make_attestation(sk, now=_now(), model_id="other-model")
     policy = _make_policy(allow_models=[_MODEL_ID])
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -384,7 +389,7 @@ def test_gate_blocks_model_not_permitted() -> None:
 
 def test_gate_blocks_prompt_not_permitted() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk, prompt="Unauthorized prompt.")
+    attestation = _make_attestation(sk, now=_now(), prompt="Unauthorized prompt.")
     policy = _make_policy(allow_prompts=[hashlib.sha256(_PROMPT.encode()).hexdigest()])
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -394,7 +399,7 @@ def test_gate_blocks_prompt_not_permitted() -> None:
 
 def test_gate_blocks_tool_manifest_not_permitted() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk, tool_ids=["extra_tool"])
+    attestation = _make_attestation(sk, now=_now(), tool_ids=["extra_tool"])
     policy = _make_policy(allow_tools=[ToolManifest(tool_ids=_TOOLS).manifest_hash])
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -419,7 +424,7 @@ def test_gate_blocks_expired() -> None:
 
 def test_gate_blocks_missing_signature() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk).model_copy(update={"signature": None})
+    attestation = _make_attestation(sk, now=_now()).model_copy(update={"signature": None})
     policy = _make_policy()
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -430,7 +435,7 @@ def test_gate_blocks_missing_signature() -> None:
 def test_gate_blocks_invalid_signature() -> None:
     sk = _sk()
     wrong_sk = _sk()
-    attestation = _make_attestation(sk)
+    attestation = _make_attestation(sk, now=_now())
     policy = _make_policy()
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(wrong_sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -440,7 +445,7 @@ def test_gate_blocks_invalid_signature() -> None:
 
 def test_gate_blocks_token_binding_required() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk, token_id=None)
+    attestation = _make_attestation(sk, now=_now(), token_id=None)
     policy = _make_policy(require_token=True)
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
@@ -450,7 +455,7 @@ def test_gate_blocks_token_binding_required() -> None:
 
 def test_gate_detail_contains_attestation_id_prefix() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk)
+    attestation = _make_attestation(sk, now=_now())
     policy = _make_policy()
     gate = LogicAttestationGate(attestation, policy, [_pub_b64(sk)])
     result = gate(None, None)  # type: ignore[attr-defined]
