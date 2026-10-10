@@ -474,8 +474,19 @@ def na_file_provider(ctx: Context) -> str:
     for path in ("/healthz", "/metrics", "/genesis", "/crl"):
         status, _ = ctx.http("na-file", 8443, path)
         expect(status == 200, f"{path} returned {status}")
-    uids = ctx.exec("na-file", "sh", "-c", "awk '/^Uid:/{print $2}' /proc/[0-9]*/status").stdout.split()
-    expect(uids and set(uids) == {UID}, f"processes run as {sorted(set(uids))}")
+    # A process `docker exec` starts (a healthcheck, this probe) is briefly root while runc
+    # enters the container, then drops to the image's user: only a root process that is
+    # still there a moment later is one the image runs.
+    def owners() -> dict[str, str]:
+        out = ctx.exec("na-file", "sh", "-c", "awk '/^Uid:/{print FILENAME, $2}' /proc/[0-9]*/status").stdout
+        return {path.split("/")[2]: uid for path, uid in (line.split() for line in out.splitlines() if line.strip())}
+
+    first = owners()
+    root = {pid for pid, uid in first.items() if uid != UID}
+    if root:
+        time.sleep(2)
+        root &= {pid for pid, uid in owners().items() if uid != UID}
+    expect(first and not root, f"processes {sorted(root)} run as another user than {UID}")
     expect(ctx.exec("na-file", "test", "-s", "/data/genesis_mesh_na.db", check=False).returncode == 0,
            "database not created at /data/genesis_mesh_na.db")
     keys = ctx.exec("na-file", "sh", "-c", "ls /fixtures/home/keys").stdout.split()
