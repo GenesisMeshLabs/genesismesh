@@ -182,9 +182,9 @@ Choices made in building it are Decisions 5 to 12 below.
 - [x] Public contract: new routes (beta, with stable bytes), models, entry
       kinds and error codes classified
 - [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
-- [ ] Dry runs green; tags `v1.3.0`, releases, published-artifacts green
-- [ ] `"1.3.0"` added to the `upgrade.yml` matrix after the release
+- [x] Merge order: core, then the SDKs, then the gateway
+- [x] Dry runs green; tags `v1.3.0`, releases, published-artifacts green (2026-10-10)
+- [x] `"1.3.0"` added to the `upgrade.yml` matrix after the release
 - [ ] Both production hosts upgraded
 
 ## Decisions
