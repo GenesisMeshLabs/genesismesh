@@ -194,6 +194,10 @@ narrower kind, and the docs say so.
    in `history.md` §2 and the phase J range (closed at v1.1.0) updated; the
    ship skill's step 6F generalised from `phase-j.md`;
    `docs/development/roadmap.md`; SDK pages on the outbox and the error API.
+   - **Built:** the phase page, its rows in the phase index and the history
+     table (phase J closed at v1.1.0), the program on the roadmap, step 6F
+     reading the current phase from the index; the SDK pages came with the
+     outbox docs (#65).
 
 ### Out of scope
 
