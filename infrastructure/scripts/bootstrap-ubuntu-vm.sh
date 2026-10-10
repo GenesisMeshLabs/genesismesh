@@ -24,6 +24,12 @@ OPERATOR_KEY_TIERS_JSON="${OPERATOR_KEY_TIERS_JSON:-}"
 
 START_SERVICES="${START_SERVICES:-true}"
 ENABLE_NGINX="${ENABLE_NGINX:-false}"
+# Proxies in front of the NA whose X-Forwarded-* headers it trusts: 1 behind the
+# Nginx this script configures, 0 when clients reach the NA directly.
+case "${ENABLE_NGINX,,}" in
+  1|true|yes|y|on) NA_PROXY_HOPS="${NA_PROXY_HOPS:-1}" ;;
+  *) NA_PROXY_HOPS="${NA_PROXY_HOPS:-0}" ;;
+esac
 GENESIS_DOMAIN="${GENESIS_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 
@@ -179,9 +185,6 @@ EOF
 
 write_na_unit() {
   log "Writing genesis-mesh-na.service"
-  # Behind the nginx configured below, trust its X-Forwarded-* headers; reached directly, none.
-  local proxy_hops=0
-  if as_bool "$ENABLE_NGINX"; then proxy_hops=1; fi
   cat >/etc/systemd/system/genesis-mesh-na.service <<EOF
 [Unit]
 Description=Genesis Mesh Network Authority
@@ -198,7 +201,7 @@ Environment=GENESIS_FILE=${GENESIS_FILE}
 Environment=NA_PRIVATE_KEY_FILE=${NA_PRIVATE_KEY_FILE}
 Environment=DB_PATH=${DB_PATH}
 Environment=PORT=${NA_PORT}
-Environment=NA_PROXY_HOPS=${proxy_hops}
+Environment=NA_PROXY_HOPS=${NA_PROXY_HOPS}
 EnvironmentFile=-/etc/genesis-mesh/operator-keys.env
 ExecStart=${GENESIS_HOME}/.venv/bin/gunicorn --workers 4 --worker-class sync --timeout 30 --max-requests 1000 --bind 0.0.0.0:${NA_PORT} genesis_mesh.na_service.wsgi:app
 Restart=always
