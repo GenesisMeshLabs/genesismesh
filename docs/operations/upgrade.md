@@ -48,7 +48,7 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
-## Upgrading to 1.2 (unreleased)
+## Upgrading to 1.2
 
 1.2 adds migration 014, the `evidence_anchors` table, so a 1.2 database cannot
 be opened by 1.1: roll back by restoring the backup taken before the upgrade
