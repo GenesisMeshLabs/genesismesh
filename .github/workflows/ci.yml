@@ -178,3 +178,19 @@ jobs:
 
       - name: Run integration tests on PostgreSQL, including the two-instance HA failover
         run: python -m pytest genesis_mesh/tests/integration -v -s -W error::DeprecationWarning -m integration
+
+  changelog:
+    name: Changelog fragments
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Pull requests add changelog.d/<version>/<name>.md; only a release PR
+      # (branch release/...) folds them into CHANGELOG.md, so a feature PR for
+      # the next version never conflicts with the release of this one.
+      - name: Pull requests add fragments; only a release edits CHANGELOG.md
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: python3 scripts/changelog.py check ${BASE_REF:+--base origin/$BASE_REF} --branch "$HEAD_REF"
