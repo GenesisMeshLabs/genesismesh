@@ -226,6 +226,10 @@ def test_identical_evidence_raced_on_several_instances_is_stored_once(tmp_path):
     assert not errors, errors[:3]
     created = [created for _, created in results]
     assert created.count(True) == 1 and created.count(False) == WORKERS - 1
-    assert first.db.evidence_stats()["entries"] == 3  # decision, justification, one execution
+    stored = first.db.search_evidence({}, limit=1000)
+    # The decision, its justification and one execution (and the registry, v1.3.0).
+    assert [s["entry"].entry_kind for s in stored if s["entry"].entry_kind != "registry"] == [
+        "decision", "justification", "execution",
+    ]
     for svc in services[1:]:
         svc.db.close()

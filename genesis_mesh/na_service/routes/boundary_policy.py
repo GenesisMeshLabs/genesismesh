@@ -135,6 +135,8 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             "policy_digest": policy.digest(),
             "rollback": previous is not None and previous > version,
         })
+        # v1.3.0: judgements replay the activation history from the evidence store.
+        service.out_of_band_service.policy_activated(policy, previous, request.headers.get("X-Admin-Key-Id"))
         return jsonify({
             "policy_id": policy_id,
             "version": version,
@@ -153,6 +155,7 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             "policy_id": policy_id,
             "version": version,
         })
+        service.out_of_band_service.policy_deactivated(policy_id, version, request.headers.get("X-Admin-Key-Id"))
         return jsonify({"policy_id": policy_id, "version": version, "active": False})
 
     def _evaluate_attestation(data: dict, attestation_id: object, capability: str):

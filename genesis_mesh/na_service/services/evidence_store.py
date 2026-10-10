@@ -142,16 +142,21 @@ class EvidenceStoreService:
     def na_public_keys(self) -> list[str]:
         return [self._na.signer.public_key_b64]
 
+    @staticmethod
+    def key_from_row(row: Any) -> ExecutorKey:
+        """A registered key from its row, with its role and resource prefix (v1.3.0)."""
+        names = set(row.keys())
+        return ExecutorKey(
+            key_id=row["key_id"],
+            public_key=row["public_key"],
+            executor_sovereign_id=row["executor_sovereign_id"],
+            retired=row["retired_at"] is not None,
+            role=row["key_role"] if "key_role" in names and row["key_role"] else "executor",
+            resource_prefix=row["resource_prefix"] if "resource_prefix" in names else None,
+        )
+
     def executor_keys(self) -> dict[str, ExecutorKey]:
-        return {
-            row["key_id"]: ExecutorKey(
-                key_id=row["key_id"],
-                public_key=row["public_key"],
-                executor_sovereign_id=row["executor_sovereign_id"],
-                retired=row["retired_at"] is not None,
-            )
-            for row in self._na.db.list_executor_keys()
-        }
+        return {row["key_id"]: self.key_from_row(row) for row in self._na.db.list_executor_keys()}
 
     # -- decisions ------------------------------------------------------------
 
@@ -207,7 +212,16 @@ class EvidenceStoreService:
 
     # -- execution evidence ---------------------------------------------------
 
-    def _reject(self, code: str, detail: str, evidence: ExecutionEvidence | None, digest: str | None) -> NoReturn:
+    def _reject(
+        self, code: str, detail: str, evidence: ExecutionEvidence | None, digest: str | None,
+        raw: dict[str, Any] | None = None,
+    ) -> NoReturn:
+        # v1.3.0: an authentic record refused for good is kept as a quarantine
+        # entry: the action it describes already happened.
+        quarantine_id = (
+            self._na.out_of_band_service.quarantine_execution(code, detail, evidence, raw)
+            if evidence is not None and raw is not None else None
+        )
         self._na.db.add_evidence_rejection(
             code,
             submitted_digest=digest,
@@ -224,7 +238,7 @@ class EvidenceStoreService:
             "submitted_digest": digest,
         })
         error = ConflictError if code == "evidence_conflict" else ValidationError
-        raise error(detail, code=code)
+        raise error(detail, code=code, details={"quarantine_id": quarantine_id} if quarantine_id else None)
 
     def submit_execution(self, raw: Any) -> tuple[dict[str, Any], bool]:
         """Validate and store one signed execution record.
@@ -252,15 +266,12 @@ class EvidenceStoreService:
                 digest,
             )
 
-        duplicate = self._stored_duplicate(evidence, digest)
+        duplicate = self._stored_duplicate(evidence, digest, raw)
         if duplicate is not None:
             return duplicate, False
 
         key_row = self._na.db.get_executor_key(evidence.signature.key_id) if evidence.signature else None
-        executor_key = ExecutorKey(
-            key_id=key_row["key_id"], public_key=key_row["public_key"],
-            executor_sovereign_id=key_row["executor_sovereign_id"], retired=key_row["retired_at"] is not None,
-        ) if key_row else None
+        executor_key = self.key_from_row(key_row) if key_row else None
 
         decision_stored = self._na.db.get_decision_entry(evidence.decision_id)
         decision = context = None
@@ -287,13 +298,15 @@ class EvidenceStoreService:
             if check.code == "evidence_conflict":
                 # The same record may have been stored by another instance or
                 # worker since the duplicate check above (v0.60).
-                duplicate = self._stored_duplicate(evidence, digest)
+                duplicate = self._stored_duplicate(evidence, digest, raw)
                 if duplicate is not None:
                     return duplicate, False
-            self._reject(check.code, check.detail, evidence, digest)
+            self._reject(check.code, check.detail, evidence, digest, raw)
 
         index = execution_index(evidence, decision_fields)
         recorded_at = datetime.now(timezone.utc)
+        version = evidence.execution_parameters.get("version_id")
+        lookup = {"version_id": version} if isinstance(version, str) and version else {}
         try:
             entries = self._na.db.append_evidence_entries([(
                 lambda seq, prev: build_entry(
@@ -301,14 +314,15 @@ class EvidenceStoreService:
                     payload=raw, prev_entry_digest=prev, index=index,
                 ),
                 raw,
+                lookup,
             )])
         except self._na.db.integrity_errors:
             # Another writer took this position between validation and insert:
             # if it stored this very record, the submission is a duplicate.
-            duplicate = self._stored_duplicate(evidence, digest)
+            duplicate = self._stored_duplicate(evidence, digest, raw)
             if duplicate is not None:
                 return duplicate, False
-            self._reject("evidence_conflict", "the chain position was taken by another record", evidence, digest)
+            self._reject("evidence_conflict", "the chain position was taken by another record", evidence, digest, raw)
         stored = {"entry": entries[0], "entry_digest": entries[0].digest(), "payload": raw}
         self._na.db.add_audit_event("evidence_recorded", {
             "evidence_id": evidence.evidence_id,
@@ -321,7 +335,9 @@ class EvidenceStoreService:
         self.maybe_anchor()
         return self._entry_body(stored), True
 
-    def _stored_duplicate(self, evidence: ExecutionEvidence, digest: str) -> dict[str, Any] | None:
+    def _stored_duplicate(
+        self, evidence: ExecutionEvidence, digest: str, raw: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """The stored entry when this exact record is already stored; None when it is not.
 
         Rejects with ``evidence_conflict`` when a different record holds the
@@ -332,7 +348,8 @@ class EvidenceStoreService:
         if existing is None:
             return None
         if existing["entry"].payload_digest != digest:
-            self._reject("evidence_conflict", "a different record with this evidence_id is stored", evidence, digest)
+            self._reject("evidence_conflict", "a different record with this evidence_id is stored",
+                         evidence, digest, raw)
         self._na.db.add_audit_event("evidence_duplicate", {
             "evidence_id": evidence.evidence_id,
             "store_sequence": existing["entry"].store_sequence,
@@ -340,6 +357,7 @@ class EvidenceStoreService:
         return self._entry_body(existing)
 
     def _resource_head(self, resource_id: str) -> ResourceHeadState | None:
+        """The resource chain's head: its latest execution record (observations take no position)."""
         last = self._na.db.last_resource_record(resource_id)
         if last is not None:
             record = ExecutionEvidence.model_validate(last["payload"])
@@ -358,6 +376,7 @@ class EvidenceStoreService:
     # -- executor keys ----------------------------------------------------------
 
     def register_executor_key(self, data: dict[str, Any], registered_by: str) -> dict[str, Any]:
+        """Register an executor or (v1.3.0) observer key, optionally scoped to a resource prefix."""
         self.require_enabled()
         key_id = data.get("key_id")
         public_key = data.get("public_key")
@@ -366,6 +385,13 @@ class EvidenceStoreService:
             raise BadRequestError(
                 "key_id, public_key and executor_sovereign_id are required", code="missing_executor_key_fields"
             )
+        role = data.get("role", "executor")
+        if role not in ("executor", "observer"):
+            raise BadRequestError("role must be 'executor' or 'observer'", code="invalid_key_role")
+        prefix = data.get("resource_prefix")
+        if prefix is not None and (not isinstance(prefix, str) or not 1 <= len(prefix) <= 256):
+            raise BadRequestError("resource_prefix must be a string of 1 to 256 characters",
+                                  code="invalid_resource_prefix")
         try:
             raw = nacl.encoding.Base64Encoder.decode(str(public_key).encode())
         except Exception as exc:  # noqa: BLE001 -- any decode failure is a bad key
@@ -373,13 +399,24 @@ class EvidenceStoreService:
         if len(raw) != 32:
             raise BadRequestError("public_key must be a 32-byte Ed25519 key", code="invalid_public_key")
         try:
-            self._na.db.register_executor_key(str(key_id), str(public_key), str(executor), registered_by)
+            registered_at = self._na.db.register_executor_key(
+                str(key_id), str(public_key), str(executor), registered_by, role=role, resource_prefix=prefix,
+            )
         except self._na.db.integrity_errors as exc:
             raise ConflictError("key_id is already registered", code="executor_key_exists") from exc
         self._na.db.add_audit_event("executor_key_registered", {
             "key_id": key_id, "executor_sovereign_id": executor, "registered_by": registered_by,
+            "role": role, "resource_prefix": prefix,
         })
-        return {"key_id": key_id, "executor_sovereign_id": executor, "active": True}
+        self._na.out_of_band_service.key_registered(
+            ExecutorKey(key_id=str(key_id), public_key=str(public_key), executor_sovereign_id=str(executor),
+                        role=role, resource_prefix=prefix),
+            registered_at, registered_by,
+        )
+        out: dict[str, Any] = {"key_id": key_id, "executor_sovereign_id": executor, "active": True, "role": role}
+        if prefix is not None:
+            out["resource_prefix"] = prefix
+        return out
 
     def retire_executor_key(self, key_id: str, retired_by: str) -> dict[str, Any]:
         self.require_enabled()
@@ -388,6 +425,7 @@ class EvidenceStoreService:
         if not self._na.db.retire_executor_key(key_id, retired_by):
             raise ConflictError("executor key is already retired", code="executor_key_retired")
         self._na.db.add_audit_event("executor_key_retired", {"key_id": key_id, "retired_by": retired_by})
+        self._na.out_of_band_service.key_retired(key_id, retired_by)
         return {"key_id": key_id, "active": False}
 
     def list_executor_keys(self) -> list[dict[str, Any]]:
@@ -399,6 +437,8 @@ class EvidenceStoreService:
                 "executor_sovereign_id": row["executor_sovereign_id"],
                 "registered_at": row["registered_at"],
                 "retired_at": row["retired_at"],
+                "role": self.key_from_row(row).role,
+                "resource_prefix": self.key_from_row(row).resource_prefix,
             }
             for row in self._na.db.list_executor_keys()
         ]
@@ -432,8 +472,12 @@ class EvidenceStoreService:
             raise BadRequestError(f"limit must be 1..{MAX_PAGE}", code="invalid_page")
         return after, limit
 
-    def _history(self, decision_ids: list[str]) -> dict[str, Any]:
+    def _history(self, decision_ids: list[str], extra: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         rows = self._na.db.entries_for_decisions(sorted(set(decision_ids)))
+        if extra:
+            seen = {r["entry"].store_sequence for r in rows}
+            rows = sorted([*rows, *(r for r in extra if r["entry"].store_sequence not in seen)],
+                          key=lambda r: r["entry"].store_sequence)
         events = [_event(r) for r in rows]
         verification: EvidenceVerification = verify_evidence_events(
             events,
@@ -479,7 +523,10 @@ class EvidenceStoreService:
         truncated = len(records) > HISTORY_LIMIT
         records = records[:HISTORY_LIMIT]
         decision_ids = [r["entry"].decision_id for r in records if r["entry"].decision_id]
-        history = self._history(decision_ids)
+        # v1.3.0: the resource's observations, break-glass records, judgements
+        # and quarantine entries, with the decisions its executions rest on.
+        stage2 = [r for r in records if r["entry"].entry_kind not in ("decision", "justification", "execution")]
+        history = self._history(decision_ids, extra=stage2)
         # Only this resource's execution records, plus the decisions they rest on.
         history["entries"] = [
             e for e in history["entries"]
@@ -737,10 +784,22 @@ class EvidenceStoreService:
         cutoff = now - timedelta(days=older_than_days)
         rows = self._na.db.retention_candidates()
         valid_until: dict[str, datetime] = {}
+        judged: set[str] = set()
         for r in rows:
             if r["entry_kind"] == "decision":
                 d = json.loads(r["payload_json"])["decision"]
                 valid_until[r["decision_id"]] = datetime.fromisoformat(d["decision_valid_until"])
+            elif r["entry_kind"] == "judgement" and r["subject_id"]:
+                judged.add(r["subject_id"])
+
+        def group(r: Any) -> str | None:
+            # v1.3.0: an observation or break-glass record stays with its judgement.
+            if r["entry_kind"] == "judgement":
+                return f"subject:{r['subject_id']}"
+            if r["entry_kind"] in ("observation", "break_glass"):
+                return f"subject:{r['record_id']}"
+            return None
+
         candidates = [
             RetentionCandidate(
                 store_sequence=int(r["store_sequence"]),
@@ -749,6 +808,8 @@ class EvidenceStoreService:
                 resource_id=r["resource_id"],
                 resource_sequence=r["resource_sequence"],
                 decision_valid_until=valid_until.get(r["decision_id"]) if r["decision_id"] else None,
+                group_id=group(r),
+                pinned=r["entry_kind"] in ("observation", "break_glass") and r["record_id"] not in judged,
             )
             for r in rows
         ]
@@ -761,13 +822,22 @@ class EvidenceStoreService:
 
         removed = [r for r in rows if int(r["store_sequence"]) <= n]
         heads: dict[str, ResourceHead] = {}
+        observation_heads: dict[str, int] = {}
+        carried: list[tuple[dict[str, Any], str | None]] = []
         for r in removed:
-            if r["resource_id"]:
+            if r["entry_kind"] == "execution" and r["resource_id"]:
                 record = ExecutionEvidence.model_validate(json.loads(r["payload_json"]))
                 heads[r["resource_id"]] = ResourceHead(
                     resource_sequence=record.resource_sequence or 0, record_digest=record.digest()
                 )
+            elif r["entry_kind"] == "observation" and r["resource_id"] and r["observation_sequence"]:
+                observation_heads[r["resource_id"]] = int(r["observation_sequence"])
+            elif r["entry_kind"] == "registry":
+                # v1.3.0: judgements replay the registry; a removed registry
+                # record is carried forward unchanged after the checkpoint.
+                carried.append((json.loads(r["payload_json"]), r["dedupe_key"]))
         previous = self._na.db.latest_retention_checkpoint()
+        all_observation_heads = {**((previous.observation_heads or {}) if previous else {}), **observation_heads}
         checkpoint = sign_retention_checkpoint(
             RetentionCheckpoint(
                 cutoff=cutoff,
@@ -777,17 +847,31 @@ class EvidenceStoreService:
                 resource_heads={**(previous.resource_heads if previous else {}), **heads},
                 previous_checkpoint_id=previous.checkpoint_id if previous else None,
                 issued_by=self._na.key_id,
+                observation_heads=all_observation_heads or None,
             ),
             self._na.signer,
             self._na.key_id,
         )
         payload = json.loads(checkpoint.model_dump_json())
+
+        def carry(record: dict[str, Any], dedupe_key: str | None) -> Any:
+            index = {"record_id": record.get("registry_record_id"), "outcome": record.get("event")}
+            return (
+                lambda seq, prev, p=record, i=index: build_entry(
+                    store_sequence=seq, entry_kind="registry", recorded_at=now,
+                    payload=p, prev_entry_digest=prev, index=i,
+                ),
+                record,
+                {"dedupe_key": dedupe_key} if dedupe_key else {},
+            )
+
         entry = self._na.db.apply_retention_checkpoint(
             checkpoint,
             lambda seq, prev: build_entry(
                 store_sequence=seq, entry_kind="retention_checkpoint", recorded_at=now,
                 payload=payload, prev_entry_digest=prev, index={},
             ),
+            carried=[carry(record, dedupe) for record, dedupe in carried],
         )
         self._na.db.add_audit_event("evidence_retention_applied", {
             "older_than_days": older_than_days,

@@ -40,6 +40,10 @@ def build_app(settings: NASettings) -> Flask:
         max_request_bytes=settings.max_request_bytes,
         rate_limits=settings.rate_limits,
         public_url=settings.public_url,
+        operator_key_holders=settings.operator_key_holders,
+        observation_max_backlog_seconds=settings.observation_max_backlog_seconds,
+        observation_clock_skew_seconds=settings.observation_clock_skew_seconds,
+        judge_on_admission=settings.judge_on_admission,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the

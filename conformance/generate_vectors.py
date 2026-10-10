@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+from typing import Any
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1003,7 +1004,9 @@ def _registry_samples() -> dict[str, dict]:
     freshness = freshness.model_copy(update={"signature": sign_model(freshness, KEYS["c"], "na-key")})
     decision = json.loads(json.dumps(by_id["bd-003"]["decision"]))
     decision["freshness_proof"] = _model_to_dict(freshness)  # field coverage only: not re-signed
+    out_of_band = _out_of_band_samples(evidence, decision)
     return {
+        **out_of_band,
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1017,6 +1020,70 @@ def _registry_samples() -> dict[str, dict]:
         "RetentionCheckpoint": _model_to_dict(checkpoint),
         "SovereignRevocationFeed": _model_to_dict(feed),
         "StoreAnchor": anchor.to_wire(),
+    }
+
+
+def _out_of_band_samples(evidence: Any, decision: dict) -> dict[str, dict]:
+    """v1.3.0: one signed sample of each Stage 2 record, every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.boundary_policy import PolicyBinding
+    from genesis_mesh.models.context import GateResult
+    from genesis_mesh.models.out_of_band import (
+        BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord,
+    )
+
+    def signed(record: Any, key: str, key_id: str) -> dict:
+        return record.model_copy(update={"signature": sign_model(record, KEYS[key], key_id)}).to_wire()
+
+    observation = ObservationRecord(
+        observation_id=UUID1, observer_sovereign_id=SOV_B, resource_id="kv:vault/api-key", action="rotate",
+        capability="secret.rotate", changed_at=T0, observed_at=T0, actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-0001", version_id="v2",
+        metadata={"secret_version": "v2", "operation": "SetSecret"},
+    )
+    window = ObservationRecord(
+        observation_id=UUID2, observer_sovereign_id=SOV_B, resource_id="kv:vault/api-key", action="update",
+        capability="secret.update", changed_not_before=T0, changed_not_after=T1, observed_at=T1,
+        source="reconciliation", source_event_id="scan-0002",
+    )
+    break_glass = BreakGlassRecord(
+        break_glass_id=UUID3, executor_sovereign_id=SOV_B, resource_id="kv:vault/api-key", resource_action="rotate",
+        capability="secret.rotate", attestation_id=UUID2, request_parameters={"lifetime_days": 30},
+        attributes={"owner": "team-a"}, justification="Leaked key, NA unreachable", evaluation_request_digest="8" * 64,
+        evaluation_failure="network_error", executed_at=T0, outcome="success", outcome_detail="rotated",
+        execution_parameters={"version_id": "v3"},
+    )
+    binding = PolicyBinding.model_validate(decision["policy_binding"])
+    judgement = JudgementRecord(
+        judgement_id=UUID2, subject_kind="observation", subject_id=UUID2, subject_digest="9" * 64,
+        subject_store_sequence=7, resource_id="kv:vault/api-key", action="update", capability="secret.update",
+        governed_by="after_the_fact", verdict="deny", reason="policy gate 'max-lifetime' failed",
+        evaluated_as_of=T1, evaluated_from=T0, policy_binding=binding,
+        gate_results=[GateResult(gate_name="max-lifetime", passed=False, detail="lifetime_days 400 > 90")],
+        current_verdict="allow", current_policy_set_digest="a" * 64, flagged_for_review=True,
+        matched_evidence_id=UUID1, matched_decision_id=UUID2, possible_match_evidence_id=UUID3,
+        judged_at=T1, issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    quarantine = QuarantineRecord(
+        quarantine_id=UUID3, record_kind="execution", record=_model_to_dict(evidence),
+        record_digest="b" * 64, rejection_code="evidence_decision_denied", detail="the decision denied the request",
+        resource_id="kv:vault/api-key", quarantined_at=T1, issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    registry = RegistryRecord(
+        registry_record_id=UUID1, event="executor_key_registered", effective_at=T0, reconstructed=True,
+        policy_id="secret-rotation", policy_version=2, policy_digest="c" * 64, key_id="observer-b",
+        public_key=pub_b64("b"), executor_sovereign_id=SOV_B, key_role="observer", resource_prefix="kv:vault/",
+        operator_tier="privileged", holder="holder-1", approved_by="operator-2", recorded_by="operator-1",
+        issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    return {
+        "BreakGlassRecord": signed(break_glass, "b", "executor-b"),
+        "JudgementRecord": signed(judgement, "c", "na-key"),
+        "ObservationRecord": signed(observation, "b", "observer-b"),
+        "QuarantineRecord": signed(quarantine, "c", "na-key"),
+        "RegistryRecord": signed(registry, "c", "na-key"),
+        # A second observation, known only within a window (not a registry root sample).
+        "_ObservationWindow": signed(window, "b", "observer-b"),
     }
 
 
@@ -1086,7 +1153,7 @@ def gen_field_registry() -> None:
                 case(f"{slug}-nested-{where}", f"{model}.{field} ({child}) with an unknown field", slug_model[slug], changed)
                 walk(child, record, target, steps, False, slug)
 
-    samples = _registry_samples()
+    samples = {k: v for k, v in _registry_samples().items() if not k.startswith("_")}
     slug_model = {model.lower(): model for model in samples}
     for model, record in sorted(samples.items()):
         assert not unknown_fields(model, record, registry), model

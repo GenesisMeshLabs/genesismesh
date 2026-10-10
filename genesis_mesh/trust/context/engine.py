@@ -473,3 +473,70 @@ def _apply_policies(
         resolution_failure=resolution.failure,
     )
     return binding, dr, authorized
+
+
+# ---------------------------------------------------------------------------
+# Judging changes after the fact (v1.3.0)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PolicyVerdict:
+    """Outcome of evaluating the policies for a change that already happened."""
+
+    verdict: str  # "allow", "deny" or "indeterminate"
+    reason: str | None
+    binding: PolicyBinding
+    gate_results: list[GateResult]
+
+
+def evaluate_policies_as_of(
+    context: ContextRecord,
+    *,
+    policies: Sequence[BoundaryPolicy],
+    registry: GateRegistry,
+    policy_public_keys: Sequence[str],
+    as_of: datetime,
+    basis: AttestationBasis | None = None,
+    policy_integrity_failures: Sequence[str] = (),
+) -> PolicyVerdict:
+    """Evaluate ``policies`` for a change made at ``as_of`` (v1.3.0).
+
+    The evaluation time is the change's time, not the clock, and nothing is
+    signed: ``BoundaryEngine`` uses one time for policy validity and for
+    ``decision_made_at``, which for a change in the past would either
+    backdate a decision or apply today's validity. The caller signs a
+    judgement at its own time and records ``as_of`` separately.
+
+    ``policies`` is the set that was active at ``as_of``. With ``basis`` (a
+    break-glass change made under an attestation, its state as of
+    ``as_of``) the attestation gates run first, as at evaluation. A change
+    no policy covers, outside an attestation, is ``indeterminate``: nothing
+    the NA holds says whether it was allowed. Resolution failures and
+    failing enforce-mode gates deny, failing closed as decisions do.
+    """
+    run = _GateRun()
+    dr: str | None = None
+    if basis is not None:
+        context = context.with_attestation_facts(basis.facts())
+        for check in (
+            lambda: attestation_status_gate(basis),
+            lambda: attestation_validity_gate(basis, context),
+            lambda: attestation_capability_gate(basis, context),
+            lambda: attestation_freshness_gate(context),
+        ):
+            result = check()
+            run.gate_results.append(result)
+            if not result.passed:
+                run.first_failure = result
+                run.short_circuited_at = result.gate_name
+                dr = attestation_denial_reason(result) or denial_reason(result)
+                break
+    binding, dr, authorized = _apply_policies(
+        run, context, as_of, dr, policies, registry, policy_public_keys, policy_integrity_failures,
+    )
+    if not authorized:
+        return PolicyVerdict("deny", dr, binding, run.gate_results)
+    if not binding.policies and basis is None:
+        return PolicyVerdict("indeterminate", "no policy covered this change", binding, run.gate_results)
+    return PolicyVerdict("allow", None, binding, run.gate_results)
