@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, NoReturn, Optional
 
 from flask import request
 
@@ -258,8 +258,8 @@ def _failure_scopes(service, key_id: str | None) -> tuple[str, str]:
     others; per address for anything else (no key, an unknown or revoked
     key), which refuses only requests that name no active key. Every failure
     also counts against the address as a whole, capped at
-    ``ADDRESS_FAILURE_MULTIPLE`` times the limit, which bounds the signature
-    checks and audit writes one address can cause.
+    ``ADDRESS_FAILURE_MULTIPLE`` times the limit, which bounds the failures
+    and audit writes one address can cause.
     """
     address = _client_address()
     active = _active_key(service, key_id)
@@ -282,29 +282,33 @@ def _admin_auth_failure(service, event_type: str, details: dict, key_id: str | N
     )
 
 
-def _refuse_if_admin_auth_throttled(service, key_id: str | None = None, *, scoped: bool = True) -> None:
-    """Refuse a request whose scope reached the failed admin authentication limit (v1.1.0).
+def _throttled_bucket(service, key_id: str | None) -> str | None:
+    """The failure bucket over its limit for this request, or None (v1.1.0).
 
-    With ``scoped=False`` it checks only the address-wide cap, before any
-    header is read. Then (v1.2.0) it checks the request's own scope: the
-    active key at this address, or the address for a request naming no
-    active key; this runs before any signature is checked. Writes one
-    ``admin_auth_throttled`` audit event per scope and window instead of one
-    per request, so a flood of bad requests can neither cost signature checks
-    nor fill the audit log.
+    The address as a whole first (capped at ``ADDRESS_FAILURE_MULTIPLE``
+    times the limit), then (v1.2.0) the request's own scope: the active key
+    at this address, or the address for a request naming no active key. The
+    buckets are read, not counted.
     """
     scope, address = _failure_scopes(service, key_id)
     limit = service.rate_limits.admin_auth_failures
-    if scoped:
-        bucket, cap = scope, limit
-    else:
-        bucket, cap = address, limit * ADDRESS_FAILURE_MULTIPLE
-    if not service.rate_limiter.exceeded(f"admin_auth_failed:{bucket}", cap, RATE_LIMIT_WINDOW_SECONDS):
-        return
+    for bucket, cap in ((address, limit * ADDRESS_FAILURE_MULTIPLE), (scope, limit)):
+        if service.rate_limiter.exceeded(f"admin_auth_failed:{bucket}", cap, RATE_LIMIT_WINDOW_SECONDS):
+            return bucket
+    return None
+
+
+def _refuse_throttled(service, bucket: str, key_id: str | None) -> NoReturn:
+    """Refuse a failed request whose bucket is over its limit: ``429 admin_auth_throttled``.
+
+    The failure is not counted or audited again. One ``admin_auth_throttled``
+    audit event is written per bucket and window instead of one per request,
+    so a flood of bad requests cannot fill the audit log.
+    """
     # Read first: while a scope stays throttled, a refused request costs a
     # read, not a write, after the one that records the throttling.
     marker = f"admin_auth_throttled:{bucket}"
-    active = scoped and bucket.startswith("key|")
+    active = bucket.startswith("key|")
     if not service.rate_limiter.exceeded(
         marker, 1, RATE_LIMIT_WINDOW_SECONDS
     ) and service.rate_limiter.allow(marker, 1, RATE_LIMIT_WINDOW_SECONDS):
@@ -329,42 +333,47 @@ def verify_admin_request(
     Returns (False, message) for authentication failures, which callers turn
     into 401. Raises ForbiddenError (403) when the key authenticates but its
     tier does not permit the operation, and RateLimitError (429) when the
-    request's scope has reached ``RateLimits.admin_auth_failures`` (v1.1.0;
-    per address and key since v1.2.0).
-    """
-    _refuse_if_admin_auth_throttled(service, scoped=False)
+    request fails while its scope is over ``RateLimits.admin_auth_failures``
+    (v1.1.0; per address and key since v1.2.0).
 
+    v1.3.1: a throttled scope no longer refuses a request before its
+    signature is checked. A request signed by an active operator key is
+    served, so requests forged from a shared address (naming that key,
+    another key or none) cannot lock its operator out. A throttled request
+    is refused at its first failed check, and the cheap checks (headers,
+    key, timestamp, nonce) still come before the signature.
+    """
     key_id = request.headers.get("X-Admin-Key-Id")
     signature_b64 = request.headers.get("X-Admin-Signature")
     timestamp_str = request.headers.get("X-Admin-Timestamp")
     nonce = request.headers.get("X-Admin-Nonce")
+    throttled = _throttled_bucket(service, key_id)
 
-    # v1.2.0: a request is refused when its own scope reached the limit (the
-    # active key at this address, or the address for no active key), before
-    # its signature is checked.
-    _refuse_if_admin_auth_throttled(service, key_id)
+    def failed(event_type: str, details: dict, message: str, scope_key: str | None = None) -> tuple[bool, str]:
+        if throttled is not None:
+            _refuse_throttled(service, throttled, key_id)
+        _admin_auth_failure(service, event_type, details, key_id=scope_key)
+        return False, message
 
     if any(
         value is not None and len(value) > MAX_ADMIN_HEADER_LENGTH
         for value in (key_id, signature_b64, timestamp_str, nonce)
     ):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {
                 "key_id": (key_id or "missing")[:MAX_ADMIN_HEADER_LENGTH],
                 "reason": "oversized_headers",
             },
+            "Invalid admin authentication headers",
         )
-        return False, "Invalid admin authentication headers"
 
     if not key_id or not signature_b64 or not timestamp_str or not nonce:
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id or "missing", "reason": "missing_headers"},
+            "Missing admin authentication headers",
         )
-        return False, "Missing admin authentication headers"
 
     # F-21: a key revoked at runtime is refused here, before its signature is
     # verified and before its nonce is consumed. A revoked key therefore cannot
@@ -376,50 +385,46 @@ def verify_admin_request(
     # audit event carries the real reason.
     public_key = service.operator_public_keys.get(key_id)
     if not public_key or service.db.is_operator_key_revoked(key_id):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {
                 "key_id": key_id,
                 "reason": "revoked_key" if public_key else "unknown_key",
             },
-            key_id=key_id,
+            "Unknown admin key",
+            key_id,
         )
-        return False, "Unknown admin key"
 
     try:
         # A value without a UTC offset is taken as UTC, as everywhere else in
         # the NA; comparing it with an aware "now" raised TypeError (a 500).
         request_time = utc_timestamp(timestamp_str)
     except (ValueError, TypeError):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id, "reason": "invalid_timestamp"},
-            key_id=key_id,
+            "Invalid admin timestamp",
+            key_id,
         )
-        return False, "Invalid admin timestamp"
 
     now = datetime.now(timezone.utc)
     age = abs((now - request_time).total_seconds())
     if age > service._nonce_max_age:
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id, "reason": "stale_timestamp"},
-            key_id=key_id,
+            "Admin request timestamp too old",
+            key_id,
         )
-        return False, "Admin request timestamp too old"
 
     scope = f"admin:{key_id}"
     if service.db.has_nonce(scope, nonce):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
-            key_id=key_id,
+            "Admin nonce already used",
+            key_id,
         )
-        return False, "Admin nonce already used"
 
     # v1.0.2: the signature covers the method, path, query and this NA's public
     # key, so a captured request cannot be replayed against another route,
@@ -436,29 +441,28 @@ def verify_admin_request(
         nonce=nonce,
     )
     if not verify_signature(signed, signature_b64, public_key):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "reason": "invalid_signature"},
-            key_id=key_id,
+            "Invalid admin signature",
+            key_id,
         )
-        return False, "Invalid admin signature"
 
     if not service.db.claim_nonce(scope, nonce, now):
-        _admin_auth_failure(
-            service,
+        return failed(
             "admin_auth_failed",
             {"key_id": key_id, "scope": scope, "nonce": nonce, "reason": "nonce_replay"},
-            key_id=key_id,
+            "Admin nonce already used",
+            key_id,
         )
-        return False, "Admin nonce already used"
 
     # F-21: authorisation, after authentication has succeeded. The request is
     # genuine, so its nonce stays spent -- it simply asks for more than this key
     # is allowed. That is a 403, not a 401, and is raised rather than returned:
     # every caller turns a False return into 401, and conflating "who are you?"
     # with "you may not do that" would lose a distinction that matters during an
-    # incident.
+    # incident. It counts as a failure of the key, but is never throttled
+    # (v1.3.1): the request is authentic.
     holder_tier = service.operator_key_tiers.get(key_id)
     if _TIER_RANK.get(holder_tier or "", -1) < _TIER_RANK[required_tier]:
         _admin_auth_failure(
