@@ -97,7 +97,14 @@ jobs:
         with:
           python-version: "3.14"
 
+      # BuildKit and the Dockerfiles' base images (pinned by digest) come through
+      # mirrors, falling back to Docker Hub: its outages failed every image job.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       # Each architecture builds and runs natively on its own runner.
       - name: Build the images
@@ -114,7 +121,7 @@ jobs:
         run: |
           mkdir -p reports
           docker save genesis-mesh:ci -o reports/image.tar
-          docker run --rm -v "$PWD/reports:/reports" aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+          docker run --rm -v "$PWD/reports:/reports" ghcr.io/aquasecurity/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
             image --quiet --input /reports/image.tar --scanners vuln,secret --format json --output /reports/trivy.json
           rm reports/image.tar
           python scripts/image_vuln_gate.py reports/trivy.json
@@ -130,7 +137,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        # Docker Hub's official image, from Google's Docker Hub mirror (Docker Hub outages failed this job).
+        image: mirror.gcr.io/library/postgres:17
         env:
           POSTGRES_USER: genesis
           POSTGRES_PASSWORD: genesis
