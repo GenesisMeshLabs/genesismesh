@@ -13,6 +13,8 @@ Environment=GENESIS_FILE=/etc/genesis/genesis.signed.json
 Environment=NA_PRIVATE_KEY_FILE=/etc/genesis-mesh/keys/na.key
 Environment=DB_PATH=/var/lib/genesis-mesh/na.db
 Environment=PORT=8443
+# Behind nginx: trust one proxy's X-Forwarded-* headers (0, the default, is for an NA reached directly).
+Environment=NA_PROXY_HOPS=1
 Environment=GENESIS_LOG_LEVEL=INFO
 Environment=GENESIS_LOG_FORMAT=json
 ExecStart=/opt/genesis-mesh/.venv/bin/gunicorn --workers 4 --worker-class sync --timeout 30 --max-requests 1000 --bind 0.0.0.0:8443 genesis_mesh.na_service.wsgi:app

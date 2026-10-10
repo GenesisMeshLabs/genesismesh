@@ -525,6 +525,22 @@ def test_build_app_trusts_exactly_the_configured_proxies(tmp_path):
         assert proxied.wsgi_app.__class__.__name__ == "ProxyFix"
 
 
+def test_without_na_proxy_hops_a_client_cannot_choose_its_address(tmp_path):
+    """v1.3.1: NA_PROXY_HOPS defaults to 0. At 1, a client reaching the NA directly rotated
+    X-Forwarded-For and was never throttled."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        assert _init(runner).exit_code == 0
+        values = {k: v for k, v in read_env_file(Path("local/na.env")).items() if k != "NA_PROXY_HOPS"}
+        client = build_app(load_settings({**values, "DB_PATH": ":memory:"})).test_client()
+        statuses = [
+            client.get("/admin/boundary-policies", headers={"X-Forwarded-For": f"198.51.100.{i}"},
+                       environ_base={"REMOTE_ADDR": "203.0.113.9"}).status_code
+            for i in range(40)
+        ]
+        assert statuses[:30] == [401] * 30 and set(statuses[30:]) == {429}
+
+
 def test_a_standard_key_from_keygen_operator_cannot_publish_policies(tmp_path, monkeypatch):
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path):

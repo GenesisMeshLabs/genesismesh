@@ -38,6 +38,9 @@ x-na: &na
     OPERATOR_KEY_TIERS_JSON: ${OPERATOR_KEY_TIERS_JSON:?set OPERATOR_KEY_TIERS_JSON}
     EVIDENCE_STORE: "on"
     BOUNDARY_POLICY_ENFORCEMENT: required
+    # Behind one proxy (nginx below): trust its X-Forwarded-* headers. The
+    # default, 0, is for an NA that clients reach directly.
+    NA_PROXY_HOPS: "1"
   secrets:
     - na_seed
   depends_on:

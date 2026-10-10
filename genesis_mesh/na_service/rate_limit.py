@@ -11,6 +11,7 @@ counting a request in it (v1.1.0):
   enforced across every worker and NA instance.
 """
 
+import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -58,35 +59,59 @@ class RateLimiter:
 
     store = "memory"
 
-    def __init__(self):
+    #: Forget idle buckets at most this often (seconds; v1.3.1).
+    PRUNE_INTERVAL_SECONDS = 60
+
+    def __init__(self, clock: Callable[[], float] = time.time):
         """Initialize an empty event store keyed by limiter bucket."""
         self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._longest_window = 0.0
+        self._last_prune = clock()
 
     def allow(self, key: str, limit: int, window_seconds: float) -> bool:
         """Return whether a key is still under the limit for the window."""
-        now = time.time()
-        events = self._events[key]
-        while events and now - events[0] > window_seconds:
-            events.popleft()
-        if len(events) >= limit:
-            return False
-        events.append(now)
-        return True
+        now = self._clock()
+        with self._lock:
+            self._prune(now, window_seconds)
+            events = self._events[key]
+            while events and now - events[0] > window_seconds:
+                events.popleft()
+            if len(events) >= limit:
+                return False
+            events.append(now)
+            return True
 
     def exceeded(self, key: str, limit: int, window_seconds: float) -> bool:
         """Return whether the next ``allow`` would be refused, without counting a request."""
-        now = time.time()
-        events = self._events.get(key)
-        if not events:
-            return False
-        while events and now - events[0] > window_seconds:
-            events.popleft()
-        if not events:
-            # Forget an address whose window has passed (v1.1.0: the failure
-            # buckets add a key per address).
+        now = self._clock()
+        with self._lock:
+            events = self._events.get(key)
+            if not events:
+                return False
+            while events and now - events[0] > window_seconds:
+                events.popleft()
+            if not events:
+                # Forget an address whose window has passed (v1.1.0: the failure
+                # buckets add a key per address).
+                del self._events[key]
+                return False
+            return len(events) >= limit
+
+    def _prune(self, now: float, window_seconds: float) -> None:
+        """Forget buckets with no request inside the longest window in use (v1.3.1).
+
+        Every client address adds buckets; without this, addresses seen once
+        were kept for the life of the process.
+        """
+        self._longest_window = max(self._longest_window, window_seconds)
+        if now - self._last_prune < self.PRUNE_INTERVAL_SECONDS:
+            return
+        self._last_prune = now
+        idle = [key for key, events in self._events.items() if not events or now - events[-1] > self._longest_window]
+        for key in idle:
             del self._events[key]
-            return False
-        return len(events) >= limit
 
 
 class DatabaseRateLimiter:

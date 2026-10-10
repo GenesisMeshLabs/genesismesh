@@ -39,7 +39,7 @@ class NASettings:
     evidence_out_of_band: str = "off"
     anchor_interval_seconds: int = 3600
     max_request_bytes: int = 2 * 1024 * 1024
-    proxy_hops: int = 1
+    proxy_hops: int = 0
     public_url: Optional[str] = None
     rate_limits: RateLimits = field(default_factory=RateLimits)
     # v1.3.0 (Stage 2)
@@ -103,7 +103,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         evidence_out_of_band=e.get("EVIDENCE_OUT_OF_BAND", "off"),
         anchor_interval_seconds=_int(e, "NA_ANCHOR_INTERVAL_SECONDS", 3600),
         max_request_bytes=_int(e, "NA_MAX_REQUEST_BYTES", 2 * 1024 * 1024),
-        proxy_hops=_proxy_hops(e.get("NA_PROXY_HOPS", "1")),
+        proxy_hops=_proxy_hops(e.get("NA_PROXY_HOPS", "0")),
         public_url=_public_url(e.get("NA_PUBLIC_URL")),
         rate_limits=RateLimits(
             admin=_int(e, "NA_RATE_LIMIT_ADMIN_PER_MINUTE", 300),
