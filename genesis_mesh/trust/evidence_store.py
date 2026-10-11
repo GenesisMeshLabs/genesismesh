@@ -409,6 +409,9 @@ class EvidenceVerification:
     break_glass: int = 0
     judgements: int = 0
     quarantined: int = 0
+    #: v1.4.0 counts, reported only when the run holds such entries.
+    remediations: int = 0
+    reviews: int = 0
     #: Set by ``check_events_against_anchors`` (v1.2.0); absent otherwise.
     anchors: dict[str, Any] | None = None
     #: Findings that do not fail verification (v1.2.0), such as fields a
@@ -430,7 +433,7 @@ class EvidenceVerification:
             "executions": self.executions,
             "failures": self.failures,
         }
-        for name in ("observations", "break_glass", "judgements", "quarantined"):
+        for name in ("observations", "break_glass", "judgements", "quarantined", "remediations", "reviews"):
             if getattr(self, name):
                 out[name] = getattr(self, name)
         if self.anchors is not None:
@@ -453,10 +456,13 @@ _PAYLOAD_MODELS: dict[str, str] = {
     "judgement": "JudgementRecord",
     "quarantine": "QuarantineRecord",
     "registry": "RegistryRecord",
+    # v1.4.0
+    "remediation": "RemediationRecord",
+    "review": "ReviewRecord",
 }
 
 #: Kinds signed by a registered key (the rest are signed by the NA).
-_KEY_SIGNED_KINDS = frozenset({"execution", "observation", "break_glass"})
+_KEY_SIGNED_KINDS = frozenset({"execution", "observation", "break_glass", "remediation"})
 
 #: v1.3.1: the payload field holding each kind's record ID, which appears once
 #: per kind in a run (``duplicate_record``); a decision's is its decision's.
@@ -470,6 +476,8 @@ _RECORD_ID: dict[str, str] = {
     "judgement": "judgement_id",
     "quarantine": "quarantine_id",
     "registry": "registry_record_id",
+    "remediation": "remediation_id",
+    "review": "review_id",
 }
 
 #: v1.3.1: envelope field -> payload field, for the envelope fields a Stage 2
@@ -493,6 +501,15 @@ _ENVELOPE_FIELDS: dict[str, dict[str, str]] = {
     },
     "quarantine": {"record_id": "quarantine_id", "resource_id": "resource_id", "outcome": "rejection_code"},
     "registry": {"record_id": "registry_record_id", "outcome": "event"},
+    # v1.4.0 (``trust.remediation.entry_index``)
+    "remediation": {
+        "record_id": "remediation_id", "subject_id": "subject_id", "resource_id": "resource_id",
+        "executor_sovereign_id": "executor_sovereign_id", "outcome": "outcome",
+    },
+    "review": {
+        "record_id": "review_id", "subject_id": "subject_id", "resource_id": "resource_id",
+        "capability": "capability", "outcome": "verdict",
+    },
 }
 
 
@@ -569,10 +586,12 @@ def _verify_payload(
     if unsigned:
         result.warn(entry.store_sequence, "unsigned_field", ", ".join(unsigned))
     from ..models import out_of_band as oob
+    from ..models import remediation as rem
 
     stage2: dict[str, Any] = {
         "observation": oob.ObservationRecord, "break_glass": oob.BreakGlassRecord,
         "judgement": oob.JudgementRecord, "quarantine": oob.QuarantineRecord, "registry": oob.RegistryRecord,
+        "remediation": rem.RemediationRecord, "review": rem.ReviewRecord,
     }
     try:
         if kind == "decision":
@@ -591,6 +610,7 @@ def _verify_payload(
     sig = model.signature
     if kind in _KEY_SIGNED_KINDS:
         # The key must belong to the record's sovereign and sign for its role (v1.3.0).
+        # v1.4.0: a remediation record is signed by an executor key, as execution evidence is.
         sovereign = model.observer_sovereign_id if kind == "observation" else model.executor_sovereign_id
         role = "observer" if kind == "observation" else "executor"
         key = executor_keys.get(sig.key_id) if sig is not None else None
@@ -654,6 +674,23 @@ def verify_evidence_events(
     * a retention checkpoint removed as many entries as positions
       (``retention_count_mismatch``), checked against the checkpoint before it
       when the run holds that one, or from entry 1 when there is none.
+
+    v1.4.0, remediations and reviews:
+
+    * one remediation per judgement or decision (``duplicate_remediation``);
+      it names its judgement's resource (``remediation_subject_mismatch``);
+      in a run from entry 1 its subject and its forward rotation's execution
+      evidence are held before it (``remediation_subject_missing``,
+      ``remediation_rotation_missing``), and the rotation is of the same
+      resource (``remediation_rotation_mismatch``);
+    * a review's embedded admin requests verify offline
+      (``review_approval_invalid``), with the public key the holder registry
+      records for each operator key when the run holds it
+      (``review_approval_key_mismatch``); its decider is a second holder
+      (``review_same_holder``); it names its subject's digest
+      (``review_subject_mismatch``; ``review_subject_missing`` in a run from
+      entry 1); and no waiver follows a recorded remediation
+      (``review_waiver_after_remediation``).
     """
     result = EvidenceVerification()
     if checkpoint is not None and not verify_retention_checkpoint(checkpoint, na_public_keys):
@@ -682,6 +719,12 @@ def verify_evidence_events(
     record_ids: dict[str, set[str]] = {}
     matchable: set[str] = set()
     checkpoints: dict[str, RetentionCheckpoint] = {}
+    # v1.4.0: judgements and decisions by ID (payload digest, resource), execution evidence's
+    # resources, remediated subjects, and operator keys as the holder registry records them.
+    judged_records: dict[str, tuple[str, str | None]] = {}
+    executed: dict[str, str | None] = {}
+    remediated: set[str] = set()
+    operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]] = {}
     first_sequence: int | None = None
     from_start = False
     for event in events:
@@ -727,6 +770,7 @@ def verify_evidence_events(
         if entry.entry_kind == "decision":
             result.decisions += 1
             decisions[model.decision_id] = model
+            judged_records[model.decision_id] = (entry.payload_digest, None)
             try:
                 contexts[model.decision_id] = ContextRecord.model_validate(event.payload["context"])
             except (ValueError, KeyError, TypeError):
@@ -757,6 +801,7 @@ def verify_evidence_events(
                 result.fail(entry.store_sequence, "evidence_chain_break")
             last_exec[ev.decision_id] = (ev, received)
             matchable.add(ev.evidence_id)
+            executed[ev.evidence_id] = ev.resource_id
             if ev.resource_id is not None:
                 head = resource_heads.get(ev.resource_id)
                 # v1.3.1: a run that does not start at entry 1 or right after the checkpoint
@@ -794,6 +839,7 @@ def verify_evidence_events(
         elif entry.entry_kind == "judgement":
             result.judgements += 1
             not_decisions.add(model.judgement_id)
+            judged_records[model.judgement_id] = (entry.payload_digest, model.resource_id)
             key = (model.subject_kind, model.subject_id)
             if key in judged:
                 result.fail(entry.store_sequence, "duplicate_judgement", model.subject_id)
@@ -815,7 +861,79 @@ def verify_evidence_events(
             result.quarantined += 1
             if payload_digest(model.record) != model.record_digest:
                 result.fail(entry.store_sequence, "quarantine_digest_mismatch")
+        elif entry.entry_kind == "registry":
+            if model.event == "operator_key_holder" and model.key_id is not None:
+                operator_keys.setdefault(model.key_id, []).append(
+                    (_utc(model.effective_at), model.public_key, model.holder))
+        elif entry.entry_kind == "remediation":
+            result.remediations += 1
+            not_decisions.add(model.remediation_id)
+            _check_remediation_entry(entry.store_sequence, model, result, judged_records, executed, remediated,
+                                     held_from_start=contiguous and first_sequence == 1)
+        elif entry.entry_kind == "review":
+            result.reviews += 1
+            not_decisions.add(model.review_id)
+            _check_review_entry(entry.store_sequence, model, result, judged_records, remediated, operator_keys,
+                                na_public_keys, held_from_start=contiguous and first_sequence == 1)
     return result
+
+
+def _check_remediation_entry(
+    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, tuple[str, str | None]],
+    executed: dict[str, str | None], remediated: set[str], *, held_from_start: bool,
+) -> None:
+    """v1.4.0: one remediation per subject, of its subject's resource, after its forward rotation."""
+    if model.subject_id in remediated:
+        result.fail(seq, "duplicate_remediation", model.subject_id)
+    remediated.add(model.subject_id)
+    subject = judged.get(model.subject_id)
+    if subject is None:
+        if held_from_start:
+            result.fail(seq, "remediation_subject_missing", model.subject_id)
+    elif model.subject_kind == "judgement" and subject[1] != model.resource_id:
+        result.fail(seq, "remediation_subject_mismatch", model.subject_id)
+    rotation = model.rotation_evidence_id
+    if rotation is not None:
+        if rotation in executed:
+            if executed[rotation] != model.resource_id:
+                result.fail(seq, "remediation_rotation_mismatch", rotation)
+        elif held_from_start:
+            result.fail(seq, "remediation_rotation_missing", rotation)
+
+
+def _check_review_entry(
+    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, tuple[str, str | None]],
+    remediated: set[str], operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]],
+    na_public_keys: Sequence[str], *, held_from_start: bool,
+) -> None:
+    """v1.4.0: a review's approvals verify offline, from a second holder, on the subject it names."""
+    from .remediation import review_approval_problem, review_holder_problem
+
+    problem = review_approval_problem(model, na_public_keys)
+    if problem is not None:
+        result.fail(seq, "review_approval_invalid", problem)
+    for key_id, approval, holder, at in (
+        (model.decided_by, model.approval, model.decider_holder, model.decided_at),
+        (model.requested_by, model.request_approval, model.requester_holder, model.requested_at),
+    ):
+        if key_id is None or approval is None or key_id not in operator_keys:
+            continue
+        recorded = [r for r in operator_keys[key_id] if r[0] <= _utc(at)]
+        latest = max(recorded, key=lambda r: r[0]) if recorded else None
+        if latest is None or latest[1] != approval.public_key or latest[2] != holder:
+            result.fail(seq, "review_approval_key_mismatch", key_id)
+    if review_holder_problem(decided_by=model.decided_by, decider_holder=model.decider_holder,
+                             requested_by=model.requested_by, requester_holder=model.requester_holder,
+                             actor=model.actor, actor_holder=model.actor_holder) is not None:
+        result.fail(seq, "review_same_holder", model.decided_by)
+    subject = judged.get(model.subject_id)
+    if subject is None:
+        if held_from_start:
+            result.fail(seq, "review_subject_missing", model.subject_id)
+    elif subject[0] != model.subject_digest:
+        result.fail(seq, "review_subject_mismatch", model.subject_id)
+    if model.verdict == "waive_until" and model.subject_id in remediated:
+        result.fail(seq, "review_waiver_after_remediation", model.subject_id)
 
 
 # ---------------------------------------------------------------------------
