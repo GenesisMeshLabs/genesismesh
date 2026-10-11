@@ -12,6 +12,7 @@ and the evidence routes answer ``404 evidence_store_disabled``.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import time
@@ -119,6 +120,10 @@ def _serialized_form_difference(raw: dict[str, Any], evidence: ExecutionEvidence
 
 class _AnchorRefused(Exception):
     """The store cannot be anchored; raised inside the write transaction."""
+
+
+class _RetentionRefused(Exception):
+    """Retention cannot sign over the stored entries; raised inside the write transaction (v1.3.1)."""
 
 
 class EvidenceStoreService:
@@ -567,13 +572,26 @@ class EvidenceStoreService:
         self.require_enabled()
         rows = self._na.db.search_evidence({}, limit=10**9)
         events = [_event(r) for r in rows]
+        checkpoint = self._na.db.latest_retention_checkpoint()
         result = verify_evidence_events(
             events,
             na_public_keys=self.na_public_keys(),
             executor_keys=self.executor_keys(),
             contiguous=True,
-            checkpoint=self._na.db.latest_retention_checkpoint(),
+            checkpoint=checkpoint,
         )
+        # v1.3.1: the store starts at entry 1, or right after the latest retention
+        # checkpoint. A store that starts later lost its oldest entries outside
+        # retention, even when its first entry continues from one of the anchors.
+        if checkpoint is not None and not verify_retention_checkpoint(checkpoint, self.na_public_keys()):
+            result.fail(None, "invalid_signature", "retention_checkpoint")
+        start = checkpoint.removed_through_sequence + 1 if checkpoint else 1
+        if events and events[0].entry.store_sequence > start:
+            result.fail(events[0].entry.store_sequence, "store_sequence_gap",
+                        f"the store starts after entry {start}: the entries before it are missing")
+        elif events and events[0].entry.store_sequence < start:
+            result.fail(events[0].entry.store_sequence, "store_chain_break",
+                        f"the latest retention checkpoint removed entries through {start - 1}")
         # v1.2.0: the NA's own anchors must form an unbroken signed chain and
         # name the digests of the entries still stored.
         anchors = self._na.db.list_store_anchors(limit=10**9)
@@ -604,9 +622,14 @@ class EvidenceStoreService:
                 "anchored_at": anchor.anchored_at.isoformat(),
             } if anchor else None
             out["unanchored_entries"] = max(0, head - (anchor.store_sequence if anchor else 0))
+            ahead = self._anchor_clock_problem(anchor, datetime.now(timezone.utc)) if anchor else None
+            if ahead:
+                # v1.3.1: one instance with a clock ahead stops every instance from anchoring.
+                out["anchoring_blocked"] = ahead
+            # v1.3.0: a record not judged yet holds retention back; judge it on the judge routes.
+            # v1.3.1: reported with the records off too, since they still hold retention back.
+            out["unjudged_records"] = self._na.db.unjudged_count()
             if self._na.out_of_band_service.enabled:
-                # v1.3.0: a record not judged yet holds retention back; judge it on the judge routes.
-                out["unjudged_records"] = self._na.db.unjudged_count()
                 # v1.3.1: how far back the policy history reaches, and the registry's health.
                 out.update(self._na.out_of_band_service.registry_status())
         return out
@@ -657,6 +680,55 @@ class EvidenceStoreService:
             return "the store head does not continue the anchored chain"
         return None
 
+    def _start_problem(self) -> str | None:
+        """Why the store does not hold every entry from its start to its head, or None (v1.3.1).
+
+        The store starts at entry 1, or right after the latest retention
+        checkpoint (signed by this NA), and holds every entry up to its head.
+        A store that starts later lost its oldest entries outside retention,
+        even when its first entry continues from an anchor: the NA holds all
+        of its anchors, so only entry 1 or a checkpoint explains a start.
+        """
+        db = self._na.db
+        cp = db.latest_retention_checkpoint()
+        if cp is not None and not verify_retention_checkpoint(cp, self.na_public_keys()):
+            return "the latest retention checkpoint is not signed by this NA"
+        start, prev = (cp.removed_through_sequence + 1, cp.last_removed_entry_digest) if cp else (1, None)
+        head, _ = db.store_head()
+        rows = db.search_evidence({}, limit=1)
+        if not rows:
+            return None if head < start else f"entries {start} to {head} are missing"
+        first: EvidenceStoreEntry = rows[0]["entry"]
+        if first.store_sequence != start:
+            return f"the store starts at entry {first.store_sequence}, not {start}"
+        if first.prev_entry_digest != prev or first.digest() != rows[0]["entry_digest"]:
+            return f"entry {start} does not continue from " + (
+                "the latest retention checkpoint" if cp else "the start of the store")
+        missing = head - start + 1 - int(db.evidence_stats()["entries"])
+        if missing:
+            return f"{missing} of entries {start} to {head} are missing"
+        return None
+
+    def _store_problem(self, latest: StoreAnchor | None, head_seq: int, head_digest: str | None) -> str | None:
+        """Why the NA may not sign over the store (an anchor or a retention checkpoint), or None."""
+        if latest is not None:
+            problem = self._continuity_problem(latest, head_seq, head_digest)
+            if problem:
+                return problem
+        return self._start_problem()
+
+    def _anchor_clock_problem(self, latest: StoreAnchor, now: datetime) -> str | None:
+        """Why the latest anchor's time stops this instance from anchoring, or None."""
+        ahead = latest.anchored_at - now
+        if ahead <= self.ANCHOR_CLOCK_TOLERANCE:
+            return None
+        return (
+            f"anchor {latest.anchor_sequence} is dated {latest.anchored_at.isoformat()}, "
+            f"{ahead - timedelta(microseconds=ahead.microseconds)} ahead of this instance's clock: an NA "
+            "instance with a clock running ahead signed it. Correct the clocks (NTP) of the NA instances; "
+            "anchoring resumes when this clock reaches that time"
+        )
+
     def anchor(self) -> tuple[StoreAnchor | None, bool]:
         """Sign the store's current head. Returns (anchor, created).
 
@@ -664,32 +736,31 @@ class EvidenceStoreService:
         is signed and the latest anchor is returned with created=False. Runs
         inside the evidence write transaction, so the head cannot move while
         it is checked and signed. Refuses (``409 evidence_anchor_refused``)
-        when the store no longer continues from the last anchor, or when the
-        last anchor's time is far ahead of this instance's clock.
+        when the store no longer continues from the last anchor, does not
+        start at entry 1 or the latest retention checkpoint or misses an
+        entry (v1.3.1), or when the last anchor's time is far ahead of this
+        instance's clock.
         """
         self.require_enabled()
         now = datetime.now(timezone.utc)
 
         def make(latest: StoreAnchor | None, seq: int, digest: str | None) -> StoreAnchor | None:
-            if latest is not None and (seq < latest.store_sequence or (
+            # v1.3.1: checked even when the head is already anchored, so a rewritten
+            # anchored head is refused rather than reported as unchanged.
+            problem = self._store_problem(latest, seq, digest)
+            if problem is None and latest is not None and (seq < latest.store_sequence or (
                     seq == latest.store_sequence and digest != latest.entry_digest)):
-                # The store was cut back below, or rewritten at, what was anchored last.
-                refusal = self._continuity_problem(latest, seq, digest) \
-                    or f"the store head no longer matches anchor {latest.anchor_sequence}"
-                raise _AnchorRefused(refusal)
+                problem = f"the store head no longer matches anchor {latest.anchor_sequence}"
+            if problem:
+                raise _AnchorRefused(problem)
             if seq == 0 or digest is None or (latest is not None and latest.store_sequence >= seq):
                 return None
             anchored_at = now
             if latest is not None:
-                problem = self._continuity_problem(latest, seq, digest)
-                if problem:
-                    raise _AnchorRefused(problem)
+                ahead = self._anchor_clock_problem(latest, now)
+                if ahead:
+                    raise _AnchorRefused(ahead)
                 if latest.anchored_at > now:
-                    if latest.anchored_at - now > self.ANCHOR_CLOCK_TOLERANCE:
-                        raise _AnchorRefused(
-                            f"anchor {latest.anchor_sequence} is dated {latest.anchored_at.isoformat()}, "
-                            "ahead of this instance's clock"
-                        )
                     anchored_at = latest.anchored_at  # small skew between instances
             return sign_store_anchor(
                 StoreAnchor(
@@ -790,14 +861,19 @@ class EvidenceStoreService:
             raise BadRequestError("older_than_days must be a positive integer", code="invalid_retention")
         # v1.3.0: an observation's dedupe key leaves with it, so the cut-off stays behind the
         # time bounds: an observation older than them is quarantined, never admitted again.
+        # v1.3.1: a change may be dated up to twice the skew after it was recorded (observed
+        # one skew after the change, recorded one skew before it was observed), so the floor
+        # is the backlog plus twice the skew; and it holds while the store keeps such records
+        # with EVIDENCE_OUT_OF_BAND off, since they can be submitted again once it is on.
         oob = self._na.out_of_band_service
-        if oob.enabled:
-            floor = oob.bounds.max_backlog + oob.bounds.skew
+        if oob.enabled or self._holds_out_of_band_records():
+            floor = oob.bounds.max_backlog + 2 * oob.bounds.skew
             if timedelta(days=older_than_days) <= floor:
                 minimum = int(floor.total_seconds() // 86400) + 1
                 raise BadRequestError(
                     f"older_than_days must be at least {minimum}: observations within the backlog "
-                    f"(NA_OBSERVATION_MAX_BACKLOG_SECONDS plus skew) are kept", code="invalid_retention",
+                    f"(NA_OBSERVATION_MAX_BACKLOG_SECONDS plus twice NA_OBSERVATION_CLOCK_SKEW_SECONDS) "
+                    f"are kept", code="invalid_retention",
                 )
         holder = self._na.instance_id
         if not self._na.db.claim_lease(self.RETENTION_LEASE, holder, self.RETENTION_LEASE_TTL_SECONDS):
@@ -806,6 +882,80 @@ class EvidenceStoreService:
             return self._apply_retention(older_than_days, applied_by)
         finally:
             self._na.db.release_lease(self.RETENTION_LEASE, holder)
+
+    def _holds_out_of_band_records(self) -> bool:
+        """True when the store holds records that carry a dedupe key bounded by time (v1.3.1)."""
+        return any(self._na.db.search_evidence({"entry_kind": kind}, limit=1)
+                   for kind in ("observation", "break_glass", "quarantine"))
+
+    def _retention_problem(
+        self, checkpoint: RetentionCheckpoint, previous: RetentionCheckpoint | None, removed: list[Any]
+    ) -> str | None:
+        """Why the NA may not sign this retention checkpoint, or None (v1.3.1).
+
+        Runs inside the retention transaction. A checkpoint signs that entries
+        up to ``removed_through_sequence`` existed and were removed, so the NA
+        signs one only over a store it can vouch for: it continues from the
+        latest anchor, starts at entry 1 or the previous checkpoint and holds
+        every entry, and the entries removed are each stored, recomputed and
+        linked, exactly those the checkpoint was computed from. Otherwise a
+        database writer without the NA key could delete entries and have the
+        next routine retention sign over the gap.
+        """
+        db = self._na.db
+        latest_cp = db.latest_retention_checkpoint()
+        if (latest_cp.checkpoint_id if latest_cp else None) != (previous.checkpoint_id if previous else None):
+            return "another retention checkpoint was recorded while this one was prepared"
+        head, head_digest = db.store_head()
+        problem = self._store_problem(db.latest_store_anchor(), head, head_digest)
+        if problem:
+            return problem
+        start = previous.removed_through_sequence if previous else 0
+        through = checkpoint.removed_through_sequence
+        if checkpoint.removed_count != through - start or len(removed) != through - start:
+            return f"entries {start + 1} to {through} are not all stored"
+        prev = previous.last_removed_entry_digest if previous else None
+        rows = db.search_evidence({}, after_sequence=start, limit=through - start)
+        for expected, (row, read) in enumerate(zip(rows, removed), start=start + 1):
+            entry: EvidenceStoreEntry = row["entry"]
+            if entry.store_sequence != expected:
+                return f"entry {expected} is missing"
+            if (entry.prev_entry_digest != prev or entry.digest() != row["entry_digest"]
+                    or payload_digest(row["payload"]) != entry.payload_digest):
+                return f"entry {expected} does not continue the store chain"
+            if read["entry_digest"] != row["entry_digest"] \
+                    or payload_digest(json.loads(read["payload_json"])) != entry.payload_digest:
+                return f"entry {expected} changed while retention was prepared"
+            prev = row["entry_digest"]
+        if len(rows) != through - start or prev != checkpoint.last_removed_entry_digest:
+            return f"entries {start + 1} to {through} are not all stored"
+        return None
+
+    def _held_back(
+        self, candidates: list[RetentionCandidate], n: int, rows: list[Any], **plan: Any
+    ) -> dict[str, Any] | None:
+        """What stops retention at records not judged yet, or None (v1.3.1)."""
+        if not any(c.pinned for c in candidates):
+            return None
+        unpinned = [dataclasses.replace(c, pinned=False) for c in candidates]
+        if plan_retention(unpinned, **plan) <= n:
+            return None
+        first = min(c.store_sequence for c in candidates if c.pinned and c.store_sequence > n)
+        row = next(r for r in rows if int(r["store_sequence"]) == first)
+        judge = "POST /admin/evidence/observations/<id>/judge or /admin/evidence/break-glass/<id>/judge"
+        remedy = f"judge them ({judge})" if self._na.out_of_band_service.enabled else (
+            f"EVIDENCE_OUT_OF_BAND is off, so they cannot be judged: turn it on, judge them ({judge}), "
+            "then apply retention again")
+        count = self._na.db.unjudged_count()
+        return {
+            "reason": "unjudged_records",
+            "store_sequence": first,
+            "entry_kind": row["entry_kind"],
+            "record_id": row["record_id"],
+            "unjudged_records": count,
+            "message": f"retention stops before entry {first}, a record not judged yet "
+                       f"({count} in the store); {remedy}",
+        }
 
     def _apply_retention(self, older_than_days: int, applied_by: str) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
@@ -843,12 +993,19 @@ class EvidenceStoreService:
             )
             for r in rows
         ]
-        n = plan_retention(candidates, cutoff=cutoff, now=now, resource_latest=self._na.db.resource_latest_sequences())
+        plan: dict[str, Any] = {"cutoff": cutoff, "now": now,
+                                "resource_latest": self._na.db.resource_latest_sequences()}
+        n = plan_retention(candidates, **plan)
+        # v1.3.1: say when records not judged yet hold retention back, with the records on or off.
+        held_back = self._held_back(candidates, n, rows, **plan)
+        if held_back is not None:
+            logger.warning("evidence retention: %s", held_back["message"])
         if n == 0:
             self._na.db.add_audit_event("evidence_retention_applied", {
                 "older_than_days": older_than_days, "removed_count": 0, "applied_by": applied_by,
+                **({"held_back": held_back["reason"]} if held_back else {}),
             })
-            return {"removed_count": 0, "checkpoint": None}
+            return {"removed_count": 0, "checkpoint": None, **({"held_back": held_back} if held_back else {})}
 
         removed = [r for r in rows if int(r["store_sequence"]) <= n]
         heads: dict[str, ResourceHead] = {}
@@ -895,14 +1052,27 @@ class EvidenceStoreService:
                 {"dedupe_key": dedupe_key} if dedupe_key else {},
             )
 
-        entry = self._na.db.apply_retention_checkpoint(
-            checkpoint,
-            lambda seq, prev: build_entry(
-                store_sequence=seq, entry_kind="retention_checkpoint", recorded_at=now,
-                payload=payload, prev_entry_digest=prev, index={},
-            ),
-            carried=[carry(record, dedupe) for record, dedupe in carried],
-        )
+        def check() -> None:
+            problem = self._retention_problem(checkpoint, previous, removed)
+            if problem:
+                raise _RetentionRefused(problem)
+
+        try:
+            entry = self._na.db.apply_retention_checkpoint(
+                checkpoint,
+                lambda seq, prev: build_entry(
+                    store_sequence=seq, entry_kind="retention_checkpoint", recorded_at=now,
+                    payload=payload, prev_entry_digest=prev, index={},
+                ),
+                carried=[carry(record, dedupe) for record, dedupe in carried],
+                check=check,
+            )
+        except _RetentionRefused as exc:
+            logger.error("evidence retention refused: %s", exc)
+            self._na.db.add_audit_event("evidence_retention_refused", {"reason": str(exc), "applied_by": applied_by})
+            raise ConflictError(
+                "Retention cannot run over the evidence store: " + str(exc), code="evidence_retention_refused"
+            ) from exc
         self._na.db.add_audit_event("evidence_retention_applied", {
             "older_than_days": older_than_days,
             "removed_through_sequence": n,
@@ -910,6 +1080,7 @@ class EvidenceStoreService:
             "checkpoint_id": checkpoint.checkpoint_id,
             "checkpoint_store_sequence": entry.store_sequence,
             "applied_by": applied_by,
+            **({"held_back": held_back["reason"]} if held_back else {}),
         })
         self.maybe_anchor()
-        return {"removed_count": len(removed), "checkpoint": payload}
+        return {"removed_count": len(removed), "checkpoint": payload, **({"held_back": held_back} if held_back else {})}

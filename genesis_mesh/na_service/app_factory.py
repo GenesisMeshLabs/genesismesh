@@ -47,11 +47,12 @@ def build_app(settings: NASettings) -> Flask:
         judge_on_admission=settings.judge_on_admission,
     )
 
-    # Trust exactly NA_PROXY_HOPS reverse proxies (default 1, e.g. nginx) for the
-    # client address that rate limits key on. With 0 (the NA exposed directly) the
-    # X-Forwarded-* headers are ignored: a client cannot set its own address and
-    # escape per-IP limits (v0.62.0 security review). Flask's documented ProxyFix
-    # idiom; mypy flags the wsgi_app reassignment.
+    # Trust exactly NA_PROXY_HOPS reverse proxies (e.g. 1 behind nginx) for the
+    # client address that rate limits key on. With 0 (the default since v1.3.1;
+    # it was 1, which let a client reaching the NA directly choose its address
+    # with X-Forwarded-For) the X-Forwarded-* headers are ignored: a client cannot
+    # set its own address and escape per-IP limits (v0.62.0 security review).
+    # Flask's documented ProxyFix idiom; mypy flags the wsgi_app reassignment.
     if settings.proxy_hops:
         app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
             app.wsgi_app, x_for=settings.proxy_hops, x_proto=settings.proxy_hops, x_host=settings.proxy_hops,

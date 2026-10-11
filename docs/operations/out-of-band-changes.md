@@ -336,11 +336,37 @@ Retention keeps an observation or break-glass record with its judgement, and
 stops before a record that has not been judged yet
 (`GET /admin/evidence/status` reports `unjudged_records`). The positions of
 removed observations are recorded in the retention checkpoint, so a
-resource's remaining observations still verify. While the records are on,
-retention keeps at least the observation backlog
-(`NA_OBSERVATION_MAX_BACKLOG_SECONDS` plus the skew, so `older_than_days` of
-at least 8 by default): an observation removed sooner could be submitted
-again and admitted twice.
+resource's remaining observations still verify. While the records are on, and
+since 1.3.1 also while they are off but the store still holds observations,
+break-glass records or quarantine entries, retention keeps at least the
+observation backlog (`NA_OBSERVATION_MAX_BACKLOG_SECONDS` plus twice
+`NA_OBSERVATION_CLOCK_SKEW_SECONDS`, so `older_than_days` of at least 8 by
+default): an observation removed sooner could be submitted again and admitted
+twice. A change may be dated up to twice the skew after it was recorded, which
+is why the skew counts twice (once before 1.3.1).
+
+### Records not judged yet with the records off
+
+Turning `EVIDENCE_OUT_OF_BAND` off does not release records that were never
+judged: they stay in the store, and retention still stops before the first
+one. A record is never removed unjudged. Since 1.3.1
+`GET /admin/evidence/status` reports `unjudged_records` whether the records
+are on or off, and `POST /admin/evidence/retention/apply` says what stops it:
+its response carries `held_back` with `reason: "unjudged_records"`, the
+`store_sequence`, `entry_kind` and `record_id` of the first such record, and
+what to do.
+
+With the records off the judge routes answer `404 out_of_band_disabled`, so
+to let retention pass them:
+
+1. Set `EVIDENCE_OUT_OF_BAND=on` and restart the NA. At start it judges up
+   to 100 records not judged yet (see *Judging after a failure*).
+2. Judge any that remain (`unjudged_records` in the status):
+   `POST /admin/evidence/observations/<id>/judge` or
+   `POST /admin/evidence/break-glass/<id>/judge`.
+   `GET /admin/evidence/changes/<resource_id>` lists a resource's records in
+   state `observed`.
+3. Apply retention again. The records may then be turned off again.
 
 ## Settings
 

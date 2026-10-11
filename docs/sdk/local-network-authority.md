@@ -121,14 +121,16 @@ authentications a minute (`NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE`): a
 bad or missing signature, an unknown or revoked key, a stale timestamp, a
 replayed nonce, or a key below the route's tier. Failures with an active
 operator key count against that key at your address; once it reaches the
-limit, that key is refused for the rest of the minute, valid requests
-included, with `429 admin_auth_throttled`. Failures with no key, or a key the
-NA does not know or has revoked, count against the address and refuse only
-requests that name no active key. A `429` carries `Retry-After`.
+limit, that key's failing requests are refused for the rest of the minute
+with `429 admin_auth_throttled`. Failures with no key, or a key the NA does
+not know or has revoked, count against the address and refuse only failing
+requests that name no active key. A correctly signed request is always
+served (v1.3.1). A `429` carries `Retry-After`.
 
-Locally, every client is `127.0.0.1`: a controller failing with one key blocks
-that key for a minute, and 120 failures in a minute from all clients together
-block everything. Fix the failing client rather than raising the limit.
+Locally, every client is `127.0.0.1`: a controller failing with one key gets
+`429` instead of `401` for a minute, and so does every failing client once
+there are 120 failures in a minute from all clients together. Fix the
+failing client rather than raising the limit.
 
 In production, size the admin limit to the controllers that share one
 address: a batch that rotates 1,000 secrets makes 1,000 admin calls.

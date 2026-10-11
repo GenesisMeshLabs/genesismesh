@@ -24,6 +24,12 @@ OPERATOR_KEY_TIERS_JSON="${OPERATOR_KEY_TIERS_JSON:-}"
 
 START_SERVICES="${START_SERVICES:-true}"
 ENABLE_NGINX="${ENABLE_NGINX:-false}"
+# Proxies in front of the NA whose X-Forwarded-* headers it trusts: 1 behind the
+# Nginx this script configures, 0 when clients reach the NA directly.
+case "${ENABLE_NGINX,,}" in
+  1|true|yes|y|on) NA_PROXY_HOPS="${NA_PROXY_HOPS:-1}" ;;
+  *) NA_PROXY_HOPS="${NA_PROXY_HOPS:-0}" ;;
+esac
 GENESIS_DOMAIN="${GENESIS_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 
@@ -195,6 +201,7 @@ Environment=GENESIS_FILE=${GENESIS_FILE}
 Environment=NA_PRIVATE_KEY_FILE=${NA_PRIVATE_KEY_FILE}
 Environment=DB_PATH=${DB_PATH}
 Environment=PORT=${NA_PORT}
+Environment=NA_PROXY_HOPS=${NA_PROXY_HOPS}
 EnvironmentFile=-/etc/genesis-mesh/operator-keys.env
 ExecStart=${GENESIS_HOME}/.venv/bin/gunicorn --workers 4 --worker-class sync --timeout 30 --max-requests 1000 --bind 0.0.0.0:${NA_PORT} genesis_mesh.na_service.wsgi:app
 Restart=always
@@ -313,6 +320,8 @@ server {
         proxy_set_header X-Real-IP         \$remote_addr;
         proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Overwrite what a client sent: the NA trusts it from this proxy.
+        proxy_set_header X-Forwarded-Host  \$server_name;
     }
 }
 EOF

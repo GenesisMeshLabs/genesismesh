@@ -496,12 +496,38 @@ def test_public_url_setting(value, expected):
     assert load_settings({"GENESIS_FILE": "g.json"}).public_url is None
 
 
-@pytest.mark.parametrize("value", ["na.example.org", "ftp://na.example.org", "https://na.example.org/na", "https://u:p@na.example.org"])
+@pytest.mark.parametrize("value, expected", [
+    ("https://na.example.org:8443", "https://na.example.org:8443"),
+    ("https://[::1]:8443/", "https://[::1]:8443"),
+    ("http://genesis_na:8443", "http://genesis_na:8443"),
+])
+def test_public_url_accepts_hosts_ports_and_ip_literals(value, expected):
+    from genesis_mesh.na_service.settings import load_settings
+
+    assert load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value}).public_url == expected
+
+
+@pytest.mark.parametrize("value", [
+    "na.example.org", "ftp://na.example.org", "https://na.example.org/na", "https://u:p@na.example.org",
+    # v1.3.1: validated strictly.
+    "https://na.example.org:abc", "https://na example.org", "https://na.exa\tmple.org", "https://na.example.org:",
+    "https://na.example.org:0", "https://na.example.org:65536", "https://na.example.org:08443",
+    "https://na.example.org?", "https://na.example.org#", "https://-na.example.org", "https://na..example.org",
+    "https://1.2.3.999", "https://[::1", "https://[::1]x", "https://", "https://:8443",
+])
 def test_public_url_must_be_an_origin(value):
     from genesis_mesh.na_service.settings import load_settings
 
     with pytest.raises(ValueError, match="NA_PUBLIC_URL"):
         load_settings({"GENESIS_FILE": "g.json", "NA_PUBLIC_URL": value})
+
+
+@pytest.mark.parametrize("host", ["na.example:8443@evil.example", "na.example:x@evil.example:443", "na.example:8443#@evil"])
+def test_a_host_that_is_not_an_origin_is_refused_rather_than_advertised(na_service, monkeypatch, host):
+    """v1.3.1: such a Host advertised ``https:``."""
+    client = _behind_proxies(na_service, monkeypatch, 1)
+    resp = client.get("/sovereign.json", headers={"Host": host, "X-Forwarded-Host": host, "X-Forwarded-Proto": "https"})
+    assert resp.status_code == 400 and resp.get_json()["error"]["code"] == "bad_request"
 
 
 def test_only_the_trusted_proxys_forwarded_host_counts(na_service, monkeypatch):

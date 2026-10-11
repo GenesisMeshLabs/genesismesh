@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from genesis_mesh.na_service.rate_limit import RateLimits
+from genesis_mesh.na_service.rate_limit import RateLimiter, RateLimits
 from genesis_mesh.na_service.settings import load_settings
 
 from .test_na_boundary_policy import _get, _make_service
@@ -64,3 +64,17 @@ def test_the_configured_verify_limit_is_enforced():
     first = client.post("/boundary/verify", json={})
     second = client.post("/boundary/verify", json={})
     assert first.status_code != 429 and second.status_code == 429
+
+
+def test_the_in_memory_limiter_forgets_idle_buckets():
+    """v1.3.1: every address seen added buckets that were never forgotten."""
+    now = [1000.0]
+    limiter = RateLimiter(clock=lambda: now[0])
+    for i in range(500):
+        assert limiter.allow(f"admin:198.51.100.{i}", 300, 60)
+    assert len(limiter._events) == 500
+    now[0] += 61
+    for _ in range(3):
+        assert limiter.allow("admin:203.0.113.9", 2, 60) is not None
+    assert list(limiter._events) == ["admin:203.0.113.9"]
+    assert limiter.exceeded("admin:203.0.113.9", 2, 60), "a live bucket keeps its count"

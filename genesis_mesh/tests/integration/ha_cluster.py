@@ -65,15 +65,16 @@ http {{
     }}
     server {{
         listen 127.0.0.1:{port};
+        server_name 127.0.0.1;
         location / {{
             proxy_pass http://genesis_mesh_na;
             proxy_next_upstream error timeout http_502 http_503;
             proxy_connect_timeout 1s;
             proxy_read_timeout 30s;
-            proxy_set_header Host $host;
+            proxy_set_header Host $server_name;
             proxy_set_header X-Forwarded-For $na_client;
             proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Host $server_name;
         }}
     }}
 }}
@@ -172,6 +173,8 @@ class HACluster:
             "OPERATOR_KEY_TIERS_JSON": json.dumps({self.operator_key_id: "privileged"}),
             "EVIDENCE_STORE": self.evidence_store,
             "BOUNDARY_POLICY_ENFORCEMENT": self.boundary_policy_enforcement,
+            # Behind nginx: the client address comes from X-Forwarded-For (v1.3.1: 0 by default).
+            "NA_PROXY_HOPS": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
         })
         env.pop("NA_PRIVATE_KEY_FILE", None)

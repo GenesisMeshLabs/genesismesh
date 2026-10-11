@@ -101,7 +101,7 @@ def test_valid_admin_requests_do_not_count_as_failures():
     assert statuses == [200] * 5
 
 
-def test_an_address_with_too_many_failures_is_refused_before_verification():
+def test_an_address_with_too_many_failures_is_refused_but_a_signed_request_is_served():
     client = _client(rate_limits=RateLimits(admin_auth_failures=3))
     statuses = [_bad_admin(client, f"n{i}").status_code for i in range(3)]
     assert statuses == [401, 401, 401]
@@ -111,9 +111,66 @@ def test_an_address_with_too_many_failures_is_refused_before_verification():
     assert throttled.get_json()["error"]["code"] == "admin_auth_throttled"
     assert throttled.headers["Retry-After"] == str(RETRY_AFTER_SECONDS)
 
-    # A correctly signed request with the same key from the same address waits
-    # out the window too: the limit is checked before any signature.
-    assert _get(client, "/admin/boundary-policies").status_code == 429
+    # v1.3.1: a correctly signed request with the same key from the same
+    # address is served: the throttle refuses only requests that fail.
+    assert _get(client, "/admin/boundary-policies").status_code == 200
+    assert _bad_admin(client, "n4").status_code == 429
+
+
+def test_forged_requests_naming_a_key_do_not_lock_its_operator_out():
+    """v1.3.1: 30 forged requests naming a key from a shared address left its operator locked out."""
+    client = _client()
+    _one_window(client)
+    for i in range(31):
+        _bad_admin(client, f"f{i}", key_id="operator-std")
+    assert _bad_admin(client, "f31", key_id="operator-std").status_code == 429
+    assert _post(client, "/admin/boundary-policies/p/deactivate", {"policy_id": "p"}, standard=True).status_code == 403
+    assert _get(client, "/admin/boundary-policies").status_code == 200
+
+
+def test_junk_from_a_shared_address_does_not_lock_out_its_operators():
+    """v1.3.1: reaching the address cap with forged and unsigned requests refused every key there."""
+    client = _client()
+    _one_window(client)
+    service = client.service
+    for key_id in ("operator-x", "operator-y"):
+        service.operator_public_keys[key_id] = generate_keypair().public_key_b64
+        service.operator_key_tiers[key_id] = "privileged"
+    for key_id in ("operator-std", "operator-x", "operator-y"):
+        for i in range(30):
+            _bad_admin(client, f"{key_id}-{i}", key_id=key_id)
+    for _ in range(30):
+        client.get("/admin/boundary-policies")
+    assert client.get("/admin/boundary-policies").status_code == 429
+    events = [e for e in service.db.list_audit_events() if e["event_type"] == "admin_auth_throttled"]
+    assert "all" in {e["details"]["scope"] for e in events}
+    assert _get(client, "/admin/boundary-policies").status_code == 200
+
+
+def test_a_throttled_request_is_refused_at_its_first_failed_check(monkeypatch):
+    """The cheap checks still come first; a throttled failure is neither counted nor audited again."""
+    from genesis_mesh.na_service import auth
+
+    checked: list[str] = []
+    real = auth.verify_signature
+
+    def counting(message, signature, public_key):
+        checked.append(signature)
+        return real(message, signature, public_key)
+
+    monkeypatch.setattr(auth, "verify_signature", counting)
+    client = _client(rate_limits=RateLimits(admin_auth_failures=2))
+    for i in range(2):
+        assert _bad_admin(client, f"n{i}").status_code == 401  # a stale timestamp: no signature check
+    failures = _audit_types(client).count("admin_auth_failed")
+    assert _bad_admin(client, "n2").status_code == 429
+    assert checked == []
+    fresh = _headers(client.operator_keypair, "operator-test", {}, client=client, method="GET",
+                     url="/admin/boundary-policies")
+    fresh["X-Admin-Signature"] = "A" * 86 + "=="
+    assert client.get("/admin/boundary-policies", headers=fresh).status_code == 429
+    assert len(checked) == 1, "a throttled request naming an active key has its signature checked"
+    assert _audit_types(client).count("admin_auth_failed") == failures
 
 
 def test_one_keys_failures_do_not_lock_out_another_key_at_the_same_address():
@@ -175,10 +232,12 @@ def test_all_failures_from_one_address_are_capped(monkeypatch):
     client = _client(rate_limits=RateLimits(admin_auth_failures=3))
     assert [_bad_admin(client, f"s{i}", key_id="operator-std").status_code for i in range(2)] == [401, 401]
     assert _bad_admin(client, "u0", key_id="someone-else").status_code == 401
-    # Three failures in three scopes: the address cap is reached, every request waits.
-    assert _get(client, "/admin/boundary-policies").status_code == 429
+    # Three failures in three scopes: the address cap is reached, every failing request waits
+    # (v1.3.1: a correctly signed one is still served).
+    assert _bad_admin(client, "t0", key_id="operator-test").status_code == 429
     events = [e for e in client.service.db.list_audit_events() if e["event_type"] == "admin_auth_throttled"]
     assert events[-1]["details"]["scope"] == "all"
+    assert _get(client, "/admin/boundary-policies").status_code == 200
 
 
 def test_a_key_throttled_at_one_address_works_from_another():
@@ -211,7 +270,9 @@ def test_insufficient_tier_counts_as_a_failure_of_that_key():
     url = "/admin/boundary-policies/p/deactivate"
     for _ in range(2):
         assert _post(client, url, body, standard=True).status_code == 403
-    assert _post(client, url, body, standard=True).status_code == 429
+    # v1.3.1: the request is authentic, so it is never throttled; a failing one is.
+    assert _post(client, url, body, standard=True).status_code == 403
+    assert _bad_admin(client, "n0", key_id="operator-std").status_code == 429
     assert _get(client, "/admin/boundary-policies").status_code == 200
 
 
@@ -462,6 +523,22 @@ def test_build_app_trusts_exactly_the_configured_proxies(tmp_path):
         assert direct.wsgi_app.__class__.__name__ != "ProxyFix"
         proxied = build_app(load_settings({**values, "NA_PROXY_HOPS": "1", "DB_PATH": ":memory:"}))
         assert proxied.wsgi_app.__class__.__name__ == "ProxyFix"
+
+
+def test_without_na_proxy_hops_a_client_cannot_choose_its_address(tmp_path):
+    """v1.3.1: NA_PROXY_HOPS defaults to 0. At 1, a client reaching the NA directly rotated
+    X-Forwarded-For and was never throttled."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        assert _init(runner).exit_code == 0
+        values = {k: v for k, v in read_env_file(Path("local/na.env")).items() if k != "NA_PROXY_HOPS"}
+        client = build_app(load_settings({**values, "DB_PATH": ":memory:"})).test_client()
+        statuses = [
+            client.get("/admin/boundary-policies", headers={"X-Forwarded-For": f"198.51.100.{i}"},
+                       environ_base={"REMOTE_ADDR": "203.0.113.9"}).status_code
+            for i in range(40)
+        ]
+        assert statuses[:30] == [401] * 30 and set(statuses[30:]) == {429}
 
 
 def test_a_standard_key_from_keygen_operator_cannot_publish_policies(tmp_path, monkeypatch):

@@ -62,7 +62,8 @@ def test_proxy_hops_setting():
 
     from genesis_mesh.na_service.settings import load_settings
 
-    assert load_settings({"GENESIS_FILE": "g.json"}).proxy_hops == 1
-    assert load_settings({"GENESIS_FILE": "g.json", "NA_PROXY_HOPS": "0"}).proxy_hops == 0
+    # v1.3.1: 0 by default, so an NA reached directly never trusts X-Forwarded-For.
+    assert load_settings({"GENESIS_FILE": "g.json"}).proxy_hops == 0
+    assert load_settings({"GENESIS_FILE": "g.json", "NA_PROXY_HOPS": "1"}).proxy_hops == 1
     with _pytest.raises(ValueError):
         load_settings({"GENESIS_FILE": "g.json", "NA_PROXY_HOPS": "-1"})

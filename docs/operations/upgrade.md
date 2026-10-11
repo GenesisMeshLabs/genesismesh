@@ -48,6 +48,24 @@ built wheel before every release.
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
 
+## Upgrading to 1.3.1
+
+*Unreleased.*
+
+- **`NA_PROXY_HOPS` defaults to `0`.** It was `1`, so an NA that clients
+  reach directly trusted the `X-Forwarded-For` they sent and a client could
+  choose the address its rate limits apply to. An NA behind one reverse
+  proxy or load balancer must now set `NA_PROXY_HOPS=1` (the HA compose
+  file, the systemd unit and the VM bootstrap script in this repository do);
+  without it every client counts as the proxy's address, and the advertised
+  URLs take the proxy's view of the scheme and host. Set `NA_PUBLIC_URL` too.
+- **`NA_PUBLIC_URL` is validated strictly.** The NA refuses to start unless
+  it is `http` or `https`, a DNS name or IP address (IPv6 in brackets) and an
+  optional port of 1 to 65535, with nothing after it but a `/`. A value such
+  as `https://na.example.org:abc` or one with a space in it was accepted and
+  advertised. Without `NA_PUBLIC_URL`, a request whose host is not a valid
+  origin gets `400` from `/sovereign.json` and `/swagger.json`.
+
 ## Upgrading to 1.3
 
 1.3 adds migration 015. On SQLite it rebuilds the evidence table (to accept
@@ -116,10 +134,11 @@ Two request-handling changes apply on upgrade:
   proxy now advertises the scheme and host the proxy forwards it (`http`
   rather than `https` behind a TLS-terminating proxy). Set `NA_PUBLIC_URL` to
   the NA's public origin, which these documents then always advertise, and
-  have nginx overwrite `X-Forwarded-Host`
-  (`proxy_set_header X-Forwarded-Host $host;`, as in
-  {doc}`vm-bootstrap`). SDKs read only the NA's public key from
-  `/sovereign.json`, so they are not affected.
+  have nginx overwrite `X-Forwarded-Host` with the name it serves
+  (`proxy_set_header X-Forwarded-Host $server_name;`, as in
+  {doc}`vm-bootstrap`): `$host` and `$http_host` carry what the client sent.
+  SDKs read only the NA's public key from `/sovereign.json`, so they are not
+  affected.
 
 ### Strict input and canonical records
 
