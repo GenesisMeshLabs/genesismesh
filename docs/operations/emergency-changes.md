@@ -56,10 +56,25 @@ does, with its own, usually stricter, gates.
 The NA refuses an emergency policy unless:
 
 - it selects exactly one capability, by its exact ID, and that capability
-  differs from `stands_for`, itself an exact ID (`invalid_emergency`);
+  differs from `stands_for`, itself an exact capability ID with no `*`
+  (`invalid_emergency`);
 - an enforce-mode `required_parameter.v1` gate requires
   `request_parameters.<justification_parameter>`
   (`emergency_justification_not_required`).
+
+An emergency capability is selected by its emergency policy only. Activating
+an emergency policy whose capability another active policy names (exactly or
+by a `prefix.*` pattern), or a policy that names an active emergency policy's
+capability, is refused with `409 emergency_capability_conflict`: the ordinary
+policy's DENY would otherwise apply to the urgent change, or an existing
+capability would be remapped when changes are judged. A global policy (one
+that names no capability) still applies to the emergency capability, as to
+every other.
+
+Only the emergency policies **active and valid when a change was made** make
+a capability an emergency one when the NA judges that change: a version
+published but never activated, deactivated, or outside its `valid_from` and
+`valid_until` maps nothing.
 
 An emergency policy is always reviewed, whether or not it also says
 `"review_required": true`. `max_lifetime_seconds` (60 to 30 days) bounds how
@@ -85,7 +100,11 @@ An observer of the change names the ordinary capability, as it sees the
 change at its source. The NA matches it to the emergency capability's
 execution evidence (same resource, action, version and time): an emergency
 capability stands for the ordinary one in matching, so the change is
-governed, not judged again.
+governed, not judged again. The observer's own facts are judged under the
+emergency policy the decision was made under (the request's parameters the
+observer cannot see, such as the justification, taken from the decision),
+and the observation attaches to the decision's review: it opens no review
+and arms no remediation of its own.
 
 ### With the NA down, or answering 503 or 429
 
@@ -95,6 +114,7 @@ break-glass record, with the justification parameter in its
 `request_parameters`. When the record is admitted, the NA judges it as that
 evaluation would have gone at the time, so under the emergency policy, and
 opens its review, with the lifetime counted from when the change was made.
+An observation of the same change attaches to that review, as above.
 
 ### An observer's claim is not enough
 
@@ -109,7 +129,7 @@ afterwards, signed by an executor key.
 ## What to review
 
 The review queue (`GET /admin/evidence/remediations?state=review_pending`)
-lists every emergency change. For each:
+lists every emergency change whose review is pending. For each:
 
 - read the justification (the request parameter, or the break-glass
   record's `justification`);
@@ -118,9 +138,22 @@ lists every emergency change. For each:
 - before its lifetime ends, replace what it created through the ordinary
   path.
 
+## Reviews and lifetimes
+
+An emergency decision's review is opened when the decision is stored, with
+the operator key that asked for it as its actor: that operator, and any key
+of the same holder, can neither request nor decide its review. A pending
+review stops no clock: when the lifetime ends, the remediation becomes due
+whether or not the review was decided (see {doc}`remediation-and-reviews`).
+A decision never executed is closed by an alert (`fallback: not_executed`).
+
 ## Settings
 
 The emergency path uses no settings of its own. It needs
 `EVIDENCE_REMEDIATION=on` (see {doc}`remediation-and-reviews`), which
 accepts policies with an `emergency` section; break-glass also needs the
-SDKs' break-glass support and `EVIDENCE_OUT_OF_BAND=on`.
+SDKs' break-glass support and `EVIDENCE_OUT_OF_BAND=on`. With
+`EVIDENCE_REMEDIATION` off, no capability is an emergency one when changes
+are judged, and an evaluation that a policy with an `emergency` section or
+`review_required` applies to is refused (`409 policy_remediation_disabled`)
+rather than decided without its review.

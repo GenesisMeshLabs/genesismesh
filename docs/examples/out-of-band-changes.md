@@ -220,9 +220,10 @@ POST /admin/evidence/reviews
   "justification": "Planned with the vendor; the ticket was filed late" }
 ```
 
-The remediation is held while the review is pending. A privileged key of
-another holder decides it, neither the requester's holder nor the holder the
-actor `principal-7f3a` maps to:
+The review holds nothing: the remediation stays due, and becomes overdue if
+the grace passes first. A privileged key of another holder decides it,
+neither the requester's holder nor the holder the actor `principal-7f3a`
+maps to:
 
 ```text
 POST /admin/evidence/reviews/<review_id>/decide

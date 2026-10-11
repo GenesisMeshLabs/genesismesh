@@ -54,9 +54,14 @@ built wheel before every release.
 *Unreleased.*
 
 1.4 adds migration 016. On SQLite it rebuilds the evidence table again (to
-accept the `remediation` and `review` entry kinds), so allow for one copy of
-the table on disk; on PostgreSQL the constraint is changed in place. It also
-adds the `remediation_states` and `remediation_reviews` tables. Entries, their
+accept the `remediation` and `review` entry kinds): allow for one copy of the
+table on disk, and for the time the copy takes, during which the NA does not
+start. On PostgreSQL the entry-kind constraint is changed in place, but
+adding it validates every stored entry and the new indexes are built, both
+under a lock that blocks writes to the evidence table: with several instances
+the first one to start holds it while the others wait, so plan the upgrade
+for a quiet moment on a large store. It also adds the `remediation_states`
+and `remediation_reviews` tables. Entries, their
 digests and the anchors are unchanged, and `genesis-mesh na verify-db`
 verifies them after the upgrade. A 1.4 database cannot be opened by 1.3: roll
 back by restoring the backup taken before the upgrade.
@@ -78,6 +83,12 @@ back by restoring the backup taken before the upgrade.
   with the switch on (the `remediation_enabled` audit event marks it). An
   earlier judgement gets a remediation state only when someone requests a
   review of it (`POST /admin/evidence/reviews`).
+- **Flagged changes open reviews.** Once the switch is on, every judgement
+  flagged for review (a verdict that differs under today's policies, history
+  recorded late, or a break-glass change the NA cannot tie to its
+  attestation) opens a review, listed with `review_pending: true`. A review
+  holds nothing: a denied change's remediation stays due, and becomes overdue
+  if the review is not decided in time.
 - **Name your holders.** Reviews need named holders in the store's holder
   registry (see *Operator key holders* in {doc}`out-of-band-changes`), one
   operator key per person, and `NA_REVIEW_ACTOR_HOLDERS_JSON` for the actors

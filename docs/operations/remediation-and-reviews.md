@@ -95,9 +95,16 @@ cannot issue a new version on demand.
 | `rotate` or `update`, `rotatable: false` | | `not_rotatable` |
 | `revoke` or `delete` | | `not_reversible`: cancelling would restore it, which is a roll back |
 | any change judged `indeterminate` | | `indeterminate`: an indeterminate judgement always alerts |
+| a decision never executed | | `not_executed`: nothing to cancel; an alert closes it |
 
 A resource that a reader may already depend on the moment it is created
 should use `alert_only`: `disable` assumes nothing reads it yet.
+
+**The limit of `rotatable: false`.** The flag comes from whoever signed the
+record of the change. An observer that marks every change `rotatable: false`
+turns every cancel into an alert: an observer key can weaken remediation,
+never strengthen a change. Register observer keys with that in mind, and
+watch the `fallback` the queue shows.
 
 ## Due times and states
 
@@ -112,54 +119,61 @@ gateway console.
 
 ### States
 
-The Stage 2 states (`judged_denied`, `judged_allowed`, `indeterminate`,
-`matched`, and `recorded` for a governed change) are where a change enters
-Stage 3:
+A change enters Stage 3 from its Stage 2 state. A denied or `indeterminate`
+change is armed at once; an allowed one keeps its Stage 2 state
+(`judged_allowed`, `matched`, or `recorded` for a governed change) while it is
+reviewed or while an emergency lifetime runs:
 
 | State | Meaning |
 | --- | --- |
+| `judged_allowed`, `matched`, `recorded` | An allowed change under review, or with a lifetime running |
 | `remediation_due` | The remediation is due at `remediation_due_at` |
 | `overdue` | Its due time passed without a remediation record |
 | `remediated` | The controller's `remediation` record is in the store |
-| `review_pending` | A review is open; the remediation is held until it is decided |
-| `upheld` | A review let the change stand |
+| `upheld` | A review let the change stand (an emergency change until its lifetime ends) |
 | `waived` | A review let the change stand until `waived_until` |
-| `review_denied` | A review denied the change (it moves on to `remediation_due` at once) |
+
+A review is not a state: **`review_pending`** is a flag beside the state,
+with the review's ID. A pending review never stops a clock. While it is
+pending, a due remediation still becomes overdue, a waiver still ends and an
+emergency lifetime still ends, each with its audit event; a remediation that
+is due may still be recorded. When the review is decided afterwards, its
+verdict applies to the state the change is in then.
 
 ### Transitions
 
 The NA makes every transition through one table, and refuses the others with
-a stable code:
+a stable code (the `transition` vectors of the `remediation` conformance suite
+list every pair):
 
 | From | Event | To |
 | --- | --- | --- |
 | `judged_denied`, `indeterminate` | judged | `remediation_due` |
-| `judged_denied`, `indeterminate`, `judged_allowed`, `matched`, `recorded` | review opened | `review_pending` |
-| `remediation_due`, `overdue`, `upheld`, `waived` | review opened | `review_pending` |
 | `remediation_due` | due time passed | `overdue` |
-| `remediation_due`, `overdue`, `review_pending`, `waived`, `review_denied` | remediation recorded | `remediated` |
-| `review_pending` | uphold / deny / waive | `upheld` / `review_denied` / `waived` |
-| `review_denied` | (at once) | `remediation_due` |
+| `remediation_due`, `overdue` | remediation recorded | `remediated` |
 | `waived` | `waived_until` passed | `remediation_due` |
-| `upheld` (an emergency change) | its lifetime ended | `remediation_due` |
-| `remediated` | uphold or deny of a review already open | `remediated` |
+| `judged_allowed`, `matched`, `recorded`, `upheld` | lifetime ended | `remediation_due` |
+| any state but `remediated` | review opened | the same state, `review_pending` set |
+| any state but `remediated`, review pending | uphold / waive | `upheld` / `waived` |
+| `judged_allowed`, `matched`, `recorded`, `upheld`, `waived`, review pending | deny | `remediation_due` (through `review_denied`) |
+| `remediation_due`, `overdue`, review pending | deny | the same state; the due time may come sooner |
+| `remediated`, review pending | uphold or deny | `remediated` |
 
-Refused: a waiver after a remediation (`review_waiver_after_remediation`), a
-review requested after one (`review_after_remediation`), a second remediation
-(`remediation_already_recorded`), a remediation of a change nothing is due for
-(`remediation_not_due`, for example an upheld one), a decision on a review
-that is not pending (`review_not_pending`), a second open review
-(`review_already_pending`), anything else (`illegal_transition`).
+Refused: a decision with no review pending (`review_not_pending`), a second
+review while one is pending (`review_already_pending`), a waiver after a
+remediation (`review_waiver_after_remediation`), a review requested after one
+(`review_after_remediation`), a second remediation
+(`remediation_already_recorded`), a remediation of a change that is not due
+or overdue (`remediation_not_due`: an allowed change under review, an upheld
+or waived one), anything else (`illegal_transition`).
 
 ### Due times after a review
 
-- A pending review **holds** a remediation: the controller does not act on
-  `review_pending`. It does not move the due time.
 - A review **denial** makes the remediation due at the decision plus the
   grace, never later than it was already due: a change whose review
   outlasted its grace is overdue at once.
 - A **waiver**'s end makes it due again, with the grace counted from the
-  waiver's end.
+  waiver's end. So does an emergency lifetime's end.
 
 ## Carrying out a remediation
 
@@ -177,7 +191,9 @@ submits a `RemediationRecord` signed by its executor key:
 2. **`disable`.** Disable or delete the resource; submit `steps` `disable` or
    `delete`, with `disabled_version_id` when it has one.
 3. **`alert_only`.** Tell the actor, record the notice, and submit `outcome`
-   `alerted` with `steps` `none`.
+   `alerted` with `steps` `none`. For a decision never executed
+   (`fallback: not_executed`), the record names the decision itself as its
+   change: `change_kind` `execution`, `change_id` the decision's ID.
 
 ```text
 POST /evidence/remediations
@@ -191,28 +207,37 @@ POST /evidence/remediations
 ```
 
 The record carries metadata only (versions and an optional `detail`), under
-the same guard as execution metadata. The NA checks it as it checks every
-controller record:
+the same guard as execution metadata. The NA checks it in this order, as
+every verifier does:
 
-- **Authenticity and scope.** An executor key of the record's sovereign, not
-  retired, covering the resource (`remediation_invalid_signature`,
-  `remediation_unknown_key`, `remediation_key_retired`,
-  `remediation_out_of_scope`); no secret material
-  (`remediation_secret_material`).
-- **The plan.** It names its judgement (or decision), the record of the change
-  and its resource (`remediation_subject_mismatch`), and carries out the
-  stated steps (`remediation_steps_mismatch`).
-- **The rotation.** Its forward rotation is execution evidence the NA already
-  holds, of the same resource, issuing `version_id`
-  (`remediation_rotation_missing`, `remediation_rotation_mismatch`).
-- **The state.** The state table allows it (`remediation_not_due`,
-  `remediation_already_recorded`).
+1. **Its form.** A `RemediationRecord` in its exact serialized form
+   (`remediation_malformed`), before anything about its signature.
+2. **Authenticity and scope.** An executor key of the record's sovereign, not
+   retired, covering the resource (`remediation_invalid_signature`,
+   `remediation_unknown_key`, `remediation_key_retired`,
+   `remediation_out_of_scope`); no secret material
+   (`remediation_secret_material`). The key must also cover the resource of
+   the subject the record names: otherwise `remediation_out_of_scope`, with
+   nothing about the subject in the answer, and the record is not kept.
+3. **The plan.** It names its judgement (or decision), the record of the
+   change, its resource and the version the change made, as the remediation
+   state recorded them when it was armed (`remediation_subject_mismatch`),
+   and carries out the stated steps (`remediation_steps_mismatch`).
+4. **The rotation.** Its forward rotation is execution evidence the NA
+   already holds (`remediation_rotation_missing`), of the same resource,
+   issuing `version_id` (`remediation_rotation_mismatch`), made by the
+   record's own executor sovereign (`remediation_rotation_other_executor`),
+   stored after the record of the change and executed no earlier than the
+   change (`remediation_rotation_before_change`: an older version is a roll
+   back), and cited by no other remediation (`remediation_rotation_reused`).
+5. **The state.** Due or overdue (`remediation_not_due`,
+   `remediation_already_recorded`).
 
 An authentic record refused for good (a retired key, outside its scope, not
-the plan, not due, a second one) is kept as a `quarantine` entry, named in
-`error.details.quarantine_id`: what it reports already happened. A record
-refused because its subject or rotation evidence is not stored yet is not
-kept; submit the evidence and retry.
+the plan, a rotation it may not cite, not due, a second one) is kept as a
+`quarantine` entry, named in `error.details.quarantine_id`: what it reports
+already happened. A record refused because its subject or rotation evidence
+is not stored yet is not kept; submit the evidence and retry.
 
 ## Notification
 
@@ -220,21 +245,33 @@ The NA does not send notices; the controller does, to the actor the
 observation names, and records it through the NA.
 
 - **The due queue.** `GET /admin/evidence/remediations?state=remediation_due`
-  (also `overdue`, `review_pending`, `waived`, `remediated`, `upheld`;
-  without `state`, the open ones), oldest first, paged with `limit` (1 to
-  500) and `after` (the previous page's `next_after`).
+  (also `overdue`, `waived`, `upheld`, `remediated`, the allowed states, or
+  `review_pending` for every change with a pending review whatever its
+  state; without `state`, the due, overdue and waived ones and those with a
+  pending review), oldest first, paged with `limit` (1 to 500) and `after`
+  (the previous page's `next_after`).
 - **The notice.** `POST /admin/evidence/remediations/<subject_id>/notified`
   with an optional `{"channel": "email"}`: an audit event
   (`remediation_notified`, with `before_due`) and `notified_at` on the state
   (the first notice). Send it before `remediation_due_at`.
 - **Overdue.** When a due time passes without a remediation, the state
-  becomes `overdue` and the NA writes one `remediation_overdue` audit event,
-  once across all instances. Due times are checked when the queue or a
-  resource's changes are read, when records are admitted (at most every
-  minute) and at start.
+  becomes `overdue`, whether or not a review is pending, and the NA writes one
+  `remediation_overdue` audit event, once across all instances. An overdue
+  change stays in the overdue queue and the `overdue` count while a review is
+  pending. Due times are checked when the queue or a resource's changes are
+  read, when records are admitted (at most every minute) and at start.
 
 The actor is what the source reported. A notice goes to it, but the
 identifier is not proof of who acted.
+
+### Clocks
+
+Due times, waivers and lifetimes are compared with the clock of the instance
+that sweeps, and a review is recorded at that clock's time, which its
+embedded requests must match within 300 seconds. With several instances,
+keep their clocks synchronised (NTP), as for the registry: an instance whose
+clock runs behind moves due times late and refuses reviews its operators
+signed on time.
 
 ## Reviews
 
@@ -243,11 +280,15 @@ identifier is not proof of who acted.
 - **Requested.** An operator key asks for one with a justification:
   `POST /admin/evidence/reviews` with
   `{"subject_kind": "judgement", "subject_id": "...", "justification": "..."}`.
-  Its holder must be named in the store (`409 review_needs_named_holder`).
+  Its holder must be named in the store (`409 review_needs_named_holder`),
+  and must not be the change's actor's (`409 review_requested_by_actor`):
+  the person who made a change does not ask for its review.
 - **Automatic.** The NA opens one for a judgement flagged for review in
   Stage 2 (`opened_for: flagged_for_review`), and for a change allowed under a
   policy with `"review_required": true` or an emergency section, whether
-  judged or decided before the change (`opened_for: review_required`).
+  judged or decided before the change (`opened_for: review_required`). An
+  observation of a change already under review as a decision or a
+  break-glass record attaches to that review: it opens none of its own.
 
 ### Deciding it
 
@@ -265,6 +306,18 @@ and within `NA_REVIEW_MAX_WAIVER_SECONDS` (default 30 days, at most 90;
 (`422 review_waiver_beyond_lifetime`). A later review can still deny an
 upheld or waived change.
 
+`waive_until` and the operator's `X-Admin-Timestamp` on both review routes
+are RFC 3339 timestamps in one strict form: `YYYY-MM-DDTHH:MM:SS`, an
+optional fraction of 1 to 6 digits, then `Z` or `+HH:MM`/`-HH:MM`. ISO 8601's
+basic format, week and ordinal dates, `24:00`, a leap second, an offset with
+seconds or none are refused (`400 invalid_review`): every verifier reads the
+embedded requests alike. The review routes take no query string
+(`400 invalid_review`). Before it records anything, the NA checks that the
+embedded requests verify offline as they will be stored, at the time it
+records them; a request that would not (signed close to 300 seconds before it
+arrived, say) is refused with `400 review_approval_invalid` and nothing is
+recorded.
+
 ### Who may decide
 
 The decider is a privileged key whose holder, in the store's holder registry
@@ -274,22 +327,28 @@ differs:
 - from the requester's holder, and the decider's key from the requester's
   (`409 review_same_holder_as_requester`): one person holding two keys
   cannot approve their own request;
-- from the holder the observed actor maps to
-  (`409 review_same_holder_as_actor`): the person who made the change does
-  not approve it.
+- from the holder of the change's actor (`409 review_same_holder_as_actor`):
+  the person who made the change does not approve it.
 
-**How the actor maps to a holder.** The NA maps an observation's `actor` to a
-holder through `NA_REVIEW_ACTOR_HOLDERS_JSON`
-(`{"principal-7f3a": "alice"}`); without an entry, an actor equal to a
-holder's name is that holder. An actor equal to the decider's key ID or
-holder name counts as the decider. For a decision, the actor is its
-requester's sovereign ID.
+**Who the actor is.**
 
-**The limits.** The actor is reported by the source and not authenticated:
-an actor the mapping does not know cannot be excluded, and a source that
-reports another actor defeats the check. Keep the mapping complete for the
-people who can change your resources, and keep one operator key per person:
-the registry only knows which keys a holder has been given.
+- For an observed change, the `actor` the source reported, mapped to a
+  holder through `NA_REVIEW_ACTOR_HOLDERS_JSON` (`{"principal-7f3a":
+  "alice"}`); without an entry, an actor equal to a holder's name is that
+  holder.
+- For a decision, the operator key that asked for it, and that key's holder
+  when the decision was stored: the operator who requested an emergency
+  decision neither requests nor decides its review. The review records both
+  (`actor`, `actor_holder`).
+- An actor equal to the decider's key ID or holder name counts as the
+  decider.
+
+**The limits.** The observed actor is reported by the source and not
+authenticated. An actor the mapping does not know has no holder: nothing
+excludes its holder from deciding, and a source that reports another actor
+defeats the check. Keep the mapping complete for the people who can change
+your resources, and keep one operator key per person: the registry only
+knows which keys a holder has been given.
 
 ### What a review proves offline
 
@@ -304,18 +363,30 @@ public key. Anyone holding the export can check, without the NA:
    from the approval, with its public key;
 2. it is `POST /admin/evidence/reviews/<review_id>/decide`, without a query,
    for this NA, by `decided_by`, with exactly the review's verdict, waiver end
-   and note, signed within 300 seconds of `decided_at`;
+   (RFC 3339, the same instant) and note, signed (RFC 3339) within 300 seconds
+   of `decided_at`;
 3. the requester's request is `POST /admin/evidence/reviews` with exactly the
    review's subject and justification, within 300 seconds of `requested_at`;
-4. the public keys are the ones the holder registry records for those keys,
-   with the holders the review names;
+4. the public keys are the ones the holder registry records (in records the
+   NA signed) for those keys, with the holders the review names;
 5. the decider's holder differs from the requester's and the actor's.
+
+## Retention
+
+Retention keeps the records of a change whose remediation is not settled:
+due, overdue or waived, a review pending, or an emergency lifetime still
+running. It stops before the judgement or decision of such a change, and
+`POST /admin/evidence/retention/apply` says so (`held_back` with
+`reason: "open_remediations"`). A remediation or review record stays with its
+judgement (and the record of the change) or its decision, so an export that
+starts right after a retention checkpoint holds the subject of every
+remediation and review it holds.
 
 ## Audit events
 
 | Group | Events |
 | --- | --- |
-| Due work | `remediation_armed`, `remediation_overdue`, `waiver_expired`, `emergency_lifetime_ended` |
+| Due work | `remediation_enabled`, `remediation_armed`, `remediation_overdue`, `waiver_expired`, `emergency_lifetime_ended` |
 | Reviews | `review_opened`, `review_requested`, `review_refused`, `review_decided` |
 | Records | `remediation_recorded` (with `late`), `remediation_rejected`, `remediation_notified` |
 
@@ -327,4 +398,4 @@ public key. Anyone holding the export can check, without the NA:
 | `NA_REMEDIATION_GRACE_SECONDS` | `86400` | Grace before a remediation is due when no policy gives one (0 to 2592000) |
 | `NA_REMEDIATION_DEFAULT_MODE` | `alert_only` | `alert_only` or `cancel`, when no policy gives guidance |
 | `NA_REVIEW_MAX_WAIVER_SECONDS` | `2592000` (30 days) | Longest waiver a review may grant (at most 90 days) |
-| `NA_REVIEW_ACTOR_HOLDERS_JSON` | unset | Observed actor -> holder, for refusing a review decided by the actor's holder |
+| `NA_REVIEW_ACTOR_HOLDERS_JSON` | unset | Observed actor -> holder, for refusing a review requested or decided by the actor's holder |

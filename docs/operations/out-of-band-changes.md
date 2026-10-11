@@ -61,8 +61,8 @@ reason in its `reason`, when:
 Since 1.4.0, with `EVIDENCE_REMEDIATION=on`, a denied, `indeterminate` or
 flagged change moves on: its remediation becomes due, or a second holder
 reviews it, and its `state` shows the Stage 3 state (`remediation_due`,
-`overdue`, `remediated`, `review_pending`, `upheld`, `waived`) with a
-`remediation` object. See {doc}`remediation-and-reviews`.
+`overdue`, `remediated`, `upheld`, `waived`) with a `remediation` object,
+which says whether a review is pending (`review_pending`). See {doc}`remediation-and-reviews`.
 
 ## Setting up observers
 
