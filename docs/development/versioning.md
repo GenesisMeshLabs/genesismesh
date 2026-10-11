@@ -60,8 +60,12 @@ SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
    written as the changelog entry under `### Added`, `### Changed`, `### Fixed`,
    `### Security`, `### Upgrading` (or another `###` heading). Any number of
    pull requests can add fragments for one version.
-2. The release PR (branch `release/<version>`) folds them into `CHANGELOG.md`
-   and removes them:
+2. The release PR (branch `release/<version>`, for example `release/1.3.1`)
+   folds them into `CHANGELOG.md` and removes them, writing the sections in a
+   fixed order: Security, Added, Changed, Deprecated, Removed, Fixed, any
+   other section in the order it first appears, then Upgrading. It refuses a
+   heading that does not name the version, and a version `CHANGELOG.md`
+   already has:
 
    ```bash
    python scripts/changelog.py preview 1.3.0
@@ -70,8 +74,12 @@ SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
 
    SDKs use their own heading form (`## [1.3.0] - 2026-10-11`).
 3. CI (`Changelog fragments`) checks every fragment, refuses one for a version
-   already released, and refuses lines a pull request other than a release
-   adds to `CHANGELOG.md`.
+   already released or outside `changelog.d/<version>/` (the release would
+   never fold it), and refuses any change to `CHANGELOG.md` (added, removed or
+   rewritten lines) from a branch other than `release/<version>`. A fragment
+   holds only `### Section` headings at the start of a line, no line starting
+   with `## ` even in a code block (it would end the version's release
+   notes), and no byte order mark.
 
 Documentation follows the same rule for versioned headings: a section for an
 unreleased version carries its marker on a line of its own below the heading
