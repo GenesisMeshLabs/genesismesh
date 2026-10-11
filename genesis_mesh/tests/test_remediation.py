@@ -26,18 +26,29 @@ from genesis_mesh.trust.evidence_store import parse_export_lines, verify_evidenc
 from genesis_mesh.trust.remediation import review_approval_problem
 
 from .test_attestation_boundary import _issue
-from .test_evidence_store import EXECUTOR, SECRET, VENDOR, Controller, _client, _code, _submit
+from .test_evidence_store import SECRET, VENDOR, Controller, _client, _code, _submit
 from .test_na_boundary_policy import _activate, _get, _headers, _iso, _make_service, _post
 from .test_out_of_band import CAPABILITY, Clock, Observer, _break_glass, _changes, _judgement, _observe
 
 EMERGENCY = "secret.manage.emergency"
 
 
+_CLOCKS: list[Clock] = []
+
+
 @pytest.fixture
 def clock(monkeypatch):
     c = Clock(datetime.now(timezone.utc) - timedelta(minutes=30))
     monkeypatch.setattr(OutOfBandService, "_now", lambda self: c.now())
+    _CLOCKS[:] = [c]
     return c
+
+
+def _sync() -> None:
+    """The NA records a review at the time its operator signed it (within 300 s): bring the test
+    clock up to the real one, which signs the admin requests."""
+    for c in _CLOCKS:
+        c.at = max(c.at, datetime.now(timezone.utc))
 
 
 def _remediating_service(**kwargs):
@@ -442,6 +453,7 @@ def test_the_due_queue_pages_and_refuses_unknown_states(client, clock):
 
 def _request(client, subject_id: str, *, key_id="operator-std", subject_kind="judgement",
              justification="The change was planned with the vendor"):
+    _sync()
     return _as(client, key_id, "POST", "/admin/evidence/reviews",
                {"subject_kind": subject_kind, "subject_id": subject_id, "justification": justification})
 
@@ -452,6 +464,7 @@ def _decide(client, review_id: str, verdict: str, *, key_id="operator-test", unt
         body["waive_until"] = until
     if note is not None:
         body["note"] = note
+    _sync()
     return _as(client, key_id, "POST", f"/admin/evidence/reviews/{review_id}/decide", body)
 
 
@@ -466,7 +479,8 @@ def test_a_review_needs_a_second_holder_other_than_the_actors(clock):
     requested = _request(client, judgement.judgement_id)
     assert requested.status_code == 201, requested.get_json()
     review_id = requested.get_json()["review_id"]
-    assert requested.get_json()["state"] == "review_pending"
+    # A review is a flag beside the state: the remediation stays due meanwhile.
+    assert requested.get_json()["state"] == "remediation_due" and requested.get_json()["review_pending"] is True
     assert [q["subject_id"] for q in _queue(client, "review_pending")] == [judgement.judgement_id]
 
     same = _decide(client, review_id, "deny", key_id="operator-alice2")  # alice's other key
@@ -478,7 +492,8 @@ def test_a_review_needs_a_second_holder_other_than_the_actors(clock):
     clock.at = datetime.now(timezone.utc)
     decided = _decide(client, review_id, "deny", note="Not a planned change")
     assert decided.status_code == 200, decided.get_json()
-    assert decided.get_json()["state"] == "remediation_due"
+    # The review held nothing: its grace passed meanwhile, so the denied change is overdue.
+    assert decided.get_json()["state"] == "overdue" and decided.get_json()["review_pending"] is False
     again = _decide(client, review_id, "uphold")
     assert again.status_code == 409 and _code(again) == "review_already_decided"
     review = ReviewRecord.model_validate(decided.get_json()["review"]["payload"])
@@ -650,7 +665,8 @@ def test_urgent_change_with_the_na_up_goes_through_the_emergency_capability(clie
     evidence = controller.record(urgent, capability=EMERGENCY, action="rotate", params={"version_id": "v5"})
     assert _submit(client, evidence).status_code == 201  # not blocked
     item = _item(client, urgent.decision_id)
-    assert item["state"] == "review_pending" and item["review"]["opened_for"] == "review_required"
+    assert item["state"] == "recorded" and item["review_pending"] is True
+    assert item["review"]["opened_for"] == "review_required"
     lifetime = datetime.fromisoformat(item["lifetime_ends_at"])
     assert lifetime == urgent.decision_made_at + timedelta(seconds=86400)
     # An observer naming the ordinary capability sees the change: matched to the emergency
@@ -660,14 +676,19 @@ def test_urgent_change_with_the_na_up_goes_through_the_emergency_capability(clie
     assert seen.governed_by == "prior_decision" and seen.matched_decision_id == urgent.decision_id
     # The review upholds it; at the end of its lifetime the remediation is due.
     clock.at = datetime.now(timezone.utc)
-    upheld = _decide(client, item["review_id"], "uphold")
+    # The operator who asked for the emergency decision (bob) cannot uphold it himself.
+    own = _decide(client, item["review_id"], "uphold")
+    assert own.status_code == 409 and _code(own) == "review_same_holder_as_actor"
+    upheld = _decide(client, item["review_id"], "uphold", key_id="operator-carol")
     assert upheld.status_code == 200 and upheld.get_json()["state"] == "upheld", upheld.get_json()
+    review = ReviewRecord.model_validate(upheld.get_json()["review"]["payload"])
+    assert (review.actor, review.actor_holder) == ("operator-test", "bob")
     beyond = _request(client, urgent.decision_id, subject_kind="decision")
     assert beyond.status_code == 201
-    too_long = _decide(client, beyond.get_json()["review_id"], "waive_until",
+    too_long = _decide(client, beyond.get_json()["review_id"], "waive_until", key_id="operator-carol",
                        until=(lifetime + timedelta(hours=1)).isoformat())
     assert too_long.status_code == 422 and _code(too_long) == "review_waiver_beyond_lifetime"
-    assert _decide(client, beyond.get_json()["review_id"], "uphold").status_code == 200
+    assert _decide(client, beyond.get_json()["review_id"], "uphold", key_id="operator-carol").status_code == 200
     clock.at = lifetime + timedelta(seconds=1)
     due = _queue(client, "remediation_due")
     assert [d["subject_id"] for d in due] == [urgent.decision_id]
@@ -694,7 +715,8 @@ def test_urgent_change_with_the_na_down_or_refusing_goes_through_break_glass(cli
     assert judgement.verdict == "allow" and judgement.capability == EMERGENCY
     assert "secret-emergency" in {p.policy_id for p in judgement.policy_binding.policies}
     remediation = resp.get_json()["judgement"]["remediation"]
-    assert remediation["state"] == "review_pending" and remediation["lifetime_ends_at"]
+    assert remediation["state"] == "judged_allowed" and remediation["review_pending"] is True
+    assert remediation["lifetime_ends_at"]
 
 
 def test_an_observations_own_emergency_claim_is_not_enough(client, clock):
@@ -708,7 +730,8 @@ def test_an_observations_own_emergency_claim_is_not_enough(client, clock):
     judgement = _judgement(body)
     assert judgement.verdict == "deny" and judgement.flagged_for_review is True
     assert f"judged under {CAPABILITY}" in (judgement.reason or "")
-    assert body["judgement"]["remediation"]["state"] == "review_pending"
+    remediation = body["judgement"]["remediation"]
+    assert remediation["state"] == "remediation_due" and remediation["review_pending"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -820,7 +843,7 @@ def test_judgements_from_before_the_switch_are_not_armed_at_start(clock):
     # A review can still be requested on it: the state is created then.
     requested = _request(client, judgement.judgement_id)
     assert requested.status_code == 201, requested.get_json()
-    assert requested.get_json()["state"] == "review_pending"
+    assert requested.get_json()["state"] == "remediation_due" and requested.get_json()["review_pending"]
     # A second start keeps the first start's time.
     service.remediation_service.ensure_states()
     assert len(_audit(service, "remediation_enabled")) == 1
@@ -838,7 +861,7 @@ def test_a_denied_emergency_decision_is_cancelled_forward(client, na_service, cl
     assert _submit(client, evidence).status_code == 201
     review_id = _item(client, urgent.decision_id)["review_id"]
     clock.at = datetime.now(timezone.utc)
-    denied = _decide(client, review_id, "deny")
+    denied = _decide(client, review_id, "deny", key_id="operator-carol")
     assert denied.status_code == 200, denied.get_json()
     state = denied.get_json()
     assert state["state"] == "remediation_due" and state["subject_kind"] == "decision"
