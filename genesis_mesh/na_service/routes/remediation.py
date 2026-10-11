@@ -4,7 +4,7 @@ Controllers (authenticated by the registered executor key that signed the record
   POST /evidence/remediations                              submit a signed RemediationRecord
 
 Operators (operator-signed headers):
-  GET  /admin/evidence/remediations                        the due queue (?state=, paged)
+  GET  /admin/evidence/remediations                        the due queue (?state=&limit=&after=)
   GET  /admin/evidence/remediations/<subject_id>           one subject's state, reviews and records
   POST /admin/evidence/remediations/<subject_id>/notified  record that the actor was told
   POST /admin/evidence/reviews                             request a review (standard)
@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from flask import Blueprint, jsonify, request
 
-from ..errors import RateLimitError, UnauthorizedError, request_json_object
+from ..errors import BadRequestError, RateLimitError, UnauthorizedError, request_json_object
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -44,7 +44,10 @@ def create_remediation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         return request.headers.get("X-Admin-Key-Id", "unknown")
 
     def _approval(data: dict, key_id: str) -> dict[str, Any]:
-        """The operator's signed request, as the NA verified it (signature version 2)."""
+        """The operator's signed request, as the NA verified it (signature version 2). A review route
+        takes no query string: the review embeds the request, which must verify offline as sent."""
+        if request.args:
+            raise BadRequestError("the review routes take no query string", code="invalid_review")
         return {
             "key_id": key_id,
             "public_key": service.operator_public_keys[key_id],
@@ -72,7 +75,8 @@ def create_remediation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def due_queue():
         """Remediations and reviews by state (default: remediation_due, overdue, review_pending, waived)."""
         _admin({}, tier="read")
-        return jsonify(remediation.queue({k: v for k, v in request.args.items()}))
+        return jsonify(remediation.queue(state=request.args.get("state"), limit=request.args.get("limit"),
+                                         after=request.args.get("after")))
 
     @bp.route("/admin/evidence/remediations/<subject_id>", methods=["GET"])
     def get_remediation(subject_id: str):

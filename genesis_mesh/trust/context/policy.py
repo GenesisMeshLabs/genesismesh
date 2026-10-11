@@ -248,7 +248,8 @@ def _validate_emergency(policy: BoundaryPolicy) -> list[PolicyValidationIssue]:
     elif capabilities[0] == emergency.stands_for:
         issues.append(PolicyValidationIssue(
             "invalid_emergency", "the emergency capability must differ from the capability it stands for"))
-    if emergency.stands_for.endswith(".*"):
+    if "*" in emergency.stands_for or not emergency.stands_for.strip():
+        # v1.4.0 review fixes: an exact capability ID, as a selector names one (no "*" at all).
         issues.append(PolicyValidationIssue("invalid_emergency", "stands_for is an exact capability ID"))
     if not _PARAMETER.match(emergency.justification_parameter):
         issues.append(PolicyValidationIssue(

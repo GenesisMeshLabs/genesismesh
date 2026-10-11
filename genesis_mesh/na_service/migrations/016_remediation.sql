@@ -125,13 +125,19 @@ CREATE TABLE IF NOT EXISTS remediation_states (
     subject_digest TEXT NOT NULL,
     change_kind TEXT NOT NULL CHECK (change_kind IN ('observation', 'break_glass', 'execution')),
     change_id TEXT,
+    change_version_id TEXT,
+    change_store_sequence INTEGER,
+    changed_at TEXT,
     resource_id TEXT,
     capability TEXT,
     actor TEXT,
+    actor_holder TEXT,
     verdict TEXT NOT NULL,
     state TEXT NOT NULL CHECK (state IN (
-        'remediation_due', 'overdue', 'remediated', 'review_pending', 'upheld', 'waived', 'review_denied'
+        'judged_allowed', 'matched', 'recorded',
+        'remediation_due', 'overdue', 'remediated', 'upheld', 'waived'
     )),
+    review_pending INTEGER NOT NULL DEFAULT 0 CHECK (review_pending IN (0, 1)),
     mode TEXT NOT NULL CHECK (mode IN ('cancel', 'alert_only')),
     steps TEXT NOT NULL CHECK (steps IN ('rotate_forward_then_disable', 'disable', 'none')),
     fallback TEXT,
@@ -150,6 +156,7 @@ CREATE TABLE IF NOT EXISTS remediation_states (
 );
 CREATE INDEX IF NOT EXISTS ix_remediation_state ON remediation_states(state, created_at, subject_id);
 CREATE INDEX IF NOT EXISTS ix_remediation_resource ON remediation_states(resource_id);
+CREATE INDEX IF NOT EXISTS ix_remediation_review_pending ON remediation_states(review_pending, created_at, subject_id);
 
 -- Reviews, from the request to the decision. The decided review is the
 -- ReviewRecord in the store; a pending one lives here only.
