@@ -22,7 +22,9 @@ The canonical form of a record is its JSON with:
 - numbers as the reference writes them: integers in full (only
   `-2**63 .. 2**64 - 1` are accepted, see *Accepted input*), floats in
   Python's shortest round-trip form, an integral float keeping its `.0`
-  (`1.0`), small and large floats in exponent form (`1e-07`);
+  (`1.0`), small and large floats in exponent form (`1e-07`). A float exactly
+  halfway between two shortest spellings is written with the even last digit
+  (`9200342818493.0625` is `9200342818493.062`, not `...063`);
 - timestamps as strings in their canonical form (see *Records in canonical
   form*): `2026-01-01T00:00:00Z`, `2026-01-01T00:00:00.123000Z`;
 - the signature field (`signature`, or `signatures` for multi-signed records)
@@ -47,6 +49,17 @@ it before computing a canonical form, by a named reason:
 | An integer below `-2**63` or above `2**64 - 1` | `integer_out_of_range` |
 | The integer `-0` (the float `-0.0` is accepted) | `negative_zero` |
 | A string or key holding half of a UTF-16 surrogate pair (`"\ud800"`) | `lone_surrogate` |
+
+A number is read by the JSON grammar first (1.3.1): `-`, then `0` or a digit
+1-9 and more digits; a `.` must be followed by a digit and an `e` or `E` by
+an optional sign and a digit. A number that breaks off there (`-0.`, `1e`,
+`1E+`, `1.e5`, `100000000000000000000.`) is `invalid_json`; only a whole
+number goes on to `negative_zero` and the range checks. What follows a whole
+number is the next token: `[01]` is `invalid_json` for the `1`, `[-01]` is
+`negative_zero` for the `-0` before it, and `[1e400.]` is `non_finite_number`.
+An integer of more than 20 digits is `integer_out_of_range` without being
+converted, since no integer in range has more. With several faults, the first
+in text order is named.
 
 Before 1.2.0, Python kept the last duplicate key where .NET kept both, wrote
 `NaN` back as non-JSON, Go replaced a lone surrogate, and Rust read a large
@@ -113,11 +126,19 @@ kinds too, so the SDKs check them alike.
 
 A data access intent check has no reason code of its own for this; its
 `intent_exceeds_license` violation says `Not in canonical form: intent`, or
-`Not in canonical form: policy` for the license policy's timestamps. Evidence
+`Not in canonical form: policy` for the license policy (since 1.3.1 checked
+whole, as the intent is, so a policy leaving out a field the reference always
+writes is refused too; 1.2 and 1.3.0 checked only its timestamps). Evidence
 exports are checked when the Network Authority admits each record (1.1.1),
 and again when verified (1.3.0): a stored record whose signature does not
 cover it as received is `invalid_signature`, one signed over a form the
-reference does not write `non_canonical_form`.
+reference does not write `non_canonical_form`. Since 1.3.1 this holds for a
+record carrying a field outside its signature too: that field is set aside
+and the rest is checked as received.
+
+A timestamp without an offset is canonical when the signer wrote it so, and
+every verifier reads it as UTC (1.3.1: the reference's decision check raised
+on one).
 
 ## Optional fields
 
@@ -167,7 +188,7 @@ know every signed field:
   takes its place in the chain;
 - when evidence verification finds a field outside a record's signature
   (records stored as submitted before 1.1.1), it reports it as the warning
-  `unsigned_field` and verifies the rest.
+  `unsigned_field` and verifies the rest, as received (1.3.1).
 
 The Python reference applies the same rules where it reads raw JSON: the
 verification routes (`/boundary/verify`, `/agreements/verify`,

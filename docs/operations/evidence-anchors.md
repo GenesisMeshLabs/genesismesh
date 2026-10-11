@@ -154,15 +154,24 @@ genesis-mesh evidence verify-export \
 
 The export must be tied to the held anchors at both ends:
 
-- **its start**: it starts at entry 1; or right after a retention checkpoint
-  recorded in the export; or right after a held anchor, whose digest its first
-  entry must name. Anything else, while held anchors cover earlier entries,
+- **its start**: it starts at entry 1, or right after a retention checkpoint
+  recorded in the export. An export of a store after retention must hold the
+  checkpoint's entry, which the NA appends after the entries retention kept:
+  export through it. Anything else, while held anchors cover earlier entries,
   fails with `export_not_linked_to_anchors`: entries before the export are not
   accounted for;
 - **its end**: an export that stops before the newest held anchor fails with
   `export_ends_before_anchor`.
 
-Inside the export, each held anchor must name its entry's digest
+An export since an anchored position (an incremental check of what was
+recorded after the export you last verified) starts right after a held
+anchor. Say so with `--from-anchor` (1.3.1): its first entry must then name
+that anchor's digest. Without the option such an export is not tied at its
+start, because a held anchor proves the entries before it existed, not that
+the store still holds them: before 1.3.1 an export of a store whose entries
+through an anchored one had been deleted verified.
+
+Inside the export, each held anchor must name its entry's digest as received
 (`anchor_mismatch`, `anchor_entry_missing`). `--partial` accepts a deliberate
 slice and skips both end checks. The result reports `linked_start`,
 `anchored_through_sequence` and `unanchored_entries`: entries after the newest
@@ -171,7 +180,13 @@ the operator.
 
 A retention checkpoint marks a deliberate removal and appears in the export
 as its own entry; it is signed with the NA key, so treat each one as an audit
-item and check it against the retention you expect.
+item and check it against the retention you expect. Since 1.3.1 the verifier
+checks that it removed as many entries as positions
+(`retention_count_mismatch`): from entry 1 for the first checkpoint, and from
+the checkpoint before it when the export holds that one. A checkpoint signed
+over a store whose entries had already been deleted fails, as far as the
+export lets this be checked; the reason codes are listed in
+{doc}`../reference/evidence-event-schema`.
 
 ## After a restore
 
@@ -186,7 +201,9 @@ recorded after the backup are gone. Treat it as an evidence-loss event:
 2. Keep the old anchor directory unchanged as the record of the lost history,
    and start a new directory for the restored store.
 3. Verify the history before the restore against the old directory with an
-   export of that range (`--partial` if it is a slice).
+   export of that range (`--partial` if it is a slice). Since 1.3.1 a slice
+   that starts after entry 1 verifies its chains from the first record it
+   holds of each resource.
 
 Rolling a 1.2 Network Authority back to 1.1 is a restore of this kind (see the
 upgrade guide).

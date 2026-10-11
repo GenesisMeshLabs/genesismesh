@@ -537,7 +537,9 @@ With the records on, `GET /admin/evidence/status` also reports
 the policy history reaches, or `null` when it has not started and every
 change is judged `indeterminate`), `registry_healthy` and
 `registry_problems` (a registry check that failed at start, a policy history
-that has not started, or active policies the registry has not recorded).
+that has not started, active policies the registry has not recorded, or a
+registry entry left out because it does not parse, is not signed by the NA or
+repeats a record's ID).
 
 ---
 

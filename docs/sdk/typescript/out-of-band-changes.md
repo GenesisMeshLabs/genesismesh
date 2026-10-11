@@ -32,10 +32,27 @@ await gm.evidenceStore.flushRecords(); // at startup and on a timer
 
 `enqueueRecord` keeps a record and submits it; a transient failure leaves it
 pending, and a refusal no retry can overcome (`RECORD_PERMANENT_REFUSALS`)
-keeps it as a dead letter. `flushRecords` submits pending records in order,
-observations up to 100 at a time. A record the NA admits outside its time
-bounds is kept by the NA as a quarantine entry and is listed in the run's
+keeps it as a dead letter. A record the NA admits outside its time bounds is
+kept by the NA as a quarantine entry and is listed in the run's
 `quarantined`.
+
+`flushRecords` submits pending break-glass records first, then observations
+up to 100 at a time, each in the order they were added. From 1.3.1:
+
+- a batch the NA refuses as a whole, such as one holding a record its JSON
+  reader refuses (`invalid_json`, a dead letter from 1.3.1), is split in
+  halves until that record is sent alone, so one bad record never holds back
+  the rest;
+- after a batch the NA throttles (`429`), batches are half the size, and
+  nothing is sent until its `Retry-After` has passed, unless `ignoreBackoff`;
+- a file of `FileRecordOutbox` that cannot be read is moved aside as
+  `<name>.unreadable`: the first read throws `outbox_file_unreadable` naming
+  it, and the outbox works again from the next call.
+
+One process uses a record outbox directory at a time. Nothing stops a second
+process from opening the same directory, and each would keep its own view of
+it: both submit the records they read, and one can undo the other's updates.
+Give each process its own directory.
 
 ## Observers
 
@@ -67,9 +84,33 @@ const observation = await observer.record({
 await gm.evidenceStore.enqueueRecord(observation);
 ```
 
+`changed_at`, `changed_not_before`, `changed_not_after` and `observed_at`
+take a `Date` or an ISO 8601 string with a UTC offset, such as the event's
+own time. From 1.3.1 the recorder signs them as the NA writes them, in UTC to
+the microsecond (`2026-10-10T08:00:00.573000Z`); a finer fraction is cut, as
+the NA reads it. A string without an offset, or that is not a time, is
+refused before signing (`observation_malformed`).
+
+Each source event is one observation. Unless you give `observation_id`, the
+recorder derives it from the event (1.3.1): `observationId(observer, source,
+source_event_id)`, the SHA-256 in hex of the three joined by NUL characters.
+Recording an event again with the same fields signs the same record, and the
+NA answers `duplicate`. A second record of the event with other fields, such
+as a later `observed_at`, is refused as `observation_conflict`: when you read
+an event again, take `observed_at` from what you recorded the first time, not
+from the clock. If you give your own IDs, derive them from the event the same
+way.
+
 `actor` is recorded as the source reported it and is not authenticated: use
-a pseudonymous identifier, never a credential. `metadata` passes the secret
-guard: names, versions and times, never values. Name the version
+a pseudonymous identifier, never a credential. `metadata`, `actor`,
+`source_event_id` and `version_id` pass the secret guard: names, versions and
+times, never values. The guard is the NA's own (1.3.1): together they are at
+most 16 KiB of JSON with non-ASCII characters escaped, as the NA counts them
+(an `é` counts 6 bytes, an emoji 12). The recorder refuses before signing
+what the NA would refuse: a record its model does not take
+(`observation_malformed`), secret material (`observation_secret_material`),
+or (1.3.1) a value its JSON reader refuses, such as a lone surrogate or an
+integer beyond 64 bits (`StrictJsonError`). Name the version
 (`version_id`) when the source reports one: the NA matches the observation to
 execution evidence for the same resource, action and capability that reports
 the same `execution_parameters.version_id`, and the change is then governed
@@ -88,6 +129,11 @@ for (const finding of findings) {
   if (input) await gm.evidenceStore.enqueueRecord(await observer.record(input));
 }
 ```
+
+Run again for the same scan, this signs the same records, which the NA
+answers as `duplicate`. `resourceStates` counts break-glass records as the
+resource's changes, in the order the changes were made (1.3.1), so a
+break-glass rotation is not found again as drift.
 
 ## Break-glass
 
@@ -108,12 +154,21 @@ if ('brokeGlass' in result) {
 A DENY never breaks the glass, nor does a decision that fails verification,
 the NA throttling failed operator signatures (`429 admin_auth_throttled`),
 an evaluation it could not store (`503 evidence_store_unavailable`), or any
-other error. `breakGlass` needs a record outbox, `resource_id` and an
-attestation-based evaluation (`attestation_id`: an agreement-based one cannot
-be judged after the fact), and checks the justification and the context
-against the secret guard before anything is evaluated or run. Every use shows in the resource's changes, with
-its justification; a policy can forbid it for a capability (a `denylist.v1`
-gate on `parent_kind` with the value `break_glass`).
+other error. Before its first admin request a client reads the NA's public
+key from `/sovereign.json` (unless given `audience`); from 1.3.1, only a
+lookup that gets no answer, or a `5xx` or `429`, breaks the glass there. Any
+other answer, such as a firewall's `403` or a `404`, throws
+`na_public_key_unavailable` with that status, and the action does not run.
+
+`breakGlass` needs a record outbox, `resource_id` and an attestation-based
+evaluation (`attestation_id`: an agreement-based one cannot be judged after
+the fact). Before anything is evaluated or run it checks the record as it
+will be signed, as the NA checks it: a justification of 1 to 1024 characters
+(counted as the NA counts them, so an emoji is one), the context against the
+secret guard, and room left for the action's report within the record's
+16 KiB, with the justification counted. Every use shows in the resource's
+changes, with its justification; a policy can forbid it for a capability (a
+`denylist.v1` gate on `parent_kind` with the value `break_glass`).
 
 ## Judgements and the state of a resource
 
@@ -138,6 +193,23 @@ one (`evidence_cites_judgement`).
   judgement per record (`duplicate_judgement`) that matches it
   (`judgement_subject_mismatch`, `judgement_subject_missing`), and execution
   evidence matched once (`match_reused`).
+
+From 1.3.1 it checks, as the reference does:
+
+- that each record appears once per kind (`duplicate_record`): a copied
+  entry is a replay, reported and still checked like any record;
+- that a Stage 2 entry's envelope names what its record says
+  (`envelope_mismatch`): its ID, resource, action, capability and signer, a
+  break-glass record's attestation and outcome, a judgement's subject,
+  verdict and matched record, a quarantine's refusal and a registry entry's
+  event;
+- judgements by the kind and ID of the record they judge, so a break-glass
+  record and an observation may share an ID;
+- that the record a judgement matched is in a run that starts at entry 1
+  (`judgement_match_missing`);
+- that a retention checkpoint removed as many entries as positions, after the
+  checkpoint before it when the run holds that one
+  (`retention_count_mismatch`).
 
 The result counts them in `observations`, `break_glass`, `judgements` and
 `quarantined`.

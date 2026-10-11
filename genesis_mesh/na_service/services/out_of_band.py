@@ -66,6 +66,7 @@ from ...trust.out_of_band import (
     stricter,
     time_bounds_problem,
     validity_change_times,
+    verify_na_record,
 )
 from ..errors import BadRequestError, ConflictError, NotFoundError, ServiceUnavailableError, ValidationError
 
@@ -165,6 +166,10 @@ class OutOfBandService:
         self._na = service
         # v1.3.1: what the registry checks at start found, for /admin/evidence/status.
         self._start_problems: list[str] = []
+        # v1.3.1: registry records left out when last read, and each record's signature check
+        # (position -> payload digest, NA keys, verified), so a record is verified once.
+        self._registry_faults: list[str] = []
+        self._registry_verified: dict[int, tuple[str, tuple[str, ...], bool]] = {}
         self._last_sweep = time.monotonic()
         self._next_backfill = 0.0
 
@@ -948,15 +953,43 @@ class OutOfBandService:
 
     def _registry_rows(self, db: Any = None) -> list[tuple[int, RegistryRecord, str | None]]:
         """Registry records with their store positions and dedupe keys, in effect order (v1.3.1):
-        retention carries removed records forward after newer ones, so store order is not history."""
+        retention carries removed records forward after newer ones, so store order is not history.
+
+        v1.3.1: only records the NA signed, each ID once (the first in the store), shape what
+        is read from the registry: a record a database writer added or copied is left out and
+        reported in ``/admin/evidence/status`` (``registry_problems``). Each record's signature
+        is verified once, then remembered by its position and payload digest.
+        """
         out = []
+        seen: set[str] = set()
+        faults: list[str] = []
+        keys = tuple(self._store.na_public_keys())
+        verified: dict[int, tuple[str, tuple[str, ...], bool]] = {}
         for stored in (db or self._na.db).registry_entries():
+            seq = stored["entry"].store_sequence
             try:
                 record = RegistryRecord.model_validate(stored["payload"])
             except PydanticValidationError:
-                logger.warning("registry entry %s does not parse", stored["entry"].store_sequence)
+                faults.append(f"registry entry {seq} does not parse: left out")
                 continue
-            out.append((stored["entry"].store_sequence, record, stored.get("dedupe_key")))
+            digest = payload_digest(stored["payload"])
+            known = self._registry_verified.get(seq)
+            signed = known[2] if known is not None and known[:2] == (digest, keys) else verify_na_record(record, keys)
+            verified[seq] = (digest, keys, signed)
+            if not signed:
+                faults.append(f"registry entry {seq} is not signed by the NA: left out")
+                continue
+            if record.registry_record_id in seen:
+                faults.append(f"registry entry {seq} repeats registry record {record.registry_record_id}: left out")
+                continue
+            seen.add(record.registry_record_id)
+            out.append((seq, record, stored.get("dedupe_key")))
+        self._registry_verified = verified
+        if faults != self._registry_faults:
+            for fault in faults:
+                if fault not in self._registry_faults:
+                    logger.warning("evidence store %s", fault)
+            self._registry_faults = faults
         out.sort(key=lambda r: (r[1].effective_at, r[0]))
         return out
 
@@ -1274,6 +1307,7 @@ class OutOfBandService:
         reaches, and whether the registry can be judged on."""
         problems = list(self._start_problems)
         history = self.policy_history()
+        problems.extend(self._registry_faults)  # v1.3.1: records left out as policy_history() read them
         if history.started_at is None:
             problems.append("the policy history has not started: every change is judged indeterminate")
         elif self._drifted(history):

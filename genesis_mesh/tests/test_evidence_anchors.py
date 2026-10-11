@@ -491,17 +491,31 @@ def test_a_slice_linked_to_a_held_anchor_verifies_and_an_unlinked_one_needs_part
     events = _export(client)
     start = held[0].store_sequence
     linked = [e for e in events if e.entry.store_sequence > start]
-    result = _verify(linked, held)
+    result = _verify(linked, held, from_anchor=True)
     assert result.verified and result.anchors["linked_start"] is True
     unlinked = [e for e in events if e.entry.store_sequence > start + 1]
-    assert not _verify(unlinked, held).verified
+    assert not _verify(unlinked, held, from_anchor=True).verified
     assert _verify(unlinked, held, partial=True).verified
     forged = _rebuild_without(events, drop_sequence=start + 1)
     after = [e for e in forged if e.entry.store_sequence > start]
-    assert not _verify(after, held).verified  # it links, but stops before the newest anchor
+    assert not _verify(after, held, from_anchor=True).verified  # it links, but stops before the newest anchor
     detached = [e.model_copy(update={"entry": e.entry.model_copy(update={"prev_entry_digest": "0" * 64})})
                 if e.entry.store_sequence == start + 1 else e for e in linked]
-    assert "anchor_mismatch" in {f["reason"] for f in _verify(detached, held).failures}
+    assert "anchor_mismatch" in {f["reason"] for f in _verify(detached, held, from_anchor=True).failures}
+
+
+def test_an_export_starting_after_a_held_anchor_is_tied_only_when_asked(client):
+    """v1.3.1: a run right after a held anchor may be a store whose entries through it were deleted."""
+    _activity(client, 3)
+    _post(client, ANCHORS, {}, standard=True)
+    held = _held(client)
+    start = held[0].store_sequence
+    after = [e for e in _export(client) if e.entry.store_sequence > start]
+    result = _verify(after, held)
+    assert not result.verified and result.anchors["linked_start"] is False
+    [failure] = result.failures
+    assert failure["reason"] == "export_not_linked_to_anchors" and "--from-anchor" in failure["detail"]
+    assert _verify(after, held, from_anchor=True).verified
 
 
 def test_an_export_after_retention_is_linked_by_its_checkpoint(client, monkeypatch):

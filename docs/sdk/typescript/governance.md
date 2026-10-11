@@ -69,7 +69,13 @@ submitting it and removes it once the NA admits it. The outbox is storage the
 caller supplies. `FileOutbox` keeps one JSON file per record in a directory,
 written to a temporary file, synced and renamed into place; it reads the
 directory once and then keeps it in memory, so one process uses a directory at
-a time. A directory it creates is `0700` and its files `0600` on POSIX; on
+a time. Nothing stops a second process from opening the same directory, and
+each would keep its own view of it (both submit the records they read, and
+one can undo the other's updates): give each process its own directory. From
+1.3.1 a file that cannot be read is moved aside as `<name>.unreadable`: the
+first read throws `outbox_file_unreadable` naming it, and the outbox works
+again from the next call, instead of every action failing. A directory it
+creates is `0700` and its files `0600` on POSIX; on
 Windows, or for a directory that already exists, restrict access to it
 yourself. Implement `EvidenceOutbox` (`add`, `update`, `remove`, `list` in the
 order added) to keep records in a database instead. The outbox holds signed
@@ -84,15 +90,25 @@ outbox entry:
 | Result | Meaning |
 |---|---|
 | `submission` (`recorded`, `duplicate`) | The NA holds the record; it is no longer in the outbox. |
-| `queued.state: 'pending'` | Not admitted yet: the NA was unreachable, timed out, or answered `5xx`, `429`, or any refusal a later attempt can overcome (an executor key not registered yet, a gap behind a record not admitted yet, a disabled store, a proxy's error page). `flushPending` retries it. |
-| `queued.state: 'dead_letter'` | Refused for good: the NA's `evidence_malformed`, `invalid_evidence`, `evidence_invalid_signature`, a decision denied, mismatched or out of its window, a chain mismatch or `evidence_conflict`, or the SDK's `evidence_secret_material`; or a record it chains from was refused (`evidence_predecessor_dead_lettered`). `queued.last_error` holds the status and code. Kept in the outbox, never dropped. |
+| `queued.state: 'pending'` | Not admitted yet: the NA was unreachable, timed out, or answered `5xx`, `429`, or any refusal a later attempt can overcome (an executor key not registered yet, a gap behind a record not admitted yet, a disabled store, a proxy's error page). From 1.3.1 an exception in this process before any request is named `local_error`, not `network_error`. `flushPending` retries it. |
+| `queued.state: 'dead_letter'` | Refused for good: the NA's `evidence_malformed`, `invalid_evidence`, `evidence_invalid_signature`, a decision denied, mismatched or out of its window, a chain mismatch or `evidence_conflict`, `invalid_json` (1.3.1: a record its JSON reader refuses), or the SDK's `evidence_secret_material`; or the NA refused it only for the gap a refused record it chains from left (`evidence_predecessor_dead_lettered`). `queued.last_error` holds the status and code. Kept in the outbox, never dropped. |
 
 `gm.evidenceStore.flushPending()` submits pending records in the order they were
 added. Run it at startup and on a timer. A record waits while one it chains
 from is pending. A failed record is retried after 5 s, doubling up to 15
-minutes; `{ ignoreBackoff: true }` retries at once. A transient error ends the
-run. The result lists the records admitted, still pending and newly
-dead-lettered.
+minutes, or later when the NA's `Retry-After` asks (1.3.1);
+`{ ignoreBackoff: true }` retries at once. A transient error ends the run. The
+result lists the records admitted, still pending and newly dead-lettered. A
+call joins a flush in progress only when that flush tries everything the call
+asks for (1.3.1); otherwise it starts its own once that one ends.
+
+A record whose predecessor was refused is still sent (1.3.1; before, it was
+dead-lettered unsent). The NA cannot admit it, since the record it chains
+from is not stored, but when it refuses it for a reason of its own, such as
+a retired key, it keeps it as a quarantine entry, so the action it records is
+not lost from the store's history; that refusal is its dead letter's code.
+Refused only for the gap, it is dead-lettered with
+`evidence_predecessor_dead_lettered`, and the NA does not keep it.
 
 A governed action on a resource with pending records chains from the newest of
 them, not from the NA's head, and submits them first, oldest first and despite
@@ -110,9 +126,12 @@ run it again:
   the accepted parameters; the refused ones are dropped and named in
   `outcome_detail` (`[secret guard dropped: client_secret]`) and in `dropped`.
   The error carries `value`, `evidence` and `submission` or `queued`; `cause`
-  is the guard's `SecretMaterialError`. Without an outbox, the guard refuses
-  the metadata before anything is signed and throws `SecretMaterialError`, as
-  before 1.2.0.
+  is the guard's `SecretMaterialError`, or (1.3.1) a `StrictJsonError` for a
+  value the NA's JSON reader would refuse (a lone surrogate, such as half an
+  emoji cut by `slice`, an integer beyond 64 bits, or nesting too deep).
+  Without an outbox, the record is refused before anything is signed and the
+  error is thrown (`SecretMaterialError`, as before 1.2.0, or
+  `StrictJsonError`).
 - `EvidenceNotKeptError` (`governed_action_evidence_unkept`): the evidence
   could not be signed or the outbox failed. It carries `value` and the signed
   `evidence` when there is one: pass it to `enqueue` once the outbox works
@@ -129,7 +148,9 @@ Evaluation context and submitted execution metadata are checked before HTTP
 requests. The recorder also checks metadata before signing. These checks reject
 obvious secret field names, PEM blocks, token-like strings and oversized metadata;
 they cannot identify every possible secret. Supply identifiers, versions and
-timestamps only. Do not put credentials in resource identifiers either.
+timestamps only. Do not put credentials in resource identifiers either. From
+1.3.1 the recorder also refuses, before signing, a record the NA's JSON reader
+would refuse (`StrictJsonError`), which could otherwise only ever be refused.
 
 The helper reads the resource head (with an outbox, the newest pending record,
 else the NA's) unless `prior_resource` is supplied. An explicit `null` asserts
@@ -143,7 +164,10 @@ resource.
 ## Reconciliation
 
 `gm.evidenceStore.resourceStates()` returns the latest recorded state and retains
-the last successful metadata when a later action fails. Pass it with an observed
+the last successful metadata when a later action fails. From 1.3.1 it counts
+break-glass records too, in the order the changes were made, so a change made
+under break-glass is not reported again as drift; `last_break_glass_id` names
+the record when the latest change was one. Pass it with an observed
 inventory to `reconcileResources` to identify `unmanaged`, `drifted`, `missing`,
 `present_after_revoke` and `in_sync` resources. No scanning or remediation is
 performed by the SDK.
