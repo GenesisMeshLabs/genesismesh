@@ -27,13 +27,23 @@ Supply trusted public keys independently of the export. Executor keys include
 historical verification. Unknown keys and missing signatures fail verification.
 
 `parseExportLines` rejects malformed event envelopes and unsupported schema
-versions. `verifyEvidenceEvents` checks envelopes, payload digests, signatures,
+versions, and from 1.3.1 an envelope integer written as a float
+(`schema_version: 1.0`, `store_sequence: 7.0`), as the reference does.
+`verifyEvidenceEvents` checks envelopes, payload digests, signatures,
 execution windows, capabilities, store ordering and both execution chains. Invalid
 payloads are reported as failures. For a filtered history use `contiguous: false`;
 this permits gaps in the store sequence but still checks adjacent store links and
-resource chains. A partial resource chain needs a signed `checkpoint` with its
-prior resource heads. A valid export proves the supplied records; it does not
+resource chains. A run that starts at entry 1, or right after a signed
+`checkpoint` holding the prior resource heads, holds each chain from its start.
+From 1.3.1 a run that starts anywhere else (a later export page) takes the first
+record it holds of each resource as that chain's start, and checks the records
+after it. A valid export proves the supplied records; it does not
 prove that an external source supplied every record in the original store.
+
+A record that leaves out a field the reference always writes as null (an
+execution record's `outcome_detail`, a checkpoint's `previous_checkpoint_id`)
+fails as the reference fails it (1.3.1): `non_canonical_form` when its
+signature covers the record as received, `invalid_signature` otherwise.
 
 ## Agreements, license policies and data access intents
 
@@ -62,7 +72,9 @@ const v = verifyDataAccessIntent(intent, policy, [agentPublicKey]);
 ```
 
 `verifyAgreement` checks both signatures over the agreed body and, when given,
-the expected graph digest. `verifyDataAccessIntent` checks the agent signature,
+the expected graph digest. From 1.3.1 `signatures` that is not a list holds no
+signature (`missing_offerer_signature`; it threw a `TypeError`).
+`verifyDataAccessIntent` checks the agent signature,
 then expiry, licensed sources, prohibited classifications, permitted access
 types and the volume cap, and reports every violation. Read agreements with
 `parseJson`: a signed float such as `1.0` must survive parsing.
@@ -85,6 +97,9 @@ that information. Preserve received artifacts and use the supplied canonical
 functions for signing or digests. Keep metadata integers within JavaScript's safe
 integer range and prefer strings for identifiers and precise quantities. Integer
 literals beyond that range are parsed as `bigint` and canonicalized exactly.
+From 1.3.1 `parseJson` reads each number by the JSON grammar as a whole token
+before it checks its value, as every implementation does: `[-0.]`, `[1e]` and
+`[00]` are `invalid_json`, `[-01]` is `negative_zero`.
 
 ## Validation commands
 
