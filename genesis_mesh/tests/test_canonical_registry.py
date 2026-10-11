@@ -41,6 +41,8 @@ FREE_FORM = {
     ("BreakGlassRecord", "attributes"), ("BreakGlassRecord", "execution_parameters"),
     ("BreakGlassRecord", "request_parameters"), ("ObservationRecord", "metadata"), ("QuarantineRecord", "record"),
     ("RetentionCheckpoint", "observation_heads"),
+    # v1.4.0: an operator's signed admin request, kept whole in a review.
+    ("AdminApproval", "body"), ("AdminApproval", "query"),
 }
 
 
@@ -144,7 +146,7 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 def test_entry_kinds_are_the_models(registry):
     assert registry["entry_kinds"] == [
         "break_glass", "decision", "execution", "judgement", "justification", "observation", "quarantine",
-        "registry", "retention_checkpoint",
+        "registry", "remediation", "retention_checkpoint", "review",
     ]
 
 
