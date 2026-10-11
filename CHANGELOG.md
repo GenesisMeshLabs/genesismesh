@@ -1,5 +1,295 @@
 # Changelog
 
+## v1.3.1 - Review Fixes
+
+### Security
+
+- **Requests forged from a shared address no longer lock an operator out.**
+  Behind a gateway or NAT, 30 forged admin requests naming an operator's key
+  refused that operator's own requests for a minute, and enough junk from the
+  address reached the address-wide cap and refused every key there. The
+  failed-authentication throttle now refuses only requests that fail: a
+  request correctly signed by an active operator key is served, throttled or
+  not. A throttled request that fails gets `429 admin_auth_throttled` at its
+  first failed check (headers, key, timestamp and nonce before the
+  signature) and is neither counted nor audited again. The per-address admin
+  request limit (`NA_RATE_LIMIT_ADMIN_PER_MINUTE`) is unchanged and still
+  counts every admin request from the address.
+- **An allowed break-glass change the NA cannot tie to its attestation is
+  flagged for review.** A break-glass record is judged as the evaluation of
+  the attestation it names would have gone, but any executor key could name
+  any attestation and be judged allowed with no operator involved. The
+  judgement now says so and is flagged, unless the store holds execution
+  evidence from the same executor under a decision for that attestation,
+  recorded before the record. The verdict itself is unchanged: in the
+  governed flow the executor and the attestation's subject differ.
+- **`verify-export --known-anchors` no longer accepts a store whose entries
+  through an anchored one were deleted.** An export that started right after
+  a held anchor counted as tied to the anchors, though the anchor proves only
+  that the entries before it existed. Such an export is now
+  `export_not_linked_to_anchors` unless you verify an export since an
+  anchored position on purpose, with the new option `--from-anchor`. An
+  export must otherwise start at entry 1 or, after retention, hold the
+  retention checkpoint's entry; the failure says which.
+- **A retention checkpoint signed over a store with entries already deleted
+  fails verification.** A checkpoint must have removed as many entries as
+  positions: from entry 1 for the first checkpoint, and from the one before
+  it when the export holds that one (`retention_count_mismatch`). A
+  retention checkpoint passed to `verify_evidence_events` must carry the NA
+  signature, as the SDKs require.
+- **Replayed records and broken judgement links fail verification.** A record
+  ID appears once per kind in an export (`duplicate_record`): a copied
+  registry, observation or checkpoint entry passed before. Every envelope
+  field a 1.3.0 entry takes from its record must match it (`envelope_mismatch`,
+  now including a judgement's `matched_evidence_id` and verdict, which the
+  NA reads when it matches). A judgement matching a record the export does
+  not hold before it fails in an export from entry 1
+  (`judgement_match_missing`), and a judgement of a record of another kind
+  than its own is `judgement_subject_missing`.
+- **An evidence export is verified as received, as every SDK verifies it.**
+  The reference hashed each entry's envelope as it parsed it, so an envelope
+  respelled after it was written (a `recorded_at` written `+00:00`) still
+  matched its digest and the held anchors, and a `store_sequence` written
+  `"6"` was read as 6. Now the envelope is hashed as it arrived
+  (`entry_digest_mismatch`, `store_chain_break`, `anchor_mismatch`), an
+  envelope with a field of the wrong type or missing is refused as the export
+  is read, and the decision and resource chains link to each execution
+  record as it arrived.
+- **A field outside a record's signature no longer turns off the check of
+  the rest.** A stored record carrying such a field (a wrapper key next to a
+  decision, say) was not checked as received, so a decision with a
+  respelled timestamp or `"authorized": "false"` verified with only the
+  `unsigned_field` warning. The field is set aside and the signed part is
+  checked as received (`invalid_signature`, `non_canonical_form`).
+- **A row written into the audit log no longer becomes signed policy
+  history.** Before every judgement, 1.3.0 signed every policy activation the
+  audit log held and the registry did not, at the time the audit log gave,
+  so two inserted audit rows could switch a policy off in the past and turn
+  a denied change into an allowed one, with the store still verifying. Now
+  an activation or deactivation and its registry record commit in one
+  transaction, and the audit log's times are read only once, by the backfill
+  when a store first runs with `EVIDENCE_OUT_OF_BAND=on`. A change the
+  registry lacks after that (made while the records were off, or by an
+  instance of an older release) is recorded when the NA finds it, never
+  before what the store already holds, marked `reconstructed`, and every
+  judgement of a change made before it is flagged for review with the
+  reason. Records 1.3.0 wrote stay as they are.
+- **Audit event types are matched exactly.** `_` in an event type matched
+  any character, an event whose `details` named a policy event type was
+  read as one, and any matched event that was not an activation was read as
+  a deactivation.
+- **Operator key holders change only with a second holder's approval, also
+  after a restart or a retention run.**
+  - `OPERATOR_KEY_HOLDERS_JSON` now names holders at the first start with
+    `EVIDENCE_OUT_OF_BAND=on` only. A key added later, and a key whose public
+    key changes under the same key ID, is recorded as its own holder until a
+    holder change names one. 1.3.0 let the configuration name a new key's
+    holder, and a re-keyed key kept its holder.
+  - Retention carried old holder records forward after newer ones, and the
+    last record in store order won: an approved holder change reverted, the
+    configuration could then rename the key, and one person could approve
+    their own change. Holders are now read in order of `effective_at`.
+  - An approval is refused when the key that proposed the change was
+    revoked, removed from the configuration or re-keyed since it proposed
+    (`409 holder_change_proposer_revoked`, a new code).
+  - A holder must be a string of 1 to 128 characters: `null`, numbers and an
+    empty string in `OPERATOR_KEY_HOLDERS_JSON` are refused at start, where
+    1.3.0 recorded `"None"` or `""`. The values of
+    `OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON` must be strings
+    too.
+- **`NA_PROXY_HOPS` defaults to `0`.** With the old default of `1`, a client
+  that reached the Network Authority directly chose the address its rate
+  limits applied to by sending `X-Forwarded-For`: 500 forged admin requests
+  with a different header each were never throttled, which voided the
+  failed-authentication limit. The NA now trusts no forwarded headers unless
+  told how many proxies sit in front of it.
+- The in-memory rate limiter forgets buckets with no request in the last
+  window; every client address seen used to stay in memory for the life of
+  the process.
+- **Judgements and operator key holders rest only on registry records the NA
+  signed.** The NA replayed its registry as stored, so a record a database
+  writer added under another key (a holder change, a policy activation)
+  changed the holders and the policies a change was judged under. Each
+  registry record's NA signature is now verified before use, once per
+  record, and each `registry_record_id` counts once (the first in the
+  store). A record left out is named in `registry_problems` and turns
+  `registry_healthy` false in `GET /admin/evidence/status`.
+- **Retention no longer signs over entries deleted outside it.** Someone who
+  could write the database could delete entries, including the latest record
+  of a resource, and the next routine `POST /admin/evidence/retention/apply`
+  signed a checkpoint over whatever was left: the store then verified again,
+  the NA kept anchoring and an export checked against held anchors was clean.
+  Retention now checks, inside its transaction, that the store starts at
+  entry 1 or right after the previous checkpoint, holds every entry, still
+  continues from the latest anchor, and that each entry it removes
+  recomputes and links to the one before it. Otherwise it is refused with
+  `409 evidence_retention_refused` (a new error code) and an
+  `evidence_retention_refused` audit event, and nothing is removed.
+- **The NA no longer anchors a store whose oldest entries were deleted.**
+  With anchors at entries 6 and 10, deleting entries 1 to 6 left a store that
+  continued from an anchor: `GET /admin/evidence/verify` reported it verified
+  and the NA kept anchoring. The NA's own verification now requires the store
+  to start at entry 1 or right after the latest retention checkpoint
+  (`store_sequence_gap` otherwise), and anchoring is refused
+  (`409 evidence_anchor_refused`) when it does not, or when any entry up to
+  the head is missing.
+
+### Changed
+
+- `GET /admin/evidence/status` also reports `policy_history_started` (or
+  `null`: every change is then judged `indeterminate`), `registry_healthy`
+  and `registry_problems`, so a backfill that failed at start no longer
+  goes unnoticed.
+- A boundary policy activation or deactivation with the records on now fails
+  with `503 evidence_store_unavailable`, leaving the policy as it was, when
+  its registry record cannot be stored.
+
+### Fixed
+
+- `NA_PUBLIC_URL` is validated strictly at start: `http` or `https`, a DNS
+  name or IP address (IPv6 in brackets), an optional port of 1 to 65535 and
+  nothing after it but a `/`. A value such as `https://na.example.org:abc`, or
+  one with a space in it, was accepted and advertised.
+- Without `NA_PUBLIC_URL`, a request whose host is not a valid origin gets
+  `400 bad_request` from `/sovereign.json` and `/swagger.json`; a host such as
+  `na.example:8443@evil.example` advertised the URL `https:`.
+- The reference HA load balancer (`deploy/compose/ha`) forwarded the client's
+  `Host`, port included, so a client chose the URLs the NA advertised. The NA
+  there now advertises `NA_PUBLIC_URL` (default `http://localhost:8443`), and
+  nginx overwrites `X-Forwarded-Host` with its own server name. The
+  configuration and upgrade guides no longer suggest
+  `proxy_set_header X-Forwarded-Host $host`, which passes on the client's
+  `Host`: use `$server_name` and set `NA_PUBLIC_URL`.
+- **Authentic observations and break-glass records refused after the fact
+  are quarantined.** A record signed by a retired key, or outside its key's
+  role or prefix (`*_key_retired`, `*_out_of_scope`), was refused without a
+  trace in the store. It is now kept as a `quarantine` entry, named in the
+  refusal's `error.details.quarantine_id` (and in a batch result's
+  `error.details`), as execution evidence already was; never one that may
+  carry secret material. The codes are unchanged.
+- An export that starts after entry 1 (a later page, an export since a
+  position, the slice of a restore check) no longer fails
+  `resource_chain_break` for a resource whose earlier records lie before it:
+  the first record it holds of each resource starts that chain.
+- A decision or an execution record with a timestamp without an offset no
+  longer makes `verify_boundary_decision`, the decision checks of the verify
+  routes, or evidence verification and admission raise `TypeError`: such a
+  timestamp is read as UTC, as every SDK reads it.
+- **Another observer's report of a break-glass change is the same change.**
+  1.3.0 judged it afresh, so one change could show `judged_denied` and
+  `judged_allowed` at once. It now takes the stricter of the break-glass
+  record's verdict and its own facts, like the first observation, as the
+  runbook said.
+- **A version matches only the change made at that time.** An observation
+  was matched to any execution or break-glass record naming its version,
+  whenever it was made: a change three days before a decision was judged
+  allowed by it, and a resource that reuses a version (an unversioned
+  object's `null`) was "the same change" forever. The matched record must
+  now have been made within the observed change's time, give or take
+  `NA_OBSERVATION_CLOCK_SKEW_SECONDS`.
+- **A change window is judged where a policy's own validity starts or ends
+  inside it.** Only activations and deactivations were checked, so a freeze
+  scheduled to start inside the window was missed.
+- **An imported revocation dates from the first feed that listed it.** A
+  later cumulative feed listing it again moved the time, so a break-glass
+  change made after the first revocation was judged allowed. Judgements also
+  read the first import from the feeds when a 1.3.0 row was moved.
+- **An observation and a break-glass record can no longer share an id.** A
+  break-glass record reusing an observation's id took that observation's
+  judgement, so the observation was never judged but counted as judged for
+  retention. The second record is now refused (`409 observation_conflict` or
+  `409 break_glass_conflict`). In a store where 1.3.0 admitted such a pair,
+  each record is judged, counted and kept by retention as its own kind; the
+  one that cannot be judged answers `409 judgement_conflict`.
+- **A judgement that failed at admission is retried.** It used to wait for an
+  operator to judge it by id. The NA now judges records left unjudged at
+  every start (up to 100) and, with `NA_JUDGE_ON_ADMISSION=on`, a few more
+  on an admission at most every five minutes.
+- **Judging no longer slows down as the audit log grows.** Every judgement
+  scanned the whole audit log, every executor key and the registry, and
+  parsed the registry again at every point of a change window: 3 ms became
+  over 300 ms per observation with 300,000 audit events. A judgement now
+  reads no audit events and builds the policy history once; the NA records
+  what the registry lacks at start, and before a judgement only when the
+  registry's active policies differ from the policy table.
+- A number that breaks off after its point or exponent letter (`-0.`, `1e`,
+  `100000000000000000000.`) is refused as `invalid_json`, as the Go, .NET and
+  Rust SDKs refuse it; it was `negative_zero` or `integer_out_of_range`.
+- The license policy of a data access intent check is checked whole, as the
+  intent is: a policy leaving out a field the reference always writes is
+  `Not in canonical form: policy`, as in the SDKs. Only its timestamps were
+  checked.
+- An agreement whose `signatures` holds one signature object rather than a
+  list has no signature (`missing_offerer_signature`), as the SDKs read it.
+- The conformance suites carry the cases: number grammar, floats halfway
+  between two shortest spellings (the even digit is written), timestamps
+  without an offset, the policy form, the export checks above, and the
+  guard the Network Authority applies to an observation's and a break-glass
+  record's own values (`metadata_problem` cases: sizes counted on the
+  canonical JSON with non-ASCII escaped, the justification, `actor`,
+  `source_event_id` and `version_id` included).
+- `POST /admin/evidence/anchors` refuses a head that is already the latest
+  anchored entry but whose stored entry or payload was rewritten; it answered
+  `200 unchanged`.
+- The retention floor while observations are kept is the observation backlog
+  plus twice the clock skew (a change may be dated up to two skews after it
+  was recorded): with a large `NA_OBSERVATION_CLOCK_SKEW_SECONDS` an
+  observation removed by retention could be admitted a second time. The floor
+  now also applies with `EVIDENCE_OUT_OF_BAND=off` while the store still
+  holds observations, break-glass records or quarantine entries.
+- `GET /admin/evidence/status` reports `unjudged_records` with
+  `EVIDENCE_OUT_OF_BAND` off too, and a retention run stopped by a record not
+  judged yet says so in `held_back`, with the record and what to do. Records
+  stay in the store until judged: turn the records on, judge them, and apply
+  retention again (see *Changes Outside the Controlled Path*).
+- An NA instance whose clock runs ahead used to stop every instance from
+  anchoring with only a terse refusal. `GET /admin/evidence/status` now
+  reports `anchoring_blocked`, the refusal says how far ahead the anchor is
+  and what to correct, and `genesis-mesh evidence anchors fetch --anchor-now`
+  still checks and copies the anchors the NA serves before it exits with the
+  NA's reason.
+- `genesis-mesh evidence anchors fetch` writes an anchor file atomically on a
+  filesystem without hard links too; a crash could leave a truncated file.
+- `genesis-mesh evidence verify-export` and `--known-anchors` with a JSON
+  Lines file split lines on LF only, as every SDK does: a lone CR was read as
+  a line break.
+- Strict JSON reads a valid request body at the standard parser's speed
+  again. Since 1.3.0 every body was first scanned in Python, about four
+  times slower than in 1.2 (two seconds for a 2 MiB body of small values),
+  and before the request was authenticated. The scanner now runs only when
+  the parser refuses the text or the text may hold a lone surrogate or
+  nesting deeper than 64; it still names the first fault in text order, so
+  every input gets the same value or the same reason as before. A body is
+  still refused at `NA_MAX_REQUEST_BYTES` before it is read.
+
+### Upgrading
+
+- Exports since an anchored position checked with `--known-anchors` need
+  `--from-anchor`. The reason codes `duplicate_record`,
+  `judgement_match_missing` and `retention_count_mismatch` are new; the
+  verification reasons are listed in the evidence event schema reference.
+  Update the SDKs with the core: until they implement these checks they
+  accept exports the reference refuses.
+- A record stored before 1.1.1 with fields outside its signature verified
+  with a warning even when the rest was not what was signed; it now fails as
+  `invalid_signature`. Records the Network Authority wrote are not affected.
+- No migration. The registry of a 1.3.0 store is kept as it is; from the
+  first start on 1.3.1 the NA reads no times from the audit log. With
+  several instances, keep their clocks synchronised: registry times come
+  from the clock of the instance that records them.
+- Set `OPERATOR_KEY_HOLDERS_JSON` before the first start with the records on.
+  After that, name the holder of a new or re-keyed operator key with
+  `POST /admin/operator-keys/<key_id>/holder`, approved by a second named
+  holder; the NA logs a warning when the configuration names a holder it
+  does not record.
+- **Behind a reverse proxy or load balancer, set `NA_PROXY_HOPS=1`** (the
+  number of proxies in front). Without it, every client shares the proxy's
+  address for rate limiting, and the advertised URLs follow the proxy's view
+  of the scheme and host. The HA compose file, the systemd unit and the VM
+  bootstrap script in this repository now set it; the Kubernetes manifest
+  sets `0` and says to raise it behind an Ingress. A deployment that already
+  sets `NA_PROXY_HOPS` is unaffected.
+
 ## v1.3.0 - Observations, Judgements and Break-Glass
 
 ### Added
