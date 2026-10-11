@@ -45,6 +45,11 @@ def build_app(settings: NASettings) -> Flask:
         observation_max_backlog_seconds=settings.observation_max_backlog_seconds,
         observation_clock_skew_seconds=settings.observation_clock_skew_seconds,
         judge_on_admission=settings.judge_on_admission,
+        evidence_remediation=settings.evidence_remediation,
+        remediation_grace_seconds=settings.remediation_grace_seconds,
+        remediation_default_mode=settings.remediation_default_mode,
+        review_max_waiver_seconds=settings.review_max_waiver_seconds,
+        review_actor_holders=settings.review_actor_holders,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (e.g. 1 behind nginx) for the

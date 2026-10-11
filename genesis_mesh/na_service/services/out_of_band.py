@@ -241,7 +241,7 @@ class OutOfBandService:
     # -- quarantine -----------------------------------------------------------
 
     def quarantine(
-        self, kind: Literal["execution", "observation", "break_glass"], raw: dict[str, Any],
+        self, kind: Literal["execution", "observation", "break_glass", "remediation"], raw: dict[str, Any],
         code: str, detail: str, resource_id: str | None,
     ) -> dict[str, Any]:
         """Keep an authentic record the NA refused after its action happened; idempotent per record."""
@@ -554,17 +554,28 @@ class OutOfBandService:
             earliest = latest = record.executed_at
 
         # An observation of a break-glass change shares its verdict: judge that record first.
+        evaluated: ObservationRecord | BreakGlassRecord = record
+        claim: str | None = None
         if isinstance(record, ObservationRecord):
             related = self._match_candidate(record, action, earliest, latest) \
                 or self._same_change(record, action, earliest, latest)
             if related is not None and related["entry"].entry_kind == "break_glass" \
                     and self._na.db.get_judgement_for("break_glass", related["entry"].record_id) is None:
                 self._judge("break_glass", related)
+            # v1.4.0: an observation's own emergency claim is not enough. Unless a decision's
+            # evidence or a break-glass record of the change names the emergency capability, the
+            # change is judged under the ordinary capability it stands for, and flagged.
+            ordinary = self._na.remediation_service.ordinary_capability(record.capability) \
+                if related is None else None
+            if ordinary is not None:
+                evaluated = record.model_copy(update={"capability": ordinary})
+                claim = (f"the observation names emergency capability {record.capability}, which no decision "
+                         f"or break-glass record of this change names: judged under {ordinary}")
 
         ctx = self._judging()
         now = self._now()
         issuer = self._issuer()
-        verdict, history_reason = self._evaluate(record, latest, ctx)
+        verdict, history_reason = self._evaluate(evaluated, latest, ctx)
         if verdict is not None and earliest != latest:
             # Known only within a window: the verdict at its start and after every
             # policy change inside it must agree; before the history starts it cannot.
@@ -572,15 +583,15 @@ class OutOfBandService:
             for at in [earliest, *self._change_points(ctx, earliest, latest)]:
                 if at == latest:
                     continue
-                other, why = self._evaluate(record, at, ctx)
+                other, why = self._evaluate(evaluated, at, ctx)
                 if other is None:
                     verdict, history_reason = None, why
                     break
                 points.append((at, other))
             if verdict is not None:
                 verdict = combine_window([*points, (latest, verdict)])
-        current, _ = self._evaluate(record, now, ctx, current=True)
-        notes = self._review_notes(record, entry, ctx, earliest, verdict)
+        current, _ = self._evaluate(evaluated, now, ctx, current=True)
+        notes = self._review_notes(record, entry, ctx, earliest, verdict) + ([claim] if claim else [])
         hint = self._hint(record, action, earliest, latest) if isinstance(record, ObservationRecord) \
             and record.version_id is None else None
         after_the_fact = self._sign(judgement_from(
@@ -637,7 +648,13 @@ class OutOfBandService:
             "store_sequence": entries[0].store_sequence,
         })
         self._store.maybe_anchor()
-        return self._body(stored_judgement, status="judged")
+        # v1.4.0: a denied, indeterminate or flagged judgement arms its remediation or opens its review.
+        self._na.remediation_service.on_judgement(stored_judgement)
+        body = self._body(stored_judgement, status="judged")
+        remediation = self._na.remediation_service.states_for([payload["judgement_id"]]).get(payload["judgement_id"])
+        if remediation is not None:
+            body["remediation"] = self._na.remediation_service.item(remediation)
+        return body
 
     def _review_notes(
         self, record: ObservationRecord | BreakGlassRecord, entry: EvidenceStoreEntry, ctx: _Judging,
@@ -689,8 +706,9 @@ class OutOfBandService:
         if record.version_id is None:
             return None
         db = db or self._na.db
-        for stored in db.unmatched_executions(record.resource_id, action, record.version_id, record.capability,
-                                              limit=MATCH_CANDIDATES, recorded_since=self._candidates_since(earliest)):
+        for stored in db.unmatched_executions(record.resource_id, action, record.version_id,
+                                              self._capabilities(record.capability), limit=MATCH_CANDIDATES,
+                                              recorded_since=self._candidates_since(earliest)):
             if self._executed_within(stored, earliest, latest):
                 return stored
         return None
@@ -702,8 +720,9 @@ class OutOfBandService:
         if record.version_id is None:
             return None
         db = db or self._na.db
-        for stored in db.matched_executions(record.resource_id, action, record.version_id, record.capability,
-                                            limit=MATCH_CANDIDATES, recorded_since=self._candidates_since(earliest)):
+        for stored in db.matched_executions(record.resource_id, action, record.version_id,
+                                            self._capabilities(record.capability), limit=MATCH_CANDIDATES,
+                                            recorded_since=self._candidates_since(earliest)):
             if self._executed_within(stored, earliest, latest):
                 return stored
         return None
@@ -754,11 +773,17 @@ class OutOfBandService:
         )
         return self._sign(judgement)
 
+    def _capabilities(self, capability: str) -> list[str]:
+        """The capability a change is matched on, and (v1.4.0) the emergency capabilities that
+        stand for it: an urgent change governed under one is the change an observer sees."""
+        return [capability, *self._na.remediation_service.emergency_capabilities_for(capability)]
+
     def _hint(self, record: ObservationRecord, action: str, earliest: datetime, latest: datetime) -> str | None:
         """Unmatched execution evidence that may be this change: no version ID to confirm it."""
         skew = self.bounds.skew
         best: tuple[timedelta, str] | None = None
-        for stored in self._na.db.unmatched_executions(record.resource_id, action, None, record.capability, limit=50):
+        for stored in self._na.db.unmatched_executions(record.resource_id, action, None,
+                                                       self._capabilities(record.capability), limit=50):
             entry: EvidenceStoreEntry = stored["entry"]
             at = _parse_time(stored["payload"].get("executed_at"))
             if at is None:
@@ -1514,11 +1539,32 @@ class OutOfBandService:
                 changes.append({**base, "record_id": entry.record_id, "action": None,
                                 "at": payload.get("quarantined_at"), "governed_by": None, "state": "quarantined",
                                 "record_kind": payload.get("record_kind"), "rejection_code": payload.get("rejection_code")})
+        self._with_remediation(changes, judgements)
         return {"resource_id": resource_id, "truncated": truncated, "changes": changes}
+
+    def _with_remediation(self, changes: list[dict[str, Any]], judgements: dict[tuple[str, str], dict[str, Any]]) -> None:
+        """v1.4.0: a change a remediation or review concerns shows its Stage 3 state (``state``)
+        and the remediation itself (``remediation``): of its judgement, or of the decision an
+        execution record rests on."""
+        subjects: dict[int, str] = {}
+        for i, change in enumerate(changes):
+            if change["kind"] == "execution" and change.get("decision_id"):
+                subjects[i] = change["decision_id"]
+            elif change["kind"] in ("observation", "break_glass"):
+                judgement = judgements.get((change["kind"], change.get("record_id") or ""))
+                if judgement is not None:
+                    subjects[i] = judgement["judgement_id"]
+        states = self._na.remediation_service.states_for(sorted(set(subjects.values())))
+        for i, subject_id in subjects.items():
+            row = states.get(subject_id)
+            if row is not None:
+                changes[i]["state"] = row["state"]
+                changes[i]["remediation"] = self._na.remediation_service.item(row)
 
     @staticmethod
     def _state(judgement: dict[str, Any] | None) -> str:
-        """The state table (Stage 2): observed, matched, judged_allowed, judged_denied, indeterminate."""
+        """The state table (Stage 2): observed, matched, judged_allowed, judged_denied, indeterminate.
+        Stage 3 (v1.4.0) replaces it with the remediation state when there is one."""
         if judgement is None:
             return "observed"
         if judgement["governed_by"] == "prior_decision":

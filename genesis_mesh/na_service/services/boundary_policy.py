@@ -48,8 +48,14 @@ ENFORCEMENT_MODES: tuple[str, ...] = ("optional", "required")
 
 #: Intent fields a publish/validate request may carry.
 INTENT_FIELDS: frozenset[str] = frozenset(
-    {"policy_id", "description", "valid_from", "valid_until", "selector", "gates"}
+    {"policy_id", "description", "valid_from", "valid_until", "selector", "gates",
+     # v1.4.0 (Stage 3), accepted with EVIDENCE_REMEDIATION=on only
+     "remediation", "review_required", "emergency"}
 )
+
+#: Intent fields added in 1.4.0: a policy carrying one is refused until the
+#: remediation records are on, since a 1.3 SDK refuses the policy as unknown_field.
+STAGE3_INTENT_FIELDS: frozenset[str] = frozenset({"remediation", "review_required", "emergency"})
 #: Fields only the NA assigns; a caller supplying one is refused.
 NA_ASSIGNED_FIELDS: frozenset[str] = frozenset(
     {"version", "signature", "issued_at", "issued_by", "issuer_sovereign_id"}
@@ -129,6 +135,12 @@ class BoundaryPolicyService:
             raise BadRequestError(
                 "unknown policy fields", code="unexpected_field", details={"fields": unknown}
             )
+        stage3 = sorted(k for k in STAGE3_INTENT_FIELDS & data.keys() if data[k] not in (None, False))
+        if stage3 and self._na.evidence_remediation != "on":
+            raise BadRequestError(
+                "remediation guidance, review_required and emergency need EVIDENCE_REMEDIATION=on",
+                code="policy_remediation_disabled", details={"fields": stage3},
+            )
         policy_id = data.get("policy_id")
         if not isinstance(policy_id, str) or not policy_id:
             raise BadRequestError("policy_id is required", code="missing_policy_id")
@@ -147,6 +159,10 @@ class BoundaryPolicyService:
                 valid_until=data["valid_until"],
                 selector=selector,
                 gates=gates,
+                # v1.4.0: left out when absent (review_required false is absent).
+                remediation=data.get("remediation"),
+                review_required=True if data.get("review_required") is True else data.get("review_required") or None,
+                emergency=data.get("emergency"),
                 issued_at=datetime.now(timezone.utc),
                 issued_by=self._na.key_id,
                 issuer_sovereign_id=self._na.genesis_block.network_name,
