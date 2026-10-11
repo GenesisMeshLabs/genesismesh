@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.3.0:
+As of v1.3.1:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.3.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,044 tests pass. The layer rule and public boundary rule are enforced
+- 2,230 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -190,7 +190,7 @@ As of v1.3.0:
   commands, the public Python API, 57 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.2.0, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.3.0, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.3.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 14 suites and 284
+- A protocol conformance suite exists in `conformance/`: 14 suites and 351
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -1075,6 +1075,43 @@ interoperability, upgrade and documentation gate.
 not, is on the record with a verdict as of its time, and an outage of the
 Network Authority no longer forces a choice between acting and keeping
 evidence.
+
+### v1.3.1 — Review Fixes
+
+A patch release. After 1.3.0 shipped, a critic and a skeptic reviewed what
+1.2 and 1.3 had shipped in all six repositories and ran a probe for nearly
+every finding; the sandbox applications ran the new features end to end.
+Nothing was critical, but several defects let an operator's own records be
+turned against them.
+
+In the evidence store, retention could sign a checkpoint over rows deleted
+from the database, and deleting the store's start through an anchored entry
+went unnoticed by the Network Authority and by `verify-export`: retention,
+the Network Authority's own verify and anchoring now refuse an incomplete
+store, and a verifier ties an export to held anchors only when asked. In
+judging, a row written into the unsigned audit log could become signed
+policy history, a re-imported revocation feed moved a revocation's time,
+retention reverted operator key holders, and a version matched a change made
+days apart: activations now commit with their registry records, the Network
+Authority replays only registry records it signed, and matching and holders
+follow the change's time. Records refused for a retired or out-of-scope key
+are quarantined, and judging no longer reads the audit log.
+
+The admin failure throttle no longer refuses a correctly signed request, and
+`NA_PROXY_HOPS` defaults to `0`, so a client can no longer choose the address
+its limits apply to. The TypeScript and Rust SDKs check a record as the
+Network Authority will before an action runs, so a record is never refused
+after its action, and no single record can block an outbox; a forbidden
+answer never breaks the glass. Every implementation verifies exports by the
+same rules and reads numbers by one grammar, pinned by 67 new conformance
+vectors.
+
+The release passed 2,230 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** the store's anchors, retention and registry hold
+against someone with write access to the database, and every implementation
+gives one verdict for one export.
 
 ---
 

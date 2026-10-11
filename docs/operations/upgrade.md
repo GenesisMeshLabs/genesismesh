@@ -50,8 +50,6 @@ built wheel before every release.
 
 ## Upgrading to 1.3.1
 
-*Unreleased.*
-
 - **`NA_PROXY_HOPS` defaults to `0`.** It was `1`, so an NA that clients
   reach directly trusted the `X-Forwarded-For` they sent and a client could
   choose the address its rate limits apply to. An NA behind one reverse

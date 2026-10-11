@@ -7,7 +7,7 @@ external operators and implementers can evaluate and run.
 The current baseline is:
 
 - **Baseline date:** 2026-10-10
-- **Baseline release:** v1.3.0
+- **Baseline release:** v1.3.1
 - **Current phase:** Phase 2 - Externalization
 - **Current release program:** Governed Changes and Edge Trust (1.2 to 1.7),
   Phase N in {doc}`phases/index`
