@@ -28,7 +28,6 @@ every SDK reads it (v1.3.0): one input, one reason, in every implementation.
 
 from __future__ import annotations
 
-import itertools
 import json
 import math
 import re
@@ -241,9 +240,6 @@ class _Scanner:
 #: Text that may hold a lone surrogate: a surrogate escape, or a raw surrogate.
 _SURROGATE_HINT = re.compile(r"\\u[dD][89a-fA-F]|[\ud800-\udfff]")
 _SURROGATE = re.compile(r"[\ud800-\udfff]")
-_STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.DOTALL)
-_NOT_BRACKET = re.compile(r"[^\[\]{}]+")
-_NESTING = {"[": 1, "{": 1, "]": -1, "}": -1}
 
 
 def _holds_surrogate(value: Any) -> bool:
@@ -266,10 +262,21 @@ def _holds_surrogate(value: Any) -> bool:
     return False
 
 
-def _depth(text: str) -> int:
-    """How deep arrays and objects nest in JSON text the parser accepted."""
-    brackets = _NOT_BRACKET.sub("", _STRING.sub("", text))
-    return max(itertools.accumulate(map(_NESTING.__getitem__, brackets)), default=0)
+def _depth(value: Any) -> int:
+    """How deep arrays and objects nest in a parsed value: the nesting of the
+    text the parser accepted, measured without reading the text again."""
+    deepest, stack = 0, [(value, 1)]
+    while stack:
+        item, level = stack.pop()
+        if isinstance(item, dict):
+            children: Any = item.values()
+        elif isinstance(item, list):
+            children = item
+        else:
+            continue
+        deepest = max(deepest, level)
+        stack.extend((child, level + 1) for child in children)
+    return deepest
 
 
 def loads(text: str | bytes) -> Any:
@@ -303,7 +310,7 @@ def loads(text: str | bytes) -> Any:
             raise
         raise StrictJSONError("invalid_json", str(exc)) from None
     if (_SURROGATE_HINT.search(text) and _holds_surrogate(value)) or (
-        text.count("[") + text.count("{") > MAX_DEPTH and _depth(text) > MAX_DEPTH
+        text.count("[") + text.count("{") > MAX_DEPTH and _depth(value) > MAX_DEPTH
     ):
         _Scanner(text).scan()
     return value
