@@ -331,14 +331,20 @@ def test_the_envelope_fields_checked_are_those_the_na_writes():
     from genesis_mesh.trust.evidence_store import _ENVELOPE_FIELDS
     from genesis_mesh.trust.out_of_band import entry_index
 
-    suite = json.loads((SUITES / "out_of_band.json").read_text(encoding="utf-8"))
+    from genesis_mesh.models import remediation as remediation_models
+
+    vectors = [v for name in ("out_of_band", "remediation")
+               for v in json.loads((SUITES / f"{name}.json").read_text(encoding="utf-8"))["vectors"]]
     kinds = {"ObservationRecord": "observation", "BreakGlassRecord": "break_glass", "JudgementRecord": "judgement",
-             "QuarantineRecord": "quarantine", "RegistryRecord": "registry"}
+             "QuarantineRecord": "quarantine", "RegistryRecord": "registry",
+             # v1.4.0
+             "RemediationRecord": "remediation", "ReviewRecord": "review"}
     seen = set()
-    for vector in suite["vectors"]:
+    for vector in vectors:
         if vector["kind"] != "canonical_form":
             continue
-        record = getattr(oob_models, vector["model"]).model_validate(vector["record"])
+        models = remediation_models if vector["model"] in ("RemediationRecord", "ReviewRecord") else oob_models
+        record = getattr(models, vector["model"]).model_validate(vector["record"])
         kind = kinds[vector["model"]]
         seen.add(kind)
         expected = {f: getattr(record, source) for f, source in _ENVELOPE_FIELDS[kind].items()}
