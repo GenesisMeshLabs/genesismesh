@@ -214,6 +214,8 @@ class EvidenceStoreService:
             "authorized": decision.authorized,
         })
         self.maybe_anchor()
+        # v1.4.0: a decision under a policy that requires review (an emergency policy) opens one.
+        self._na.remediation_service.on_decision(decision, context, entries[0])
 
     # -- execution evidence ---------------------------------------------------
 
@@ -632,6 +634,10 @@ class EvidenceStoreService:
             if self._na.out_of_band_service.enabled:
                 # v1.3.1: how far back the policy history reaches, and the registry's health.
                 out.update(self._na.out_of_band_service.registry_status())
+            # v1.4.0: remediations by state, with the records on.
+            out["evidence_remediation"] = self._na.evidence_remediation
+            if self._na.remediation_service.enabled:
+                out.update(self._na.remediation_service.counts())
         return out
 
     # -- anchors (v1.2.0) -------------------------------------------------------
