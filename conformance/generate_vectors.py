@@ -2293,10 +2293,15 @@ def gen_remediation() -> None:
     from genesis_mesh.trust.context import GateRegistry, sign_boundary_policy, validate_boundary_policy
     from genesis_mesh.trust.evidence_store import ExecutorKey, build_entry, parse_export_lines, verify_evidence_events
     from genesis_mesh.trust.out_of_band import entry_index
+    import typing
+
+    from genesis_mesh.models.evidence_store import RetentionCheckpoint
+    from genesis_mesh.trust.evidence_store import sign_retention_checkpoint
     from genesis_mesh.trust.remediation import (
-        _TRANSITIONS, RemediationDefaults, TransitionRefused, admin_approval_valid, check_remediation,
-        due_after_denial, due_after_waiver, next_state, remediation_plan, review_approval_problem,
-        review_holder_problem, steps_problem,
+        RemediationDefaults, RemediationState, TransitionEvent, TransitionRefused, admin_approval_valid,
+        decision_plan, due_after_denial, due_after_waiver, emergency_map, next_state, remediation_plan,
+        remediation_record_problem, review_approval_problem, review_holder_problem, review_request_problem,
+        rfc3339, steps_problem,
     )
 
     vectors: list[dict] = []
@@ -2442,29 +2447,75 @@ def gen_remediation() -> None:
         vectors.append({"id": f"due-{vid}", "kind": "due_time", "description": desc, "rule": rule, "input": inp,
                         "expected": {"remediation_due_at": _iso_z(due)}})
 
-    # ── The state table ───────────────────────────────────────────────────────
-    states = sorted({s for s, _ in _TRANSITIONS} | set(_TRANSITIONS.values()))
-    events = sorted({e for _, e in _TRANSITIONS})
-    for (state, event), target in sorted(_TRANSITIONS.items()):
-        vectors.append({"id": f"transition-{state}-{event}", "kind": "transition",
-                        "description": f"{event} in {state}", "input": {"state": state, "event": event},
-                        "expected": {"state": target}})
-    illegal = [(s, e) for s in states for e in events if (s, e) not in _TRANSITIONS]
-    for state, event in illegal:
-        try:
-            next_state(state, event)
-            raise AssertionError((state, event))
-        except TransitionRefused as exc:
-            code = exc.code
-        vectors.append({"id": f"transition-{state}-{event}", "kind": "transition",
-                        "description": f"{event} in {state} is refused", "input": {"state": state, "event": event},
-                        "expected": {"refused": code}})
+    # ── The state table (review fixes: a pending review is a flag beside the state) ──
+    for state in sorted(typing.get_args(RemediationState)):
+        for event in sorted(typing.get_args(TransitionEvent)):
+            for pending in (False, True):
+                try:
+                    expected: dict = {"state": next_state(state, event, pending)}
+                except TransitionRefused as exc:
+                    expected = {"refused": exc.code}
+                flag = "review-pending" if pending else "no-review"
+                vectors.append({
+                    "id": f"transition-{state}-{event}-{flag}", "kind": "transition",
+                    "description": f"{event} in {state}, {'a review pending' if pending else 'no review pending'}",
+                    "input": {"state": state, "event": event, "review_pending": pending}, "expected": expected,
+                })
+
+    # ── Decisions' plans, the strict timestamp grammar and emergency capabilities ───
+    for vid, desc, executed in (
+        ("never-executed", "A decision never executed: an alert (not_executed)", None),
+        ("executed-rotation", "A decision executed as a rotation with a version", ["rotate", "v5", True]),
+        ("executed-create", "A decision executed as a creation", ["create", "v1", True]),
+    ):
+        plan = decision_plan(policies=[BoundaryPolicy.model_validate(guided)],
+                             executed=tuple(executed) if executed else None,  # type: ignore[arg-type]
+                             defaults=RemediationDefaults(**defaults))
+        vectors.append({"id": f"decision-plan-{vid}", "kind": "decision_plan", "description": desc,
+                        "input": {"policies": [guided], "executed": executed, "defaults": defaults},
+                        "expected": plan.to_dict()})
+    for vid, value in (
+        ("utc", "2026-10-12T09:00:00Z"), ("fraction", "2026-10-12T09:00:00.5Z"),
+        ("six-digit-fraction", "2026-10-12T09:00:00.123456Z"), ("offset", "2026-10-12T11:00:00+02:00"),
+        ("negative-offset", "2026-10-12T04:30:00-04:30"), ("minus-zero-offset", "2026-10-12T09:00:00-00:00"),
+        ("basic-format", "20261012T090000Z"), ("week-date", "2026-W42-1T09:00:00Z"),
+        ("ordinal-date", "2026-285T09:00:00Z"), ("hour-24", "2026-10-12T24:00:00Z"),
+        ("leap-second", "2026-12-31T23:59:60Z"), ("offset-with-seconds", "2026-10-12T09:00:00+01:00:30"),
+        ("offset-without-colon", "2026-10-12T09:00:00+0100"), ("no-offset", "2026-10-12T09:00:00"),
+        ("no-seconds", "2026-10-12T09:00Z"), ("lower-case", "2026-10-12t09:00:00z"),
+        ("space", "2026-10-12 09:00:00Z"), ("seven-digit-fraction", "2026-10-12T09:00:00.1234567Z"),
+        ("comma-fraction", "2026-10-12T09:00:00,5Z"), ("no-such-day", "2026-02-30T09:00:00Z"),
+        ("offset-hours-24", "2026-10-12T09:00:00+24:00"), ("fullwidth-digits", "\uff12\uff10\uff12\uff16-10-12T09:00:00Z"),
+    ):
+        parsed = rfc3339(value)
+        vectors.append({"id": f"rfc3339-{vid}", "kind": "rfc3339",
+                        "description": f"waive_until and admin timestamps: {vid}", "input": value,
+                        "expected": {"valid": parsed is not None,
+                                     "utc": _iso_z(parsed.astimezone(timezone.utc)) if parsed else None}})
+    emergency_policy = {k: v for k, v in policy().items() if k != "signature"}
+    emergency_policy.update({"policy_id": "secret-emergency", "selector": {"capabilities": ["secret.rotate.emergency"]},
+                             "gates": [emergency_gate],
+                             "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                                           "max_lifetime_seconds": 86400}})
+    broad = {**{k: v for k, v in plain.items() if k != "signature"}, "policy_id": "all-secrets",
+             "selector": {"capabilities": ["secret.*"]}}
+    for vid, desc, policies, at in (
+        ("active", "An active, valid emergency policy maps its capability", [plain, emergency_policy], T0),
+        ("outside-validity", "Outside its validity it maps nothing", [plain, emergency_policy], T1 + timedelta(days=1)),
+        ("named-by-an-ordinary-policy", "A capability an ordinary policy also names is no emergency capability",
+         [broad, emergency_policy], T0),
+    ):
+        vectors.append({"id": f"emergency-map-{vid}", "kind": "emergency_map", "description": desc,
+                        "input": {"policies": policies, "at": _iso_z(at)},
+                        "expected": {"map": emergency_map([BoundaryPolicy.model_validate(p) for p in policies], at)}})
 
     # ── Records: canonical forms, signatures, checks ─────────────────────────────
     keys = [
         {"key_id": "executor-b", "public_key": pub_b64("b"), "executor_sovereign_id": SOV_B, "role": "executor"},
         {"key_id": "observer-a", "public_key": pub_b64("a"), "executor_sovereign_id": SOV_A, "role": "observer",
          "resource_prefix": "kv:"},
+        # review fixes: a controller of another sovereign
+        {"key_id": "executor-d", "public_key": pub_b64("d"), "executor_sovereign_id": "sovereign-d", "role": "executor"},
     ]
     executor_keys = {k["key_id"]: ExecutorKey(**k) for k in keys}
 
@@ -2513,12 +2564,12 @@ def gen_remediation() -> None:
     r1 = signed(remediation(41, j1, o1), "b", "executor-b")
 
     def review(n: int, subject: JudgementRecord, verdict: str, *, at: int, waive: datetime | None = None,
-               note: str | None = None, **changes) -> ReviewRecord:
+               note: str | None = None, until_text: str | None = None, **changes) -> ReviewRecord:
         request = {"subject_kind": "judgement", "subject_id": subject.judgement_id,
                    "justification": "The change was planned with the vendor"}
         body: dict = {"verdict": verdict}
         if waive is not None:
-            body["waive_until"] = _iso_z(waive)
+            body["waive_until"] = until_text or _iso_z(waive)
         if note is not None:
             body["note"] = note
         fields = dict(
@@ -2573,9 +2624,33 @@ def gen_remediation() -> None:
         ("tampered", "A record changed after signing", r1.model_copy(update={"detail": "changed"}), keys[0]),
         ("other-sovereign", "A key registered for another sovereign", r1, {**keys[0], "executor_sovereign_id": SOV_A}),
     ):
-        check = check_remediation(record, ExecutorKey(**key))
+        check, _ = remediation_record_problem(record.to_wire(), ExecutorKey(**key))
         vectors.append({"id": f"check-{vid}", "kind": "remediation_check", "description": desc,
                         "record": record.to_wire(), "key": key, "expected": {"code": check.code}})
+    # review fixes: the reference order. The record's form first (remediation_malformed), whatever
+    # its signature and key, then its signature, key and guard.
+    wire = r1.to_wire()
+    unknown_key = {**keys[0], "key_id": "executor-x", "public_key": pub_b64("e")}
+    for vid, desc, raw, key in (
+        ("malformed-wrong-type", "steps is not a string (and the key is unknown)", {**wire, "steps": 5}, unknown_key),
+        ("malformed-missing-field", "remediated_at is missing", {k: v for k, v in wire.items() if k != "remediated_at"},
+         keys[0]),
+        ("malformed-alerted-with-steps", "An alerted outcome with disable steps",
+         {**wire, "outcome": "alerted", "steps": "disable", "rotation_evidence_id": None, "version_id": None},
+         keys[0]),
+        ("malformed-rotation-without-evidence", "A forward rotation naming no rotation evidence",
+         {k: v for k, v in wire.items() if k != "rotation_evidence_id"}, keys[0]),
+        ("malformed-extra-field", "A field the model does not have (signed by the observer key)",
+         {**wire, "x_added": 1}, keys[1]),
+        ("malformed-null-optional", "An absent optional field sent as null", {**wire, "detail": None}, keys[0]),
+        ("malformed-non-utc-spelling", "remediated_at written +00:00", {
+            **wire, "remediated_at": wire["remediated_at"].replace("Z", "+00:00")}, keys[0]),
+        ("malformed-not-an-object", "Not an object", ["remediation"], keys[0]),
+    ):
+        check, _ = remediation_record_problem(raw, ExecutorKey(**key))
+        assert check.code == "remediation_malformed", (vid, check)
+        vectors.append({"id": f"check-{vid}", "kind": "remediation_check", "description": desc,
+                        "record": raw, "key": key, "expected": {"code": check.code}})
 
     for vid, desc, mode, steps, record in (
         ("rotation", "A forward rotation carries out rotate_forward_then_disable", "cancel",
@@ -2631,10 +2706,54 @@ def gen_remediation() -> None:
         ("justification-not-signed", "The NA records another justification than the requester signed",
          resigned(rv1, justification="Other"), audiences),
         ("other-audience", "Verified for another Network Authority", rv1, [pub_b64("a")]),
+        # review fixes: one strict RFC 3339 grammar for waive_until and the admin timestamps.
+        ("waiver-end-basic-format", "A waiver end signed in ISO 8601 basic format",
+         review(56, j2, "waive_until", at=6, waive=t[6] + timedelta(days=7),
+                until_text=(t[6] + timedelta(days=7)).strftime("%Y%m%dT%H%M%SZ")), audiences),
+        ("waiver-end-week-date", "A waiver end signed as a week date",
+         review(57, j2, "waive_until", at=6, waive=datetime(2026, 1, 5, tzinfo=timezone.utc),
+                until_text="2026-W02-1T00:00:00Z"), audiences),
+        ("waiver-end-offset", "A waiver end signed with another offset, the same instant",
+         review(58, j2, "waive_until", at=6, waive=t[6] + timedelta(days=7),
+                until_text=(t[6] + timedelta(days=7)).astimezone(timezone(timedelta(hours=2))).isoformat()),
+         audiences),
     ):
         problem = review_approval_problem(record, aud)
         vectors.append({"id": f"review-approval-{vid}", "kind": "review_approval", "description": desc,
                         "record": record.to_wire(), "audiences": aud, "expected": {"valid": problem is None}})
+    for vid, timestamp in (("no-offset", "2026-01-01T00:01:00"), ("hour-24", "2026-01-01T24:00:00Z"),
+                           ("basic-format", "20260101T000100Z"), ("offset-with-seconds", "2026-01-01T00:01:00+00:00:00")):
+        body = {"verdict": "deny"}
+        approval = _approval("e", "operator-2", f"/admin/evidence/reviews/{uid(59)}/decide", body, t[1], uid(259))
+        from genesis_mesh.crypto.admin_auth import sign_admin_request
+
+        approval["timestamp"] = timestamp
+        approval["admin_signature"] = sign_admin_request(
+            KEYS["e"], "operator-2", method="POST", path=approval["path"], audience=pub_b64("c"), body=body,
+            timestamp=timestamp, nonce=approval["nonce"])["X-Admin-Signature"]
+        record = rv1.model_copy(update={"review_id": uid(59), "approval": AdminApproval.model_validate(approval),
+                                        "decided_at": t[1], "request_approval": None, "requested_by": None,
+                                        "requester_holder": None, "justification": None, "opened_for": "review_required",
+                                        "requested_at": t[1], "signature": None})
+        record = signed(record, "c", "na-key")
+        assert admin_approval_valid(record.approval)
+        vectors.append({"id": f"review-approval-timestamp-{vid}", "kind": "review_approval",
+                        "description": f"A decision signed with X-Admin-Timestamp {timestamp!r}: the signature holds, "
+                                       "the timestamp is not RFC 3339", "record": record.to_wire(),
+                        "audiences": audiences,
+                        "expected": {"valid": review_approval_problem(record, audiences) is None}})
+    for vid, desc, inp in (
+        ("actor-requests", "The actor's holder requests the review", {"requester_holder": "holder-3"}),
+        ("actor-key-requests", "The actor is the requesting key (an operator who asked for a decision)",
+         {"actor": "operator-1"}),
+        ("another-holder-requests", "A holder other than the actor's requests it", {}),
+        ("unmapped-actor", "An actor that maps to no holder cannot be excluded", {"actor_holder": None}),
+    ):
+        fields = {"requested_by": "operator-1", "requester_holder": "holder-1", "actor": "principal-7f3a",
+                  "actor_holder": "holder-3", **inp}
+        problem = review_request_problem(**fields)
+        vectors.append({"id": f"request-{vid}", "kind": "review_request", "description": desc, "input": fields,
+                        "expected": {"code": problem[0] if problem else None}})
     for vid, desc, inp in (
         ("second-holder", "A second holder, neither the requester's nor the actor's", {}),
         ("same-key", "The requester's own key", {"decided_by": "operator-1"}),
@@ -2680,9 +2799,9 @@ def gen_remediation() -> None:
             "resource_action": record.resource_action, "resource_sequence": record.resource_sequence,
         }
 
-    def store(items) -> list[str]:
-        lines, prev = [], None
-        for seq, (kind, payload, index) in enumerate(items, start=1):
+    def store(items, start: int = 1, prev: str | None = None) -> list[str]:
+        lines = []
+        for seq, (kind, payload, index) in enumerate(items, start=start):
             entry = build_entry(store_sequence=seq, entry_kind=kind, recorded_at=t[10] + timedelta(seconds=seq),
                                 payload=payload, prev_entry_digest=prev, index=index)
             prev = entry.digest()
@@ -2701,10 +2820,11 @@ def gen_remediation() -> None:
         item("review", rv1),                              # 13: a later review denies it
     ]
 
-    def export_case(vid: str, desc: str, items, *, expect: list, drop: int = 0) -> None:
-        lines = store(items)[drop:]
+    def export_case(vid: str, desc: str, items, *, expect: list, drop: int = 0,
+                    checkpoint: RetentionCheckpoint | None = None, start: int = 1) -> None:
+        lines = store(items, start=start, prev=checkpoint.last_removed_entry_digest if checkpoint else None)[drop:]
         result = verify_evidence_events(parse_export_lines(lines), na_public_keys=[pub_b64("c")],
-                                        executor_keys=executor_keys)
+                                        executor_keys=executor_keys, checkpoint=checkpoint)
         failures = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
                           key=lambda f: (f[0] or 0, f[1]))
         got = [{"store_sequence": s, "reason": r} for s, r in failures]
@@ -2714,7 +2834,8 @@ def gen_remediation() -> None:
         vectors.append({
             "id": f"export-{vid}", "kind": "verify_export", "description": desc,
             "input": {"lines": "\n".join(lines), "na_public_keys": [pub_b64("c")], "executor_keys": keys,
-                      "contiguous": True},
+                      "contiguous": True, **({"checkpoint": json.loads(checkpoint.model_dump_json())}
+                                             if checkpoint else {})},
             "expected": {"verified": not got, "failures": got, "counts": counts},
         })
 
@@ -2722,7 +2843,8 @@ def gen_remediation() -> None:
     export_case("duplicate-remediation-record", "A remediation record copied to the end of the store",
                 [*copy.deepcopy(base), item("remediation", r1)],
                 expect=[{"store_sequence": 14, "reason": "duplicate_record"},
-                        {"store_sequence": 14, "reason": "duplicate_remediation"}])
+                        {"store_sequence": 14, "reason": "duplicate_remediation"},
+                        {"store_sequence": 14, "reason": "remediation_rotation_reused"}])
     export_case("duplicate-review-record", "A review record copied to the end of the store",
                 [*copy.deepcopy(base), item("review", rv1)],
                 expect=[{"store_sequence": 14, "reason": "duplicate_record"}])
@@ -2750,7 +2872,8 @@ def gen_remediation() -> None:
     changed[11] = item("remediation", other_resource)
     export_case("remediation-subject-mismatch", "A remediation of another resource than its judgement's", changed,
                 expect=[{"store_sequence": 12, "reason": "remediation_subject_mismatch"}])
-    orphan = signed(remediation(53, j1, o1, subject_id=uid(98)), "b", "executor-b")
+    orphan = signed(remediation(53, j1, o1, subject_id=uid(98), steps="disable", rotation_evidence_id=None,
+                                version_id=None), "b", "executor-b")
     export_case("remediation-subject-missing", "A remediation of a judgement the store does not hold",
                 [*copy.deepcopy(base), item("remediation", orphan)],
                 expect=[{"store_sequence": 14, "reason": "remediation_subject_missing"}])
@@ -2797,6 +2920,63 @@ def gen_remediation() -> None:
     export_case("review-waiver-after-remediation", "A waiver recorded after the change was remediated",
                 [*copy.deepcopy(base), item("review", late)],
                 expect=[{"store_sequence": 14, "reason": "review_waiver_after_remediation"}])
+
+    # review fixes: the forward rotation and the change.
+    def with_rotation(evidence: ExecutionEvidence, record: RemediationRecord) -> list:
+        changed = copy.deepcopy(base)
+        changed[10] = exec_item(evidence)
+        changed[11] = item("remediation", record)
+        return changed
+
+    older = signed(rotation.model_copy(update={"executed_at": t[0], "signature": None}), "b", "executor-b")
+    export_case("remediation-rotation-before-change", "A forward rotation made before the change it replaces",
+                with_rotation(older, r1), expect=[{"store_sequence": 12, "reason": "remediation_rotation_before_change"}])
+    theirs = signed(rotation.model_copy(update={"executor_sovereign_id": "sovereign-d", "signature": None}),
+                    "d", "executor-d")
+    export_case("remediation-rotation-other-executor", "A forward rotation another controller's sovereign made",
+                with_rotation(theirs, r1),
+                expect=[{"store_sequence": 12, "reason": "remediation_rotation_other_executor"}])
+    o3 = signed(ObservationRecord(
+        observation_id=uid(13), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[2], observed_at=t[3], actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-3", version_id="v8", metadata={"lifetime_days": 400},
+    ), "a", "observer-a")
+    j3 = judgement(23, o3, 8)
+    r3 = signed(remediation(60, j3, o3, disabled_version_id="v8"), "b", "executor-b")
+    export_case("remediation-rotation-reused", "A forward rotation another remediation already cites",
+                [*copy.deepcopy(base[:7]), item("observation", o3, observation_sequence=2), item("judgement", j3),
+                 exec_item(rotation), item("remediation", r1), item("remediation", r3)],
+                expect=[{"store_sequence": 12, "reason": "remediation_rotation_reused"}])
+    for vid, desc, record in (
+        ("remediation-of-another-change", "A remediation naming another change than its judgement's",
+         signed(remediation(61, j1, o2, resource_id=resource), "b", "executor-b")),
+        ("remediation-disabling-another-version", "A remediation disabling another version than the change made",
+         signed(remediation(62, j1, o1, disabled_version_id="v9"), "b", "executor-b")),
+    ):
+        changed = copy.deepcopy(base)
+        changed[11] = item("remediation", record)
+        export_case(vid, desc, changed, expect=[{"store_sequence": 12, "reason": "remediation_subject_mismatch"}])
+
+    # review fixes: a registry record the NA did not sign binds no operator key.
+    changed = copy.deepcopy(base)
+    changed[4] = item("registry", signed(holders[4].model_copy(update={"public_key": pub_b64("a"), "signature": None}),
+                                         "a", "na-key"))
+    export_case("review-key-binding-from-an-unsigned-registry-record", "A registry record not signed by the NA "
+                "naming another key for the decider: refused, and binding nothing", changed,
+                expect=[{"store_sequence": 5, "reason": "invalid_signature"}])
+
+    # review fixes: a run that starts right after a retention checkpoint holds every subject from its start
+    # (retention keeps a remediation and a review with their subject).
+    cp = sign_retention_checkpoint(RetentionCheckpoint(
+        checkpoint_id=uid(70), created_at=t[12], cutoff=t[11], removed_through_sequence=4,
+        last_removed_entry_digest=f"{4:064x}", removed_count=4, issued_by="na-key",
+    ), KEYS["c"], "na-key")
+    export_case("remediation-subject-missing-after-checkpoint", "After a retention checkpoint, a remediation whose "
+                "judgement the run does not hold", [item("registry", holders[4]), item("remediation", orphan)],
+                checkpoint=cp, start=5, expect=[{"store_sequence": 6, "reason": "remediation_subject_missing"}])
+    export_case("review-subject-missing-after-checkpoint", "After a retention checkpoint, a review whose judgement "
+                "the run does not hold", [item("registry", holders[4]), item("review", rv1)],
+                checkpoint=cp, start=5, expect=[{"store_sequence": 6, "reason": "review_subject_missing"}])
     _write("remediation", {"suite": "remediation", "version": "1.4.0", "vectors": vectors})
 
 
