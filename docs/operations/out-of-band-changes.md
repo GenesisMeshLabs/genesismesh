@@ -359,10 +359,13 @@ what to do.
 With the records off the judge routes answer `404 out_of_band_disabled`, so
 to let retention pass them:
 
-1. Set `EVIDENCE_OUT_OF_BAND=on` and restart the NA.
-2. Judge each record: `POST /admin/evidence/observations/<id>/judge` or
-   `POST /admin/evidence/break-glass/<id>/judge`. `GET /admin/evidence/changes/<resource_id>`
-   lists a resource's records in state `observed`.
+1. Set `EVIDENCE_OUT_OF_BAND=on` and restart the NA. At start it judges up
+   to 100 records not judged yet (see *Judging after a failure*).
+2. Judge any that remain (`unjudged_records` in the status):
+   `POST /admin/evidence/observations/<id>/judge` or
+   `POST /admin/evidence/break-glass/<id>/judge`.
+   `GET /admin/evidence/changes/<resource_id>` lists a resource's records in
+   state `observed`.
 3. Apply retention again. The records may then be turned off again.
 
 ## Settings
