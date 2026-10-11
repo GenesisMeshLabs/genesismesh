@@ -240,6 +240,7 @@ class BoundaryPolicyService:
                 "boundary policy has expired", code="boundary_policy_activation_refused",
                 details={"reason": "policy_expired"},
             )
+        self._refuse_emergency_conflict(policy)
         try:
             previous = self._na.out_of_band_service.activate_policy(policy, recorded_by, audit_event_id)
         except self._na.db.integrity_errors as exc:
@@ -249,6 +250,29 @@ class BoundaryPolicyService:
                 code="boundary_policy_activation_conflict",
             ) from exc
         return policy, previous
+
+    def _refuse_emergency_conflict(self, policy: BoundaryPolicy) -> None:
+        """v1.4.0: an emergency capability is selected by its emergency policy only. Activating an
+        emergency policy whose capability another active policy names, or a policy naming an
+        active emergency policy's capability, is refused: the ordinary policy's DENY would apply
+        to the emergency capability, or an ordinary capability would be remapped when judged."""
+        from ...trust.remediation import selects
+
+        active = [p for p in self._na.db.load_active_boundary_policies().policies if p.policy_id != policy.policy_id]
+        conflict: str | None = None
+        if policy.emergency is not None:
+            capability = policy.selector.capabilities[0]
+            conflict = next((f"{p.policy_id} v{p.version} names {capability}" for p in active
+                             if p.emergency is None and selects(p, capability)), None)
+        else:
+            conflict = next((f"{p.policy_id} v{p.version} makes {p.selector.capabilities[0]} an emergency capability"
+                             for p in active if p.emergency is not None and selects(policy, p.selector.capabilities[0])),
+                            None)
+        if conflict is not None:
+            raise ConflictError(
+                f"an emergency capability is selected by its emergency policy only: {conflict}",
+                code="emergency_capability_conflict",
+            )
 
     def deactivate(
         self, policy_id: str, version: int, *, recorded_by: str | None = None, audit_event_id: str | None = None,

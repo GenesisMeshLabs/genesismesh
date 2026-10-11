@@ -49,6 +49,7 @@ from ...models.out_of_band import (
 from ...trust.context.attestation_basis import AttestationBasis, assess_attestation_basis
 from ...trust.context.engine import PolicyVerdict, evaluate_policies_as_of
 from ...trust.evidence_store import EvidenceCheck, ExecutorKey, build_entry, check_metadata_only
+from ...trust.remediation import emergency_map
 from ...trust.out_of_band import (
     QUARANTINED_EXECUTION_CODES,
     QUARANTINED_OUT_OF_BAND_CODES,
@@ -80,8 +81,10 @@ SubjectKind = Literal["observation", "break_glass"]
 #: Most observations one batch may carry.
 OBSERVATION_BATCH_LIMIT = 100
 
-#: Most changes ``resource_changes`` returns (the oldest); longer histories report ``truncated``.
+#: Most changes one page of ``resource_changes`` may return, and how many it returns by default
+#: (v1.4.0: paged with ``after_sequence``; longer histories report ``truncated``).
 CHANGES_LIMIT = 10_000
+CHANGES_PAGE = 1_000
 
 #: Most stored records of one resource version a match looks through (v1.3.1).
 MATCH_CANDIDATES = 500
@@ -553,26 +556,47 @@ class OutOfBandService:
         else:
             earliest = latest = record.executed_at
 
-        # An observation of a break-glass change shares its verdict: judge that record first.
+        ctx = self._judging()
+        # v1.4.0: the emergency capabilities of the policies active and valid when the change was
+        # made (none with EVIDENCE_REMEDIATION off), and the capabilities the change matches on.
+        emergencies = self._emergency_map(ctx, latest)
+        caps = [record.capability, *sorted(e for e, ordinary in emergencies.items() if ordinary == record.capability)]
         evaluated: ObservationRecord | BreakGlassRecord = record
         claim: str | None = None
+        related_subjects: list[str] = []
         if isinstance(record, ObservationRecord):
-            related = self._match_candidate(record, action, earliest, latest) \
-                or self._same_change(record, action, earliest, latest)
+            # An observation of a break-glass change shares its verdict: judge that record first.
+            related = self._match_candidate(record, action, earliest, latest, caps=caps) \
+                or self._same_change(record, action, earliest, latest, caps=caps)
             if related is not None and related["entry"].entry_kind == "break_glass" \
                     and self._na.db.get_judgement_for("break_glass", related["entry"].record_id) is None:
                 self._judge("break_glass", related)
-            # v1.4.0: an observation's own emergency claim is not enough. Unless a decision's
-            # evidence or a break-glass record of the change names the emergency capability, the
-            # change is judged under the ordinary capability it stands for, and flagged.
-            ordinary = self._na.remediation_service.ordinary_capability(record.capability) \
-                if related is None else None
-            if ordinary is not None:
-                evaluated = record.model_copy(update={"capability": ordinary})
-                claim = (f"the observation names emergency capability {record.capability}, which no decision "
-                         f"or break-glass record of this change names: judged under {ordinary}")
+            if related is not None:
+                related_entry: EvidenceStoreEntry = related["entry"]
+                if related_entry.entry_kind == "execution" and related_entry.decision_id:
+                    related_subjects.append(related_entry.decision_id)
+                elif related_entry.record_id:
+                    bg = self._na.db.get_judgement_for("break_glass", related_entry.record_id)
+                    if bg is not None:
+                        related_subjects.append(str(bg["payload"]["judgement_id"]))
+                # v1.4.0: the observer's facts of an emergency change are judged under the emergency
+                # capability its decision or break-glass record names.
+                # The parameters the observer cannot see (the justification) come from the
+                # governed request; what the observer reports overrides them.
+                if related_entry.capability in emergencies and related_entry.capability != record.capability:
+                    requested = self._requested_parameters(related)
+                    evaluated = record.model_copy(update={"capability": related_entry.capability,
+                                                          "metadata": {**requested, **record.metadata}})
+            else:
+                # v1.4.0: an observation's own emergency claim is not enough. Unless a decision's
+                # evidence or a break-glass record of the change names the emergency capability,
+                # the change is judged under the ordinary capability it stands for, and flagged.
+                ordinary = emergencies.get(record.capability)
+                if ordinary is not None:
+                    evaluated = record.model_copy(update={"capability": ordinary})
+                    claim = (f"the observation names emergency capability {record.capability}, which no decision "
+                             f"or break-glass record of this change names: judged under {ordinary}")
 
-        ctx = self._judging()
         now = self._now()
         issuer = self._issuer()
         verdict, history_reason = self._evaluate(evaluated, latest, ctx)
@@ -592,7 +616,7 @@ class OutOfBandService:
                 verdict = combine_window([*points, (latest, verdict)])
         current, _ = self._evaluate(evaluated, now, ctx, current=True)
         notes = self._review_notes(record, entry, ctx, earliest, verdict) + ([claim] if claim else [])
-        hint = self._hint(record, action, earliest, latest) if isinstance(record, ObservationRecord) \
+        hint = self._hint(record, action, earliest, latest, caps) if isinstance(record, ObservationRecord) \
             and record.version_id is None else None
         after_the_fact = self._sign(judgement_from(
             subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest,
@@ -605,13 +629,13 @@ class OutOfBandService:
                 raise _AlreadyJudged()
             judgement = after_the_fact
             if isinstance(record, ObservationRecord) and record.version_id is not None:
-                matched = self._match_candidate(record, action, earliest, latest, db=db)
+                matched = self._match_candidate(record, action, earliest, latest, db=db, caps=caps)
                 if matched is not None:
                     judgement = self._matched_judgement(subject, matched, latest, earliest, now, db, verdict, notes)
                 else:
                     # A further observation of a recorded change (another observer, the same
                     # version, at the same time): the same change, not a new one.
-                    seen = self._same_change(record, action, earliest, latest, db=db)
+                    seen = self._same_change(record, action, earliest, latest, db=db, caps=caps)
                     if seen is not None and seen["entry"].entry_kind == "execution":
                         prior: EvidenceStoreEntry = seen["entry"]
                         judgement = self._sign(judgement_from(
@@ -648,8 +672,9 @@ class OutOfBandService:
             "store_sequence": entries[0].store_sequence,
         })
         self._store.maybe_anchor()
-        # v1.4.0: a denied, indeterminate or flagged judgement arms its remediation or opens its review.
-        self._na.remediation_service.on_judgement(stored_judgement)
+        # v1.4.0: a denied, indeterminate or flagged judgement arms its remediation or opens its review,
+        # unless the change is already under remediation or review as a decision or break-glass record.
+        self._na.remediation_service.on_judgement(stored_judgement, related_subjects)
         body = self._body(stored_judgement, status="judged")
         remediation = self._na.remediation_service.states_for([payload["judgement_id"]]).get(payload["judgement_id"])
         if remediation is not None:
@@ -699,6 +724,7 @@ class OutOfBandService:
 
     def _match_candidate(
         self, record: ObservationRecord, action: str, earliest: datetime, latest: datetime, db: Any = None,
+        caps: Sequence[str] = (),
     ) -> dict[str, Any] | None:
         """The oldest unmatched execution or break-glass record of this change: same resource,
         action, version and capability (a decision for another capability governs nothing here),
@@ -707,7 +733,7 @@ class OutOfBandService:
             return None
         db = db or self._na.db
         for stored in db.unmatched_executions(record.resource_id, action, record.version_id,
-                                              self._capabilities(record.capability), limit=MATCH_CANDIDATES,
+                                              list(caps) or [record.capability], limit=MATCH_CANDIDATES,
                                               recorded_since=self._candidates_since(earliest)):
             if self._executed_within(stored, earliest, latest):
                 return stored
@@ -715,13 +741,14 @@ class OutOfBandService:
 
     def _same_change(
         self, record: ObservationRecord, action: str, earliest: datetime, latest: datetime, db: Any = None,
+        caps: Sequence[str] = (),
     ) -> dict[str, Any] | None:
         """An execution or break-glass record of this change another observation already matched."""
         if record.version_id is None:
             return None
         db = db or self._na.db
         for stored in db.matched_executions(record.resource_id, action, record.version_id,
-                                            self._capabilities(record.capability), limit=MATCH_CANDIDATES,
+                                            list(caps) or [record.capability], limit=MATCH_CANDIDATES,
                                             recorded_since=self._candidates_since(earliest)):
             if self._executed_within(stored, earliest, latest):
                 return stored
@@ -773,17 +800,35 @@ class OutOfBandService:
         )
         return self._sign(judgement)
 
-    def _capabilities(self, capability: str) -> list[str]:
-        """The capability a change is matched on, and (v1.4.0) the emergency capabilities that
-        stand for it: an urgent change governed under one is the change an observer sees."""
-        return [capability, *self._na.remediation_service.emergency_capabilities_for(capability)]
+    def _requested_parameters(self, related: dict[str, Any]) -> dict[str, Any]:
+        """The request parameters of the governed change a record matched: its decision's
+        context, or a break-glass record's own (v1.4.0)."""
+        entry: EvidenceStoreEntry = related["entry"]
+        if entry.entry_kind == "break_glass":
+            return dict(related["payload"].get("request_parameters") or {})
+        decision = self._na.db.get_decision_entry(entry.decision_id) if entry.decision_id else None
+        return dict(decision["payload"]["context"].get("request_parameters") or {}) if decision else {}
 
-    def _hint(self, record: ObservationRecord, action: str, earliest: datetime, latest: datetime) -> str | None:
+    def _emergency_map(self, ctx: _Judging, at: datetime) -> dict[str, str]:
+        """Emergency capability -> the ordinary one it stands for, from the policy versions active
+        and valid at ``at`` (v1.4.0): an urgent change governed under one is the change an observer
+        sees. Empty with ``EVIDENCE_REMEDIATION`` off."""
+        if not self._na.remediation_service.enabled:
+            return {}
+        policies = []
+        for policy_id, (version, digest) in sorted((ctx.history.active_at(at) or {}).items()):
+            policy = self._policy(ctx, policy_id, version)
+            if policy is not None and (digest is None or policy.digest() == digest):
+                policies.append(policy)
+        return emergency_map(policies, at)
+
+    def _hint(self, record: ObservationRecord, action: str, earliest: datetime, latest: datetime,
+              caps: Sequence[str] = ()) -> str | None:
         """Unmatched execution evidence that may be this change: no version ID to confirm it."""
         skew = self.bounds.skew
         best: tuple[timedelta, str] | None = None
         for stored in self._na.db.unmatched_executions(record.resource_id, action, None,
-                                                       self._capabilities(record.capability), limit=50):
+                                                       list(caps) or [record.capability], limit=50):
             entry: EvidenceStoreEntry = stored["entry"]
             at = _parse_time(stored["payload"].get("executed_at"))
             if at is None:
@@ -1494,15 +1539,28 @@ class OutOfBandService:
 
     # -- state ------------------------------------------------------------------
 
-    def resource_changes(self, resource_id: str) -> dict[str, Any]:
-        """Every change to a resource, with how it was governed and its state (oldest first)."""
+    def resource_changes(self, resource_id: str, after_sequence: Any = None, limit: Any = None) -> dict[str, Any]:
+        """A resource's changes, with how each was governed and its state, oldest first: at most
+        ``limit`` (default ``CHANGES_PAGE``, at most ``CHANGES_LIMIT``) after ``after_sequence``
+        (v1.4.0); ``truncated`` and ``next_after_sequence`` when there are more."""
         self.require_enabled()
-        rows = self._na.db.resource_changes(resource_id, CHANGES_LIMIT + 1)
-        truncated = len(rows) > CHANGES_LIMIT
-        rows = rows[:CHANGES_LIMIT]
+        try:
+            after = int(after_sequence or 0)
+            size = int(limit or CHANGES_PAGE)
+        except (TypeError, ValueError):
+            raise BadRequestError("after_sequence and limit must be integers", code="invalid_page") from None
+        if after < 0 or not 1 <= size <= CHANGES_LIMIT:
+            raise BadRequestError(f"limit must be 1..{CHANGES_LIMIT}", code="invalid_page")
+        rows = self._na.db.resource_changes(resource_id, size + 1, after)
+        truncated = len(rows) > size
+        rows = rows[:size]
+        subjects = [s["entry"].record_id for s in rows if s["entry"].entry_kind in ("observation", "break_glass")]
+        executions = [s["entry"].evidence_id for s in rows if s["entry"].entry_kind == "execution"]
+        concerning = self._na.db.judgements_concerning(
+            resource_id, [s for s in subjects if s], [*[e for e in executions if e], *[s for s in subjects if s]])
         judgements: dict[tuple[str, str], dict[str, Any]] = {}
         matched: dict[str, str] = {}
-        for stored in rows:
+        for stored in concerning:
             entry: EvidenceStoreEntry = stored["entry"]
             if entry.entry_kind == "judgement" and entry.subject_id is not None:
                 judgements[(stored["payload"].get("subject_kind"), entry.subject_id)] = stored["payload"]
@@ -1540,7 +1598,8 @@ class OutOfBandService:
                                 "at": payload.get("quarantined_at"), "governed_by": None, "state": "quarantined",
                                 "record_kind": payload.get("record_kind"), "rejection_code": payload.get("rejection_code")})
         self._with_remediation(changes, judgements)
-        return {"resource_id": resource_id, "truncated": truncated, "changes": changes}
+        return {"resource_id": resource_id, "truncated": truncated, "changes": changes,
+                "next_after_sequence": rows[-1]["entry"].store_sequence if truncated and rows else None}
 
     def _with_remediation(self, changes: list[dict[str, Any]], judgements: dict[tuple[str, str], dict[str, Any]]) -> None:
         """v1.4.0: a change a remediation or review concerns shows its Stage 3 state (``state``)

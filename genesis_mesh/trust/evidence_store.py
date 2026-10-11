@@ -679,17 +679,23 @@ def verify_evidence_events(
 
     * one remediation per judgement or decision (``duplicate_remediation``);
       it names its judgement's resource (``remediation_subject_mismatch``);
-      in a run from entry 1 its subject and its forward rotation's execution
-      evidence are held before it (``remediation_subject_missing``,
-      ``remediation_rotation_missing``), and the rotation is of the same
-      resource (``remediation_rotation_mismatch``);
+      in a run from its start (entry 1, or right after the retention
+      checkpoint) its subject and its forward rotation's execution evidence
+      are held before it (``remediation_subject_missing``,
+      ``remediation_rotation_missing``; retention keeps a remediation with
+      its subject); it names its judgement's change and the version that
+      change made (``remediation_subject_mismatch``); the rotation is of the
+      same resource (``remediation_rotation_mismatch``), by the remediation's
+      own executor sovereign (``remediation_rotation_other_executor``), made
+      after the change (``remediation_rotation_before_change``) and cited by
+      no earlier remediation (``remediation_rotation_reused``);
     * a review's embedded admin requests verify offline
       (``review_approval_invalid``), with the public key the holder registry
       records for each operator key when the run holds it
       (``review_approval_key_mismatch``); its decider is a second holder
       (``review_same_holder``); it names its subject's digest
       (``review_subject_mismatch``; ``review_subject_missing`` in a run from
-      entry 1); and no waiver follows a recorded remediation
+      its start); and no waiver follows a recorded remediation
       (``review_waiver_after_remediation``).
     """
     result = EvidenceVerification()
@@ -721,9 +727,13 @@ def verify_evidence_events(
     checkpoints: dict[str, RetentionCheckpoint] = {}
     # v1.4.0: judgements and decisions by ID (payload digest, resource), execution evidence's
     # resources, remediated subjects, and operator keys as the holder registry records them.
-    judged_records: dict[str, tuple[str, str | None]] = {}
-    executed: dict[str, str | None] = {}
+    judged_records: dict[str, _Subject] = {}
+    executed: dict[str, _Execution] = {}
     remediated: set[str] = set()
+    # v1.4.0 review fixes: the version each observation or break-glass record names, and the
+    # forward rotations remediations already cite.
+    versions: dict[tuple[str, str], str | None] = {}
+    cited: set[str] = set()
     operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]] = {}
     first_sequence: int | None = None
     from_start = False
@@ -754,9 +764,11 @@ def verify_evidence_events(
             result.fail(entry.store_sequence, "unknown_entry_kind", entry.entry_kind)
             continue
 
+        failed_before = len(result.failures)
         model = _verify_payload(event, result, na_public_keys, executor_keys)
         if model is None:
             continue
+        authentic = len(result.failures) == failed_before
         record_id = str(getattr(model, _RECORD_ID[entry.entry_kind]))
         seen = record_ids.setdefault(entry.entry_kind, set())
         if record_id in seen:
@@ -770,7 +782,7 @@ def verify_evidence_events(
         if entry.entry_kind == "decision":
             result.decisions += 1
             decisions[model.decision_id] = model
-            judged_records[model.decision_id] = (entry.payload_digest, None)
+            judged_records[model.decision_id] = _Subject(entry.payload_digest, None)
             try:
                 contexts[model.decision_id] = ContextRecord.model_validate(event.payload["context"])
             except (ValueError, KeyError, TypeError):
@@ -801,7 +813,8 @@ def verify_evidence_events(
                 result.fail(entry.store_sequence, "evidence_chain_break")
             last_exec[ev.decision_id] = (ev, received)
             matchable.add(ev.evidence_id)
-            executed[ev.evidence_id] = ev.resource_id
+            executed[ev.evidence_id] = _Execution(ev.resource_id, entry.store_sequence, _utc(ev.executed_at),
+                                                  ev.executor_sovereign_id, ev.decision_id)
             if ev.resource_id is not None:
                 head = resource_heads.get(ev.resource_id)
                 # v1.3.1: a run that does not start at entry 1 or right after the checkpoint
@@ -824,6 +837,9 @@ def verify_evidence_events(
             checkpoints[cp.checkpoint_id] = cp
         elif entry.entry_kind in ("observation", "break_glass"):
             subjects[(entry.entry_kind, record_id)] = (entry.payload_digest, entry.store_sequence)
+            version = model.version_id if entry.entry_kind == "observation" \
+                else model.execution_parameters.get("version_id")
+            versions[(entry.entry_kind, record_id)] = version if isinstance(version, str) and version else None
             not_decisions.add(record_id)
             if entry.entry_kind == "observation":
                 result.observations += 1
@@ -839,7 +855,9 @@ def verify_evidence_events(
         elif entry.entry_kind == "judgement":
             result.judgements += 1
             not_decisions.add(model.judgement_id)
-            judged_records[model.judgement_id] = (entry.payload_digest, model.resource_id)
+            judged_records[model.judgement_id] = _Subject(
+                entry.payload_digest, model.resource_id, model.subject_kind, model.subject_id,
+                model.subject_store_sequence, _utc(model.evaluated_as_of))
             key = (model.subject_kind, model.subject_id)
             if key in judged:
                 result.fail(entry.store_sequence, "duplicate_judgement", model.subject_id)
@@ -862,47 +880,100 @@ def verify_evidence_events(
             if payload_digest(model.record) != model.record_digest:
                 result.fail(entry.store_sequence, "quarantine_digest_mismatch")
         elif entry.entry_kind == "registry":
-            if model.event == "operator_key_holder" and model.key_id is not None:
+            # v1.4.0 review fixes: only a registry record the NA signed binds an operator key.
+            if authentic and model.event == "operator_key_holder" and model.key_id is not None:
                 operator_keys.setdefault(model.key_id, []).append(
                     (_utc(model.effective_at), model.public_key, model.holder))
         elif entry.entry_kind == "remediation":
             result.remediations += 1
             not_decisions.add(model.remediation_id)
             _check_remediation_entry(entry.store_sequence, model, result, judged_records, executed, remediated,
-                                     held_from_start=contiguous and first_sequence == 1)
+                                     versions, cited, held_from_start=contiguous and from_start)
         elif entry.entry_kind == "review":
             result.reviews += 1
             not_decisions.add(model.review_id)
             _check_review_entry(entry.store_sequence, model, result, judged_records, remediated, operator_keys,
-                                na_public_keys, held_from_start=contiguous and first_sequence == 1)
+                                na_public_keys, held_from_start=contiguous and from_start)
     return result
 
 
+@dataclass(frozen=True)
+class _Subject:
+    """What a remediation or review checks of its judgement or decision (v1.4.0)."""
+
+    digest: str
+    resource_id: str | None
+    change_kind: str | None = None
+    change_id: str | None = None
+    change_sequence: int | None = None
+    changed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class _Execution:
+    """What a remediation checks of execution evidence (v1.4.0)."""
+
+    resource_id: str | None
+    store_sequence: int
+    executed_at: datetime
+    executor_sovereign_id: str
+    decision_id: str
+
+
 def _check_remediation_entry(
-    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, tuple[str, str | None]],
-    executed: dict[str, str | None], remediated: set[str], *, held_from_start: bool,
+    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, _Subject],
+    executed: dict[str, _Execution], remediated: set[str], versions: dict[tuple[str, str], str | None],
+    cited: set[str], *, held_from_start: bool,
 ) -> None:
-    """v1.4.0: one remediation per subject, of its subject's resource, after its forward rotation."""
+    """v1.4.0: one remediation per subject, of its subject's change and resource, after a forward
+    rotation of its own made after the change and cited once."""
+    from .remediation import rotation_problem
+
     if model.subject_id in remediated:
         result.fail(seq, "duplicate_remediation", model.subject_id)
     remediated.add(model.subject_id)
     subject = judged.get(model.subject_id)
+    change_sequence: int | None = None
+    changed_at: datetime | None = None
     if subject is None:
         if held_from_start:
             result.fail(seq, "remediation_subject_missing", model.subject_id)
-    elif model.subject_kind == "judgement" and subject[1] != model.resource_id:
-        result.fail(seq, "remediation_subject_mismatch", model.subject_id)
+    elif model.subject_kind == "judgement":
+        version = versions.get((model.change_kind, model.change_id))
+        if subject.resource_id != model.resource_id or (model.change_kind, model.change_id) != (
+                subject.change_kind, subject.change_id) or (
+                model.disabled_version_id is not None and version is not None and model.disabled_version_id != version):
+            result.fail(seq, "remediation_subject_mismatch", model.subject_id)
+        change_sequence, changed_at = subject.change_sequence, subject.changed_at
+    elif model.change_id != model.subject_id:
+        # A decision's change is its execution evidence (or, never executed, the decision itself).
+        change = executed.get(model.change_id)
+        if model.change_kind != "execution" or (change is not None and (
+                change.decision_id != model.subject_id or change.resource_id != model.resource_id)):
+            result.fail(seq, "remediation_subject_mismatch", model.subject_id)
+        elif change is not None:
+            change_sequence, changed_at = change.store_sequence, change.executed_at
     rotation = model.rotation_evidence_id
     if rotation is not None:
-        if rotation in executed:
-            if executed[rotation] != model.resource_id:
+        held = executed.get(rotation)
+        if held is not None:
+            if held.resource_id != model.resource_id:
                 result.fail(seq, "remediation_rotation_mismatch", rotation)
+            problem = rotation_problem(
+                rotation_executor=held.executor_sovereign_id, rotation_sequence=held.store_sequence,
+                rotation_executed_at=held.executed_at, record_executor=model.executor_sovereign_id,
+                change_sequence=change_sequence, changed_at=changed_at, already_cited=rotation in cited)
+            if problem is not None:
+                result.fail(seq, problem[0], rotation)
         elif held_from_start:
             result.fail(seq, "remediation_rotation_missing", rotation)
+        elif rotation in cited:
+            result.fail(seq, "remediation_rotation_reused", rotation)
+        cited.add(rotation)
 
 
 def _check_review_entry(
-    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, tuple[str, str | None]],
+    seq: int, model: Any, result: EvidenceVerification, judged: dict[str, _Subject],
     remediated: set[str], operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]],
     na_public_keys: Sequence[str], *, held_from_start: bool,
 ) -> None:
@@ -930,7 +1001,7 @@ def _check_review_entry(
     if subject is None:
         if held_from_start:
             result.fail(seq, "review_subject_missing", model.subject_id)
-    elif subject[0] != model.subject_digest:
+    elif subject.digest != model.subject_digest:
         result.fail(seq, "review_subject_mismatch", model.subject_id)
     if model.verdict == "waive_until" and model.subject_id in remediated:
         result.fail(seq, "review_waiver_after_remediation", model.subject_id)

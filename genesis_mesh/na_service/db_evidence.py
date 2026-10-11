@@ -360,15 +360,33 @@ class EvidenceStoreMixin:
             times.append(anchor.anchored_at)
         return max(times) if times else None
 
-    def resource_changes(self, resource_id: str, limit: int) -> list[dict[str, Any]]:
-        """A resource's execution records, observations, break-glass records, judgements and quarantine entries."""
+    def resource_changes(self, resource_id: str, limit: int, after_sequence: int = 0) -> list[dict[str, Any]]:
+        """A resource's execution records, observations, break-glass records and quarantine entries
+        after a store position, oldest first (v1.4.0: paged; their judgements are read apart)."""
         rows = self.conn.execute(
-            """SELECT * FROM evidence_entries WHERE resource_id = ?
-               AND entry_kind IN ('execution', 'observation', 'break_glass', 'judgement', 'quarantine')
+            """SELECT * FROM evidence_entries WHERE resource_id = ? AND store_sequence > ?
+               AND entry_kind IN ('execution', 'observation', 'break_glass', 'quarantine')
                ORDER BY store_sequence LIMIT ?""",
-            (resource_id, limit),
+            (resource_id, after_sequence, limit),
         ).fetchall()
         return [self._row_to_stored(r) for r in rows]
+
+    def judgements_concerning(
+        self, resource_id: str, subject_ids: Sequence[str], matched_ids: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """A resource's judgements of these records, or matching these records (v1.4.0)."""
+        out: dict[int, dict[str, Any]] = {}
+        for column, ids in (("subject_id", list(subject_ids)), ("matched_evidence_id", list(matched_ids))):
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                rows = self.conn.execute(
+                    f"""SELECT * FROM evidence_entries WHERE entry_kind = 'judgement' AND resource_id = ?
+                        AND {column} IN ({', '.join('?' for _ in chunk)})""",
+                    (resource_id, *chunk),
+                ).fetchall()
+                for r in rows:
+                    out[int(r["store_sequence"])] = self._row_to_stored(r)
+        return [out[k] for k in sorted(out)]
 
     # -- operator key holders (v1.3.0) ------------------------------------------
 

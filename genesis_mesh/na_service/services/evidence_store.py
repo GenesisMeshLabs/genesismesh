@@ -170,12 +170,17 @@ class EvidenceStoreService:
         decision: BoundaryDecision,
         context: ContextRecord,
         proof: JustificationProof | None = None,
+        requested_by: str | None = None,
     ) -> None:
         """Store a signed decision (and proof) when the store is on.
 
         A storage failure fails the request: the NA never returns a decision
-        the store does not hold.
+        the store does not hold. ``requested_by`` (v1.4.0) is the operator key
+        that asked for it: the actor a review of the decision excludes.
         """
+        # v1.4.0: with the remediation records off, a decision under a policy that requires
+        # review is refused rather than made unreviewable.
+        self._na.remediation_service.refuse_unreviewable(decision)
         if not self.enabled:
             return
         now = datetime.now(timezone.utc)
@@ -212,10 +217,11 @@ class EvidenceStoreService:
             "store_sequence": entries[0].store_sequence,
             "vendor_id": index["vendor_id"],
             "authorized": decision.authorized,
+            "requested_by": requested_by,
         })
         self.maybe_anchor()
         # v1.4.0: a decision under a policy that requires review (an emergency policy) opens one.
-        self._na.remediation_service.on_decision(decision, context, entries[0])
+        self._na.remediation_service.on_decision(decision, context, entries[0], requested_by)
 
     # -- execution evidence ---------------------------------------------------
 
@@ -340,6 +346,8 @@ class EvidenceStoreService:
             "executor_sovereign_id": evidence.executor_sovereign_id,
         })
         self.maybe_anchor()
+        # v1.4.0: a decision under review or with a lifetime takes its change and plan from its evidence.
+        self._na.remediation_service.on_execution(evidence.decision_id)
         return self._entry_body(stored), True
 
     def _stored_duplicate(
@@ -948,6 +956,17 @@ class EvidenceStoreService:
             return None
         first = min(c.store_sequence for c in candidates if c.pinned and c.store_sequence > n)
         row = next(r for r in rows if int(r["store_sequence"]) == first)
+        if row["entry_kind"] in ("judgement", "decision"):
+            # v1.4.0: the subject of a remediation or review that is not settled.
+            return {
+                "reason": "open_remediations",
+                "store_sequence": first,
+                "entry_kind": row["entry_kind"],
+                "record_id": row["record_id"] or row["decision_id"],
+                "message": f"retention stops before entry {first}, the {row['entry_kind']} of a change whose "
+                           f"remediation is due, overdue or waived, whose review is pending or whose lifetime "
+                           f"runs (GET /admin/evidence/remediations); it is kept until that is settled",
+            }
         judge = "POST /admin/evidence/observations/<id>/judge or /admin/evidence/break-glass/<id>/judge"
         remedy = f"judge them ({judge})" if self._na.out_of_band_service.enabled else (
             f"EVIDENCE_OUT_OF_BAND is off, so they cannot be judged: turn it on, judge them ({judge}), "
@@ -969,6 +988,7 @@ class EvidenceStoreService:
         rows = self._na.db.retention_candidates()
         valid_until: dict[str, datetime] = {}
         judged: set[tuple[str, str]] = set()
+        judgement_groups: dict[str, str] = {}
         for r in rows:
             if r["entry_kind"] == "decision":
                 d = json.loads(r["payload_json"])["decision"]
@@ -976,6 +996,9 @@ class EvidenceStoreService:
             elif r["entry_kind"] == "judgement" and r["subject_id"]:
                 # v1.3.1: a judgement covers the record of its own kind only.
                 judged.add((json.loads(r["payload_json"]).get("subject_kind"), r["subject_id"]))
+                judgement_groups[r["record_id"]] = f"subject:{r['subject_id']}"
+        # v1.4.0: the records of a change whose remediation is not settled are kept.
+        open_subjects = self._na.db.open_remediation_subjects(now)
 
         def group(r: Any) -> str | None:
             # v1.3.0: an observation or break-glass record stays with its judgement.
@@ -983,7 +1006,20 @@ class EvidenceStoreService:
                 return f"subject:{r['subject_id']}"
             if r["entry_kind"] in ("observation", "break_glass"):
                 return f"subject:{r['record_id']}"
+            # v1.4.0: a remediation or review stays with its judgement (and its change), or with
+            # its decision, so an export after a checkpoint holds the subject of every one it holds.
+            if r["entry_kind"] in ("remediation", "review") and r["subject_id"]:
+                return judgement_groups.get(r["subject_id"], r["subject_id"])
             return None
+
+        def pinned(r: Any) -> bool:
+            if r["entry_kind"] in ("observation", "break_glass"):
+                return (r["entry_kind"], r["record_id"]) not in judged
+            if r["entry_kind"] == "judgement":
+                return r["record_id"] in open_subjects
+            if r["entry_kind"] == "decision":
+                return r["decision_id"] in open_subjects
+            return False
 
         candidates = [
             RetentionCandidate(
@@ -994,8 +1030,7 @@ class EvidenceStoreService:
                 resource_sequence=r["resource_sequence"],
                 decision_valid_until=valid_until.get(r["decision_id"]) if r["decision_id"] else None,
                 group_id=group(r),
-                pinned=r["entry_kind"] in ("observation", "break_glass")
-                and (r["entry_kind"], r["record_id"]) not in judged,
+                pinned=pinned(r),
             )
             for r in rows
         ]

@@ -10,17 +10,22 @@ states the remediation and the controller performs it (Decision 1 of the
 * a judgement flagged for review, and a change allowed under a policy that
   requires review (an emergency policy always does), opens a review; a
   second holder decides it, and the NA records the decision as a signed
-  ``ReviewRecord`` with the decider's signed request embedded;
+  ``ReviewRecord`` with the requester's and decider's signed requests
+  embedded;
 * the controller submits a ``RemediationRecord`` signed by its executor key
   once it has cancelled the change (or alerted), and records through the
   NA that it told the actor (an audit event and ``notified_at``);
 * due times are swept: an overdue remediation raises one audit event, a
   waiver's end and an emergency change's end of life re-arm remediation.
 
-Every transition goes through ``trust.remediation.next_state``. A state row
-and the store entry that moves it are written in one transaction, and an
-update names the state it expects, so two instances cannot both make one
-transition.
+A pending review is a flag beside the state, never a state of its own: it
+stops no clock (review fixes, Decision A). Every transition goes through
+``trust.remediation.next_state``. A state row and the store entry that moves
+it are written in one transaction, and an update names the state it expects,
+so two instances cannot both make one transition.
+
+Times come from each instance's clock: keep the clocks of several instances
+synchronised (NTP), as for the registry (``docs/operations/remediation-and-reviews.md``).
 """
 
 from __future__ import annotations
@@ -32,34 +37,39 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Sequence
 
-from pydantic import ValidationError as PydanticValidationError
-
 from ...models.boundary_policy import BoundaryPolicy, PolicyBinding
 from ...models.context import BoundaryDecision, ContextRecord
 from ...models.evidence_store import EvidenceStoreEntry, canonical_json, payload_digest
 from ...models.out_of_band import JudgementRecord
 from ...models.remediation import MAX_WAIVER_SECONDS, AdminApproval, RemediationRecord, ReviewRecord
-from ...trust.evidence_store import EvidenceCheck, build_entry
+from ...trust.evidence_store import build_entry
 from ...trust.remediation import (
     DECISION_FIELDS,
+    NOT_EXECUTED,
     OPEN_STATES,
     QUARANTINED_REMEDIATION_CODES,
+    QUEUE_FILTERS,
     REQUEST_FIELDS,
-    STAGE3_STATES,
+    STORED_STATES,
     RemediationPlan,
     TransitionRefused,
     actor_holder,
     change_facts,
-    check_remediation,
+    remediation_record_problem,
     due_after_denial,
+    decision_plan,
     due_after_waiver,
     entry_index,
-    guidance,
     judgement_state,
     next_state,
     remediation_plan,
     remediation_secret_problem,
+    request_approval_problem,
+    review_approval_problem,
     review_holder_problem,
+    review_request_problem,
+    rfc3339,
+    rotation_problem,
     sign_review,
     steps_problem,
 )
@@ -78,8 +88,11 @@ QUEUE_LIMIT = 500
 SWEEP_BATCH = 200
 SWEEP_INTERVAL_SECONDS = 60
 
-#: Judgements armed at start whose arming failed when they were judged.
-ARM_START_LIMIT = 500
+#: Most reviews and records ``GET /admin/evidence/remediations/<subject_id>`` returns (the newest).
+DETAIL_LIMIT = 100
+
+#: Audit events a decision's evaluating operator key is looked up in when it is repaired.
+REQUESTER_LOOKUP = 5000
 
 
 class _Moved(Exception):
@@ -117,12 +130,18 @@ def _exact_form_problem(raw: dict[str, Any], record: Any) -> str | None:
     return "a field is not in its serialized form"
 
 
+def _reviewed(policies: Sequence[BoundaryPolicy]) -> bool:
+    return any(p.review_required or p.emergency for p in policies)
+
+
 class RemediationService:
     """NA application logic for remediations, reviews and the due queue."""
 
     def __init__(self, service: "NetworkAuthorityService") -> None:
         self._na = service
         self._last_sweep = 0.0
+        # Store positions the sweep has looked at, per subject kind, on this instance.
+        self._repaired: dict[str, int] = {"judgement": 0, "decision": 0}
 
     # -- shared -------------------------------------------------------------
 
@@ -141,7 +160,7 @@ class RemediationService:
     @property
     def enabled(self) -> bool:
         """Stage 3 records are kept: the Stage 2 records are on and ``EVIDENCE_REMEDIATION=on``."""
-        return self._oob.enabled and self._na.evidence_remediation == "on"
+        return bool(self._oob.enabled and self._na.evidence_remediation == "on")
 
     def require_enabled(self) -> None:
         self._oob.require_enabled()
@@ -153,6 +172,9 @@ class RemediationService:
         # One clock with the out-of-band service: judging and arming agree on what "now" is.
         now: datetime = self._oob._now()
         return now
+
+    def _audience(self) -> str:
+        return str(self._na.genesis_block.network_authority.public_key)
 
     def _pending(self, kind: str, record: Any, now: datetime) -> tuple[Callable[..., EvidenceStoreEntry],
                                                                      dict[str, Any], dict[str, Any]]:
@@ -168,7 +190,7 @@ class RemediationService:
     def _write(self, make: Callable[[Any], Sequence[Any]], unavailable: str) -> list[EvidenceStoreEntry]:
         try:
             entries: list[EvidenceStoreEntry] = self._db.append_evidence_entries_with(make)
-        except (_Moved, _Refused, self._db.integrity_errors):
+        except (_Moved, _Refused, *self._db.integrity_errors):
             raise
         except self._db.database_errors as exc:
             logger.warning("remediation write failed: %s", exc)
@@ -189,50 +211,55 @@ class RemediationService:
                 out.append(policy)
         return out
 
-    def _emergency_policies(self) -> list[BoundaryPolicy]:
-        policies = []
-        for row in self._db.list_boundary_policy_rows():
-            if "emergency" not in str(row.get("policy_json", "")):
-                continue
-            policy = self._db.parse_boundary_policy_row(row)
-            if policy is not None and policy.emergency is not None:
-                policies.append(policy)
-        return policies
-
-    def emergency_capabilities_for(self, capability: str) -> list[str]:
-        """The emergency capabilities that stand for ``capability`` (any stored policy version)."""
-        return sorted({p.selector.capabilities[0] for p in self._emergency_policies()
-                       if p.emergency is not None and p.emergency.stands_for == capability
-                       and len(p.selector.capabilities) == 1})
-
-    def ordinary_capability(self, capability: str) -> str | None:
-        """The ordinary capability ``capability`` stands for, when it is an emergency capability."""
-        for policy in self._emergency_policies():
-            if policy.emergency is not None and policy.selector.capabilities == [capability]:
-                return policy.emergency.stands_for
-        return None
+    def refuse_unreviewable(self, decision: BoundaryDecision) -> None:
+        """With the records off, refuse a decision under a policy that requires review (an
+        emergency policy): it could not be reviewed (v1.4.0 review fixes)."""
+        if self.enabled or not decision.authorized:
+            return
+        policies = self._policies(decision.policy_binding)
+        if _reviewed(policies):
+            names = sorted(f"{p.policy_id} v{p.version}" for p in policies if p.review_required or p.emergency)
+            raise ConflictError(
+                "a policy that requires review applies, and reviews are not recorded (EVIDENCE_REMEDIATION=off): "
+                + ", ".join(names), code="policy_remediation_disabled",
+            )
 
     # -- arming -------------------------------------------------------------------
 
-    def on_judgement(self, stored: dict[str, Any]) -> None:
-        """After a judgement is stored: arm its remediation, or open its review. A failure is
-        logged and repaired at the next start (``ensure_states``)."""
+    def on_judgement(self, stored: dict[str, Any], related_subjects: Sequence[str] = ()) -> None:
+        """After a judgement is stored: arm its remediation, or open its review. ``related_subjects``
+        are the decisions or break-glass judgements of the change the judged record matched: when
+        one of them is under remediation or review, the judgement attaches to it instead. A failure
+        is logged and repaired by the sweep."""
         if not self.enabled:
             return
         try:
-            self._arm_judgement(stored)
+            self._arm_judgement(stored, related_subjects)
         except Exception as exc:  # noqa: BLE001 -- the judgement itself is stored
             logger.warning("arming the remediation of judgement %s failed: %s", stored["entry"].record_id, exc)
 
-    def _arm_judgement(self, stored: dict[str, Any]) -> None:
+    def _attached(self, judgement: JudgementRecord, related: Sequence[str]) -> bool:
+        """Whether the judged change is already under remediation or review as a decision or a
+        break-glass record (an observation of it attaches; it opens nothing of its own)."""
+        candidates = list(related)
+        if judgement.matched_decision_id:
+            candidates.append(judgement.matched_decision_id)
+        if judgement.matched_evidence_id:
+            matched = self._db.get_judgement_for("break_glass", judgement.matched_evidence_id)
+            if matched is not None:
+                candidates.append(str(matched["payload"]["judgement_id"]))
+        return any(self._db.get_remediation_state(c) is not None for c in candidates if c)
+
+    def _arm_judgement(self, stored: dict[str, Any], related: Sequence[str] = ()) -> None:
         judgement = JudgementRecord.model_validate(stored["payload"])
         if self._db.get_remediation_state(judgement.judgement_id) is not None:
             return
+        if self._attached(judgement, related):
+            return
         policies = self._policies(judgement.policy_binding)
         flagged = bool(judgement.flagged_for_review)
-        reviewed = any(p.review_required or p.emergency for p in policies)
         opened_for = "flagged_for_review" if flagged else (
-            "review_required" if reviewed and judgement.verdict == "allow" else None)
+            "review_required" if _reviewed(policies) and judgement.verdict == "allow" else None)
         if judgement.verdict == "allow" and opened_for is None:
             return  # an allowed change nothing asks a person to look at
         change = self._db.get_entry_by_record(judgement.subject_kind, judgement.subject_id)
@@ -244,7 +271,6 @@ class RemediationService:
             evaluations=judgement.policy_binding.gate_evaluations if judgement.policy_binding else [],
             action=action, version_id=version, rotatable=rotatable, defaults=self._na.remediation_defaults,
         )
-        state = judgement_state(judgement.verdict, judgement.governed_by)
         due = plan.due_at(judgement.judged_at) if judgement.verdict != "allow" else None
         emergency = next((p.emergency for p in policies if p.emergency is not None), None)
         lifetime = (judgement.evaluated_as_of + timedelta(seconds=emergency.max_lifetime_seconds)
@@ -252,51 +278,91 @@ class RemediationService:
         actor = change["payload"].get("actor") if judgement.subject_kind == "observation" else None
         self._create(
             subject_kind="judgement", subject_id=judgement.judgement_id, subject_digest=stored["entry"].payload_digest,
-            change_kind=judgement.subject_kind, change_id=judgement.subject_id, resource_id=judgement.resource_id,
-            capability=judgement.capability, actor=actor, verdict=judgement.verdict, state=state, plan=plan,
+            change_kind=judgement.subject_kind, change_id=judgement.subject_id, change_version_id=version,
+            change_store_sequence=judgement.subject_store_sequence, changed_at=judgement.evaluated_as_of,
+            resource_id=judgement.resource_id, capability=judgement.capability, actor=actor, actor_holder=None,
+            state=judgement_state(judgement.verdict, judgement.governed_by), verdict=judgement.verdict, plan=plan,
             due=due, lifetime=lifetime, opened_for=opened_for,
         )
 
-    def on_decision(self, decision: BoundaryDecision, context: ContextRecord, entry: EvidenceStoreEntry) -> None:
+    def on_decision(self, decision: BoundaryDecision, context: ContextRecord, entry: EvidenceStoreEntry,
+                    requested_by: str | None) -> None:
         """After an authorized decision is stored: under a policy that requires review (an
-        emergency policy always does), open its review. A failure is logged; the decision stands."""
+        emergency policy always does), open its review. ``requested_by`` is the operator key that
+        asked for the decision: the decision's actor. A failure is logged and repaired by the sweep."""
         if not self.enabled or not decision.authorized:
             return
         try:
-            policies = self._policies(decision.policy_binding)
-            if not any(p.review_required or p.emergency for p in policies):
-                return
-            emergency = next((p.emergency for p in policies if p.emergency is not None), None)
-            lifetime = (decision.decision_made_at + timedelta(seconds=emergency.max_lifetime_seconds)
-                        if emergency is not None else None)
-            plan = self._decision_plan(policies)
-            self._create(
-                subject_kind="decision", subject_id=decision.decision_id, subject_digest=entry.payload_digest,
-                change_kind="execution", change_id=None, resource_id=None, capability=context.requested_capability,
-                actor=context.requester_sovereign_id, verdict="allow", state="recorded", plan=plan, due=None,
-                lifetime=lifetime, opened_for="review_required",
-            )
+            self._arm_decision(decision, context, entry.payload_digest, requested_by)
         except Exception as exc:  # noqa: BLE001 -- the decision is stored and returned
             logger.warning("opening the review of decision %s failed: %s", decision.decision_id, exc)
 
+    def _arm_decision(self, decision: BoundaryDecision, context: ContextRecord, digest: str,
+                      requested_by: str | None) -> None:
+        if self._db.get_remediation_state(decision.decision_id) is not None:
+            return
+        policies = self._policies(decision.policy_binding)
+        if not _reviewed(policies):
+            return
+        emergency = next((p.emergency for p in policies if p.emergency is not None), None)
+        lifetime = (decision.decision_made_at + timedelta(seconds=emergency.max_lifetime_seconds)
+                    if emergency is not None else None)
+        holder = self._holders().get(requested_by or "", {}).get("holder") if requested_by else None
+        self._create(
+            subject_kind="decision", subject_id=decision.decision_id, subject_digest=digest,
+            change_kind="execution", change_id=None, change_version_id=None, change_store_sequence=None,
+            changed_at=None, resource_id=None, capability=context.requested_capability, actor=requested_by,
+            actor_holder=holder, state="recorded", verdict="allow", plan=self._decision_plan(policies, None),
+            due=None, lifetime=lifetime, opened_for="review_required",
+        )
+
+    def on_execution(self, decision_id: str) -> None:
+        """After execution evidence under a decision is stored: a decision under review or with a
+        lifetime takes its change and plan from it."""
+        if not self.enabled:
+            return
+        try:
+            row = self._db.get_remediation_state(decision_id)
+            if row is None or row["state"] == "remediated":
+                return
+            changes = self._replan(row)
+            if changes:
+                now = stamp(self._now())
+
+                def make(db: Any) -> list[Any]:
+                    current = db.get_remediation_state(decision_id)
+                    if current is not None and current["state"] != "remediated":
+                        db.update_remediation_state(decision_id, current["state"], {**changes, "updated_at": now})
+                    return []
+
+                self._write(make, "The remediation state could not be stored")
+        except Exception as exc:  # noqa: BLE001 -- the evidence is stored
+            logger.warning("updating the remediation of decision %s failed: %s", decision_id, exc)
+
     def _create(
         self, *, subject_kind: str, subject_id: str, subject_digest: str, change_kind: str, change_id: str | None,
-        resource_id: str | None, capability: str | None, actor: str | None, verdict: str, state: str,
-        plan: RemediationPlan, due: datetime | None, lifetime: datetime | None, opened_for: str | None,
-        requested: dict[str, Any] | None = None,
+        change_version_id: str | None, change_store_sequence: int | None, changed_at: datetime | None,
+        resource_id: str | None, capability: str | None, actor: str | None, actor_holder: str | None,
+        state: str, verdict: str, plan: RemediationPlan, due: datetime | None, lifetime: datetime | None,
+        opened_for: str | None, requested: dict[str, Any] | None = None, now: datetime | None = None,
     ) -> tuple[dict[str, Any], bool]:
-        """Create a subject's state: armed, or under review (one transaction). Returns the row and
-        whether this call created it (False: another request created the subject's state first)."""
-        now = self._now()
-        target = next_state(state, "open_review" if opened_for else "arm")
+        """Create a subject's state (one transaction): a denied or indeterminate change armed, an
+        allowed one in its Stage 2 state; with ``opened_for``, its review pending too. Returns the
+        row and whether this call created it (False: another request created it first)."""
+        now = now or self._now()
+        if state in ("judged_denied", "indeterminate"):
+            state = next_state(state, "arm")
         review_id = str(uuid.uuid4()) if opened_for else None
         row = {
             "subject_id": subject_id, "subject_kind": subject_kind, "subject_digest": subject_digest,
-            "change_kind": change_kind, "change_id": change_id, "resource_id": resource_id, "capability": capability,
-            "actor": actor, "verdict": verdict, "state": target, "mode": plan.mode, "steps": plan.steps,
-            "fallback": plan.fallback, "grace_seconds": plan.grace_seconds, "guidance_source": plan.source,
-            "remediation_due_at": stamp(due) if due else None, "lifetime_ends_at": stamp(lifetime) if lifetime else None,
-            "review_id": review_id, "created_at": stamp(now), "updated_at": stamp(now),
+            "change_kind": change_kind, "change_id": change_id, "change_version_id": change_version_id,
+            "change_store_sequence": change_store_sequence, "changed_at": stamp(changed_at) if changed_at else None,
+            "resource_id": resource_id, "capability": capability, "actor": actor, "actor_holder": actor_holder,
+            "verdict": verdict, "state": state, "review_pending": 1 if opened_for else 0, "mode": plan.mode,
+            "steps": plan.steps, "fallback": plan.fallback, "grace_seconds": plan.grace_seconds,
+            "guidance_source": plan.source, "remediation_due_at": stamp(due) if due else None,
+            "lifetime_ends_at": stamp(lifetime) if lifetime else None, "review_id": review_id,
+            "created_at": stamp(now), "updated_at": stamp(now),
         }
 
         def make(db: Any) -> list[Any]:
@@ -318,7 +384,7 @@ class RemediationService:
                 raise
             return existing, False
         self._db.add_audit_event("review_opened" if opened_for else "remediation_armed", {
-            "subject_kind": subject_kind, "subject_id": subject_id, "state": target, "mode": plan.mode,
+            "subject_kind": subject_kind, "subject_id": subject_id, "state": state, "mode": plan.mode,
             "steps": plan.steps, "remediation_due_at": row["remediation_due_at"], "review_id": review_id,
             "opened_for": opened_for,
         })
@@ -326,8 +392,8 @@ class RemediationService:
 
     def enabled_since(self) -> datetime:
         """When the records were first turned on (the first ``remediation_enabled`` audit event, written
-        now when there is none). Judgements recorded earlier are not armed at start: a store
-        upgraded from 1.3 does not turn its past denials into overdue remediations at once."""
+        now when there is none). Judgements and decisions recorded earlier are not armed by the sweep:
+        a store upgraded from 1.3 does not turn its past denials into overdue remediations at once."""
         events = self._db.list_audit_events(event_types=["remediation_enabled"])
         times = [t for t in (_parse((e.get("details") or {}).get("since") or e.get("created_at")) for e in events)
                  if t is not None]
@@ -338,15 +404,11 @@ class RemediationService:
         return now
 
     def ensure_states(self) -> None:
-        """At start: arm judgements whose arming failed, and sweep due times. Never fails start."""
+        """At start: sweep (arm what an older instance or a failed arming left, move due times).
+        Never fails start."""
         if not self.enabled:
             return
         try:
-            since = self.enabled_since()
-            for judgement_id in self._db.judgements_needing_state(ARM_START_LIMIT, recorded_since=since):
-                stored = self._db.get_entry_by_record("judgement", judgement_id)
-                if stored is not None:
-                    self.on_judgement(stored)
             self.sweep()
         except Exception as exc:  # noqa: BLE001
             logger.error("remediation start checks failed: %s", exc)
@@ -354,42 +416,85 @@ class RemediationService:
     # -- sweeping -------------------------------------------------------------------
 
     def sweep(self, now: datetime | None = None) -> dict[str, int]:
-        """Move what is due: remediations past their due time become ``overdue`` (one audit event
-        each), ended waivers and emergency lifetimes re-arm remediation. Returns the counts."""
+        """Arm what nothing armed yet, then move what is due: remediations past their due time
+        become ``overdue`` (one audit event each), ended waivers and emergency lifetimes re-arm
+        remediation. A pending review stops none of it. Returns the counts."""
         if not self.enabled:
             return {}
-        now = now or self._now()
         self._last_sweep = time.monotonic()
-        counts = {"overdue": 0, "waivers_ended": 0, "lifetimes_ended": 0}
-        for row in self._db.remediation_states_due("remediation_due_at", "remediation_due", now, SWEEP_BATCH):
+        counts = {"armed": self._repair(), "overdue": 0, "waivers_ended": 0, "lifetimes_ended": 0}
+        now = now or self._now()
+        for row in self._db.remediation_states_due("remediation_due_at", ["remediation_due"], now, SWEEP_BATCH):
             if self._move(row, "due_passed", {"overdue_since": stamp(now)}):
                 counts["overdue"] += 1
                 self._db.add_audit_event("remediation_overdue", {
                     "subject_kind": row["subject_kind"], "subject_id": row["subject_id"],
                     "resource_id": row["resource_id"], "actor": row["actor"],
                     "remediation_due_at": row["remediation_due_at"], "notified_at": row["notified_at"],
+                    "review_pending": bool(row["review_pending"]),
                 })
-        for row in self._db.remediation_states_due("waived_until", "waived", now, SWEEP_BATCH):
+        for row in self._db.remediation_states_due("waived_until", ["waived"], now, SWEEP_BATCH):
             ended = _parse(row["waived_until"])
             assert ended is not None
-            due = due_after_waiver(ended, int(row["grace_seconds"]))
-            if self._move(row, "waiver_expired", {"remediation_due_at": stamp(due), **self._replan(row)}):
+            changes = self._replan(row)
+            due = due_after_waiver(ended, int(changes.get("grace_seconds", row["grace_seconds"])))
+            if self._move(row, "waiver_expired", {"remediation_due_at": stamp(due), **changes}):
                 counts["waivers_ended"] += 1
                 self._db.add_audit_event("waiver_expired", {
                     "subject_id": row["subject_id"], "waived_until": row["waived_until"],
-                    "remediation_due_at": stamp(due),
+                    "remediation_due_at": stamp(due), "review_pending": bool(row["review_pending"]),
                 })
-        for row in self._db.remediation_states_due("lifetime_ends_at", "upheld", now, SWEEP_BATCH):
+        for row in self._db.remediation_states_due("lifetime_ends_at", ["judged_allowed", "matched", "recorded",
+                                                                        "upheld"], now, SWEEP_BATCH):
             ended = _parse(row["lifetime_ends_at"])
             assert ended is not None
-            due = due_after_waiver(ended, int(row["grace_seconds"]))
-            if self._move(row, "lifetime_ended", {"remediation_due_at": stamp(due), **self._replan(row)}):
+            changes = self._replan(row)
+            due = due_after_waiver(ended, int(changes.get("grace_seconds", row["grace_seconds"])))
+            if self._move(row, "lifetime_ended", {"remediation_due_at": stamp(due), **changes}):
                 counts["lifetimes_ended"] += 1
                 self._db.add_audit_event("emergency_lifetime_ended", {
                     "subject_id": row["subject_id"], "lifetime_ends_at": row["lifetime_ends_at"],
-                    "remediation_due_at": stamp(due),
+                    "remediation_due_at": stamp(due), "review_pending": bool(row["review_pending"]),
                 })
         return counts
+
+    def _repair(self) -> int:
+        """Arm judgements and authorized decisions recorded since the records were turned on that
+        nothing armed (made by an older instance during a rolling upgrade, or whose arming failed),
+        each looked at once per instance. Returns how many were armed."""
+        since = self.enabled_since()
+        armed = 0
+        for kind in ("judgement", "decision"):
+            for seq, subject_id in self._db.subjects_without_state(
+                    kind, recorded_since=since, after_sequence=self._repaired[kind], limit=SWEEP_BATCH):
+                self._repaired[kind] = max(self._repaired[kind], seq)
+                try:
+                    if kind == "judgement":
+                        stored = self._db.get_entry_by_record("judgement", subject_id)
+                        if stored is not None:
+                            self._arm_judgement(stored)
+                    else:
+                        stored = self._db.get_decision_entry(subject_id)
+                        if stored is not None:
+                            self._arm_decision(
+                                BoundaryDecision.model_validate(stored["payload"]["decision"]),
+                                ContextRecord.model_validate(stored["payload"]["context"]),
+                                stored["entry"].payload_digest, self._decision_requester(subject_id))
+                except Exception as exc:  # noqa: BLE001 -- the next one is armed all the same
+                    logger.warning("arming %s %s failed: %s", kind, subject_id, exc)
+                    continue
+                if self._db.get_remediation_state(subject_id) is not None:
+                    armed += 1
+        return armed
+
+    def _decision_requester(self, decision_id: str) -> str | None:
+        """The operator key that asked for a decision, from its ``decision_stored`` audit event."""
+        for event in self._db.list_audit_events(event_types=["decision_stored"], limit=REQUESTER_LOOKUP):
+            details = event.get("details") or {}
+            if details.get("decision_id") == decision_id:
+                requester = details.get("requested_by")
+                return str(requester) if requester else None
+        return None
 
     def maybe_sweep(self) -> None:
         """Sweep at most every SWEEP_INTERVAL_SECONDS (after admissions and on reads)."""
@@ -402,7 +507,7 @@ class RemediationService:
 
     def _move(self, row: dict[str, Any], event: str, changes: dict[str, Any]) -> bool:
         """Apply one event to a row in the state it was read in; False when another writer moved it."""
-        target = next_state(row["state"], event)
+        target = next_state(row["state"], event, bool(row["review_pending"]))
         stamp_now = stamp(self._now())
 
         def make(db: Any) -> list[Any]:
@@ -417,42 +522,46 @@ class RemediationService:
             return False
         return True
 
-    def _decision_plan(self, policies: list[BoundaryPolicy]) -> RemediationPlan:
-        """A decision's plan before its execution evidence is known: the guidance only; the steps
-        follow from the evidence once a remediation is due (``_replan``)."""
-        mode, grace, source = guidance(policies, [], self._na.remediation_defaults)
-        return RemediationPlan(mode, "none", None, grace, source)
+    def _decision_plan(self, policies: Sequence[BoundaryPolicy], executed: dict[str, Any] | None) -> RemediationPlan:
+        """A decision's plan: from its latest execution evidence, or, never executed, an alert
+        (``fallback`` ``not_executed``)."""
+        return decision_plan(policies=policies, defaults=self._na.remediation_defaults,
+                             executed=change_facts("execution", executed["payload"]) if executed is not None else None)
 
     def _replan(self, row: dict[str, Any]) -> dict[str, Any]:
         """For a decision's remediation, the plan and change from its latest execution evidence
-        (unknown when its review opened); nothing for a judgement's, whose change is fixed."""
+        (or an alert while it has none); nothing for a judgement's, whose change is fixed."""
         if row["subject_kind"] != "decision":
             return {}
-        stored = self._db.last_execution_for_decision(row["subject_id"])
-        if stored is None:
-            return {}
         decision = self._db.get_decision_entry(row["subject_id"])
-        binding = None
-        if decision is not None:
-            binding = BoundaryDecision.model_validate(decision["payload"]["decision"]).policy_binding
-        action, version, rotatable = change_facts("execution", stored["payload"])
-        plan = remediation_plan(verdict="deny", policies=self._policies(binding), evaluations=[], action=action,
-                                version_id=version, rotatable=rotatable, defaults=self._na.remediation_defaults)
-        return {"change_id": stored["entry"].evidence_id, "resource_id": stored["entry"].resource_id,
-                "mode": plan.mode, "steps": plan.steps, "fallback": plan.fallback,
-                "grace_seconds": plan.grace_seconds, "guidance_source": plan.source}
+        binding = BoundaryDecision.model_validate(decision["payload"]["decision"]).policy_binding \
+            if decision is not None else None
+        stored = self._db.last_execution_for_decision(row["subject_id"])
+        plan = self._decision_plan(self._policies(binding), stored)
+        out: dict[str, Any] = {"mode": plan.mode, "steps": plan.steps, "fallback": plan.fallback,
+                               "grace_seconds": plan.grace_seconds, "guidance_source": plan.source}
+        if stored is not None:
+            entry: EvidenceStoreEntry = stored["entry"]
+            out.update({
+                "change_id": entry.evidence_id, "resource_id": entry.resource_id,
+                "change_version_id": change_facts("execution", stored["payload"])[1],
+                "change_store_sequence": entry.store_sequence,
+                "changed_at": stamp(_parse(stored["payload"].get("executed_at")) or entry.recorded_at),
+            })
+        return out
 
     # -- the due queue --------------------------------------------------------------
 
     def item(self, row: dict[str, Any]) -> dict[str, Any]:
         """One remediation state as the routes and the changes view show it."""
         out = {k: row.get(k) for k in (
-            "subject_kind", "subject_id", "change_kind", "change_id", "resource_id", "capability", "actor",
-            "verdict", "state", "mode", "steps", "fallback", "grace_seconds", "guidance_source",
-            "remediation_due_at", "lifetime_ends_at", "waived_until", "review_id", "remediation_id",
-            "notified_at", "notified_by", "overdue_since", "created_at", "updated_at",
+            "subject_kind", "subject_id", "change_kind", "change_id", "change_version_id", "resource_id",
+            "capability", "actor", "actor_holder", "verdict", "state", "mode", "steps", "fallback", "grace_seconds",
+            "guidance_source", "remediation_due_at", "lifetime_ends_at", "waived_until", "review_id",
+            "remediation_id", "notified_at", "notified_by", "overdue_since", "created_at", "updated_at",
         )}
-        if row["state"] == "review_pending" and row.get("review_id"):
+        out["review_pending"] = bool(row.get("review_pending"))
+        if out["review_pending"] and row.get("review_id"):
             review = self._db.get_remediation_review(row["review_id"])
             if review is not None:
                 out["review"] = self._review_summary(review)
@@ -463,30 +572,35 @@ class RemediationService:
         return {k: review[k] for k in ("review_id", "subject_id", "opened_for", "requested_by", "requester_holder",
                                        "justification", "requested_at", "decided_at", "verdict")}
 
-    def queue(self, args: dict[str, str]) -> dict[str, Any]:
-        """``GET /admin/evidence/remediations``: states in ``state`` (default: the open ones), oldest first."""
+    def queue(self, *, state: str | None, limit: str | None, after: str | None) -> dict[str, Any]:
+        """``GET /admin/evidence/remediations``: states in ``state`` (a stored state, or
+        ``review_pending`` for a pending review whatever the state; default: due, overdue and
+        waived, and any with a pending review), oldest first."""
         self.require_enabled()
-        state = args.get("state")
-        if state is not None and state not in STAGE3_STATES:
-            raise BadRequestError(f"state must be one of {', '.join(STAGE3_STATES)}", code="invalid_remediation_query")
+        if state is not None and state not in QUEUE_FILTERS:
+            raise BadRequestError(f"state must be one of {', '.join(QUEUE_FILTERS)}", code="invalid_remediation_query")
         try:
-            limit = int(args.get("limit") or 100)
+            size = int(limit or 100)
         except ValueError:
             raise BadRequestError("limit must be an integer", code="invalid_remediation_query") from None
-        if not 1 <= limit <= QUEUE_LIMIT:
+        if not 1 <= size <= QUEUE_LIMIT:
             raise BadRequestError(f"limit must be 1..{QUEUE_LIMIT}", code="invalid_remediation_query")
-        after_raw = args.get("after")
-        after: tuple[str, str] | None = None
-        if after_raw:
-            created, sep, subject = after_raw.partition("|")
+        cursor: tuple[str, str] | None = None
+        if after:
+            created, sep, subject = after.partition("|")
             at = _parse(created)
             if not sep or not subject or at is None:
                 raise BadRequestError("after is the next_after value of the previous page",
                                       code="invalid_remediation_query")
-            after = (stamp(at), subject)
+            cursor = (stamp(at), subject)
         self.sweep()
-        rows = self._db.list_remediation_states([state] if state else list(OPEN_STATES), after=after, limit=limit)
-        last = rows[-1] if len(rows) == limit else None
+        if state is None:
+            rows = self._db.list_remediation_states(list(OPEN_STATES), review_pending=True, after=cursor, limit=size)
+        elif state == "review_pending":
+            rows = self._db.list_remediation_states([], review_pending=True, after=cursor, limit=size)
+        else:
+            rows = self._db.list_remediation_states([state], after=cursor, limit=size)
+        last = rows[-1] if len(rows) == size else None
         return {
             "state": state, "count": len(rows),
             "remediations": [self.item(r) for r in rows],
@@ -495,18 +609,22 @@ class RemediationService:
         }
 
     def get(self, subject_id: str) -> dict[str, Any]:
-        """One subject's remediation state, its reviews and its stored records."""
+        """One subject's remediation state, with its newest reviews and stored records (at most
+        ``DETAIL_LIMIT`` of each; ``reviews_truncated``/``records_truncated`` when there are more)."""
         self.require_enabled()
         self.maybe_sweep()
         row = self._db.get_remediation_state(subject_id)
         if row is None:
             raise NotFoundError("no remediation or review for this subject", code="remediation_not_found")
+        reviews = self._db.remediation_reviews_for(subject_id)
         entries = self._db.remediation_entries_for([subject_id])
         return {
             **self.item(row),
-            "reviews": [self._review_summary(r) for r in self._db.remediation_reviews_for(subject_id)],
+            "reviews": [self._review_summary(r) for r in reviews[-DETAIL_LIMIT:]],
+            "reviews_truncated": len(reviews) > DETAIL_LIMIT,
             "records": [{"entry": e["entry"].model_dump(mode="json"), "entry_digest": e["entry_digest"],
-                         "payload": e["payload"]} for e in entries],
+                         "payload": e["payload"]} for e in entries[-DETAIL_LIMIT:]],
+            "records_truncated": len(entries) > DETAIL_LIMIT,
         }
 
     def states_for(self, subject_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
@@ -514,13 +632,14 @@ class RemediationService:
         if not self.enabled:
             return {}
         self.maybe_sweep()
-        return self._db.remediation_states_for(list(subject_ids))
+        states: dict[str, dict[str, Any]] = self._db.remediation_states_for(list(subject_ids))
+        return states
 
     def counts(self) -> dict[str, Any]:
-        """Additive fields for ``/admin/evidence/status``."""
+        """Additive fields for ``/admin/evidence/status``: states by state, and ``review_pending``."""
         self.maybe_sweep()
         by_state = self._db.count_remediation_states()
-        return {"remediation": {s: by_state.get(s, 0) for s in STAGE3_STATES if s != "review_denied"}}
+        return {"remediation": {s: by_state.get(s, 0) for s in (*STORED_STATES, "review_pending")}}
 
     # -- notices ------------------------------------------------------------------
 
@@ -552,11 +671,14 @@ class RemediationService:
             "notified_at": stamp(now), "remediation_due_at": row["remediation_due_at"],
             "before_due": due is None or now <= due,
         })
-        current = self._db.get_remediation_state(subject_id)
-        assert current is not None
-        return self.item(current)
+        return self.item(self._current(subject_id, row))
 
     # -- reviews ------------------------------------------------------------------
+
+    def _current(self, subject_id: str, fallback: dict[str, Any]) -> dict[str, Any]:
+        """A state as stored after a write, or what the write made of it when it cannot be read back."""
+        current: dict[str, Any] | None = self._db.get_remediation_state(subject_id)
+        return current if current is not None else fallback
 
     def _holders(self) -> dict[str, dict[str, Any]]:
         holders: dict[str, dict[str, Any]] = self._oob.operator_holders()
@@ -569,11 +691,24 @@ class RemediationService:
                                 code="review_needs_named_holder")
         return str(known["holder"])
 
+    def _actor_holder(self, row: dict[str, Any], holders: dict[str, dict[str, Any]]) -> str | None:
+        """The holder of a change's actor: recorded for a decision (its evaluating operator key's),
+        mapped for an observed actor (``NA_REVIEW_ACTOR_HOLDERS_JSON``, else a holder of that name)."""
+        if row.get("actor_holder"):
+            return str(row["actor_holder"])
+        return actor_holder(row.get("actor"), self._na.review_actor_holders,
+                            [str(h["holder"]) for h in holders.values() if h.get("holder")])
+
     def _subject_entry(self, subject_kind: str, subject_id: str) -> dict[str, Any] | None:
         if subject_kind == "judgement":
             stored: dict[str, Any] | None = self._db.get_entry_by_record("judgement", subject_id)
             return stored
         return self._db.get_decision_entry(subject_id)  # type: ignore[no-any-return]
+
+    def _signed_at(self, approval: dict[str, Any]) -> None:
+        if rfc3339(approval.get("timestamp")) is None:
+            raise BadRequestError("X-Admin-Timestamp must be an RFC 3339 timestamp (YYYY-MM-DDTHH:MM:SS, an "
+                                  "optional fraction, Z or +HH:MM) on the review routes", code="invalid_review")
 
     def request_review(self, data: dict[str, Any], requester: str, approval: dict[str, Any]) -> dict[str, Any]:
         """An operator asks a second holder to review a judged change or a decision."""
@@ -586,30 +721,47 @@ class RemediationService:
                 or not isinstance(justification, str) or not 1 <= len(justification) <= 1024:
             raise BadRequestError("subject_kind is judgement or decision; justification is 1 to 1024 characters",
                                   code="invalid_review")
+        self._signed_at(approval)
         stored = self._subject_entry(kind, subject_id)
         if stored is None:
             raise NotFoundError(f"no {kind} {subject_id!r} is stored", code="review_subject_not_found")
-        holder = self._named_holder(requester, self._holders(), "requester")
-        approval_json = json.dumps(AdminApproval.model_validate(approval).model_dump(mode="json"),
-                                   sort_keys=True, separators=(",", ":"))
+        holders = self._holders()
+        holder = self._named_holder(requester, holders, "requester")
+        now = self._now()
+        signed = AdminApproval.model_validate(approval)
+        problem = request_approval_problem(signed, requested_by=requester, subject_kind=kind, subject_id=subject_id,
+                                           justification=justification, requested_at=now,
+                                           audiences=[self._audience()])
+        if problem is not None:
+            raise BadRequestError(f"the request would not verify offline: {problem}", code="review_approval_invalid")
         requested = {"requested_by": requester, "requester_holder": holder, "justification": justification,
-                     "request_approval_json": approval_json}
+                     "request_approval_json": json.dumps(signed.model_dump(mode="json"), sort_keys=True,
+                                                         separators=(",", ":"))}
         row = self._db.get_remediation_state(subject_id)
         if row is None:
-            row = self._create_for_request(kind, subject_id, stored, requested)
+            row = self._create_for_request(kind, subject_id, stored, requested, holders, requester, now)
             review_id = row["review_id"]
         else:
-            review_id = self._open_on(row, requested)
+            self._refuse_actor(row, requester, holder, holders)
+            review_id = self._open_on(row, requested, now)
         self._db.add_audit_event("review_requested", {
             "review_id": review_id, "subject_kind": kind, "subject_id": subject_id, "requested_by": requester,
             "requester_holder": holder,
         })
-        current = self._db.get_remediation_state(subject_id)
-        assert current is not None
-        return {"review_id": review_id, **self.item(current)}
+        return {**self.item(self._current(subject_id, {**(row or {}), "subject_id": subject_id})),
+                "review_id": review_id}
 
-    def _create_for_request(self, kind: str, subject_id: str, stored: dict[str, Any],
-                            requested: dict[str, Any]) -> dict[str, Any]:
+    def _refuse_actor(self, row: dict[str, Any], requester: str, holder: str,
+                      holders: dict[str, dict[str, Any]]) -> None:
+        problem = review_request_problem(requested_by=requester, requester_holder=holder, actor=row.get("actor"),
+                                         actor_holder=self._actor_holder(row, holders))
+        if problem is not None:
+            self._db.add_audit_event("review_refused", {"subject_id": row["subject_id"], "requested_by": requester,
+                                                        "code": problem[0]})
+            raise ConflictError(problem[1], code=problem[0])
+
+    def _create_for_request(self, kind: str, subject_id: str, stored: dict[str, Any], requested: dict[str, Any],
+                            holders: dict[str, dict[str, Any]], requester: str, now: datetime) -> dict[str, Any]:
         """A review requested on a subject with no remediation state yet."""
         defaults = self._na.remediation_defaults
         if kind == "judgement":
@@ -623,50 +775,62 @@ class RemediationService:
                 action=action, version_id=version, rotatable=rotatable, defaults=defaults,
             )
             actor = change["payload"].get("actor") if change and judgement.subject_kind == "observation" else None
-            due = plan.due_at(judgement.judged_at) if judgement.verdict != "allow" else None
-            return self._create_checked(
+            fields: dict[str, Any] = dict(
                 subject_kind="judgement", subject_id=subject_id, subject_digest=stored["entry"].payload_digest,
-                change_kind=judgement.subject_kind, change_id=judgement.subject_id,
-                resource_id=judgement.resource_id, capability=judgement.capability, actor=actor,
+                change_kind=judgement.subject_kind, change_id=judgement.subject_id, change_version_id=version,
+                change_store_sequence=judgement.subject_store_sequence, changed_at=judgement.evaluated_as_of,
+                resource_id=judgement.resource_id, capability=judgement.capability, actor=actor, actor_holder=None,
                 verdict=judgement.verdict, state=judgement_state(judgement.verdict, judgement.governed_by),
-                plan=plan, due=due, lifetime=None, opened_for="requested", requested=requested,
+                plan=plan, due=plan.due_at(judgement.judged_at) if judgement.verdict != "allow" else None,
+                lifetime=None,
             )
-        decision = BoundaryDecision.model_validate(stored["payload"]["decision"])
-        if not decision.authorized:
-            raise ConflictError("a denied decision changed nothing; there is nothing to review",
-                                code="illegal_transition")
-        context = ContextRecord.model_validate(stored["payload"]["context"])
-        plan = self._decision_plan(self._policies(decision.policy_binding))
-        return self._create_checked(
-            subject_kind="decision", subject_id=subject_id, subject_digest=stored["entry"].payload_digest,
-            change_kind="execution", change_id=None, resource_id=None, capability=context.requested_capability,
-            actor=context.requester_sovereign_id, verdict="allow", state="recorded", plan=plan, due=None,
-            lifetime=None, opened_for="requested", requested=requested,
-        )
-
-    def _create_checked(self, **kwargs: Any) -> dict[str, Any]:
+        else:
+            decision = BoundaryDecision.model_validate(stored["payload"]["decision"])
+            if not decision.authorized:
+                raise ConflictError("a denied decision changed nothing; there is nothing to review",
+                                    code="illegal_transition")
+            context = ContextRecord.model_validate(stored["payload"]["context"])
+            evaluator = self._decision_requester(subject_id)
+            fields = dict(
+                subject_kind="decision", subject_id=subject_id, subject_digest=stored["entry"].payload_digest,
+                change_kind="execution", change_id=None, change_version_id=None, change_store_sequence=None,
+                changed_at=None, resource_id=None, capability=context.requested_capability, actor=evaluator,
+                actor_holder=holders.get(evaluator or "", {}).get("holder") if evaluator else None,
+                verdict="allow", state="recorded",
+                plan=self._decision_plan(self._policies(decision.policy_binding), None), due=None, lifetime=None,
+            )
+        self._refuse_actor({"subject_id": subject_id, "actor": fields["actor"], "actor_holder": fields["actor_holder"]},
+                           requester, str(requested["requester_holder"]), holders)
         try:
-            row, created = self._create(**kwargs)
+            row, created = self._create(**fields, opened_for="requested", requested=requested, now=now)
         except TransitionRefused as exc:
             raise ConflictError(exc.detail, code=exc.code) from None
         if not created:
             # Another request created this subject's state at the same moment: open the review on it.
-            review_id = self._open_on(row, kwargs["requested"])
-            return {**row, "review_id": review_id}
+            return {**row, "review_id": self._open_on(row, requested, now)}
+        if kind == "decision":
+            self.on_execution(subject_id)
         return row
 
-    def _open_on(self, row: dict[str, Any], requested: dict[str, Any]) -> str:
-        """Open a requested review on an existing state (one transaction). Returns the review id."""
+    def _open_on(self, row: dict[str, Any], requested: dict[str, Any], now: datetime) -> str:
+        """Open a requested review on an existing state (one transaction): the flag is set, the
+        state and its clocks stay. Returns the review id."""
         try:
-            target = next_state(row["state"], "open_review")
+            next_state(row["state"], "open_review", bool(row["review_pending"]))
         except TransitionRefused as exc:
             raise ConflictError(exc.detail, code=exc.code) from None
         review_id = str(uuid.uuid4())
-        now = self._now()
 
         def make(db: Any) -> list[Any]:
-            if not db.update_remediation_state(row["subject_id"], row["state"], {
-                    "state": target, "review_id": review_id, "updated_at": stamp(now)}):
+            current = db.get_remediation_state(row["subject_id"])
+            if current is None:
+                raise _Moved()
+            try:
+                next_state(current["state"], "open_review", bool(current["review_pending"]))
+            except TransitionRefused as exc:
+                raise _Refused(exc) from None
+            if not db.update_remediation_state(row["subject_id"], current["state"], {
+                    "review_pending": 1, "review_id": review_id, "updated_at": stamp(now)}):
                 raise _Moved()
             db.insert_remediation_review({"review_id": review_id, "subject_id": row["subject_id"],
                                           "opened_for": "requested", "requested_at": stamp(now), **requested})
@@ -674,6 +838,8 @@ class RemediationService:
 
         try:
             self._write(make, "The review could not be stored")
+        except _Refused as exc:
+            raise ConflictError(exc.refusal.detail, code=exc.refusal.code) from None
         except (_Moved, *self._db.integrity_errors):
             raise ConflictError("the subject's state changed while the review was requested; retry",
                                 code="review_conflict") from None
@@ -704,8 +870,11 @@ class RemediationService:
             raise BadRequestError("waive_until is given exactly for a waiver", code="invalid_review")
         until: datetime | None = None
         if raw_until is not None:
-            parsed = _parse(raw_until) if isinstance(raw_until, str) else None
-            if parsed is None or parsed <= now:
+            parsed = rfc3339(raw_until)
+            if parsed is None:
+                raise BadRequestError("waive_until is an RFC 3339 timestamp (YYYY-MM-DDTHH:MM:SS, an optional "
+                                      "fraction, Z or +HH:MM)", code="invalid_review")
+            if parsed <= now:
                 raise BadRequestError("waive_until is a time after now", code="invalid_review")
             until = parsed.astimezone(timezone.utc)
             longest = min(self._na.review_max_waiver_seconds, MAX_WAIVER_SECONDS)
@@ -718,6 +887,7 @@ class RemediationService:
                       approval: dict[str, Any]) -> dict[str, Any]:
         """A privileged key of a second holder decides a review; the NA records it, signed."""
         self.require_enabled()
+        self._signed_at(approval)
         now = self._now()
         verdict, until, note = self._decision_input(data, now)
         review = self._db.get_remediation_review(review_id)
@@ -729,8 +899,7 @@ class RemediationService:
         assert row is not None
         holders = self._holders()
         decider_holder = self._named_holder(decider, holders, "decider")
-        mapped = actor_holder(row["actor"], self._na.review_actor_holders,
-                              [str(h["holder"]) for h in holders.values() if h.get("holder")])
+        mapped = self._actor_holder(row, holders)
         problem = review_holder_problem(
             decided_by=decider, decider_holder=decider_holder, requested_by=review["requested_by"],
             requester_holder=review["requester_holder"], actor=row["actor"], actor_holder=mapped,
@@ -745,7 +914,7 @@ class RemediationService:
                                   f"outlast it", code="review_waiver_beyond_lifetime")
         event = {"uphold": "uphold", "deny": "deny", "waive_until": "waive"}[verdict]
         try:
-            next_state(row["state"], event)
+            next_state(row["state"], event, True)
         except TransitionRefused as exc:
             raise ConflictError(exc.detail, code=exc.code) from None
 
@@ -762,25 +931,31 @@ class RemediationService:
             approval=AdminApproval.model_validate(approval), decided_at=now,
             issuer_sovereign_id=self._na.genesis_block.network_name, issued_by=self._na.key_id,
         ), self._na.signer, self._na.key_id)
+        # The NA records only what verifies offline: this clock reading, these requests.
+        problem_text = review_approval_problem(record, [self._audience()])
+        if problem_text is not None:
+            raise BadRequestError(f"the decision would not verify offline: {problem_text}",
+                                  code="review_approval_invalid")
 
         outcome: dict[str, Any] = {}
 
         def make(db: Any) -> list[Any]:
             current = db.get_remediation_state(row["subject_id"])
-            if current is None or current["state"] != row["state"]:
+            if current is None:
                 raise _Moved()
             if not db.mark_remediation_review_decided(review_id, verdict, now):
                 raise _Moved()
             try:
-                target = next_state(current["state"], event)
+                target = next_state(current["state"], event, True)
             except TransitionRefused as exc:
                 raise _Refused(exc) from None
-            changes: dict[str, Any] = {"updated_at": stamp(now)}
-            if target == "review_denied":
+            changes: dict[str, Any] = {"updated_at": stamp(now), "review_pending": 0}
+            if target in ("review_denied", "remediation_due", "overdue") and event == "deny":
                 changes.update(self._replan(current))
                 due = due_after_denial(_parse(current["remediation_due_at"]), now,
                                        int(changes.get("grace_seconds", current["grace_seconds"])))
-                target = next_state(target, "arm")
+                if target == "review_denied":
+                    target = next_state(target, "arm")
                 changes["remediation_due_at"] = stamp(due)
             elif target == "waived":
                 assert until is not None
@@ -802,8 +977,7 @@ class RemediationService:
             "waive_until": stamp(until) if until else None, "decided_by": decider, "decider_holder": decider_holder,
             "state": outcome["state"], "store_sequence": entries[0].store_sequence,
         })
-        current = self._db.get_remediation_state(row["subject_id"])
-        assert current is not None
+        current = self._current(row["subject_id"], {**row, "state": outcome["state"], "review_pending": 0})
         return {"review": {"entry": entries[0].model_dump(mode="json"), "entry_digest": entries[0].digest(),
                            "payload": record.to_wire()},
                 **self.item(current)}
@@ -848,21 +1022,23 @@ class RemediationService:
         if not isinstance(raw, dict):
             raise BadRequestError("record must be an object", code="invalid_remediation")
         digest = payload_digest(raw)
-        try:
-            record = RemediationRecord.model_validate(raw)
-        except PydanticValidationError as exc:
-            self._refuse("remediation_malformed", f"record does not match the RemediationRecord model: "
-                         f"{exc.errors()[0].get('msg', '')}", None, digest)
-        difference = _exact_form_problem(raw, record)
-        if difference is not None:
-            self._refuse("remediation_malformed", f"record is not in its exact serialized form: {difference}",
-                         record, digest)
-        key = self._oob._key(record.signature.key_id if record.signature else None)
-        check: EvidenceCheck = check_remediation(record, key)
+        signature = raw.get("signature")
+        key_id = signature.get("key_id") if isinstance(signature, dict) else None
+        key = self._oob._key(key_id if isinstance(key_id, str) else None)
+        # The reference order every verifier follows: the form, then the signature, key and guard.
+        check, parsed = remediation_record_problem(raw, key)
+        if parsed is None or check.code == "remediation_malformed":
+            assert check.code is not None
+            if parsed is not None:
+                difference = _exact_form_problem(raw, parsed)
+                self._refuse(check.code, f"record is not in its exact serialized form: {difference}", parsed, digest)
+            self._refuse(check.code, check.detail, None, digest)
+        record = parsed
         if not check.accepted:
             assert check.code is not None
             self._refuse(check.code, check.detail, record, digest,
                          self._quarantine(raw, record, check.code, check.detail))
+        assert key is not None
         now = self._now()
         if record.remediated_at > now + self._oob.bounds.skew:
             self._refuse("remediation_malformed", "remediated_at is in the future", record, digest)
@@ -876,27 +1052,32 @@ class RemediationService:
                     "payload": existing["payload"], "status": "duplicate"}, 200
 
         row = self._db.get_remediation_state(record.subject_id)
+        subject_resource = row["resource_id"] if row is not None else self._subject_resource(record)
+        # Nothing about a subject outside the key's scope is told, or kept.
+        if subject_resource is not None and not key.covers(subject_resource):
+            self._refuse("remediation_out_of_scope", "the signing key does not cover the subject's resource",
+                         record, digest)
         if row is None:
             if self._subject_entry(record.subject_kind, record.subject_id) is None:
                 self._refuse("remediation_subject_not_found",
                              f"no {record.subject_kind} {record.subject_id!r} is stored", record, digest)
             self._refuse_final("remediation_not_due", "nothing is due for this subject", record, raw, digest)
-        problem = self._subject_problem(record, row)
+        # A decision's change and plan follow from its latest execution evidence.
+        planned = {**row, **self._replan(row)}
+        problem = self._subject_problem(record, planned)
         if problem is not None:
             self._refuse_final("remediation_subject_mismatch", problem, record, raw, digest)
-        # A decision's steps follow from its latest execution evidence (known once it is stored).
-        planned = {**row, **self._replan(row)}
         problem = steps_problem(planned["mode"], planned["steps"], record)
         if problem is not None:
             self._refuse_final("remediation_steps_mismatch", problem, record, raw, digest)
-        rotation = self._rotation_problem(record, row)
+        rotation = self._rotation_problem(record, planned)
         if rotation is not None:
             code, detail = rotation
             if code == "remediation_rotation_missing":
                 self._refuse(code, detail, record, digest)
             self._refuse_final(code, detail, record, raw, digest)
         try:
-            next_state(row["state"], "record_remediation")
+            next_state(row["state"], "record_remediation", bool(row["review_pending"]))
         except TransitionRefused as exc:
             self._refuse_final(exc.code, exc.detail, record, raw, digest)
 
@@ -905,7 +1086,7 @@ class RemediationService:
             if current is None:
                 raise _Moved()
             try:
-                target = next_state(current["state"], "record_remediation")
+                target = next_state(current["state"], "record_remediation", bool(current["review_pending"]))
             except TransitionRefused as exc:
                 raise _Refused(exc) from None
             if not db.update_remediation_state(record.subject_id, current["state"], {
@@ -931,46 +1112,41 @@ class RemediationService:
             "resource_id": record.resource_id, "store_sequence": entries[0].store_sequence,
             "remediation_due_at": row["remediation_due_at"], "late": due is not None and record.remediated_at > due,
         })
-        current = self._db.get_remediation_state(record.subject_id)
-        assert current is not None
+        current = self._current(record.subject_id, {**row, "state": "remediated",
+                                                     "remediation_id": record.remediation_id})
         return {"entry": entries[0].model_dump(mode="json"), "entry_digest": entries[0].digest(),
                 "payload": record.to_wire(), "status": "recorded", "remediation": self.item(current)}, 201
 
+    def _subject_resource(self, record: RemediationRecord) -> str | None:
+        """The resource of a subject with no remediation state (a judgement's), for the scope check."""
+        if record.subject_kind != "judgement":
+            return None
+        stored = self._db.get_entry_by_record("judgement", record.subject_id)
+        return stored["entry"].resource_id if stored is not None else None
+
     def _subject_problem(self, record: RemediationRecord, row: dict[str, Any]) -> str | None:
-        """Why a remediation record does not name its subject's change, or None."""
+        """Why a remediation record does not name its subject's change, or None. The change's
+        version comes from the state (kept when it was armed), not from the record of the change,
+        which retention may have removed."""
         if record.subject_kind != row["subject_kind"]:
             return f"{record.subject_id} is a {row['subject_kind']}, not a {record.subject_kind}"
-        if row["subject_kind"] == "judgement":
-            if (record.change_kind, record.change_id) != (row["change_kind"], row["change_id"]):
-                return f"the judgement is of {row['change_kind']} {row['change_id']}"
-            if record.resource_id != row["resource_id"]:
-                return f"the judged change is of {row['resource_id']}"
-        else:
-            if record.change_kind != "execution":
-                return "a decision's change is its execution evidence"
-            stored = self._db.get_entry_by_evidence_id(record.change_id)
-            if stored is None or stored["entry"].decision_id != record.subject_id \
-                    or stored["entry"].resource_id != record.resource_id:
-                return f"no execution evidence of {record.resource_id} under decision {record.subject_id} " \
-                       f"is {record.change_id}"
-        version = self._changed_version(record, row)
+        if row["subject_kind"] == "decision" and row["fallback"] == NOT_EXECUTED:
+            if (record.change_kind, record.change_id) != ("execution", record.subject_id):
+                return "the decision was never executed: the record names the decision itself as its change"
+            return None
+        if (record.change_kind, record.change_id) != (row["change_kind"], row["change_id"]):
+            return f"the remediation is of {row['change_kind']} {row['change_id']}"
+        if record.resource_id != row["resource_id"]:
+            return "the change is of another resource"
+        version = row.get("change_version_id")
         if record.disabled_version_id is not None and version is not None and record.disabled_version_id != version:
             return f"the change made version {version}; the record disables {record.disabled_version_id}"
         return None
 
-    def _changed_version(self, record: RemediationRecord, row: dict[str, Any]) -> str | None:
-        kind = record.change_kind
-        if kind == "execution":
-            stored = self._db.get_entry_by_evidence_id(record.change_id)
-        else:
-            stored = self._db.get_entry_by_record(kind, record.change_id)
-        if stored is None:
-            return None
-        return change_facts(kind, stored["payload"])[1]
-
     def _rotation_problem(self, record: RemediationRecord, row: dict[str, Any]) -> tuple[str, str] | None:
-        """The forward rotation is governed execution evidence the NA already holds, of the same
-        resource, issuing the version the record names."""
+        """The forward rotation is governed execution evidence the NA already holds: of the same
+        resource, issuing the version the record names, by the same executor sovereign, made after
+        the change, and cited by no other remediation."""
         if record.rotation_evidence_id is None:
             return None
         stored = self._db.get_entry_by_evidence_id(record.rotation_evidence_id)
@@ -983,4 +1159,11 @@ class RemediationService:
             return ("remediation_rotation_mismatch",
                     f"execution evidence {record.rotation_evidence_id} is not a rotation of {record.resource_id} "
                     f"to version {record.version_id}")
-        return None
+        executed_at = _parse(stored["payload"].get("executed_at")) or stored["entry"].recorded_at
+        return rotation_problem(
+            rotation_executor=str(stored["entry"].executor_sovereign_id),
+            rotation_sequence=stored["entry"].store_sequence, rotation_executed_at=executed_at,
+            record_executor=record.executor_sovereign_id, change_sequence=row.get("change_store_sequence"),
+            changed_at=_parse(row.get("changed_at")),
+            already_cited=self._db.rotation_cited(record.rotation_evidence_id),
+        )
