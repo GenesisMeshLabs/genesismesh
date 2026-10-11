@@ -91,8 +91,8 @@ leads to is not defined. The reviews found:
 `na_service/routes/remediation.py`, migration 016), with the runbooks
 `docs/operations/remediation-and-reviews.md` and
 `docs/operations/emergency-changes.md`; items 7 and 9 are in the SDK and
-gateway pull requests. Choices made in building it are Decisions 7 to 16
-below.
+gateway pull requests. Choices made in building it are Decisions 7 to 19
+below (redesigned after a review, 2026-10-11).
 
 ### Out of scope
 
@@ -179,19 +179,29 @@ Open, from building Stage 3 (2026-10-11):
    a resource nothing reads yet (disable); `rotate` or `update` with a
    version is versioned (rotate forward, then disable) unless the record says
    `rotatable: false`; without a version, or for `revoke` and `delete`, it
-   falls back to `alert_only`. No new signed field.
+   falls back to `alert_only`. No new signed field. The limit, stated in the
+   docs: the observer that signs the record can turn a cancel into an alert
+   with `rotatable: false`, never the other way round.
 10. **`uphold` means the change stands** (proposed), matching the state
     table (`upheld` is not followed by remediation; `review_denied` is):
     `deny` makes remediation due, `waive_until` lets the change stand until a
     time. Waivers are bounded by the NA (`NA_REVIEW_MAX_WAIVER_SECONDS`) and
     by the model (90 days).
-11. **A pending review holds remediation without moving its due time**
-    (proposed): a denial is due at the decision plus the grace, never later
-    than it already was; a waiver's end re-arms with the grace again.
+11. **A pending review stops no clock** (redesigned after review,
+    2026-10-11, decision A): a review is a flag beside the state
+    (`review_pending`), not a state; due times, waivers and emergency
+    lifetimes run while it is pending, with their audit events, and its
+    verdict applies when it is decided. A denial is due at the decision plus
+    the grace, never later than it already was; a waiver's end re-arms with
+    the grace again. A remediation is admitted only while due or overdue.
 12. **The actor's holder from configuration** (proposed):
     `NA_REVIEW_ACTOR_HOLDERS_JSON` maps reported actors to holders (an actor
     named like a holder is that holder); the review records the mapping it
-    used (`actor_holder`). The actor is source-reported; the docs say so.
+    used (`actor_holder`). The actor is source-reported, and an unmapped
+    actor has no holder; the docs say both. After review (decision B): the
+    actor's holder may not request the review either
+    (`review_requested_by_actor`), and a decision's actor is the operator key
+    that asked for it, with its holder, recorded and embedded.
 13. **Both signed requests embedded** (proposed): the requester's as well as
     the decider's, so the subject and justification verify offline too; the
     verifier checks the public keys against the holder registry in the
@@ -203,11 +213,31 @@ Open, from building Stage 3 (2026-10-11):
     ordinary capability; matching treats the emergency capability as
     standing for it. An observation naming the emergency capability with no
     record of the change behind it is judged under the ordinary capability
-    and flagged.
+    and flagged. After review (decision C): only emergency policies active
+    and valid at the change's time count, a capability another active policy
+    names is none (and such an activation is refused), the remapping is off
+    with `EVIDENCE_REMEDIATION` off (and evaluation under a reviewed policy
+    refused), `stands_for` is an exact capability ID, and an observation of
+    an emergency change is judged under the emergency policy and attaches to
+    the decision's or break-glass record's review.
 15. **An emergency change's lifetime ends like a waiver** (proposed): an
     upheld emergency change becomes due when its lifetime ends, with the
     policy's grace; a waiver cannot outlast it.
 16. **Remediation state beside the store** (proposed): the due queue and
     `notified_at` live in an operational table (migration 016), not in a
     signed kind; every transition goes through one state table the
-    conformance suite lists.
+    conformance suite lists. The sweep compares times with the instance's
+    clock; the docs require synchronised clocks (as for the registry) rather
+    than the database's clock.
+17. **One timestamp grammar for reviews** (after review): `waive_until` and
+    the admin timestamps a review embeds are RFC 3339 in one strict form;
+    the NA refuses other forms, and checks that a review verifies offline
+    before it records it.
+18. **A forward rotation is forward** (after review): the rotation a
+    remediation cites is the remediation's executor's, after the change,
+    cited once; the verifier checks the same, and retention keeps a
+    remediation or review with its subject and the subject of an open one,
+    so the "held from start" checks apply after a checkpoint too.
+19. **A decision never executed is closed by an alert** (after review):
+    plan `alert_only`, fallback `not_executed`; its remediation record names
+    the decision as its change.
