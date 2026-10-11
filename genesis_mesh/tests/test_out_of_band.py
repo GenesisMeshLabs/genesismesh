@@ -20,7 +20,7 @@ import pytest
 
 from genesis_mesh.crypto import generate_keypair, sign_model
 from genesis_mesh.models.evidence_store import EvidenceEvent
-from genesis_mesh.models.out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord
+from genesis_mesh.models.out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, RegistryRecord
 from genesis_mesh.na_service.services.out_of_band import OutOfBandService
 from genesis_mesh.trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
 from genesis_mesh.trust.out_of_band import PolicyHistory
@@ -1452,6 +1452,52 @@ def test_status_reports_the_policy_history_and_the_registry(clock, monkeypatch):
     assert status["policy_history_started"] is None and status["registry_healthy"] is False
     assert any("backfill failed at start" in p for p in status["registry_problems"])
     assert any("has not started" in p for p in status["registry_problems"])
+
+
+def test_registry_records_the_na_did_not_sign_or_that_repeat_one_shape_nothing(client, na_service, clock,
+                                                                              monkeypatch):
+    """v1.3.1: the registry was replayed as stored. A record a database writer added (under
+    another key) or copied (its ID once more) now shapes neither the holders nor the policy
+    history, and the status reports it."""
+    svc = na_service.out_of_band_service
+    holders = svc.operator_holders()
+    started = svc.policy_history().started_at
+    issuer = {"issuer_sovereign_id": na_service.genesis_block.network_name, "issued_by": na_service.key_id}
+    mallory = nacl.signing.SigningKey.generate()
+
+    def forged(record: RegistryRecord) -> RegistryRecord:
+        return record.model_copy(update={"signature": sign_model(record, mallory, na_service.key_id)})
+
+    later = clock.now() + timedelta(days=1)
+    takeover = forged(RegistryRecord(
+        event="operator_key_holder", effective_at=later, key_id="operator-test", holder="mallory",
+        public_key=holders["operator-test"]["public_key"], operator_tier=holders["operator-test"]["operator_tier"],
+        **issuer))
+    policy = forged(RegistryRecord(event="policy_activated", effective_at=clock.now() - timedelta(days=3),
+                                   policy_id="forged", policy_version=1, policy_digest="d" * 64, **issuer))
+    [(_, first)] = [r for r in svc._registry_records() if r[1].event == "policy_history_started"]
+    # Appended as a database writer would: the copy (the NA's own record, once more) without
+    # the envelope ID the store's unique index checks.
+    svc._append([svc._pending("registry", r, now=clock.now(), extra_index={"record_id": None})
+                 for r in (takeover, policy, first)])
+
+    assert svc.operator_holders()["operator-test"]["holder"] == holders["operator-test"]["holder"]
+    history = svc.policy_history()
+    assert history.started_at == started and "forged" not in history.latest()
+    status = _get(client, "/admin/evidence/status").get_json()
+    assert status["registry_healthy"] is False
+    problems = status["registry_problems"]
+    assert sum("is not signed by the NA" in p for p in problems) == 2
+    assert any(f"repeats registry record {first.registry_record_id}" in p for p in problems)
+    # Each record's signature is verified once: reading the registry again verifies none.
+    import genesis_mesh.na_service.services.out_of_band as oob_module
+
+    checked: list[str] = []
+    real = oob_module.verify_na_record
+    monkeypatch.setattr(oob_module, "verify_na_record",
+                        lambda record, keys: checked.append(record.registry_record_id) or real(record, keys))
+    svc.policy_history()
+    assert checked == []
 
 
 def test_a_judgement_that_failed_at_admission_is_judged_by_the_sweep(clock, monkeypatch, tmp_path):

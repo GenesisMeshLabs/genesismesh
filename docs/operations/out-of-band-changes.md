@@ -295,6 +295,11 @@ The registry is never lost to retention: records a retention run removes are
 carried forward unchanged after its checkpoint. Readers replay it in order of
 `effective_at`, so a carried record never stands over a newer one.
 
+Only records the NA signed are replayed, each `registry_record_id` once
+(since 1.3.1): a record a database writer adds under another key, or a copy
+of one the store already holds, changes neither the policy history nor the
+operator key holders. It is left out and named in `registry_problems`.
+
 Registry times come from the clock of the instance that records them. With
 several instances, keep their clocks synchronised (NTP): a record from an
 instance whose clock runs behind can sort before a change another instance
@@ -303,7 +308,9 @@ recorded just earlier.
 `GET /admin/evidence/status` reports `policy_history_started` (`null` until
 the history starts: every change is then `indeterminate`), `registry_healthy`
 and `registry_problems` (a registry check that failed at start, a history
-that has not started, or active policies the registry has not recorded yet).
+that has not started, active policies the registry has not recorded yet, or
+a registry entry left out: one that does not parse, is not signed by the NA,
+or repeats a record's ID).
 
 ### Operator key holders
 
