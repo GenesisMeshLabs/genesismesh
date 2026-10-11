@@ -497,7 +497,9 @@ def run_out_of_band(vectors: list[dict]) -> list[str]:
     from genesis_mesh.crypto import verify_model_signature
     from genesis_mesh.models import out_of_band as oob
     from genesis_mesh.trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
-    from genesis_mesh.trust.out_of_band import PolicyHistory, TimeBounds, time_bounds_problem
+    from genesis_mesh.trust.out_of_band import (
+        PolicyHistory, TimeBounds, check_break_glass, check_observation, time_bounds_problem,
+    )
 
     def ts(value: str) -> datetime:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -537,6 +539,16 @@ def run_out_of_band(vectors: list[dict]) -> list[str]:
                 records = [oob.RegistryRecord.model_validate(r) for r in v["records"]]
                 active = PolicyHistory.from_records(enumerate(records, start=1)).active_at(ts(v["at"]))
                 got = {"active": None if active is None else {k: val[0] for k, val in sorted(active.items())}}
+            elif kind == "metadata_problem":
+                # v1.3.1: the NA's guard on a record's own values, as it admits the record.
+                key = ExecutorKey(**v["key"])
+                if v["record_kind"] == "observation":
+                    check = check_observation(oob.ObservationRecord.model_validate(v["record"]), key)
+                else:
+                    check = check_break_glass(oob.BreakGlassRecord.model_validate(v["record"]), key)
+                if check.code not in (None, f"{v['record_kind']}_secret_material"):
+                    raise ValueError(f"refused for another reason: {check.code}")
+                got = {"problem": check.detail if check.code else None}
             else:
                 failures.append(f"{v['id']}: unknown kind {kind}")
                 continue

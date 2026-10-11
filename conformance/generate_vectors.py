@@ -1304,7 +1304,9 @@ def gen_canonical() -> None:
 
     from genesis_mesh import strict_json
     from genesis_mesh.crypto import sign_data
-    from genesis_mesh.models.canonical_registry import build_registry, canonical_timestamp, received_canonical
+    from genesis_mesh.models.canonical_registry import (
+        build_registry, canonical_timestamp, intent_refusal_detail, received_canonical,
+    )
 
     registry = build_registry()
     vectors: list[dict] = []
@@ -1336,6 +1338,21 @@ def gen_canonical() -> None:
         ("negative-zero-float", "The float -0.0 keeps its sign", "{\"x\":-0.0}"),
         ("float-underflow", "A number below the smallest float reads as zero", "[1e-400,-1e-400]"),
         ("nested", "Nested objects are ordered at every level", "{\"b\":{\"d\":1,\"c\":[{\"f\":1,\"e\":2}]},\"a\":null}"),
+        # v1.3.1: an exponent of 20 digits, and a fraction of 5,000.
+        ("float-long-exponent-underflow", "Exponents of 20 digits that read as zero",
+         "[1e-99999999999999999999,0e99999999999999999999,-1e-99999999999999999999]"),
+        ("float-long-fraction", "A fraction of 5,000 digits", "[0." + "1" * 5000 + "]"),
+        # v1.3.1: floats exactly halfway between two shortest spellings (12 to 16 integer digits and a
+        # binary fraction): Python writes the even last digit, as the shortest round-trip form requires.
+        ("float-ties-13-digits", "Halfway floats with 13 integer digits",
+         "[9200342818493.0625,9200342818493.3125,-9200342818493.0625]"),
+        ("float-ties-14-digits", "Halfway floats with 14 integer digits",
+         "[19163869213077.0625,19163869213077.3125,94700505093622.125,94700505093622.625]"),
+        ("float-ties-15-digits", "Halfway floats with 15 integer digits",
+         "[131970414387697.125,131970414387697.625,643119295368944.25]"),
+        ("float-ties-16-digits", "Halfway floats with 16 integer digits", "[1290424344063770.25,1168512007578726.25]"),
+        ("float-ties-shortest", "Halfway floats received in their shortest form",
+         "{\"a\":9200342818493.062,\"b\":94700505093622.12,\"c\":643119295368944.2}"),
     ]
     accepted += [
         ("depth-64", "Arrays nested 64 deep", "[" * 64 + "]" * 64),
@@ -1387,6 +1404,21 @@ def gen_canonical() -> None:
         ("first-fault-surrogate-keys", "Two faults: a lone surrogate in a key named twice",
          "{\"\\ud800\":1,\"\\ud800\":2}"),
         ("first-fault-depth-then-zero", "Two faults: nesting 65 deep around -0", "[" * 65 + "-0" + "]" * 65),
+        # v1.3.1: a number is read by the grammar first; one that breaks off after "." or an exponent
+        # letter is not JSON, before -0 or a range is considered. What follows a whole number is the next
+        # token: -0 followed by a digit is -0 (the first fault), 0 followed by a digit is not JSON.
+        ("number-negative-zero-point", "Not JSON: -0 and a point without fraction", "[-0.]"),
+        ("number-negative-zero-exponent", "Not JSON: -0 and an exponent without digits", "[-0e]"),
+        ("number-exponent-sign-only", "Not JSON: an exponent sign without digits", "[1E+]"),
+        ("number-exponent-without-digits", "Not JSON: an exponent letter without digits", "[1e]"),
+        ("number-point-then-exponent", "Not JSON: a point followed by an exponent", "[-0.e1]"),
+        ("number-long-integer-point", "Not JSON: an integer of 21 digits and a point", "[100000000000000000000.]"),
+        ("number-minus-alone", "Not JSON: a minus sign alone", "[-]"),
+        ("number-minus-space", "Not JSON: a minus sign and a space", "[- 1]"),
+        ("number-whole-then-point", "A float that overflows, then a point: the number comes first", "[1e400.]"),
+        ("number-negative-zero-then-digit", "-0 then a digit: -0 comes first", "[-01]"),
+        ("number-zero-then-digit", "Not JSON: a leading zero", "[00]"),
+        ("number-long-exponent-overflow", "An exponent of 20 digits that overflows", "[1e99999999999999999999]"),
     ]
     for vid, desc, text in accepted + refused:
         json_case(vid, desc, text)
@@ -1509,6 +1541,20 @@ def gen_canonical() -> None:
         "input": {**{k: bd[k] for k in ("operator_public_keys", "now")}, "decision": nulled},
         "expected": {"accepted": True, "reason": "authorized"},
     })
+    # v1.3.1: a timestamp without an offset is canonical and reads as UTC (the reference raised on it).
+    naive = copy.deepcopy(bd["decision"])
+    naive["decision_valid_until"] = naive["decision_valid_until"].removesuffix("Z")
+    naive = signed("BoundaryDecision", naive, [("c", "na-key")], "signature")
+    for vid, now, expected in (("naive-valid-until", bd["now"], {"accepted": True, "reason": "authorized"}),
+                               ("naive-valid-until-expired", "2026-01-01T02:00:00Z",
+                                {"accepted": False, "reason": "decision_expired"})):
+        vectors.append({
+            "id": f"verify-decision-{vid}", "kind": "verify_decision",
+            "description": f"A decision signed with decision_valid_until {naive['decision_valid_until']} "
+                           f"(no offset, read as UTC), verified at {now}",
+            "input": {"operator_public_keys": bd["operator_public_keys"], "now": now, "decision": naive},
+            "expected": expected,
+        })
     agr = interop["agr-002"]
     key_ids = [s["key_id"] for s in agr["agreement"]["signatures"]]
     changed = copy.deepcopy(agr["agreement"])
@@ -1518,6 +1564,15 @@ def gen_canonical() -> None:
         "description": "An agreement whose terms gained a field after both parties signed",
         "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")}, "agreement": changed},
         "expected": {"accepted": False, "reason": "invalid_offerer_signature"},
+    })
+    # v1.3.1: signatures is a list; one signature object in its place is no signature.
+    lone = copy.deepcopy(agr["agreement"])
+    lone["signatures"] = lone["signatures"][0]
+    vectors.append({
+        "id": "verify-agreement-signatures-object", "kind": "verify_agreement",
+        "description": "An agreement whose signatures field holds one signature object, not a list",
+        "input": {**{k: agr[k] for k in ("offerer_public_keys", "responder_public_keys")}, "agreement": lone},
+        "expected": {"accepted": False, "reason": "missing_offerer_signature"},
     })
     stranger = copy.deepcopy(agr["agreement"])
     stranger["agreed_terms"]["valid_from"] = "2026-01-01T00:00:00.000Z"
@@ -1555,6 +1610,16 @@ def gen_canonical() -> None:
         "input": {**{k: inten[k] for k in ("intent", "agent_public_keys", "at")}, "policy": policy},
         "expected": {"detail": "Not in canonical form: policy"},
     })
+    # v1.3.1: the policy is checked whole, as the intent is, not only its timestamps.
+    policy = copy.deepcopy(inten["policy"])
+    del policy["max_volume_bytes_per_session"]
+    vectors.append({
+        "id": "verify-intent-policy-missing-field", "kind": "verify_intent",
+        "description": "A license policy without max_volume_bytes_per_session, which the reference always writes",
+        "input": {**{k: inten[k] for k in ("intent", "agent_public_keys", "at")}, "policy": policy},
+        "expected": {"detail": intent_refusal_detail(inten["intent"], policy, inten["agent_public_keys"])},
+    })
+    assert vectors[-1]["expected"]["detail"] == "Not in canonical form: policy"
     _write("canonical", {"suite": "canonical", "version": "1.2.0", "vectors": vectors})
 
 
@@ -1574,7 +1639,14 @@ def gen_out_of_band() -> None:
     reason (``judgement_subject_mismatch``, ``duplicate_judgement``,
     ``match_reused``, ``observation_chain_break``, ``envelope_mismatch``,
     ``quarantine_digest_mismatch``, ``evidence_cites_judgement``,
-    ``invalid_signature`` for a record signed by a key of the wrong role).
+    ``invalid_signature`` for a record signed by a key of the wrong role;
+    v1.3.1: ``duplicate_record``, ``judgement_match_missing``,
+    ``retention_count_mismatch``, every envelope field a 1.3.0 entry takes from
+    its record, and runs that start mid-store or after retention).
+    ``metadata_problem`` cases (v1.3.1): the guard the NA applies to an
+    observation's or a break-glass record's own values before admitting it,
+    which the SDKs apply before signing: ``record_kind``, the signed
+    ``record`` and its ``key``, and the ``problem`` named (``null`` for none).
     ``time_bounds`` and ``policy_history`` cases are the Network Authority's
     own rules (the reference runs them; SDKs may skip them). Records are
     deterministic, so regeneration is byte-stable.
@@ -1588,7 +1660,7 @@ def gen_out_of_band() -> None:
     from genesis_mesh.models.out_of_band import (
         BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord,
     )
-    from genesis_mesh.trust.evidence_store import ExecutorKey, build_entry, verify_evidence_events
+    from genesis_mesh.trust.evidence_store import ExecutorKey, build_entry, parse_export_lines, verify_evidence_events
     from genesis_mesh.trust.out_of_band import PolicyHistory, TimeBounds, entry_index, time_bounds_problem
 
     vectors: list[dict] = []
@@ -1676,9 +1748,9 @@ def gen_out_of_band() -> None:
         index = {**entry_index(kind, record), **override}
         return kind, record.to_wire(), {k: v for k, v in index.items() if v is not None or k in override}
 
-    def store(items) -> list[str]:
-        lines, prev = [], None
-        for seq, (kind, payload, index) in enumerate(items, start=1):
+    def store(items, start: int = 1, prev: str | None = None) -> list[str]:
+        lines = []
+        for seq, (kind, payload, index) in enumerate(items, start=start):
             entry = build_entry(store_sequence=seq, entry_kind=kind, recorded_at=t[10] + timedelta(seconds=seq),
                                 payload=payload, prev_entry_digest=prev, index=index)
             prev = entry.digest()
@@ -1700,9 +1772,12 @@ def gen_out_of_band() -> None:
         item("quarantine", quarantine),
     ]
 
-    def export_case(vid: str, desc: str, items, *, contiguous: bool = True, expect: list | None = None) -> None:
-        lines = store(items)
-        events = [EvidenceEvent.model_validate(json.loads(line)) for line in lines]
+    def export_case(vid: str, desc: str, items, *, contiguous: bool = True, expect: list | None = None,
+                    start: int = 1, prev: str | None = None, drop: int = 0) -> None:
+        # ``start`` and ``prev``: a store whose entries before ``start`` were removed by retention;
+        # ``drop``: an export that starts ``drop`` entries into the store (v1.3.1).
+        lines = store(items, start=start, prev=prev)[drop:]
+        events = parse_export_lines(lines)
         result = verify_evidence_events(events, na_public_keys=[pub_b64("c")], executor_keys=executor_keys,
                                         contiguous=contiguous)
         failures = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
@@ -1828,6 +1903,143 @@ def gen_out_of_band() -> None:
     export_case("execution-cites-a-judgement", "Execution evidence resting on a judgement", citing,
                 expect=[{"store_sequence": 13, "reason": "evidence_cites_judgement"}])
 
+    # v1.3.1: replays, judgement links, runs that start mid-store, and retention checkpoints.
+    registries = base[:3]
+
+    def execution(n: int, seq: int, prior=None, *, resource_prior=None, rotated: str = "kv:vault/rotated"):
+        record = ExecutionEvidence(
+            evidence_id=uid(n), sequence_no=seq, decision_id=uid(40), context_id=uid(40), agreement_id=UUID1,
+            executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success",
+            execution_parameters={"version_id": f"v{n}"}, executed_at=t[1] + timedelta(seconds=n),
+            prev_evidence_digest=prior.digest() if prior is not None else None, resource_id=rotated,
+            resource_action="rotate", resource_sequence=seq,
+            prev_resource_digest=(resource_prior if resource_prior is not None
+                                  else prior.digest() if prior is not None else None),
+        )
+        return record.model_copy(update={"signature": sign_model(record, KEYS["b"], "executor-b")})
+
+    def exec_item(record) -> tuple[str, dict, dict]:
+        return "execution", _model_to_dict(record), {
+            "decision_id": record.decision_id, "context_id": record.context_id, "evidence_id": record.evidence_id,
+            "executor_sovereign_id": record.executor_sovereign_id, "exec_sequence_no": record.sequence_no,
+            "capability": record.executed_capability, "outcome": record.outcome, "resource_id": record.resource_id,
+            "resource_action": record.resource_action, "resource_sequence": record.resource_sequence,
+        }
+
+    e1 = execution(41, 1)
+    e2 = execution(42, 2, e1)
+    e3 = execution(43, 3, e2, resource_prior="0" * 64)
+    chained = [*copy.deepcopy(registries), exec_item(e1), exec_item(e2)]
+    export_case("resource-chain", "A resource's chain of execution records from its first", chained, expect=[])
+    export_case("from-mid-store", "An export that starts at a resource's second record (a later page)",
+                chained, drop=4, expect=[])
+    export_case("from-mid-store-chain-break", "An export that starts mid-store still links each record after its "
+                "first", [*chained, exec_item(e3)], drop=4,
+                expect=[{"store_sequence": 6, "reason": "resource_chain_break"}])
+    export_case("from-mid-store-at-entry-one-is-held", "An export from entry 1 holds every chain from its start",
+                [*copy.deepcopy(registries), exec_item(e2)],
+                expect=[{"store_sequence": 4, "reason": "resource_chain_break"}])
+
+    export_case("duplicate-registry-record", "A registry record copied to the end of the store",
+                [*copy.deepcopy(base), item("registry", registry[2])],
+                expect=[{"store_sequence": 13, "reason": "duplicate_record"}])
+    export_case("duplicate-observation", "An observation copied to the end of the store at the next position",
+                [*copy.deepcopy(base), item("observation", o1, observation_sequence=3)],
+                expect=[{"store_sequence": 13, "reason": "duplicate_record"}])
+    export_case("duplicate-execution", "An execution record copied: a replay, still checked in its chains",
+                [*chained, exec_item(e2)],
+                expect=[{"store_sequence": 6, "reason": "duplicate_record"},
+                        {"store_sequence": 6, "reason": "evidence_chain_break"},
+                        {"store_sequence": 6, "reason": "resource_chain_break"}])
+    export_case("duplicate-quarantine", "A quarantine record copied to the end of the store",
+                [*copy.deepcopy(base), item("quarantine", quarantine)],
+                expect=[{"store_sequence": 13, "reason": "duplicate_record"}])
+
+    twin = signed(BreakGlassRecord(
+        break_glass_id=o_window.observation_id, executor_sovereign_id=SOV_B, resource_id="kv:vault/db-password",
+        resource_action="update", capability="secret.update", justification="NA unreachable",
+        evaluation_request_digest="9" * 64, evaluation_failure="network_error", executed_at=t[7], outcome="success",
+    ), "b", "executor-b")
+    export_case("same-id-two-kinds", "A break-glass record with an observation's ID: records of two kinds, each "
+                "judged once", [*copy.deepcopy(base), item("break_glass", twin),
+                                item("judgement", judgement(27, twin, 13, verdict="allow"))], expect=[])
+
+    for vid, desc, override in (
+        ("judgement-envelope-match", "A judgement whose envelope names another matched record",
+         {"matched_evidence_id": uid(98)}),
+        ("judgement-envelope-outcome", "A judgement whose envelope gives another verdict", {"outcome": "deny"}),
+    ):
+        changed = copy.deepcopy(base)
+        changed[8] = item("judgement", judgement(23, o2, 8, verdict="allow", matched=b1.break_glass_id,
+                                                 reason=f"matched break-glass record {b1.break_glass_id}"), **override)
+        export_case(vid, desc, changed, expect=[{"store_sequence": 9, "reason": "envelope_mismatch"}])
+    changed = copy.deepcopy(base)
+    changed[0] = item("registry", registry[0], outcome="policy_activated")
+    export_case("registry-envelope-outcome", "A registry entry whose envelope names another event", changed,
+                expect=[{"store_sequence": 1, "reason": "envelope_mismatch"}])
+    changed = copy.deepcopy(base)
+    changed[11] = item("quarantine", quarantine, resource_id="kv:vault/other")
+    export_case("quarantine-envelope-resource", "A quarantine entry whose envelope names another resource", changed,
+                expect=[{"store_sequence": 12, "reason": "envelope_mismatch"}])
+
+    o4 = signed(ObservationRecord(
+        observation_id=uid(19), observer_sovereign_id=SOV_A, resource_id="kv:vault/other-19", action="rotate",
+        capability="secret.rotate", changed_at=t[4], observed_at=t[5], source="cloud-activity-log",
+        source_event_id="event-19", version_id="v9",
+    ), "a", "observer-a")
+    phantom = [*copy.deepcopy(base), item("observation", o4, observation_sequence=1),
+               item("judgement", judgement(28, o4, 13, verdict="allow", matched=uid(97)))]
+    export_case("judgement-match-missing", "A judgement matching a record the store does not hold", phantom,
+                expect=[{"store_sequence": 14, "reason": "judgement_match_missing"}])
+    export_case("judgement-match-before-the-export", "An export that starts mid-store need not hold a matched "
+                "record", phantom, drop=1, expect=[])
+    late = [*copy.deepcopy(registries), exec_item(e1), item("observation", o4, observation_sequence=1),
+            item("judgement", judgement(28, o4, 5, verdict="allow", matched=e2.evidence_id)), exec_item(e2)]
+    export_case("judgement-match-after-it", "A judgement matching a record stored after it", late,
+                expect=[{"store_sequence": 6, "reason": "judgement_match_missing"}])
+    export_case("judgement-match-held", "A judgement matching an execution record stored before it",
+                [*copy.deepcopy(chained), item("observation", o4, observation_sequence=1),
+                 item("judgement", judgement(28, o4, 6, verdict="allow", matched=e2.evidence_id))], expect=[])
+    other_kind = signed(judgement(29, o1, 4).model_copy(update={"subject_kind": "break_glass", "signature": None}),
+                        "c", "na-key")
+    export_case("judgement-subject-of-another-kind", "A judgement naming an observation's ID as a break-glass record",
+                [*copy.deepcopy(base), item("judgement", other_kind)],
+                expect=[{"store_sequence": 13, "reason": "judgement_subject_missing"}])
+
+    from genesis_mesh.models.evidence_store import RetentionCheckpoint
+    from genesis_mesh.trust.evidence_store import sign_retention_checkpoint
+
+    def checkpoint(n: int, through: int, count: int, previous: str | None = None) -> RetentionCheckpoint:
+        return sign_retention_checkpoint(RetentionCheckpoint(
+            checkpoint_id=uid(n), created_at=t[12], cutoff=t[11], removed_through_sequence=through,
+            last_removed_entry_digest=f"{through:064x}", removed_count=count, previous_checkpoint_id=previous,
+            issued_by="na-key",
+        ), KEYS["c"], "na-key")
+
+    def cp_item(record: RetentionCheckpoint) -> tuple[str, dict, dict]:
+        return "retention_checkpoint", json.loads(record.model_dump_json()), {}
+
+    first_cp, second_cp = checkpoint(51, 4, 4), checkpoint(52, 6, 2, uid(51))
+    retained = [item("registry", registry[0]), cp_item(first_cp), item("registry", registry[1]), cp_item(second_cp)]
+    export_case("after-two-retention-runs", "A store after two retention runs, each checkpoint's count in step",
+                retained, start=7, prev=f"{6:064x}", expect=[])
+    laundered = copy.deepcopy(retained)
+    laundered[3] = cp_item(checkpoint(52, 6, 1, uid(51)))
+    export_case("retention-count-after-previous", "A checkpoint removing fewer entries than lay after the one "
+                "before it", laundered, start=7, prev=f"{6:064x}",
+                expect=[{"store_sequence": 10, "reason": "retention_count_mismatch"}])
+    laundered = copy.deepcopy(retained)
+    laundered[1] = cp_item(checkpoint(51, 4, 3))
+    export_case("retention-count-first", "A first checkpoint removing fewer entries than its positions", laundered,
+                start=7, prev=f"{6:064x}", expect=[{"store_sequence": 8, "reason": "retention_count_mismatch"}])
+    export_case("retention-count-previous-not-held", "A checkpoint whose previous checkpoint the export does not "
+                "hold: its count cannot be checked", [item("registry", registry[0]),
+                                                      cp_item(checkpoint(52, 6, 1, uid(51)))],
+                start=7, prev=f"{6:064x}", expect=[])
+    export_case("duplicate-checkpoint", "A retention checkpoint copied later in the store",
+                [*retained, cp_item(second_cp)], start=7, prev=f"{6:064x}",
+                expect=[{"store_sequence": 11, "reason": "duplicate_record"}])
+
     for name, record in (("observation", o1), ("observation-window", o_window), ("break-glass", b1),
                          ("judgement", judgement(21, o1, 4)), ("quarantine", quarantine),
                          ("registry", registry[2])):
@@ -1852,6 +2064,97 @@ def gen_out_of_band() -> None:
             "model": type(record).__name__, "record": record.to_wire(), "public_key": public,
             "expected": {"valid": ok},
         })
+
+    # v1.3.1: the guard the NA applies to an observation's and a break-glass record's own values
+    # (``trust.out_of_band.metadata_problem``), which the SDKs apply before signing. The size is
+    # the canonical JSON's, non-ASCII escaped, over every value the record names.
+    from genesis_mesh.trust.out_of_band import check_break_glass, check_observation
+
+    def guarded(vid: str, desc: str, record, expect: str | None) -> None:
+        if isinstance(record, ObservationRecord):
+            kind, key, check = "observation", keys[1], check_observation(record, executor_keys["observer-a"])
+        else:
+            kind, key, check = "break_glass", keys[0], check_break_glass(record, executor_keys["executor-b"])
+        assert check.code in (None, f"{kind}_secret_material"), (vid, check)
+        problem = check.detail if check.code else None
+        assert problem == expect or (expect is not None and problem is not None and problem.startswith(expect)), \
+            (vid, problem)
+        vectors.append({
+            "id": f"metadata-{vid}", "kind": "metadata_problem", "description": desc,
+            "record_kind": kind, "record": record.to_wire(), "key": key, "expected": {"problem": problem},
+        })
+
+    def observed(n: int, **fields) -> ObservationRecord:
+        return signed(ObservationRecord(**{
+            "observation_id": uid(n), "observer_sovereign_id": SOV_A, "resource_id": "kv:vault/guarded",
+            "action": "update", "capability": "secret.update", "changed_at": t[2], "observed_at": t[3],
+            "source": "cloud-activity-log", "source_event_id": "event-m", **fields,
+        }), "a", "observer-a")
+
+    def broke(n: int, **fields) -> BreakGlassRecord:
+        return signed(BreakGlassRecord(**{
+            "break_glass_id": uid(n), "executor_sovereign_id": SOV_B, "resource_id": "kv:vault/guarded",
+            "resource_action": "rotate", "capability": "secret.rotate", "justification": "NA unreachable",
+            "evaluation_request_digest": "7" * 64, "evaluation_failure": "timeout", "executed_at": t[3],
+            "outcome": "success", **fields,
+        }), "b", "executor-b")
+
+    limit = 16 * 1024
+    frame = len(json.dumps({"metadata": {"note": ""}, "source_event_id": "event-m"}, separators=(",", ":")))
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl"
+    opaque = "Qk9PTQ" * 21
+    pem = "-----BEGIN PRIVATE KEY-----"
+
+    def text(n: int) -> str:
+        """``n`` characters of prose (spaces keep it from looking like key material)."""
+        return ("rotated by the console " * (n // 23 + 1))[:n]
+    for vid, desc, record, expect in (
+        ("observation-clean", "An observation with metadata and no secret", observed(
+            61, metadata={"status": "rotated", "ratio": 0.5}), None),
+        ("observation-at-the-limit", "Values of exactly 16384 bytes", observed(
+            62, metadata={"note": text(limit - frame)}), None),
+        ("observation-over-the-limit", "Values of 16385 bytes", observed(
+            63, metadata={"note": text(limit - frame + 1)}), "metadata is 16385 bytes"),
+        ("observation-escaped-size", "3000 characters é: 6,000 bytes as UTF-8, 18,000 escaped", observed(
+            64, metadata={"note": "é" * 3000}), "metadata is 18"),
+        ("observation-escaped-at-the-limit", "é and ASCII filling exactly 16384 bytes escaped", observed(
+            65, metadata={"note": "é" * 2700 + text(limit - frame - 6 * 2700)}), None),
+        ("observation-escaped-over-the-limit", "é and ASCII, one byte over the limit escaped", observed(
+            66, metadata={"note": "é" * 2700 + text(limit - frame - 6 * 2700 + 1)}), "metadata is 16385 bytes"),
+        ("observation-actor-counted", "The actor counts toward the limit", observed(
+            67, metadata={"note": text(limit - frame - 20)}, actor="principal-7f3a"), "metadata is"),
+        ("observation-actor-token", "An actor that looks like a token", observed(68, actor=jwt),
+         "field 'actor' looks like key or token material"),
+        ("observation-source-event-opaque", "A source event ID of 126 opaque characters", observed(
+            69, source_event_id=opaque), "field 'source_event_id' looks like key or token material"),
+        ("observation-version-pem", "A version ID holding a PEM block", observed(70, version_id=pem + "abc"),
+         "field 'version_id' contains a PEM block"),
+        ("observation-secret-key", "A metadata key named like a secret, compared without case, -, _ or .",
+         observed(71, metadata={"Client_Secret": "x"}), "field 'metadata.Client_Secret' is not allowed"),
+        ("observation-nested-opaque", "Opaque material inside a list", observed(
+            72, metadata={"items": [{"name": "x"}, opaque]}), "field 'metadata.items.1' looks like key"),
+        ("observation-opaque-newline", "Opaque material followed by one newline", observed(
+            73, metadata={"fingerprint": opaque + "\n"}), "field 'metadata.fingerprint' looks like key"),
+        ("break-glass-clean", "A break-glass record with no secret", broke(
+            74, request_parameters={"lifetime_days": 30}, attributes={"owner": "team-a"},
+            execution_parameters={"version_id": "v3"}), None),
+        ("break-glass-emoji-justification", "A justification of 1000 emoji: 1000 characters, 2000 UTF-16 units, "
+         "12000 bytes escaped", broke(75, justification="\U0001f600" * 1000), None),
+        ("break-glass-justification-counted", "The justification counts toward the limit", broke(
+            76, justification="\U0001f600" * 1000, execution_parameters={"note": text(4400)}), "metadata is"),
+        ("break-glass-request-key", "A request parameter named like a secret", broke(
+            77, request_parameters={"api-key": "x"}), "field 'request_parameters.api-key' is not allowed"),
+        ("break-glass-attribute-key", "An attribute named like a secret", broke(
+            78, attributes={"password": "x"}), "field 'attributes.password' is not allowed"),
+        ("break-glass-execution-key", "An execution parameter named like a secret", broke(
+            79, execution_parameters={"credentials": {"user": "x"}}),
+         "field 'execution_parameters.credentials' is not allowed"),
+        ("break-glass-outcome-token", "An outcome detail that looks like a token", broke(
+            80, outcome_detail=jwt), "field 'outcome_detail' looks like key or token material"),
+        ("break-glass-justification-pem", "A justification holding a PEM block", broke(
+            81, justification="pasted " + pem), "field 'justification' contains a PEM block"),
+    ):
+        guarded(vid, desc, record, expect)
 
     bounds = TimeBounds(max_backlog=timedelta(days=7), skew=timedelta(minutes=5))
     for vid, earliest, latest, observed, recorded in (

@@ -148,7 +148,10 @@ GET /admin/evidence/changes/kv:vendor-acme/api-key
 The export carries every new kind; `genesis-mesh evidence verify-export`
 checks their signatures, that each judgement names the digest of the record
 it judges, that no execution record was matched twice and that no execution
-record rests on a judgement.
+record rests on a judgement. Since 1.3.1 it also checks that each record
+appears once, that every envelope names what its record says, and that a
+judgement's matched record is in the export before it (see
+{doc}`../reference/evidence-event-schema`).
 
 ```bash
 genesis-mesh evidence verify-export --file export.jsonl --na-public-key <na-key> \

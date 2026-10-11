@@ -262,6 +262,41 @@ def unknown_fields(
     return found
 
 
+def without_unknown_fields(model: str, data: Any, registry: dict[str, Any] | None = None) -> Any:
+    """A copy of ``data`` without the fields ``unknown_fields`` finds (v1.3.1).
+
+    What a verifier checks of a record whose unknown fields are outside its
+    signature: the part the signer signed, as received.
+    """
+    registry = registry or _registry()
+
+    def strip(name: str, value: Any, projection: bool) -> Any:
+        spec = registry["models"].get(name)
+        if spec is None or not isinstance(value, dict):
+            return value
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            outside = projection and (key == spec.get("signature_field")
+                                      or ("canonical_fields" in spec and key not in spec["canonical_fields"]))
+            if outside:
+                out[key] = item
+                continue
+            if key not in spec["fields"]:
+                continue
+            kind = spec["fields"][key]
+            if item is not None and isinstance(kind, dict):
+                if "object" in kind:
+                    item = strip(kind["object"], item, False)
+                elif "list" in kind and isinstance(item, list):
+                    item = [strip(kind["list"], i, False) for i in item]
+                elif "map" in kind and isinstance(item, dict):
+                    item = {k: strip(kind["map"], i, False) for k, i in item.items()}
+            out[key] = item
+        return out
+
+    return strip(model, data, True)
+
+
 def non_canonical_timestamps(
     model: str, data: Any, registry: dict[str, Any] | None = None, path: str = "", *, projection: bool = True,
 ) -> list[str]:
@@ -330,7 +365,12 @@ def received_canonical(model: str, record: dict[str, Any], registry: dict[str, A
 def _signature_values(model: str, record: dict[str, Any], registry: dict[str, Any]) -> list[str]:
     field = registry["models"][model].get("signature_field")
     raw = record.get(field) if field else None
-    sigs = raw if isinstance(raw, list) else [raw] if isinstance(raw, dict) else []
+    # v1.3.1: ``signatures`` is a list and ``signature`` one object, as every SDK reads them
+    # (1.3.0 read a lone object given as ``signatures`` as one signature).
+    if field == "signatures":
+        sigs = raw if isinstance(raw, list) else []
+    else:
+        sigs = [raw] if isinstance(raw, dict) else []
     return [s["sig"] for s in sigs if isinstance(s, dict) and isinstance(s.get("sig"), str)]
 
 
@@ -378,9 +418,15 @@ def decision_refusal(record: Any, operator_public_keys: Sequence[str], now: date
     if record.get("signature") is None:
         return "missing_signature"
     try:
-        expired = (now or datetime.now(timezone.utc)) > _DATETIME.validate_python(record.get("decision_valid_until"))
-    except (ValidationError, TypeError):
+        until = _DATETIME.validate_python(record.get("decision_valid_until"))
+    except ValidationError:
         expired = False  # left to validation
+    else:
+        # v1.3.1: a timestamp without an offset is read as UTC, as every SDK reads it.
+        def utc(value: datetime) -> datetime:
+            return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+        expired = utc(now or datetime.now(timezone.utc)) > utc(until)
     if expired:
         return "decision_expired"
     return strict_refusal("BoundaryDecision", record, operator_public_keys)
@@ -435,8 +481,10 @@ def intent_refusal_detail(intent: Any, policy: Any, agent_public_keys: Sequence[
     Data-usage results have no reason code of their own for this; the detail
     goes into an ``intent_exceeds_license`` violation, as in every SDK, in
     this order: ``Invalid intent signature``, ``Unknown field: <paths>``,
-    ``Not in canonical form: intent``, ``Not in canonical form: policy``
-    (the policy's timestamps, v1.2.0).
+    ``Not in canonical form: intent``, ``Not in canonical form: policy``.
+    The policy is checked whole, as the intent is (v1.3.1; 1.2 and 1.3.0
+    checked only its timestamps): a field the reference always writes, left
+    out, is not its form either, as every SDK reads it.
     """
     refusal = strict_refusal("DataAccessIntent", intent, agent_public_keys)
     if refusal == "invalid_signature":
@@ -447,7 +495,9 @@ def intent_refusal_detail(intent: Any, policy: Any, agent_public_keys: Sequence[
         return "Unknown field: " + ", ".join(sorted(unknown))
     if refusal == "non_canonical_form":
         return "Not in canonical form: intent"
-    if non_canonical_timestamps("DataLicensePolicy", policy):
+    if non_canonical_timestamps("DataLicensePolicy", policy) or (
+        isinstance(policy, dict) and _non_canonical("DataLicensePolicy", policy)
+    ):
         return "Not in canonical form: policy"
     return None
 
