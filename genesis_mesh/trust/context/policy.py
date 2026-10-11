@@ -30,6 +30,7 @@ from pydantic import ValidationError
 
 from ...crypto import SigningKeyLike, sign_model, verify_model_signature
 from ...models.boundary_policy import (
+    ANY_GATE,
     MAX_GATES_PER_POLICY,
     MAX_LIST_VALUES,
     AppliedPolicy,
@@ -55,6 +56,7 @@ PARENT_KINDS: frozenset[str] = frozenset({"agreement", "delegation", "direct", "
 
 _POLICY_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _GATE_ID = re.compile(r"^[a-z0-9_-]{1,64}$")
+_PARAMETER = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 PolicyValidationCode = Literal[
     "invalid_policy_id",
@@ -69,6 +71,10 @@ PolicyValidationCode = Literal[
     "invalid_gate_config",
     "invalid_selector",
     "invalid_fact_path",
+    # v1.4.0
+    "invalid_remediation",
+    "invalid_emergency",
+    "emergency_justification_not_required",
 ]
 
 PolicyResolutionFailure = Literal[
@@ -211,7 +217,51 @@ def validate_boundary_policy(policy: BoundaryPolicy, registry: GateRegistry) -> 
         issues.extend(_validate_gate(gate, registry))
 
     issues.extend(_validate_selector(policy.selector))
+    issues.extend(_validate_remediation(policy, seen_ids))
+    issues.extend(_validate_emergency(policy))
     return PolicyValidationResult(tuple(issues))
+
+
+def _validate_remediation(policy: BoundaryPolicy, gate_ids: set[str]) -> list[PolicyValidationIssue]:
+    """v1.4.0: remediation guidance names the policy's own gates, or ``"*"`` for the others."""
+    if policy.remediation is None:
+        return []
+    if not policy.remediation:
+        return [PolicyValidationIssue("invalid_remediation", "remediation guidance names no gate")]
+    return [
+        PolicyValidationIssue("invalid_remediation", f"remediation names {key!r}, which is not a gate of the policy", key)
+        for key in sorted(policy.remediation) if key != ANY_GATE and key not in gate_ids
+    ]
+
+
+def _validate_emergency(policy: BoundaryPolicy) -> list[PolicyValidationIssue]:
+    """v1.4.0: an emergency policy selects one capability by its exact ID, stands for another
+    exact capability, and requires its justification parameter with an enforce-mode gate."""
+    emergency = policy.emergency
+    if emergency is None:
+        return []
+    issues: list[PolicyValidationIssue] = []
+    capabilities = policy.selector.capabilities
+    if len(capabilities) != 1 or capabilities[0].endswith(".*"):
+        issues.append(PolicyValidationIssue(
+            "invalid_emergency", "an emergency policy selects exactly one capability by its exact ID"))
+    elif capabilities[0] == emergency.stands_for:
+        issues.append(PolicyValidationIssue(
+            "invalid_emergency", "the emergency capability must differ from the capability it stands for"))
+    if emergency.stands_for.endswith(".*"):
+        issues.append(PolicyValidationIssue("invalid_emergency", "stands_for is an exact capability ID"))
+    if not _PARAMETER.match(emergency.justification_parameter):
+        issues.append(PolicyValidationIssue(
+            "invalid_emergency", "justification_parameter must match [A-Za-z0-9_-]{1,64}"))
+        return issues
+    path = f"request_parameters.{emergency.justification_parameter}"
+    if not any(g.gate_type == "required_parameter.v1" and g.mode == "enforce" and g.config.get("path") == path
+               for g in policy.gates):
+        issues.append(PolicyValidationIssue(
+            "emergency_justification_not_required",
+            f"an emergency policy requires {path} with an enforce-mode required_parameter.v1 gate",
+        ))
+    return issues
 
 
 # ---------------------------------------------------------------------------

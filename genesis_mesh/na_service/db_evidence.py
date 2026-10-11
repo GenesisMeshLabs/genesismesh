@@ -243,21 +243,23 @@ class EvidenceStoreMixin:
         return int((cp.observation_heads or {}).get(resource_id, 0)) if cp is not None else 0
 
     def unmatched_executions(
-        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50,
-        recorded_since: datetime | None = None,
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str | Sequence[str],
+        limit: int = 50, recorded_since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Execution and break-glass records of a resource, action and capability no judgement has matched.
 
         With ``version_id``, only records naming that version, oldest first (the
         match); without it, the most recent records (candidates for a hint).
         ``recorded_since`` (v1.3.1) leaves out records stored before it.
+        ``capability`` (v1.4.0) may name several: the capability and the
+        emergency capabilities that stand for it.
         """
         return self._executions_of(resource_id, resource_action, version_id, capability, limit,
                                    recorded_since, matched=False)
 
     def matched_executions(
-        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1,
-        recorded_since: datetime | None = None,
+        self, resource_id: str, resource_action: str, version_id: str, capability: str | Sequence[str],
+        limit: int = 1, recorded_since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Execution and break-glass records of this change a judgement has already matched, oldest first.
 
@@ -268,12 +270,13 @@ class EvidenceStoreMixin:
                                    recorded_since, matched=True)
 
     def _executions_of(
-        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int,
-        recorded_since: datetime | None, *, matched: bool,
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str | Sequence[str],
+        limit: int, recorded_since: datetime | None, *, matched: bool,
     ) -> list[dict[str, Any]]:
+        capabilities = [capability] if isinstance(capability, str) else list(capability)
         clauses = ["e.entry_kind IN ('execution', 'break_glass')", "e.resource_id = ?", "e.resource_action = ?",
-                   "e.capability = ?"]
-        params: list[Any] = [resource_id, resource_action, capability]
+                   f"e.capability IN ({', '.join('?' for _ in capabilities)})"]
+        params: list[Any] = [resource_id, resource_action, *capabilities]
         if version_id is not None:
             clauses.append("e.version_id = ?")
             params.append(version_id)
