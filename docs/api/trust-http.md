@@ -527,7 +527,7 @@ since 1.3.1 an observation with that id). `break_glass_key_retired` and
 |---|---|
 | `POST /admin/evidence/observations/<observation_id>/judge` | Judge an observation once: `201` with `"status": "judged"`, or `200` with `"status": "existing"`; `404 judgement_subject_not_found`; `409 judgement_conflict` when a break-glass record with the same id holds the id's judgement (a store written by 1.3.0) |
 | `POST /admin/evidence/break-glass/<break_glass_id>/judge` | The same for a break-glass record |
-| `GET /admin/evidence/changes/<resource_id>` | Every change to a resource, oldest first: `kind`, `action`, `at`, `governed_by`, `state` (`recorded`, `matched`, `judged_allowed`, `judged_denied`, `indeterminate`, `observed`, `quarantined`), and the verdict, flag, hint or justification where there is one; `read` tier |
+| `GET /admin/evidence/changes/<resource_id>` | Every change to a resource, oldest first: `kind`, `action`, `at`, `governed_by`, `state` (`recorded`, `matched`, `judged_allowed`, `judged_denied`, `indeterminate`, `observed`, `quarantined`; since 1.4.0 the remediation state, with a `remediation` object, for a change a remediation or review concerns), and the verdict, flag, hint or justification where there is one; `read` tier |
 | `GET /admin/evidence/operator-holders` | The holder the store records for each operator key; `read` tier |
 | `POST /admin/operator-keys/<key_id>/holder` | Propose `{ "holder": "..." }` for an operator key (privileged): `201` with a `proposal_id` |
 | `POST /admin/operator-keys/holder-changes/<proposal_id>/approve` | Approve it with a privileged key of a different holder; recorded in the store; `409 holder_change_needs_named_holders` (the proposing or approving key has no named holder in the store), `409 holder_change_needs_second_holder`, `409 holder_change_proposer_revoked` (since 1.3.1: the proposing key was revoked, removed from the configuration or re-keyed since it proposed), `409 holder_change_already_approved`, `404 holder_change_not_found` |
@@ -540,6 +540,92 @@ change is judged `indeterminate`), `registry_healthy` and
 that has not started, active policies the registry has not recorded, or a
 registry entry left out because it does not parse, is not signed by the NA or
 repeats a record's ID).
+
+### Remediation, reviews and notification (v1.4.0)
+
+Remediation records, reviews and the due queue, with
+`EVIDENCE_REMEDIATION=on` (otherwise `404 remediation_disabled`). The routes
+are beta until 1.5.0; the records' signed forms are stable. See
+{doc}`../operations/remediation-and-reviews` and
+{doc}`../operations/emergency-changes`.
+
+With the records on, a judgement's body (at admission, under `judgement`, or
+from the judge routes) carries `remediation`, the remediation state it armed
+or the review it opened, and `GET /admin/evidence/changes/<resource_id>`
+shows each change's Stage 3 `state` with a `remediation` object.
+`GET /admin/evidence/status` reports `evidence_remediation` and, with the
+records on, `remediation`: the number of states by state.
+
+#### The remediation state
+
+Every route below that returns a state returns this object:
+
+| Field | Meaning |
+| --- | --- |
+| `subject_kind`, `subject_id` | The judgement (or decision) the state is about |
+| `change_kind`, `change_id` | The record of the change: `observation`, `break_glass` or `execution` and its ID (`null` for a decision before its evidence is known) |
+| `resource_id`, `capability`, `actor`, `verdict` | What changed, as the records say; `actor` as the source reported it |
+| `state` | `remediation_due`, `overdue`, `remediated`, `review_pending`, `upheld`, `waived` |
+| `mode`, `steps`, `fallback`, `grace_seconds`, `guidance_source` | The plan: `cancel` or `alert_only`; `rotate_forward_then_disable`, `disable` or `none`; why a cancel fell back (`not_versioned`, `not_rotatable`, `not_reversible`, `indeterminate`); the grace; `gate`, `policy` or `default` |
+| `remediation_due_at`, `overdue_since` | When the remediation is or was due, and when it became overdue |
+| `lifetime_ends_at`, `waived_until` | When an emergency change's lifetime ends; when a waiver ends |
+| `review_id`, `remediation_id` | The latest review, and the remediation record |
+| `notified_at`, `notified_by` | The first notice recorded, and the operator key that recorded it |
+| `review` | For `review_pending`: `review_id`, `opened_for`, `requested_by`, `requester_holder`, `justification`, `requested_at` |
+
+Times are UTC with six digits of microseconds (`2026-11-02T10:16:00.000000+00:00`).
+
+#### `POST /evidence/remediations`
+
+Submit one signed `RemediationRecord`, `{ "record": {...} }`, in its exact
+serialized form. **Auth**: the record's signature, by a registered, active
+executor key of its `executor_sovereign_id` whose prefix covers the resource.
+Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`.
+
+**Response** `201` with `entry`, `entry_digest`, `payload`,
+`"status": "recorded"` and `remediation` (the state, now `remediated`); `200`
+with `"status": "duplicate"` for the same record again.
+
+**Errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `remediation_malformed` | 422 | Not a `RemediationRecord` in its exact form, or `remediated_at` in the future |
+| `remediation_invalid_signature`, `remediation_unknown_key` | 422 | Not signed by a registered key of its sovereign |
+| `remediation_key_retired`, `remediation_out_of_scope` | 422 | A retired key, an observer key, or a resource outside the key's prefix (quarantined) |
+| `remediation_secret_material` | 422 | Its versions or detail look like secret material (never stored) |
+| `remediation_subject_not_found` | 422 | The NA holds no such judgement or decision (retry once it does) |
+| `remediation_subject_mismatch` | 422 | Another change, resource or disabled version than the subject's (quarantined) |
+| `remediation_steps_mismatch` | 422 | Not the steps the NA stated (quarantined) |
+| `remediation_rotation_missing` | 422 | The forward rotation's execution evidence is not stored yet (retry after submitting it) |
+| `remediation_rotation_mismatch` | 422 | That evidence is not a rotation of the resource to `version_id` (quarantined) |
+| `remediation_not_due` | 409 | Nothing is due for the subject, for example an upheld change (quarantined) |
+| `remediation_already_recorded` | 409 | The subject is already remediated (quarantined) |
+| `remediation_conflict` | 409 | Another record with this `remediation_id`, or another remediation recorded first |
+
+"Quarantined": the authentic record is kept as a `quarantine` entry named in
+`error.details.quarantine_id`.
+
+#### Operator routes
+
+| Route | Purpose |
+|---|---|
+| `GET /admin/evidence/remediations` | The due queue: `?state=` one of the states above (default: `remediation_due`, `overdue`, `review_pending` and `waived`), `limit` (1-500, default 100) and `after` (the previous page's `next_after`). `{state, count, remediations: [...], next_after}`, oldest first; `400 invalid_remediation_query`; `read` tier |
+| `GET /admin/evidence/remediations/<subject_id>` | One state, with `reviews` (every review, pending or decided) and `records` (its stored remediation and review entries); `404 remediation_not_found`; `read` tier |
+| `POST /admin/evidence/remediations/<subject_id>/notified` | Record that the controller told the actor: `{ "channel": "email" }` (optional, 1 to 64 characters). Writes the audit event `remediation_notified` (with `before_due`) and, on the first notice, `notified_at`; returns the state. `400 invalid_notice`, `404 remediation_not_found` |
+| `POST /admin/evidence/reviews` | Request a review: `{ "subject_kind": "judgement" or "decision", "subject_id": "...", "justification": "..." }` (1 to 1024 characters). `201` with `review_id` and the state (`review_pending`). `400 invalid_review`, `404 review_subject_not_found`, `409 review_needs_named_holder`, `409 review_already_pending`, `409 review_after_remediation`, `409 illegal_transition` (a denied decision), `409 review_conflict` |
+| `GET /admin/evidence/reviews/<review_id>` | A review: `review_id`, `subject_id`, `opened_for`, `requested_by`, `requester_holder`, `justification`, `requested_at`, `decided_at`, `verdict`, and once decided `record` (its stored entry); `404 review_not_found`; `read` tier |
+| `POST /admin/evidence/reviews/<review_id>/decide` | Decide it (privileged): `{ "verdict": "uphold" or "deny" or "waive_until", "waive_until": "<time>", "note": "..." }`. `200` with `review` (the stored `ReviewRecord` entry) and the state. `400 invalid_review`, `404 review_not_found`, `409 review_already_decided`, `409 review_needs_named_holder`, `409 review_same_holder_as_requester`, `409 review_same_holder_as_actor`, `409 review_not_pending`, `409 review_waiver_after_remediation`, `409 review_conflict`, `422 review_waiver_too_long`, `422 review_waiver_beyond_lifetime` |
+
+The two `POST` review routes keep the operator's signed request as received
+(headers and body) and embed it in the `ReviewRecord`, so the request is part
+of what the record proves: sign the exact body you send.
+
+A boundary policy published with a `remediation`, `review_required` or
+`emergency` section while the records are off is refused with
+`400 policy_remediation_disabled`; an invalid section with
+`400 boundary_policy_invalid` and the issue codes `invalid_remediation`,
+`invalid_emergency` or `emergency_justification_not_required`.
 
 ---
 

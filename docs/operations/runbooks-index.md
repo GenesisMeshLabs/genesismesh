@@ -15,6 +15,8 @@ monitoring
 audit-export
 evidence-anchors
 out-of-band-changes
+remediation-and-reviews
+emergency-changes
 incident-response
 backup-restore
 upgrade
@@ -56,6 +58,22 @@ removed from the evidence store.
 
 Observers, break-glass, judgements and quarantine: how changes made outside
 governed actions are recorded and judged.
+:::
+
+:::{grid-item-card} Remediation and Reviews
+:link: remediation-and-reviews
+:link-type: doc
+
+What a judged DENY leads to: remediation guidance, due times, the cancel
+pair, reviews by a second holder, waivers and notices.
+:::
+
+:::{grid-item-card} Emergency Changes and Break-Glass
+:link: emergency-changes
+:link-type: doc
+
+Urgent changes under an ordinary DENY, or while the NA does not answer: the
+emergency capability and break-glass.
 :::
 
 :::{grid-item-card} Incident Response Runbooks

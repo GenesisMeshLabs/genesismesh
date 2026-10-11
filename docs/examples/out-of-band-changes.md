@@ -143,6 +143,128 @@ GET /admin/evidence/changes/kv:vendor-acme/api-key
     "justification": "Key leaked in a public repository; NA unreachable" } ] }
 ```
 
+## Walkthrough, continued: what a DENY leads to (1.4.0)
+
+With `EVIDENCE_REMEDIATION=on` the denied console rotation of step 3 does not
+stop at a judgement. The steps below follow it, then a review, a waiver and
+an urgent change. {doc}`../operations/remediation-and-reviews` and
+{doc}`../operations/emergency-changes` give the rules in full; the test
+`genesis_mesh/tests/test_remediation.py` runs each step against a live NA.
+
+### 6. Remediate without breaking the reader
+
+The lifetime policy says what its gate's DENY leads to:
+
+```json
+"remediation": {"max-lifetime": {"mode": "cancel", "grace_seconds": 3600}}
+```
+
+So the judgement of the `v8` rotation arms a remediation, shown with the
+change and in the due queue:
+
+```text
+GET /admin/evidence/remediations?state=remediation_due
+```
+
+```json
+{ "subject_kind": "judgement", "subject_id": "<judgement_id>",
+  "change_kind": "observation", "change_id": "<observation_id>",
+  "resource_id": "kv:vendor-acme/api-key", "actor": "principal-7f3a",
+  "state": "remediation_due", "mode": "cancel", "steps": "rotate_forward_then_disable",
+  "grace_seconds": 3600, "remediation_due_at": "2026-11-02T10:16:00Z" }
+```
+
+The controller tells the actor and records the notice before the due time
+(`POST /admin/evidence/remediations/<judgement_id>/notified`). Then it
+cancels the change in two steps. A billing service reads the secret's
+current version the whole time:
+
+| Step | Current version | Enabled | The reader gets |
+| --- | --- | --- | --- |
+| The console rotation | `v8` | `v7`, `v8` | `v8` |
+| The controller rotates forward under a governed decision, submits the execution evidence (`version_id: v9`) and makes `v9` current | `v9` | `v7`, `v8`, `v9` | `v9` |
+| It disables the denied `v8` | `v9` | `v7`, `v9` | `v9` |
+
+The reader never finds a disabled version: the denied version is disabled
+only once a governed replacement is current. The observer sees the `v9`
+rotation and the NA matches it to its evidence: governed, not judged again.
+Last, the controller signs what it did:
+
+```python
+from genesis_mesh.models.remediation import RemediationRecord
+
+done = RemediationRecord(
+    executor_sovereign_id="secrets-controller",
+    subject_kind="judgement", subject_id=judgement_id,
+    change_kind="observation", change_id=observation_id,
+    resource_id="kv:vendor-acme/api-key", outcome="cancelled",
+    steps="rotate_forward_then_disable", rotation_evidence_id=rotation.evidence_id,
+    version_id="v9", disabled_version_id="v8", remediated_at=now,
+)
+done = done.model_copy(update={"signature": sign_model(done, controller_key, "ctrl-1")})
+# POST /evidence/remediations {"record": done.to_wire()}
+```
+
+The two linked records, the rotation's execution evidence and the
+`remediation` record naming it, are in the store; the change's state is
+`remediated`.
+
+### 7. Review a judgement
+
+Had the console rotation been planned with the vendor, an operator asks for
+a review with a justification:
+
+```text
+POST /admin/evidence/reviews
+{ "subject_kind": "judgement", "subject_id": "<judgement_id>",
+  "justification": "Planned with the vendor; the ticket was filed late" }
+```
+
+The remediation is held while the review is pending. A privileged key of
+another holder decides it, neither the requester's holder nor the holder the
+actor `principal-7f3a` maps to:
+
+```text
+POST /admin/evidence/reviews/<review_id>/decide
+{ "verdict": "deny", "note": "Not in the ticket" }
+```
+
+A denial makes the remediation due again. The `review` record the NA signs
+carries both operators' signed requests, so the approval verifies offline,
+years later, from the export alone.
+
+### 8. Waive it until a time
+
+Or the decider lets the change stand for a week, while the vendor moves to a
+governed rotation:
+
+```text
+POST /admin/evidence/reviews/<review_id>/decide
+{ "verdict": "waive_until", "waive_until": "2026-11-09T09:00:00Z" }
+```
+
+The state is `waived`. When the week ends the remediation is due again, with
+its grace. A waiver always ends, and none is granted after a remediation is
+recorded.
+
+### 9. An urgent change under a DENY
+
+The key leaks while the policy denies any 400-day lifetime. The controller
+asks for the emergency capability instead, with a justification:
+
+```text
+POST /admin/boundary/evaluate
+{ "attestation_id": "...", "requested_capability": "secret.manage.emergency",
+  "context": {"request_parameters": {"lifetime_days": 1,
+              "justification": "Key leaked in a public repository"}} }
+```
+
+The emergency policy allows it, the controller rotates, and the NA opens a
+review of the decision. Had the NA been down, or answered `503` or `429`, a
+break-glass record naming `secret.manage.emergency` would have been judged
+under the same policy when it arrived. An observer that merely calls a
+change an emergency gets it judged under the ordinary policy, and flagged.
+
 ## Verify offline
 
 The export carries every new kind; `genesis-mesh evidence verify-export`
@@ -151,7 +273,9 @@ it judges, that no execution record was matched twice and that no execution
 record rests on a judgement. Since 1.3.1 it also checks that each record
 appears once, that every envelope names what its record says, and that a
 judgement's matched record is in the export before it (see
-{doc}`../reference/evidence-event-schema`).
+{doc}`../reference/evidence-event-schema`). Since 1.4.0 it checks that each
+change is remediated once, after its forward rotation, and that each review's
+embedded approvals verify, by a second holder.
 
 ```bash
 genesis-mesh evidence verify-export --file export.jsonl --na-public-key <na-key> \
@@ -160,8 +284,9 @@ genesis-mesh evidence verify-export --file export.jsonl --na-public-key <na-key>
 
 ## What this does not do
 
-- It does not authenticate the actor a source reports.
-- It does not undo a denied change: Stage 3 (1.4.0) adds remediation and
-  reviews.
+- It does not authenticate the actor a source reports; a notice goes to it,
+  but it is not proof of who acted.
+- It does not roll a credential back, and the NA never changes a resource
+  itself: the controller performs the remediation the NA states.
 - It does not let a device act without the NA: pre-issued grants come in
   Stage 5.
