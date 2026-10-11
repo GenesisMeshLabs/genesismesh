@@ -9,9 +9,11 @@ deployment can now size them.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
-from genesis_mesh.na_service.rate_limit import RateLimiter, RateLimits
+from genesis_mesh.na_service.rate_limit import DatabaseRateLimiter, RateLimiter, RateLimits
 from genesis_mesh.na_service.settings import load_settings
 
 from .test_na_boundary_policy import _get, _make_service
@@ -19,6 +21,11 @@ from .test_na_boundary_policy import _get, _make_service
 
 def _client(**kwargs):
     service = _make_service(**kwargs)
+    if isinstance(service.rate_limiter, DatabaseRateLimiter):
+        # On PostgreSQL the NA counts in clock-aligned minutes; requests that
+        # straddle a minute boundary would see the count reset half way.
+        frozen = time.time()
+        service.rate_limiter = DatabaseRateLimiter(service.db, clock=lambda: frozen)
     service.app.config["TESTING"] = True
     client = service.app.test_client()
     setattr(client, "operator_keypair", service._test_operator_keypair)
