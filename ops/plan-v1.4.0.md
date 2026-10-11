@@ -132,12 +132,13 @@ below.
 
 ## Release Gate
 
-- [ ] Stage 2 (1.3.0) released
+- [x] Stage 2 (1.3.0) released (2026-10-10)
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.4.0` across the release train; `docs/sdk/index.md`
 - [ ] CHANGELOG entries, `history.md`, `phase-n.md`
 - [ ] `SECURITY.md`: 1.4.x supported, 1.3.x upgrade to 1.4
-- [ ] Public contract: new routes, models, kinds and codes classified
+- [x] Public contract: new routes (beta, with stable bytes), models and codes
+      classified; the entry kinds in the field registry and the event schema
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.4.0`, releases, published-artifacts green
