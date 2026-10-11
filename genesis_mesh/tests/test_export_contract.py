@@ -372,6 +372,7 @@ def test_a_judgements_envelope_and_matched_record_are_checked(oob, clock):
     controller = Controller(client)
     evidence = controller.record(_decide(client), params={"version_id": "v7"})
     assert _submit(client, evidence).status_code == 201
+    clock.at = evidence.executed_at + timedelta(minutes=1)  # the observer reports the change made then
     observer = Observer(client)
     judged = _observe(client, observer.observe(clock, action="create", version_id="v7")).get_json()
     assert judged["judgement"]["payload"]["matched_evidence_id"] == evidence.evidence_id
