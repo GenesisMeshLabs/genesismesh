@@ -193,7 +193,10 @@ submits a `RemediationRecord` signed by its executor key:
 3. **`alert_only`.** Tell the actor, record the notice, and submit `outcome`
    `alerted` with `steps` `none`. For a decision never executed
    (`fallback: not_executed`), the record names the decision itself as its
-   change: `change_kind` `execution`, `change_id` the decision's ID.
+   change: `change_kind` `execution`, `change_id` the decision's ID. Its state
+   has no `resource_id`, since nothing was changed: the record names the
+   resource the decision was for, which the NA checks only against the
+   executor key's resource prefix.
 
 ```text
 POST /evidence/remediations

@@ -8,7 +8,12 @@ verified, not that execution is allowed.
 Signature helpers are available for decisions, attestations, policies,
 justifications, revocation feeds, execution records and retention checkpoints.
 `attestationDigest`, `policyDigest`, `policySetDigest` and `executionDigest`
-reproduce the Python reference digests.
+reproduce the Python reference digests. From 1.4.0 a policy's `remediation`,
+`review_required` and `emergency` sections are left out of its signed form and
+digest when absent or `null`, so a policy without them keeps its 1.3 digest
+and still matches the decisions that bind it. Remediation and review records
+and their checks are described in
+[Remediation, reviews and urgent changes](remediation-and-reviews.md).
 
 ```typescript
 import { parseExportLines, verifyEvidenceEvents } from 'genesis-mesh-sdk';

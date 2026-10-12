@@ -58,6 +58,8 @@ The SDK covers the controller side of the secret governance pilots:
   and retryable conflicts
 - {doc}`out-of-band-changes` (1.3.0): observations, break-glass records,
   judgements and the record outbox
+- {doc}`remediation-and-reviews` (1.4.0): remediation records, the due queue,
+  reviews and waivers, and urgent changes
 
 ---
 
@@ -83,4 +85,5 @@ evidence-store
 offline-verification
 high-availability
 out-of-band-changes
+remediation-and-reviews
 ```
