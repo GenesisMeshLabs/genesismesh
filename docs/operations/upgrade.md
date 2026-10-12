@@ -51,8 +51,6 @@ built wheel before every release.
 
 ## Upgrading to 1.4
 
-*Unreleased.*
-
 1.4 adds migration 016. On SQLite it rebuilds the evidence table again (to
 accept the `remediation` and `review` entry kinds): allow for one copy of the
 table on disk, and for the time the copy takes, during which the NA does not
