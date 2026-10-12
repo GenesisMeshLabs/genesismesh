@@ -142,9 +142,12 @@ below (redesigned after a review, 2026-10-11).
 - [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [x] Merge order: core, then the SDKs, then the gateway (the SDKs merged
       first, with the core's interop re-run once both were on main)
-- [ ] Dry runs green; tags `v1.4.0`, releases, published-artifacts green
-- [ ] `"1.4.0"` added to the `upgrade.yml` matrix after the release
-- [ ] Both production hosts upgraded
+- [x] Dry runs green; tags `v1.4.0`, releases, published-artifacts green
+      (2026-10-12)
+- [x] `"1.4.0"` added to the `upgrade.yml` matrix after the release
+- [x] Both production hosts upgraded (2026-10-12, from 1.1.1: the Azure
+      reference through `deploy-release-azure-vm.yml`, the droplet with its
+      volumes backed up, schema 16, `verify-db` clean)
 
 ## Decisions
 
