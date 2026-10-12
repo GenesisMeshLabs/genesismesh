@@ -16,6 +16,7 @@ from .db_data_usage import DataUsageStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
 from .db_evidence import EvidenceStoreMixin
 from .db_policy import PolicyStoreMixin
+from .db_remediation import RemediationStoreMixin
 from .db_runtime import RuntimeStoreMixin
 from .db_trust import TrustStoreMixin
 from .storage import DatabaseConfigError, is_postgres_url
@@ -61,6 +62,7 @@ class NADatabase(
     AgentStoreMixin,
     DataUsageStoreMixin,
     EvidenceStoreMixin,
+    RemediationStoreMixin,
     RuntimeStoreMixin,
 ):
     """Repository facade for Network Authority state.

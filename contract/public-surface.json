@@ -212,6 +212,27 @@
       "methods": [
         "GET"
       ],
+      "path": "/admin/evidence/remediations",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/remediations/<subject_id>",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/remediations/<subject_id>/notified",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
       "path": "/admin/evidence/resource-heads/<path:resource_id>",
       "level": "stable"
     },
@@ -228,6 +249,27 @@
       ],
       "path": "/admin/evidence/retention/apply",
       "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/reviews",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/evidence/reviews/<review_id>",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/reviews/<review_id>/decide",
+      "level": "beta"
     },
     {
       "methods": [
@@ -537,6 +579,13 @@
         "POST"
       ],
       "path": "/evidence/observations/batch",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/evidence/remediations",
       "level": "beta"
     },
     {
@@ -2801,6 +2850,319 @@
           "required": false
         }
       ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:next_state",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "state",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "event",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "review_pending",
+          "kind": "positional_or_keyword",
+          "required": false
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:remediation_plan",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "verdict",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "policies",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "evaluations",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "action",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "version_id",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "rotatable",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "defaults",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:check_remediation",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "record",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:review_holder_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "decided_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "decider_holder",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "requested_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "requester_holder",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "actor",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "actor_holder",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:review_approval_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "review",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "audiences",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:admin_approval_valid",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "approval",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:remediation_record_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "raw",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:review_request_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "requested_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "requester_holder",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "actor",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "actor_holder",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:request_approval_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "approval",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "requested_by",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "subject_kind",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "subject_id",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "justification",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "requested_at",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "audiences",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:rfc3339",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "value",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:decision_plan",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "policies",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "executed",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "defaults",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:emergency_map",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "policies",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "at",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.trust.remediation:rotation_problem",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "rotation_executor",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "rotation_sequence",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "rotation_executed_at",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "record_executor",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "change_sequence",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "changed_at",
+          "kind": "keyword_only",
+          "required": true
+        },
+        {
+          "name": "already_cited",
+          "kind": "keyword_only",
+          "required": true
+        }
+      ]
     }
   ],
   "signed_artifacts": [
@@ -3050,6 +3412,16 @@
       "level": "beta"
     },
     {
+      "model": "genesis_mesh.models.remediation:RemediationRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.remediation:ReviewRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
       "model": "genesis_mesh.models.revocation:CertificateRevocationList",
       "signature_field": "signatures",
       "level": "stable"
@@ -3130,6 +3502,7 @@
     "descriptor_expired",
     "descriptor_network_mismatch",
     "descriptor_signature_required",
+    "emergency_capability_conflict",
     "empty_subject_public_keys",
     "evidence_anchor_refused",
     "evidence_build_failed",
@@ -3160,6 +3533,7 @@
     "holder_change_needs_second_holder",
     "holder_change_not_found",
     "holder_change_proposer_revoked",
+    "illegal_transition",
     "insufficient_operator_tier",
     "intent_create_failed",
     "internal_server_error",
@@ -3182,6 +3556,7 @@
     "invalid_justification",
     "invalid_key_role",
     "invalid_max_validity_hours",
+    "invalid_notice",
     "invalid_observation",
     "invalid_offer",
     "invalid_page",
@@ -3193,8 +3568,11 @@
     "invalid_recipient_public_key",
     "invalid_recognition_policy",
     "invalid_recognition_treaty",
+    "invalid_remediation",
+    "invalid_remediation_query",
     "invalid_resource_prefix",
     "invalid_retention",
+    "invalid_review",
     "invalid_revocation_reason",
     "invalid_role",
     "invalid_signature",
@@ -3260,17 +3638,52 @@
     "offer_rejected",
     "out_of_band_disabled",
     "policy_not_found",
+    "policy_remediation_disabled",
     "policy_sign_failed",
     "proof_assembly_failed",
     "prove_failed",
     "rate_limit_exceeded",
     "recognition_policy_not_configured",
+    "remediation_already_recorded",
+    "remediation_conflict",
+    "remediation_disabled",
+    "remediation_invalid_signature",
+    "remediation_key_retired",
+    "remediation_malformed",
+    "remediation_not_due",
+    "remediation_not_found",
+    "remediation_out_of_scope",
+    "remediation_rotation_before_change",
+    "remediation_rotation_mismatch",
+    "remediation_rotation_missing",
+    "remediation_rotation_other_executor",
+    "remediation_rotation_reused",
+    "remediation_secret_material",
+    "remediation_steps_mismatch",
+    "remediation_subject_mismatch",
+    "remediation_subject_not_found",
+    "remediation_unknown_key",
     "renewal_role_change_forbidden",
     "request_validation_failed",
     "resource_chain_gap",
     "resource_chain_mismatch",
     "resource_not_found",
     "retention_in_progress",
+    "review_after_remediation",
+    "review_already_decided",
+    "review_already_pending",
+    "review_approval_invalid",
+    "review_conflict",
+    "review_needs_named_holder",
+    "review_not_found",
+    "review_not_pending",
+    "review_requested_by_actor",
+    "review_same_holder_as_actor",
+    "review_same_holder_as_requester",
+    "review_subject_not_found",
+    "review_waiver_after_remediation",
+    "review_waiver_beyond_lifetime",
+    "review_waiver_too_long",
     "service_not_ready",
     "service_unavailable",
     "signed_at_outside_window",

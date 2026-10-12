@@ -19,7 +19,10 @@ from ..models import GenesisBlock, JoinCertificate, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from ..trust.context import GateRegistry
+from ..models.boundary_policy import MAX_GRACE_SECONDS
+from ..models.remediation import MAX_WAIVER_SECONDS
 from ..trust.out_of_band import TimeBounds
+from ..trust.remediation import RemediationDefaults
 from .auth import (
     OperatorTier,
     load_operator_public_keys,
@@ -33,7 +36,7 @@ from .db_policy import CrlSequenceConflict
 from .errors import ConflictError, register_error_handlers
 from .key_provider import KeyProviderConfig, Signer, as_signer, load_signer
 from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, RateLimits
-from .services import BoundaryPolicyService, EvidenceStoreService, OutOfBandService
+from .services import BoundaryPolicyService, EvidenceStoreService, OutOfBandService, RemediationService
 from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.agreement_trust import AgreementTrust
 from .services.boundary_policy import ENFORCEMENT_MODES
@@ -55,6 +58,7 @@ from .routes import (
     create_public_blueprint,
     create_treaty_blueprint,
     create_out_of_band_blueprint,
+    create_remediation_blueprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,6 +124,11 @@ class NetworkAuthorityService:
         observation_max_backlog_seconds: int = 7 * 24 * 3600,
         observation_clock_skew_seconds: int = 300,
         judge_on_admission: bool = True,
+        evidence_remediation: str = "off",
+        remediation_grace_seconds: int = 24 * 3600,
+        remediation_default_mode: str = "alert_only",
+        review_max_waiver_seconds: int = 30 * 24 * 3600,
+        review_actor_holders: Optional[dict[str, str]] = None,
     ):
         """
         Initialize the Network Authority service.
@@ -171,6 +180,19 @@ class NetworkAuthorityService:
                 registry entries in the evidence store. Off keeps the store
                 readable by 1.2 verifiers; turn it on once every verifier that
                 reads exports runs 1.3. Needs ``evidence_store="on"``.
+            evidence_remediation: "off" (default) or "on" (v1.4.0): record
+                remediations and reviews of changes governed after the fact,
+                and accept policies with remediation guidance, a review
+                requirement or an emergency section. Off keeps the store
+                readable by 1.3 verifiers. Needs ``evidence_out_of_band="on"``.
+            remediation_grace_seconds: the grace before a remediation is due
+                when no policy gives one (v1.4.0).
+            remediation_default_mode: "alert_only" (default) or "cancel": what a
+                judged DENY leads to when no policy gives guidance (v1.4.0).
+            review_max_waiver_seconds: the longest waiver a review may grant
+                (v1.4.0; at most 90 days).
+            review_actor_holders: observed actor -> holder, for refusing a
+                review decided by the holder of the change's actor (v1.4.0).
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
@@ -246,6 +268,25 @@ class NetworkAuthorityService:
         if evidence_out_of_band == "on" and evidence_store != "on":
             raise ValueError("evidence_out_of_band='on' needs evidence_store='on'")
         self.evidence_out_of_band = evidence_out_of_band
+        # v1.4.0 (Stage 3): remediations and reviews.
+        if evidence_remediation not in ("off", "on"):
+            raise ValueError("evidence_remediation must be 'off' or 'on'")
+        if evidence_remediation == "on" and evidence_out_of_band != "on":
+            raise ValueError("evidence_remediation='on' needs evidence_out_of_band='on'")
+        self.evidence_remediation = evidence_remediation
+        if remediation_default_mode not in ("alert_only", "cancel"):
+            raise ValueError("remediation_default_mode must be 'alert_only' or 'cancel'")
+        if isinstance(remediation_grace_seconds, bool) or not isinstance(remediation_grace_seconds, int) \
+                or not 0 <= remediation_grace_seconds <= MAX_GRACE_SECONDS:
+            raise ValueError(f"remediation_grace_seconds must be 0 to {MAX_GRACE_SECONDS}")
+        if isinstance(review_max_waiver_seconds, bool) or not isinstance(review_max_waiver_seconds, int) \
+                or not 1 <= review_max_waiver_seconds <= MAX_WAIVER_SECONDS:
+            raise ValueError(f"review_max_waiver_seconds must be 1 to {MAX_WAIVER_SECONDS}")
+        self.remediation_defaults = RemediationDefaults(
+            grace_seconds=remediation_grace_seconds, mode=remediation_default_mode,
+        )
+        self.review_max_waiver_seconds = review_max_waiver_seconds
+        self.review_actor_holders = dict(review_actor_holders or {})
         self.operator_key_holders = dict(operator_key_holders or {})
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
@@ -257,6 +298,7 @@ class NetworkAuthorityService:
             raise ValueError(f"operator key holders must be names of 1 to 128 characters: {bad_holders}")
         self.evidence_store_service = EvidenceStoreService(self)
         self.out_of_band_service = OutOfBandService(self)
+        self.remediation_service = RemediationService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
         # this NA trusts (services/agreement_trust.py).
         self.agreements = AgreementTrust(self)
@@ -297,6 +339,8 @@ class NetworkAuthorityService:
         self._register_blueprints()
         # v1.3.0: the registry judgements rest on (backfilled once on upgrade).
         self.out_of_band_service.ensure_registry()
+        # v1.4.0: remediation states for judgements whose arming failed; due times passed.
+        self.remediation_service.ensure_states()
         logger.info(
             "Network Authority service initialized for network: %s",
             genesis_block.network_name,
@@ -318,6 +362,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_evidence_blueprint(self))
         self.app.register_blueprint(create_evidence_store_blueprint(self))
         self.app.register_blueprint(create_out_of_band_blueprint(self))
+        self.app.register_blueprint(create_remediation_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
         self.app.register_blueprint(create_data_usage_blueprint(self))
@@ -535,6 +580,11 @@ def create_app(
     observation_max_backlog_seconds: int = 7 * 24 * 3600,
     observation_clock_skew_seconds: int = 300,
     judge_on_admission: bool = True,
+    evidence_remediation: str = "off",
+    remediation_grace_seconds: int = 24 * 3600,
+    remediation_default_mode: str = "alert_only",
+    review_max_waiver_seconds: int = 30 * 24 * 3600,
+    review_actor_holders: Optional[dict[str, str]] = None,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -560,6 +610,11 @@ def create_app(
         observation_max_backlog_seconds=observation_max_backlog_seconds,
         observation_clock_skew_seconds=observation_clock_skew_seconds,
         judge_on_admission=judge_on_admission,
+        evidence_remediation=evidence_remediation,
+        remediation_grace_seconds=remediation_grace_seconds,
+        remediation_default_mode=remediation_default_mode,
+        review_max_waiver_seconds=review_max_waiver_seconds,
+        review_actor_holders=review_actor_holders,
     )
     return service.app
 

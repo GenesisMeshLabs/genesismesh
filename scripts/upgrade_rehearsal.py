@@ -13,10 +13,15 @@
    and a resource's execution chain, all through its stable HTTP routes.
 2. Back the database up (SQLite online backup).
 3. Start the current release on the database (``verify``), with the store's
-   out-of-band records on (``EVIDENCE_OUT_OF_BAND=on``): migrations run, the
+   out-of-band records on (``EVIDENCE_OUT_OF_BAND=on``) and, since 1.4, its
+   remediation records (``EVIDENCE_REMEDIATION=on``): migrations run, the
    policy history is backfilled from the past release's audit log, every
    record and decision is checked through the current HTTP routes and offline
-   verifiers, an observation is judged, then the resource chain is extended.
+   verifiers, an observation is judged and its remediation recorded, then the
+   resource chain is extended. A past release with out-of-band records (1.3+)
+   populates with them on and records an observation and its judgement, so a
+   1.3 store with its Stage 2 records is upgraded; that judgement is not
+   remediated when the remediation records are turned on.
 4. Restore the backup and verify again.
 5. With --postgres-url, migrate the restored database to PostgreSQL and
    verify it there.
@@ -64,15 +69,27 @@ def _pub(key) -> str:
     return base64.b64encode(bytes(key.verify_key)).decode()
 
 
-def _service(state: dict, *, db_path: str | None = None, database_url: str | None = None, out_of_band: bool = False):
+def _has_out_of_band() -> bool:
+    """Whether the release running this script records changes outside the controlled path (1.3+)."""
+    try:
+        import genesis_mesh.models.out_of_band  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _service(state: dict, *, db_path: str | None = None, database_url: str | None = None, out_of_band: bool = False,
+             remediation: bool = False):
     from genesis_mesh.models import GenesisBlock
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
     kwargs: dict[str, Any] = {}
     if database_url:
         kwargs["database_url"] = database_url
-    if out_of_band:  # 1.3+ only: past releases populate without it
+    if out_of_band:  # 1.3+ only: past releases before it populate without it
         kwargs["evidence_out_of_band"] = "on"
+    if remediation:  # 1.4+ only
+        kwargs["evidence_remediation"] = "on"
     service = NetworkAuthorityService(
         genesis_block=GenesisBlock.model_validate(state["genesis"]),
         na_private_key=_key(state["seeds"]["na"]), key_id="na-upgrade",
@@ -174,7 +191,8 @@ def populate(state_path: Path, db_path: str | None, database_url: str | None = N
         "seeds": {name: kp.private_key_b64 for name, kp in keys.items()},
         "genesis": genesis.model_dump(mode="json"),
     }
-    service = _service(state, db_path=db_path, database_url=database_url)
+    out_of_band = _has_out_of_band()
+    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=out_of_band)
     api = Api(service, state["seeds"]["operator"])
 
     # Recognition of a partner sovereign, its attestations, and its revocation feed.
@@ -239,6 +257,16 @@ def populate(state_path: Path, db_path: str | None, database_url: str | None = N
         state["executions"].append(evidence)
         prior = evidence
 
+    if out_of_band:
+        # A 1.3+ store with its Stage 2 records: an observation judged by the past release.
+        observer = _observer_key()
+        state["seeds"]["observer"] = _seed(observer)
+        api.expect(api.admin("POST", "/admin/evidence/executor-keys", {
+            "key_id": "obs-1", "public_key": _pub(observer), "executor_sovereign_id": "cloud-observer",
+            "role": "observer"}), 201)
+        seen = api.expect(api.client.post("/evidence/observations", json={"observation": _observation(observer)}), 201)
+        state["past_judgement"] = (seen.get("judgement") or {}).get("payload")
+
     state["data_policy"] = api.expect(api.admin("POST", "/admin/data-usage/policy", {
         "licensee_sovereign_id": PARTNER, "allowed_source_ids": ["db-prod"], "allowed_access_types": ["read"],
         "valid_from": (now - timedelta(hours=1)).isoformat(), "valid_until": (now + timedelta(days=365)).isoformat(),
@@ -270,7 +298,7 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
         if not ok:
             failures.append(f"{label}: {name}: {detail}")
 
-    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=True)
+    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=True, remediation=True)
     api = Api(service, state["seeds"]["operator"])
     na_key = _pub(_key(state["seeds"]["na"]))
     partner_key = _pub(_key(state["seeds"]["partner"]))
@@ -331,19 +359,44 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
           and status.get("registry_healthy") is True, status)
     active = service.out_of_band_service.policy_history().active_at(datetime.now(timezone.utc)) or {}
     check("the past release's active policy is in the policy history", POLICY_ID in active, active)
-    observer = _observer_key()
-    api.expect(api.admin("POST", "/admin/evidence/executor-keys", {
-        "key_id": "obs-1", "public_key": _pub(observer), "executor_sovereign_id": "cloud-observer",
-        "role": "observer"}), 201)
+    if "observer" in state["seeds"]:
+        observer = _key(state["seeds"]["observer"])  # registered by the past release
+    else:
+        observer = _observer_key()
+        api.expect(api.admin("POST", "/admin/evidence/executor-keys", {
+            "key_id": "obs-1", "public_key": _pub(observer), "executor_sovereign_id": "cloud-observer",
+            "role": "observer"}), 201)
+    past = state.get("past_judgement")
+    if past is not None:
+        changes = api.expect(api.admin("GET", f"/admin/evidence/changes/{RESOURCE}"), 200)["changes"]
+        check("the past release's judgement is in the resource's changes",
+              any(c.get("record_id") == past["subject_id"] for c in changes), changes)
     seen = api.client.post("/evidence/observations", json={"observation": _observation(observer)})
     judged = (seen.get_json() or {}).get("judgement") or {}
     check("an observation is admitted and judged after the upgrade", seen.status_code == 201
           and judged.get("payload", {}).get("subject_kind") == "observation", seen.get_json())
 
+    # 1.4: the judgement arms a remediation (no policy covers an observation here, so it is
+    # indeterminate and alerts); the controller records its notice and its remediation.
+    queue = api.expect(api.admin("GET", "/admin/evidence/remediations?state=remediation_due"), 200)["remediations"]
+    judgement_id = judged.get("payload", {}).get("judgement_id")
+    check("the new judgement's remediation is due", [q["subject_id"] for q in queue] == [judgement_id], queue)
+    if past is not None:
+        check("the past release's judgement is not remediated", all(
+            q["subject_id"] != past["judgement_id"] for q in queue), queue)
+    if queue:
+        api.expect(api.admin("POST", f"/admin/evidence/remediations/{judgement_id}/notified",
+                             {"channel": "rehearsal"}), 200)
+        done = api.client.post("/evidence/remediations", json={"record": _remediation(state, queue[0])})
+        check("a remediation record is admitted after the upgrade", done.status_code == 201
+              and done.get_json()["remediation"]["state"] == "remediated", done.get_json())
+
     store = api.expect(api.admin("GET", "/admin/evidence/verify"), 200)
     check("evidence store verifies", store.get("verified") is True, store)
     lines = api.admin("GET", "/admin/evidence/export").get_data(as_text=True).splitlines()
     events = [EvidenceEvent.model_validate_json(line) for line in lines if line.strip()]
+    kinds = {e.entry.entry_kind for e in events}
+    check("the export holds the 1.4 remediation records", "remediation" in kinds, sorted(kinds))
     keys = {"ctrl-1": ExecutorKey(key_id="ctrl-1", public_key=_pub(_key(state["seeds"]["executor"])),
                                   executor_sovereign_id=EXECUTOR),
             "obs-1": ExecutorKey(key_id="obs-1", public_key=_pub(observer), executor_sovereign_id="cloud-observer",
@@ -385,6 +438,19 @@ def _observation(key) -> dict:
         source_event_id=str(uuid.uuid4()), metadata={"secret_version": "v9"},
     )
     return record.model_copy(update={"signature": sign_model(record, key, "obs-1")}).to_wire()
+
+
+def _remediation(state: dict, due: dict) -> dict:
+    """The controller's signed record of an alert-only remediation (1.4+)."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.remediation import RemediationRecord
+
+    record = RemediationRecord(
+        executor_sovereign_id=EXECUTOR, subject_kind="judgement", subject_id=due["subject_id"],
+        change_kind=due["change_kind"], change_id=due["change_id"], resource_id=due["resource_id"],
+        outcome="alerted", steps="none", remediated_at=datetime.now(timezone.utc),
+    )
+    return record.model_copy(update={"signature": sign_model(record, _key(state["seeds"]["executor"]), "ctrl-1")}).to_wire()
 
 
 def _backup(src: str, dst: str) -> None:

@@ -560,6 +560,136 @@ def run_out_of_band(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_remediation(vectors: list[dict]) -> list[str]:
+    """v1.4.0: remediation guidance, due times, the state table, the new records and reviews."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    from genesis_mesh.crypto import verify_model_signature
+    from genesis_mesh.models import remediation as rem
+    from genesis_mesh.models.boundary_policy import BoundaryPolicy, PolicyGateEvaluation
+    from genesis_mesh.models.canonical_registry import received_canonical
+    from genesis_mesh.models.evidence_store import RetentionCheckpoint
+    from genesis_mesh.trust.context import GateRegistry, validate_boundary_policy
+    from genesis_mesh.trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
+    from genesis_mesh.trust.remediation import (
+        RemediationDefaults, TransitionRefused, admin_approval_valid, decision_plan, due_after_denial,
+        due_after_waiver, emergency_map, next_state, remediation_plan, remediation_record_problem,
+        review_approval_problem, review_holder_problem, review_request_problem, rfc3339, steps_problem,
+    )
+
+    def ts(value: str | None) -> datetime | None:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
+
+    def iso(value: datetime) -> str:
+        return value.isoformat().replace("+00:00", "Z")
+
+    failures: list[str] = []
+    for v in vectors:
+        try:
+            kind = v["kind"]
+            got: dict[str, object]
+            if kind == "policy_canonical":
+                canonical = received_canonical("BoundaryPolicy", v["record"])
+                if BoundaryPolicy.model_validate(v["record"]).to_canonical_json() != canonical:
+                    raise ValueError("the model's signed form differs from the received form")
+                got = {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest()}
+            elif kind == "policy_validation":
+                validation = validate_boundary_policy(BoundaryPolicy.model_validate(v["record"]),
+                                                      GateRegistry.default())
+                got = {"codes": sorted({i.code for i in validation.issues})}
+            elif kind == "remediation_plan":
+                inp = v["input"]
+                plan = remediation_plan(
+                    verdict=inp["verdict"], policies=[BoundaryPolicy.model_validate(p) for p in inp["policies"]],
+                    evaluations=[PolicyGateEvaluation.model_validate(e) for e in inp["gate_evaluations"]],
+                    action=inp["action"], version_id=inp["version_id"], rotatable=inp["rotatable"],
+                    defaults=RemediationDefaults(**inp["defaults"]),
+                )
+                judged_at = ts(inp["judged_at"])
+                assert judged_at is not None
+                got = {**plan.to_dict(), "remediation_due_at": iso(plan.due_at(judged_at))}
+            elif kind == "due_time":
+                inp = v["input"]
+                if v["rule"] == "review_denial":
+                    decided = ts(inp["decided_at"])
+                    assert decided is not None
+                    due = due_after_denial(ts(inp["current_due"]), decided, inp["grace_seconds"])
+                else:
+                    until = ts(inp["waived_until"])
+                    assert until is not None
+                    due = due_after_waiver(until, inp["grace_seconds"])
+                got = {"remediation_due_at": iso(due)}
+            elif kind == "transition":
+                try:
+                    got = {"state": next_state(v["input"]["state"], v["input"]["event"],
+                                               v["input"]["review_pending"])}
+                except TransitionRefused as exc:
+                    got = {"refused": exc.code}
+            elif kind == "decision_plan":
+                inp = v["input"]
+                executed = inp["executed"]
+                got = decision_plan(policies=[BoundaryPolicy.model_validate(p) for p in inp["policies"]],
+                                    executed=(executed[0], executed[1], executed[2]) if executed else None,
+                                    defaults=RemediationDefaults(**inp["defaults"])).to_dict()
+            elif kind == "rfc3339":
+                parsed = rfc3339(v["input"])
+                got = {"valid": parsed is not None,
+                       "utc": iso(parsed.astimezone(timezone.utc)) if parsed is not None else None}
+            elif kind == "emergency_map":
+                at = ts(v["input"]["at"])
+                assert at is not None
+                got = {"map": emergency_map([BoundaryPolicy.model_validate(p) for p in v["input"]["policies"]], at)}
+            elif kind == "review_request":
+                request = review_request_problem(**v["input"])
+                got = {"code": request[0] if request else None}
+            elif kind == "canonical_form":
+                record = getattr(rem, v["model"]).model_validate(v["record"])
+                canonical = record.to_canonical_json()
+                got = {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest()}
+            elif kind == "verify_record":
+                record = getattr(rem, v["model"]).model_validate(v["record"])
+                got = {"valid": record.signature is not None
+                       and verify_model_signature(record, record.signature, v["public_key"])}
+            elif kind == "remediation_check":
+                # The reference order: the record's exact form first, then its signature, key and guard.
+                check, _ = remediation_record_problem(v["record"], ExecutorKey(**v["key"]))
+                got = {"code": check.code}
+            elif kind == "steps_problem":
+                record = rem.RemediationRecord.model_validate(v["record"])
+                got = {"consistent": steps_problem(v["plan"]["mode"], v["plan"]["steps"], record) is None}
+            elif kind == "admin_approval":
+                got = {"valid": admin_approval_valid(rem.AdminApproval.model_validate(v["approval"]))}
+            elif kind == "review_approval":
+                review = rem.ReviewRecord.model_validate(v["record"])
+                got = {"valid": review_approval_problem(review, v["audiences"]) is None}
+            elif kind == "review_holders":
+                problem = review_holder_problem(**v["input"])
+                got = {"code": problem[0] if problem else None}
+            elif kind == "verify_export":
+                inp = v["input"]
+                keys = {k["key_id"]: ExecutorKey(**k) for k in inp["executor_keys"]}
+                checkpoint = RetentionCheckpoint.model_validate(inp["checkpoint"]) if "checkpoint" in inp else None
+                result = verify_evidence_events(parse_export_lines(inp["lines"].split("\n")),
+                                                na_public_keys=inp["na_public_keys"], executor_keys=keys,
+                                                contiguous=inp["contiguous"], checkpoint=checkpoint)
+                found = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
+                               key=lambda f: (f[0] or 0, f[1]))
+                counts = {k: val for k, val in result.to_dict().items() if k in (
+                    "observations", "break_glass", "judgements", "quarantined", "remediations", "reviews")}
+                got = {"verified": result.verified,
+                       "failures": [{"store_sequence": s, "reason": r} for s, r in found], "counts": counts}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind}")
+                continue
+        except Exception as exc:  # a vector the reference cannot run is a failure, not a crash
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+            continue
+        if got != v["expected"]:
+            failures.append(f"{v['id']}: expected {v['expected']}, got {got}")
+    return failures
+
+
 # ── Suite registry ───────────────────────────────────────────────────────────
 
 SUITE_RUNNERS: dict[str, Any] = {
@@ -577,6 +707,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "field_registry": run_field_registry,
     "canonical": run_canonical,
     "out_of_band": run_out_of_band,
+    "remediation": run_remediation,
 }
 
 

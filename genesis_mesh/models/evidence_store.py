@@ -41,6 +41,9 @@ EntryKind = Literal[
     # v1.3.0 (Stage 2): changes made outside the controlled path, and the NA's
     # own registries. Strict verifiers refuse kinds they do not know.
     "observation", "break_glass", "judgement", "quarantine", "registry",
+    # v1.4.0 (Stage 3): remediations and reviews of changes governed after the
+    # fact, written only with EVIDENCE_REMEDIATION=on.
+    "remediation", "review",
 ]
 
 #: Envelope fields added in 1.3.0, left out of every serialized form when absent.
@@ -77,7 +80,7 @@ class EvidenceStoreEntry(BaseModel):
     # verification names it (``unknown_entry_kind``); the NA writes EntryKind only.
     entry_kind: str = Field(
         ..., description="decision, justification, execution, retention_checkpoint, observation, break_glass, "
-        "judgement, quarantine or registry; later releases may add kinds"
+        "judgement, quarantine, registry, remediation or review; later releases may add kinds"
     )
     recorded_at: datetime = Field(..., description="UTC time the NA stored the entry")
     payload_digest: str = Field(..., description="SHA-256 of the stored payload's canonical JSON")
@@ -99,7 +102,8 @@ class EvidenceStoreEntry(BaseModel):
     resource_action: str | None = None
     resource_sequence: int | None = None
     # v1.3.0: the record's own id (observation, break-glass, judgement,
-    # quarantine or registry record), the record a judgement is about, the
+    # quarantine or registry record; v1.4.0 remediation or review record), the
+    # record a judgement (v1.4.0: a remediation or review) is about, the
     # execution evidence a judgement matched, and an observation's 1-based
     # position among the observations of its resource.
     record_id: str | None = Field(default=None, exclude_if=_absent)
