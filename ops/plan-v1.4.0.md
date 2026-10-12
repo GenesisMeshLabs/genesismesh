@@ -122,25 +122,26 @@ below (redesigned after a review, 2026-10-11).
       the review queue
 - [x] A denied change produces a recorded notice before `remediation_due_at`;
       overdue items raise an audit event
-- [ ] Urgent-change scenarios, each a test: NA up with an ordinary DENY
+- [x] Urgent-change scenarios, each a test: NA up with an ordinary DENY
       (emergency capability), NA down (break-glass), NA answering `503` and
       `429` (break-glass); none is blocked, each is judged (the NA side is
-      tested in the core, `test_remediation.py`; the SDKs' fallback is not
-      yet)
-- [ ] `remediation.json` passes in the Python, TypeScript and Rust verifiers
-      (Python passes; TypeScript and Rust pending)
+      tested in the core, `test_remediation.py`; the SDKs' `urgentAction` /
+      `urgent_action` in the TypeScript and Rust tests and live e2e)
+- [x] `remediation.json` passes in the Python, TypeScript and Rust verifiers
+      (340 vectors in each)
 
 ## Release Gate
 
 - [x] Stage 2 (1.3.0) released (2026-10-10)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.4.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries, `history.md`, `phase-n.md`
-- [ ] `SECURITY.md`: 1.4.x supported, 1.3.x upgrade to 1.4
+- [x] Version bumped to `1.4.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries, `history.md`, `phase-n.md`
+- [x] `SECURITY.md`: 1.4.x supported, 1.3.x upgrade to 1.4
 - [x] Public contract: new routes (beta, with stable bytes), models and codes
       classified; the entry kinds in the field registry and the event schema
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] Merge order: core, then the SDKs, then the gateway (the SDKs merged
+      first, with the core's interop re-run once both were on main)
 - [ ] Dry runs green; tags `v1.4.0`, releases, published-artifacts green
 - [ ] `"1.4.0"` added to the `upgrade.yml` matrix after the release
 - [ ] Both production hosts upgraded
