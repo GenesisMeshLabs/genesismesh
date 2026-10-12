@@ -17,7 +17,7 @@ Authority stays the Python reference and the only issuer of decisions.
 |-------|---------|----------|--------|
 | 1 | v1.2.0 | Durable SDK evidence outbox; strict, forward-compatible verifiers and the canonicalization corpus; signed store anchors copied to storage the auditor controls | Released |
 | 2 | v1.3.0 | Observations, after-the-fact judgements, break-glass when the Network Authority is unreachable, quarantined records | Released |
-| 3 | v1.4.0 | Remediation (cancel by rotating forward), notification, one review record with second-person approval | Planned |
+| 3 | v1.4.0 | Remediation (cancel by rotating forward), notification, one review record with second-person approval | Released |
 | 4 | v1.5.0 | Audit packs, key succession, archive before prune, the independent verifier `genesis-mesh-verify` | Planned |
 | 5 | v1.6.0 | Pre-issued grants in the core and the SDKs | To be confirmed |
 | 6 | v1.7.0 | The Rust edge agent | To be confirmed |
@@ -93,3 +93,4 @@ hand an auditor a pack to verify independently.
 |---------|-----------|
 | v1.2.0 | Stage 1, Nothing Lost, Anchored: evidence outbox, strict verifiers and the field registry, the canonicalization corpus, signed store anchors |
 | v1.3.0 | Stage 2, Observations, Judgements and Break-Glass: changes made outside governed actions recorded and judged once as of their time, break-glass records, quarantine, the store's signed registry |
+| v1.4.0 | Stage 3, Remediation, Reviews and Notification: a change judged DENY cancelled by rotating forward after a grace window, one review record for reviews and waivers decided by a second holder, emergency capabilities, the due queue and notices |
