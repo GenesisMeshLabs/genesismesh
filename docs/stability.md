@@ -38,8 +38,9 @@ signed artifact. Vector files live in `conformance/vectors/` and are run by
 `interop`, `consensus`, `admin_auth`, `field_registry` and `canonical` suites
 in their own tests, and the Rust SDK the `admin_auth`, `field_registry` and
 `canonical` suites; the TypeScript and Rust SDKs, which verify evidence
-exports, also run the `out_of_band` suite (1.3.0). The interoperability
-workflow checks that every copy matches the reference's.
+exports, also run the `out_of_band` suite (1.3.0) and the `remediation`
+suite (1.4.0). The interoperability workflow checks that every copy matches
+the reference's.
 
 Alternative implementations must pass all vectors to claim conformance.
 See `conformance/CONFORMANCE.md` for instructions.

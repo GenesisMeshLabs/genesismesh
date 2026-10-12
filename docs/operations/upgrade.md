@@ -17,6 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
+| 1.3.x | Supported and rehearsed in CI, from 1.3.1 with the out-of-band records on. Read *Upgrading to 1.4* below first |
 | 1.1.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* below first |
 | 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
@@ -47,6 +48,54 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.4
+
+*Unreleased.*
+
+1.4 adds migration 016. On SQLite it rebuilds the evidence table again (to
+accept the `remediation` and `review` entry kinds): allow for one copy of the
+table on disk, and for the time the copy takes, during which the NA does not
+start. On PostgreSQL the entry-kind constraint is changed in place, but
+adding it validates every stored entry and the new indexes are built, both
+under a lock that blocks writes to the evidence table: with several instances
+the first one to start holds it while the others wait, so plan the upgrade
+for a quiet moment on a large store. It also adds the `remediation_states`
+and `remediation_reviews` tables. Entries, their
+digests and the anchors are unchanged, and `genesis-mesh na verify-db`
+verifies them after the upgrade. A 1.4 database cannot be opened by 1.3: roll
+back by restoring the backup taken before the upgrade.
+
+- **Nothing changes until `EVIDENCE_REMEDIATION=on`.** A 1.3 store that
+  already runs with `EVIDENCE_OUT_OF_BAND=on` keeps writing only the kinds
+  1.3 verifiers know: the remediation and review records have a switch of
+  their own, which needs `EVIDENCE_OUT_OF_BAND=on`. A 1.3 verifier refuses
+  the new entry kinds, and a 1.3 SDK refuses a policy with the new sections
+  (`remediation`, `review_required`, `emergency`) as `unknown_field`, so
+  upgrade every verifier that reads exports and every SDK that reads policies
+  to 1.4 first, then turn it on. While it is off, the NA refuses to publish a
+  policy with those sections (`400 policy_remediation_disabled`).
+- **Policies keep their digests.** The new policy sections are left out when
+  absent, so every stored policy, and every decision bound to one, verifies
+  as before.
+- **Judgements made before the switch are not remediated.** The NA arms a
+  remediation (or opens a review) for judgements made from the first start
+  with the switch on (the `remediation_enabled` audit event marks it). An
+  earlier judgement gets a remediation state only when someone requests a
+  review of it (`POST /admin/evidence/reviews`).
+- **Flagged changes open reviews.** Once the switch is on, every judgement
+  flagged for review (a verdict that differs under today's policies, history
+  recorded late, or a break-glass change the NA cannot tie to its
+  attestation) opens a review, listed with `review_pending: true`. A review
+  holds nothing: a denied change's remediation stays due, and becomes overdue
+  if the review is not decided in time.
+- **Name your holders.** Reviews need named holders in the store's holder
+  registry (see *Operator key holders* in {doc}`out-of-band-changes`), one
+  operator key per person, and `NA_REVIEW_ACTOR_HOLDERS_JSON` for the actors
+  your sources report.
+- **Controllers** that cancel versioned credentials rotate forward under a
+  governed decision first, then disable, and record both (see
+  {doc}`remediation-and-reviews`).
 
 ## Upgrading to 1.3.1
 

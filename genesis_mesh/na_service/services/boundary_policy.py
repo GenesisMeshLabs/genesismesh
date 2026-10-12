@@ -48,8 +48,14 @@ ENFORCEMENT_MODES: tuple[str, ...] = ("optional", "required")
 
 #: Intent fields a publish/validate request may carry.
 INTENT_FIELDS: frozenset[str] = frozenset(
-    {"policy_id", "description", "valid_from", "valid_until", "selector", "gates"}
+    {"policy_id", "description", "valid_from", "valid_until", "selector", "gates",
+     # v1.4.0 (Stage 3), accepted with EVIDENCE_REMEDIATION=on only
+     "remediation", "review_required", "emergency"}
 )
+
+#: Intent fields added in 1.4.0: a policy carrying one is refused until the
+#: remediation records are on, since a 1.3 SDK refuses the policy as unknown_field.
+STAGE3_INTENT_FIELDS: frozenset[str] = frozenset({"remediation", "review_required", "emergency"})
 #: Fields only the NA assigns; a caller supplying one is refused.
 NA_ASSIGNED_FIELDS: frozenset[str] = frozenset(
     {"version", "signature", "issued_at", "issued_by", "issuer_sovereign_id"}
@@ -129,6 +135,12 @@ class BoundaryPolicyService:
             raise BadRequestError(
                 "unknown policy fields", code="unexpected_field", details={"fields": unknown}
             )
+        stage3 = sorted(k for k in STAGE3_INTENT_FIELDS & data.keys() if data[k] not in (None, False))
+        if stage3 and self._na.evidence_remediation != "on":
+            raise BadRequestError(
+                "remediation guidance, review_required and emergency need EVIDENCE_REMEDIATION=on",
+                code="policy_remediation_disabled", details={"fields": stage3},
+            )
         policy_id = data.get("policy_id")
         if not isinstance(policy_id, str) or not policy_id:
             raise BadRequestError("policy_id is required", code="missing_policy_id")
@@ -147,6 +159,10 @@ class BoundaryPolicyService:
                 valid_until=data["valid_until"],
                 selector=selector,
                 gates=gates,
+                # v1.4.0: left out when absent (review_required false is absent).
+                remediation=data.get("remediation"),
+                review_required=True if data.get("review_required") is True else data.get("review_required") or None,
+                emergency=data.get("emergency"),
                 issued_at=datetime.now(timezone.utc),
                 issued_by=self._na.key_id,
                 issuer_sovereign_id=self._na.genesis_block.network_name,
@@ -224,6 +240,7 @@ class BoundaryPolicyService:
                 "boundary policy has expired", code="boundary_policy_activation_refused",
                 details={"reason": "policy_expired"},
             )
+        self._refuse_emergency_conflict(policy)
         try:
             previous = self._na.out_of_band_service.activate_policy(policy, recorded_by, audit_event_id)
         except self._na.db.integrity_errors as exc:
@@ -233,6 +250,29 @@ class BoundaryPolicyService:
                 code="boundary_policy_activation_conflict",
             ) from exc
         return policy, previous
+
+    def _refuse_emergency_conflict(self, policy: BoundaryPolicy) -> None:
+        """v1.4.0: an emergency capability is selected by its emergency policy only. Activating an
+        emergency policy whose capability another active policy names, or a policy naming an
+        active emergency policy's capability, is refused: the ordinary policy's DENY would apply
+        to the emergency capability, or an ordinary capability would be remapped when judged."""
+        from ...trust.remediation import selects
+
+        active = [p for p in self._na.db.load_active_boundary_policies().policies if p.policy_id != policy.policy_id]
+        conflict: str | None = None
+        if policy.emergency is not None:
+            capability = policy.selector.capabilities[0]
+            conflict = next((f"{p.policy_id} v{p.version} names {capability}" for p in active
+                             if p.emergency is None and selects(p, capability)), None)
+        else:
+            conflict = next((f"{p.policy_id} v{p.version} makes {p.selector.capabilities[0]} an emergency capability"
+                             for p in active if p.emergency is not None and selects(policy, p.selector.capabilities[0])),
+                            None)
+        if conflict is not None:
+            raise ConflictError(
+                f"an emergency capability is selected by its emergency policy only: {conflict}",
+                code="emergency_capability_conflict",
+            )
 
     def deactivate(
         self, policy_id: str, version: int, *, recorded_by: str | None = None, audit_event_id: str | None = None,

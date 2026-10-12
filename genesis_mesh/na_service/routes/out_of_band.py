@@ -98,7 +98,8 @@ def create_out_of_band_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def resource_changes(resource_id: str):
         """Every change to a resource: how it was governed and its state."""
         _admin({}, tier="read")
-        return jsonify(oob.resource_changes(resource_id))
+        return jsonify(oob.resource_changes(resource_id, after_sequence=request.args.get("after_sequence"),
+                                            limit=request.args.get("limit")))
 
     @bp.route("/admin/evidence/operator-holders", methods=["GET"])
     def operator_holders():

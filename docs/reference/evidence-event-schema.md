@@ -29,9 +29,15 @@ Each event has three parts:
   | `judgement` (1.3.0) | `JudgementRecord` | the NA |
   | `quarantine` (1.3.0) | `QuarantineRecord` | the NA |
   | `registry` (1.3.0) | `RegistryRecord` | the NA |
+  | `remediation` (1.4.0) | `RemediationRecord` | an executor key |
+  | `review` (1.4.0) | `ReviewRecord` | the NA |
 
   Entry kinds are added within schema version 1. A verifier refuses a kind it
-  does not know by name (`unknown_entry_kind`) and keeps it in the chain.
+  does not know by name (`unknown_entry_kind`) and keeps it in the chain. The
+  NA writes the 1.3.0 kinds only with `EVIDENCE_OUT_OF_BAND=on`, and the
+  1.4.0 kinds only with `EVIDENCE_REMEDIATION=on`, so a store stays readable
+  by the verifiers of the release before until the switch is turned on. Since
+  1.4.0 a `quarantine` record's `record_kind` may also be `remediation`.
 
 Verify an export offline with `genesis-mesh evidence verify-export` (see the
 {doc}`CLI reference <cli>`).
@@ -41,7 +47,8 @@ Verify an export offline with `genesis-mesh evidence verify-export` (see the
 Every verifier (the reference, the CLI and the SDKs) checks an export the
 same way and names each failure by the same reason, with the
 `store_sequence` of the entry it concerns. The shared cases are the
-conformance suites `field_registry` and `out_of_band`.
+conformance suites `field_registry`, `out_of_band` and (1.4.0)
+`remediation`.
 
 ### Reading the lines
 
@@ -99,6 +106,8 @@ The envelope fields a 1.3.0 entry takes from its record, which must match
 | `judgement` | `record_id`: `judgement_id`, `subject_id`, `resource_id`, `resource_action`: `action`, `capability`, `outcome`: `verdict`, `matched_evidence_id` |
 | `quarantine` | `record_id`: `quarantine_id`, `resource_id`, `outcome`: `rejection_code` |
 | `registry` | `record_id`: `registry_record_id`, `outcome`: `event` |
+| `remediation` (1.4.0) | `record_id`: `remediation_id`, `subject_id`, `resource_id`, `executor_sovereign_id`, `outcome` |
+| `review` (1.4.0) | `record_id`: `review_id`, `subject_id`, `resource_id`, `capability`, `outcome`: `verdict` |
 
 The chains and links between records:
 
@@ -113,6 +122,30 @@ The chains and links between records:
 | `judgement_match_missing` (1.3.1) | a judgement matching execution evidence or a break-glass record that the export does not hold before it, in an export from entry 1 |
 | `match_reused` | a second judgement matching the same record |
 | `retention_count_mismatch` (1.3.1) | a retention checkpoint that removed fewer or more entries than lay between the checkpoint before it (or entry 1) and its last removed position |
+
+Remediations and reviews (1.4.0). "From its start" means a run from entry 1
+or right after the retention checkpoint passed to the verifier: retention
+keeps a remediation or review with its subject, and the subject of an open
+remediation, so such a run holds them all.
+
+| Reason | The entry |
+| --- | --- |
+| `duplicate_remediation` | a second remediation of one judgement or decision |
+| `remediation_subject_mismatch` | a remediation of another resource or change than the judgement it names, disabling another version than that change made, or naming as its change execution evidence of another decision or resource |
+| `remediation_subject_missing`, `remediation_rotation_missing` | a remediation whose judgement or decision, or whose forward rotation's execution evidence, is not in a run that holds the store from its start |
+| `remediation_rotation_mismatch` | a remediation whose forward rotation is of another resource |
+| `remediation_rotation_other_executor` | a remediation whose forward rotation another executor sovereign made |
+| `remediation_rotation_before_change` | a remediation whose forward rotation is stored before the record of the change, or executed before the change (an older version: a roll back) |
+| `remediation_rotation_reused` | a remediation whose forward rotation an earlier remediation cites |
+| `review_approval_invalid` | a review whose embedded admin requests do not prove it: a signature that does not verify over the request kept, another route, key, audience, verdict, waiver end, note, subject or justification than the review records, a `waive_until` or admin timestamp that is not RFC 3339 (`YYYY-MM-DDTHH:MM:SS`, a fraction of 1 to 6 digits, `Z` or `+HH:MM`), or signed more than 300 seconds from when the NA recorded it |
+| `review_approval_key_mismatch` | a review whose decider or requester signed with another public key, or as another holder, than the holder registry in the export records for that operator key at the time; only registry records that verify as the NA's count |
+| `review_same_holder` | a review decided by the requester's key or holder, or by the actor's (the actor may be the operator key that asked for a decision) |
+| `review_subject_mismatch`, `review_subject_missing` | a review naming another digest than its judgement's or decision's, or whose subject is not in a run that holds the store from its start |
+| `review_waiver_after_remediation` | a waiver of a change the export holds a remediation of before it |
+
+A review's approvals are checked with the review alone and the NA's public
+key (the audience); see *What a review proves offline* in
+{doc}`../operations/remediation-and-reviews`.
 
 ### Where an export starts
 

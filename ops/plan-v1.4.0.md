@@ -85,6 +85,15 @@ leads to is not defined. The reviews found:
     emergency); configuration (grace defaults); a page on emergency
     capabilities and break-glass.
 
+**Built (core, 2026-10-11):** items 1 to 6, 8 and 10 in the core
+(`models/remediation.py`, the policy sections in `models/boundary_policy.py`,
+`trust/remediation.py`, `na_service/services/remediation.py`,
+`na_service/routes/remediation.py`, migration 016), with the runbooks
+`docs/operations/remediation-and-reviews.md` and
+`docs/operations/emergency-changes.md`; items 7 and 9 are in the SDK and
+gateway pull requests. Choices made in building it are Decisions 7 to 19
+below (redesigned after a review, 2026-10-11).
+
 ### Out of scope
 
 - Audit packs (Stage 4); sending notices from the NA itself.
@@ -101,31 +110,35 @@ leads to is not defined. The reviews found:
 
 ## Success Criteria
 
-- [ ] A denied change to a versioned resource is cancelled by a forward
+- [x] A denied change to a versioned resource is cancelled by a forward
       rotation and a disable, recorded as two linked records; readers of the
       resource keep a valid version throughout (tested with a reader in the
       worked example)
-- [ ] Fallbacks to `alert_only` are tested per resource kind
-- [ ] A review by the requester's holder, or by the observed actor's, is
+- [x] Fallbacks to `alert_only` are tested per resource kind
+- [x] A review by the requester's holder, or by the observed actor's, is
       refused; a waiver after a recorded remediation is refused; a waiver's
       expiry re-arms remediation; the embedded approval verifies offline
-- [ ] A review denial re-arms remediation; a Stage 2 flagged judgement enters
+- [x] A review denial re-arms remediation; a Stage 2 flagged judgement enters
       the review queue
-- [ ] A denied change produces a recorded notice before `remediation_due_at`;
+- [x] A denied change produces a recorded notice before `remediation_due_at`;
       overdue items raise an audit event
 - [ ] Urgent-change scenarios, each a test: NA up with an ordinary DENY
       (emergency capability), NA down (break-glass), NA answering `503` and
-      `429` (break-glass); none is blocked, each is judged
+      `429` (break-glass); none is blocked, each is judged (the NA side is
+      tested in the core, `test_remediation.py`; the SDKs' fallback is not
+      yet)
 - [ ] `remediation.json` passes in the Python, TypeScript and Rust verifiers
+      (Python passes; TypeScript and Rust pending)
 
 ## Release Gate
 
-- [ ] Stage 2 (1.3.0) released
+- [x] Stage 2 (1.3.0) released (2026-10-10)
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.4.0` across the release train; `docs/sdk/index.md`
 - [ ] CHANGELOG entries, `history.md`, `phase-n.md`
 - [ ] `SECURITY.md`: 1.4.x supported, 1.3.x upgrade to 1.4
-- [ ] Public contract: new routes, models, kinds and codes classified
+- [x] Public contract: new routes (beta, with stable bytes), models and codes
+      classified; the entry kinds in the field registry and the event schema
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [ ] Merge order: core, then the SDKs, then the gateway
 - [ ] Dry runs green; tags `v1.4.0`, releases, published-artifacts green
@@ -140,9 +153,91 @@ leads to is not defined. The reviews found:
    (Maintainer, 2026-10-08).
 3. **A grace window before remediation** (Maintainer, 2026-10-08).
 
-Open:
+4. **Cancel by rotating forward, then disabling**; `correct` and
+   `roll_back` dropped (taken as proposed, 2026-10-11).
+5. **One review record for reviews and waivers** (taken as proposed,
+   2026-10-11).
+6. **Approval at privileged tier** rather than a new approver tier (taken as
+   proposed, 2026-10-11).
 
-4. **Cancel by rotating forward, then disabling** (proposed, after review);
-   `correct` and `roll_back` dropped.
-5. **One review record for reviews and waivers** (proposed, after review).
-6. **Approval at privileged tier** (proposed) rather than a new approver tier.
+Open, from building Stage 3 (2026-10-11):
+
+7. **A switch of its own** (proposed): `EVIDENCE_REMEDIATION=on`, which needs
+   `EVIDENCE_OUT_OF_BAND=on`, rather than reusing that switch: a 1.3.1 store
+   that already has the Stage 2 records on would otherwise start writing
+   kinds 1.3 verifiers refuse. While it is off, policies with the new
+   sections are refused, since 1.3 SDKs refuse them as `unknown_field`.
+   Judgements made before its first start are not armed (marked by the
+   `remediation_enabled` audit event); a review can still be requested.
+8. **Guidance as a policy section keyed by gate** (proposed):
+   `remediation: {gate_id | "*": {mode, grace_seconds}}`, a top-level
+   optional field left out when absent, so 1.3 digests are unchanged and the
+   registry's `omit_when_none` covers it. Among failing gates, `cancel` wins
+   and the shortest grace applies; without guidance, the NA's defaults
+   (`alert_only`, one day).
+9. **The resource case from the change's own record** (proposed): `create` is
+   a resource nothing reads yet (disable); `rotate` or `update` with a
+   version is versioned (rotate forward, then disable) unless the record says
+   `rotatable: false`; without a version, or for `revoke` and `delete`, it
+   falls back to `alert_only`. No new signed field. The limit, stated in the
+   docs: the observer that signs the record can turn a cancel into an alert
+   with `rotatable: false`, never the other way round.
+10. **`uphold` means the change stands** (proposed), matching the state
+    table (`upheld` is not followed by remediation; `review_denied` is):
+    `deny` makes remediation due, `waive_until` lets the change stand until a
+    time. Waivers are bounded by the NA (`NA_REVIEW_MAX_WAIVER_SECONDS`) and
+    by the model (90 days).
+11. **A pending review stops no clock** (redesigned after review,
+    2026-10-11, decision A): a review is a flag beside the state
+    (`review_pending`), not a state; due times, waivers and emergency
+    lifetimes run while it is pending, with their audit events, and its
+    verdict applies when it is decided. A denial is due at the decision plus
+    the grace, never later than it already was; a waiver's end re-arms with
+    the grace again. A remediation is admitted only while due or overdue.
+12. **The actor's holder from configuration** (proposed):
+    `NA_REVIEW_ACTOR_HOLDERS_JSON` maps reported actors to holders (an actor
+    named like a holder is that holder); the review records the mapping it
+    used (`actor_holder`). The actor is source-reported, and an unmapped
+    actor has no holder; the docs say both. After review (decision B): the
+    actor's holder may not request the review either
+    (`review_requested_by_actor`), and a decision's actor is the operator key
+    that asked for it, with its holder, recorded and embedded.
+13. **Both signed requests embedded** (proposed): the requester's as well as
+    the decider's, so the subject and justification verify offline too; the
+    verifier checks the public keys against the holder registry in the
+    export.
+14. **Emergency as a policy section on a capability of its own** (proposed):
+    `emergency: {stands_for, justification_parameter, max_lifetime_seconds}`
+    on a policy selecting one exact emergency capability, with an enforced
+    `required_parameter.v1` gate; it implies review. Observers name the
+    ordinary capability; matching treats the emergency capability as
+    standing for it. An observation naming the emergency capability with no
+    record of the change behind it is judged under the ordinary capability
+    and flagged. After review (decision C): only emergency policies active
+    and valid at the change's time count, a capability another active policy
+    names is none (and such an activation is refused), the remapping is off
+    with `EVIDENCE_REMEDIATION` off (and evaluation under a reviewed policy
+    refused), `stands_for` is an exact capability ID, and an observation of
+    an emergency change is judged under the emergency policy and attaches to
+    the decision's or break-glass record's review.
+15. **An emergency change's lifetime ends like a waiver** (proposed): an
+    upheld emergency change becomes due when its lifetime ends, with the
+    policy's grace; a waiver cannot outlast it.
+16. **Remediation state beside the store** (proposed): the due queue and
+    `notified_at` live in an operational table (migration 016), not in a
+    signed kind; every transition goes through one state table the
+    conformance suite lists. The sweep compares times with the instance's
+    clock; the docs require synchronised clocks (as for the registry) rather
+    than the database's clock.
+17. **One timestamp grammar for reviews** (after review): `waive_until` and
+    the admin timestamps a review embeds are RFC 3339 in one strict form;
+    the NA refuses other forms, and checks that a review verifies offline
+    before it records it.
+18. **A forward rotation is forward** (after review): the rotation a
+    remediation cites is the remediation's executor's, after the change,
+    cited once; the verifier checks the same, and retention keeps a
+    remediation or review with its subject and the subject of an open one,
+    so the "held from start" checks apply after a checkpoint too.
+19. **A decision never executed is closed by an alert** (after review):
+    plan `alert_only`, fallback `not_executed`; its remediation record names
+    the decision as its change.

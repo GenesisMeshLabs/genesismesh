@@ -243,21 +243,23 @@ class EvidenceStoreMixin:
         return int((cp.observation_heads or {}).get(resource_id, 0)) if cp is not None else 0
 
     def unmatched_executions(
-        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int = 50,
-        recorded_since: datetime | None = None,
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str | Sequence[str],
+        limit: int = 50, recorded_since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Execution and break-glass records of a resource, action and capability no judgement has matched.
 
         With ``version_id``, only records naming that version, oldest first (the
         match); without it, the most recent records (candidates for a hint).
         ``recorded_since`` (v1.3.1) leaves out records stored before it.
+        ``capability`` (v1.4.0) may name several: the capability and the
+        emergency capabilities that stand for it.
         """
         return self._executions_of(resource_id, resource_action, version_id, capability, limit,
                                    recorded_since, matched=False)
 
     def matched_executions(
-        self, resource_id: str, resource_action: str, version_id: str, capability: str, limit: int = 1,
-        recorded_since: datetime | None = None,
+        self, resource_id: str, resource_action: str, version_id: str, capability: str | Sequence[str],
+        limit: int = 1, recorded_since: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Execution and break-glass records of this change a judgement has already matched, oldest first.
 
@@ -268,12 +270,13 @@ class EvidenceStoreMixin:
                                    recorded_since, matched=True)
 
     def _executions_of(
-        self, resource_id: str, resource_action: str, version_id: str | None, capability: str, limit: int,
-        recorded_since: datetime | None, *, matched: bool,
+        self, resource_id: str, resource_action: str, version_id: str | None, capability: str | Sequence[str],
+        limit: int, recorded_since: datetime | None, *, matched: bool,
     ) -> list[dict[str, Any]]:
+        capabilities = [capability] if isinstance(capability, str) else list(capability)
         clauses = ["e.entry_kind IN ('execution', 'break_glass')", "e.resource_id = ?", "e.resource_action = ?",
-                   "e.capability = ?"]
-        params: list[Any] = [resource_id, resource_action, capability]
+                   f"e.capability IN ({', '.join('?' for _ in capabilities)})"]
+        params: list[Any] = [resource_id, resource_action, *capabilities]
         if version_id is not None:
             clauses.append("e.version_id = ?")
             params.append(version_id)
@@ -357,15 +360,33 @@ class EvidenceStoreMixin:
             times.append(anchor.anchored_at)
         return max(times) if times else None
 
-    def resource_changes(self, resource_id: str, limit: int) -> list[dict[str, Any]]:
-        """A resource's execution records, observations, break-glass records, judgements and quarantine entries."""
+    def resource_changes(self, resource_id: str, limit: int, after_sequence: int = 0) -> list[dict[str, Any]]:
+        """A resource's execution records, observations, break-glass records and quarantine entries
+        after a store position, oldest first (v1.4.0: paged; their judgements are read apart)."""
         rows = self.conn.execute(
-            """SELECT * FROM evidence_entries WHERE resource_id = ?
-               AND entry_kind IN ('execution', 'observation', 'break_glass', 'judgement', 'quarantine')
+            """SELECT * FROM evidence_entries WHERE resource_id = ? AND store_sequence > ?
+               AND entry_kind IN ('execution', 'observation', 'break_glass', 'quarantine')
                ORDER BY store_sequence LIMIT ?""",
-            (resource_id, limit),
+            (resource_id, after_sequence, limit),
         ).fetchall()
         return [self._row_to_stored(r) for r in rows]
+
+    def judgements_concerning(
+        self, resource_id: str, subject_ids: Sequence[str], matched_ids: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """A resource's judgements of these records, or matching these records (v1.4.0)."""
+        out: dict[int, dict[str, Any]] = {}
+        for column, ids in (("subject_id", list(subject_ids)), ("matched_evidence_id", list(matched_ids))):
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                rows = self.conn.execute(
+                    f"""SELECT * FROM evidence_entries WHERE entry_kind = 'judgement' AND resource_id = ?
+                        AND {column} IN ({', '.join('?' for _ in chunk)})""",
+                    (resource_id, *chunk),
+                ).fetchall()
+                for r in rows:
+                    out[int(r["store_sequence"])] = self._row_to_stored(r)
+        return [out[k] for k in sorted(out)]
 
     # -- operator key holders (v1.3.0) ------------------------------------------
 

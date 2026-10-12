@@ -12,9 +12,25 @@
       "observation",
       "quarantine",
       "registry",
-      "retention_checkpoint"
+      "remediation",
+      "retention_checkpoint",
+      "review"
     ],
     "models": {
+      "AdminApproval": {
+        "fields": {
+          "admin_signature": null,
+          "audience": null,
+          "body": "open",
+          "key_id": null,
+          "method": null,
+          "nonce": null,
+          "path": null,
+          "public_key": null,
+          "query": "open",
+          "timestamp": null
+        }
+      },
       "AgreementRecord": {
         "fields": {
           "agreed_terms": {
@@ -107,6 +123,9 @@
       "BoundaryPolicy": {
         "fields": {
           "description": null,
+          "emergency": {
+            "object": "EmergencyCapability"
+          },
           "gates": {
             "list": "GateSpec"
           },
@@ -114,6 +133,10 @@
           "issued_by": null,
           "issuer_sovereign_id": null,
           "policy_id": null,
+          "remediation": {
+            "map": "GateRemediation"
+          },
+          "review_required": null,
           "selector": {
             "object": "PolicySelector"
           },
@@ -125,7 +148,12 @@
           "version": null
         },
         "root": true,
-        "signature_field": "signature"
+        "signature_field": "signature",
+        "omit_when_none": [
+          "remediation",
+          "review_required",
+          "emergency"
+        ]
       },
       "BreakGlassRecord": {
         "fields": {
@@ -220,6 +248,13 @@
           "source_type": null
         }
       },
+      "EmergencyCapability": {
+        "fields": {
+          "justification_parameter": null,
+          "max_lifetime_seconds": null,
+          "stands_for": null
+        }
+      },
       "EvidenceStoreEntry": {
         "fields": {
           "attestation_id": null,
@@ -296,6 +331,12 @@
           "signature": {
             "object": "Signature"
           }
+        }
+      },
+      "GateRemediation": {
+        "fields": {
+          "grace_seconds": null,
+          "mode": null
         }
       },
       "GateResult": {
@@ -555,6 +596,35 @@
           "recorded_by"
         ]
       },
+      "RemediationRecord": {
+        "fields": {
+          "change_id": null,
+          "change_kind": null,
+          "detail": null,
+          "disabled_version_id": null,
+          "executor_sovereign_id": null,
+          "outcome": null,
+          "remediated_at": "timestamp",
+          "remediation_id": null,
+          "resource_id": null,
+          "rotation_evidence_id": null,
+          "signature": {
+            "object": "Signature"
+          },
+          "steps": null,
+          "subject_id": null,
+          "subject_kind": null,
+          "version_id": null
+        },
+        "root": true,
+        "signature_field": "signature",
+        "omit_when_none": [
+          "rotation_evidence_id",
+          "version_id",
+          "disabled_version_id",
+          "detail"
+        ]
+      },
       "ResourceHead": {
         "fields": {
           "record_digest": null,
@@ -583,6 +653,54 @@
         "signature_field": "signature",
         "omit_when_none": [
           "observation_heads"
+        ]
+      },
+      "ReviewRecord": {
+        "fields": {
+          "actor": null,
+          "actor_holder": null,
+          "approval": {
+            "object": "AdminApproval"
+          },
+          "capability": null,
+          "decided_at": "timestamp",
+          "decided_by": null,
+          "decider_holder": null,
+          "issued_by": null,
+          "issuer_sovereign_id": null,
+          "justification": null,
+          "note": null,
+          "opened_for": null,
+          "request_approval": {
+            "object": "AdminApproval"
+          },
+          "requested_at": "timestamp",
+          "requested_by": null,
+          "requester_holder": null,
+          "resource_id": null,
+          "review_id": null,
+          "signature": {
+            "object": "Signature"
+          },
+          "subject_digest": null,
+          "subject_id": null,
+          "subject_kind": null,
+          "verdict": null,
+          "waive_until": "timestamp"
+        },
+        "root": true,
+        "signature_field": "signature",
+        "omit_when_none": [
+          "resource_id",
+          "capability",
+          "requested_by",
+          "requester_holder",
+          "justification",
+          "request_approval",
+          "actor",
+          "actor_holder",
+          "waive_until",
+          "note"
         ]
       },
       "Signature": {
@@ -5097,6 +5215,97 @@
       }
     },
     {
+      "id": "remediationrecord-clean",
+      "kind": "unknown_fields",
+      "description": "RemediationRecord as the reference emits it",
+      "model": "RemediationRecord",
+      "record": {
+        "remediation_id": "00000000-0000-4000-8000-000000000001",
+        "executor_sovereign_id": "sovereign-b",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "change_kind": "observation",
+        "change_id": "00000000-0000-4000-8000-000000000003",
+        "resource_id": "kv:vault/api-key",
+        "outcome": "cancelled",
+        "steps": "rotate_forward_then_disable",
+        "rotation_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "version_id": "v3",
+        "disabled_version_id": "v2",
+        "remediated_at": "2026-01-01T00:00:00Z",
+        "detail": "rotated forward, then disabled v2",
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "BdExwqmTZaAqPBlMcnCnTr2oP2/Vql0pE1TVsQ4azIz7liNmgqo6LPpqO/2IbWA69y4EPqbZStDaVt1UCX3ABA=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "remediationrecord-top",
+      "kind": "unknown_fields",
+      "description": "RemediationRecord with an unknown top-level field",
+      "model": "RemediationRecord",
+      "record": {
+        "remediation_id": "00000000-0000-4000-8000-000000000001",
+        "executor_sovereign_id": "sovereign-b",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "change_kind": "observation",
+        "change_id": "00000000-0000-4000-8000-000000000003",
+        "resource_id": "kv:vault/api-key",
+        "outcome": "cancelled",
+        "steps": "rotate_forward_then_disable",
+        "rotation_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "version_id": "v3",
+        "disabled_version_id": "v2",
+        "remediated_at": "2026-01-01T00:00:00Z",
+        "detail": "rotated forward, then disabled v2",
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "BdExwqmTZaAqPBlMcnCnTr2oP2/Vql0pE1TVsQ4azIz7liNmgqo6LPpqO/2IbWA69y4EPqbZStDaVt1UCX3ABA=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "remediationrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "RemediationRecord",
+      "record": {
+        "remediation_id": "00000000-0000-4000-8000-000000000001",
+        "executor_sovereign_id": "sovereign-b",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "change_kind": "observation",
+        "change_id": "00000000-0000-4000-8000-000000000003",
+        "resource_id": "kv:vault/api-key",
+        "outcome": "cancelled",
+        "steps": "rotate_forward_then_disable",
+        "rotation_evidence_id": "00000000-0000-4000-8000-000000000001",
+        "version_id": "v3",
+        "disabled_version_id": "v2",
+        "remediated_at": "2026-01-01T00:00:00Z",
+        "detail": "rotated forward, then disabled v2",
+        "signature": {
+          "key_id": "executor-b",
+          "sig": "BdExwqmTZaAqPBlMcnCnTr2oP2/Vql0pE1TVsQ4azIz7liNmgqo6LPpqO/2IbWA69y4EPqbZStDaVt1UCX3ABA==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "retentioncheckpoint-clean",
       "kind": "unknown_fields",
       "description": "RetentionCheckpoint as the reference emits it",
@@ -5217,6 +5426,494 @@
         "unknown_fields": [
           "resource_heads.kv:vault/api-key.x_added_field"
         ]
+      }
+    },
+    {
+      "id": "reviewrecord-clean",
+      "kind": "unknown_fields",
+      "description": "ReviewRecord as the reference emits it",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "reviewrecord-top",
+      "kind": "unknown_fields",
+      "description": "ReviewRecord with an unknown top-level field",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "reviewrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "reviewrecord-nested-approval",
+      "kind": "unknown_fields",
+      "description": "ReviewRecord.approval (AdminApproval) with an unknown field",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw==",
+          "x_added_field": 1
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "approval.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "reviewrecord-open-approval.body",
+      "kind": "unknown_fields",
+      "description": "AdminApproval.body is free-form: added keys are kept",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates",
+            "x_added_key": 1
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "reviewrecord-nested-request_approval",
+      "kind": "unknown_fields",
+      "description": "ReviewRecord.request_approval (AdminApproval) with an unknown field",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change"
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg==",
+          "x_added_field": 1
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "request_approval.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "reviewrecord-open-request_approval.body",
+      "kind": "unknown_fields",
+      "description": "AdminApproval.body is free-form: added keys are kept",
+      "model": "ReviewRecord",
+      "record": {
+        "review_id": "00000000-0000-4000-8000-000000000003",
+        "subject_kind": "judgement",
+        "subject_id": "00000000-0000-4000-8000-000000000002",
+        "subject_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "resource_id": "kv:vault/api-key",
+        "capability": "secret.rotate",
+        "opened_for": "requested",
+        "requested_by": "operator-1",
+        "requester_holder": "holder-1",
+        "justification": "Disputed: a planned change",
+        "request_approval": {
+          "key_id": "operator-1",
+          "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "subject_kind": "judgement",
+            "subject_id": "00000000-0000-4000-8000-000000000002",
+            "justification": "Disputed: a planned change",
+            "x_added_key": 1
+          },
+          "timestamp": "2026-01-01T00:00:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000001",
+          "admin_signature": "Di00hzBiLPkEl7c0mGbi2Vlu0p7jbgGYw4yhN/w6QFXPJBvxaTs9Lvfjwa2v2bGvWoFjV2lCGHBiCIg2pr7KBg=="
+        },
+        "requested_at": "2026-01-01T00:00:00Z",
+        "actor": "principal-7f3a",
+        "actor_holder": "holder-3",
+        "verdict": "waive_until",
+        "waive_until": "2026-01-08T00:00:00Z",
+        "note": "Waived until the vendor rotates",
+        "decided_by": "operator-2",
+        "decider_holder": "holder-2",
+        "approval": {
+          "key_id": "operator-2",
+          "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "method": "POST",
+          "path": "/admin/evidence/reviews/00000000-0000-4000-8000-000000000003/decide",
+          "query": {},
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "body": {
+            "verdict": "waive_until",
+            "waive_until": "2026-01-08T00:00:00Z",
+            "note": "Waived until the vendor rotates"
+          },
+          "timestamp": "2026-01-01T00:01:00Z",
+          "nonce": "00000000-0000-4000-8000-000000000002",
+          "admin_signature": "WOgahaCxDqyIamYYETsBedS0N46+SiMDLglcpSiFR7VjeXbKfN7vKQWep3HQkUABZrja1ADHPIOlkjQNAb84Dw=="
+        },
+        "decided_at": "2026-01-01T00:01:00Z",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "G2W7nZJs7WF0bmh3H9/iQj5uWIAMwtlpWm9FIQzC8DhkGrMvkL0Z/MQ4d4KoMo2z3pjEPlB8OVLlt/xOuvntBw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
       }
     },
     {
@@ -5404,6 +6101,457 @@
       },
       "expected": {
         "unknown_fields": []
+      }
+    },
+    {
+      "id": "boundarypolicy-guided",
+      "kind": "unknown_fields",
+      "description": "A policy with remediation guidance, a review requirement and an emergency section (v1.4.0)",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "boundarypolicy-guided-nested-emergency",
+      "kind": "unknown_fields",
+      "description": "BoundaryPolicy.emergency (EmergencyCapability) with an unknown field",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400,
+          "x_added_field": 1
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "emergency.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "boundarypolicy-guided-nested-gates",
+      "kind": "unknown_fields",
+      "description": "BoundaryPolicy.gates (GateSpec) with an unknown field",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false,
+            "x_added_field": 1
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "gates.0.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "boundarypolicy-guided-open-gates.0.config",
+      "kind": "unknown_fields",
+      "description": "GateSpec.config is free-form: added keys are kept",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90,
+              "x_added_key": 1
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "boundarypolicy-guided-nested-remediation",
+      "kind": "unknown_fields",
+      "description": "BoundaryPolicy.remediation (GateRemediation) with an unknown field",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {}
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600,
+            "x_added_field": 1
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "remediation.*.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "boundarypolicy-guided-nested-selector",
+      "kind": "unknown_fields",
+      "description": "BoundaryPolicy.selector (PolicySelector) with an unknown field",
+      "model": "BoundaryPolicy",
+      "record": {
+        "policy_id": "statements-read",
+        "version": 1,
+        "description": "Read limits \u2014 Z\u00fcrich \u2713",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "selector": {
+          "capabilities": [
+            "transactions.*",
+            "statements.*"
+          ],
+          "requester_sovereign_ids": [],
+          "provider_sovereign_ids": [],
+          "agreement_ids": [],
+          "parent_kinds": [],
+          "parameter_equals": {},
+          "x_added_field": 1
+        },
+        "gates": [
+          {
+            "gate_id": "max-rows",
+            "gate_type": "max_value.v1",
+            "order": 0,
+            "mode": "enforce",
+            "config": {
+              "path": "request_parameters.rows",
+              "max": 90
+            },
+            "disclose_input": false
+          },
+          {
+            "gate_id": "purpose",
+            "gate_type": "required_parameter.v1",
+            "order": 1,
+            "mode": "observe",
+            "config": {
+              "path": "attributes.purpose"
+            },
+            "disclose_input": false
+          }
+        ],
+        "issued_at": "2026-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "issuer_sovereign_id": "sovereign-c",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "MX2QyKFrRpBkGwfxrQRCbziETf8SgrCx/So3vFpos5OcFuEybNETwcj3lNGRyO9aCL/AQEgSd3BK94gi/04aAg=="
+        },
+        "remediation": {
+          "*": {
+            "mode": "alert_only",
+            "grace_seconds": 3600
+          },
+          "max-rows": {
+            "mode": "cancel",
+            "grace_seconds": 600
+          }
+        },
+        "review_required": true,
+        "emergency": {
+          "stands_for": "secret.rotate",
+          "justification_parameter": "justification",
+          "max_lifetime_seconds": 86400
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "selector.x_added_field"
+        ]
       }
     },
     {
@@ -6061,10 +7209,28 @@
       }
     },
     {
+      "id": "entry-kind-remediation",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'remediation'",
+      "entry_kind": "remediation",
+      "expected": {
+        "known": true
+      }
+    },
+    {
       "id": "entry-kind-retention_checkpoint",
       "kind": "entry_kind",
       "description": "Export entry kind 'retention_checkpoint'",
       "entry_kind": "retention_checkpoint",
+      "expected": {
+        "known": true
+      }
+    },
+    {
+      "id": "entry-kind-review",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'review'",
+      "entry_kind": "review",
       "expected": {
         "known": true
       }

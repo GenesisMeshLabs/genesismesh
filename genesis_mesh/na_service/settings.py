@@ -49,6 +49,12 @@ class NASettings:
     observation_max_backlog_seconds: int = 7 * 24 * 3600
     observation_clock_skew_seconds: int = 300
     judge_on_admission: bool = True
+    # v1.4.0 (Stage 3)
+    evidence_remediation: str = "off"
+    remediation_grace_seconds: int = 24 * 3600
+    remediation_default_mode: str = "alert_only"
+    review_max_waiver_seconds: int = 30 * 24 * 3600
+    review_actor_holders: dict[str, str] = field(default_factory=dict)
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -119,6 +125,11 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         observation_max_backlog_seconds=_int(e, "NA_OBSERVATION_MAX_BACKLOG_SECONDS", 7 * 24 * 3600),
         observation_clock_skew_seconds=_int(e, "NA_OBSERVATION_CLOCK_SKEW_SECONDS", 300),
         judge_on_admission=_on_off(e, "NA_JUDGE_ON_ADMISSION", True),
+        evidence_remediation=e.get("EVIDENCE_REMEDIATION", "off"),
+        remediation_grace_seconds=_int(e, "NA_REMEDIATION_GRACE_SECONDS", 24 * 3600),
+        remediation_default_mode=e.get("NA_REMEDIATION_DEFAULT_MODE", "alert_only"),
+        review_max_waiver_seconds=_int(e, "NA_REVIEW_MAX_WAIVER_SECONDS", 30 * 24 * 3600),
+        review_actor_holders=_json_object(e, "NA_REVIEW_ACTOR_HOLDERS_JSON"),
     )
 
 

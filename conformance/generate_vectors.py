@@ -27,6 +27,9 @@ _SEEDS = {
     "a": bytes(range(32)),      # 00..1f
     "b": bytes(range(32, 64)),  # 20..3f
     "c": bytes(range(64, 96)),  # 40..5f
+    # v1.4.0: two operator keys of two holders (remediation.json)
+    "d": bytes(range(96, 128)),   # 60..7f
+    "e": bytes(range(128, 160)),  # 80..9f
 }
 KEYS: dict[str, nacl.signing.SigningKey] = {
     k: nacl.signing.SigningKey(seed) for k, seed in _SEEDS.items()
@@ -1007,6 +1010,7 @@ def _registry_samples() -> dict[str, dict]:
     out_of_band = _out_of_band_samples(evidence, decision)
     return {
         **out_of_band,
+        **_remediation_samples(),
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1084,6 +1088,52 @@ def _out_of_band_samples(evidence: Any, decision: dict) -> dict[str, dict]:
         "RegistryRecord": signed(registry, "c", "na-key"),
         # A second observation, known only within a window (not a registry root sample).
         "_ObservationWindow": signed(window, "b", "observer-b"),
+    }
+
+
+def _approval(key: str, key_id: str, path: str, body: dict, at: datetime, nonce: str) -> dict:
+    """v1.4.0: an operator's signed admin request (signature version 2), as a review embeds it."""
+    from genesis_mesh.crypto.admin_auth import sign_admin_request
+
+    timestamp = _iso_z(at)
+    headers = sign_admin_request(KEYS[key], key_id, method="POST", path=path, audience=pub_b64("c"), body=body,
+                                 timestamp=timestamp, nonce=nonce)
+    return {"key_id": key_id, "public_key": pub_b64(key), "method": "POST", "path": path, "query": {},
+            "audience": pub_b64("c"), "body": body, "timestamp": timestamp, "nonce": nonce,
+            "admin_signature": headers["X-Admin-Signature"]}
+
+
+def _remediation_samples() -> dict[str, dict]:
+    """v1.4.0: one signed sample of each Stage 3 record, every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.remediation import AdminApproval, RemediationRecord, ReviewRecord
+
+    remediation = RemediationRecord(
+        remediation_id=UUID1, executor_sovereign_id=SOV_B, subject_kind="judgement", subject_id=UUID2,
+        change_kind="observation", change_id=UUID3, resource_id="kv:vault/api-key", outcome="cancelled",
+        steps="rotate_forward_then_disable", rotation_evidence_id=UUID1, version_id="v3", disabled_version_id="v2",
+        remediated_at=T0, detail="rotated forward, then disabled v2",
+    )
+    request_body = {"subject_kind": "judgement", "subject_id": UUID2, "justification": "Disputed: a planned change"}
+    review = ReviewRecord(
+        review_id=UUID3, subject_kind="judgement", subject_id=UUID2, subject_digest="9" * 64,
+        resource_id="kv:vault/api-key", capability="secret.rotate", opened_for="requested",
+        requested_by="operator-1", requester_holder="holder-1", justification=request_body["justification"],
+        request_approval=AdminApproval.model_validate(_approval(
+            "a", "operator-1", "/admin/evidence/reviews", request_body, T0, UUID1)),
+        requested_at=T0, actor="principal-7f3a", actor_holder="holder-3", verdict="waive_until",
+        waive_until=T0 + timedelta(days=7), note="Waived until the vendor rotates",
+        decided_by="operator-2", decider_holder="holder-2",
+        approval=AdminApproval.model_validate(_approval(
+            "b", "operator-2", f"/admin/evidence/reviews/{UUID3}/decide",
+            {"verdict": "waive_until", "waive_until": _iso_z(T0 + timedelta(days=7)),
+             "note": "Waived until the vendor rotates"}, T0 + timedelta(minutes=1), UUID2)),
+        decided_at=T0 + timedelta(minutes=1), issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    return {
+        "RemediationRecord": remediation.model_copy(
+            update={"signature": sign_model(remediation, KEYS["b"], "executor-b")}).to_wire(),
+        "ReviewRecord": review.model_copy(update={"signature": sign_model(review, KEYS["c"], "na-key")}).to_wire(),
     }
 
 
@@ -1169,6 +1219,18 @@ def gen_field_registry() -> None:
             target["alg"] = "x"
             case(f"{slug}-signature-extra", "A field on the signature itself is outside the signed form", model, unsigned)
         walk(model, record, record, [], True, slug)
+
+    # v1.4.0: a policy with every Stage 3 section, its nested models walked as above.
+    guided = copy.deepcopy(samples["BoundaryPolicy"])
+    guided["remediation"] = {"*": {"mode": "alert_only", "grace_seconds": 3600},
+                             guided["gates"][0]["gate_id"]: {"mode": "cancel", "grace_seconds": 600}}
+    guided["review_required"] = True
+    guided["emergency"] = {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                           "max_lifetime_seconds": 86400}
+    slug_model["boundarypolicy-guided"] = "BoundaryPolicy"
+    case("boundarypolicy-guided", "A policy with remediation guidance, a review requirement and an emergency "
+         "section (v1.4.0)", "BoundaryPolicy", guided)
+    walk("BoundaryPolicy", guided, guided, [], True, "boundarypolicy-guided")
 
     agreement = copy.deepcopy(samples["AgreementRecord"])
     agreement["note"] = "outside the signed fields"
@@ -2197,6 +2259,727 @@ def gen_out_of_band() -> None:
     _write("out_of_band", {"suite": "out_of_band", "version": "1.3.0", "vectors": vectors})
 
 
+def gen_remediation() -> None:
+    """v1.4.0: remediation guidance, due times, the cancel pair, reviews and the state table.
+
+    ``policy_canonical`` cases: a boundary policy's signed form and digest,
+    unchanged by the 1.4.0 sections when they are absent (also when received
+    as null). ``policy_validation`` cases: the issues the NA names for a
+    policy's guidance and emergency sections (the reference runs them; SDKs
+    may skip them). ``remediation_plan`` cases: what a judged change leads to
+    (mode, steps, the fallback to ``alert_only`` and why, the grace, where the
+    guidance came from) and ``remediation_due_at``. ``due_time`` cases: the
+    due time after a review denial and after a waiver ends. ``transition``
+    cases: the state table, legal and illegal. ``canonical_form`` and
+    ``verify_record``: the signed forms of the two new records.
+    ``remediation_check``: whether a remediation record is authentic, in its
+    key's role and scope and free of secret material. ``steps_problem``:
+    whether a record carries out the stated plan. ``admin_approval`` and
+    ``review_approval``: the embedded admin requests verify offline.
+    ``review_holders``: the second-holder rule. ``verify_export``: stores
+    holding the new kinds, which verify, and variants refused by named reason.
+    Records are deterministic, so regeneration is byte-stable.
+    """
+    import copy
+    import hashlib
+
+    from genesis_mesh.crypto import sign_model, verify_model_signature
+    from genesis_mesh.models.boundary_policy import BoundaryPolicy, PolicyGateEvaluation
+    from genesis_mesh.models.canonical_registry import received_canonical
+    from genesis_mesh.models.evidence_store import EvidenceEvent, payload_digest
+    from genesis_mesh.models.execution import ExecutionEvidence
+    from genesis_mesh.models.out_of_band import JudgementRecord, ObservationRecord, RegistryRecord
+    from genesis_mesh.models.remediation import AdminApproval, RemediationRecord, ReviewRecord
+    from genesis_mesh.trust.context import GateRegistry, sign_boundary_policy, validate_boundary_policy
+    from genesis_mesh.trust.evidence_store import ExecutorKey, build_entry, parse_export_lines, verify_evidence_events
+    from genesis_mesh.trust.out_of_band import entry_index
+    import typing
+
+    from genesis_mesh.models.evidence_store import RetentionCheckpoint
+    from genesis_mesh.trust.evidence_store import sign_retention_checkpoint
+    from genesis_mesh.trust.remediation import (
+        RemediationDefaults, RemediationState, TransitionEvent, TransitionRefused, admin_approval_valid,
+        decision_plan, due_after_denial, due_after_waiver, emergency_map, next_state, remediation_plan,
+        remediation_record_problem, review_approval_problem, review_holder_problem, review_request_problem,
+        rfc3339, steps_problem,
+    )
+
+    vectors: list[dict] = []
+    t = [T0 + timedelta(minutes=i) for i in range(30)]
+    na = {"issuer_sovereign_id": SOV_C, "issued_by": "na-key"}
+    resource = "kv:vault/api-key"
+
+    def uid(n: int) -> str:
+        return f"00000000-0000-4000-8000-{n:012d}"
+
+    # ── Policies: guidance, digests, validation ──────────────────────────────
+    def policy(**sections) -> dict:
+        record = BoundaryPolicy(
+            policy_id="secret-lifetime", version=1, description="cap secret lifetimes", valid_from=T0,
+            valid_until=T1, selector={"capabilities": ["secret.rotate"]},
+            gates=[{"gate_id": "max-lifetime", "gate_type": "max_value.v1", "order": 0,
+                    "config": {"path": "request_parameters.lifetime_days", "max": 90}},
+                   {"gate_id": "owner", "gate_type": "required_parameter.v1", "order": 1,
+                    "config": {"path": "request_parameters.owner"}}],
+            issued_at=T0, issued_by="na-key", issuer_sovereign_id=SOV_C, **sections,
+        )
+        return sign_boundary_policy(record, KEYS["c"], "na-key").model_dump(mode="json")
+
+    plain = policy()
+    guided = policy(remediation={"max-lifetime": {"mode": "cancel", "grace_seconds": 3600},
+                                 "*": {"mode": "alert_only", "grace_seconds": 86400}}, review_required=True)
+    for vid, desc, record in (
+        ("without-sections", "A policy without the 1.4.0 sections: its 1.3 form and digest", plain),
+        ("sections-null", "The same policy received with the 1.4.0 sections null: the same form and digest",
+         {**plain, "remediation": None, "review_required": None, "emergency": None}),
+        ("with-guidance", "A policy with remediation guidance and a review requirement", guided),
+    ):
+        canonical = received_canonical("BoundaryPolicy", record)
+        if vid != "with-guidance":
+            legacy = {k: v for k, v in plain.items() if k != "signature"}
+            assert canonical == json.dumps(legacy, sort_keys=True, separators=(",", ":")), vid
+        assert canonical == BoundaryPolicy.model_validate(record).to_canonical_json(), vid
+        vectors.append({"id": f"policy-{vid}", "kind": "policy_canonical", "description": desc, "record": record,
+                        "expected": {"canonical": canonical,
+                                     "digest": hashlib.sha256(canonical.encode()).hexdigest()}})
+
+    registry = GateRegistry.default()
+    emergency_gate = {"gate_id": "justified", "gate_type": "required_parameter.v1", "order": 0,
+                      "config": {"path": "request_parameters.justification"}}
+    for vid, desc, changes in (
+        ("guidance-valid", "Guidance for a gate of the policy and for every other gate", {
+            "remediation": {"max-lifetime": {"mode": "cancel", "grace_seconds": 600},
+                            "*": {"mode": "alert_only", "grace_seconds": 600}}}),
+        ("guidance-unknown-gate", "Guidance for a gate the policy does not have",
+         {"remediation": {"other": {"mode": "cancel", "grace_seconds": 600}}}),
+        ("guidance-empty", "Guidance that names no gate", {"remediation": {}}),
+        ("emergency-valid", "An emergency policy: one exact capability, standing for another, justification "
+         "required", {"selector": {"capabilities": ["secret.rotate.emergency"]}, "gates": [emergency_gate],
+                      "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                                    "max_lifetime_seconds": 86400}}),
+        ("emergency-no-justification-gate", "An emergency policy that does not require its justification",
+         {"selector": {"capabilities": ["secret.rotate.emergency"]},
+          "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                        "max_lifetime_seconds": 86400}}),
+        ("emergency-prefix", "An emergency policy selecting capabilities by prefix",
+         {"selector": {"capabilities": ["secret.*"]}, "gates": [emergency_gate],
+          "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                        "max_lifetime_seconds": 86400}}),
+        ("emergency-stands-for-itself", "An emergency capability standing for itself",
+         {"selector": {"capabilities": ["secret.rotate"]}, "gates": [emergency_gate],
+          "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                        "max_lifetime_seconds": 86400}}),
+    ):
+        record = {k: v for k, v in plain.items() if k != "signature"}
+        record.update(copy.deepcopy(changes))
+        issues = validate_boundary_policy(BoundaryPolicy.model_validate(record), registry)
+        vectors.append({"id": f"validation-{vid}", "kind": "policy_validation", "description": desc,
+                        "record": record, "expected": {"codes": sorted({i.code for i in issues.issues})}})
+
+    # ── Remediation plans and due times ─────────────────────────────────────
+    defaults = {"grace_seconds": 86400, "mode": "alert_only"}
+
+    def evaluation(gate: str, passed: bool, mode: str = "enforce") -> dict:
+        return PolicyGateEvaluation(policy_id="secret-lifetime", policy_version=1, gate_id=gate,
+                                    gate_type="max_value.v1", order=0, mode=mode, passed=passed,
+                                    outcome="pass" if passed else "fail").model_dump(mode="json")
+
+    plan_cases = [
+        ("versioned-rotation", "A denied rotation with a version: rotate forward, then disable", "deny", [guided],
+         [evaluation("max-lifetime", False)], "rotate", "v2", True, defaults),
+        ("created-resource", "A denied creation: nothing reads it yet, disable it", "deny", [guided],
+         [evaluation("max-lifetime", False)], "create", "v1", True, defaults),
+        ("not-versioned", "A denied update without a version: alert only", "deny", [guided],
+         [evaluation("max-lifetime", False)], "update", None, True, defaults),
+        ("not-rotatable", "A denied rotation the record says cannot be rotated: alert only", "deny", [guided],
+         [evaluation("max-lifetime", False)], "rotate", "v2", False, defaults),
+        ("deleted", "A denied deletion: cancelling would restore it, alert only", "deny", [guided],
+         [evaluation("max-lifetime", False)], "delete", "v2", True, defaults),
+        ("revoked", "A denied revocation: alert only", "deny", [guided],
+         [evaluation("max-lifetime", False)], "revoke", None, True, defaults),
+        ("other-gate", "A gate without its own guidance takes the policy's \"*\" guidance", "deny", [guided],
+         [evaluation("owner", False)], "rotate", "v2", True, defaults),
+        ("observe-mode", "A failing observe-mode gate gives no guidance: the policy's \"*\"", "deny", [guided],
+         [evaluation("max-lifetime", False, "observe")], "rotate", "v2", True, defaults),
+        ("cancel-wins", "Two failing gates: cancel wins, with the shortest grace of the cancels", "deny",
+         [policy(remediation={"max-lifetime": {"mode": "cancel", "grace_seconds": 3600},
+                              "owner": {"mode": "cancel", "grace_seconds": 600},
+                              "*": {"mode": "alert_only", "grace_seconds": 60}})],
+         [evaluation("max-lifetime", False), evaluation("owner", False)], "rotate", "v2", True, defaults),
+        ("no-guidance", "A policy without guidance: the NA's defaults", "deny", [plain],
+         [evaluation("max-lifetime", False)], "rotate", "v2", True, defaults),
+        ("default-cancel", "The NA's default mode cancel, with its grace", "deny", [plain],
+         [evaluation("max-lifetime", False)], "rotate", "v2", True, {"grace_seconds": 120, "mode": "cancel"}),
+        ("indeterminate", "An indeterminate judgement always alerts, even under cancel guidance", "indeterminate",
+         [policy(remediation={"*": {"mode": "cancel", "grace_seconds": 600}})], [], "rotate", "v2", True,
+         defaults),
+        ("no-policy", "No policy applied (indeterminate): the defaults, alert only", "indeterminate", [], [],
+         "rotate", "v2", True, {"grace_seconds": 120, "mode": "cancel"}),
+    ]
+    for vid, desc, verdict, policies, evaluations, action, version, rotatable, dflt in plan_cases:
+        plan = remediation_plan(
+            verdict=verdict, policies=[BoundaryPolicy.model_validate(p) for p in policies],
+            evaluations=[PolicyGateEvaluation.model_validate(e) for e in evaluations], action=action,
+            version_id=version, rotatable=rotatable, defaults=RemediationDefaults(**dflt),
+        )
+        vectors.append({
+            "id": f"plan-{vid}", "kind": "remediation_plan", "description": desc,
+            "input": {"verdict": verdict, "policies": policies, "gate_evaluations": evaluations, "action": action,
+                      "version_id": version, "rotatable": rotatable, "defaults": dflt, "judged_at": _iso_z(t[1])},
+            "expected": {**plan.to_dict(), "remediation_due_at": _iso_z(plan.due_at(t[1]))},
+        })
+    for vid, desc, rule, inp in (
+        ("denial-before-due", "A review denies a change not yet due: due at the decision plus the grace, never "
+         "later than it already was", "review_denial", {"current_due": _iso_z(t[20]), "decided_at": _iso_z(t[2]),
+                                                         "grace_seconds": 600}),
+        ("denial-after-due", "A review held a remediation past its due time: still due then (overdue at once)",
+         "review_denial", {"current_due": _iso_z(t[2]), "decided_at": _iso_z(t[5]), "grace_seconds": 600}),
+        ("denial-of-an-allowed-change", "A review denies an allowed change: due at the decision plus the grace",
+         "review_denial", {"current_due": None, "decided_at": _iso_z(t[5]), "grace_seconds": 600}),
+        ("waiver-end", "A waiver ends: due at its end plus the grace", "waiver_end",
+         {"waived_until": _iso_z(t[10]), "grace_seconds": 600}),
+    ):
+        if rule == "review_denial":
+            due = due_after_denial(datetime.fromisoformat(inp["current_due"]) if inp["current_due"] else None,
+                                   datetime.fromisoformat(inp["decided_at"]), inp["grace_seconds"])
+        else:
+            due = due_after_waiver(datetime.fromisoformat(inp["waived_until"]), inp["grace_seconds"])
+        vectors.append({"id": f"due-{vid}", "kind": "due_time", "description": desc, "rule": rule, "input": inp,
+                        "expected": {"remediation_due_at": _iso_z(due)}})
+
+    # ── The state table (review fixes: a pending review is a flag beside the state) ──
+    for state in sorted(typing.get_args(RemediationState)):
+        for event in sorted(typing.get_args(TransitionEvent)):
+            for pending in (False, True):
+                try:
+                    expected: dict = {"state": next_state(state, event, pending)}
+                except TransitionRefused as exc:
+                    expected = {"refused": exc.code}
+                flag = "review-pending" if pending else "no-review"
+                vectors.append({
+                    "id": f"transition-{state}-{event}-{flag}", "kind": "transition",
+                    "description": f"{event} in {state}, {'a review pending' if pending else 'no review pending'}",
+                    "input": {"state": state, "event": event, "review_pending": pending}, "expected": expected,
+                })
+
+    # ── Decisions' plans, the strict timestamp grammar and emergency capabilities ───
+    for vid, desc, executed in (
+        ("never-executed", "A decision never executed: an alert (not_executed)", None),
+        ("executed-rotation", "A decision executed as a rotation with a version", ["rotate", "v5", True]),
+        ("executed-create", "A decision executed as a creation", ["create", "v1", True]),
+    ):
+        plan = decision_plan(policies=[BoundaryPolicy.model_validate(guided)],
+                             executed=tuple(executed) if executed else None,  # type: ignore[arg-type]
+                             defaults=RemediationDefaults(**defaults))
+        vectors.append({"id": f"decision-plan-{vid}", "kind": "decision_plan", "description": desc,
+                        "input": {"policies": [guided], "executed": executed, "defaults": defaults},
+                        "expected": plan.to_dict()})
+    for vid, value in (
+        ("utc", "2026-10-12T09:00:00Z"), ("fraction", "2026-10-12T09:00:00.5Z"),
+        ("six-digit-fraction", "2026-10-12T09:00:00.123456Z"), ("offset", "2026-10-12T11:00:00+02:00"),
+        ("negative-offset", "2026-10-12T04:30:00-04:30"), ("minus-zero-offset", "2026-10-12T09:00:00-00:00"),
+        ("basic-format", "20261012T090000Z"), ("week-date", "2026-W42-1T09:00:00Z"),
+        ("ordinal-date", "2026-285T09:00:00Z"), ("hour-24", "2026-10-12T24:00:00Z"),
+        ("leap-second", "2026-12-31T23:59:60Z"), ("offset-with-seconds", "2026-10-12T09:00:00+01:00:30"),
+        ("offset-without-colon", "2026-10-12T09:00:00+0100"), ("no-offset", "2026-10-12T09:00:00"),
+        ("no-seconds", "2026-10-12T09:00Z"), ("lower-case", "2026-10-12t09:00:00z"),
+        ("space", "2026-10-12 09:00:00Z"), ("seven-digit-fraction", "2026-10-12T09:00:00.1234567Z"),
+        ("comma-fraction", "2026-10-12T09:00:00,5Z"), ("no-such-day", "2026-02-30T09:00:00Z"),
+        ("offset-hours-24", "2026-10-12T09:00:00+24:00"), ("fullwidth-digits", "\uff12\uff10\uff12\uff16-10-12T09:00:00Z"),
+    ):
+        parsed = rfc3339(value)
+        vectors.append({"id": f"rfc3339-{vid}", "kind": "rfc3339",
+                        "description": f"waive_until and admin timestamps: {vid}", "input": value,
+                        "expected": {"valid": parsed is not None,
+                                     "utc": _iso_z(parsed.astimezone(timezone.utc)) if parsed else None}})
+    emergency_policy = {k: v for k, v in policy().items() if k != "signature"}
+    emergency_policy.update({"policy_id": "secret-emergency", "selector": {"capabilities": ["secret.rotate.emergency"]},
+                             "gates": [emergency_gate],
+                             "emergency": {"stands_for": "secret.rotate", "justification_parameter": "justification",
+                                           "max_lifetime_seconds": 86400}})
+    broad = {**{k: v for k, v in plain.items() if k != "signature"}, "policy_id": "all-secrets",
+             "selector": {"capabilities": ["secret.*"]}}
+    for vid, desc, policies, at in (
+        ("active", "An active, valid emergency policy maps its capability", [plain, emergency_policy], T0),
+        ("outside-validity", "Outside its validity it maps nothing", [plain, emergency_policy], T1 + timedelta(days=1)),
+        ("named-by-an-ordinary-policy", "A capability an ordinary policy also names is no emergency capability",
+         [broad, emergency_policy], T0),
+    ):
+        vectors.append({"id": f"emergency-map-{vid}", "kind": "emergency_map", "description": desc,
+                        "input": {"policies": policies, "at": _iso_z(at)},
+                        "expected": {"map": emergency_map([BoundaryPolicy.model_validate(p) for p in policies], at)}})
+
+    # ── Records: canonical forms, signatures, checks ─────────────────────────────
+    keys = [
+        {"key_id": "executor-b", "public_key": pub_b64("b"), "executor_sovereign_id": SOV_B, "role": "executor"},
+        {"key_id": "observer-a", "public_key": pub_b64("a"), "executor_sovereign_id": SOV_A, "role": "observer",
+         "resource_prefix": "kv:"},
+        # review fixes: a controller of another sovereign
+        {"key_id": "executor-d", "public_key": pub_b64("d"), "executor_sovereign_id": "sovereign-d", "role": "executor"},
+    ]
+    executor_keys = {k["key_id"]: ExecutorKey(**k) for k in keys}
+
+    def signed(record, key: str, key_id: str):
+        return record.model_copy(update={"signature": sign_model(record, KEYS[key], key_id)})
+
+    o1 = signed(ObservationRecord(
+        observation_id=uid(11), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[1], observed_at=t[2], actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-1", version_id="v2", metadata={"lifetime_days": 400},
+    ), "a", "observer-a")
+    o2 = signed(ObservationRecord(
+        observation_id=uid(12), observer_sovereign_id=SOV_A, resource_id="kv:vault/db-password", action="update",
+        capability="secret.update", changed_at=t[1], observed_at=t[2], actor="principal-9c21",
+        source="cloud-activity-log", source_event_id="event-2", version_id="v7", metadata={"lifetime_days": 400},
+    ), "a", "observer-a")
+
+    def judgement(n: int, subject: ObservationRecord, seq: int) -> JudgementRecord:
+        return signed(JudgementRecord(
+            judgement_id=uid(n), subject_kind="observation", subject_id=subject.observation_id,
+            subject_digest=payload_digest(subject.to_wire()), subject_store_sequence=seq,
+            resource_id=subject.resource_id, action=subject.action, capability=subject.capability,
+            governed_by="after_the_fact", verdict="deny", reason="policy gate 'max-lifetime' failed",
+            evaluated_as_of=subject.changed_at, current_verdict="deny", judged_at=t[3], **na,
+        ), "c", "na-key")
+
+    j1, j2 = judgement(21, o1, 6), judgement(22, o2, 8)
+    rotation = ExecutionEvidence(
+        evidence_id=uid(31), sequence_no=1, decision_id=uid(40), context_id=uid(40), agreement_id=UUID1,
+        executor_sovereign_id=SOV_B, executed_capability="secret.rotate", outcome="success",
+        execution_parameters={"version_id": "v3"}, executed_at=t[4], resource_id=resource,
+        resource_action="rotate", resource_sequence=1,
+    )
+    rotation = signed(rotation, "b", "executor-b")
+
+    def remediation(n: int, subject: JudgementRecord, change: ObservationRecord, **changes) -> RemediationRecord:
+        fields = dict(
+            remediation_id=uid(n), executor_sovereign_id=SOV_B, subject_kind="judgement",
+            subject_id=subject.judgement_id, change_kind="observation", change_id=change.observation_id,
+            resource_id=change.resource_id, outcome="cancelled", steps="rotate_forward_then_disable",
+            rotation_evidence_id=rotation.evidence_id, version_id="v3", disabled_version_id="v2", remediated_at=t[5],
+        )
+        fields.update(changes)
+        return RemediationRecord(**fields)
+
+    r1 = signed(remediation(41, j1, o1), "b", "executor-b")
+
+    def review(n: int, subject: JudgementRecord, verdict: str, *, at: int, waive: datetime | None = None,
+               note: str | None = None, until_text: str | None = None, **changes) -> ReviewRecord:
+        request = {"subject_kind": "judgement", "subject_id": subject.judgement_id,
+                   "justification": "The change was planned with the vendor"}
+        body: dict = {"verdict": verdict}
+        if waive is not None:
+            body["waive_until"] = until_text or _iso_z(waive)
+        if note is not None:
+            body["note"] = note
+        fields = dict(
+            review_id=uid(n), subject_kind="judgement", subject_id=subject.judgement_id,
+            subject_digest=payload_digest(subject.to_wire()), resource_id=subject.resource_id,
+            capability=subject.capability, opened_for="requested", requested_by="operator-1",
+            requester_holder="holder-1", justification=request["justification"],
+            request_approval=AdminApproval.model_validate(_approval(
+                "d", "operator-1", "/admin/evidence/reviews", request, t[at], uid(n + 100))),
+            requested_at=t[at], actor="principal-7f3a", verdict=verdict, waive_until=waive, note=note,
+            decided_by="operator-2", decider_holder="holder-2",
+            approval=AdminApproval.model_validate(_approval(
+                "e", "operator-2", f"/admin/evidence/reviews/{uid(n)}/decide", body, t[at + 1], uid(n + 200))),
+            decided_at=t[at + 1], **na,
+        )
+        fields.update(changes)
+        return signed(ReviewRecord(**fields), "c", "na-key")
+
+    rv2 = review(52, j2, "waive_until", at=6, waive=t[6] + timedelta(days=7), note="Rotated on Friday")
+    rv1 = review(51, j1, "deny", at=8)
+
+    for name, record in (("remediation", r1), ("review", rv2),
+                         ("remediation-alerted", signed(remediation(42, j2, o2, outcome="alerted", steps="none",
+                                                                    rotation_evidence_id=None, version_id=None,
+                                                                    disabled_version_id=None), "b", "executor-b"))):
+        canonical = record.to_canonical_json()
+        vectors.append({
+            "id": f"canonical-{name}", "kind": "canonical_form", "description": f"The signed form of a {name} record",
+            "model": type(record).__name__, "record": record.to_wire(),
+            "expected": {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest()},
+        })
+    for vid, record, public, ok in (
+        ("remediation-executor-key", r1, pub_b64("b"), True),
+        ("remediation-other-key", r1, pub_b64("a"), False),
+        ("review-na-key", rv1, pub_b64("c"), True),
+    ):
+        assert verify_model_signature(record, record.signature, public) is ok
+        vectors.append({"id": f"signature-{vid}", "kind": "verify_record", "description": f"{type(record).__name__} "
+                        "signature", "model": type(record).__name__, "record": record.to_wire(), "public_key": public,
+                        "expected": {"valid": ok}})
+
+    for vid, desc, record, key in (
+        ("accepted", "A remediation record signed by the executor key", r1, keys[0]),
+        ("observer-key", "A remediation record signed by an observer key", signed(
+            remediation(43, j1, o1, executor_sovereign_id=SOV_A), "a", "observer-a"), keys[1]),
+        ("retired-key", "A remediation record signed by a retired executor key", r1, {**keys[0], "retired": True}),
+        ("out-of-prefix", "A remediation of a resource outside its key's prefix", r1,
+         {**keys[0], "resource_prefix": "kv:other/"}),
+        ("secret-version", "A version ID holding a PEM block", signed(remediation(
+            44, j1, o1, steps="disable", rotation_evidence_id=None, version_id=None,
+            disabled_version_id="-----BEGIN PRIVATE KEY-----"), "b", "executor-b"), keys[0]),
+        ("tampered", "A record changed after signing", r1.model_copy(update={"detail": "changed"}), keys[0]),
+        ("other-sovereign", "A key registered for another sovereign", r1, {**keys[0], "executor_sovereign_id": SOV_A}),
+    ):
+        check, _ = remediation_record_problem(record.to_wire(), ExecutorKey(**key))
+        vectors.append({"id": f"check-{vid}", "kind": "remediation_check", "description": desc,
+                        "record": record.to_wire(), "key": key, "expected": {"code": check.code}})
+    # review fixes: the reference order. The record's form first (remediation_malformed), whatever
+    # its signature and key, then its signature, key and guard.
+    wire = r1.to_wire()
+    unknown_key = {**keys[0], "key_id": "executor-x", "public_key": pub_b64("e")}
+    for vid, desc, raw, key in (
+        ("malformed-wrong-type", "steps is not a string (and the key is unknown)", {**wire, "steps": 5}, unknown_key),
+        ("malformed-missing-field", "remediated_at is missing", {k: v for k, v in wire.items() if k != "remediated_at"},
+         keys[0]),
+        ("malformed-alerted-with-steps", "An alerted outcome with disable steps",
+         {**wire, "outcome": "alerted", "steps": "disable", "rotation_evidence_id": None, "version_id": None},
+         keys[0]),
+        ("malformed-rotation-without-evidence", "A forward rotation naming no rotation evidence",
+         {k: v for k, v in wire.items() if k != "rotation_evidence_id"}, keys[0]),
+        ("malformed-extra-field", "A field the model does not have (signed by the observer key)",
+         {**wire, "x_added": 1}, keys[1]),
+        ("malformed-null-optional", "An absent optional field sent as null", {**wire, "detail": None}, keys[0]),
+        ("malformed-non-utc-spelling", "remediated_at written +00:00", {
+            **wire, "remediated_at": wire["remediated_at"].replace("Z", "+00:00")}, keys[0]),
+        ("malformed-not-an-object", "Not an object", ["remediation"], keys[0]),
+    ):
+        check, _ = remediation_record_problem(raw, ExecutorKey(**key))
+        assert check.code == "remediation_malformed", (vid, check)
+        vectors.append({"id": f"check-{vid}", "kind": "remediation_check", "description": desc,
+                        "record": raw, "key": key, "expected": {"code": check.code}})
+
+    for vid, desc, mode, steps, record in (
+        ("rotation", "A forward rotation carries out rotate_forward_then_disable", "cancel",
+         "rotate_forward_then_disable", r1),
+        ("delete-for-disable", "A delete carries out disable", "cancel", "disable", remediation(
+            45, j1, o1, steps="delete", rotation_evidence_id=None, version_id=None)),
+        ("disable-for-rotation", "A disable alone does not carry out a forward rotation", "cancel",
+         "rotate_forward_then_disable", remediation(46, j1, o1, steps="disable", rotation_evidence_id=None,
+                                                    version_id=None)),
+        ("alert-for-cancel", "An alert does not carry out a cancel", "cancel", "disable", remediation(
+            47, j1, o1, outcome="alerted", steps="none", rotation_evidence_id=None, version_id=None,
+            disabled_version_id=None)),
+        ("cancel-for-alert", "A cancel where the plan only alerts", "alert_only", "none", remediation(
+            48, j1, o1, steps="disable", rotation_evidence_id=None, version_id=None)),
+    ):
+        vectors.append({"id": f"steps-{vid}", "kind": "steps_problem", "description": desc,
+                        "plan": {"mode": mode, "steps": steps}, "record": record.to_wire(),
+                        "expected": {"consistent": steps_problem(mode, steps, record) is None}})
+
+    # ── Reviews: approvals and holders ───────────────────────────────────────────
+    decision_approval = rv1.approval.model_dump(mode="json")
+    for vid, desc, changes in (
+        ("valid", "The decider's request as signed", {}),
+        ("body-changed", "Another verdict than the one signed", {"body": {"verdict": "uphold"}}),
+        ("path-changed", "Another review's route", {"path": f"/admin/evidence/reviews/{uid(99)}/decide"}),
+        ("timestamp-respelled", "The timestamp in another spelling of the same instant",
+         {"timestamp": decision_approval["timestamp"].replace("Z", "+00:00")}),
+        ("query-added", "A query parameter the operator did not sign", {"query": {"x": ["1"]}}),
+        ("other-key", "Another operator's public key", {"public_key": pub_b64("d")}),
+        ("other-audience", "Another Network Authority", {"audience": pub_b64("a")}),
+    ):
+        approval = {**copy.deepcopy(decision_approval), **changes}
+        vectors.append({"id": f"approval-{vid}", "kind": "admin_approval", "description": desc,
+                        "approval": approval,
+                        "expected": {"valid": admin_approval_valid(AdminApproval.model_validate(approval))}})
+    audiences = [pub_b64("c")]
+
+    def resigned(record: ReviewRecord, **changes) -> ReviewRecord:
+        return signed(record.model_copy(update={**changes, "signature": None}), "c", "na-key")
+
+    for vid, desc, record, aud in (
+        ("valid", "A denial, its request and decision verifying offline", rv1, audiences),
+        ("valid-waiver", "A waiver, its end as signed", rv2, audiences),
+        ("verdict-not-signed", "The NA records another verdict than the decider signed",
+         resigned(rv1, verdict="uphold"), audiences),
+        ("waiver-end-not-signed", "The NA records another waiver end than the decider signed",
+         resigned(rv2, waive_until=t[6] + timedelta(days=9)), audiences),
+        ("note-not-signed", "The NA records a note the decider did not sign", resigned(rv1, note="added"), audiences),
+        ("decider-not-the-signer", "The review names another decider than the key that signed",
+         resigned(rv1, decided_by="operator-3"), audiences),
+        ("stale-approval", "The decision is recorded more than 300 s from its signature",
+         resigned(rv1, decided_at=t[20]), audiences),
+        ("justification-not-signed", "The NA records another justification than the requester signed",
+         resigned(rv1, justification="Other"), audiences),
+        ("other-audience", "Verified for another Network Authority", rv1, [pub_b64("a")]),
+        # review fixes: one strict RFC 3339 grammar for waive_until and the admin timestamps.
+        ("waiver-end-basic-format", "A waiver end signed in ISO 8601 basic format",
+         review(56, j2, "waive_until", at=6, waive=t[6] + timedelta(days=7),
+                until_text=(t[6] + timedelta(days=7)).strftime("%Y%m%dT%H%M%SZ")), audiences),
+        ("waiver-end-week-date", "A waiver end signed as a week date",
+         review(57, j2, "waive_until", at=6, waive=datetime(2026, 1, 5, tzinfo=timezone.utc),
+                until_text="2026-W02-1T00:00:00Z"), audiences),
+        ("waiver-end-offset", "A waiver end signed with another offset, the same instant",
+         review(58, j2, "waive_until", at=6, waive=t[6] + timedelta(days=7),
+                until_text=(t[6] + timedelta(days=7)).astimezone(timezone(timedelta(hours=2))).isoformat()),
+         audiences),
+    ):
+        problem = review_approval_problem(record, aud)
+        vectors.append({"id": f"review-approval-{vid}", "kind": "review_approval", "description": desc,
+                        "record": record.to_wire(), "audiences": aud, "expected": {"valid": problem is None}})
+    for vid, timestamp in (("no-offset", "2026-01-01T00:01:00"), ("hour-24", "2026-01-01T24:00:00Z"),
+                           ("basic-format", "20260101T000100Z"), ("offset-with-seconds", "2026-01-01T00:01:00+00:00:00")):
+        body = {"verdict": "deny"}
+        approval = _approval("e", "operator-2", f"/admin/evidence/reviews/{uid(59)}/decide", body, t[1], uid(259))
+        from genesis_mesh.crypto.admin_auth import sign_admin_request
+
+        approval["timestamp"] = timestamp
+        approval["admin_signature"] = sign_admin_request(
+            KEYS["e"], "operator-2", method="POST", path=approval["path"], audience=pub_b64("c"), body=body,
+            timestamp=timestamp, nonce=approval["nonce"])["X-Admin-Signature"]
+        record = rv1.model_copy(update={"review_id": uid(59), "approval": AdminApproval.model_validate(approval),
+                                        "decided_at": t[1], "request_approval": None, "requested_by": None,
+                                        "requester_holder": None, "justification": None, "opened_for": "review_required",
+                                        "requested_at": t[1], "signature": None})
+        record = signed(record, "c", "na-key")
+        assert admin_approval_valid(record.approval)
+        vectors.append({"id": f"review-approval-timestamp-{vid}", "kind": "review_approval",
+                        "description": f"A decision signed with X-Admin-Timestamp {timestamp!r}: the signature holds, "
+                                       "the timestamp is not RFC 3339", "record": record.to_wire(),
+                        "audiences": audiences,
+                        "expected": {"valid": review_approval_problem(record, audiences) is None}})
+    for vid, desc, inp in (
+        ("actor-requests", "The actor's holder requests the review", {"requester_holder": "holder-3"}),
+        ("actor-key-requests", "The actor is the requesting key (an operator who asked for a decision)",
+         {"actor": "operator-1"}),
+        ("another-holder-requests", "A holder other than the actor's requests it", {}),
+        ("unmapped-actor", "An actor that maps to no holder cannot be excluded", {"actor_holder": None}),
+    ):
+        fields = {"requested_by": "operator-1", "requester_holder": "holder-1", "actor": "principal-7f3a",
+                  "actor_holder": "holder-3", **inp}
+        problem = review_request_problem(**fields)
+        vectors.append({"id": f"request-{vid}", "kind": "review_request", "description": desc, "input": fields,
+                        "expected": {"code": problem[0] if problem else None}})
+    for vid, desc, inp in (
+        ("second-holder", "A second holder, neither the requester's nor the actor's", {}),
+        ("same-key", "The requester's own key", {"decided_by": "operator-1"}),
+        ("requester-holder", "Another key of the requester's holder", {"decider_holder": "holder-1"}),
+        ("actor-holder", "The holder the actor maps to", {"actor_holder": "holder-2"}),
+        ("actor-named-as-decider", "An actor named like the decider's key", {"actor": "operator-2"}),
+        ("opened-by-the-na", "A review the NA opened: only the actor's holder is excluded",
+         {"requested_by": None, "requester_holder": None}),
+    ):
+        fields = {"decided_by": "operator-2", "decider_holder": "holder-2", "requested_by": "operator-1",
+                  "requester_holder": "holder-1", "actor": "principal-7f3a", "actor_holder": "holder-3", **inp}
+        problem = review_holder_problem(**fields)
+        vectors.append({"id": f"holders-{vid}", "kind": "review_holders", "description": desc, "input": fields,
+                        "expected": {"code": problem[0] if problem else None}})
+
+    # ── Exports holding the new kinds ──────────────────────────────────────────────
+    holders = [
+        signed(RegistryRecord(registry_record_id=uid(1), event="policy_history_started", effective_at=T0, **na),
+               "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(2), event="executor_key_registered", effective_at=T0,
+                              key_id="executor-b", public_key=pub_b64("b"), executor_sovereign_id=SOV_B,
+                              key_role="executor", **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(3), event="executor_key_registered", effective_at=T0,
+                              key_id="observer-a", public_key=pub_b64("a"), executor_sovereign_id=SOV_A,
+                              key_role="observer", resource_prefix="kv:", **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(4), event="operator_key_holder", effective_at=T0,
+                              key_id="operator-1", public_key=pub_b64("d"), operator_tier="standard",
+                              holder="holder-1", **na), "c", "na-key"),
+        signed(RegistryRecord(registry_record_id=uid(5), event="operator_key_holder", effective_at=T0,
+                              key_id="operator-2", public_key=pub_b64("e"), operator_tier="privileged",
+                              holder="holder-2", **na), "c", "na-key"),
+    ]
+
+    def item(kind, record, **override) -> tuple[str, dict, dict]:
+        index = {**entry_index(kind, record), **override}
+        return kind, record.to_wire(), {k: v for k, v in index.items() if v is not None or k in override}
+
+    def exec_item(record) -> tuple[str, dict, dict]:
+        return "execution", _model_to_dict(record), {
+            "decision_id": record.decision_id, "context_id": record.context_id, "evidence_id": record.evidence_id,
+            "executor_sovereign_id": record.executor_sovereign_id, "exec_sequence_no": record.sequence_no,
+            "capability": record.executed_capability, "outcome": record.outcome, "resource_id": record.resource_id,
+            "resource_action": record.resource_action, "resource_sequence": record.resource_sequence,
+        }
+
+    def store(items, start: int = 1, prev: str | None = None) -> list[str]:
+        lines = []
+        for seq, (kind, payload, index) in enumerate(items, start=start):
+            entry = build_entry(store_sequence=seq, entry_kind=kind, recorded_at=t[10] + timedelta(seconds=seq),
+                                payload=payload, prev_entry_digest=prev, index=index)
+            prev = entry.digest()
+            lines.append(EvidenceEvent(entry=entry, entry_digest=prev, payload=payload).to_json_line())
+        return lines
+
+    base = [
+        *[item("registry", r) for r in holders],          # 1-5
+        item("observation", o1, observation_sequence=1),  # 6
+        item("judgement", j1),                            # 7
+        item("observation", o2, observation_sequence=1),  # 8
+        item("judgement", j2),                            # 9
+        item("review", rv2),                              # 10: a waiver before any remediation
+        exec_item(rotation),                              # 11: the forward rotation, governed
+        item("remediation", r1),                          # 12: then the disable
+        item("review", rv1),                              # 13: a later review denies it
+    ]
+
+    def export_case(vid: str, desc: str, items, *, expect: list, drop: int = 0,
+                    checkpoint: RetentionCheckpoint | None = None, start: int = 1) -> None:
+        lines = store(items, start=start, prev=checkpoint.last_removed_entry_digest if checkpoint else None)[drop:]
+        result = verify_evidence_events(parse_export_lines(lines), na_public_keys=[pub_b64("c")],
+                                        executor_keys=executor_keys, checkpoint=checkpoint)
+        failures = sorted({(f["store_sequence"], f["reason"]) for f in result.failures},
+                          key=lambda f: (f[0] or 0, f[1]))
+        got = [{"store_sequence": s, "reason": r} for s, r in failures]
+        assert got == expect, (vid, got, result.failures)
+        counts = {k: v for k, v in result.to_dict().items()
+                  if k in ("observations", "break_glass", "judgements", "quarantined", "remediations", "reviews")}
+        vectors.append({
+            "id": f"export-{vid}", "kind": "verify_export", "description": desc,
+            "input": {"lines": "\n".join(lines), "na_public_keys": [pub_b64("c")], "executor_keys": keys,
+                      "contiguous": True, **({"checkpoint": json.loads(checkpoint.model_dump_json())}
+                                             if checkpoint else {})},
+            "expected": {"verified": not got, "failures": got, "counts": counts},
+        })
+
+    export_case("valid", "Judgements, a forward rotation, its remediation and two reviews all verify", base, expect=[])
+    export_case("duplicate-remediation-record", "A remediation record copied to the end of the store",
+                [*copy.deepcopy(base), item("remediation", r1)],
+                expect=[{"store_sequence": 14, "reason": "duplicate_record"},
+                        {"store_sequence": 14, "reason": "duplicate_remediation"},
+                        {"store_sequence": 14, "reason": "remediation_rotation_reused"}])
+    export_case("duplicate-review-record", "A review record copied to the end of the store",
+                [*copy.deepcopy(base), item("review", rv1)],
+                expect=[{"store_sequence": 14, "reason": "duplicate_record"}])
+    second = signed(remediation(49, j1, o1, outcome="alerted", steps="none", rotation_evidence_id=None,
+                                version_id=None, disabled_version_id=None), "b", "executor-b")
+    export_case("second-remediation", "A second remediation of one judgement",
+                [*copy.deepcopy(base), item("remediation", second)],
+                expect=[{"store_sequence": 14, "reason": "duplicate_remediation"}])
+    for vid, desc, index, override, seq in (
+        ("remediation-envelope-outcome", "A remediation entry whose envelope gives another outcome", 11,
+         {"outcome": "alerted"}, 12),
+        ("remediation-envelope-subject", "A remediation entry whose envelope names another subject", 11,
+         {"subject_id": uid(99)}, 12),
+        ("review-envelope-outcome", "A review entry whose envelope gives another verdict", 12, {"outcome": "uphold"}, 13),
+        ("review-envelope-resource", "A review entry whose envelope names another resource", 12,
+         {"resource_id": "kv:vault/other"}, 13),
+    ):
+        changed = copy.deepcopy(base)
+        kind, record = ("remediation", r1) if "remediation" in vid else ("review", rv1)
+        changed[index] = item(kind, record, **override)
+        export_case(vid, desc, changed, expect=[{"store_sequence": seq, "reason": "envelope_mismatch"}])
+    other_resource = signed(remediation(50, j1, o1, resource_id="kv:vault/other", rotation_evidence_id=None,
+                                        version_id=None, steps="disable"), "b", "executor-b")
+    changed = copy.deepcopy(base)
+    changed[11] = item("remediation", other_resource)
+    export_case("remediation-subject-mismatch", "A remediation of another resource than its judgement's", changed,
+                expect=[{"store_sequence": 12, "reason": "remediation_subject_mismatch"}])
+    orphan = signed(remediation(53, j1, o1, subject_id=uid(98), steps="disable", rotation_evidence_id=None,
+                                version_id=None), "b", "executor-b")
+    export_case("remediation-subject-missing", "A remediation of a judgement the store does not hold",
+                [*copy.deepcopy(base), item("remediation", orphan)],
+                expect=[{"store_sequence": 14, "reason": "remediation_subject_missing"}])
+    export_case("remediation-subject-before-the-export", "An export that starts mid-store need not hold the "
+                "subject", [*copy.deepcopy(base), item("remediation", orphan)], drop=1, expect=[])
+    changed = copy.deepcopy(base)
+    changed[10], changed[11] = changed[11], changed[10]
+    export_case("remediation-before-its-rotation", "A remediation stored before its forward rotation", changed,
+                expect=[{"store_sequence": 11, "reason": "remediation_rotation_missing"}])
+    elsewhere = signed(rotation.model_copy(update={"resource_id": "kv:vault/other", "signature": None}),
+                       "b", "executor-b")
+    changed = copy.deepcopy(base)
+    changed[10] = exec_item(elsewhere)
+    export_case("remediation-rotation-of-another-resource", "A forward rotation of another resource", changed,
+                expect=[{"store_sequence": 12, "reason": "remediation_rotation_mismatch"}])
+    changed = copy.deepcopy(base)
+    changed[11] = item("remediation", signed(r1.model_copy(update={"signature": None}), "a", "observer-a"))
+    export_case("remediation-signed-by-an-observer-key", "A remediation record signed by an observer key", changed,
+                expect=[{"store_sequence": 12, "reason": "invalid_signature"}])
+    changed = copy.deepcopy(base)
+    changed[12] = item("review", resigned(rv1, verdict="uphold"))
+    export_case("review-verdict-not-approved", "A review whose verdict the decider did not sign", changed,
+                expect=[{"store_sequence": 13, "reason": "review_approval_invalid"}])
+    changed = copy.deepcopy(base)
+    changed[4] = item("registry", signed(holders[4].model_copy(update={"public_key": pub_b64("a"), "signature": None}),
+                                         "c", "na-key"))
+    export_case("review-approval-key-mismatch", "The holder registry records another public key for the decider",
+                changed, expect=[{"store_sequence": 10, "reason": "review_approval_key_mismatch"},
+                                 {"store_sequence": 13, "reason": "review_approval_key_mismatch"}])
+    changed = copy.deepcopy(base)
+    changed[12] = item("review", resigned(rv1, actor_holder="holder-2"))
+    export_case("review-same-holder", "A review decided by the holder the actor maps to", changed,
+                expect=[{"store_sequence": 13, "reason": "review_same_holder"}])
+    changed = copy.deepcopy(base)
+    changed[12] = item("review", resigned(rv1, subject_digest="f" * 64))
+    export_case("review-subject-mismatch", "A review naming another digest for its judgement", changed,
+                expect=[{"store_sequence": 13, "reason": "review_subject_mismatch"}])
+    stray = review(54, j1, "deny", at=10, subject_id=uid(97))
+    export_case("review-subject-missing", "A review of a judgement the store does not hold",
+                [*copy.deepcopy(base), item("review", stray)],
+                expect=[{"store_sequence": 14, "reason": "review_approval_invalid"},
+                        {"store_sequence": 14, "reason": "review_subject_missing"}])
+    late = review(55, j1, "waive_until", at=12, waive=t[12] + timedelta(days=7))
+    export_case("review-waiver-after-remediation", "A waiver recorded after the change was remediated",
+                [*copy.deepcopy(base), item("review", late)],
+                expect=[{"store_sequence": 14, "reason": "review_waiver_after_remediation"}])
+
+    # review fixes: the forward rotation and the change.
+    def with_rotation(evidence: ExecutionEvidence, record: RemediationRecord) -> list:
+        changed = copy.deepcopy(base)
+        changed[10] = exec_item(evidence)
+        changed[11] = item("remediation", record)
+        return changed
+
+    older = signed(rotation.model_copy(update={"executed_at": t[0], "signature": None}), "b", "executor-b")
+    export_case("remediation-rotation-before-change", "A forward rotation made before the change it replaces",
+                with_rotation(older, r1), expect=[{"store_sequence": 12, "reason": "remediation_rotation_before_change"}])
+    theirs = signed(rotation.model_copy(update={"executor_sovereign_id": "sovereign-d", "signature": None}),
+                    "d", "executor-d")
+    export_case("remediation-rotation-other-executor", "A forward rotation another controller's sovereign made",
+                with_rotation(theirs, r1),
+                expect=[{"store_sequence": 12, "reason": "remediation_rotation_other_executor"}])
+    o3 = signed(ObservationRecord(
+        observation_id=uid(13), observer_sovereign_id=SOV_A, resource_id=resource, action="rotate",
+        capability="secret.rotate", changed_at=t[2], observed_at=t[3], actor="principal-7f3a",
+        source="cloud-activity-log", source_event_id="event-3", version_id="v8", metadata={"lifetime_days": 400},
+    ), "a", "observer-a")
+    j3 = judgement(23, o3, 8)
+    r3 = signed(remediation(60, j3, o3, disabled_version_id="v8"), "b", "executor-b")
+    export_case("remediation-rotation-reused", "A forward rotation another remediation already cites",
+                [*copy.deepcopy(base[:7]), item("observation", o3, observation_sequence=2), item("judgement", j3),
+                 exec_item(rotation), item("remediation", r1), item("remediation", r3)],
+                expect=[{"store_sequence": 12, "reason": "remediation_rotation_reused"}])
+    for vid, desc, record in (
+        ("remediation-of-another-change", "A remediation naming another change than its judgement's",
+         signed(remediation(61, j1, o2, resource_id=resource), "b", "executor-b")),
+        ("remediation-disabling-another-version", "A remediation disabling another version than the change made",
+         signed(remediation(62, j1, o1, disabled_version_id="v9"), "b", "executor-b")),
+    ):
+        changed = copy.deepcopy(base)
+        changed[11] = item("remediation", record)
+        export_case(vid, desc, changed, expect=[{"store_sequence": 12, "reason": "remediation_subject_mismatch"}])
+
+    # review fixes: a registry record the NA did not sign binds no operator key.
+    changed = copy.deepcopy(base)
+    changed[4] = item("registry", signed(holders[4].model_copy(update={"public_key": pub_b64("a"), "signature": None}),
+                                         "a", "na-key"))
+    export_case("review-key-binding-from-an-unsigned-registry-record", "A registry record not signed by the NA "
+                "naming another key for the decider: refused, and binding nothing", changed,
+                expect=[{"store_sequence": 5, "reason": "invalid_signature"}])
+
+    # review fixes: a run that starts right after a retention checkpoint holds every subject from its start
+    # (retention keeps a remediation and a review with their subject).
+    cp = sign_retention_checkpoint(RetentionCheckpoint(
+        checkpoint_id=uid(70), created_at=t[12], cutoff=t[11], removed_through_sequence=4,
+        last_removed_entry_digest=f"{4:064x}", removed_count=4, issued_by="na-key",
+    ), KEYS["c"], "na-key")
+    export_case("remediation-subject-missing-after-checkpoint", "After a retention checkpoint, a remediation whose "
+                "judgement the run does not hold", [item("registry", holders[4]), item("remediation", orphan)],
+                checkpoint=cp, start=5, expect=[{"store_sequence": 6, "reason": "remediation_subject_missing"}])
+    export_case("review-subject-missing-after-checkpoint", "After a retention checkpoint, a review whose judgement "
+                "the run does not hold", [item("registry", holders[4]), item("review", rv1)],
+                checkpoint=cp, start=5, expect=[{"store_sequence": 6, "reason": "review_subject_missing"}])
+    _write("remediation", {"suite": "remediation", "version": "1.4.0", "vectors": vectors})
+
+
 def _at(record: dict, steps: list):
     """The nested object at ``steps`` inside ``record``."""
     node = record
@@ -2222,6 +3005,7 @@ GENERATORS = {
     "field_registry": gen_field_registry,
     "canonical": gen_canonical,
     "out_of_band": gen_out_of_band,
+    "remediation": gen_remediation,
 }
 
 

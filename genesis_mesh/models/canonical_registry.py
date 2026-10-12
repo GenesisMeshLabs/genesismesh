@@ -50,6 +50,8 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 #: Optional fields each root omits from its signed form when absent (None).
 OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
     "BoundaryDecision": ("policy_binding", "attestation_binding"),
+    # v1.4.0: a policy's remediation guidance, review requirement and emergency section.
+    "BoundaryPolicy": ("remediation", "review_required", "emergency"),
     "ContextRecord": ("attestation_id",),
     "ExecutionEvidence": ("resource_id", "resource_action", "resource_sequence", "prev_resource_digest"),
     "StoreAnchor": ("previous_anchor_digest",),
@@ -61,8 +63,9 @@ OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
 
 def _out_of_band_omissions() -> dict[str, tuple[str, ...]]:
     from .out_of_band import OUT_OF_BAND_OMIT_WHEN_NONE
+    from .remediation import REMEDIATION_OMIT_WHEN_NONE
 
-    return OUT_OF_BAND_OMIT_WHEN_NONE
+    return {**OUT_OF_BAND_OMIT_WHEN_NONE, **REMEDIATION_OMIT_WHEN_NONE}
 
 #: Roots signed over a fixed list of fields rather than all of them.
 CANONICAL_FIELDS: dict[str, tuple[str, ...]] = {
@@ -113,13 +116,14 @@ def _roots() -> list[type[BaseModel]]:
     from .execution import ExecutionEvidence
     from .justification import JustificationProof
     from .out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord
+    from .remediation import RemediationRecord, ReviewRecord
     from .sovereign import MembershipAttestation, SovereignRevocationFeed
 
     return [
         AgreementRecord, BoundaryDecision, BoundaryPolicy, BreakGlassRecord, ContextRecord, DataAccessIntent,
         DataLicensePolicy, EvidenceStoreEntry, ExecutionEvidence, JudgementRecord, JustificationProof,
-        MembershipAttestation, ObservationRecord, QuarantineRecord, RegistryRecord, RetentionCheckpoint,
-        SovereignRevocationFeed, StoreAnchor,
+        MembershipAttestation, ObservationRecord, QuarantineRecord, RegistryRecord, RemediationRecord,
+        RetentionCheckpoint, ReviewRecord, SovereignRevocationFeed, StoreAnchor,
     ]
 
 

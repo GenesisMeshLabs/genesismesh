@@ -17,6 +17,10 @@ Signing invariant
 keys, compact separators -- identical to every other GM signed model.
 Activation state is deliberately *not* part of the signed body: activating,
 deactivating or rolling back a version never changes signed bytes.
+
+The sections added in 1.4.0 (``remediation``, ``review_required``,
+``emergency``) are left out of every serialized form when absent, so a policy
+without them keeps the bytes and digest it had under 1.3.
 """
 
 from __future__ import annotations
@@ -41,9 +45,26 @@ PolicyResolutionStatus = Literal["resolved", "failed"]
 MAX_GATES_PER_POLICY = 64
 MAX_LIST_VALUES = 256
 
+#: What a judged DENY leads to (v1.4.0): the controller cancels the change, or
+#: only the denial is recorded and its author told.
+RemediationMode = Literal["cancel", "alert_only"]
+
+#: Longest grace before a remediation is due, and longest lifetime an
+#: emergency capability may give what it creates (v1.4.0).
+MAX_GRACE_SECONDS = 30 * 24 * 3600
+MAX_EMERGENCY_LIFETIME_SECONDS = 30 * 24 * 3600
+
+#: Remediation guidance key for every gate a policy does not name (v1.4.0).
+ANY_GATE = "*"
+
 
 def _canonical(data: Any) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+
+def _absent(value: Any) -> bool:
+    """Sections added in 1.4.0 are left out of every serialized form when absent."""
+    return value is None
 
 
 class PolicySelector(BaseModel):
@@ -104,6 +125,41 @@ class GateSpec(BaseModel):
     )
 
 
+class GateRemediation(BaseModel):
+    """What a change judged DENY by a gate leads to (v1.4.0).
+
+    ``cancel``: the controller cancels the change once ``grace_seconds`` have
+    passed since the judgement (a forward rotation then a disable for a
+    versioned resource others read; a disable for one nothing reads yet).
+    ``alert_only``: the denial is recorded and its author told; nothing is
+    changed.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: RemediationMode
+    grace_seconds: int = Field(..., ge=0, le=MAX_GRACE_SECONDS)
+
+
+class EmergencyCapability(BaseModel):
+    """Marks a policy's capability as the emergency form of an ordinary one (v1.4.0).
+
+    An urgent change under an ordinary DENY requests the emergency
+    capability instead; the policy that selects it must require the
+    justification parameter (an enforce-mode ``required_parameter.v1`` gate
+    on ``request_parameters.<justification_parameter>``). Every change made
+    under it is reviewed, and what it creates lives at most
+    ``max_lifetime_seconds``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    stands_for: str = Field(..., min_length=1, max_length=256,
+                            description="The ordinary capability the emergency capability performs")
+    justification_parameter: str = Field(..., min_length=1, max_length=64)
+    max_lifetime_seconds: int = Field(..., ge=60, le=MAX_EMERGENCY_LIFETIME_SECONDS)
+
+
 class BoundaryPolicy(BaseModel):
     """Signed, versioned declarative authorization policy for BoundaryEngine."""
 
@@ -120,9 +176,19 @@ class BoundaryPolicy(BaseModel):
     issued_by: str = Field(..., description="NA key id that signed this version")
     issuer_sovereign_id: str = Field(..., description="Sovereign operating the issuing NA")
     signature: Signature | None = Field(default=None)
+    # v1.4.0 (Stage 3), each left out when absent.
+    remediation: dict[str, GateRemediation] | None = Field(
+        default=None, exclude_if=_absent,
+        description='gate_id (or "*" for every other gate) -> what a DENY by that gate leads to',
+    )
+    review_required: Literal[True] | None = Field(
+        default=None, exclude_if=_absent,
+        description="Present (true) when every change allowed under the policy is reviewed by a second holder",
+    )
+    emergency: EmergencyCapability | None = Field(default=None, exclude_if=_absent)
 
     def to_canonical_json(self) -> str:
-        """Return deterministic JSON the NA signs (excludes ``signature`` only)."""
+        """Return deterministic JSON the NA signs (excludes ``signature`` only; absent 1.4.0 sections omitted)."""
         return _canonical(self.model_dump(exclude={"signature"}, mode="json"))
 
     def digest(self) -> str:

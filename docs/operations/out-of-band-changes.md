@@ -58,8 +58,11 @@ reason in its `reason`, when:
 - (since 1.3.1) a break-glass change is allowed on behalf of an attestation
   the NA cannot tie its executor to (see [Break-glass](#break-glass)).
 
-Stage 3 (1.4.0) adds the review and remediation records that follow from a
-denied or flagged change.
+Since 1.4.0, with `EVIDENCE_REMEDIATION=on`, a denied, `indeterminate` or
+flagged change moves on: its remediation becomes due, or a second holder
+reviews it, and its `state` shows the Stage 3 state (`remediation_due`,
+`overdue`, `remediated`, `upheld`, `waived`) with a `remediation` object,
+which says whether a review is pending (`review_pending`). See {doc}`remediation-and-reviews`.
 
 ## Setting up observers
 
@@ -243,7 +246,9 @@ a `quarantine` entry, once per record, with the refusal (with
 - an observation or break-glass record outside its time bounds;
 - (since 1.3.1) an observation or break-glass record signed by a retired key
   or outside its key's role or prefix (`*_key_retired`, `*_out_of_scope`):
-  the refusal names the `quarantine_id`.
+  the refusal names the `quarantine_id`;
+- (since 1.4.0, with `EVIDENCE_REMEDIATION=on`) a remediation record refused
+  for good (`record_kind` `remediation`; see {doc}`remediation-and-reviews`).
 
 A record that is not authentic (unsigned, signed by an unknown key, not in
 its exact form) is refused outright and never stored.

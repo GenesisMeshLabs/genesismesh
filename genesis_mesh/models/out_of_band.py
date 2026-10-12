@@ -259,7 +259,8 @@ class QuarantineRecord(_SignedRecord):
     """
 
     quarantine_id: str = Field(default_factory=lambda: str(uuid.uuid4()), min_length=1, max_length=128)
-    record_kind: Literal["execution", "observation", "break_glass"]
+    # v1.4.0: "remediation", written only with EVIDENCE_REMEDIATION=on.
+    record_kind: Literal["execution", "observation", "break_glass", "remediation"]
     record: dict[str, Any]
     record_digest: str = Field(..., min_length=64, max_length=64)
     rejection_code: str = Field(..., min_length=1, max_length=128)
