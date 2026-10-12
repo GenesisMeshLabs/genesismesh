@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.3.1:
+As of v1.4.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.3.1:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,230 tests pass. The layer rule and public boundary rule are enforced
+- 2,304 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -186,11 +186,11 @@ As of v1.3.1:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 101 HTTP routes, 127 CLI
-  commands, the public Python API, 57 signed artifacts and every API error
+  as the Public Contract page) classifies all 108 HTTP routes, 127 CLI
+  commands, the public Python API, 59 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.3.0, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.3.1, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.3.1:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 14 suites and 351
+- A protocol conformance suite exists in `conformance/`: 15 suites and 709
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -1112,6 +1112,46 @@ interoperability, upgrade and documentation gate.
 **What became possible:** the store's anchors, retention and registry hold
 against someone with write access to the database, and every implementation
 gives one verdict for one export.
+
+### v1.4.0 — Remediation, Reviews and Notification
+
+The third stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). After 1.3 every change to a governed resource was on
+the record with a verdict as of its time, but a DENY after the fact led
+nowhere: nobody was told, nothing was undone, and nobody could say that a
+denied change should stand.
+
+A policy now says what a denial leads to, per gate: cancel or alert only,
+after a grace window that runs from the judgement. Cancelling a credential
+others read never breaks them: the controller rotates forward to a new version
+under a governed decision, then disables the denied one, and records the two
+as linked records; a resource that cannot be rotated falls back to an alert.
+The Network Authority keeps the state of every denial, a due queue the
+controller reads to tell the actor and carry out the remediation, and raises
+an audit event when one is overdue. A second person reviews a judgement with
+one signed record for reviews and waivers, decided by a privileged key of a
+holder other than the requester's and the observed actor's; both signed
+requests are embedded, so the approval verifies offline. A waiver always ends,
+and a pending review stops no clock. An urgent change under an ordinary DENY
+runs under an emergency capability with its own policy, a review and a
+maximum lifetime, or through break-glass naming it when the Network Authority
+is unreachable. Everything stays off until `EVIDENCE_REMEDIATION=on`, so a
+store remains readable by 1.3 verifiers until they are upgraded.
+
+A critic and a skeptic reviewed the stage before its pull requests; their
+probes found a review that could hold a remediation forever, self-approval
+of an emergency decision and a crash on any lost race, among others, and each
+became a regression test. The TypeScript and Rust SDKs record remediations,
+read the due queue, decide reviews and take urgent changes through the
+emergency capability or break-glass; the `remediation` conformance suite
+carries 340 vectors that every verifier passes.
+
+The release passed 2,304 core tests and every SDK, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** a change judged DENY after the fact is undone or
+waived on the record, by someone other than the person who made it, without
+breaking what reads it.
 
 ---
 
