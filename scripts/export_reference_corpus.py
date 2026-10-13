@@ -23,7 +23,18 @@ writes ``<out>/verification/``:
 ``packs/<case>/``
     Audit packs (``pack/``) with ``root.pub``, the held ``anchors.json`` and,
     for the completeness check, ``changes.json``: the frozen 1.5.0 pack,
-    valid packs and every refusal the conformance suite holds.
+    valid packs and every refusal the conformance suite holds. v1.5.0 review
+    fixes: ``period.json`` (a period the pack must cover, ``--period``) and
+    ``prior-entries.json`` (entries of packs verified before, ``--prior``)
+    when the case has them.
+``ranges/<case>/``
+    A range (``export.jsonl``) with the entries it cites (``cited.jsonl``),
+    verified as a pack's range is: after a prune, with and without the
+    retention checkpoint.
+``changes/<case>/``
+    A changes file (``changes.json`` or ``changes.csv``): read, or refused.
+``record-times/<case>/``
+    The field an NA-signed record read alone is placed at in the key history.
 ``vectors/``
     The conformance suites a verifier runs as well (``canonical``,
     ``field_registry``, ``interop``, ``out_of_band``, ``remediation``,
@@ -115,7 +126,9 @@ def _record_cases() -> list[dict[str, Any]]:
         out = {k: v for k, v in record.items() if k not in ("signature", "signatures")}
         body = received_canonical(model, out).encode("utf-8")
         if model == "KeySuccessionRecord":
+            # v1.5.0 review fixes: the root key, the new key (proof of possession) and the outgoing key.
             out["signatures"] = [{"key_id": "root", "sig": sign_data(body, world_module.KEYS["f"])},
+                                 {"key_id": "na-2", "sig": sign_data(body, world_module.KEYS["g"])},
                                  {"key_id": "na-1", "sig": sign_data(body, world_module.KEYS["c"])}]
         else:
             seed = signer[0]
@@ -257,8 +270,33 @@ def export_verification(out: Path) -> dict[str, Any]:
                 _write(directory / "anchors.json", _dump(inp["held_anchors"]))
             if inp.get("changes") is not None:
                 _write(directory / "changes.json", _dump({"changes": inp["changes"]}))
+            if inp.get("period"):
+                _write(directory / "period.json", _dump({"from": inp["period"][0], "until": inp["period"][1]}))
+            if inp.get("prior_entries"):
+                _write(directory / "prior-entries.json", _dump(inp["prior_entries"]))
             cases.append({"id": vector["id"], "command": "pack", "kind": "pack", "path": f"packs/{vector['id']}",
                           "expected": vector["expected"]})
+        elif kind == "verify_range":
+            directory = target / "ranges" / vector["id"]
+            _write(directory / "export.jsonl", inp["lines"].encode("utf-8"))
+            _write(directory / "cited.jsonl", inp["cited_lines"].encode("utf-8"))
+            _write(directory / "key-history.json", _dump({"genesis": inp["genesis"],
+                                                         "successions": inp["successions"]}))
+            _write(directory / "root.pub", (inp["root_public_key"] + "\n").encode())
+            _write(directory / "executor-keys.json", _dump({"executor_keys": inp["executor_keys"]}))
+            cases.append({"id": vector["id"], "command": "range", "kind": "range", "path": f"ranges/{vector['id']}",
+                          "expected": vector["expected"]})
+        elif kind == "changes_file":
+            directory = target / "changes" / vector["id"]
+            name = "changes.csv" if inp["csv"] else "changes.json"
+            _write(directory / name, inp["text"].encode("utf-8"))
+            cases.append({"id": vector["id"], "command": "changes", "kind": "changes",
+                          "path": f"changes/{vector['id']}", "expected": vector["expected"]})
+        elif kind == "record_time":
+            directory = target / "record-times" / vector["id"]
+            _write(directory / "model.json", _dump({"model": vector["model"]}))
+            cases.append({"id": vector["id"], "command": "record-time", "kind": "record_time",
+                          "path": f"record-times/{vector['id']}", "expected": vector["expected"]})
 
     for name in COPIED_SUITES:
         _write(target / "vectors" / f"{name}.json", (CONFORMANCE / "vectors" / f"{name}.json").read_bytes())
@@ -271,8 +309,13 @@ def export_verification(out: Path) -> dict[str, Any]:
             "export": "verify export.jsonl with the key history from root.pub and executor-keys.json; "
                       "expected: verified and failures (store_sequence, reason)",
             "key-history": "verify key-history.json from root.pub; expected: verified, failures, keys",
-            "pack": "verify pack/ from root.pub and anchors.json (none: no held anchors), with changes.json "
-                    "when present; expected: verified, sorted failure reasons, warnings",
+            "pack": "verify pack/ from root.pub and anchors.json (none: no held anchors), with changes.json, "
+                    "period.json and prior-entries.json when present; expected: verified, sorted failure reasons, "
+                    "warnings, the period covered",
+            "range": "verify export.jsonl as a pack's range, citing cited.jsonl, with the key history from root.pub "
+                     "and executor-keys.json; expected: failures (store_sequence, reason)",
+            "changes": "read changes.json or changes.csv; expected: refused, or the changes read",
+            "record-time": "the field an NA-signed record of model.json's model is placed at when read alone",
         },
         "cases": sorted(cases, key=lambda c: c["id"]),
     }
@@ -280,11 +323,29 @@ def export_verification(out: Path) -> dict[str, Any]:
     return index
 
 
+def _executor_keys(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """executor-keys.json rows; v1.5.0 review fixes: a key may be placed in the store (registered_sequence,
+    retired_sequence, or registered_at_time and retired_at_time for one placed by time)."""
+    from datetime import datetime
+
+    from genesis_mesh.trust.evidence_store import ExecutorKey
+
+    def when(value: Any) -> Any:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
+
+    return {r["key_id"]: ExecutorKey(r["key_id"], r["public_key"], r["executor_sovereign_id"], role=r["role"],
+                                     resource_prefix=r.get("resource_prefix"),
+                                     registered_sequence=r.get("registered_sequence"),
+                                     retired_sequence=r.get("retired_sequence"),
+                                     registered_at=when(r.get("registered_at_time")),
+                                     retired_at=when(r.get("retired_at_time"))) for r in rows}
+
+
 def check_verification(directory: Path) -> list[str]:
     """Run every case of a written corpus with the Python reference, as a second verifier would run it,
     and return the cases whose verdict differs from ``expected``."""
     from genesis_mesh.models.evidence_store import StoreAnchor
-    from genesis_mesh.trust.evidence_store import ExecutorKey, parse_export_lines, verify_evidence_events
+    from genesis_mesh.trust.evidence_store import parse_export_lines, verify_evidence_events
     from genesis_mesh.trust.key_succession import verify_key_history
     from genesis_mesh.workflows.audit_pack import parse_changes, read_pack_dir, verify_audit_pack
 
@@ -292,7 +353,7 @@ def check_verification(directory: Path) -> list[str]:
     differences: list[str] = []
     for case in index["cases"]:
         path = directory / case["path"]
-        root = (path / "root.pub").read_text(encoding="utf-8").strip()
+        root = (path / "root.pub").read_text(encoding="utf-8").strip() if (path / "root.pub").exists() else ""
         got: dict[str, Any]
         if case["command"] == "key-history":
             data = json.loads((path / "key-history.json").read_text(encoding="utf-8"))
@@ -304,13 +365,38 @@ def check_verification(directory: Path) -> list[str]:
             data = json.loads((path / "key-history.json").read_text(encoding="utf-8"))
             history = verify_key_history(data["genesis"], data["successions"], root).history
             rows = json.loads((path / "executor-keys.json").read_text(encoding="utf-8"))["executor_keys"]
-            keys = {r["key_id"]: ExecutorKey(r["key_id"], r["public_key"], r["executor_sovereign_id"],
-                                             role=r["role"], resource_prefix=r.get("resource_prefix")) for r in rows}
+            keys = _executor_keys(rows)
             events = parse_export_lines((path / "export.jsonl").read_bytes().decode("utf-8").split("\n"))
             verified = verify_evidence_events(events, na_public_keys=history, executor_keys=keys)
             failures = [{"store_sequence": f["store_sequence"], "reason": f["reason"]} for f in verified.failures]
             got = {"verified": verified.verified, "failures": failures} if "verified" in case["expected"] \
                 else {"failures": failures}
+            if "warnings" in case["expected"]:
+                got["warnings"] = [{"store_sequence": w["store_sequence"], "reason": w["reason"]}
+                                   for w in verified.warnings]
+        elif case["command"] == "range":
+            data = json.loads((path / "key-history.json").read_text(encoding="utf-8"))
+            history = verify_key_history(data["genesis"], data["successions"], root).history
+            rows = json.loads((path / "executor-keys.json").read_text(encoding="utf-8"))["executor_keys"]
+            keys = _executor_keys(rows)
+            events = parse_export_lines((path / "export.jsonl").read_bytes().decode("utf-8").split("\n"))
+            cited = parse_export_lines((path / "cited.jsonl").read_bytes().decode("utf-8").split("\n"))
+            verified = verify_evidence_events(events, na_public_keys=history, executor_keys=keys, prior=cited)
+            got = {"failures": [{"store_sequence": f["store_sequence"], "reason": f["reason"]}
+                                for f in verified.failures]}
+        elif case["command"] == "changes":
+            csv_path = path / "changes.csv"
+            source = csv_path if csv_path.exists() else path / "changes.json"
+            try:
+                read = parse_changes(source.read_text(encoding="utf-8"), csv_format=csv_path.exists())
+                got = {"refused": False, "changes": [c.to_dict() for c in read]}
+            except ValueError:
+                got = {"refused": True}
+        elif case["command"] == "record-time":
+            from genesis_mesh.models.key_succession import NA_RECORD_TIME_FIELDS
+
+            model = json.loads((path / "model.json").read_text(encoding="utf-8"))["model"]
+            got = {"field": NA_RECORD_TIME_FIELDS.get(model)}
         else:
             held = None
             if (path / "anchors.json").exists():
@@ -319,12 +405,24 @@ def check_verification(directory: Path) -> list[str]:
             changes = None
             if (path / "changes.json").exists():
                 changes = parse_changes((path / "changes.json").read_text(encoding="utf-8"), csv_format=False)
+            period = None
+            if (path / "period.json").exists():
+                from genesis_mesh.workflows.audit_pack import parse_rfc3339
+
+                asked = json.loads((path / "period.json").read_text(encoding="utf-8"))
+                period = (parse_rfc3339(asked["from"]), parse_rfc3339(asked["until"]))
+            prior = None
+            if (path / "prior-entries.json").exists():
+                prior = {int(k): v for k, v in
+                         json.loads((path / "prior-entries.json").read_text(encoding="utf-8")).items()}
             pack = verify_audit_pack(read_pack_dir(path / "pack"), root_public_key=root, held_anchors=held,
-                                     changes=changes)
+                                     changes=changes, period=period, prior_entries=prior)
             got = {"verified": pack.verified, "reasons": pack.reasons(),
                    "warnings": sorted({w["reason"] for w in pack.warnings})}
             if pack.completeness is not None:
                 got["unmatched_changes"] = [c["index"] for c in pack.completeness["unmatched_changes"]]
+            if pack.period is not None:
+                got["period"] = {k: pack.period[k] for k in ("from", "until")}
         if got != case["expected"]:
             differences.append(f"{case['id']}: got {got}, want {case['expected']}")
     return differences

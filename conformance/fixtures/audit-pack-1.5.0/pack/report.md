@@ -2,9 +2,9 @@
 
 - Sovereign: sovereign-c
 - Range: store entries 6 to 11, ending at anchor 3, starting after anchor 1
-- Created: 2026-01-16T00:00:00+00:00 for auditor-1
+- Created: 2026-01-16T00:00:00Z for auditor-1
 
-Verify it with `genesis-mesh audit verify <dir> --anchor <root public key> --known-anchors <anchors>`, from the root key and the anchors you hold. The remediation states and notices below are the Network Authority's operational records at pack time, not signed records.
+Verify it with `genesis-mesh audit verify <dir> --anchor <root public key> --known-anchors <anchors>`, from the root key and the anchors you hold. The remediation states and notices below are the Network Authority's operational records at pack time (states.json), not signed records.
 
 ## Checks
 

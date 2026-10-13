@@ -125,6 +125,8 @@
           "from_sequence": null,
           "issued_by": null,
           "pack_id": null,
+          "period_from": "timestamp",
+          "period_until": "timestamp",
           "requested_by": null,
           "signature": {
             "object": "Signature"
@@ -137,7 +139,9 @@
         "signature_field": "signature",
         "omit_when_none": [
           "requested_by",
-          "start_anchor_sequence"
+          "start_anchor_sequence",
+          "period_from",
+          "period_until"
         ]
       },
       "BootstrapAnchor": {
@@ -678,6 +682,35 @@
         "omit_when_none": [
           "resource_id"
         ]
+      },
+      "RecognitionTreaty": {
+        "fields": {
+          "expires_at": "timestamp",
+          "issued_at": "timestamp",
+          "issued_by": null,
+          "issuer_sovereign_id": null,
+          "metadata": "open",
+          "scope": {
+            "object": "RecognitionTreatyScope"
+          },
+          "signatures": {
+            "list": "Signature"
+          },
+          "status": null,
+          "subject_public_keys": null,
+          "subject_sovereign_id": null,
+          "treaty_id": null,
+          "valid_from": "timestamp"
+        },
+        "root": true,
+        "signature_field": "signatures"
+      },
+      "RecognitionTreatyScope": {
+        "fields": {
+          "accepted_statuses": null,
+          "allowed_roles": null,
+          "claims": "open"
+        }
       },
       "RegistryRecord": {
         "fields": {
@@ -1702,6 +1735,8 @@
         "through_sequence": 20,
         "start_anchor_sequence": 2,
         "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
         "files": [
           {
             "path": "entries.jsonl",
@@ -1712,7 +1747,7 @@
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "EpDvGleqPLGkggcHzJ/iCWe0VrYY5bwm6jrCtVBEDxn7qjECdQTNKRrbx30UTnxyYNUCF5hHU5W49/6cs8tKCQ=="
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
         }
       },
       "expected": {
@@ -1735,6 +1770,8 @@
         "through_sequence": 20,
         "start_anchor_sequence": 2,
         "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
         "files": [
           {
             "path": "entries.jsonl",
@@ -1745,7 +1782,7 @@
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "EpDvGleqPLGkggcHzJ/iCWe0VrYY5bwm6jrCtVBEDxn7qjECdQTNKRrbx30UTnxyYNUCF5hHU5W49/6cs8tKCQ=="
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
         },
         "x_added_field": 1
       },
@@ -1771,6 +1808,8 @@
         "through_sequence": 20,
         "start_anchor_sequence": 2,
         "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
         "files": [
           {
             "path": "entries.jsonl",
@@ -1781,7 +1820,7 @@
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "EpDvGleqPLGkggcHzJ/iCWe0VrYY5bwm6jrCtVBEDxn7qjECdQTNKRrbx30UTnxyYNUCF5hHU5W49/6cs8tKCQ==",
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw==",
           "alg": "x"
         }
       },
@@ -1805,6 +1844,8 @@
         "through_sequence": 20,
         "start_anchor_sequence": 2,
         "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
         "files": [
           {
             "path": "entries.jsonl",
@@ -1816,7 +1857,7 @@
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "EpDvGleqPLGkggcHzJ/iCWe0VrYY5bwm6jrCtVBEDxn7qjECdQTNKRrbx30UTnxyYNUCF5hHU5W49/6cs8tKCQ=="
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
         }
       },
       "expected": {
@@ -5275,6 +5316,10 @@
             "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw=="
           },
           {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
+          },
+          {
             "key_id": "na-key",
             "sig": "xP/zmlthoioW5n28TxNI+euI462LC1XhT0qIuHtILxElIjzjS3hNF1ld78Ndlh7eJLR9EKr9vd9T7Fz+8Q7lBA=="
           }
@@ -5305,6 +5350,10 @@
           {
             "key_id": "root-key",
             "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw=="
+          },
+          {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
           },
           {
             "key_id": "na-key",
@@ -5341,6 +5390,10 @@
             "key_id": "root-key",
             "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw==",
             "alg": "x"
+          },
+          {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
           },
           {
             "key_id": "na-key",
@@ -5829,6 +5882,214 @@
       },
       "expected": {
         "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-clean",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty as the reference emits it",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-top",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty with an unknown top-level field",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ],
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "recognitiontreaty-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ==",
+            "alg": "x"
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-open-metadata",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty.metadata is free-form: added keys are kept",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich",
+          "x_added_key": 1
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-nested-scope",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty.scope (RecognitionTreatyScope) with an unknown field",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {},
+          "x_added_field": 1
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": [
+          "scope.x_added_field"
+        ]
       }
     },
     {
