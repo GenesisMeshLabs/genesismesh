@@ -48,6 +48,38 @@ from .genesis import Signature
 #: (records signed just before the hand-over and stored just after it).
 SUCCESSION_HANDOVER = timedelta(seconds=300)
 
+#: A succession takes effect at least this long after the store records it (v1.5.0 review fixes):
+#: the NA refuses a shorter lead, and a verifier refuses a ``key_succession`` entry recorded later
+#: than ``effective_at`` minus it (``succession_backdated``). Every NA instance learns of a succession
+#: (it re-reads the history every 30 seconds) before the outgoing key stops signing.
+SUCCESSION_MIN_LEAD = timedelta(seconds=60)
+
+#: The longest lifetime of a decision the NA issues (v1.5.0 review fixes;
+#: ``NA_DECISION_LIFETIME_SECONDS`` may only shorten it). A decision signed by a key with an end
+#: of validity is refused when it stays valid longer than that end, the hand-over and this
+#: lifetime: the holder of a succeeded key cannot mint a long-lived decision dated in its window.
+MAX_DECISION_LIFETIME = timedelta(seconds=300)
+
+#: v1.5.0 review fixes: the time an NA-signed record is placed at in the key history (the key that
+#: may sign it is the key valid then). In the evidence store every entry is placed at its envelope's
+#: ``recorded_at`` (a key succession, an archive, every kind); read alone, outside the store (a pack's
+#: trust files, a record verified by itself), a record is placed at its own signed time below.
+NA_RECORD_TIME_FIELDS: dict[str, str] = {
+    "ArchiveRecord": "archived_at",
+    "AuditPackManifest": "created_at",
+    "BoundaryDecision": "decision_made_at",
+    "BoundaryPolicy": "issued_at",
+    "JudgementRecord": "judged_at",
+    "JustificationProof": "proof_issued_at",
+    "MembershipAttestation": "issued_at",
+    "QuarantineRecord": "quarantined_at",
+    "RecognitionTreaty": "issued_at",
+    "RegistryRecord": "effective_at",
+    "RetentionCheckpoint": "created_at",
+    "ReviewRecord": "decided_at",
+    "StoreAnchor": "anchored_at",
+}
+
 #: Optional fields a succession record omits from its signed form when absent.
 KEY_SUCCESSION_OMIT_WHEN_NONE: tuple[str, ...] = ("previous_succession_digest",)
 
@@ -57,13 +89,16 @@ def _canonical(data: Any) -> str:
 
 
 class KeySuccessionRecord(BaseModel):
-    """The NA's next key, signed by the root key and by the outgoing NA key (v1.5.0).
+    """The NA's next key, signed by the root key, the new key and the outgoing NA key (v1.5.0).
 
     ``key_sequence`` is the new key's position in the key history (the
     genesis key is 1). ``previous_succession_digest`` links to the previous
     succession (absent for the first). The new key signs from
     ``effective_at`` and never at or after ``new_valid_to``. ``issued_at`` is
-    when the root key signed the record, offline.
+    when the root key signed the record, offline. Three signatures over one
+    canonical form (v1.5.0 review fixes): the root key's, the new key's (proof
+    that the new key exists and is held) and the outgoing key's, which the NA
+    adds when it records the succession.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -220,6 +255,21 @@ def build_history(
                           valid_to=_utc_aware(record.new_valid_to), valid_to_enforced=True))
     return NAKeyHistory(sovereign_id=sovereign_id, root_public_key=root_public_key, keys=tuple(keys),
                         successions=tuple(successions))
+
+
+def decision_outlives_key(keys: "Sequence[str] | NAKeyHistory", public_key: str, valid_until: datetime) -> bool:
+    """True when a decision signed by ``public_key`` stays valid past what that key may vouch for
+    (v1.5.0 review fixes): the key's end (its succession, or its enforced ``valid_to``), the
+    hand-over and ``MAX_DECISION_LIFETIME``. A plain list of keys has no ends."""
+    if not isinstance(keys, NAKeyHistory):
+        return False
+    key = keys.key_for(public_key)
+    if key is None:
+        return False
+    ends = [t for t in (key.succeeded_at, key.valid_to if key.valid_to_enforced else None) if t is not None]
+    if not ends:
+        return False
+    return _utc_aware(valid_until) > min(ends) + SUCCESSION_HANDOVER + MAX_DECISION_LIFETIME
 
 
 def na_keys_at(keys: "Sequence[str] | NAKeyHistory", at: datetime | None) -> list[str]:

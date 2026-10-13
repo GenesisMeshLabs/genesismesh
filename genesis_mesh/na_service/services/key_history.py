@@ -3,11 +3,14 @@
 At start the NA records its genesis key as the first entry of its key
 history (migration 017 creates the table), verifies the history from the
 genesis block's root key down, and refuses to start with a key that is not
-the one valid now. A succession is prepared and signed by the root key
-offline (``genesis-mesh na succession sign``), submitted with a privileged
-operator key (``POST /admin/na/succession``), checked and countersigned by
-the outgoing key here, and recorded: in the history table and, with the
-evidence store on, as a ``key_succession`` entry.
+in it, or that may no longer sign; the newest key may start before its
+succession takes effect (v1.5.0 review fixes): it signs nothing and reports
+not ready until then (``signing_state``). A succession is prepared and signed
+by the root key offline (``genesis-mesh na succession sign``), signed by the
+new key where it is held (``genesis-mesh na succession prove``), submitted
+with a privileged operator key (``POST /admin/na/succession``), checked and
+countersigned by the outgoing key here, and recorded: in the history table
+and, with the evidence store on, as a ``key_succession`` entry.
 
 From the succession's ``effective_at`` the outgoing key signs nothing more:
 every signature goes through ``GuardedSigner``, which asks
@@ -27,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError as PydanticValidationError
 
+from ...models import key_succession as key_models
 from ...models.key_succession import KeySuccessionRecord, NAKey, NAKeyHistory
 from ...trust.evidence_store import build_entry
 from ...trust.key_succession import (
@@ -43,10 +47,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: A succession takes effect at least this long after it is recorded, so every NA instance
-#: learns of it (``REFRESH_SECONDS``) before the outgoing key stops signing.
-SUCCESSION_MIN_LEAD = timedelta(seconds=60)
-#: ... and at most this long after.
+#: A succession takes effect at most this long after it is recorded (at least
+#: ``models.key_succession.SUCCESSION_MIN_LEAD``, which verifiers check too).
 SUCCESSION_MAX_LEAD = timedelta(days=30)
 #: The longest validity a succession may give its new key.
 MAX_KEY_VALIDITY = timedelta(days=3653)
@@ -113,11 +115,38 @@ class KeyHistoryService:
         if key is None:
             raise ValueError("NA private key does not match genesis block or any key of its succession history")
         now = self._now()
-        if not key.signs_at(now):
+        if not key.signs_at(now) and not self._pending(history, key, now):
             raise ValueError(self._not_signing(key, now))
+        if not key.signs_at(now):
+            # v1.5.0 review fixes: an instance may start with the new key before the succession takes
+            # effect. It signs nothing until then (GuardedSigner) and reports not ready (readiness).
+            logger.warning("%s; this instance signs nothing and reports not ready until then",
+                           self._not_signing(key, now))
         if key.key_id is not None and key.key_id != self._na.key_id:
             logger.warning("NA_KEY_ID %r differs from the key ID %r the key history records for this key",
                            self._na.key_id, key.key_id)
+
+    @staticmethod
+    def _pending(history: NAKeyHistory, key: NAKey, now: datetime) -> bool:
+        """The newest key of the history, before its succession takes effect."""
+        return key is history.keys[-1] and key.valid_from is not None and now < key.valid_from
+
+    def signing_state(self) -> dict[str, Any]:
+        """This instance's key for readiness: ``signing``, ``pending`` (a new key started before its
+        succession takes effect) or ``stopped`` (succeeded or expired)."""
+        if self._history is None:
+            return {"state": "signing"}
+        history = self.history()
+        key = history.key_for(self._na.signer.public_key_b64)
+        now = self._now()
+        if key is None:
+            return {"state": "stopped"}
+        if key.signs_at(now):
+            return {"state": "signing", "key_sequence": key.key_sequence}
+        if self._pending(history, key, now):
+            assert key.valid_from is not None
+            return {"state": "pending", "key_sequence": key.key_sequence, "signs_from": key.valid_from.isoformat()}
+        return {"state": "stopped", "key_sequence": key.key_sequence}
 
     def _load(self) -> None:
         """Read and verify the history; a history that does not verify stops the NA (``ValueError``)."""
@@ -244,6 +273,8 @@ class KeyHistoryService:
             raise ConflictError(detail, code="succession_chain_break")
         if refusal == "succession_key_reused":
             raise ConflictError(detail, code="succession_key_reused")
+        if refusal == "succession_backdated":
+            raise ConflictError("the succession was issued after it takes effect", code="succession_backdated")
         if refusal == "succession_not_increasing":
             raise ConflictError(detail, code="succession_not_increasing")
         if refusal == "succession_after_expiry":
@@ -251,13 +282,18 @@ class KeyHistoryService:
         if refusal == "succession_invalid_root_signature":
             raise ValidationError("the succession is not signed by the root key",
                                   code="succession_invalid_root_signature")
+        if refusal == "succession_invalid_new_key_signature":
+            raise ValidationError("the succession is not signed by the new key it names: sign it where the new "
+                                  "key is held ('genesis-mesh na succession prove')",
+                                  code="succession_invalid_new_key_signature")
         if refusal is not None:
             raise BadRequestError(f"the succession is not in its exact form ({refusal})", code="invalid_succession")
         effective = record.effective_at
-        if not now + SUCCESSION_MIN_LEAD <= effective <= now + SUCCESSION_MAX_LEAD \
+        min_lead = key_models.SUCCESSION_MIN_LEAD
+        if not now + min_lead <= effective <= now + SUCCESSION_MAX_LEAD \
                 or record.new_valid_to - effective > MAX_KEY_VALIDITY:
             raise ConflictError(
-                f"effective_at must be {int(SUCCESSION_MIN_LEAD.total_seconds())} seconds to "
+                f"effective_at must be {int(min_lead.total_seconds())} seconds to "
                 f"{SUCCESSION_MAX_LEAD.days} days from now, and the new key valid for at most "
                 f"{MAX_KEY_VALIDITY.days} days", code="succession_times_invalid")
         signed = record if signature_by(record, current.public_key) else sign_succession(

@@ -9,7 +9,7 @@ from typing import Any, Literal, Sequence
 from ...crypto import verify_model_signature
 from ...models.boundary_policy import BoundaryPolicy, policy_set_digest
 from ...models.context import BoundaryDecision
-from ...models.key_succession import NAKeyHistory, na_keys_at
+from ...models.key_succession import NAKeyHistory, decision_outlives_key, na_keys_at
 from ...models.sovereign import MembershipAttestation
 
 BoundaryDecisionVerificationReason = Literal[
@@ -34,6 +34,8 @@ BoundaryDecisionVerificationReason = Literal[
     "non_canonical_form",
     # v1.5.0: signed by a key of the NA's history, but not the one valid when the decision was made.
     "na_key_not_valid_at_time",
+    # v1.5.0 review fixes: valid longer than the key that signed it may vouch for.
+    "decision_outlives_key",
 ]
 
 
@@ -110,11 +112,17 @@ def verify_boundary_decision(
     if ts > _utc(decision.decision_valid_until):
         return _reject("decision_expired")
     keys = na_keys_at(operator_public_keys, _utc(decision.decision_made_at))
-    if not any(verify_model_signature(decision, decision.signature, pub) for pub in keys):
+    signer = next((pub for pub in keys if verify_model_signature(decision, decision.signature, pub)), None)
+    if signer is None:
         others = [k for k in na_keys_at(operator_public_keys, None) if k not in keys]
         if any(verify_model_signature(decision, decision.signature, pub) for pub in others):
             return _reject("na_key_not_valid_at_time")
         return _reject("invalid_signature")
+    # v1.5.0 review fixes: a key with an end vouches for a decision only as long as the longest
+    # lifetime the NA issues past that end (and the hand-over): the holder of a succeeded key
+    # cannot mint a long-lived decision dated inside its window.
+    if decision_outlives_key(operator_public_keys, signer, decision.decision_valid_until):
+        return _reject("decision_outlives_key")
 
     if decision.freshness_proof is not None and freshness_proof_issuer_keys:
         proof = decision.freshness_proof

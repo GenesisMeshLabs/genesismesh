@@ -21,7 +21,7 @@ from genesis_mesh.crypto import save_keypair, sign_model
 from genesis_mesh.models.context import BoundaryDecision
 from genesis_mesh.models.evidence_store import StoreAnchor
 from genesis_mesh.models.key_succession import SUCCESSION_HANDOVER, KeySuccessionRecord
-from genesis_mesh.na_service.services import key_history as key_history_service
+from genesis_mesh.models import key_succession as key_models
 from genesis_mesh.trust.context import verify_boundary_decision
 from genesis_mesh.trust.evidence_store import (
     parse_export_lines,
@@ -41,7 +41,7 @@ from .test_na_trust_api import _make_agreement
 @pytest.fixture(autouse=True)
 def short_lead(monkeypatch):
     """Successions in these tests take effect two seconds after they are recorded."""
-    monkeypatch.setattr(key_history_service, "SUCCESSION_MIN_LEAD", timedelta(seconds=1))
+    monkeypatch.setattr(key_models, "SUCCESSION_MIN_LEAD", timedelta(seconds=1))
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_records_signed_before_and_after_a_succession_verify_in_the_store_and_ex
     assert _post(client, "/admin/evidence/anchors", {}).status_code == 201
 
     succession, restarted, client = _succeeded(net, service, client)
-    assert succession["key_sequence"] == 2 and len(succession["signatures"]) == 2
+    assert succession["key_sequence"] == 2 and len(succession["signatures"]) == 3
     second = controller.record(_decide(client), action="rotate", prior_resource=first)
     assert _submit(client, second).status_code == 201
     assert _post(client, "/admin/evidence/anchors", {}).status_code == 201
@@ -165,15 +165,33 @@ def test_the_outgoing_key_signs_nothing_after_the_succession_takes_effect(net):
     assert _post(_client(restarted), "/admin/evidence/anchors", {}).status_code in (200, 201)
 
 
-def test_the_new_key_does_not_start_before_it_takes_effect(net):
+def test_the_new_key_starts_early_but_signs_nothing_and_is_not_ready_before_it_takes_effect(net):
+    """Review fix 16: an instance may start with the new key ahead of the succession."""
     service = net.start()
     record, new_key = net.succession(service, effective_in=3600)
     assert _succeed(_client(service), record).status_code == 201
     service.db.close()
-    with pytest.raises(ValueError, match="takes effect"):
-        net.start(new_key)
     with pytest.raises(ValueError, match="does not match"):
         net.start(nacl.signing.SigningKey.generate())
+    net.adopt(new_key)
+    pending = net.start(new_key)
+    client = _client(pending)
+    refused = _post(client, "/admin/boundary/evaluate", {
+        "attestation_id": "att-x", "requested_capability": "secret.manage", "context": {}})
+    assert pending.key_history.signing_state()["state"] == "pending"
+    with pytest.raises(Exception) as signing:
+        pending.signer.sign(b"x")
+    assert getattr(signing.value, "code", None) == "na_key_not_yet_effective"
+    assert refused.status_code != 201
+    ready = client.get("/readyz")
+    assert ready.status_code == 503
+    assert ready.get_json()["error"]["details"]["na_key"]["state"] == "pending"
+    assert pending.key_history.signing_state()["signs_from"] == record["effective_at"].replace("Z", "+00:00") \
+        or pending.key_history.signing_state()["signs_from"].startswith(record["effective_at"][:19])
+    # The outgoing key's instance is ready until the succession takes effect.
+    pending.db.close()
+    outgoing = net.start(net.na_keys[0])
+    assert _client(outgoing).get("/readyz").status_code == 200
 
 
 def test_a_succeeded_to_keys_validity_is_enforced_but_the_genesis_keys_is_not(tmp_path):
@@ -224,6 +242,17 @@ def test_a_succession_must_continue_the_history_and_be_signed_by_the_root_key(ne
     assert _code(_succeed(client, record)) == "succession_chain_break"
     record, _ = net.succession(service, new_key=net.na_keys[0])
     assert _code(_succeed(client, record)) == "succession_key_reused"
+    # Review fix 9: the root key is never an NA key.
+    record, _ = net.succession(service, new_key=net.root)
+    assert _code(_succeed(client, record)) == "succession_key_reused"
+    # Review fix 8: the new key proves it is held.
+    record, _ = net.succession(service, prove=False)
+    unproved = _succeed(client, record)
+    assert unproved.status_code == 422 and _code(unproved) == "succession_invalid_new_key_signature"
+    # Review fix 10: a succession issued after it takes effect is refused.
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    record, _ = net.succession(service, issued_at=later)
+    assert _code(_succeed(client, record)) == "succession_backdated"
     record, _ = net.succession(service, sovereign_id="OTHER")
     assert _code(_succeed(client, record)) == "succession_sovereign_mismatch"
     record, _ = net.succession(service, effective_in=0.2)
@@ -249,18 +278,27 @@ def test_the_key_history_verifier_names_each_refusal(net):
     tampered = {**view["genesis"], "network_version": "v9"}
     assert verify_key_history(tampered, [], root).failures[0]["reason"] == "genesis_invalid_signature"
 
-    record, _ = net.succession(service)
+    record, new_key = net.succession(service)
     unsigned = KeySuccessionRecord.model_validate(record)
     both = sign_succession(unsigned, net.na_keys[0], "na-1").to_wire()
     assert verify_key_history(view["genesis"], [both], root).verified
+    body = {k: v for k, v in both.items() if k != "signatures"}
     cases = {
         "succession_invalid_previous_signature": record,
-        "succession_invalid_root_signature": sign_succession(
-            unsigned.model_copy(update={"signatures": []}), net.na_keys[0], "na-1").to_wire(),
-        "succession_not_increasing": _resigned(net, unsigned, new_valid_to=unsigned.effective_at),
-        "succession_chain_break": _resigned(net, unsigned, previous_public_key=public_b64(net.root)),
+        "succession_invalid_root_signature": sign_succession(sign_succession(
+            unsigned.model_copy(update={"signatures": []}), new_key, "na-2"), net.na_keys[0], "na-1").to_wire(),
+        "succession_invalid_new_key_signature": _resigned(net, unsigned, prove_with=None),
+        "succession_not_increasing": _resigned(net, unsigned, new_key, new_valid_to=unsigned.effective_at),
+        "succession_chain_break": _resigned(net, unsigned, new_key, previous_public_key=public_b64(net.root)),
+        # Review fix 9: the root key as the next NA key.
+        "succession_key_reused": _resigned(net, unsigned, net.root, new_public_key=root),
+        # Review fix 10: issued after it takes effect.
+        "succession_backdated": _resigned(net, unsigned, new_key,
+                                          issued_at=unsigned.effective_at + timedelta(seconds=1)),
         "invalid_signature": {**both, "x": 1},
-        "unknown_field": _signed_raw(net, {**{k: v for k, v in both.items() if k != "signatures"}, "x": 1}),
+        "unknown_field": _signed_raw(net, {**body, "x": 1}),
+        # Review fix 17: a record that does not parse is payload_invalid, whatever else is wrong.
+        "payload_invalid": _signed_raw(net, {**body, "key_sequence": 1, "x": 1}),
     }
     for reason, raw in cases.items():
         result = verify_key_history(view["genesis"], [raw], root)
@@ -276,9 +314,13 @@ def _signed_raw(net, body: dict) -> dict:
                                    {"key_id": "na-1", "sig": sign_data(data, net.na_keys[0])}]}
 
 
-def _resigned(net, record: KeySuccessionRecord, **changes) -> dict:
+def _resigned(net, record: KeySuccessionRecord, prove_with=None, **changes) -> dict:
+    """The record changed and signed again: by the root key, the new key (``prove_with``) and the outgoing key."""
     changed = record.model_copy(update={**changes, "signatures": []})
-    return sign_succession(sign_succession(changed, net.root, "root"), net.na_keys[0], "na-1").to_wire()
+    signed = sign_succession(changed, net.root, "root")
+    if prove_with is not None:
+        signed = sign_succession(signed, prove_with, changed.new_key_id)
+    return sign_succession(signed, net.na_keys[0], "na-1").to_wire()
 
 
 # ---------------------------------------------------------------------------
@@ -317,12 +359,30 @@ def test_the_cli_signs_offline_and_submits_a_succession(net, tmp_path, monkeypat
                                   "--root-key", str(wrong), "--new-public-key", public_b64(new_key),
                                   "--new-key-id", "na-2", "--effective-in", "120", "--out", str(tmp_path / "x.json")])
     assert refused.exit_code != 0 and "genesis_root_mismatch" in refused.output
+    # Review fix 9: the root key is refused as the next NA key before anything is signed.
+    as_root = runner.invoke(cli, ["na", "succession", "sign", "--history", str(tmp_path / "history.json"),
+                                  "--root-key", str(root_key), "--new-public-key", public_b64(net.root),
+                                  "--new-key-id", "na-2", "--effective-in", "120", "--out", str(tmp_path / "y.json")])
+    assert as_root.exit_code != 0 and "root key" in as_root.output
+    # Review fix 8: without the new key's proof of possession the NA refuses it.
+    unproved = runner.invoke(cli, ["na", "succession", "submit", "--na", "http://na.test",
+                                   "--file", str(tmp_path / "succession.json"), "--operator-key", str(operator),
+                                   "--operator-key-id", "operator-test", "--out", str(tmp_path / "z.json")])
+    assert unproved.exit_code != 0 and "succession_invalid_new_key_signature" in unproved.output
+    new_key_file = tmp_path / "new.key"
+    new_key_file.write_text(__import__("base64").b64encode(bytes(new_key)).decode() + "\n", encoding="utf-8")
+    wrong_prover = runner.invoke(cli, ["na", "succession", "prove", "--file", str(tmp_path / "succession.json"),
+                                       "--new-key", str(wrong), "--out", str(tmp_path / "w.json")])
+    assert wrong_prover.exit_code != 0 and "not the new key" in wrong_prover.output
+    proved = runner.invoke(cli, ["na", "succession", "prove", "--file", str(tmp_path / "succession.json"),
+                                 "--new-key", str(new_key_file), "--out", str(tmp_path / "succession.json")])
+    assert proved.exit_code == 0, proved.output
     submitted = runner.invoke(cli, ["na", "succession", "submit", "--na", "http://na.test",
                                     "--file", str(tmp_path / "succession.json"), "--operator-key", str(operator),
                                     "--operator-key-id", "operator-test", "--out", str(tmp_path / "signed.json")])
     assert submitted.exit_code == 0, submitted.output
     signed_record = json.loads((tmp_path / "signed.json").read_text(encoding="utf-8"))
-    assert len(signed_record["signatures"]) == 2
+    assert len(signed_record["signatures"]) == 3
     view = client.get("/na/key-history").get_json()
     assert [k["key_sequence"] for k in view["keys"]] == [1, 2]
 
@@ -367,8 +427,35 @@ def test_verify_db_places_each_key_of_the_history_in_time(net):
     _, restarted, client = _succeeded(net, service, client)
     assert _submit(client, controller.record(_decide(client), action="rotate", prior_resource=first)).status_code == 201
     assert _post(client, "/admin/evidence/anchors", {}).status_code in (200, 201)
-    report = verify_database(restarted.db, public_b64(net.na_keys[0]))
+    genesis = net.genesis.model_dump(mode="json")
+    report = verify_database(restarted.db, genesis=genesis)
     assert report.ok, report.to_dict()
+    assert report.checks["key_history"]["verified_from_root"] is True
+    # Review fix 6: without the genesis block the database's rows prove nothing: the genesis key only.
+    alone = verify_database(restarted.db, public_b64(net.na_keys[0]))
+    assert not alone.ok and "give the genesis block" in alone.checks["key_history"]["note"]
+
+
+def test_verify_db_refuses_a_key_history_row_the_root_key_did_not_sign(net):
+    """Review fix 6 (skeptic P11): a database writer appends a succession of its own; verify-db checks the
+    history from the genesis block's root key, never the rows alone."""
+    from genesis_mesh.workflows.db_migration import verify_database
+
+    service = net.start()
+    client = _client(service)
+    assert _submit(client, Controller(client).record(_decide(client))).status_code == 201
+    forger = nacl.signing.SigningKey.generate()
+    record, new_key = net.succession(service, sign_with=forger)
+    signed = sign_succession(KeySuccessionRecord.model_validate(record), net.na_keys[0], "na-1")
+    service.db.add_na_key_row({
+        "key_sequence": 2, "key_id": "na-2", "public_key": public_b64(new_key),
+        "effective_at": signed.effective_at.isoformat(), "valid_to": signed.new_valid_to.isoformat(),
+        "valid_to_enforced": 1, "succession_digest": signed.digest(),
+        "succession_json": json.dumps(signed.to_wire()), "recorded_at": datetime.now(timezone.utc).isoformat(),
+    })
+    report = verify_database(service.db, genesis=net.genesis.model_dump(mode="json"))
+    assert not report.ok
+    assert any("succession_invalid_root_signature" in f for f in report.failures), report.failures
 
 
 def test_verify_export_reads_the_key_history_from_the_root_key(net, tmp_path):

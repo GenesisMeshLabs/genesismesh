@@ -467,7 +467,9 @@ def test_a_forward_rotation_from_before_the_change_is_refused(client, na_service
 def test_a_forward_rotation_by_another_executor_or_cited_twice_is_refused(client, na_service, clock):
     attestation_id = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)["attestation_id"]
     _policy(client, guidance={"max-lifetime": {"mode": "cancel", "grace_seconds": 3600}})
-    clock.advance(minutes=2)
+    # v1.5.0 review fixes: the store's entries are recorded in time order (within 300 s), so the
+    # test clock runs with the one the decisions are recorded at.
+    clock.at = datetime.now(timezone.utc)
     controller = Controller(client)
     other = Controller(client, key_id="ctrl-other", sovereign="other-sovereign")
     observer = Observer(client)

@@ -78,8 +78,9 @@ class Network:
 
     def succession(self, service: NetworkAuthorityService, *, effective_in: float = 2.0, valid_days: float = 365,
                    new_key: nacl.signing.SigningKey | None = None, sign_with: nacl.signing.SigningKey | None = None,
-                   **overrides: Any) -> tuple[dict[str, Any], nacl.signing.SigningKey]:
-        """A succession record for a new NA key, signed by the root key (as offline)."""
+                   prove: bool = True, **overrides: Any) -> tuple[dict[str, Any], nacl.signing.SigningKey]:
+        """A succession record for a new NA key, signed by the root key (as offline) and, with
+        ``prove``, by the new key (its proof of possession)."""
         history = self.history(service)
         current = history.keys[-1]
         new_key = new_key or nacl.signing.SigningKey.generate()
@@ -94,7 +95,10 @@ class Network:
             **overrides,
         }
         record = KeySuccessionRecord(**fields)
-        record = record.model_copy(update={"signatures": [sign_model(record, sign_with or self.root, "root")]})
+        signatures = [sign_model(record, sign_with or self.root, "root")]
+        if prove:
+            signatures.append(sign_model(record, new_key, str(fields["new_key_id"])))
+        record = record.model_copy(update={"signatures": signatures})
         return record.to_wire(), new_key
 
     def adopt(self, key: nacl.signing.SigningKey) -> None:

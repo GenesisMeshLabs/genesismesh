@@ -192,6 +192,14 @@ def fleet_generate(
         "PolicyManifestRef.hash with your policy document's SHA-256 before production use.",
         err=True,
     )
+    # v1.5.0 review fixes: as 'genesis-mesh init', say where the root keys are.
+    click.echo(
+        f"Warning: each sovereign's root private key was written to <name>/keys/root.key under {root}, next "
+        "to its NA key. Whoever holds both can replace that NA's key history. For anything but local use, "
+        "move each root key offline and delete it from the host (see the root key ceremony in the operations "
+        "docs); NA_DEPLOYMENT=managed refuses to start while it is there.",
+        err=True,
+    )
     click.echo(f"Generated {len(resolved_names)} NA(s). Manifest: {manifest_path}")
     click.echo("Next: start each NA (genesis-mesh na start --config <config>), then "
                "'genesis-mesh fleet mesh --config " + manifest_path.as_posix() + "'.")

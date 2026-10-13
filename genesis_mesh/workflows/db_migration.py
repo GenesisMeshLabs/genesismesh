@@ -89,12 +89,13 @@ def _verify_crl(db: NADatabase, report: VerificationReport) -> None:
             report.fail(f"CRL row {r['sequence']} holds sequence {crl.sequence}")
 
 
-def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: Optional[str]) -> None:
+def _verify_evidence(db: NADatabase, report: VerificationReport, na_keys: NAKeyHistory | list[str] | None) -> None:
     stored = db.search_evidence({}, limit=10**9)
     checkpoint = db.latest_retention_checkpoint()
+    na_public_key = na_keys[0] if na_keys else None
     info: dict[str, Any] = {"entries": len(stored), "signatures_checked": na_public_key is not None}
     report.checks["evidence"] = info
-    _verify_anchors(db, report, stored, na_public_key)
+    _verify_anchors(db, report, stored, na_keys)
     if not stored:
         return
     expected_seq = checkpoint.removed_through_sequence + 1 if checkpoint else 1
@@ -118,32 +119,55 @@ def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: 
         # v1.3.0: keys with their role (observer keys sign observations only).
         keys = {r["key_id"]: EvidenceStoreService.key_from_row(r) for r in db.list_executor_keys()}
         events = [EvidenceEvent(entry=s["entry"], entry_digest=s["entry_digest"], payload=s["payload"]) for s in stored]
+        assert na_keys is not None
         result = verify_evidence_events(
-            events, na_public_keys=_na_keys(db, na_public_key), executor_keys=keys, contiguous=True,
-            checkpoint=checkpoint,
+            events, na_public_keys=na_keys, executor_keys=keys, contiguous=True, checkpoint=checkpoint,
         )
         info["signature_failures"] = result.failures
         if not result.verified:
             report.fail(f"evidence store verification failed: {len(result.failures)} failure(s)")
 
 
-def _na_keys(db: NADatabase, na_public_key: str) -> NAKeyHistory | list[str]:
-    """The NA's keys (v1.5.0): the genesis key and the successions the database's key history holds,
-    each valid at its own times. The successions' signatures are checked by the NA at start and by an
-    auditor's ``audit verify``, which hold the root key; here the history only places each key in time."""
-    from ..models.key_succession import KeySuccessionRecord, NAKey, build_history
+def _na_keys(
+    db: NADatabase, report: VerificationReport, na_public_key: str, genesis: Optional[dict[str, Any]],
+) -> NAKeyHistory | list[str]:
+    """The NA's keys (v1.5.0): the genesis key and the successions the database's key history holds.
+
+    v1.5.0 review fixes: the history is verified from the root key the genesis
+    block names (``verify_key_history``), never taken from the database rows
+    alone: a row a database writer added proves nothing. Without the genesis
+    block, the genesis key alone (an entry a later key signed then fails), and
+    the report says so; a history that does not verify fails the report.
+    """
+    from ..trust.key_succession import verify_key_history
 
     rows = db.na_key_history_rows() if "na_key_history" in db.table_names() else []
-    if len(rows) <= 1 or rows[0]["public_key"] != na_public_key:
+    report.checks["key_history"] = {"keys": len(rows) or 1, "verified_from_root": False}
+    if len(rows) <= 1:
         return [na_public_key]
-    first = NAKey(key_sequence=1, public_key=na_public_key, key_id=rows[0]["key_id"], valid_from=None,
-                  succeeded_at=None, valid_to=None, valid_to_enforced=False)
-    records = [KeySuccessionRecord.model_validate_json(r["succession_json"]) for r in rows[1:]]
-    return build_history("", None, first, records)
+    if genesis is None:
+        report.checks["key_history"]["note"] = ("the database holds successions: give the genesis block "
+                                                "(--genesis) to verify them from its root key")
+        return [na_public_key]
+    try:
+        successions = [json.loads(r["succession_json"]) for r in rows[1:]]
+    except (TypeError, ValueError):
+        report.fail("the NA key history rows are not succession records")
+        return [na_public_key]
+    result = verify_key_history(genesis, successions, str(genesis.get("root_public_key")),
+                                genesis_key_id=rows[0]["key_id"])
+    if not result.verified or result.history is None or rows[0]["public_key"] != na_public_key:
+        failure = result.failures[0] if result.failures else {"key_sequence": 1, "reason": "genesis_key_mismatch"}
+        report.fail(f"the NA key history does not verify from the root key: key {failure['key_sequence']} "
+                    f"{failure['reason']}")
+        return [na_public_key]
+    report.checks["key_history"]["verified_from_root"] = True
+    return result.history
 
 
 def _verify_anchors(
-    db: NADatabase, report: VerificationReport, stored: list[dict[str, Any]], na_public_key: Optional[str]
+    db: NADatabase, report: VerificationReport, stored: list[dict[str, Any]],
+    na_keys: NAKeyHistory | list[str] | None,
 ) -> None:
     """Store anchors (v1.2.0): an unbroken chain naming the stored entries' digests."""
     anchors = db.list_store_anchors(limit=10**9)
@@ -151,7 +175,7 @@ def _verify_anchors(
     report.checks["evidence_anchors"] = info
     if not anchors:
         return
-    chain = verify_store_anchors(anchors, na_public_keys=_na_keys(db, na_public_key) if na_public_key else None)
+    chain = verify_store_anchors(anchors, na_public_keys=na_keys or None)
     info["chain"] = chain.to_dict()
     if not chain.verified:
         report.fail("store anchors fail verification: "
@@ -165,17 +189,27 @@ def _verify_anchors(
                     + ", ".join(f"#{f['store_sequence']} {f['reason']}" for f in result.failures[:5]))
 
 
-def verify_database(db: NADatabase, na_public_key: Optional[str] = None) -> VerificationReport:
-    """Check the invariants the NA relies on (see module docstring)."""
+def verify_database(
+    db: NADatabase, na_public_key: Optional[str] = None, *, genesis: Optional[dict[str, Any]] = None,
+) -> VerificationReport:
+    """Check the invariants the NA relies on (see module docstring).
+
+    ``genesis`` (v1.5.0 review fixes) is the signed genesis block: the NA key
+    history is verified from its root key, and ``na_public_key`` defaults to
+    its NA key.
+    """
     report = VerificationReport()
     version = db.schema_version()
     report.checks["schema_version"] = version
     if version != expected_schema_version():
         report.fail(f"schema version {version}, expected {expected_schema_version()}")
         return report
+    if na_public_key is None and genesis is not None:
+        na_public_key = str((genesis.get("network_authority") or {}).get("public_key"))
     _verify_boundary_policies(db, report)
     _verify_crl(db, report)
-    _verify_evidence(db, report, na_public_key)
+    na_keys = _na_keys(db, report, na_public_key, genesis) if na_public_key else None
+    _verify_evidence(db, report, na_keys)
     report.checks["audit_events"] = int(db.conn.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0])
     return report
 
@@ -210,6 +244,7 @@ def migrate_sqlite_to_postgres(
     database_url: str,
     *,
     na_public_key: Optional[str] = None,
+    genesis: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Copy and verify; returns the migration report. Raises ``MigrationError`` on refusal or mismatch."""
     src = _sqlite_readonly(sqlite_path)
@@ -258,7 +293,7 @@ def migrate_sqlite_to_postgres(
             if mismatches:
                 raise MigrationError(f"copied tables do not match the source: {', '.join(mismatches)}")
 
-            verification = verify_database(target, na_public_key)
+            verification = verify_database(target, na_public_key, genesis=genesis)
             if not verification.ok:
                 raise MigrationError("target failed verification: " + "; ".join(verification.failures))
 

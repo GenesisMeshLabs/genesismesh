@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,8 @@ def sign(history_path: Path, root_key_path: str, root_key_id: str, new_public_ke
     new_key = public_key_value(new_public_key)
     if not valid_public_key(new_key):
         raise click.ClickException("--new-public-key is not a base64 Ed25519 public key")
+    if new_key == root_public or new_key in result.history.all_keys():
+        raise click.ClickException("--new-public-key is the root key or a key the history already held")
     history = result.history
     current = history.keys[-1]
     now = datetime.now(timezone.utc)
@@ -116,7 +119,51 @@ def sign(history_path: Path, root_key_path: str, root_key_id: str, new_public_ke
                         newline="\n")
     click.echo(f"Succession {signed.succession_id}: key {signed.key_sequence} ({new_key_id}) takes effect at "
                f"{signed.effective_at.isoformat()} and is valid until {signed.new_valid_to.isoformat()}.")
-    click.echo(f"Signed with the root key; written to {out_path}. Submit it with 'na succession submit'.")
+    click.echo(f"Signed with the root key; written to {out_path}. Have the new key prove it is held "
+               "('na succession prove'), then submit it with 'na succession submit'.")
+
+
+@succession.command("prove")
+@click.option("--file", "file_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="The record 'na succession sign' wrote.")
+@click.option("--new-key", "new_key_path", default=None, type=click.Path(exists=True, dir_okay=False),
+              help="The new NA private key file.")
+@click.option("--env-file", "env_file", default=None, type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="... or the settings file of the NA that will run the new key (its key provider is used).")
+@click.option("--out", "out_path", required=True, type=click.Path(dir_okay=False, path_type=Path),
+              help="Where to write the record with the new key's signature.")
+def prove(file_path: Path, new_key_path: str | None, env_file: Path | None, out_path: Path) -> None:
+    """Sign the succession with the new NA key: the proof that the new key exists and is held.
+
+    Run it where the new key lives (a key file, or the key provider of the
+    NA settings that will use it). The NA refuses a succession without it.
+    """
+    from ..trust.key_succession import sign_succession
+
+    if (new_key_path is None) == (env_file is None):
+        raise click.UsageError("give --new-key or --env-file")
+    record = KeySuccessionRecord.model_validate_json(file_path.read_text(encoding="utf-8"))
+    if env_file is not None:
+        from ..na_service.key_provider import KeyProviderError, load_signer
+        from ..na_service.settings import load_settings
+        from .env_file import EnvFileError, read_env_file
+
+        try:
+            key: Any = load_signer(load_settings(read_env_file(env_file)).key)
+        except (EnvFileError, ValueError, KeyError, KeyProviderError) as exc:
+            raise click.ClickException(f"{env_file}: {exc}") from exc
+        public = key.public_key_b64
+    else:
+        key = load_private_key(new_key_path or "")
+        public = base64.b64encode(bytes(key.verify_key)).decode("ascii")
+    if public != record.new_public_key:
+        raise click.ClickException("this key is not the new key the succession names")
+    signed = sign_succession(record, key, record.new_key_id)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(signed.to_wire(), indent=2, sort_keys=True) + "\n", encoding="utf-8",
+                        newline="\n")
+    click.echo(f"Signed by the new key {record.new_key_id}; written to {out_path}. Submit it with "
+               "'na succession submit'.")
 
 
 @succession.command("submit")
@@ -160,8 +207,9 @@ def doctor(env_file: Path, fmt: str) -> None:
     """Check an NA host against its settings: root key custody, the NA key, archives.
 
     Fails when the root private key is found where the NA's files live (the
-    genesis block's, the NA key's and the database's directories and their
-    keys/ subdirectories), or when the NA key cannot sign now. Warns when the
+    directories of the genesis block, the NA key, the database and this
+    settings file, their parent and three levels below, and the settings'
+    variables), or when the NA key cannot sign now. Warns when the
     key stops signing within 30 days, and when retention may prune what was
     not archived (NA_RETENTION_REQUIRE_ARCHIVE=off).
     """
@@ -172,7 +220,8 @@ def doctor(env_file: Path, fmt: str) -> None:
     from .env_file import EnvFileError, read_env_file
 
     try:
-        settings = load_settings(read_env_file(env_file))
+        env = read_env_file(env_file)
+        settings = load_settings(env)
     except (EnvFileError, ValueError, KeyError) as exc:
         raise click.ClickException(f"{env_file}: {exc}") from exc
     genesis = GenesisBlock(**json.loads(Path(settings.genesis_file).read_text(encoding="utf-8")))
@@ -187,7 +236,9 @@ def doctor(env_file: Path, fmt: str) -> None:
         raise click.ClickException(f"{env_file}: {exc}") from exc
     findings = root_key_findings(
         genesis.root_public_key, na_public_key=signer.public_key_b64,
-        paths=(settings.genesis_file, settings.key.key_file, settings.db_path if not settings.database_url else None),
+        paths=(settings.genesis_file, settings.key.key_file, settings.db_path if not settings.database_url else None,
+               env_file),
+        environ={**os.environ, **env},
     )
     if findings:
         check("root_key_absent", "fail", "; ".join(findings) + ": move the root key offline (root key ceremony)")
