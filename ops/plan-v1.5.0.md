@@ -103,6 +103,18 @@ The reviews found:
    same project); the CLI reference; `docs/stability.md`; immutable storage
    (object lock with a lock period at least the retention period).
 
+**Built (core, 2026-10-13):** items 1 to 7 and 9 in the core
+(`models/key_succession.py`, `models/audit_pack.py`,
+`trust/key_succession.py`, `workflows/audit_pack.py`,
+`na_service/services/key_history.py`, `na_service/services/audit_pack.py`,
+`na_service/routes/key_history.py`, migration 017, `cli/key_ops.py`,
+`cli/audit_ops.py`), with the operations sub-index *Governed changes and
+audit* and `docs/reference/audit-pack-format.md`; for item 8, the `audit`
+conformance suite, `scripts/export_reference_corpus.py --suite verification`
+and the frozen pack `conformance/fixtures/audit-pack-1.5.0`. The verifier
+binary is in the Rust SDK pull request. Choices made in building it are
+Decisions 5 to 16 below.
+
 ### Out of scope
 
 - Windows and macOS verifier binaries (on request); external timestamping
@@ -124,20 +136,23 @@ The reviews found:
 
 ## Success Criteria
 
-- [ ] After an NA key succession, records, treaties and attestations signed
+- [x] After an NA key succession, records, treaties and attestations signed
       before and after verify in the store, exports, packs and agreement trust
-- [ ] A pack verifies offline in a CI job with the network disabled, given
+      (`test_key_succession.py`)
+- [x] A pack verifies offline in a CI job with the network disabled, given
       only the pack, the root key and the held anchors; a removed record, a
       rewritten and re-anchored range, and a tampered file each fail with a
-      named reason
-- [ ] Packs from databases written by every release in `upgrade.yml` verify;
-      a frozen 1.5.0 pack fixture is committed and verified by every later
-      release
-- [ ] The completeness check reports a deliberately removed record and an
+      named reason (`test_audit_pack.py`: the verification runs with every
+      socket call failing the test; the `audit` suite's pack vectors)
+- [x] Packs from databases written by every release in `upgrade.yml` verify
+      (the upgrade rehearsal verifies a pack of the upgraded store; run here
+      from 1.3.1 and 1.4.0, in CI for the whole matrix); a frozen 1.5.0 pack
+      fixture is committed and verified by every later release
+- [x] The completeness check reports a deliberately removed record and an
       unmatched outside change
-- [ ] `audit archive` never prunes past what it read back (tested by failing
+- [x] `audit archive` never prunes past what it read back (tested by failing
       the write and the read-back); retention refuses to over-prune by default
-- [ ] Every route that requires the standard tier or above returns
+- [x] Every route that requires the standard tier or above returns
       `403 insufficient_operator_tier` for a read key; the read key produces a
       pack
 - [ ] `genesis-mesh-verify` passes the differential corpus with Python's
@@ -145,7 +160,7 @@ The reviews found:
       the tests, tampered ones included; `ldd` reports no dynamic
       dependencies; a documented rebuild reproduces the unsigned binary's
       digest
-- [ ] The operations sub-index and pages build under `sphinx -W`
+- [x] The operations sub-index and pages build under `sphinx -W`
 
 ## Release Gate
 
@@ -166,10 +181,63 @@ The reviews found:
 
 ## Decisions
 
-Open, for the Maintainer:
+1. **Read-tier evidence access** (taken as proposed, 2026-10-13).
+2. **Markdown report only** (taken as proposed, 2026-10-13).
+3. **The verifier built from the Rust SDK** (taken as proposed, 2026-10-13),
+   one Rust verifier; binary name `genesis-mesh-verify`.
+4. **Archive required before prune by default** (taken as proposed,
+   2026-10-13).
 
-1. **Read-tier evidence access** (proposed).
-2. **Markdown report only** (proposed, after review).
-3. **The verifier built from the Rust SDK** (proposed, after review), one
-   Rust verifier; binary name `genesis-mesh-verify`.
-4. **Archive required before prune by default** (proposed, after review).
+Open, from building Stage 4 (2026-10-13):
+
+5. **A record's time is its time in the store** (proposed): an NA signature
+   is judged by the key valid at the entry's `recorded_at`; outside the store
+   at the record's own time (`anchored_at`, `created_at`, `issued_at`,
+   `decision_made_at`, `established_at`). Signed time fields inside payloads
+   were not usable: backfilled registry records are dated before they were
+   signed. Retention carries registry, succession and archive entries with
+   the time they were first recorded, so a carried record keeps its key.
+6. **A five-minute hand-over** (proposed): a succeeded key stays valid for
+   records dated up to 300 seconds after the next key took effect (instance
+   clock skew, an entry signed before and stored after); the NA itself stops
+   signing with it at `effective_at` (`503 na_key_succeeded`) and refuses to
+   start with a key not valid now. A succession takes effect 60 seconds to
+   30 days after it is recorded, and instances re-read the history every 30
+   seconds.
+7. **Both signatures on one canonical form** (proposed): the root key signs
+   offline and the NA countersigns the same form (`signatures`, as for a
+   genesis block); a lost or compromised NA key cannot sign its own
+   succession, which then needs a new genesis block. Nodes do not read the
+   key history yet (documented).
+8. **`valid_to` enforced for succeeded-to keys only** (as the plan says): the
+   genesis key's end is shown and said not to be enforced
+   (`/sovereign.json`, `info`).
+9. **The pack is built by the NA** (proposed): one read-tier route composes
+   the whole pack, with its own verification, so the manifest it signs
+   covers files it wrote; at most 50,000 entries a pack, a longer period
+   being several packs between anchors. The client checks what it wrote
+   against the manifest.
+10. **Executor keys from signed registry records only** (proposed): the
+    pack's key list is reference, never trusted; a store without registry
+    records needs `--executor-keys` from the auditor.
+11. **A manifest failure stops verification** (proposed): files that do not
+    match a manifest the NA signed are not the pack, and reporting
+    consequences of a changed byte would make every verifier reproduce
+    them.
+12. **Cited records prove authenticity, not position** (proposed): records
+    before the range are checked for signatures and digests and seed the
+    chains; the pack of their own range proves where they were.
+13. **Completeness by source event, then time** (proposed): an observation
+    and the execution it matched are one change; unmatched changes inside the
+    period fail, records without a change are reported only.
+14. **Archive entries and the archive table** (proposed): an archive record
+    is a store entry (carried past retention) and a row retention reads to
+    find how far archives cover the store without a gap.
+15. **Root key custody by search** (proposed): `NA_DEPLOYMENT=managed`
+    refuses to start when the root private key is in the directories of the
+    NA's files or their `keys/` subdirectories, or is the NA key; it cannot
+    prove absence anywhere else, and the docs say so.
+16. **Live smoke follow-ups** (proposed): a key named as its own holder is
+    refused at start; the default due queue leaves out remediated changes
+    whose review is still pending (the NA was wrong, against the comment at
+    `OPEN_STATES`; the SDK was not).

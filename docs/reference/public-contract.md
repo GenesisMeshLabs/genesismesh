@@ -56,29 +56,32 @@ disappears. Compatibility rules are in `DEPRECATION_POLICY.md`.
 | POST | `/admin/disclosure/nullifier` | beta |
 | GET | `/admin/evidence` | stable |
 | GET, POST | `/admin/evidence/anchors` | beta |
-| POST | `/admin/evidence/break-glass/<break_glass_id>/judge` | beta |
-| GET | `/admin/evidence/changes/<path:resource_id>` | beta |
+| GET, POST | `/admin/evidence/archives` | beta |
+| POST | `/admin/evidence/audit-pack` | beta |
+| POST | `/admin/evidence/break-glass/<break_glass_id>/judge` | stable |
+| GET | `/admin/evidence/changes/<path:resource_id>` | stable |
 | GET, POST | `/admin/evidence/executor-keys` | stable |
 | POST | `/admin/evidence/executor-keys/<key_id>/retire` | stable |
 | GET | `/admin/evidence/export` | stable |
-| POST | `/admin/evidence/observations/<observation_id>/judge` | beta |
-| GET | `/admin/evidence/operator-holders` | beta |
-| GET | `/admin/evidence/remediations` | beta |
-| GET | `/admin/evidence/remediations/<subject_id>` | beta |
-| POST | `/admin/evidence/remediations/<subject_id>/notified` | beta |
+| POST | `/admin/evidence/observations/<observation_id>/judge` | stable |
+| GET | `/admin/evidence/operator-holders` | stable |
+| GET | `/admin/evidence/remediations` | stable |
+| GET | `/admin/evidence/remediations/<subject_id>` | stable |
+| POST | `/admin/evidence/remediations/<subject_id>/notified` | stable |
 | GET | `/admin/evidence/resource-heads/<path:resource_id>` | stable |
 | GET | `/admin/evidence/resources/<path:resource_id>` | stable |
 | POST | `/admin/evidence/retention/apply` | stable |
-| POST | `/admin/evidence/reviews` | beta |
-| GET | `/admin/evidence/reviews/<review_id>` | beta |
-| POST | `/admin/evidence/reviews/<review_id>/decide` | beta |
+| POST | `/admin/evidence/reviews` | stable |
+| GET | `/admin/evidence/reviews/<review_id>` | stable |
+| POST | `/admin/evidence/reviews/<review_id>/decide` | stable |
 | GET | `/admin/evidence/status` | stable |
 | GET | `/admin/evidence/vendors/<vendor_id>` | stable |
 | GET | `/admin/evidence/verify` | stable |
 | POST | `/admin/invite` | stable |
-| POST | `/admin/operator-keys/<key_id>/holder` | beta |
+| POST | `/admin/na/succession` | beta |
+| POST | `/admin/operator-keys/<key_id>/holder` | stable |
 | POST | `/admin/operator-keys/<key_id>/revoke` | stable |
-| POST | `/admin/operator-keys/holder-changes/<proposal_id>/approve` | beta |
+| POST | `/admin/operator-keys/holder-changes/<proposal_id>/approve` | stable |
 | POST | `/admin/policy` | stable |
 | GET | `/admin/policy/history` | stable |
 | POST | `/admin/policy/rollback` | stable |
@@ -112,11 +115,11 @@ disappears. Compatibility rules are in `DEPRECATION_POLICY.md`.
 | POST | `/data-usage/verify` | stable |
 | POST | `/disclosure/prove` | beta |
 | POST | `/disclosure/verify` | beta |
-| POST | `/evidence/break-glass` | beta |
+| POST | `/evidence/break-glass` | stable |
 | POST | `/evidence/execution` | stable |
-| POST | `/evidence/observations` | beta |
-| POST | `/evidence/observations/batch` | beta |
-| POST | `/evidence/remediations` | beta |
+| POST | `/evidence/observations` | stable |
+| POST | `/evidence/observations/batch` | stable |
+| POST | `/evidence/remediations` | stable |
 | GET | `/favicon.ico` | internal |
 | GET | `/favicon.svg` | internal |
 | GET | `/genesis` | stable |
@@ -125,6 +128,7 @@ disappears. Compatibility rules are in `DEPRECATION_POLICY.md`.
 | POST | `/heartbeat` | stable |
 | POST | `/join` | stable |
 | GET | `/metrics` | beta |
+| GET | `/na/key-history` | beta |
 | GET | `/nodes` | stable |
 | GET | `/operator-console-static/console.js` | internal |
 | GET | `/operator-console-static/logo.svg` | internal |
@@ -149,7 +153,7 @@ Every error response is {"error": {"code", "message", "details", "request_id"}}.
 Errors derived from a plain HTTP status (not_found, method_not_allowed, request_entity_too_large and other werkzeug status names) use the status name in snake case and are stable.
 Every code below is stable: it is never removed or given a new meaning.
 
-`accept_rejected`, `admin_auth_failed`, `admin_auth_throttled`, `agent_not_registered`, `agreement_untrusted`, `ambiguous_basis`, `asset_not_found`, `attestation_issuer_mismatch`, `attestation_not_found`, `bad_request`, `boundary_eval_failed`, `boundary_policy_activation_conflict`, `boundary_policy_activation_refused`, `boundary_policy_integrity_failed`, `boundary_policy_invalid`, `boundary_policy_not_active`, `boundary_policy_not_found`, `boundary_policy_required`, `boundary_policy_version_conflict`, `break_glass_conflict`, `break_glass_invalid_signature`, `break_glass_key_retired`, `break_glass_malformed`, `break_glass_out_of_scope`, `break_glass_secret_material`, `break_glass_unknown_key`, `caller_keys_not_accepted`, `certificate_key_mismatch`, `certificate_not_found`, `certificate_revoked`, `commit_failed`, `conflict`, `context_party_mismatch`, `counter_rejected`, `crl_publish_contention`, `delete_signature_required`, `descriptor_expired`, `descriptor_network_mismatch`, `descriptor_signature_required`, `emergency_capability_conflict`, `empty_subject_public_keys`, `evidence_anchor_refused`, `evidence_build_failed`, `evidence_capability_mismatch`, `evidence_chain_gap`, `evidence_chain_mismatch`, `evidence_conflict`, `evidence_decision_denied`, `evidence_decision_mismatch`, `evidence_decision_not_found`, `evidence_executor_key_retired`, `evidence_invalid_signature`, `evidence_malformed`, `evidence_out_of_scope`, `evidence_outside_decision_window`, `evidence_retention_refused`, `evidence_secret_material`, `evidence_store_disabled`, `evidence_store_unavailable`, `evidence_unknown_executor`, `executor_key_exists`, `executor_key_not_found`, `executor_key_retired`, `feed_issuer_mismatch`, `forbidden`, `holder_change_already_approved`, `holder_change_needs_named_holders`, `holder_change_needs_second_holder`, `holder_change_not_found`, `holder_change_proposer_revoked`, `illegal_transition`, `insufficient_operator_tier`, `intent_create_failed`, `internal_server_error`, `invalid_agent_descriptor`, `invalid_agreement`, `invalid_attestation_id`, `invalid_attestation_or_policy`, `invalid_attestation_or_treaty`, `invalid_boundary_policy`, `invalid_break_glass`, `invalid_commitment`, `invalid_context`, `invalid_decision`, `invalid_evidence`, `invalid_holder`, `invalid_input`, `invalid_invite_token`, `invalid_json`, `invalid_json_object`, `invalid_justification`, `invalid_key_role`, `invalid_max_validity_hours`, `invalid_notice`, `invalid_observation`, `invalid_offer`, `invalid_page`, `invalid_policy`, `invalid_policy_version`, `invalid_proof`, `invalid_public_key`, `invalid_public_keys`, `invalid_recipient_public_key`, `invalid_recognition_policy`, `invalid_recognition_treaty`, `invalid_remediation`, `invalid_remediation_query`, `invalid_resource_prefix`, `invalid_retention`, `invalid_review`, `invalid_revocation_reason`, `invalid_role`, `invalid_signature`, `invalid_signed_at`, `invalid_source`, `invalid_sovereign_revocation_feed`, `invalid_threshold`, `invalid_timestamp_order`, `invalid_timestamps`, `invalid_token_expiry_hours`, `invalid_treaty_scope`, `invalid_validity_hours`, `invalid_verdict`, `invalid_vote_type`, `judgement_conflict`, `judgement_subject_not_found`, `justification_untrusted`, `last_active_operator_key`, `missing_accept_fields`, `missing_agreement`, `missing_attestation_subject`, `missing_boundary_fields`, `missing_cert_id`, `missing_certificate_identity`, `missing_commit_fields`, `missing_counter_fields`, `missing_decision`, `missing_evidence`, `missing_executor_key_fields`, `missing_intent_fields`, `missing_invite_token`, `missing_issuer_public_keys`, `missing_node_public_key`, `missing_offer_fields`, `missing_policy`, `missing_policy_fields`, `missing_policy_id`, `missing_proof`, `missing_proof_fields`, `missing_prove_fields`, `missing_recognition_policy`, `missing_signature`, `missing_treaty_subject`, `missing_trust_path_parameters`, `missing_validator_public_keys`, `missing_validity_window`, `missing_verify_fields`, `missing_vote_fields`, `no_policy`, `node_auth_failed`, `node_has_no_active_certificate`, `node_key_compromised`, `node_key_revoked`, `not_found`, `nullifier_failed`, `observation_conflict`, `observation_invalid_signature`, `observation_key_retired`, `observation_malformed`, `observation_out_of_scope`, `observation_secret_material`, `observation_unknown_key`, `offer_rejected`, `out_of_band_disabled`, `policy_not_found`, `policy_remediation_disabled`, `policy_sign_failed`, `proof_assembly_failed`, `prove_failed`, `rate_limit_exceeded`, `recognition_policy_not_configured`, `remediation_already_recorded`, `remediation_conflict`, `remediation_disabled`, `remediation_invalid_signature`, `remediation_key_retired`, `remediation_malformed`, `remediation_not_due`, `remediation_not_found`, `remediation_out_of_scope`, `remediation_rotation_before_change`, `remediation_rotation_mismatch`, `remediation_rotation_missing`, `remediation_rotation_other_executor`, `remediation_rotation_reused`, `remediation_secret_material`, `remediation_steps_mismatch`, `remediation_subject_mismatch`, `remediation_subject_not_found`, `remediation_unknown_key`, `renewal_role_change_forbidden`, `request_validation_failed`, `resource_chain_gap`, `resource_chain_mismatch`, `resource_not_found`, `retention_in_progress`, `review_after_remediation`, `review_already_decided`, `review_already_pending`, `review_approval_invalid`, `review_conflict`, `review_needs_named_holder`, `review_not_found`, `review_not_pending`, `review_requested_by_actor`, `review_same_holder_as_actor`, `review_same_holder_as_requester`, `review_subject_not_found`, `review_waiver_after_remediation`, `review_waiver_beyond_lifetime`, `review_waiver_too_long`, `service_not_ready`, `service_unavailable`, `signed_at_outside_window`, `stale_sequence`, `treaty_not_found`, `unauthorized`, `unexpected_field`, `unknown_operator_key`, `validation_failed`, `vendor_not_found`, `vote_failed`, `wrong_issuer`
+`accept_rejected`, `admin_auth_failed`, `admin_auth_throttled`, `agent_not_registered`, `agreement_untrusted`, `ambiguous_basis`, `archive_anchor_mismatch`, `archive_conflict`, `archive_manifest_invalid`, `archive_not_contiguous`, `asset_not_found`, `attestation_issuer_mismatch`, `attestation_not_found`, `audit_pack_not_anchored`, `audit_pack_too_large`, `bad_request`, `boundary_eval_failed`, `boundary_policy_activation_conflict`, `boundary_policy_activation_refused`, `boundary_policy_integrity_failed`, `boundary_policy_invalid`, `boundary_policy_not_active`, `boundary_policy_not_found`, `boundary_policy_required`, `boundary_policy_version_conflict`, `break_glass_conflict`, `break_glass_invalid_signature`, `break_glass_key_retired`, `break_glass_malformed`, `break_glass_out_of_scope`, `break_glass_secret_material`, `break_glass_unknown_key`, `caller_keys_not_accepted`, `certificate_key_mismatch`, `certificate_not_found`, `certificate_revoked`, `commit_failed`, `conflict`, `context_party_mismatch`, `counter_rejected`, `crl_publish_contention`, `delete_signature_required`, `descriptor_expired`, `descriptor_network_mismatch`, `descriptor_signature_required`, `emergency_capability_conflict`, `empty_subject_public_keys`, `evidence_anchor_refused`, `evidence_build_failed`, `evidence_capability_mismatch`, `evidence_chain_gap`, `evidence_chain_mismatch`, `evidence_conflict`, `evidence_decision_denied`, `evidence_decision_mismatch`, `evidence_decision_not_found`, `evidence_executor_key_retired`, `evidence_invalid_signature`, `evidence_malformed`, `evidence_out_of_scope`, `evidence_outside_decision_window`, `evidence_retention_refused`, `evidence_secret_material`, `evidence_store_disabled`, `evidence_store_incomplete`, `evidence_store_unavailable`, `evidence_unknown_executor`, `executor_key_exists`, `executor_key_not_found`, `executor_key_retired`, `feed_issuer_mismatch`, `forbidden`, `holder_change_already_approved`, `holder_change_needs_named_holders`, `holder_change_needs_second_holder`, `holder_change_not_found`, `holder_change_proposer_revoked`, `illegal_transition`, `insufficient_operator_tier`, `intent_create_failed`, `internal_server_error`, `invalid_agent_descriptor`, `invalid_agreement`, `invalid_archive`, `invalid_attestation_id`, `invalid_attestation_or_policy`, `invalid_attestation_or_treaty`, `invalid_audit_pack`, `invalid_boundary_policy`, `invalid_break_glass`, `invalid_commitment`, `invalid_context`, `invalid_decision`, `invalid_evidence`, `invalid_holder`, `invalid_input`, `invalid_invite_token`, `invalid_json`, `invalid_json_object`, `invalid_justification`, `invalid_key_role`, `invalid_max_validity_hours`, `invalid_notice`, `invalid_observation`, `invalid_offer`, `invalid_page`, `invalid_policy`, `invalid_policy_version`, `invalid_proof`, `invalid_public_key`, `invalid_public_keys`, `invalid_recipient_public_key`, `invalid_recognition_policy`, `invalid_recognition_treaty`, `invalid_remediation`, `invalid_remediation_query`, `invalid_resource_prefix`, `invalid_retention`, `invalid_review`, `invalid_revocation_reason`, `invalid_role`, `invalid_signature`, `invalid_signed_at`, `invalid_source`, `invalid_sovereign_revocation_feed`, `invalid_succession`, `invalid_threshold`, `invalid_timestamp_order`, `invalid_timestamps`, `invalid_token_expiry_hours`, `invalid_treaty_scope`, `invalid_validity_hours`, `invalid_verdict`, `invalid_vote_type`, `judgement_conflict`, `judgement_subject_not_found`, `justification_untrusted`, `last_active_operator_key`, `missing_accept_fields`, `missing_agreement`, `missing_attestation_subject`, `missing_boundary_fields`, `missing_cert_id`, `missing_certificate_identity`, `missing_commit_fields`, `missing_counter_fields`, `missing_decision`, `missing_evidence`, `missing_executor_key_fields`, `missing_intent_fields`, `missing_invite_token`, `missing_issuer_public_keys`, `missing_node_public_key`, `missing_offer_fields`, `missing_policy`, `missing_policy_fields`, `missing_policy_id`, `missing_proof`, `missing_proof_fields`, `missing_prove_fields`, `missing_recognition_policy`, `missing_signature`, `missing_treaty_subject`, `missing_trust_path_parameters`, `missing_validator_public_keys`, `missing_validity_window`, `missing_verify_fields`, `missing_vote_fields`, `na_key_expired`, `na_key_not_yet_effective`, `na_key_succeeded`, `no_policy`, `node_auth_failed`, `node_has_no_active_certificate`, `node_key_compromised`, `node_key_revoked`, `not_found`, `nullifier_failed`, `observation_conflict`, `observation_invalid_signature`, `observation_key_retired`, `observation_malformed`, `observation_out_of_scope`, `observation_secret_material`, `observation_unknown_key`, `offer_rejected`, `out_of_band_disabled`, `policy_not_found`, `policy_remediation_disabled`, `policy_sign_failed`, `proof_assembly_failed`, `prove_failed`, `rate_limit_exceeded`, `recognition_policy_not_configured`, `remediation_already_recorded`, `remediation_conflict`, `remediation_disabled`, `remediation_invalid_signature`, `remediation_key_retired`, `remediation_malformed`, `remediation_not_due`, `remediation_not_found`, `remediation_out_of_scope`, `remediation_rotation_before_change`, `remediation_rotation_mismatch`, `remediation_rotation_missing`, `remediation_rotation_other_executor`, `remediation_rotation_reused`, `remediation_secret_material`, `remediation_steps_mismatch`, `remediation_subject_mismatch`, `remediation_subject_not_found`, `remediation_unknown_key`, `renewal_role_change_forbidden`, `request_validation_failed`, `resource_chain_gap`, `resource_chain_mismatch`, `resource_not_found`, `retention_in_progress`, `review_after_remediation`, `review_already_decided`, `review_already_pending`, `review_approval_invalid`, `review_conflict`, `review_needs_named_holder`, `review_not_found`, `review_not_pending`, `review_requested_by_actor`, `review_same_holder_as_actor`, `review_same_holder_as_requester`, `review_subject_not_found`, `review_waiver_after_remediation`, `review_waiver_beyond_lifetime`, `review_waiver_too_long`, `service_not_ready`, `service_unavailable`, `signed_at_outside_window`, `stale_sequence`, `succession_after_expiry`, `succession_chain_break`, `succession_invalid_root_signature`, `succession_key_reused`, `succession_not_increasing`, `succession_pending`, `succession_sovereign_mismatch`, `succession_times_invalid`, `treaty_not_found`, `unauthorized`, `unexpected_field`, `unknown_operator_key`, `validation_failed`, `vendor_not_found`, `vote_failed`, `wrong_issuer`
 
 ## Signed artifacts
 
@@ -168,6 +172,8 @@ signed formats evolve).
 | `genesis_mesh.models.atlas:TrustPathEntry` | `signature` | beta |
 | `genesis_mesh.models.attestation:AttestationPolicy` | `signature` | beta |
 | `genesis_mesh.models.attestation:ModelAttestation` | `signature` | beta |
+| `genesis_mesh.models.audit_pack:ArchiveRecord` | `signature` | stable |
+| `genesis_mesh.models.audit_pack:AuditPackManifest` | `signature` | stable |
 | `genesis_mesh.models.boundary_policy:BoundaryPolicy` | `signature` | stable |
 | `genesis_mesh.models.certificates:JoinCertificate` | `signatures` | stable |
 | `genesis_mesh.models.certificates:ServiceManifest` | `signatures` | beta |
@@ -192,6 +198,7 @@ signed formats evolve).
 | `genesis_mesh.models.invocation_token:InvocationToken` | `signature` | beta |
 | `genesis_mesh.models.invocation_token:InvocationUseRecord` | `signature` | beta |
 | `genesis_mesh.models.justification:JustificationProof` | `signature` | stable |
+| `genesis_mesh.models.key_succession:KeySuccessionRecord` | `signatures` | stable |
 | `genesis_mesh.models.mediation:ExecutionMediationRequest` | `signature` | beta |
 | `genesis_mesh.models.mediation:MediatedExecutionReceipt` | `signature` | beta |
 | `genesis_mesh.models.out_of_band:BreakGlassRecord` | `signature` | stable |
@@ -233,6 +240,9 @@ signed formats evolve).
 | `genesis-mesh attestation issue` | beta |
 | `genesis-mesh attestation revoke` | beta |
 | `genesis-mesh attestation verify-with-treaty` | beta |
+| `genesis-mesh audit archive` | beta |
+| `genesis-mesh audit pack` | beta |
+| `genesis-mesh audit verify` | beta |
 | `genesis-mesh dev down` | beta |
 | `genesis-mesh dev up` | stable |
 | `genesis-mesh discover` | beta |
@@ -256,8 +266,12 @@ signed formats evolve).
 | `genesis-mesh managed audit-export` | beta |
 | `genesis-mesh managed backup` | beta |
 | `genesis-mesh managed restore` | beta |
+| `genesis-mesh na doctor` | beta |
 | `genesis-mesh na migrate-db` | stable |
 | `genesis-mesh na start` | stable |
+| `genesis-mesh na succession history` | beta |
+| `genesis-mesh na succession sign` | beta |
+| `genesis-mesh na succession submit` | beta |
 | `genesis-mesh na verify-db` | stable |
 | `genesis-mesh proof canary` | beta |
 | `genesis-mesh proof cleanup` | beta |
@@ -400,11 +414,11 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.agreement:accept_counter` | counter, original_offer, signing_key, *issued_by, *now? | stable |
 | `genesis_mesh.trust.agreement:cosign_agreement` | record, signing_key, *issued_by | stable |
 | `genesis_mesh.trust.agreement:verify_agreement` | record, offerer_public_keys, responder_public_keys, *expected_graph_digest? | stable |
-| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation? | stable |
+| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation?, *at_record_time? | stable |
 | `genesis_mesh.trust.context:sign_boundary_policy` | policy, signing_key, issued_by | stable |
 | `genesis_mesh.trust.context:verify_boundary_policy` | policy, public_keys | stable |
 | `genesis_mesh.trust.context:validate_boundary_policy` | policy, registry | stable |
-| `genesis_mesh.trust.evidence_store:verify_evidence_events` | events, *na_public_keys, *executor_keys, *contiguous?, *checkpoint? | stable |
+| `genesis_mesh.trust.evidence_store:verify_evidence_events` | events, *na_public_keys, *executor_keys, *contiguous?, *checkpoint?, *prior? | stable |
 | `genesis_mesh.trust.evidence_store:check_metadata_only` | evidence | stable |
 | `genesis_mesh.trust.data_usage:DataLicensePolicy` | model | stable |
 | `genesis_mesh.trust.data_usage:DataSourceDescriptor` | model | stable |

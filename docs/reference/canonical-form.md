@@ -159,7 +159,16 @@ fields, the same for both parties: `agreed_terms`, `graph_digest`,
 `responder_sovereign_id`.
 
 From 1.2.0 on, every optional field added to a signed record is omitted from
-its signed form when absent, and listed here.
+its signed form when absent, and listed here. The records of 1.3.0 and later
+(the Stage 2 to 4 records) omit every optional top-level field when absent;
+the registry lists them per record (`omit_when_none`).
+
+Since 1.5.0 the registry also describes the records of the NA's key history
+and of audit packs: `GenesisBlock` (signed by the root key; `signatures` is
+outside its signed form), `KeySuccessionRecord` (signed by the root key and
+the outgoing NA key, both in `signatures`; `previous_succession_digest`
+omitted when absent), `ArchiveRecord` and `AuditPackManifest` (signed by the
+NA). See {doc}`audit-pack-format`.
 
 ## Unknown fields
 

@@ -229,7 +229,13 @@ Response excerpt:
   "network_authority": {
     "public_key": "<base64-ed25519-public-key>",
     "valid_from": "<iso8601>",
-    "valid_to": "<iso8601>"
+    "valid_to": "<iso8601>",
+    "valid_to_enforced": false
+  },
+  "signing_key": {
+    "key_sequence": 1,
+    "public_key": "<base64-ed25519-public-key>",
+    "signs_until": null
   },
   "root_public_key": "<base64-ed25519-public-key>",
   "supported_surfaces": {
@@ -243,6 +249,43 @@ Response excerpt:
 
 The response intentionally excludes private keys, operator signatures, local
 filesystem paths, and database paths.
+
+Since v1.5.0 `network_authority` stays the genesis block's NA key (the
+sovereign's identity, and the audience of operator requests); its `valid_to`
+is shown, not enforced (`valid_to_enforced: false`). `signing_key` is the key
+that signs now: after a key succession, a later key of the history, with
+`signs_until` when a succession or its own validity ends it.
+`supported_surfaces.key_history` links the key history.
+
+### `GET /na/key-history`
+
+*Unreleased.*
+
+The NA's key history (v1.5.0): `genesis` (the signed genesis block),
+`successions` (every `KeySuccessionRecord`, each signed by the root key and
+the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
+`public_key`, `valid_from`, `succeeded_at`, `valid_to`, `valid_to_enforced`
+and `current`), `root_public_key`, `handover_seconds` (300) and
+`signing_key_sequence`. Public: a verifier checks it from the root key it
+holds, never from the key this response names. See
+{doc}`../operations/key-succession`.
+
+### `POST /admin/na/succession`
+
+*Unreleased.*
+
+Privileged. `{"succession": <KeySuccessionRecord signed by the root key>}`:
+the NA checks it continues its key history, is signed by the root key and
+takes effect 60 seconds to 30 days from now, countersigns it with its current
+key and records it. `201` with `succession` (both signatures) and
+`key_history`. Errors: `400 invalid_succession`, `409
+succession_chain_break`, `succession_key_reused`, `succession_not_increasing`,
+`succession_sovereign_mismatch`, `succession_after_expiry`,
+`succession_times_invalid`, `succession_pending`, `422
+succession_invalid_root_signature`. From the succession's `effective_at`
+anything needing an NA signature answers `503 na_key_succeeded` until the NA
+restarts with the new key; a succeeded-to key past its validity answers `503
+na_key_expired`.
 
 ### `GET /policy`
 
@@ -384,7 +427,7 @@ during an incident.
 
 | Tier | May do |
 |---|---|
-| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list) (v1.0.2), and list or request evidence store anchors, `GET` and `POST /admin/evidence/anchors` (v1.2.0), and nothing else. For dashboards, auditors and other readers. |
+| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list) (v1.0.2); list or request evidence store anchors, `GET` and `POST /admin/evidence/anchors` (v1.2.0); read a resource's changes and the operator key holders (v1.3.0) and the remediation queue, states and reviews (v1.4.0); and since v1.5.0 every evidence store read (search, status, verify, resource and vendor histories, resource heads, export, executor keys), audit packs (`POST /admin/evidence/audit-pack`) and the archive list. Nothing that changes the store or its keys. For dashboards, auditors and other readers. |
 | `standard` | Everything a read key may do, **plus** day-to-day work: invitations, admin reads, and routine operations. |
 | `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
 
