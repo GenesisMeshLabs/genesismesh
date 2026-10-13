@@ -296,6 +296,15 @@ class NetworkAuthorityService:
                              if not isinstance(v, str) or not 1 <= len(v.strip()) <= 128 or len(v) > 128)
         if bad_holders:
             raise ValueError(f"operator key holders must be names of 1 to 128 characters: {bad_holders}")
+        # v1.5.0: a key named as its own holder is unnamed (it is what the NA records for a key
+        # without a holder), so every review it takes part in would be refused with
+        # review_needs_named_holder. Refused at start instead of accepted silently.
+        self_named = sorted(k for k, v in self.operator_key_holders.items() if v.strip() == k)
+        if self_named:
+            raise ValueError(
+                f"operator key holders name a key as its own holder, which leaves it unnamed: {self_named}; "
+                "name the person or team that holds each key (OPERATOR_KEY_HOLDERS_JSON), or leave the key out"
+            )
         self.evidence_store_service = EvidenceStoreService(self)
         self.out_of_band_service = OutOfBandService(self)
         self.remediation_service = RemediationService(self)
