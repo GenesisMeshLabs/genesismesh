@@ -205,6 +205,23 @@ class NAKeyHistory:
         ))
 
 
+def build_history(
+    sovereign_id: str, root_public_key: str | None, genesis_key: NAKey, successions: Sequence[KeySuccessionRecord],
+) -> NAKeyHistory:
+    """The key windows of a genesis key and its successions, in order (their signatures checked elsewhere)."""
+    keys = [genesis_key]
+    for record in successions:
+        previous = keys[-1]
+        effective = _utc_aware(record.effective_at)
+        keys[-1] = NAKey(previous.key_sequence, previous.public_key, previous.key_id or record.previous_key_id,
+                         previous.valid_from, effective, previous.valid_to, previous.valid_to_enforced)
+        keys.append(NAKey(key_sequence=record.key_sequence, public_key=record.new_public_key,
+                          key_id=record.new_key_id, valid_from=effective, succeeded_at=None,
+                          valid_to=_utc_aware(record.new_valid_to), valid_to_enforced=True))
+    return NAKeyHistory(sovereign_id=sovereign_id, root_public_key=root_public_key, keys=tuple(keys),
+                        successions=tuple(successions))
+
+
 def na_keys_at(keys: "Sequence[str] | NAKeyHistory", at: datetime | None) -> list[str]:
     """The NA public keys a record dated ``at`` may be signed with.
 

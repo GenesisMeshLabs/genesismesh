@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..models.evidence_store import EvidenceEvent, EvidenceStoreEntry, payload_digest
+from ..models.key_succession import NAKeyHistory
 from ..models.revocation import CertificateRevocationList
 from ..na_service.db import NADatabase, expected_schema_version
 from ..trust.evidence_store import (
@@ -118,11 +119,27 @@ def _verify_evidence(db: NADatabase, report: VerificationReport, na_public_key: 
         keys = {r["key_id"]: EvidenceStoreService.key_from_row(r) for r in db.list_executor_keys()}
         events = [EvidenceEvent(entry=s["entry"], entry_digest=s["entry_digest"], payload=s["payload"]) for s in stored]
         result = verify_evidence_events(
-            events, na_public_keys=[na_public_key], executor_keys=keys, contiguous=True, checkpoint=checkpoint
+            events, na_public_keys=_na_keys(db, na_public_key), executor_keys=keys, contiguous=True,
+            checkpoint=checkpoint,
         )
         info["signature_failures"] = result.failures
         if not result.verified:
             report.fail(f"evidence store verification failed: {len(result.failures)} failure(s)")
+
+
+def _na_keys(db: NADatabase, na_public_key: str) -> NAKeyHistory | list[str]:
+    """The NA's keys (v1.5.0): the genesis key and the successions the database's key history holds,
+    each valid at its own times. The successions' signatures are checked by the NA at start and by an
+    auditor's ``audit verify``, which hold the root key; here the history only places each key in time."""
+    from ..models.key_succession import KeySuccessionRecord, NAKey, build_history
+
+    rows = db.na_key_history_rows() if "na_key_history" in db.table_names() else []
+    if len(rows) <= 1 or rows[0]["public_key"] != na_public_key:
+        return [na_public_key]
+    first = NAKey(key_sequence=1, public_key=na_public_key, key_id=rows[0]["key_id"], valid_from=None,
+                  succeeded_at=None, valid_to=None, valid_to_enforced=False)
+    records = [KeySuccessionRecord.model_validate_json(r["succession_json"]) for r in rows[1:]]
+    return build_history("", None, first, records)
 
 
 def _verify_anchors(
@@ -134,7 +151,7 @@ def _verify_anchors(
     report.checks["evidence_anchors"] = info
     if not anchors:
         return
-    chain = verify_store_anchors(anchors, na_public_keys=[na_public_key] if na_public_key else None)
+    chain = verify_store_anchors(anchors, na_public_keys=_na_keys(db, na_public_key) if na_public_key else None)
     info["chain"] = chain.to_dict()
     if not chain.verified:
         report.fail("store anchors fail verification: "

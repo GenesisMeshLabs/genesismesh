@@ -353,3 +353,19 @@ def test_a_pack_across_a_succession_verifies_from_the_root_key(net):
     # Keys inside the pack prove nothing alone: the genesis key as the "root" refuses the history.
     other = verify_audit_pack(files, root_public_key=public_b64(net.na_keys[0]), held_anchors=held)
     assert [f["reason"] for f in other.failures] == ["genesis_root_mismatch"]
+
+
+def test_verify_db_places_each_key_of_the_history_in_time(net):
+    """na verify-db (after a restore or a migration) checks records signed by every key of the history."""
+    from genesis_mesh.workflows.db_migration import verify_database
+
+    service = net.start()
+    client = _client(service)
+    controller = Controller(client)
+    first = controller.record(_decide(client))
+    assert _submit(client, first).status_code == 201
+    _, restarted, client = _succeeded(net, service, client)
+    assert _submit(client, controller.record(_decide(client), action="rotate", prior_resource=first)).status_code == 201
+    assert _post(client, "/admin/evidence/anchors", {}).status_code in (200, 201)
+    report = verify_database(restarted.db, public_b64(net.na_keys[0]))
+    assert report.ok, report.to_dict()
