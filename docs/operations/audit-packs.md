@@ -1,7 +1,5 @@
 # Audit Packs
 
-*Unreleased.*
-
 An audit pack is one period of the evidence store, packed for an audit: a
 report a reader starts from, and a bundle a security team verifies on its
 own, years later, from the root key and the anchors it holds. The format is

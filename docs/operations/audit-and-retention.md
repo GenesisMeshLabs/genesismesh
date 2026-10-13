@@ -1,7 +1,5 @@
 # Audit and Retention
 
-*Unreleased.*
-
 The evidence store is append-only: decisions, execution evidence, records of
 changes made outside the controlled path, judgements, remediations and
 reviews stay until retention removes a prefix of the store behind a signed

@@ -263,8 +263,6 @@ that signs now: after a key succession, a later key of the history, with
 
 ### `GET /na/key-history`
 
-*Unreleased.*
-
 The NA's key history (v1.5.0): `genesis` (the signed genesis block),
 `successions` (every `KeySuccessionRecord`, each signed by the root key, the
 new key and the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
@@ -275,8 +273,6 @@ holds, never from the key this response names. See
 {doc}`../operations/key-succession`.
 
 ### `POST /admin/na/succession`
-
-*Unreleased.*
 
 Privileged. `{"succession": <KeySuccessionRecord signed by the root key and
 the new key>}`: the NA checks it continues its key history, names neither the

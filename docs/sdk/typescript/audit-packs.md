@@ -1,7 +1,5 @@
 # Key succession, audit packs and independent verification
 
-*Unreleased.*
-
 From Genesis Mesh 1.5.0 the Network Authority (NA) can replace its signing
 key without breaking anything it signed before, and a security team can check
 a range of the evidence store years later, offline, from material it holds
