@@ -60,6 +60,8 @@ The SDK covers the controller side of the secret governance pilots:
   judgements and the record outbox
 - {doc}`remediation-and-reviews` (1.4.0): remediation records, the due queue,
   reviews and waivers, and urgent changes
+- {doc}`audit-packs` (1.5.0): the NA key history and key succession, and
+  audit packs verified offline
 
 ---
 
@@ -86,4 +88,5 @@ offline-verification
 high-availability
 out-of-band-changes
 remediation-and-reviews
+audit-packs
 ```
