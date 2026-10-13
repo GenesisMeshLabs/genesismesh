@@ -37,6 +37,21 @@ CREATE TABLE IF NOT EXISTS archive_records (
 );
 CREATE INDEX IF NOT EXISTS ix_archive_through ON archive_records(through_sequence);
 
+CREATE TABLE IF NOT EXISTS audit_packs (
+    pack_id TEXT PRIMARY KEY,
+    manifest_sha256 TEXT NOT NULL,
+    from_sequence INTEGER NOT NULL,
+    through_sequence INTEGER NOT NULL,
+    end_anchor_sequence INTEGER NOT NULL,
+    verified INTEGER NOT NULL CHECK (verified IN (0, 1)),
+    built_at TEXT NOT NULL,
+    requested_by TEXT
+);
+
+DROP TRIGGER IF EXISTS audit_packs_no_update ON audit_packs;
+CREATE TRIGGER audit_packs_no_update BEFORE UPDATE ON audit_packs
+    FOR EACH ROW EXECUTE FUNCTION gm_evidence_refuse('the packs built are append-only');
+
 DROP TRIGGER IF EXISTS na_key_history_no_update ON na_key_history;
 CREATE TRIGGER na_key_history_no_update BEFORE UPDATE ON na_key_history
     FOR EACH ROW EXECUTE FUNCTION gm_evidence_refuse('the NA key history is append-only');

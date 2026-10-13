@@ -43,6 +43,8 @@ FREE_FORM = {
     ("RetentionCheckpoint", "observation_heads"),
     # v1.4.0: an operator's signed admin request, kept whole in a review.
     ("AdminApproval", "body"), ("AdminApproval", "query"),
+    # v1.5.0 review fixes: the treaty, a root because packs carry it.
+    ("RecognitionTreaty", "metadata"), ("RecognitionTreatyScope", "claims"),
 }
 
 
