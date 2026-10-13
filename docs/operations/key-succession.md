@@ -1,7 +1,5 @@
 # Key Succession and the Root Key
 
-*Unreleased.*
-
 The genesis block names the Network Authority's first public key and the
 root key that signed it. Since 1.5.0 the NA key can be replaced without
 losing the sovereign's identity or any old signature: a **key succession**

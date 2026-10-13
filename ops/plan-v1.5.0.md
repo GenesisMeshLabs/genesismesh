@@ -158,25 +158,28 @@ Decisions 5 to 16 below.
 - [x] Every route that requires the standard tier or above returns
       `403 insufficient_operator_tier` for a read key; the read key produces a
       pack
-- [ ] `genesis-mesh-verify` passes the differential corpus with Python's
+- [x] `genesis-mesh-verify` passes the differential corpus with Python's
       verdicts and reason codes, agrees with `audit verify` on every pack in
       the tests, tampered ones included; `ldd` reports no dynamic
       dependencies; a documented rebuild reproduces the unsigned binary's
-      digest
+      digest (sdk-rust CI: 169 corpus cases strict, the static build checked
+      with `readelf`/`ldd`, built twice and compared, tests run with the
+      network off)
 - [x] The operations sub-index and pages build under `sphinx -W`
 
 ## Release Gate
 
-- [ ] Stage 3 (1.4.0) released
+- [x] Stage 3 (1.4.0) released (2026-10-12)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.5.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries, `history.md`, `phase-n.md`
-- [ ] `SECURITY.md`: 1.5.x supported, 1.4.x upgrade to 1.5; read-tier evidence
+- [x] Version bumped to `1.5.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries, `history.md`, `phase-n.md`
+- [x] `SECURITY.md`: 1.5.x supported, 1.4.x upgrade to 1.5; read-tier evidence
       access and the verifier binaries noted
-- [ ] Public contract: Stage 2 and 3 routes promoted to stable; new routes,
+- [x] Public contract: Stage 2 and 3 routes promoted to stable; new routes,
       commands, settings and the binary classified
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] Merge order: core, then the SDKs, then the gateway (the SDKs merged
+      first, with the core's interop re-run once all were on main)
 - [ ] Dry runs green; tags `v1.5.0`, releases, published-artifacts green
 - [ ] `"1.5.0"` added to the `upgrade.yml` matrix after the release
 - [ ] Both production hosts upgraded; a pack of each verified with the

@@ -30,11 +30,12 @@ Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEP
 
 | Version | Status |
 |---|---|
-| `1.4.x` | Supported |
-| `1.3.x` | Unsupported: upgrade to 1.4 |
-| `1.2.x` | Unsupported: upgrade to 1.4 |
-| `1.1.x` | Unsupported: upgrade to 1.4 |
-| `1.0.x` | Unsupported: upgrade to 1.4 |
+| `1.5.x` | Supported |
+| `1.4.x` | Unsupported: upgrade to 1.5 |
+| `1.3.x` | Unsupported: upgrade to 1.5 |
+| `1.2.x` | Unsupported: upgrade to 1.5 |
+| `1.1.x` | Unsupported: upgrade to 1.5 |
+| `1.0.x` | Unsupported: upgrade to 1.5 |
 | `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
@@ -104,13 +105,25 @@ deployment.
 - **NA private key exposure.** The NA private key never leaves the NA
   process; admin callers use **operator keys**, not the NA key.
 - **Reverse-proxy IP spoofing.** The NA trusts exactly `NA_PROXY_HOPS`
-  reverse proxies (default 1) for `X-Forwarded-For`, `X-Forwarded-Proto` and
+  reverse proxies (default 0 since 1.3.1) for `X-Forwarded-For`, `X-Forwarded-Proto` and
   `X-Forwarded-Host`, and none when it is set to 0, so a client cannot choose
   the address its rate limits apply to. Set it to match the deployment, and
   have the proxy overwrite each of these headers. Set `NA_PUBLIC_URL` so the
   URLs the NA advertises do not depend on the request's `Host`.
 - **Oversized requests.** Request bodies above `NA_MAX_REQUEST_BYTES`
   (default 2 MiB) are refused with 413 before they are parsed.
+- **Evidence reads with a read-tier key** (1.5.0). The routes an audit pack
+  needs (evidence reads, the audit pack, the archive list) accept a `read` key,
+  so a security team can produce and verify packs without a key that changes
+  anything; every route that writes still refuses it
+  (`403 insufficient_operator_tier`). A read key sees the evidence store's
+  metadata and actor identifiers: hand it out as you would audit-log access.
+  Audit packs have an hourly limit of their own.
+- **Independent verification.** `genesis-mesh-verify`, built from the Rust SDK,
+  verifies records, exports and audit packs offline. It is released as static
+  Linux binaries with `SHA256SUMS` and Sigstore bundles signed by the Rust SDK's
+  release workflow, reproducible from source; it never needs a private key or a
+  network. "Independent" means separate code by the same project.
 - **Trust changes by routine keys.** Operator keys have tiers; issuing,
   revoking, treaties, feed imports, policies, agreement acceptance and data
   license policies require a privileged key.

@@ -52,8 +52,6 @@ built wheel before every release.
 
 ## Upgrading to 1.5
 
-*Unreleased.*
-
 1.5 adds migration 017. On SQLite it rebuilds the evidence table once more
 (to accept the `key_succession` and `archive` entry kinds), with the same
 cost as in 1.4: one copy of the table on disk and the time the copy takes. On

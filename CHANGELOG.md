@@ -1,5 +1,185 @@
 # Changelog
 
+## v1.5.0 - Audit Packs and Independent Verification
+
+### Security
+
+- `valid_to` is enforced for every key a succession names: it signs nothing at or after its `new_valid_to`
+  (`503 na_key_expired`), and verifiers refuse records it signed after it. The genesis key's `valid_to` is
+  still shown and not enforced: deployments created before 1.5.0 carry a 90-day one.
+- A record signed by a key of the NA's history outside that key's validity window is refused as
+  `na_key_not_valid_at_time` (new reason code), in the store, exports, anchors, packs and decision
+  verification.
+- **Read-tier evidence access.** Every evidence store read (`GET /admin/evidence`, `status`, `verify`, resource
+  and vendor histories, resource heads, `export`, `GET executor-keys`), the audit pack route and the archive
+  list accept a `read` key, so an auditor's key can produce a pack. Every route that changes the store or its
+  keys still needs the standard or privileged tier and refuses a read key with `403
+  insufficient_operator_tier` (tested route by route). To be recorded in `SECURITY.md` at release.
+- **A succeeded key cannot mint what outlives it.** A decision signed by a key with an end (a succeeded key, or
+  one with an enforced `valid_to`) is refused when it stays valid past that end, the 300-second hand-over and
+  300 seconds (`decision_outlives_key`), offline and by `/boundary/verify`. `NA_DECISION_LIFETIME_SECONDS`
+  (1 to 300, default 300) sets the lifetime of the decisions the NA issues.
+- **The store's time does not go backwards.** An entry recorded more than 300 seconds before an entry stored
+  ahead of it is `recorded_at_out_of_order` (entries retention carried forward excepted), an NA-signed entry
+  must be signed by a key valid at the latest earlier time too (`na_key_not_valid_at_time`), and the NA refuses
+  to anchor or apply retention over a tail whose time goes backwards. What remains: within the hand-over and
+  the tolerance, an entry the holder of the outgoing key appends at once is bounded only by the anchors made
+  after it.
+- **Key successions prove the new key is held and are never backdated.** A succession carries a third
+  signature, by the new key (`succession_invalid_new_key_signature`); the root key is refused as an NA key
+  (`succession_key_reused`); a succession issued after it takes effect, or recorded less than 60 seconds
+  before, is `succession_backdated`. The genesis block is held to the rules of every signed root
+  (`unknown_field`, `non_canonical_form`).
+- **`na verify-db` verifies the key history from the root key.** With `--genesis`, the database's key history
+  is verified from the genesis block's root key; a row a database writer added proves nothing.
+- **Archives name packs the NA built and verified.** The NA records the manifest digest of every pack it
+  builds and whether its own checks passed; `POST /admin/evidence/archives` refuses any other manifest
+  (`409 archive_pack_unknown`) and a pack whose checks failed (`409 archive_pack_unverified`).
+  `genesis-mesh audit archive` verifies the pack it read back before it records anything (`--force` records
+  it anyway). That the pack sits on immutable storage still rests on the word of the privileged key that
+  records the archive: the NA cannot see the storage.
+- **Cited entries are tied to what the verifier holds.** `audit verify --prior <pack>` checks each entry a pack
+  cites against the packs verified before, and a held anchor at a cited entry's position must name it
+  (`cited_entry_mismatch`); a cited entry neither covers is a warning, `cited_entry_unanchored`.
+- **Executor keys are placed in the store.** In a pack, a key verifies only records stored after the registry
+  record that registered it and before the one that retired it (`evidence_unknown_executor`,
+  `evidence_executor_key_retired`); a key backfilled at an upgrade or carried past retention is placed by its
+  `effective_at`.
+- **Live routes use the key valid at the record's time.** `/boundary/verify`, `/boundary-policies/verify`,
+  `/trust-evidence/verify`, `/disclosure/verify`, `/data-usage/verify`, `/consensus/verify` and
+  `/agreements/verify` check a record the caller gives no keys for with the NA key valid at its own time; the
+  NA votes and assembles consensus only over proofs its current key signed. An agreement the NA signed is
+  placed at `agreed_terms.valid_from` (its `established_at` is not signed) and vouches only while that key is
+  still accepted: offer the NA's agreements again after a succession's hand-over.
+- **Mesh nodes follow the key history**, verified from the root key their genesis block names, so they keep
+  verifying join certificates, policies and CRLs across a succession.
+- `NA_DEPLOYMENT=managed` refuses to start with `NA_RETENTION_REQUIRE_ARCHIVE=off`, and its root key search
+  covers the configuration directory three levels deep and the environment; `fleet generate` warns where it
+  wrote the root keys.
+- `genesis-mesh init` still writes a root key for local use, and now warns that it wrote it next to the NA key:
+  whoever holds both can replace the NA's key history. The operations docs give an offline root key ceremony.
+
+### Added
+
+- **Archive before prune.** `genesis-mesh audit archive` (privileged) writes a pack to immutable storage, reads
+  every file back and checks it against the manifest, records an NA-signed `ArchiveRecord` (entry kind
+  `archive`, `POST /admin/evidence/archives`), then prunes through it. Nothing is recorded or pruned when the
+  write or the read-back fails. `GET /admin/evidence/archives` lists the archives (read tier).
+- `POST /admin/evidence/retention/apply` takes `through_sequence`, with or without `older_than_days`.
+- **Audit packs.** `genesis-mesh audit pack` (`POST /admin/evidence/audit-pack`, read tier) writes one range of
+  the evidence store between two anchors with everything its records cite (decisions, judgement subjects and
+  matches, the records the range's chains continue from, the registries and key history, policy versions,
+  attestations, treaties and feeds), the NA's own verification (`checks.json`), a Markdown report
+  (`report.md`: every change with `governed_by` and state, denials, remediations, reviews and deciders,
+  notices, break-glass uses, quarantined records, totals and the checks) and `manifest.json`, every file's
+  SHA-256 signed by the NA. The format, `gm.audit.pack` version 1, is in `docs/reference/audit-pack-format.md`.
+- **Offline verification.** `genesis-mesh audit verify <dir> --anchor <root key> --known-anchors <anchors>`
+  (`--prior <pack>`, `--period FROM UNTIL`, `--report <file>`, `--require-anchors`) checks a pack with no
+  network and no private key, from the root key and the anchors the auditor holds:
+  keys inside the pack prove nothing alone. NA signatures are checked with the key valid at each record's
+  time, decisions as of their own time, and a record a record cites that the pack does not hold fails
+  (`cited_record_missing`). New reason codes are listed in the format page.
+- **Completeness check.** `--changes <csv or json>` matches a log of changes kept outside Genesis Mesh against
+  the pack (by source event ID, else by resource, action and time within `--tolerance-seconds`) and fails on
+  a change the store does not record (`change_unmatched`).
+- `verify_boundary_decision(..., at_record_time=True)` judges an archived decision as of its own time rather
+  than now; `verify_evidence_events(..., prior=...)` takes a pack's cited records.
+- The `audit` conformance suite (105 vectors), `scripts/export_reference_corpus.py --suite verification` (the
+  corpus a second verifier runs, with the reference's verdicts; `--check` runs it), and the frozen 1.5.0
+  pack `conformance/fixtures/audit-pack-1.5.0`, which every later release verifies.
+- **NA key succession.** A `KeySuccessionRecord` names the Network Authority's next key, signed by the root
+  key (kept offline), by the new key (proof that it is held) and by the outgoing NA key; the genesis key and the successions are the NA's key history
+  (`GET /na/key-history`). The store, exports, anchors, retention checkpoints, audit packs, agreement trust
+  (treaties and NA-issued attestations and agreements) and the verify routes accept an NA signature by the key
+  valid at the record's own time, so records signed before and after a succession keep verifying. Record one
+  with `genesis-mesh na succession history`, `sign` (offline, with the root key file), `prove` (where the new
+  key lives) and `submit`
+  (`POST /admin/na/succession`, privileged); the NA countersigns it and, with the evidence store on, records a
+  `key_succession` entry. From the succession's `effective_at` the outgoing key signs nothing
+  (`503 na_key_succeeded`); an instance may start with the new key before then, signs nothing and reports not
+  ready until it takes effect.
+- `genesis-mesh evidence verify-export --key-history <file> --root-key <key>` verifies an export across a
+  succession; `na verify-db --genesis <file>` verifies the database's key history from the genesis block's
+  root key and places each key in time.
+- Mesh nodes follow the key history: they read `GET /na/key-history`, adopt it when it verifies from the root
+  key their genesis block names, cache it, and check join certificates, policies and CRLs with the NA key
+  valid at each one's `issued_at`.
+- `/sovereign.json` adds `signing_key` and `network_authority.valid_to_enforced`, and links the key history.
+- `genesis-mesh na doctor --env-file <file>` checks an NA host against its settings: the root private key absent
+  from where the NA's files live, the NA key valid now and for how long, archives required.
+- `NA_DEPLOYMENT=managed` refuses to start the NA when the root private key is found where its files live, or
+  when the NA key is the root key.
+
+### Changed
+
+- With `NA_RETENTION_REQUIRE_ARCHIVE` (on by default) retention removes nothing past what an unbroken run of
+  archive records covers, and says so (`held_back` with `"reason": "not_archived"`). Turn it off only for
+  local development.
+- Retention no longer stops at the latest record of a resource: the checkpoint carries every removed
+  resource's head. Registry, key succession and archive entries are never removed: they are carried past the
+  checkpoint unchanged, with the time they were first recorded.
+- The Stage 2 and 3 routes (observations, break-glass, judgements, operator key holders, remediations and
+  reviews) are stable in the public contract; the new routes and commands of 1.5.0 are beta, the records'
+  signed forms and the pack format stable.
+
+### Fixed
+
+- **A key named as its own holder is refused at start.** `OPERATOR_KEY_HOLDERS_JSON={"k": "k"}` was
+  accepted silently, but a key that is its own holder is unnamed, so every review it took part in was
+  refused with `review_needs_named_holder`. The NA now refuses to start and names the keys: name the
+  person or team that holds each key, or leave the key out.
+- **The default due queue leaves out remediated changes.** `GET /admin/evidence/remediations` without
+  `state` listed a remediated change whose review was still pending (for example a review opened
+  automatically for a flagged judgement). A remediated change is settled: the default queue now lists
+  the due, overdue and waived changes and the other changes with a pending review. `state=review_pending`
+  still lists every change with a pending review, remediated ones included.
+- A pack of a range after a prune verifies: the chains continue from the retention checkpoint's heads, which
+  every pack cites (the NA also cites the archive entries before the range).
+- `audit verify` renders the report from the pack's own files (`states.json` now holds the remediation states
+  and notices) and refuses a `report.md` that differs (`report_mismatch`, with `report_differences`);
+  `--report <file>` writes the report the verification renders with its own checks. Report cells escape
+  backslashes, bars and every control character, a lone carriage return included.
+- A manifest listing a file that is not a file of the format is refused (`manifest_unknown_file`); one dated
+  before its end anchor or last entry is `manifest_backdated`; its signature, and those of the policies,
+  attestations, treaties and feeds a pack carries, are checked over the record as received.
+- The completeness check sets aside a repeated source event, matches an event ID only on its resource and
+  action, never looks a change without an event ID up under "None", and finds the matching with the most pairs
+  at the least total distance (a closest-first pass could miss one). The period a pack covers starts at its
+  start anchor; `--period FROM UNTIL` fails when the pack does not cover it (`pack_period_not_covered`), and
+  changes outside the period are the warning `changes_outside_period`. The period asked for is recorded in the
+  manifest (`period_from`, `period_until`).
+- A changes file's times are strict RFC 3339, and its fields strings or null (`true` is refused, not read as
+  "True").
+- `audit verify` runs without `--known-anchors`, as the library and the format do, with a warning
+  (`no_held_anchors`); `--require-anchors` makes it fail.
+- Key succession reasons come in one order everywhere: `payload_invalid` first; `pack_start_anchor_not_held`
+  is gone (`export_not_linked_to_anchors` names the same case).
+- Retention no longer says `not_archived` when only entries it carries forward (the archive record of the last
+  pack) lie past the archived position.
+- `POST /admin/evidence/audit-pack` has a rate limit of its own, `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR`
+  (default 12).
+- An instance may start with a new NA key before its succession takes effect: it signs nothing until then and
+  `/readyz` reports it not ready (`na_key.state: pending`).
+- The frozen 1.5.0 pack fixture is complete: its `keys/` directory was left out of the commit by a `.gitignore`
+  rule; a test checks every file its manifest lists is tracked, and `generate_vectors.py` refuses an
+  incomplete fixture.
+- `RecognitionTreaty` is a field registry root (a pack carries treaties); the time each NA-signed record read
+  alone is placed at is specified, and pinned by the `audit` suite and the verification corpus.
+
+### Upgrading
+
+- A store upgraded to 1.5.0 has no archive, so retention removes nothing until the first `audit archive`.
+  Set up immutable storage first (object lock with a lock period at least the retention period); see
+  `docs/operations/audit-and-retention.md`.
+- Migration 017 rebuilds the evidence table on SQLite (new entry kinds `key_succession` and `archive`) and
+  adds the key history and archive tables; at its first start the NA records its genesis key as the first
+  entry of the key history. A 1.5 database cannot be opened by 1.4.
+- Verifiers before 1.5 refuse the `key_succession` and `archive` entry kinds (`unknown_entry_kind`); the NA
+  writes them only when an operator records a succession or an archive. Upgrade the SDKs and tools that read
+  your exports first.
+- An NA whose `OPERATOR_KEY_HOLDERS_JSON` names a key as its own holder does not start on 1.5.0: remove
+  the entry or name the holder.
+
 ## v1.4.0 - Remediation, Reviews and Notification
 
 ### Security

@@ -189,7 +189,7 @@ key, and each NA signature with the key valid at the record's time.
 
 ### Audit and key succession
 
-> **v1.5.0**: Audit Packs and Independent Verification. *Unreleased.*
+> **v1.5.0**: Audit Packs and Independent Verification.
 
 | Command | What it does |
 |---|---|
