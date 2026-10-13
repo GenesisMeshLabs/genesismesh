@@ -38,9 +38,26 @@ signed artifact. Vector files live in `conformance/vectors/` and are run by
 `interop`, `consensus`, `admin_auth`, `field_registry` and `canonical` suites
 in their own tests, and the Rust SDK the `admin_auth`, `field_registry` and
 `canonical` suites; the TypeScript and Rust SDKs, which verify evidence
-exports, also run the `out_of_band` suite (1.3.0) and the `remediation`
-suite (1.4.0). The interoperability workflow checks that every copy matches
-the reference's.
+exports, also run the `out_of_band` suite (1.3.0), the `remediation`
+suite (1.4.0) and the `audit` suite (1.5.0: key histories, records across an
+NA key succession, audit packs and the completeness check). The
+interoperability workflow checks that every copy matches the reference's.
+
+## Audit packs and the NA key history
+
+*Unreleased.*
+
+The audit pack format (`gm.audit.pack` version 1,
+{doc}`reference/audit-pack-format`), the signed forms of
+`KeySuccessionRecord`, `ArchiveRecord` and `AuditPackManifest`, and the
+verification reason codes are stable from 1.5.0: packs sit in archives for
+years, and a pack written by 1.5.0 verifies with every later release. The
+frozen 1.5.0 pack (`conformance/fixtures/audit-pack-1.5.0`) is verified by
+every release's tests. The routes and commands that write packs, archives and
+successions are beta; the Stage 2 and 3 routes (observations, break-glass,
+judgements, holders, remediations and reviews) are stable from 1.5.0.
+`scripts/export_reference_corpus.py --suite verification` writes the corpus a
+second verifier runs.
 
 Alternative implementations must pass all vectors to claim conformance.
 See `conformance/CONFORMANCE.md` for instructions.
