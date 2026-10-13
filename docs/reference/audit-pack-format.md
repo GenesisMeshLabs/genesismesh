@@ -348,6 +348,8 @@ order:
 A table is a header row `| A | B |`, a row `|---|---|`, one row per item and
 a blank line; a table without rows is `None.` and a blank line. A cell holds
 the value as it is in the record (a string as itself, an integer in decimal,
+a number with an integral value also in decimal, even when read as a float
+such as `1.0`, since JSON does not tell the two apart in every language,
 `true` or `false`, empty when absent, anything else as canonical JSON), with
 a backslash written `\\`, a `|` written `\|`, a line feed, carriage return
 or tab written `\n`, `\r` or `\t`, any other character from U+0000 to U+001F

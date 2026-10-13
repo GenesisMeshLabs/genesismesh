@@ -525,7 +525,7 @@ def review_misc_vectors() -> list[tuple[str, str, str, dict[str, Any]]]:
     out.append(("report-cells", "report_cell", "Report cells: backslash, bar, line breaks, controls, separators",
                 {"input": {"values": ["plain", "a|b", "back\\slash", "line\nfeed", "lone\rreturn", "tab\there",
                                       "bell\x07", "del\x7f", "nel\x85", "ls\u2028ps\u2029", "Zürich ✓", "",
-                                      True, 5, None, {"b": [1, "|"], "a": "x"}]}}))
+                                      True, 5, None, {"b": [1, "|"], "a": "x"}, 1.0, -3.0, 2.5]}}))
     good = [{"resource_id": RESOURCE, "action": "rotate", "changed_at": "2026-01-01T02:00:00.1234567+02:00",
              "source": "log", "source_event_id": "e-1", "actor": "principal-1"},
             {"resource_id": RESOURCE, "action": "rotate", "changed_at": "2026-01-01t00:00:00z",
