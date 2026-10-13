@@ -369,3 +369,30 @@ def test_verify_db_places_each_key_of_the_history_in_time(net):
     assert _post(client, "/admin/evidence/anchors", {}).status_code in (200, 201)
     report = verify_database(restarted.db, public_b64(net.na_keys[0]))
     assert report.ok, report.to_dict()
+
+
+def test_verify_export_reads_the_key_history_from_the_root_key(net, tmp_path):
+    """evidence verify-export --key-history --root-key: each NA key verifies what it signed while valid."""
+    from genesis_mesh.cli.main import cli
+
+    service = net.start()
+    client = _client(service)
+    controller = Controller(client)
+    first = controller.record(_decide(client))
+    assert _submit(client, first).status_code == 201
+    _, restarted, client = _succeeded(net, service, client)
+    assert _submit(client, controller.record(_decide(client), action="rotate", prior_resource=first)).status_code == 201
+    export = tmp_path / "export.jsonl"
+    export.write_text(_get(client, "/admin/evidence/export").get_data(as_text=True), encoding="utf-8")
+    keys = tmp_path / "keys.json"
+    keys.write_text(_get(client, "/admin/evidence/executor-keys").get_data(as_text=True), encoding="utf-8")
+    history = tmp_path / "history.json"
+    history.write_text(json.dumps(client.get("/na/key-history").get_json()), encoding="utf-8")
+    base = ["evidence", "verify-export", "--file", str(export), "--executor-keys", str(keys)]
+    ok = CliRunner().invoke(cli, [*base, "--key-history", str(history), "--root-key", public_b64(net.root)])
+    assert ok.exit_code == 0, ok.output
+    old_only = CliRunner().invoke(cli, [*base, "--na-public-key", public_b64(net.na_keys[0])])
+    assert old_only.exit_code == 1
+    wrong_root = CliRunner().invoke(cli, [*base, "--key-history", str(history), "--root-key",
+                                          public_b64(net.na_keys[0])])
+    assert wrong_root.exit_code != 0 and "genesis_root_mismatch" in wrong_root.output

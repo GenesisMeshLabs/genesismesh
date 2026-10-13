@@ -72,8 +72,12 @@ def load_anchors(path: str) -> list[StoreAnchor]:
 @evidence.command("verify-export")
 @click.option("--file", "file_path", required=True, type=click.Path(exists=True, dir_okay=False),
               help="gm.evidence.event JSON Lines from GET /admin/evidence/export.")
-@click.option("--na-public-key", "na_keys", required=True, multiple=True,
-              help="NA public key: base64 or path to a public key file. Repeatable.")
+@click.option("--na-public-key", "na_keys", multiple=True,
+              help="NA public key: base64 or path to a public key file. Repeatable (each valid at every time).")
+@click.option("--key-history", "key_history_path", default=None, type=click.Path(exists=True, dir_okay=False),
+              help="The NA's key history (GET /na/key-history): each NA key valid at its own times (v1.5.0). "
+                   "Needs --root-key.")
+@click.option("--root-key", default=None, help="The root public key you hold (base64 or a key file), for --key-history.")
 @click.option("--executor-keys", "executor_keys_path", required=True,
               type=click.Path(exists=True, dir_okay=False),
               help="JSON from GET /admin/evidence/executor-keys.")
@@ -87,8 +91,8 @@ def load_anchors(path: str) -> list[StoreAnchor]:
                    "start right after that anchor's entry (v1.3.1).")
 @click.option("--format", "fmt", type=click.Choice(["human", "json"]), default="human")
 def verify_export(
-    file_path: str, na_keys: tuple[str, ...], executor_keys_path: str,
-    anchors_path: str | None, partial: bool, from_anchor: bool, fmt: str,
+    file_path: str, na_keys: tuple[str, ...], key_history_path: str | None, root_key: str | None,
+    executor_keys_path: str, anchors_path: str | None, partial: bool, from_anchor: bool, fmt: str,
 ) -> None:
     """Verify an evidence export: envelopes, store chain, signatures and chains.
 
@@ -123,7 +127,21 @@ def verify_export(
         )
         for r in rows
     }
-    na_public_keys = [public_key_value(k) for k in na_keys]
+    na_public_keys: Any = [public_key_value(k) for k in na_keys]
+    if key_history_path is not None:
+        # v1.5.0: across a key succession, each NA key verifies what it signed while it was valid.
+        if root_key is None:
+            raise click.UsageError("--key-history needs --root-key: keys in the history prove nothing alone")
+        from ..trust.key_succession import verify_key_history
+
+        data = json.loads(Path(key_history_path).read_text(encoding="utf-8"))
+        keyed = verify_key_history(data.get("genesis"), data.get("successions") or [], public_key_value(root_key))
+        if not keyed.verified or keyed.history is None:
+            reasons = ", ".join(f"key {f['key_sequence']} {f['reason']}" for f in keyed.failures)
+            raise click.ClickException(f"The key history does not verify from the root key: {reasons}")
+        na_public_keys = keyed.history
+    elif not na_keys:
+        raise click.UsageError("give --na-public-key, or --key-history with --root-key")
     # An export that starts after a retention checkpoint continues from it (its resource and
     # observation positions): verify against the checkpoint the export carries.
     result = verify_evidence_events(events, na_public_keys=na_public_keys, executor_keys=keys, contiguous=True,
