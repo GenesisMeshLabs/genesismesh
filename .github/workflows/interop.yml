@@ -116,6 +116,9 @@ jobs:
           # v1.4.0: and the remediation suite (remediation and review records).
           cmp conformance/vectors/remediation.json sdks/sdk-typescript/tests/fixtures/conformance/remediation.json
           cmp conformance/vectors/remediation.json sdks/sdk-rust/tests/fixtures/remediation.json
+          # v1.5.0: and the audit suite (key history, packs, completeness).
+          cmp conformance/vectors/audit.json sdks/sdk-typescript/tests/fixtures/conformance/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-rust/tests/fixtures/audit.json
 
       - name: Go verifier conformance
         working-directory: sdks/sdk-go
