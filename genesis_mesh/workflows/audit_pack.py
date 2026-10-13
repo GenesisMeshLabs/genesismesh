@@ -537,12 +537,15 @@ def compose_pack(
     sign: Any,
     states: Mapping[str, Mapping[str, Any]] | None = None,
     notices: Mapping[str, Any] | None = None,
+    check_executor_keys: Mapping[str, ExecutorKey] | None = None,
 ) -> tuple[dict[str, bytes], AuditPackManifest]:
     """Every file of a pack (``PACK_FORMAT`` version 1) and its signed manifest.
 
     ``trust`` maps ``policies.jsonl`` and the ``trust/`` files to their
     records. ``checks.json`` is this module's verification of the files with
-    ``held_anchors`` (the NA's own anchors), ``report.md`` the report;
+    ``held_anchors`` (the NA's own anchors) and ``check_executor_keys`` (the
+    NA's own key table, for a store without registry records), ``report.md``
+    the report;
     ``sign(manifest)`` returns the manifest's signature (the NA key). The
     bytes depend only on the arguments, so a pack is reproducible.
     """
@@ -559,7 +562,8 @@ def compose_pack(
     for path in (POLICIES_FILE, ATTESTATIONS_FILE, TREATIES_FILE, FEEDS_FILE):
         files[path] = jsonl_bytes([dict(r) for r in trust.get(path, [])])
     root = str(genesis.get("root_public_key"))
-    checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors, check_manifest=False).to_dict()
+    checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors,
+                               executor_keys=check_executor_keys, check_manifest=False).to_dict()
     files[CHECKS_FILE] = canonical_bytes(checks)
     header = {"pack_id": pack_id, "sovereign_id": genesis.get("network_name"), "from_sequence":
               entries[0].entry.store_sequence if entries else None,

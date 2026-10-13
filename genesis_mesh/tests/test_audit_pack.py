@@ -518,3 +518,21 @@ def test_the_frozen_1_5_0_pack_verifies(tmp_path):
     body = json.loads(result.output)
     assert body["verified"] is True and body["report_differences"] == []
     assert body["counts"]["key_successions"] == 1 and len(body["keys"]) == 2
+
+
+def test_a_store_without_registry_records_needs_the_auditors_executor_keys(net, tmp_path):
+    """Keys inside a pack prove nothing alone: without signed registry records (the out-of-band records
+    off), the executor keys come from the auditor."""
+    from genesis_mesh.trust.evidence_store import ExecutorKey
+
+    service = net.start()
+    client = _client(service)
+    controller = Controller(client)
+    assert _submit(client, controller.record(_decide(client))).status_code == 201
+    _anchor(client)
+    files = _pack(client)
+    assert json.loads(files["checks.json"])["verified"] is True, "the NA checks with its own key table"
+    held = _held(client)
+    assert "invalid_signature" in _reasons(_verify(net, files, held))
+    keys = {controller.key_id: ExecutorKey(controller.key_id, controller.public_key, controller.sovereign)}
+    assert _verify(net, files, held, executor_keys=keys).verified
