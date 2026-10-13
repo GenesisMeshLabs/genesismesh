@@ -46,9 +46,6 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
     """Create data usage policy routes — policy (admin), intent (admin), policy GET, verify."""
     bp = Blueprint("data_usage", __name__)
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _sign_policy(p: DataLicensePolicy) -> DataLicensePolicy:
         sig = service.signer.sign_model(p)
         return p.model_copy(update={"signature": sig})
@@ -203,7 +200,7 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         except Exception as exc:
             raise BadRequestError("Invalid intent or policy object", code="invalid_input") from exc
 
-        agent_keys = data.get("agent_public_keys") or [_pub_b64()]
+        agent_keys = data.get("agent_public_keys") or service.na_public_keys_at(None)
         # v1.2.0: refuse a signed field this release does not know, as every SDK does.
         detail = intent_refusal_detail(raw_intent, raw_policy, agent_keys)
         if detail:

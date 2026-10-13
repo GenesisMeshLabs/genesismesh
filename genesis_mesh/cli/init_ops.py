@@ -190,6 +190,15 @@ def init(
     }
     written_config = save_config(config, str(target_config))
 
+    # v1.5.0: the root key signs NA key successions; whoever holds it and the NA key can replace
+    # the NA's key history. init keeps writing one for local use, and says where.
+    click.echo(
+        f"Warning: the root private key was written to {keys_dir / 'root.key'}, next to the NA key "
+        f"({na_private_key_path}). Whoever holds both can replace the NA's key history. For anything "
+        "but local use, move the root key offline and delete it from this host (see the root key "
+        "ceremony in the operations docs); NA_DEPLOYMENT=managed refuses to start while it is there.",
+        err=True,
+    )
     click.echo(f"Initialized Genesis Mesh config: {written_config}")
     click.echo(f"Genesis block: {signed_genesis_path}")
     click.echo(f"Operator key: {keys_dir / 'operator.key'}")

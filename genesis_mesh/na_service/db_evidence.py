@@ -350,11 +350,11 @@ class EvidenceStoreMixin:
         """The latest time the store already holds (v1.3.1): its newest entry's ``recorded_at``
         and its latest anchor's ``anchored_at``. A record the NA reconstructs takes effect no earlier."""
         times: list[datetime] = []
-        row = self.conn.execute(
-            "SELECT recorded_at FROM evidence_entries ORDER BY store_sequence DESC LIMIT 1"
-        ).fetchone()
-        if row is not None:
-            times.append(datetime.fromisoformat(str(row["recorded_at"])))
+        # v1.5.0: the latest recorded_at, not the newest entry's: an entry carried past retention
+        # keeps the time it was first recorded.
+        row = self.conn.execute("SELECT MAX(recorded_at) AS at FROM evidence_entries").fetchone()
+        if row is not None and row["at"] is not None:
+            times.append(datetime.fromisoformat(str(row["at"])))
         anchor = self.latest_store_anchor()
         if anchor is not None:
             times.append(anchor.anchored_at)
@@ -434,6 +434,36 @@ class EvidenceStoreMixin:
             (*params, limit),
         ).fetchall()
         return [self._row_to_stored(r) for r in rows]
+
+    # -- audit packs (v1.5.0) --------------------------------------------------
+
+    def last_entry_before(self, entry_kind: str, column: str, value: str, before_sequence: int) -> dict[str, Any] | None:
+        """The latest entry of a kind whose ``column`` is ``value``, before a store position."""
+        if column not in ("decision_id", "resource_id"):
+            raise ValueError(f"unsupported column {column!r}")
+        row = self.conn.execute(
+            f"""SELECT * FROM evidence_entries WHERE entry_kind = ? AND {column} = ? AND store_sequence < ?
+                ORDER BY store_sequence DESC LIMIT 1""",
+            (entry_kind, value, before_sequence),
+        ).fetchone()
+        return self._row_to_stored(row) if row else None
+
+    def entries_of_kinds_before(self, kinds: Sequence[str], before_sequence: int) -> list[dict[str, Any]]:
+        """Every entry of these kinds before a store position, in store order."""
+        marks = ", ".join("?" for _ in kinds)
+        rows = self.conn.execute(
+            f"""SELECT * FROM evidence_entries WHERE entry_kind IN ({marks}) AND store_sequence < ?
+                ORDER BY store_sequence""",
+            (*kinds, before_sequence),
+        ).fetchall()
+        return [self._row_to_stored(r) for r in rows]
+
+    def first_sequence_since(self, since: str) -> int | None:
+        """The first store position recorded at or after a time (ISO 8601), or None."""
+        row = self.conn.execute(
+            "SELECT MIN(store_sequence) AS seq FROM evidence_entries WHERE recorded_at >= ?", (since,)
+        ).fetchone()
+        return int(row["seq"]) if row and row["seq"] is not None else None
 
     def entries_for_decisions(self, decision_ids: Sequence[str]) -> list[dict[str, Any]]:
         if not decision_ids:

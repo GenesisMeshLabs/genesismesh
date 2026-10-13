@@ -39,6 +39,7 @@ from ..models.evidence_store import (
 )
 from ..models.execution import ExecutionEvidence
 from ..models.justification import JustificationProof
+from ..models.key_succession import NAKeyHistory, na_keys_at
 from genesis_mesh.crypto.signing import SigningKeyLike
 from .. import strict_json
 
@@ -335,24 +336,26 @@ def plan_retention(
     *,
     cutoff: datetime,
     now: datetime,
-    resource_latest: dict[str, int],
+    through_sequence: int | None = None,
 ) -> int:
     """Return N: entries 1..N may be removed (0 when nothing may be).
 
     Only a prefix of the store is ever removed, so every chain loses a prefix
     and stays verifiable from the checkpoint.  The prefix stops before the
-    first entry that is newer than the cut-off, is the latest record of its
-    resource, belongs to a decision still inside its validity window, or (v1.3.0)
-    is a record not judged yet, and never splits a decision from its
-    justification or evidence, or (v1.3.0) a record from its judgement.
+    first entry that is newer than the cut-off, belongs to a decision still
+    inside its validity window, or (v1.3.0) is a record not judged yet, and
+    never splits a decision from its justification or evidence, or (v1.3.0) a
+    record from its judgement. v1.5.0: it never goes past ``through_sequence``
+    (what was archived, or what the operator asked for), and no longer stops
+    at the latest record of a resource: the checkpoint carries every removed
+    resource's head.
     """
     ordered = sorted(entries, key=lambda e: e.store_sequence)
     n = 0
     for e in ordered:
-        if e.recorded_at >= cutoff:
+        if through_sequence is not None and e.store_sequence > through_sequence:
             break
-        if e.resource_sequence is not None and e.resource_id is not None \
-                and resource_latest.get(e.resource_id) == e.resource_sequence:
+        if e.recorded_at >= cutoff:
             break
         if e.decision_valid_until is not None and e.decision_valid_until >= now:
             break
@@ -384,10 +387,15 @@ def sign_retention_checkpoint(
     return checkpoint.model_copy(update={"signature": sign_model(checkpoint, signing_key, key_id)})
 
 
-def verify_retention_checkpoint(checkpoint: RetentionCheckpoint, na_public_keys: Sequence[str]) -> bool:
-    """True when the checkpoint carries a valid NA signature."""
+#: NA public keys: a list (valid at every time) or, since 1.5.0, the NA's key history.
+NAKeys = typing.Union[Sequence[str], NAKeyHistory]
+
+
+def verify_retention_checkpoint(checkpoint: RetentionCheckpoint, na_public_keys: NAKeys) -> bool:
+    """True when the checkpoint carries a valid NA signature (v1.5.0: by the key valid at its ``created_at``)."""
     sig = checkpoint.signature
-    return sig is not None and any(verify_model_signature(checkpoint, sig, k) for k in na_public_keys)
+    keys = na_keys_at(na_public_keys, _utc(checkpoint.created_at))
+    return sig is not None and any(verify_model_signature(checkpoint, sig, k) for k in keys)
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +420,9 @@ class EvidenceVerification:
     #: v1.4.0 counts, reported only when the run holds such entries.
     remediations: int = 0
     reviews: int = 0
+    #: v1.5.0 counts, reported only when the run holds such entries.
+    key_successions: int = 0
+    archives: int = 0
     #: Set by ``check_events_against_anchors`` (v1.2.0); absent otherwise.
     anchors: dict[str, Any] | None = None
     #: Findings that do not fail verification (v1.2.0), such as fields a
@@ -433,7 +444,8 @@ class EvidenceVerification:
             "executions": self.executions,
             "failures": self.failures,
         }
-        for name in ("observations", "break_glass", "judgements", "quarantined", "remediations", "reviews"):
+        for name in ("observations", "break_glass", "judgements", "quarantined", "remediations", "reviews",
+                     "key_successions", "archives"):
             if getattr(self, name):
                 out[name] = getattr(self, name)
         if self.anchors is not None:
@@ -459,9 +471,13 @@ _PAYLOAD_MODELS: dict[str, str] = {
     # v1.4.0
     "remediation": "RemediationRecord",
     "review": "ReviewRecord",
+    # v1.5.0
+    "key_succession": "KeySuccessionRecord",
+    "archive": "ArchiveRecord",
 }
 
-#: Kinds signed by a registered key (the rest are signed by the NA).
+#: Kinds signed by a registered key (the rest are signed by the NA; a key succession by the
+#: root key and the outgoing NA key).
 _KEY_SIGNED_KINDS = frozenset({"execution", "observation", "break_glass", "remediation"})
 
 #: v1.3.1: the payload field holding each kind's record ID, which appears once
@@ -478,6 +494,8 @@ _RECORD_ID: dict[str, str] = {
     "registry": "registry_record_id",
     "remediation": "remediation_id",
     "review": "review_id",
+    "key_succession": "succession_id",
+    "archive": "archive_id",
 }
 
 #: v1.3.1: envelope field -> payload field, for the envelope fields a Stage 2
@@ -510,13 +528,16 @@ _ENVELOPE_FIELDS: dict[str, dict[str, str]] = {
         "record_id": "review_id", "subject_id": "subject_id", "resource_id": "resource_id",
         "capability": "capability", "outcome": "verdict",
     },
+    # v1.5.0
+    "key_succession": {"record_id": "succession_id"},
+    "archive": {"record_id": "archive_id"},
 }
 
 
 def _unknown_payload_fields(
     kind: str,
     payload: Any,
-    na_public_keys: Sequence[str],
+    na_public_keys: NAKeys,
     executor_keys: dict[str, ExecutorKey],
 ) -> tuple[list[str], list[str]]:
     """(unknown signed fields, unknown unsigned fields) of one export payload.
@@ -535,7 +556,8 @@ def _unknown_payload_fields(
         unsigned += unknown_fields("ContextRecord", payload.get("context"), path="context.")
         decision = payload.get("decision")
         found = unknown_fields("BoundaryDecision", decision, path="decision.")
-        if found and isinstance(decision, dict) and signed_as_received("BoundaryDecision", decision, na_public_keys):
+        if found and isinstance(decision, dict) and signed_as_received("BoundaryDecision", decision,
+                                                                       na_keys_at(na_public_keys, None)):
             return found, unsigned
         return [], unsigned + found
     model = _PAYLOAD_MODELS.get(kind)
@@ -547,7 +569,9 @@ def _unknown_payload_fields(
         key = executor_keys.get(str(sig.get("key_id"))) if isinstance(sig, dict) else None
         keys = [key.public_key] if key is not None else []
     else:
-        keys = list(na_public_keys)
+        keys = na_keys_at(na_public_keys, None)
+        if kind == "key_succession" and isinstance(na_public_keys, NAKeyHistory) and na_public_keys.root_public_key:
+            keys.append(na_public_keys.root_public_key)
     return (found, []) if signed_as_received(model, payload, keys) else ([], found)
 
 
@@ -571,10 +595,15 @@ def _received_digest(model: str, payload: dict[str, Any]) -> str:
 def _verify_payload(
     event: EvidenceEvent,
     result: EvidenceVerification,
-    na_public_keys: Sequence[str],
+    na_public_keys: NAKeys,
     executor_keys: dict[str, ExecutorKey],
 ) -> Any:
-    """Verify one payload's signature; return the parsed model (or None)."""
+    """Verify one payload's signature; return the parsed model (or None).
+
+    v1.5.0: an NA signature must be made by the key valid at the entry's
+    ``recorded_at`` (the NA's key history); a signature by another key of the
+    history is ``na_key_not_valid_at_time``.
+    """
     entry = event.entry
     kind = entry.entry_kind
     # v1.2.0: a signed field this release does not know is refused by name;
@@ -585,6 +614,8 @@ def _verify_payload(
         return None
     if unsigned:
         result.warn(entry.store_sequence, "unsigned_field", ", ".join(unsigned))
+    from ..models import audit_pack as pack
+    from ..models import key_succession as ks
     from ..models import out_of_band as oob
     from ..models import remediation as rem
 
@@ -592,6 +623,7 @@ def _verify_payload(
         "observation": oob.ObservationRecord, "break_glass": oob.BreakGlassRecord,
         "judgement": oob.JudgementRecord, "quarantine": oob.QuarantineRecord, "registry": oob.RegistryRecord,
         "remediation": rem.RemediationRecord, "review": rem.ReviewRecord,
+        "key_succession": ks.KeySuccessionRecord, "archive": pack.ArchiveRecord,
     }
     try:
         if kind == "decision":
@@ -607,6 +639,9 @@ def _verify_payload(
     except (ValueError, KeyError, TypeError):
         result.fail(entry.store_sequence, "payload_invalid")
         return None
+    if kind == "key_succession":
+        _check_succession_entry(entry.store_sequence, model, event.payload, result, na_public_keys)
+        return model
     sig = model.signature
     if kind in _KEY_SIGNED_KINDS:
         # The key must belong to the record's sovereign and sign for its role (v1.3.0).
@@ -616,8 +651,10 @@ def _verify_payload(
         key = executor_keys.get(sig.key_id) if sig is not None else None
         keys = [key.public_key] if key is not None and key.executor_sovereign_id == sovereign \
             and key.role == role else []
+        all_keys = keys
     else:
-        keys = list(na_public_keys)
+        keys = na_keys_at(na_public_keys, _utc(entry.recorded_at))
+        all_keys = na_keys_at(na_public_keys, None)
     ok = sig is not None and any(verify_model_signature(model, sig, k) for k in keys)
     # v1.3.0: the signature must cover the record as received, in the form the reference
     # writes, as every SDK verifier checks it: a record rewritten into another spelling of
@@ -629,22 +666,56 @@ def _verify_payload(
     if model_name is not None and isinstance(raw, dict) and sig is not None:
         from ..models.canonical_registry import strict_refusal, without_unknown_fields
 
-        refusal = strict_refusal(model_name, without_unknown_fields(model_name, raw) if unsigned else raw, keys)
+        refusal = strict_refusal(model_name, without_unknown_fields(model_name, raw) if unsigned else raw, all_keys)
         if refusal is not None:
             result.fail(entry.store_sequence, "invalid_signature" if refusal == "unknown_field" else refusal, kind)
             return model
     if not ok:
-        result.fail(entry.store_sequence, "invalid_signature", kind)
+        # v1.5.0: signed by a key of the NA's history, but not the one valid at the record's time.
+        late = sig is not None and any(verify_model_signature(model, sig, k) for k in all_keys if k not in keys)
+        result.fail(entry.store_sequence, "na_key_not_valid_at_time" if late else "invalid_signature", kind)
     return model
+
+
+def _check_succession_entry(
+    seq: int, model: Any, raw: dict[str, Any], result: EvidenceVerification, na_public_keys: NAKeys,
+) -> None:
+    """v1.5.0: a key succession entry is signed by its outgoing key, an NA key; given the NA's key
+    history with its root key, it is one of the history's successions and the root key signed it."""
+    from ..crypto import verify_signature
+    from ..models.canonical_registry import strict_refusal
+
+    body = model.to_canonical_json().encode("utf-8")
+
+    def signed_by(public_key: str) -> bool:
+        return any(verify_signature(body, s.sig, public_key) for s in model.signatures)
+
+    history = na_public_keys if isinstance(na_public_keys, NAKeyHistory) else None
+    keys = na_keys_at(na_public_keys, None)
+    root = history.root_public_key if history is not None else None
+    refusal = strict_refusal("KeySuccessionRecord", raw, [*keys, *([root] if root else [])])
+    if refusal is not None:
+        result.fail(seq, "invalid_signature" if refusal == "unknown_field" else refusal, "key_succession")
+        return
+    if model.previous_public_key not in keys or not signed_by(model.previous_public_key):
+        result.fail(seq, "invalid_signature", "key_succession")
+        return
+    if root is not None and not signed_by(root):
+        result.fail(seq, "succession_invalid_root_signature", model.succession_id)
+        return
+    if root is not None and history is not None \
+            and model.digest() not in {s.digest() for s in history.successions}:
+        result.fail(seq, "succession_not_in_history", model.succession_id)
 
 
 def verify_evidence_events(
     events: Iterable[EvidenceEvent],
     *,
-    na_public_keys: Sequence[str],
+    na_public_keys: NAKeys,
     executor_keys: dict[str, ExecutorKey],
     contiguous: bool = True,
     checkpoint: RetentionCheckpoint | None = None,
+    prior: Sequence[EvidenceEvent] | None = None,
 ) -> EvidenceVerification:
     """Verify stored entries: envelopes, store chain, signatures and chains.
 
@@ -697,6 +768,22 @@ def verify_evidence_events(
       (``review_subject_mismatch``; ``review_subject_missing`` in a run from
       its start); and no waiver follows a recorded remediation
       (``review_waiver_after_remediation``).
+
+    v1.5.0, key succession and audit packs:
+
+    * ``na_public_keys`` may be the NA's key history: an NA signature must be
+      made by the key valid at the entry's ``recorded_at``
+      (``na_key_not_valid_at_time`` for another key of the history);
+    * a ``key_succession`` entry is signed by its outgoing key and, given a
+      history with its root key, is one of the history's successions signed by
+      the root key (``succession_invalid_root_signature``,
+      ``succession_not_in_history``); an ``archive`` entry is NA-signed;
+    * ``prior`` (an audit pack's cited records, outside the run) seeds what
+      the run's records rest on: their decisions, subjects and matched
+      records, and the heads of the chains the run continues. They are
+      verified for authenticity (signatures, digests) but not as a run; the
+      run then holds every chain from its start, and a record it cites that
+      neither holds is ``cited_record_missing``.
     """
     result = EvidenceVerification()
     if checkpoint is not None and not verify_retention_checkpoint(checkpoint, na_public_keys):
@@ -737,7 +824,12 @@ def verify_evidence_events(
     operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]] = {}
     first_sequence: int | None = None
     from_start = False
-    for event in events:
+    # v1.5.0: with ``prior`` (an audit pack's cited records) every record the run cites is supplied,
+    # and the chains continue from the records it holds.
+    pack = prior is not None
+
+    def visit(event: EvidenceEvent, result: EvidenceVerification, cited_run: bool) -> None:
+        nonlocal prev, prev_digest, first_sequence, from_start
         entry = event.entry
         digest = event.received_entry_digest()
         result.checked_entries += 1
@@ -745,7 +837,8 @@ def verify_evidence_events(
             result.fail(entry.store_sequence, "entry_digest_mismatch")
         if payload_digest(event.payload) != entry.payload_digest:
             result.fail(entry.store_sequence, "payload_digest_mismatch")
-        if prev is not None and (contiguous or entry.store_sequence == prev.store_sequence + 1):
+        linked = contiguous and not cited_run
+        if prev is not None and (linked or entry.store_sequence == prev.store_sequence + 1):
             if entry.store_sequence != prev.store_sequence + 1:
                 result.fail(entry.store_sequence, "store_sequence_gap")
             elif entry.prev_entry_digest != prev_digest:
@@ -753,21 +846,21 @@ def verify_evidence_events(
         elif prev is None and checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1:
             if entry.prev_entry_digest != checkpoint.last_removed_entry_digest:
                 result.fail(entry.store_sequence, "store_chain_break", "does not continue from the checkpoint")
-        if first_sequence is None:
+        if first_sequence is None and not cited_run:
             first_sequence = entry.store_sequence
-            from_start = entry.store_sequence == 1 or (
+            from_start = pack or entry.store_sequence == 1 or (
                 checkpoint is not None and entry.store_sequence == checkpoint.removed_through_sequence + 1
             )
         prev, prev_digest = entry, digest
         if entry.entry_kind not in _KNOWN_ENTRY_KINDS:
             # v1.2.0: a kind from a later release; its envelope still chains.
             result.fail(entry.store_sequence, "unknown_entry_kind", entry.entry_kind)
-            continue
+            return
 
         failed_before = len(result.failures)
         model = _verify_payload(event, result, na_public_keys, executor_keys)
         if model is None:
-            continue
+            return
         authentic = len(result.failures) == failed_before
         record_id = str(getattr(model, _RECORD_ID[entry.entry_kind]))
         seen = record_ids.setdefault(entry.entry_kind, set())
@@ -779,6 +872,8 @@ def verify_evidence_events(
             wrong = [f for f, source in expected_envelope.items() if getattr(entry, f) != getattr(model, source)]
             if wrong:
                 result.fail(entry.store_sequence, "envelope_mismatch", f"{entry.entry_kind}: {', '.join(wrong)}")
+        # Checks that need a record's predecessors in the run; a pack's cited records are not a run.
+        chained = not cited_run
         if entry.entry_kind == "decision":
             result.decisions += 1
             decisions[model.decision_id] = model
@@ -800,16 +895,21 @@ def verify_evidence_events(
                     result.fail(entry.store_sequence, "evidence_outside_decision_window")
                 elif ctx is not None and ev.executed_capability != ctx.requested_capability:
                     result.fail(entry.store_sequence, "evidence_capability_mismatch")
+            elif pack and chained:
+                # v1.5.0: a pack holds the decision every execution in its range rests on.
+                result.fail(entry.store_sequence, "cited_record_missing", f"decision {ev.decision_id}")
             if ev.decision_id in not_decisions:
                 # v1.3.0: execution evidence never rests on a judgement or a record of one.
                 result.fail(entry.store_sequence, "evidence_cites_judgement", ev.decision_id)
             # v1.3.1: the chains link to each record as received, as every SDK hashes it.
             received = _received_digest("ExecutionEvidence", event.payload)
-            prior, prior_digest = last_exec.get(ev.decision_id, (None, None))
-            expected_seq = prior.sequence_no + 1 if prior else None
-            if prior is not None and (ev.sequence_no != expected_seq or ev.prev_evidence_digest != prior_digest):
+            before, before_digest = last_exec.get(ev.decision_id, (None, None))
+            expected_seq = before.sequence_no + 1 if before else None
+            if chained and before is not None and (
+                    ev.sequence_no != expected_seq or ev.prev_evidence_digest != before_digest):
                 result.fail(entry.store_sequence, "evidence_chain_break")
-            elif prior is None and decision is not None and (ev.sequence_no != 1 or ev.prev_evidence_digest is not None):
+            elif chained and before is None and decision is not None and (
+                    ev.sequence_no != 1 or ev.prev_evidence_digest is not None):
                 result.fail(entry.store_sequence, "evidence_chain_break")
             last_exec[ev.decision_id] = (ev, received)
             matchable.add(ev.evidence_id)
@@ -819,7 +919,7 @@ def verify_evidence_events(
                 head = resource_heads.get(ev.resource_id)
                 # v1.3.1: a run that does not start at entry 1 or right after the checkpoint
                 # takes the first record it holds of a resource as that chain's start.
-                if head is not None or from_start:
+                if chained and (head is not None or from_start):
                     exp = head.resource_sequence + 1 if head else 1
                     if ev.resource_sequence != exp or ev.prev_resource_digest != (head.record_digest if head else None):
                         result.fail(entry.store_sequence, "resource_chain_break", ev.resource_id)
@@ -827,9 +927,9 @@ def verify_evidence_events(
         elif entry.entry_kind == "retention_checkpoint":
             # v1.3.1: a checkpoint signed over a store missing entries removed fewer than it says.
             cp: RetentionCheckpoint = model
-            before = checkpoints.get(cp.previous_checkpoint_id) if cp.previous_checkpoint_id else None
-            if cp.previous_checkpoint_id is None or before is not None:
-                start = before.removed_through_sequence if before is not None else 0
+            earlier = checkpoints.get(cp.previous_checkpoint_id) if cp.previous_checkpoint_id else None
+            if cp.previous_checkpoint_id is None or earlier is not None:
+                start = earlier.removed_through_sequence if earlier is not None else 0
                 if cp.removed_count != cp.removed_through_sequence - start:
                     result.fail(entry.store_sequence, "retention_count_mismatch",
                                 f"removed {cp.removed_count} of {cp.removed_through_sequence - start} entries "
@@ -845,7 +945,7 @@ def verify_evidence_events(
                 result.observations += 1
                 rid = model.resource_id
                 position = entry.observation_sequence
-                if rid in observation_heads or from_start:
+                if chained and (rid in observation_heads or from_start):
                     if position != observation_heads.get(rid, 0) + 1:
                         result.fail(entry.store_sequence, "observation_chain_break", rid)
                 observation_heads[rid] = position or observation_heads.get(rid, 0)
@@ -866,15 +966,21 @@ def verify_evidence_events(
             if subject is not None:
                 if subject != (model.subject_digest, model.subject_store_sequence):
                     result.fail(entry.store_sequence, "judgement_subject_mismatch", model.subject_id)
-            elif contiguous and first_sequence is not None and model.subject_store_sequence >= first_sequence:
+            elif chained and contiguous and first_sequence is not None \
+                    and model.subject_store_sequence >= first_sequence:
                 result.fail(entry.store_sequence, "judgement_subject_missing", model.subject_id)
+            elif pack and chained:
+                result.fail(entry.store_sequence, "cited_record_missing", f"{model.subject_kind} {model.subject_id}")
             if model.matched_evidence_id is not None:
                 if model.matched_evidence_id in matched:
                     result.fail(entry.store_sequence, "match_reused", model.matched_evidence_id)
                 matched.add(model.matched_evidence_id)
                 # v1.3.1: the NA matches a record it already holds, so a run from entry 1 holds it.
-                if contiguous and first_sequence == 1 and model.matched_evidence_id not in matchable:
+                if chained and contiguous and first_sequence == 1 and model.matched_evidence_id not in matchable:
                     result.fail(entry.store_sequence, "judgement_match_missing", model.matched_evidence_id)
+                elif pack and chained and model.matched_evidence_id not in matchable:
+                    result.fail(entry.store_sequence, "cited_record_missing",
+                                f"matched record {model.matched_evidence_id}")
         elif entry.entry_kind == "quarantine":
             result.quarantined += 1
             if payload_digest(model.record) != model.record_digest:
@@ -888,12 +994,28 @@ def verify_evidence_events(
             result.remediations += 1
             not_decisions.add(model.remediation_id)
             _check_remediation_entry(entry.store_sequence, model, result, judged_records, executed, remediated,
-                                     versions, cited, held_from_start=contiguous and from_start)
+                                     versions, cited, held_from_start=chained and contiguous and from_start)
         elif entry.entry_kind == "review":
             result.reviews += 1
             not_decisions.add(model.review_id)
             _check_review_entry(entry.store_sequence, model, result, judged_records, remediated, operator_keys,
-                                na_public_keys, held_from_start=contiguous and from_start)
+                                na_keys_at(na_public_keys, None), held_from_start=chained and contiguous and from_start)
+        elif entry.entry_kind == "key_succession":
+            result.key_successions += 1
+        elif entry.entry_kind == "archive":
+            result.archives += 1
+
+    if prior is not None:
+        # The cited records first, in store order: their failures fail the run, their counts do not count.
+        cited_result = EvidenceVerification()
+        for event in sorted(prior, key=lambda e: e.entry.store_sequence):
+            visit(event, cited_result, True)
+        for failure in cited_result.failures:
+            result.fail(failure["store_sequence"], failure["reason"], f"cited {failure['detail']}".rstrip())
+        result.warnings.extend(cited_result.warnings)
+        prev, prev_digest = None, None
+    for event in events:
+        visit(event, result, False)
     return result
 
 
@@ -1046,7 +1168,7 @@ class AnchorVerification:
 def verify_store_anchors(
     anchors: Sequence[StoreAnchor],
     *,
-    na_public_keys: Sequence[str] | None,
+    na_public_keys: NAKeys | None,
     sovereign_id: str | None = None,
 ) -> AnchorVerification:
     """Verify a run of anchors: signatures, the anchor chain and monotonic heads.
@@ -1055,7 +1177,9 @@ def verify_store_anchors(
     (an auditor may hold only recent anchors); a run that starts at 1 must
     start with no previous anchor. ``sovereign_id`` pins whose anchors these
     are. ``na_public_keys=None`` skips the signatures (a database check
-    without the NA key) and checks everything else.
+    without the NA key) and checks everything else. v1.5.0: given the NA's key
+    history, each anchor must be signed by the key valid at its ``anchored_at``
+    (``na_key_not_valid_at_time`` for another key of the history).
     """
     result = AnchorVerification()
     prev: StoreAnchor | None = None
@@ -1066,10 +1190,13 @@ def verify_store_anchors(
             result.first_anchor_sequence = n
         result.last_anchor_sequence = n
         sig = anchor.signature
+        keys = na_keys_at(na_public_keys, _utc(anchor.anchored_at)) if na_public_keys is not None else []
         if na_public_keys is not None and (
-            sig is None or not any(verify_model_signature(anchor, sig, k) for k in na_public_keys)
+            sig is None or not any(verify_model_signature(anchor, sig, k) for k in keys)
         ):
-            result.fail(n, "anchor_invalid_signature")
+            late = sig is not None and any(verify_model_signature(anchor, sig, k)
+                                           for k in na_keys_at(na_public_keys, None) if k not in keys)
+            result.fail(n, "na_key_not_valid_at_time" if late else "anchor_invalid_signature")
         if sovereign_id is not None and anchor.sovereign_id != sovereign_id:
             result.fail(n, "anchor_sovereign_mismatch", anchor.sovereign_id)
         if prev is None:

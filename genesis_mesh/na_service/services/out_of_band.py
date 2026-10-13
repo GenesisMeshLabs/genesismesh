@@ -952,7 +952,8 @@ class OutOfBandService:
                 feed_revoked = since is not None and (current or since <= at)
         return assess_attestation_basis(
             record.attestation_id, attestation,
-            issuer_public_keys=self._na.boundary_policies.policy_public_keys(),
+            issuer_public_keys=self._na.boundary_policies.policy_public_keys(
+                attestation.issued_at if attestation is not None else None),
             stored_status=stored_status, feed_revoked=feed_revoked, revocation_seq_checked=0,
             requester_id=attestation.subject_id if attestation is not None else record.executor_sovereign_id,
         )

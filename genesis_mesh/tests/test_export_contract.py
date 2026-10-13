@@ -251,6 +251,8 @@ def test_verify_export_ties_an_export_since_a_held_anchor_only_with_from_anchor(
 
 
 def _retain(client, monkeypatch) -> dict:
+    """Retention 400 days later, through the resource's history (v1.5.0: retention no longer keeps a
+    resource's latest record, so the later activity is kept by ``through_sequence``)."""
     import genesis_mesh.na_service.services.evidence_store as svc
 
     class Later(datetime):
@@ -259,7 +261,9 @@ def _retain(client, monkeypatch) -> dict:
             return datetime.now(tz) + timedelta(days=400)
 
     monkeypatch.setattr(svc, "datetime", Later)
-    applied = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
+    through = getattr(client, "_history_through")
+    applied = _post(client, "/admin/evidence/retention/apply",
+                    {"older_than_days": 30, "through_sequence": through}).get_json()
     monkeypatch.undo()
     return applied
 
@@ -269,7 +273,9 @@ def _resource_history(client) -> None:
     first = controller.record(_decide(client))
     assert _submit(client, first).status_code == 201
     second = controller.record(_decide(client), action="rotate", prior_resource=first)
-    assert _submit(client, second).status_code == 201
+    resp = _submit(client, second)
+    assert resp.status_code == 201
+    setattr(client, "_history_through", resp.get_json()["entry"]["store_sequence"])
     _decide(client)  # later activity, so retention has entries to keep
 
 

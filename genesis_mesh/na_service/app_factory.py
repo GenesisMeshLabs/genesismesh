@@ -13,7 +13,7 @@ from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from ..models import GenesisBlock
-from .key_provider import load_signer
+from .key_provider import load_signer, root_key_findings
 from .server import create_app
 from .settings import NASettings
 
@@ -23,9 +23,19 @@ def build_app(settings: NASettings) -> Flask:
     with open(settings.genesis_file, "r", encoding="utf-8") as f:
         genesis_block = GenesisBlock(**json.load(f))
 
+    signer = load_signer(settings.key)
+    if settings.deployment == "managed":
+        # v1.5.0: the root key signs successions and is kept offline; a managed NA host never holds it.
+        findings = root_key_findings(
+            genesis_block.root_public_key, na_public_key=signer.public_key_b64,
+            paths=(settings.genesis_file, settings.key.key_file, settings.db_path if not settings.database_url else None),
+        )
+        if findings:
+            raise ValueError("NA_DEPLOYMENT=managed refused: " + "; ".join(findings)
+                             + ". Keep the root key offline (see the root key ceremony).")
     app = create_app(
         genesis_block=genesis_block,
-        na_private_key=load_signer(settings.key),
+        na_private_key=signer,
         db_path=settings.db_path,
         key_id=settings.key.key_id,
         operator_public_keys=settings.operator_public_keys,
@@ -50,6 +60,7 @@ def build_app(settings: NASettings) -> Flask:
         remediation_default_mode=settings.remediation_default_mode,
         review_max_waiver_seconds=settings.review_max_waiver_seconds,
         review_actor_holders=settings.review_actor_holders,
+        retention_require_archive=settings.retention_require_archive,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (e.g. 1 behind nginx) for the

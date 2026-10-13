@@ -15,6 +15,7 @@ from .db_boundary_policy import BoundaryPolicyStoreMixin
 from .db_data_usage import DataUsageStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
 from .db_evidence import EvidenceStoreMixin
+from .db_key_history import KeyHistoryStoreMixin
 from .db_policy import PolicyStoreMixin
 from .db_remediation import RemediationStoreMixin
 from .db_runtime import RuntimeStoreMixin
@@ -62,6 +63,7 @@ class NADatabase(
     AgentStoreMixin,
     DataUsageStoreMixin,
     EvidenceStoreMixin,
+    KeyHistoryStoreMixin,
     RemediationStoreMixin,
     RuntimeStoreMixin,
 ):

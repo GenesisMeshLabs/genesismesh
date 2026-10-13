@@ -394,7 +394,7 @@ def test_published_schema_matches_the_model():
 # ---------------------------------------------------------------------------
 
 
-def test_retention_plan_keeps_latest_records_windows_and_whole_decisions():
+def test_retention_plan_keeps_windows_and_whole_decisions_and_stops_where_asked():
     t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
     now = t0 + timedelta(days=400)
     old_window = t0 + timedelta(minutes=5)
@@ -405,12 +405,15 @@ def test_retention_plan_keeps_latest_records_windows_and_whole_decisions():
         RetentionCandidate(4, t0, "d2", "s", 2, old_window),  # latest record of s
         RetentionCandidate(5, t0, "d3", None, None, old_window),
     ]
-    assert plan_retention(entries, cutoff=now, now=now, resource_latest={"s": 2}) == 2
-    assert plan_retention(entries, cutoff=t0, now=now, resource_latest={"s": 2}) == 0
+    # v1.5.0: the latest record of a resource no longer stops retention (the checkpoint carries
+    # its head); through_sequence does, without splitting a decision from its evidence.
+    assert plan_retention(entries, cutoff=now, now=now) == 5
+    assert plan_retention(entries, cutoff=now, now=now, through_sequence=3) == 2
+    assert plan_retention(entries, cutoff=t0, now=now) == 0
     split = [RetentionCandidate(1, t0, "d1", None, None, old_window),
              RetentionCandidate(2, t0, "d2", None, None, old_window),
              RetentionCandidate(3, now, "d1", None, None, old_window)]
-    assert plan_retention(split, cutoff=now, now=now, resource_latest={}) == 0
+    assert plan_retention(split, cutoff=now, now=now) == 0
 
 
 def test_retention_removes_a_prefix_and_history_still_verifies(client, na_service, monkeypatch):
@@ -431,11 +434,14 @@ def test_retention_removes_a_prefix_and_history_still_verifies(client, na_servic
     monkeypatch.setattr(svc, "datetime", Later)
     result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
     monkeypatch.undo()
-    # The decision, proof and first record, and the registry records before them
-    # (carried forward after the checkpoint, v1.3.0); the latest record stays.
-    assert result["removed_count"] == 3 + registry
+    # Both decisions, proofs and records, and the registry records before them (carried forward
+    # after the checkpoint, v1.3.0). v1.5.0: the resource's latest record goes too; the checkpoint
+    # carries its head, so the next record still links.
+    assert result["removed_count"] == 6 + registry
     assert _get(client, "/admin/evidence?entry_kind=registry").get_json()["count"] == registry
-    assert result["checkpoint"]["resource_heads"][SECRET]["resource_sequence"] == 1
+    assert result["checkpoint"]["resource_heads"][SECRET]["resource_sequence"] == 2
+    head = _get(client, f"/admin/evidence/resource-heads/{SECRET}").get_json()
+    assert head["resource_sequence"] == 2 and head["record_digest"] == second.digest()
 
     assert _get(client, "/admin/evidence/verify").get_json()["verified"]
     third = controller.record(_decide(client), action="revoke", prior_resource=second)

@@ -138,7 +138,8 @@ def _same_na(service, db_path: str, **overrides):
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
     settings = {"operator_public_keys": service.operator_public_keys, "operator_key_tiers": service.operator_key_tiers,
-                "evidence_store": "on", "evidence_out_of_band": "on", **overrides}
+                "evidence_store": "on", "evidence_out_of_band": "on",
+                "retention_require_archive": service.retention_require_archive, **overrides}
     restarted = NetworkAuthorityService(
         genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id,
         db_path=db_path, **settings,

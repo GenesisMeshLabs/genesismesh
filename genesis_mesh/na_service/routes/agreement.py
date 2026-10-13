@@ -48,9 +48,6 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def _sovereign_id() -> str:
         return service.genesis_block.network_name
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -269,7 +266,7 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         expected_digest = graph_digest_from_export(graph) if not offerer_keys else None
         # v1.2.0: the signatures over the agreement as received, the graph,
         # unknown fields and the canonical form, in every SDK's order.
-        refusal = agreement_refusal(raw, offerer_keys or [_pub_b64()], responder_keys or [_pub_b64()],
+        refusal = agreement_refusal(raw, offerer_keys or service.na_public_keys_at(None), responder_keys or service.na_public_keys_at(None),
                                     expected_digest)
         if refusal:
             service.db.add_audit_event("agreement_verified", {
@@ -282,8 +279,8 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
         result = verify_agreement(
             agreement,
-            offerer_public_keys=offerer_keys or [_pub_b64()],
-            responder_public_keys=responder_keys or [_pub_b64()],
+            offerer_public_keys=offerer_keys or service.na_public_keys_at(None),
+            responder_public_keys=responder_keys or service.na_public_keys_at(None),
             expected_graph_digest=expected_digest,
         )
         service.db.add_audit_event("agreement_verified", {

@@ -41,9 +41,6 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
     """Create selective disclosure routes — commit, prove, verify, nullifier."""
     bp = Blueprint("disclosure", __name__)
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -191,7 +188,7 @@ def create_disclosure_blueprint(service: "NetworkAuthorityService") -> Blueprint
         except Exception as exc:
             raise BadRequestError("Invalid proof or commitment object", code="invalid_input") from exc
 
-        issuer_keys = data.get("issuer_public_keys") or [_pub_b64()]
+        issuer_keys = data.get("issuer_public_keys") or service.na_public_keys_at(None)
         result = verify_capability_proof(
             proof=proof,
             commitment=commitment,

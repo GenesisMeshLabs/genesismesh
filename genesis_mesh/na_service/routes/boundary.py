@@ -44,9 +44,6 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     """Create boundary decision routes — decide, verify."""
     bp = Blueprint("boundary", __name__)
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -139,12 +136,14 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         raw = data.get("decision")
         if not raw:
             raise BadRequestError("decision is required", code="missing_decision")
-        operator_keys = data.get("operator_public_keys") or [_pub_b64()]
+        supplied = data.get("operator_public_keys")
+        # v1.5.0: the NA's key history, read at the decision's time.
+        operator_keys = supplied or service.key_history.history()
         now = datetime.now(timezone.utc)
         # v1.2.0: after the signature's presence and the expiry, a record not
         # signed as received, with a field this release does not know, or not
         # in canonical form is refused, in every SDK's order.
-        refusal = decision_refusal(raw, operator_keys, now)
+        refusal = decision_refusal(raw, supplied or service.na_public_keys_at(None), now)
         if refusal:
             service.db.add_audit_event("boundary_decision_verified", {
                 "decision_id": raw.get("decision_id"), "accepted": False,

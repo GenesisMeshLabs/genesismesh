@@ -145,8 +145,8 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 
 def test_entry_kinds_are_the_models(registry):
     assert registry["entry_kinds"] == [
-        "break_glass", "decision", "execution", "judgement", "justification", "observation", "quarantine",
-        "registry", "remediation", "retention_checkpoint", "review",
+        "archive", "break_glass", "decision", "execution", "judgement", "justification", "key_succession",
+        "observation", "quarantine", "registry", "remediation", "retention_checkpoint", "review",
     ]
 
 
