@@ -1,0 +1,40 @@
+[
+  {
+    "anchor_sequence": 1,
+    "anchored_at": "2026-01-01T02:00:00Z",
+    "entry_digest": "1bc1bdbdabd3eaf7d70731ea995e70498ff638b75ea056bca3ffe34cba31e2e1",
+    "issued_by": "na-1",
+    "signature": {
+      "key_id": "na-1",
+      "sig": "QEB4xPnx/NqisRjOP2fOqOP3dApA8d6VlRfud3NP3nQ6upNyxPeHvhF4+hDEnQV3xLWSsqcdn9AvtLHw7xjvDg=="
+    },
+    "sovereign_id": "sovereign-c",
+    "store_sequence": 5
+  },
+  {
+    "anchor_sequence": 2,
+    "anchored_at": "2026-01-13T00:00:00Z",
+    "entry_digest": "17ac9c31baef5df6190f77a179bf168d30bb81023ecb13dbdf740f78b636d972",
+    "issued_by": "na-2",
+    "previous_anchor_digest": "ddfcb8534acec8a1945bb25539ac236aaf1450127d486557f7899de22ec0ca58",
+    "signature": {
+      "key_id": "na-2",
+      "sig": "Dh9Z3jF0uktyct77HGXOGc640wx8dD+9OexXy3F66g3WleowQ5q2uhhAPAU4UNCkpYqCkVhuG5Glo3nNd+SoAw=="
+    },
+    "sovereign_id": "sovereign-c",
+    "store_sequence": 10
+  },
+  {
+    "anchor_sequence": 3,
+    "anchored_at": "2026-01-15T00:00:00Z",
+    "entry_digest": "ec0546494cdbea26af219be2e058e75d7defedeb7119c5f5fc60d1aefd11a899",
+    "issued_by": "na-2",
+    "previous_anchor_digest": "f9501ac7fef9d13a888f2f871a5bec06eb16317016e68eef18f7eb6dfef8bd55",
+    "signature": {
+      "key_id": "na-2",
+      "sig": "8eE9wbjBC7Nebr0YYXV8RcW227cRa0Vy6z5Uhqp42jsUU597xAU7XoGc9DM4U0Y0jPoEBted0AWXouOqpUwGCA=="
+    },
+    "sovereign_id": "sovereign-c",
+    "store_sequence": 11
+  }
+]

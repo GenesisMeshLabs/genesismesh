@@ -337,19 +337,25 @@ def test_the_envelope_fields_checked_are_those_the_na_writes():
     from genesis_mesh.trust.evidence_store import _ENVELOPE_FIELDS
     from genesis_mesh.trust.out_of_band import entry_index
 
+    from genesis_mesh.models import audit_pack as audit_models
+    from genesis_mesh.models import key_succession as succession_models
     from genesis_mesh.models import remediation as remediation_models
 
-    vectors = [v for name in ("out_of_band", "remediation")
+    vectors = [v for name in ("out_of_band", "remediation", "audit")
                for v in json.loads((SUITES / f"{name}.json").read_text(encoding="utf-8"))["vectors"]]
     kinds = {"ObservationRecord": "observation", "BreakGlassRecord": "break_glass", "JudgementRecord": "judgement",
              "QuarantineRecord": "quarantine", "RegistryRecord": "registry",
              # v1.4.0
-             "RemediationRecord": "remediation", "ReviewRecord": "review"}
+             "RemediationRecord": "remediation", "ReviewRecord": "review",
+             # v1.5.0
+             "KeySuccessionRecord": "key_succession", "ArchiveRecord": "archive"}
+    modules = {"RemediationRecord": remediation_models, "ReviewRecord": remediation_models,
+               "KeySuccessionRecord": succession_models, "ArchiveRecord": audit_models}
     seen = set()
     for vector in vectors:
-        if vector["kind"] != "canonical_form":
+        if vector["kind"] != "canonical_form" or vector["model"] not in kinds:
             continue
-        models = remediation_models if vector["model"] in ("RemediationRecord", "ReviewRecord") else oob_models
+        models = modules.get(vector["model"], oob_models)
         record = getattr(models, vector["model"]).model_validate(vector["record"])
         kind = kinds[vector["model"]]
         seen.add(kind)

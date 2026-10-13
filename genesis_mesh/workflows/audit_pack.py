@@ -16,7 +16,8 @@ reported against):
 
 1. the manifest: present, of this format, countersigned by the NA key valid
    at its ``created_at``; every file it lists present with its SHA-256 and
-   size, no file it does not list, every file of the format listed;
+   size, no file it does not list, every file of the format listed. A pack
+   whose manifest fails is not checked further: its files are not the pack;
 2. the key history: the genesis block signed by the root key the verifier
    holds, each succession signed by the root key and the outgoing key;
 3. the anchors: the pack's anchors signed (by the key valid at each one's
@@ -288,6 +289,9 @@ def verify_audit_pack(
                             manifest.created_at)
         if reason is not None:
             result.fail(MANIFEST_FILE, None, "manifest_invalid_signature" if reason == "invalid_signature" else reason)
+    if check_manifest and not result.verified:
+        # Files that do not match a manifest the NA signed are not the pack: nothing else is checked.
+        return result
 
     # 3 and 4. Anchors and entries.
     try:
@@ -507,6 +511,74 @@ def differences_from_pack_checks(result: PackVerification, files: Mapping[str, b
         if counts.get(name, 0) != value:
             out.append({"field": f"counts.{name}", "pack": counts.get(name, 0), "verifier": value})
     return out
+
+
+# ---------------------------------------------------------------------------
+# Writing a pack
+# ---------------------------------------------------------------------------
+
+
+def compose_pack(
+    *,
+    genesis: Mapping[str, Any],
+    successions: Sequence[Mapping[str, Any]],
+    executor_keys: Sequence[Mapping[str, Any]],
+    anchors: Sequence[StoreAnchor],
+    entries: Sequence[EvidenceEvent],
+    cited: Sequence[EvidenceEvent],
+    trust: Mapping[str, Sequence[Mapping[str, Any]]],
+    held_anchors: Sequence[StoreAnchor] | None,
+    pack_id: str,
+    created_at: datetime,
+    requested_by: str | None,
+    start_anchor_sequence: int | None,
+    end_anchor_sequence: int,
+    issued_by: str,
+    sign: Any,
+    states: Mapping[str, Mapping[str, Any]] | None = None,
+    notices: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, bytes], AuditPackManifest]:
+    """Every file of a pack (``PACK_FORMAT`` version 1) and its signed manifest.
+
+    ``trust`` maps ``policies.jsonl`` and the ``trust/`` files to their
+    records. ``checks.json`` is this module's verification of the files with
+    ``held_anchors`` (the NA's own anchors), ``report.md`` the report;
+    ``sign(manifest)`` returns the manifest's signature (the NA key). The
+    bytes depend only on the arguments, so a pack is reproducible.
+    """
+    from ..models.audit_pack import PackFile, canonical_bytes, jsonl_bytes
+
+    files: dict[str, bytes] = {
+        GENESIS_FILE: canonical_bytes(dict(genesis)),
+        KEY_HISTORY_FILE: canonical_bytes({"successions": [dict(s) for s in successions]}),
+        EXECUTOR_KEYS_FILE: canonical_bytes({"executor_keys": [dict(k) for k in executor_keys]}),
+        ANCHORS_FILE: jsonl_bytes([a.to_wire() for a in anchors]),
+        ENTRIES_FILE: "".join(e.to_json_line() + "\n" for e in entries).encode("utf-8"),
+        CITED_FILE: "".join(e.to_json_line() + "\n" for e in cited).encode("utf-8"),
+    }
+    for path in (POLICIES_FILE, ATTESTATIONS_FILE, TREATIES_FILE, FEEDS_FILE):
+        files[path] = jsonl_bytes([dict(r) for r in trust.get(path, [])])
+    root = str(genesis.get("root_public_key"))
+    checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors, check_manifest=False).to_dict()
+    files[CHECKS_FILE] = canonical_bytes(checks)
+    header = {"pack_id": pack_id, "sovereign_id": genesis.get("network_name"), "from_sequence":
+              entries[0].entry.store_sequence if entries else None,
+              "through_sequence": entries[-1].entry.store_sequence if entries else None,
+              "start_anchor_sequence": start_anchor_sequence, "end_anchor_sequence": end_anchor_sequence,
+              "created_at": created_at.isoformat(), "requested_by": requested_by}
+    files[REPORT_FILE] = render_report(manifest=header, entries=entries, checks=checks, states=states,
+                                       notices=notices).encode("utf-8")
+    manifest = AuditPackManifest(
+        pack_id=pack_id, sovereign_id=str(genesis.get("network_name")), created_at=created_at,
+        requested_by=requested_by, from_sequence=entries[0].entry.store_sequence,
+        through_sequence=entries[-1].entry.store_sequence, start_anchor_sequence=start_anchor_sequence,
+        end_anchor_sequence=end_anchor_sequence,
+        files=[PackFile(path=path, sha256=_sha256(body), bytes=len(body)) for path, body in sorted(files.items())],
+        issued_by=issued_by,
+    )
+    manifest = manifest.model_copy(update={"signature": sign(manifest)})
+    files[MANIFEST_FILE] = manifest.file_bytes()
+    return files, manifest
 
 
 # ---------------------------------------------------------------------------

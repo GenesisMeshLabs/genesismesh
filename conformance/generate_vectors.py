@@ -3024,6 +3024,39 @@ def gen_remediation() -> None:
     _write("remediation", {"suite": "remediation", "version": "1.4.0", "vectors": vectors})
 
 
+def gen_audit() -> None:
+    """v1.5.0: NA key succession, audit packs and the completeness check (``audit_vectors.py``).
+
+    ``canonical_form``: the signed forms of the new records. ``key_history``:
+    a genesis block and successions verified from a root key, each refusal by
+    name. ``key_at``: the NA keys a record dated at a time may carry
+    (hand-over, enforced end, the genesis key's end not enforced).
+    ``verify_export`` and ``verify_anchors``: a store and anchors across a
+    succession. ``decision_at_record_time``: an archived decision judged as of
+    its own time. ``pack``: packs, valid and refused, with the reasons in
+    sorted order. ``completeness``: matching an outside log. Also writes the
+    frozen 1.5.0 pack fixture (``fixtures/audit-pack-1.5.0``) once: later
+    runs never rewrite it. Deterministic, so regeneration is byte-stable.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from audit_vectors import audit_vectors
+    from audit_world import build_world, frozen_pack, pub
+
+    _write("audit", {"suite": "audit", "version": "1.5.0", "vectors": audit_vectors()})
+    fixture = Path(__file__).parent / "fixtures" / "audit-pack-1.5.0"
+    if fixture.exists():
+        return
+    world = build_world()
+    for path, body in frozen_pack(world).items():
+        target = fixture / "pack" / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(body)
+    (fixture / "root.pub").write_bytes((pub("f") + "\n").encode())
+    anchors = [a.to_wire() for a in world.anchors]
+    (fixture / "anchors.json").write_bytes((json.dumps(anchors, indent=2, sort_keys=True) + "\n").encode())
+    print(f"  wrote {fixture.relative_to(Path(__file__).parent)} (frozen)")
+
+
 def _at(record: dict, steps: list):
     """The nested object at ``steps`` inside ``record``."""
     node = record
@@ -3050,6 +3083,7 @@ GENERATORS = {
     "canonical": gen_canonical,
     "out_of_band": gen_out_of_band,
     "remediation": gen_remediation,
+    "audit": gen_audit,
 }
 
 
