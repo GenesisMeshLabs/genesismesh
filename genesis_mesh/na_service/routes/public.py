@@ -138,6 +138,9 @@ def create_public_blueprint(service) -> Blueprint:
         """Return operator-safe public metadata for this sovereign."""
         genesis = service.genesis_block
         base_url = _public_base_url(service)
+        # v1.5.0: the genesis key's valid_to is shown, not enforced; the key that signs now may be
+        # one a succession named (the key history says when each key is valid).
+        signing = service.key_history.status()
         return jsonify({
             "sovereign_id": genesis.network_name,
             "network_name": genesis.network_name,
@@ -147,12 +150,19 @@ def create_public_blueprint(service) -> Blueprint:
                 "public_key": genesis.network_authority.public_key,
                 "valid_from": genesis.network_authority.valid_from.isoformat(),
                 "valid_to": genesis.network_authority.valid_to.isoformat(),
+                "valid_to_enforced": False,
+            },
+            "signing_key": {
+                "key_sequence": signing.get("key_sequence"),
+                "public_key": service.signer.public_key_b64,
+                "signs_until": signing.get("signs_until"),
             },
             "root_public_key": genesis.root_public_key,
             "policy_manifest": genesis.policy_manifest.model_dump(mode="json"),
             "bootstrap_anchor_count": len(genesis.bootstrap_anchors),
             "supported_surfaces": {
                 "genesis": f"{base_url}/genesis",
+                "key_history": f"{base_url}/na/key-history",
                 "recognition_treaties": f"{base_url}/recognition-treaties",
                 "sovereign_revocation_feed": f"{base_url}/sovereign-revocation-feed",
                 "connectome": f"{base_url}/connectome.json",

@@ -35,7 +35,7 @@ from pydantic import ValidationError
 from ..crypto import sign_model, verify_signature
 from ..crypto.signing import SigningKeyLike
 from ..models.genesis import GenesisBlock, Signature
-from ..models.key_succession import KeySuccessionRecord, NAKey, NAKeyHistory
+from ..models.key_succession import KeySuccessionRecord, NAKey, NAKeyHistory, build_history
 
 SuccessionReason = str
 
@@ -174,16 +174,10 @@ def verify_key_history(
         if refusal is not None or record is None:
             result.fail(position, refusal or "payload_invalid")
             return result
-        effective = _utc(record.effective_at)
-        keys[-1] = NAKey(previous.key_sequence, previous.public_key, previous.key_id or record.previous_key_id,
-                         previous.valid_from, effective, previous.valid_to, previous.valid_to_enforced)
-        keys.append(NAKey(key_sequence=record.key_sequence, public_key=record.new_public_key,
-                          key_id=record.new_key_id, valid_from=effective, succeeded_at=None,
-                          valid_to=_utc(record.new_valid_to), valid_to_enforced=True))
         records.append(record)
+        keys = list(build_history(block.network_name, root, keys[0], records).keys)
         previous_digest = record.digest()
-    result.history = NAKeyHistory(sovereign_id=block.network_name, root_public_key=root, keys=tuple(keys),
-                                  successions=tuple(records))
+    result.history = build_history(block.network_name, root, keys[0], records)
     return result
 
 
