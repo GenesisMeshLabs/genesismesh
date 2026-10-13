@@ -798,7 +798,8 @@ CHANGE_COLUMNS = ("source", "source_event_id", "resource_id", "action", "changed
 
 #: v1.5.0 review fixes: an RFC 3339 ``date-time`` (``T`` and ``Z`` in either case), nothing else.
 _RFC3339 = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?([Zz]|[+-](\d{2}):(\d{2}))$")
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?([Zz]|[+-](\d{2}):(\d{2}))$",
+    re.ASCII)  # \d: ASCII digits only, as every SDK reads them
 
 
 def parse_rfc3339(value: str) -> datetime:
@@ -1089,12 +1090,16 @@ def _cell(value: Any) -> str:
     separators (U+2028, U+2029) ``\\uXXXX``. Nothing a record holds can end a
     table row or start a line of its own. A value is written as itself when it
     is a string, in decimal when it is an integer, ``true`` or ``false``, empty
-    when absent, and as canonical JSON otherwise.
+    when absent, and as canonical JSON otherwise. A number with an integral
+    value is written as an integer even when it was read as a float (``1.0`` is
+    ``1``), since JSON does not tell the two apart in every language.
     """
     if value is None:
         text = ""
     elif isinstance(value, bool):
         text = "true" if value else "false"
+    elif isinstance(value, float) and value.is_integer() and abs(value) < 2**53:
+        text = str(int(value))
     elif isinstance(value, (str, int)):
         text = str(value)
     else:
