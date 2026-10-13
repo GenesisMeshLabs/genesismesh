@@ -429,17 +429,17 @@ def test_an_archive_must_be_this_nas_pack_and_continue_the_archives(net):
     held = _held(client)
     late = _pack(client, from_sequence=held[-2].store_sequence + 1)
     manifest = json.loads(late[MANIFEST_FILE])
-    gap = _post(client, "/admin/evidence/archives", {"manifest": manifest, "location": "s3://vault/x"})
+    gap = _post(client, "/admin/evidence/archives", {"manifest": manifest, "location": "vault://x"})
     assert gap.status_code == 409 and _code(gap) == "archive_not_contiguous"
     forged = {**manifest, "pack_id": "forged"}
-    bad = _post(client, "/admin/evidence/archives", {"manifest": forged, "location": "s3://vault/x"})
+    bad = _post(client, "/admin/evidence/archives", {"manifest": forged, "location": "vault://x"})
     assert bad.status_code == 422 and _code(bad) == "archive_manifest_invalid"
     whole = json.loads(_pack(client)[MANIFEST_FILE])
-    reader = _read(client, "POST", "/admin/evidence/archives", {"manifest": whole, "location": "s3://vault/y"})
+    reader = _read(client, "POST", "/admin/evidence/archives", {"manifest": whole, "location": "vault://y"})
     assert reader.status_code == 403 and _code(reader) == "insufficient_operator_tier"
-    ok = _post(client, "/admin/evidence/archives", {"manifest": whole, "location": "s3://vault/y"})
+    ok = _post(client, "/admin/evidence/archives", {"manifest": whole, "location": "vault://y"})
     assert ok.status_code == 201, ok.get_json()
-    again = _post(client, "/admin/evidence/archives", {"manifest": whole, "location": "s3://vault/y"})
+    again = _post(client, "/admin/evidence/archives", {"manifest": whole, "location": "vault://y"})
     assert again.status_code == 200 and again.get_json()["status"] == "duplicate"
 
 

@@ -1170,7 +1170,7 @@ def _audit_samples() -> dict[str, dict]:
     )
     archive = ArchiveRecord(
         archive_id=UUID3, pack_id=UUID2, from_sequence=1, through_sequence=20, through_entry_digest="b" * 64,
-        end_anchor_sequence=3, manifest_sha256="c" * 64, location="s3://audit-archive/packs/" + UUID2,
+        end_anchor_sequence=3, manifest_sha256="c" * 64, location="archive://audit-archive/packs/" + UUID2,
         archived_at=T0, recorded_by="operator-1", issuer_sovereign_id=SOV_C, issued_by="na-key",
     )
     return {

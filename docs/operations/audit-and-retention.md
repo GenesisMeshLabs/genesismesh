@@ -72,13 +72,13 @@ far they cover the store.
 ## Immutable storage
 
 Archive to storage that nobody who runs the NA can change or delete: an
-object store with object lock (S3 Object Lock in compliance mode, Azure
-immutable blob storage with a locked time-based retention policy, or a WORM
-appliance), mounted as a directory where `audit archive` writes. Set the lock
-period **at least as long as your retention period**: an archive that can be
-deleted before the history it replaced would have expired proves nothing. The
-archive record names where the pack went (`location`) and the SHA-256 of its
-manifest, so an auditor can find it and check it is the one recorded.
+object store with object lock in compliance mode, immutable blob storage with
+a locked time-based retention policy, or a write-once appliance, mounted as a
+directory where `audit archive` writes. Set the lock period **at least as long
+as your retention period**: an archive that can be deleted before the history
+it replaced would have expired proves nothing. The archive record names where
+the pack went (`location`) and the SHA-256 of its manifest, so an auditor can
+find it and check it is the one recorded.
 
 Keep the anchors an auditor copies (`genesis-mesh evidence anchors fetch`)
 in the same kind of storage, under the auditor's control, not the

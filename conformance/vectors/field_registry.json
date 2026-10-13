@@ -1614,14 +1614,14 @@
         "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "end_anchor_sequence": 3,
         "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "location": "s3://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
         "archived_at": "2026-01-01T00:00:00Z",
         "recorded_by": "operator-1",
         "issuer_sovereign_id": "sovereign-c",
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "zucr+I96N3x4mCoI7BhlNvxAl+qf8E+OhqAYHtj0XlIh8IjTVLxoI6ILB1cRqwCVLqxw5DGccbSGiJEzBqlvDA=="
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ=="
         }
       },
       "expected": {
@@ -1641,14 +1641,14 @@
         "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "end_anchor_sequence": 3,
         "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "location": "s3://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
         "archived_at": "2026-01-01T00:00:00Z",
         "recorded_by": "operator-1",
         "issuer_sovereign_id": "sovereign-c",
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "zucr+I96N3x4mCoI7BhlNvxAl+qf8E+OhqAYHtj0XlIh8IjTVLxoI6ILB1cRqwCVLqxw5DGccbSGiJEzBqlvDA=="
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ=="
         },
         "x_added_field": 1
       },
@@ -1671,14 +1671,14 @@
         "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "end_anchor_sequence": 3,
         "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "location": "s3://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
         "archived_at": "2026-01-01T00:00:00Z",
         "recorded_by": "operator-1",
         "issuer_sovereign_id": "sovereign-c",
         "issued_by": "na-key",
         "signature": {
           "key_id": "na-key",
-          "sig": "zucr+I96N3x4mCoI7BhlNvxAl+qf8E+OhqAYHtj0XlIh8IjTVLxoI6ILB1cRqwCVLqxw5DGccbSGiJEzBqlvDA==",
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ==",
           "alg": "x"
         }
       },
