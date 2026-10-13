@@ -203,7 +203,8 @@ def build_world() -> World:
         previous_public_key=pub("c"), new_key_id="na-2", new_public_key=pub("g"), effective_at=SUCCESSION_AT,
         new_valid_to=SUCCESSION_AT + timedelta(days=730), issued_at=T0 + timedelta(days=4),
     )
-    succession = sign_succession(sign_succession(succession, KEYS["f"], "root"), KEYS["c"], "na-1")
+    succession = sign_succession(sign_succession(sign_succession(succession, KEYS["f"], "root"), KEYS["g"], "na-2"),
+                                 KEYS["c"], "na-1")
     append("key_succession", T0 + timedelta(days=5), succession.to_wire(), entry_index("key_succession", succession))
 
     second_decision, _ = decision(2, SUCCESSION_AT + timedelta(days=1))

@@ -14,12 +14,12 @@
   {
     "anchor_sequence": 2,
     "anchored_at": "2026-01-13T00:00:00Z",
-    "entry_digest": "17ac9c31baef5df6190f77a179bf168d30bb81023ecb13dbdf740f78b636d972",
+    "entry_digest": "6092bbbb07800a055976a3737b4fbfd23de6da0f79094a7a833254aa541c3927",
     "issued_by": "na-2",
     "previous_anchor_digest": "ddfcb8534acec8a1945bb25539ac236aaf1450127d486557f7899de22ec0ca58",
     "signature": {
       "key_id": "na-2",
-      "sig": "Dh9Z3jF0uktyct77HGXOGc640wx8dD+9OexXy3F66g3WleowQ5q2uhhAPAU4UNCkpYqCkVhuG5Glo3nNd+SoAw=="
+      "sig": "UEdDv6/woMFB+FVanVgoyUGbfEHilWAcue4NXqbfMsBFNSj9SLsxtAynZtCQx0FKqE7DUpcObP0Vk/nSvh3JCw=="
     },
     "sovereign_id": "sovereign-c",
     "store_sequence": 10
@@ -27,12 +27,12 @@
   {
     "anchor_sequence": 3,
     "anchored_at": "2026-01-15T00:00:00Z",
-    "entry_digest": "a3edef075bd69d18bb1c85d2f1bc0deb5505b8edea9a606352aaa112767ce855",
+    "entry_digest": "d8f2e899ef3b9fe083c2c2f99da935b17ff6f314ed4aaf980f1dafff72657c31",
     "issued_by": "na-2",
-    "previous_anchor_digest": "f9501ac7fef9d13a888f2f871a5bec06eb16317016e68eef18f7eb6dfef8bd55",
+    "previous_anchor_digest": "a7a2e0ad0b43c2e2f1f2b78618db40cdd01c58dbdf6ba2ffe645f1d2857222c9",
     "signature": {
       "key_id": "na-2",
-      "sig": "zoyEQV+cSc0F/hzrVpnJW7bw86FvZdEzveBbHvfOhhR9i34EMjuYKiOMJLxo27rWtTUddyB2fbURCueO0IdzAA=="
+      "sig": "Gfyxyh+3Yyaa2lIMayGysAsSmah6VWb6taU26t2wSI1oesnmBKPLoJkjwJmGftDbwaR3OE6j0sbZDKtbpbYLCw=="
     },
     "sovereign_id": "sovereign-c",
     "store_sequence": 11

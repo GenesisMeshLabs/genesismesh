@@ -1162,10 +1162,12 @@ def _audit_samples() -> dict[str, dict]:
         new_public_key=pub_b64("g"), effective_at=T0 + timedelta(days=30), new_valid_to=T1 + timedelta(days=365),
         issued_at=T0 + timedelta(days=29),
     )
-    succession = sign_succession(sign_succession(succession, KEYS["f"], "root-key"), KEYS["c"], "na-key")
+    succession = sign_succession(sign_succession(sign_succession(succession, KEYS["f"], "root-key"), KEYS["g"],
+                                                 "na-key-2"), KEYS["c"], "na-key")
     manifest = AuditPackManifest(
         pack_id=UUID2, sovereign_id=SOV_C, created_at=T0, requested_by="auditor-1", from_sequence=10,
         through_sequence=20, start_anchor_sequence=2, end_anchor_sequence=3,
+        period_from=T0 - timedelta(days=30), period_until=T0,
         files=[PackFile(path="entries.jsonl", sha256="a" * 64, bytes=1024)], issued_by="na-key",
     )
     archive = ArchiveRecord(
@@ -1173,9 +1175,19 @@ def _audit_samples() -> dict[str, dict]:
         end_anchor_sequence=3, manifest_sha256="c" * 64, location="archive://audit-archive/packs/" + UUID2,
         archived_at=T0, recorded_by="operator-1", issuer_sovereign_id=SOV_C, issued_by="na-key",
     )
+    # v1.5.0 review fixes: a pack carries treaties (trust/treaties.jsonl), so the treaty is a root too.
+    from genesis_mesh.models.sovereign import RecognitionTreaty
+
+    treaty = RecognitionTreaty(
+        treaty_id=UUID3, issuer_sovereign_id=SOV_C, subject_sovereign_id=SOV_B, subject_public_keys=[pub_b64("b")],
+        scope={"allowed_roles": ["role:anchor"]}, status="active", issued_at=T0, valid_from=T0, expires_at=T1,
+        issued_by="na-key", metadata={"note": "Zürich"},
+    )
+    treaty.signatures.append(sign_model(treaty, KEYS["c"], "na-key"))
     return {
         "GenesisBlock": genesis.model_dump(mode="json"),
         "KeySuccessionRecord": succession.to_wire(),
+        "RecognitionTreaty": treaty.model_dump(mode="json"),
         "AuditPackManifest": manifest.model_copy(update={"signature": sign_model(manifest, KEYS["c"], "na-key")}).to_wire(),
         "ArchiveRecord": archive.model_copy(update={"signature": sign_model(archive, KEYS["c"], "na-key")}).to_wire(),
     }
@@ -3045,6 +3057,11 @@ def gen_audit() -> None:
     _write("audit", {"suite": "audit", "version": "1.5.0", "vectors": audit_vectors()})
     fixture = Path(__file__).parent / "fixtures" / "audit-pack-1.5.0"
     if fixture.exists():
+        problems = fixture_problems(fixture)
+        if problems:
+            # v1.5.0 review fixes: a fixture missing a file (one a checkout dropped) is never taken as frozen.
+            raise SystemExit(f"{fixture.relative_to(Path(__file__).parent)} is incomplete: " + "; ".join(problems)
+                             + ". Restore it from git; it is never regenerated.")
         return
     world = build_world()
     for path, body in frozen_pack(world).items():
@@ -3055,6 +3072,25 @@ def gen_audit() -> None:
     anchors = [a.to_wire() for a in world.anchors]
     (fixture / "anchors.json").write_bytes((json.dumps(anchors, indent=2, sort_keys=True) + "\n").encode())
     print(f"  wrote {fixture.relative_to(Path(__file__).parent)} (frozen)")
+
+
+def fixture_problems(fixture: Path) -> list[str]:
+    """What a frozen pack fixture is missing: every file its manifest lists, with its digest and size,
+    and the root key and anchors beside it."""
+    import hashlib
+
+    problems = [f"{name} is missing" for name in ("root.pub", "anchors.json") if not (fixture / name).is_file()]
+    manifest_path = fixture / "pack" / "manifest.json"
+    if not manifest_path.is_file():
+        return [*problems, "pack/manifest.json is missing"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for item in manifest.get("files", []):
+        path = fixture / "pack" / item["path"]
+        if not path.is_file():
+            problems.append(f"pack/{item['path']} is missing")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != item["sha256"]:
+            problems.append(f"pack/{item['path']} does not match the manifest")
+    return problems
 
 
 def _at(record: dict, steps: list):
