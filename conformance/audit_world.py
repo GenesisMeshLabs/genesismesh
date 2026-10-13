@@ -233,7 +233,7 @@ def build_world() -> World:
     archive = ArchiveRecord(
         archive_id=uid(701), pack_id=uid(801), from_sequence=1, through_sequence=anchors[0].store_sequence,
         through_entry_digest=anchors[0].entry_digest, end_anchor_sequence=1, manifest_sha256="d" * 64,
-        location="s3://audit-archive/packs/" + uid(801), archived_at=archived_at, recorded_by="operator-1",
+        location="archive://audit-archive/packs/" + uid(801), archived_at=archived_at, recorded_by="operator-1",
         issued_by="na-2", **issuer,
     )
     archive = archive.model_copy(update={"signature": na_sign(archive, archived_at)})
