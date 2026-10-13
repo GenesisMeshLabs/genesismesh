@@ -158,6 +158,25 @@ CREATE TABLE IF NOT EXISTS archive_records (
 );
 CREATE INDEX IF NOT EXISTS ix_archive_through ON archive_records(through_sequence);
 
+-- Packs this NA built (v1.5.0 review fixes): an archive is recorded only for a
+-- pack the NA built, by its manifest's digest, whose own checks passed.
+CREATE TABLE IF NOT EXISTS audit_packs (
+    pack_id TEXT PRIMARY KEY,
+    manifest_sha256 TEXT NOT NULL,
+    from_sequence INTEGER NOT NULL,
+    through_sequence INTEGER NOT NULL,
+    end_anchor_sequence INTEGER NOT NULL,
+    verified INTEGER NOT NULL CHECK (verified IN (0, 1)),
+    built_at TEXT NOT NULL,
+    requested_by TEXT
+);
+
+CREATE TRIGGER IF NOT EXISTS audit_packs_no_update
+BEFORE UPDATE ON audit_packs
+BEGIN
+    SELECT RAISE(ABORT, 'the packs built are append-only');
+END;
+
 CREATE TRIGGER IF NOT EXISTS archive_records_no_update
 BEFORE UPDATE ON archive_records
 BEGIN

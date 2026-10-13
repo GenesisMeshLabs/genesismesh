@@ -174,7 +174,7 @@ def test_a_read_key_produces_a_pack_that_verifies_offline_from_the_root_key_and_
                                    "--known-anchors", str(anchors), "--format", "json"])
     assert verified.exit_code == 0, verified.output
     body = json.loads(verified.output)
-    assert body["verified"] is True and body["report_differences"] == []
+    assert body["verified"] is True and body["check_differences"] == [] and "report_differences" not in body
     assert body["counts"]["executions"] == 2 and body["counts"]["observations"] == 1
 
     # Another root key proves nothing about this NA.
@@ -516,7 +516,7 @@ def test_the_frozen_1_5_0_pack_verifies(tmp_path):
                                       "--known-anchors", str(fixture / "anchors.json"), "--format", "json"])
     assert result.exit_code == 0, result.output
     body = json.loads(result.output)
-    assert body["verified"] is True and body["report_differences"] == []
+    assert body["verified"] is True and body["check_differences"] == [] and "report_differences" not in body
     assert body["counts"]["key_successions"] == 1 and len(body["keys"]) == 2
 
 

@@ -169,6 +169,9 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
         store.require_enabled()
         data = request_json_object()
         operator = _admin(data, tier="read")
+        # v1.5.0 review fixes: building a pack is costly, so it has a rate limit of its own.
+        if not service.rate_limiter.allow(_rate_key("audit_pack"), service.rate_limits.audit_packs, 3600):
+            raise RateLimitError()
         return jsonify(service.audit_pack_service.build(data, operator))
 
     @bp.route("/admin/evidence/archives", methods=["GET"])

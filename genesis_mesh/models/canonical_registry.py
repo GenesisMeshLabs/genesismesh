@@ -123,7 +123,7 @@ def _roots() -> list[type[BaseModel]]:
     from .key_succession import KeySuccessionRecord
     from .out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord
     from .remediation import RemediationRecord, ReviewRecord
-    from .sovereign import MembershipAttestation, SovereignRevocationFeed
+    from .sovereign import MembershipAttestation, RecognitionTreaty, SovereignRevocationFeed
 
     return [
         AgreementRecord, BoundaryDecision, BoundaryPolicy, BreakGlassRecord, ContextRecord, DataAccessIntent,
@@ -133,6 +133,8 @@ def _roots() -> list[type[BaseModel]]:
         # v1.5.0 (Stage 4): the key history (the genesis block the root key signs, and successions),
         # archive records and pack manifests.
         ArchiveRecord, AuditPackManifest, GenesisBlock, KeySuccessionRecord,
+        # v1.5.0 review fixes: every signed record a pack carries (a pack's treaties too).
+        RecognitionTreaty,
     ]
 
 

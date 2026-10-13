@@ -172,7 +172,7 @@ class AuditPackService:
         for resource_id in sorted(r for r in observed if r):
             keep(db.last_entry_before("observation", "resource_id", resource_id, start))
         # The registry and key history before the range, and the latest retention checkpoint.
-        for stored in db.entries_of_kinds_before(("registry", "key_succession"), start):
+        for stored in db.entries_of_kinds_before(("registry", "key_succession", "archive"), start):
             keep(stored)
         checkpoints = db.entries_of_kinds_before(("retention_checkpoint",), start)
         if checkpoints:
@@ -253,9 +253,17 @@ class AuditPackService:
             end_anchor_sequence=end.anchor_sequence, issued_by=self._na.key_id, sign=self._na.signer.sign_model,
             states=states, notices={k: v for k, v in states.items() if v.get("notified_at")},
             check_executor_keys=store.executor_keys(),
+            period_from=_time(data.get("since"), "since"), period_until=_time(data.get("until"), "until"),
         )
         checks = json.loads(files[CHECKS_FILE])
         pack_id = manifest.pack_id
+        # v1.5.0 review fixes: the NA records each pack it builds, so an archive names one of them.
+        db.add_audit_pack_row({
+            "pack_id": pack_id, "manifest_sha256": hashlib.sha256(files[MANIFEST_FILE]).hexdigest(),
+            "from_sequence": start, "through_sequence": through, "end_anchor_sequence": end.anchor_sequence,
+            "verified": 1 if checks["verified"] else 0, "built_at": manifest.created_at.isoformat(),
+            "requested_by": requested_by,
+        })
         db.add_audit_event("audit_pack_built", {
             "pack_id": pack_id, "from_sequence": start, "through_sequence": through,
             "end_anchor_sequence": end.anchor_sequence, "requested_by": requested_by,
@@ -282,10 +290,11 @@ class AuditPackService:
             manifest = AuditPackManifest.model_validate(raw)
         except PydanticValidationError as exc:
             raise BadRequestError("manifest is not an audit pack manifest", code="invalid_archive") from exc
-        keys = self._na.na_public_keys_at(manifest.created_at)
-        from ...crypto import verify_model_signature
+        from ...workflows.audit_pack import received_signature_reason
 
-        if manifest.signature is None or not any(verify_model_signature(manifest, manifest.signature, k) for k in keys) \
+        # v1.5.0 review fixes: signed as received, by the key valid when the pack was built.
+        if received_signature_reason("AuditPackManifest", raw, self._na.key_history.history(),
+                                     manifest.created_at) is not None \
                 or manifest.sovereign_id != self._na.genesis_block.network_name:
             raise ValidationError("the manifest is not signed by this Network Authority", code="archive_manifest_invalid")
         end = next((a for a in self._na.db.list_store_anchors(after_anchor=manifest.end_anchor_sequence - 1, limit=1)),
@@ -295,6 +304,13 @@ class AuditPackService:
             raise ConflictError("the manifest's end anchor is not this NA's anchor of its last entry",
                                 code="archive_anchor_mismatch")
         manifest_sha256 = hashlib.sha256(manifest.file_bytes()).hexdigest()
+        # v1.5.0 review fixes: only a pack this NA built, as it built it, whose own checks passed.
+        built = self._na.db.get_audit_pack_row(manifest.pack_id)
+        if built is None or built["manifest_sha256"] != manifest_sha256:
+            raise ConflictError("this NA did not build a pack with this manifest", code="archive_pack_unknown")
+        if not built["verified"]:
+            raise ConflictError("the pack failed the checks the NA ran when it built it (checks.json): an archive "
+                                "records only a pack that verified", code="archive_pack_unverified")
         existing = next((r for r in self._na.db.list_archive_rows() if r["pack_id"] == manifest.pack_id), None)
         if existing is not None:
             if existing["manifest_sha256"] != manifest_sha256:

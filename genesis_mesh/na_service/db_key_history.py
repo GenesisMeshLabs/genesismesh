@@ -19,6 +19,10 @@ _ARCHIVE_COLUMNS = (
     "archive_id", "pack_id", "from_sequence", "through_sequence", "through_entry_digest",
     "end_anchor_sequence", "manifest_sha256", "location", "archived_at", "recorded_by", "record_json",
 )
+_PACK_COLUMNS = (
+    "pack_id", "manifest_sha256", "from_sequence", "through_sequence", "end_anchor_sequence", "verified",
+    "built_at", "requested_by",
+)
 
 
 class KeyHistoryStoreMixin:
@@ -63,6 +67,20 @@ class KeyHistoryStoreMixin:
     def add_archive_row(self, row: dict[str, Any]) -> None:
         with self._lock, self.conn:
             self.insert_archive_row(row)
+
+    # -- packs built (v1.5.0 review fixes) ----------------------------------------
+
+    def add_audit_pack_row(self, row: dict[str, Any]) -> None:
+        """Record one pack this NA built: its manifest's digest and whether its own checks passed."""
+        cols = ", ".join(_PACK_COLUMNS)
+        marks = ", ".join("?" for _ in _PACK_COLUMNS)
+        with self._lock, self.conn:
+            self.conn.execute(f"INSERT INTO audit_packs({cols}) VALUES ({marks})",
+                              tuple(row.get(c) for c in _PACK_COLUMNS))
+
+    def get_audit_pack_row(self, pack_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("SELECT * FROM audit_packs WHERE pack_id = ?", (pack_id,)).fetchone()
+        return {c: row[c] for c in _PACK_COLUMNS} if row else None
 
     def list_archive_rows(self) -> list[dict[str, Any]]:
         """Every archive record, by the range it covers."""

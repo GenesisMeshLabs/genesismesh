@@ -47,10 +47,13 @@ POLICIES_FILE = "policies.jsonl"
 ATTESTATIONS_FILE = "trust/attestations.jsonl"
 TREATIES_FILE = "trust/treaties.jsonl"
 FEEDS_FILE = "trust/feeds.jsonl"
+#: v1.5.0 review fixes: the NA's remediation states and notices at pack time (operational records,
+#: not signed records), which ``report.md`` shows; a verifier renders the report from them.
+STATES_FILE = "states.json"
 
 PACK_FILES: tuple[str, ...] = (
     ANCHORS_FILE, CHECKS_FILE, CITED_FILE, ENTRIES_FILE, EXECUTOR_KEYS_FILE, GENESIS_FILE, KEY_HISTORY_FILE,
-    POLICIES_FILE, REPORT_FILE, ATTESTATIONS_FILE, FEEDS_FILE, TREATIES_FILE,
+    POLICIES_FILE, REPORT_FILE, STATES_FILE, ATTESTATIONS_FILE, FEEDS_FILE, TREATIES_FILE,
 )
 
 
@@ -83,7 +86,9 @@ class AuditPackManifest(_SignedRecord):
     entry before its first (absent when the range starts at entry 1 or right
     after a retention checkpoint). The signature proves the NA produced the
     pack; it proves nothing about history by itself (the anchors held out of
-    band do).
+    band do). ``period_from`` and ``period_until`` (v1.5.0 review fixes) are
+    the period the pack was asked for (``since`` and ``until``), when it was
+    asked for one; the period it covers is the verifier's to compute.
     """
 
     format: Literal["gm.audit.pack"] = "gm.audit.pack"
@@ -96,6 +101,8 @@ class AuditPackManifest(_SignedRecord):
     through_sequence: int = Field(..., ge=1)
     start_anchor_sequence: int | None = Field(default=None, ge=1)
     end_anchor_sequence: int = Field(..., ge=1)
+    period_from: datetime | None = None
+    period_until: datetime | None = None
     files: list[PackFile]
     issued_by: str
     signature: Signature | None = None

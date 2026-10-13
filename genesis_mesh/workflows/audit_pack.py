@@ -7,24 +7,31 @@ verified offline, with no network and no private key, from material the
 security team holds itself: the root public key and its copies of the
 anchors. Keys inside the pack prove nothing alone: the NA keys are accepted
 only through the key history, from the root key down; executor and observer
-keys only through registry records the NA signed (or keys the auditor
-supplies).
+keys only through registry records the NA signed, placed in the store before
+the records they verify (or keys the auditor supplies).
 
 ``verify_audit_pack`` runs these checks, each failure named by a reason code
 (``docs/reference/audit-pack-format.md`` lists them with the file each is
 reported against):
 
-1. the manifest: present, of this format, countersigned by the NA key valid
-   at its ``created_at``; every file it lists present with its SHA-256 and
-   size, no file it does not list, every file of the format listed. A pack
-   whose manifest fails is not checked further: its files are not the pack;
+1. the manifest: present, of this format, in canonical form, every file it
+   lists a file of the format (``manifest_unknown_file``) present with its
+   SHA-256 and size, no file it does not list, every file of the format
+   listed. A pack whose manifest fails here is not checked further: its
+   files are not the pack;
 2. the key history: the genesis block signed by the root key the verifier
-   holds, each succession signed by the root key and the outgoing key;
+   holds, each succession signed by the root key, the new key and the
+   outgoing key; the manifest signed, as received, by the NA key valid at its
+   ``created_at``;
 3. the anchors: the pack's anchors signed (by the key valid at each one's
    time) and chained; each one the verifier holds equal to the pack's; the
    range's last entry named by the end anchor, which the verifier holds; the
    range's start tied to entry 1, a retention checkpoint in the range or a
    held start anchor; every held anchor inside the range naming its entry;
+   the manifest dated no earlier than the end anchor and the last entry
+   (``manifest_backdated``); each cited entry equal to the one a prior pack
+   or a held anchor names at its position (``cited_entry_mismatch``), and a
+   warning for each that neither covers (``cited_entry_unanchored``);
 4. the entries: exactly the manifest's range, one unbroken store chain, every
    record signed by the key valid at its time (``verify_evidence_events``),
    the chains continuing from the records the pack cites; a record the
@@ -33,7 +40,13 @@ reported against):
    or judgement was made under, with its digest; each attestation a decision
    rests on, signed by the NA (or by a key a treaty in the pack names), with
    the digest the decision bound; treaties and feeds signed by their issuers;
-6. with a changes file, the completeness check (``check_completeness``).
+   every signature checked over the record as received;
+6. the report: ``report.md`` is what ``render_report`` writes from the
+   manifest, the entries, ``checks.json`` and ``states.json``
+   (``report_mismatch``);
+7. the period: with one asked for, the pack covers it
+   (``pack_period_not_covered``);
+8. with a changes file, the completeness check (``check_completeness``).
 
 Decisions are judged as of their own time (``at_record_time``): a decision
 that expired since it was made and used is not a failure.
@@ -42,9 +55,11 @@ that expired since it was made and used is not a failure.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import hashlib
 import io
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -53,7 +68,6 @@ from typing import Any, Iterable, Mapping, Sequence
 from pydantic import ValidationError
 
 from .. import strict_json
-from ..crypto import verify_model_signature
 from ..models.audit_pack import (
     ANCHORS_FILE,
     ATTESTATIONS_FILE,
@@ -68,6 +82,7 @@ from ..models.audit_pack import (
     PACK_FILES,
     POLICIES_FILE,
     REPORT_FILE,
+    STATES_FILE,
     TREATIES_FILE,
     AuditPackManifest,
 )
@@ -81,6 +96,7 @@ from ..trust.context import verify_boundary_decision
 from ..trust.evidence_store import (
     EvidenceVerification,
     ExecutorKey,
+    carried_sequences,
     check_events_against_anchors,
     parse_export_lines,
     verify_evidence_events,
@@ -104,6 +120,10 @@ class PackVerification:
     anchors: dict[str, Any] | None = None
     keys: list[dict[str, Any]] = field(default_factory=list)
     completeness: dict[str, Any] | None = None
+    #: v1.5.0 review fixes: the period the pack covers (and the one it was asked for).
+    period: dict[str, Any] | None = None
+    #: v1.5.0 review fixes: the lines where ``report.md`` differs from the report the pack renders to.
+    report_differences: list[dict[str, Any]] = field(default_factory=list)
 
     def fail(self, file: str | None, store_sequence: int | None, reason: str, detail: str = "") -> None:
         self.verified = False
@@ -123,6 +143,10 @@ class PackVerification:
         }
         if self.anchors is not None:
             out["anchors"] = self.anchors
+        if self.period is not None:
+            out["period"] = self.period
+        if self.report_differences:
+            out["report_differences"] = self.report_differences
         if self.completeness is not None:
             out["completeness"] = self.completeness
         return out
@@ -161,8 +185,21 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
+def _iso(value: datetime) -> str:
+    return _utc(value).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def pack_entry_digests(files: Mapping[str, bytes]) -> dict[int, str]:
+    """The entries a pack holds, by store position: their digests as received (v1.5.0 review fixes).
+
+    What ``verify_audit_pack(prior_entries=...)`` takes from packs verified
+    before, to check the entries a later pack cites.
+    """
+    return {e.entry.store_sequence: e.received_entry_digest() for e in _events(files[ENTRIES_FILE])}
 
 
 # ---------------------------------------------------------------------------
@@ -170,13 +207,16 @@ def _sha256(data: bytes) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _check_manifest(files: Mapping[str, bytes], result: PackVerification) -> AuditPackManifest | None:
+def _check_manifest(
+    files: Mapping[str, bytes], result: PackVerification,
+) -> tuple[AuditPackManifest | None, dict[str, Any] | None]:
+    """The manifest and its JSON as received, or (None, None) when it cannot be read."""
     from ..models.canonical_registry import unknown_fields
 
     raw = files.get(MANIFEST_FILE)
     if raw is None:
         result.fail(MANIFEST_FILE, None, "manifest_missing")
-        return None
+        return None, None
     try:
         data = _json(raw)
         if isinstance(data, dict) and unknown_fields("AuditPackManifest", data):
@@ -184,7 +224,7 @@ def _check_manifest(files: Mapping[str, bytes], result: PackVerification) -> Aud
         manifest = AuditPackManifest.model_validate(data)
     except (ValueError, ValidationError, UnicodeDecodeError, strict_json.StrictJSONError) as exc:
         result.fail(MANIFEST_FILE, None, "manifest_invalid", str(exc)[:200])
-        return None
+        return None, None
     if manifest.file_bytes() != raw:
         result.fail(MANIFEST_FILE, None, "manifest_invalid", "not in canonical form")
     listed: dict[str, Any] = {}
@@ -196,47 +236,91 @@ def _check_manifest(files: Mapping[str, bytes], result: PackVerification) -> Aud
         if path not in listed:
             result.fail(MANIFEST_FILE, None, "manifest_file_missing", f"{path} is not listed")
     for path, item in sorted(listed.items()):
-        data = files.get(path)
-        if data is None:
+        if path not in PACK_FILES:
+            # v1.5.0 review fixes: a pack holds the files of its format and nothing else.
+            result.fail(MANIFEST_FILE, None, "manifest_unknown_file", f"{path} is not a file of the format")
+            continue
+        body = files.get(path)
+        if body is None:
             result.fail(path, None, "manifest_file_missing")
-        elif _sha256(data) != item.sha256 or len(data) != item.bytes:
+        elif _sha256(body) != item.sha256 or len(body) != item.bytes:
             result.fail(path, None, "manifest_digest_mismatch")
     for path in sorted(files):
         if path != MANIFEST_FILE and path not in listed:
             result.fail(path, None, "manifest_unlisted_file")
-    return manifest
+    return manifest, data
 
 
-def _signed_at(model: Any, signatures: Sequence[Any], history: NAKeyHistory, at: datetime) -> str | None:
-    """None when one of ``signatures`` is by the NA key valid at ``at``; else the reason."""
+def received_signature_reason(model: str, raw: Any, history: NAKeyHistory, at: datetime) -> str | None:
+    """None when a signature on ``raw`` verifies, over the record as received, with the NA key valid
+    at ``at``; else why not (v1.5.0 review fixes: every signed kind a pack carries is checked as
+    received, never over a form re-written from a model with its defaults filled in).
+
+    ``unknown_field`` or ``non_canonical_form`` for a record its signer signed in another form,
+    ``na_key_not_valid_at_time`` for one signed by another key of the history,
+    ``invalid_signature`` otherwise.
+    """
+    from ..models.canonical_registry import signed_as_received, strict_refusal
+
+    if not isinstance(raw, dict):
+        return "invalid_signature"
     keys = history.keys_at(_utc(at))
-    if any(verify_model_signature(model, s, k) for s in signatures for k in keys):
-        return None
+    if signed_as_received(model, raw, keys):
+        return strict_refusal(model, raw, keys)
     others = [k for k in history.all_keys() if k not in keys]
-    if any(verify_model_signature(model, s, k) for s in signatures for k in others):
+    if others and signed_as_received(model, raw, others):
         return "na_key_not_valid_at_time"
     return "invalid_signature"
 
 
+def _received_by(model: str, raw: Any, keys: Sequence[str]) -> str | None:
+    """As ``received_signature_reason``, for keys with no time (a treaty's subject keys)."""
+    from ..models.canonical_registry import signed_as_received, strict_refusal
+
+    if not isinstance(raw, dict) or not signed_as_received(model, raw, keys):
+        return "invalid_signature"
+    return strict_refusal(model, raw, keys)
+
+
 def _registry_keys(events: Iterable[EvidenceEvent], history: NAKeyHistory) -> dict[str, ExecutorKey]:
-    """Executor and observer keys from the registry records the NA signed (by the key valid then)."""
+    """Executor and observer keys from the registry records the NA signed (by the key valid then).
+
+    v1.5.0 review fixes: each key is placed where the store registered and
+    retired it (``ExecutorKey.position_problem``): by store position, or, for a
+    record backfilled at an upgrade (``reconstructed``) or carried past
+    retention, by its ``effective_at``.
+    """
+    ordered = sorted(events, key=lambda e: e.entry.store_sequence)
+    carried = carried_sequences(ordered)
     keys: dict[str, ExecutorKey] = {}
-    for event in sorted(events, key=lambda e: e.entry.store_sequence):
+    for event in ordered:
         if event.entry.entry_kind != "registry":
             continue
         try:
             record = RegistryRecord.model_validate(event.payload)
         except ValidationError:
             continue
-        if record.signature is None or _signed_at(record, [record.signature], history,
-                                                  event.entry.recorded_at) is not None:
+        if received_signature_reason("RegistryRecord", event.payload, history, event.entry.recorded_at) is not None:
             continue
+        seq = event.entry.store_sequence
+        by_time = bool(record.reconstructed) or seq in carried
         if record.event == "executor_key_registered" and record.key_id and record.public_key \
                 and record.executor_sovereign_id:
+            held = keys.get(record.key_id)
+            if held is not None and held.public_key == record.public_key:
+                continue  # registered again: the first registration places it
             keys[record.key_id] = ExecutorKey(
                 key_id=record.key_id, public_key=record.public_key,
                 executor_sovereign_id=record.executor_sovereign_id, role=record.key_role or "executor",
-                resource_prefix=record.resource_prefix)
+                resource_prefix=record.resource_prefix,
+                registered_sequence=None if by_time else seq,
+                registered_at=_utc(record.effective_at) if by_time else None)
+        elif record.event == "executor_key_retired" and record.key_id and record.key_id in keys:
+            held = keys[record.key_id]
+            if held.retired_sequence is None and held.retired_at is None:
+                keys[record.key_id] = dataclasses.replace(
+                    held, retired=True, retired_sequence=None if by_time else seq,
+                    retired_at=_utc(record.effective_at) if by_time else None)
     return keys
 
 
@@ -253,6 +337,8 @@ def verify_audit_pack(
     changes: Sequence["Change"] | None = None,
     tolerance: timedelta = DEFAULT_TOLERANCE,
     check_manifest: bool = True,
+    period: tuple[datetime, datetime] | None = None,
+    prior_entries: Mapping[int, str] | None = None,
 ) -> PackVerification:
     """Verify an audit pack offline (the module docstring lists the checks).
 
@@ -260,11 +346,15 @@ def verify_audit_pack(
     without them a pack proves the integrity of what it holds, not that
     nothing was removed, and the result says so (``no_held_anchors``).
     ``executor_keys`` are keys the verifier supplies out of band, for a store
-    without registry records. ``check_manifest=False`` verifies the files
-    before a manifest exists (the NA, writing ``checks.json``).
+    without registry records (a key the pack's registry records place wins).
+    ``check_manifest=False`` verifies the files before a manifest exists (the
+    NA, writing ``checks.json``). ``period`` is a period the pack must cover
+    (``--period``); ``prior_entries`` the entries of packs verified before
+    (``pack_entry_digests``, ``--prior``), which the entries this pack cites
+    must equal.
     """
     result = PackVerification()
-    manifest = _check_manifest(files, result) if check_manifest else None
+    manifest, manifest_raw = _check_manifest(files, result) if check_manifest else (None, None)
 
     # 2. The key history, from the root key down.
     try:
@@ -285,8 +375,8 @@ def verify_audit_pack(
     if manifest is not None:
         if manifest.sovereign_id != history.sovereign_id:
             result.fail(MANIFEST_FILE, None, "manifest_invalid", "names another sovereign")
-        reason = _signed_at(manifest, [manifest.signature] if manifest.signature else [], history,
-                            manifest.created_at)
+        # v1.5.0 review fixes: over the manifest as received, not the model with its defaults.
+        reason = received_signature_reason("AuditPackManifest", manifest_raw, history, manifest.created_at)
         if reason is not None:
             result.fail(MANIFEST_FILE, None, "manifest_invalid_signature" if reason == "invalid_signature" else reason)
     if check_manifest and not result.verified:
@@ -325,12 +415,20 @@ def verify_audit_pack(
     end = by_sequence.get(manifest.end_anchor_sequence) if manifest else (pack_anchors[-1] if pack_anchors else None)
     if end is None or end.store_sequence != last or end.entry_digest != entries[-1].received_entry_digest():
         result.fail(ANCHORS_FILE, last, "pack_end_anchor_mismatch", "no anchor of the pack names the range's last entry")
-    start_anchor = by_sequence.get(manifest.start_anchor_sequence) \
-        if manifest and manifest.start_anchor_sequence else None
+    if manifest is not None:
+        start_anchor = by_sequence.get(manifest.start_anchor_sequence) if manifest.start_anchor_sequence else None
+    else:
+        start_anchor = next((a for a in reversed(pack_anchors) if a.store_sequence == first - 1), None)
     if manifest and manifest.start_anchor_sequence and (
             start_anchor is None or start_anchor.store_sequence != first - 1
             or start_anchor.entry_digest != entries[0].entry.prev_entry_digest):
         result.fail(ANCHORS_FILE, first, "pack_start_not_tied", "the start anchor does not name the entry before the range")
+    if manifest is not None:
+        # v1.5.0 review fixes: the NA writes a pack after its end anchor and its last entry.
+        latest = max([_utc(entries[-1].entry.recorded_at), *([_utc(end.anchored_at)] if end is not None else [])])
+        if _utc(manifest.created_at) < latest:
+            result.fail(MANIFEST_FILE, None, "manifest_backdated",
+                        f"created at {_iso(manifest.created_at)}, before {_iso(latest)}")
 
     # The start checkpoint: a retention checkpoint (in the range or cited) that removed the entries before it.
     start_checkpoint: RetentionCheckpoint | None = None
@@ -345,6 +443,7 @@ def verify_audit_pack(
     if first == 1 and entries[0].entry.prev_entry_digest is not None:
         result.fail(ENTRIES_FILE, 1, "store_chain_break", "entry 1 names a previous entry")
 
+    held = {a.anchor_sequence: a for a in held_anchors or []}
     if held_anchors is None:
         result.warn(None, None, "no_held_anchors",
                     "verified without anchors held out of band: the pack's integrity, not that nothing was removed")
@@ -353,7 +452,6 @@ def verify_audit_pack(
                                           sovereign_id=history.sovereign_id)
         for failure in held_chain.failures:
             result.fail("known-anchors", None, failure["reason"], f"held anchor {failure['anchor_sequence']}")
-        held = {a.anchor_sequence: a for a in held_anchors}
         for anchor in pack_anchors:
             mine = held.get(anchor.anchor_sequence)
             if mine is not None and mine.to_wire() != anchor.to_wire():
@@ -362,10 +460,6 @@ def verify_audit_pack(
         if end is not None and end.anchor_sequence not in held:
             result.fail(ANCHORS_FILE, last, "pack_end_anchor_not_held",
                         f"anchor {end.anchor_sequence} is not among the anchors held")
-        if start_anchor is not None and start_anchor.anchor_sequence not in held and start_checkpoint is None \
-                and first != 1:
-            result.fail(ANCHORS_FILE, first, "pack_start_anchor_not_held",
-                        f"anchor {start_anchor.anchor_sequence} is not among the anchors held")
         inside = [a for a in held_anchors if a.store_sequence <= last]
         tied = EvidenceVerification()
         check_events_against_anchors(entries, inside, tied, from_anchor=True)
@@ -373,9 +467,25 @@ def verify_audit_pack(
             result.fail(ENTRIES_FILE, failure["store_sequence"], failure["reason"], failure["detail"])
         result.anchors = tied.anchors
 
+    # v1.5.0 review fixes: a cited entry is checked against what the verifier holds at its position: an
+    # entry of a pack verified before, or an anchor naming that very entry. Neither: a warning.
+    held_at = {a.store_sequence: a for a in held_anchors or []}
+    for event in cited:
+        seq = event.entry.store_sequence
+        digest = event.received_entry_digest()
+        known = (prior_entries or {}).get(seq)
+        held_anchor = held_at.get(seq)
+        if known is not None and known != digest:
+            result.fail(CITED_FILE, seq, "cited_entry_mismatch", "differs from the entry a prior pack holds")
+        elif held_anchor is not None and held_anchor.entry_digest != digest:
+            result.fail(CITED_FILE, seq, "cited_entry_mismatch", f"differs from held anchor {held_anchor.anchor_sequence}")
+        elif known is None and held_anchor is None:
+            result.warn(CITED_FILE, seq, "cited_entry_unanchored",
+                        "signed, but neither a prior pack nor a held anchor covers this entry")
+
     # 4. Executor keys: from registry records the NA signed, and keys supplied out of band.
-    keys = _registry_keys([*cited, *entries], history)
-    keys.update(executor_keys or {})
+    keys = dict(executor_keys or {})
+    keys.update(_registry_keys([*cited, *entries], history))
     verification = verify_evidence_events(
         entries, na_public_keys=history, executor_keys=keys, contiguous=True,
         checkpoint=start_checkpoint, prior=cited,
@@ -392,64 +502,132 @@ def verify_audit_pack(
     # 5. What the records cite outside the store.
     _check_cited_trust(files, entries, cited, history, result)
 
-    # 6. Completeness.
+    # 6. The report renders from the pack's own files.
+    if manifest is not None:
+        _check_report(files, manifest, entries, result)
+
+    # 7. The period the pack covers: from its start anchor (or the retention checkpoint it starts after,
+    # or its first entry, at the start of the store) to its end anchor.
+    if start_anchor is not None:
+        covered_from = _utc(start_anchor.anchored_at)
+    elif start_checkpoint is not None:
+        covered_from = _utc(start_checkpoint.created_at)
+    else:
+        covered_from = _utc(entries[0].entry.recorded_at)
+    covered_until = _utc(end.anchored_at) if end is not None else _utc(entries[-1].entry.recorded_at)
+    result.period = {"from": _iso(covered_from), "until": _iso(covered_until)}
+    if manifest is not None and manifest.period_from is not None:
+        result.period["requested_from"] = _iso(manifest.period_from)
+    if manifest is not None and manifest.period_until is not None:
+        result.period["requested_until"] = _iso(manifest.period_until)
+    if period is not None:
+        wanted_from, wanted_until = _utc(period[0]), _utc(period[1])
+        result.period.update({"asked_from": _iso(wanted_from), "asked_until": _iso(wanted_until)})
+        if wanted_from < covered_from or wanted_until > covered_until:
+            result.fail(None, None, "pack_period_not_covered",
+                        f"the pack covers {_iso(covered_from)} to {_iso(covered_until)}")
+
+    # 8. Completeness.
     if changes is not None:
-        end_time = end.anchored_at if end is not None else entries[-1].entry.recorded_at
         result.completeness = check_completeness(
-            changes, entries, cited, period=(_utc(entries[0].entry.recorded_at), _utc(end_time)), tolerance=tolerance)
+            changes, entries, cited, period=(covered_from, covered_until), tolerance=tolerance)
         for item in result.completeness["unmatched_changes"]:
             result.fail("changes", None, "change_unmatched",
                         f"{item['source'] or '-'} {item['source_event_id'] or '-'} {item['resource_id']} "
                         f"{item['action']} {item['changed_at']}")
+        if result.completeness["outside_period"]:
+            result.warn("changes", None, "changes_outside_period",
+                        f"{len(result.completeness['outside_period'])} change(s) dated outside the period "
+                        f"the pack covers ({_iso(covered_from)} to {_iso(covered_until)})")
+        for item in result.completeness["duplicate_changes"]:
+            result.warn("changes", None, "change_duplicate",
+                        f"change {item['index']} repeats {item['source']} {item['source_event_id']}")
     return result
+
+
+def _check_report(
+    files: Mapping[str, bytes], manifest: AuditPackManifest, entries: Sequence[EvidenceEvent],
+    result: PackVerification,
+) -> None:
+    """``report.md`` is the report ``render_report`` writes from the pack's own files (v1.5.0 review
+    fixes): a statement in it that the pack does not hold is ``report_mismatch``."""
+    try:
+        checks = _json(files[CHECKS_FILE])
+        states = _json(files[STATES_FILE])
+        claimed = files[REPORT_FILE].decode("utf-8")
+    except (KeyError, ValueError, UnicodeDecodeError, strict_json.StrictJSONError) as exc:
+        result.fail(REPORT_FILE, None, "report_mismatch", f"cannot be rendered: {str(exc)[:160]}")
+        return
+    if not isinstance(checks, dict) or not isinstance(states, dict):
+        result.fail(REPORT_FILE, None, "report_mismatch", "checks.json and states.json are JSON objects")
+        return
+    expected = render_report(manifest=report_header(manifest), entries=entries, checks=checks,
+                             states=states.get("states") or {}, notices=states.get("notices") or {})
+    if expected == claimed:
+        return
+    ours, theirs = expected.split("\n"), claimed.split("\n")
+    for i in range(max(len(ours), len(theirs))):
+        mine = ours[i] if i < len(ours) else None
+        pack = theirs[i] if i < len(theirs) else None
+        if mine != pack:
+            result.report_differences.append({"line": i + 1, "pack": pack, "verifier": mine})
+    result.fail(REPORT_FILE, None, "report_mismatch",
+                f"{len(result.report_differences)} line(s) differ from the report the pack renders to")
 
 
 def _check_cited_trust(
     files: Mapping[str, bytes], entries: Sequence[EvidenceEvent], cited: Sequence[EvidenceEvent],
     history: NAKeyHistory, result: PackVerification,
 ) -> None:
-    """Policies, attestations, treaties and feeds the records rest on (outside the store)."""
+    """Policies, attestations, treaties and feeds the records rest on (outside the store).
+
+    v1.5.0 review fixes: each signature is checked over the record as received
+    (``received_signature_reason``), at the record's own time (``issued_at``).
+    """
     try:
-        policies = [BoundaryPolicy.model_validate(p) for p in _jsonl(files[POLICIES_FILE])]
-        attestations = [MembershipAttestation.model_validate(a) for a in _jsonl(files[ATTESTATIONS_FILE])]
-        treaties = [RecognitionTreaty.model_validate(t) for t in _jsonl(files[TREATIES_FILE])]
-        feeds = [SovereignRevocationFeed.model_validate(f) for f in _jsonl(files[FEEDS_FILE])]
+        raw_policies = _jsonl(files[POLICIES_FILE])
+        raw_attestations = _jsonl(files[ATTESTATIONS_FILE])
+        raw_treaties = _jsonl(files[TREATIES_FILE])
+        raw_feeds = _jsonl(files[FEEDS_FILE])
+        policies = [BoundaryPolicy.model_validate(p) for p in raw_policies]
+        attestations = [MembershipAttestation.model_validate(a) for a in raw_attestations]
+        treaties = [RecognitionTreaty.model_validate(t) for t in raw_treaties]
+        feeds = [SovereignRevocationFeed.model_validate(f) for f in raw_feeds]
     except (KeyError, ValueError, ValidationError, UnicodeDecodeError) as exc:
         result.fail(POLICIES_FILE, None, "cited_trust_invalid", str(exc)[:200])
         return
     by_version: dict[tuple[str, int], BoundaryPolicy] = {}
-    for policy in policies:
-        reason = _signed_at(policy, [policy.signature] if policy.signature else [], history, policy.issued_at)
+    for policy, raw in zip(policies, raw_policies):
+        reason = received_signature_reason("BoundaryPolicy", raw, history, policy.issued_at)
         if reason is not None:
             result.fail(POLICIES_FILE, None, "policy_invalid_signature" if reason == "invalid_signature" else reason,
                         f"{policy.policy_id} v{policy.version}")
         by_version[(policy.policy_id, policy.version)] = policy
     own = history.sovereign_id
     issuer_keys: dict[str, list[str]] = {}
-    for treaty in treaties:
-        reason = _signed_at(treaty, treaty.signatures, history, treaty.issued_at)
+    for treaty, raw in zip(treaties, raw_treaties):
+        reason = received_signature_reason("RecognitionTreaty", raw, history, treaty.issued_at)
         if reason is not None:
             result.fail(TREATIES_FILE, None, "treaty_invalid_signature" if reason == "invalid_signature" else reason,
                         treaty.treaty_id)
             continue
         issuer_keys.setdefault(treaty.subject_sovereign_id, []).extend(treaty.subject_public_keys)
     by_attestation: dict[str, MembershipAttestation] = {}
-    for attestation in attestations:
+    for attestation, raw in zip(attestations, raw_attestations):
         if attestation.issuer_sovereign_id == own:
-            reason = _signed_at(attestation, attestation.signatures, history, attestation.issued_at)
+            reason = received_signature_reason("MembershipAttestation", raw, history, attestation.issued_at)
         else:
-            keys = issuer_keys.get(attestation.issuer_sovereign_id, [])
-            reason = None if any(verify_model_signature(attestation, s, k) for s in attestation.signatures
-                                 for k in keys) else "invalid_signature"
+            reason = _received_by("MembershipAttestation", raw, issuer_keys.get(attestation.issuer_sovereign_id, []))
         if reason is not None:
             result.fail(ATTESTATIONS_FILE, None,
                         "attestation_invalid_signature" if reason == "invalid_signature" else reason,
                         attestation.attestation_id)
         by_attestation[attestation.attestation_id] = attestation
-    for feed in feeds:
-        keys = issuer_keys.get(feed.issuer_sovereign_id, [])
-        if not any(verify_model_signature(feed, s, k) for s in feed.signatures for k in keys):
-            result.fail(FEEDS_FILE, None, "feed_invalid_signature", feed.feed_id)
+    for feed, raw in zip(feeds, raw_feeds):
+        reason = _received_by("SovereignRevocationFeed", raw, issuer_keys.get(feed.issuer_sovereign_id, []))
+        if reason is not None:
+            result.fail(FEEDS_FILE, None, "feed_invalid_signature" if reason == "invalid_signature" else reason,
+                        feed.feed_id)
 
     from_sequence = entries[0].entry.store_sequence if entries else 0
     for event in [*cited, *entries]:
@@ -538,19 +716,27 @@ def compose_pack(
     states: Mapping[str, Mapping[str, Any]] | None = None,
     notices: Mapping[str, Any] | None = None,
     check_executor_keys: Mapping[str, ExecutorKey] | None = None,
+    period_from: datetime | None = None,
+    period_until: datetime | None = None,
 ) -> tuple[dict[str, bytes], AuditPackManifest]:
     """Every file of a pack (``PACK_FORMAT`` version 1) and its signed manifest.
 
     ``trust`` maps ``policies.jsonl`` and the ``trust/`` files to their
     records. ``checks.json`` is this module's verification of the files with
     ``held_anchors`` (the NA's own anchors) and ``check_executor_keys`` (the
-    NA's own key table, for a store without registry records), ``report.md``
-    the report;
-    ``sign(manifest)`` returns the manifest's signature (the NA key). The
-    bytes depend only on the arguments, so a pack is reproducible.
+    NA's own key table, for a store without registry records);
+    ``states.json`` the remediation ``states`` and ``notices``; ``report.md``
+    the report rendered from them. ``created_at`` is moved up to the end
+    anchor's time and the last entry's when it is earlier (another
+    instance's clock ahead of this one): a manifest is never dated before
+    them. ``sign(manifest)`` returns the manifest's signature (the NA key).
+    The bytes depend only on the arguments, so a pack is reproducible.
     """
     from ..models.audit_pack import PackFile, canonical_bytes, jsonl_bytes
 
+    end = next((a for a in anchors if a.anchor_sequence == end_anchor_sequence), None)
+    created_at = max([_utc(created_at), *([_utc(entries[-1].entry.recorded_at)] if entries else []),
+                      *([_utc(end.anchored_at)] if end is not None else [])])
     files: dict[str, bytes] = {
         GENESIS_FILE: canonical_bytes(dict(genesis)),
         KEY_HISTORY_FILE: canonical_bytes({"successions": [dict(s) for s in successions]}),
@@ -558,6 +744,8 @@ def compose_pack(
         ANCHORS_FILE: jsonl_bytes([a.to_wire() for a in anchors]),
         ENTRIES_FILE: "".join(e.to_json_line() + "\n" for e in entries).encode("utf-8"),
         CITED_FILE: "".join(e.to_json_line() + "\n" for e in cited).encode("utf-8"),
+        STATES_FILE: canonical_bytes({"states": {k: dict(v) for k, v in sorted((states or {}).items())},
+                                      "notices": dict(sorted((notices or {}).items()))}),
     }
     for path in (POLICIES_FILE, ATTESTATIONS_FILE, TREATIES_FILE, FEEDS_FILE):
         files[path] = jsonl_bytes([dict(r) for r in trust.get(path, [])])
@@ -565,21 +753,19 @@ def compose_pack(
     checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors,
                                executor_keys=check_executor_keys, check_manifest=False).to_dict()
     files[CHECKS_FILE] = canonical_bytes(checks)
-    header = {"pack_id": pack_id, "sovereign_id": genesis.get("network_name"), "from_sequence":
-              entries[0].entry.store_sequence if entries else None,
-              "through_sequence": entries[-1].entry.store_sequence if entries else None,
-              "start_anchor_sequence": start_anchor_sequence, "end_anchor_sequence": end_anchor_sequence,
-              "created_at": created_at.isoformat(), "requested_by": requested_by}
-    files[REPORT_FILE] = render_report(manifest=header, entries=entries, checks=checks, states=states,
-                                       notices=notices).encode("utf-8")
-    manifest = AuditPackManifest(
+    draft = AuditPackManifest(
         pack_id=pack_id, sovereign_id=str(genesis.get("network_name")), created_at=created_at,
         requested_by=requested_by, from_sequence=entries[0].entry.store_sequence,
         through_sequence=entries[-1].entry.store_sequence, start_anchor_sequence=start_anchor_sequence,
-        end_anchor_sequence=end_anchor_sequence,
-        files=[PackFile(path=path, sha256=_sha256(body), bytes=len(body)) for path, body in sorted(files.items())],
-        issued_by=issued_by,
+        end_anchor_sequence=end_anchor_sequence, period_from=period_from, period_until=period_until,
+        files=[], issued_by=issued_by,
     )
+    stored = json.loads(files[STATES_FILE])
+    files[REPORT_FILE] = render_report(manifest=report_header(draft), entries=entries, checks=checks,
+                                       states=stored["states"], notices=stored["notices"]).encode("utf-8")
+    manifest = draft.model_copy(update={
+        "files": [PackFile(path=path, sha256=_sha256(body), bytes=len(body)) for path, body in sorted(files.items())],
+    })
     manifest = manifest.model_copy(update={"signature": sign(manifest)})
     files[MANIFEST_FILE] = manifest.file_bytes()
     return files, manifest
@@ -605,23 +791,53 @@ class Change:
     def to_dict(self) -> dict[str, Any]:
         return {"index": self.index, "source": self.source, "source_event_id": self.source_event_id,
                 "resource_id": self.resource_id, "action": self.action,
-                "changed_at": self.changed_at.isoformat(), "actor": self.actor}
+                "changed_at": _iso(self.changed_at), "actor": self.actor}
 
 
 CHANGE_COLUMNS = ("source", "source_event_id", "resource_id", "action", "changed_at", "actor")
+
+#: v1.5.0 review fixes: an RFC 3339 ``date-time`` (``T`` and ``Z`` in either case), nothing else.
+_RFC3339 = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?([Zz]|[+-](\d{2}):(\d{2}))$")
+
+
+def parse_rfc3339(value: str) -> datetime:
+    """An RFC 3339 ``date-time`` as an aware UTC datetime; ``ValueError`` for anything else.
+
+    v1.5.0 review fixes: a changes file's times are strict RFC 3339, so every
+    verifier reads the same instants: a date without a time, a space for
+    ``T``, a missing offset, a leap second or an out-of-range field is
+    refused. Fractions beyond microseconds are cut, not rounded.
+    """
+    match = _RFC3339.match(value)
+    if match is None:
+        raise ValueError("not an RFC 3339 date-time")
+    year, month, day, hour, minute, second, fraction, zone, zone_h, zone_m = match.groups()
+    micro = int((fraction or ".0")[1:7].ljust(6, "0"))
+    if zone in ("Z", "z"):
+        offset = timedelta(0)
+    else:
+        if int(zone_h) > 23 or int(zone_m) > 59:
+            raise ValueError("not an RFC 3339 date-time")
+        offset = timedelta(hours=int(zone_h), minutes=int(zone_m)) * (1 if zone[0] == "+" else -1)
+    parsed = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), micro,
+                      tzinfo=timezone(offset))
+    return parsed.astimezone(timezone.utc)
 
 
 def parse_changes(text: str, *, csv_format: bool) -> list[Change]:
     """Changes from CSV (a header row naming ``CHANGE_COLUMNS``) or JSON (a list, or ``{"changes": [...]}``).
 
-    ``resource_id``, ``action`` and ``changed_at`` (ISO 8601 with an offset)
-    are required; ``source`` and ``source_event_id`` go together. Raises
+    ``resource_id``, ``action`` and ``changed_at`` (RFC 3339, with an offset)
+    are required; ``source`` and ``source_event_id`` go together. In JSON a
+    field is a string or null (v1.5.0 review fixes: ``true`` or ``7`` is
+    refused, not turned into text); an empty string is absent. Raises
     ``ValueError`` naming the first bad row.
     """
     if csv_format:
         rows: list[Any] = list(csv.DictReader(io.StringIO(text)))
     else:
-        data = json.loads(text)
+        data = strict_json.loads(text)
         listed = data.get("changes") if isinstance(data, dict) else data
         if not isinstance(listed, list):
             raise ValueError("a JSON changes file is a list of changes or {\"changes\": [...]}")
@@ -633,21 +849,24 @@ def parse_changes(text: str, *, csv_format: bool) -> list[Change]:
 
         def value(name: str) -> str | None:
             raw = row.get(name)
-            return str(raw).strip() if raw not in (None, "") else None
+            if raw is None:
+                return None
+            if not isinstance(raw, str):
+                raise ValueError(f"change {i}: {name} must be a string")
+            raw = raw.strip()
+            return raw or None
 
         resource, action, changed = value("resource_id"), value("action"), value("changed_at")
         if not resource or not action or not changed:
             raise ValueError(f"change {i}: resource_id, action and changed_at are required")
         try:
-            at = datetime.fromisoformat(changed.replace("Z", "+00:00"))
+            at = parse_rfc3339(changed)
         except ValueError:
-            raise ValueError(f"change {i}: changed_at is not an ISO 8601 time") from None
-        if at.tzinfo is None:
-            raise ValueError(f"change {i}: changed_at needs an offset (Z for UTC)")
+            raise ValueError(f"change {i}: changed_at is not an RFC 3339 time with an offset (Z for UTC)") from None
         source, event_id = value("source"), value("source_event_id")
         if (source is None) != (event_id is None):
             raise ValueError(f"change {i}: source and source_event_id go together")
-        out.append(Change(index=i, resource_id=resource, action=action, changed_at=at.astimezone(timezone.utc),
+        out.append(Change(index=i, resource_id=resource, action=action, changed_at=at,
                           source=source, source_event_id=event_id, actor=value("actor")))
     return out
 
@@ -706,56 +925,150 @@ def _records(entries: Sequence[EvidenceEvent], cited: Sequence[EvidenceEvent]) -
     return records
 
 
+@dataclass
+class _Group:
+    """One recorded change: the records of one group, matched by its representative."""
+
+    group: str
+    members: list[_Record]
+
+    @property
+    def representative(self) -> _Record:
+        # The execution evidence or break-glass record when the group holds one, else its observation.
+        return min(self.members, key=lambda r: (r.kind == "observation", r.store_sequence))
+
+
+def _micros(delta: timedelta) -> int:
+    return (delta.days * 86_400 + delta.seconds) * 1_000_000 + delta.microseconds
+
+
+def _match_bucket(changes: Sequence[Change], groups: Sequence[_Group], tolerance: timedelta) -> list[tuple[Change, _Group]]:
+    """The matching of one (resource, action): the most pairs, then the least total distance.
+
+    Changes in time order (then by index) are matched to groups in time
+    order (their representative's earliest time, then store position) without
+    crossing, by dynamic programming. At each step the choices are, in this
+    order, pairing the change with the group (when within ``tolerance``),
+    leaving the change unmatched, leaving the group unmatched; the first
+    choice that is best (more pairs, then less total distance in
+    microseconds) is taken, so every verifier finds the same pairs.
+    """
+    cs = sorted(changes, key=lambda c: (c.changed_at, c.index))
+    gs = sorted(groups, key=lambda g: (g.representative.earliest, g.representative.store_sequence))
+    n, m = len(cs), len(gs)
+    # best[i][j]: (pairs, -distance) using changes i.. and groups j..
+    best = [[(0, 0)] * (m + 1) for _ in range(n + 1)]
+    choice = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n - 1, -1, -1):
+        for j in range(m - 1, -1, -1):
+            options: list[tuple[tuple[int, int], int]] = []
+            distance = gs[j].representative.distance(cs[i].changed_at)
+            if distance <= tolerance:
+                pairs, cost = best[i + 1][j + 1]
+                options.append(((pairs + 1, cost - _micros(distance)), 0))
+            options.append((best[i + 1][j], 1))
+            options.append((best[i][j + 1], 2))
+            top = max(o[0] for o in options)
+            value, taken = next(o for o in options if o[0] == top)
+            best[i][j], choice[i][j] = value, taken
+        # row n stays (0, 0)
+    out: list[tuple[Change, _Group]] = []
+    i = j = 0
+    while i < n and j < m:
+        if choice[i][j] == 0:
+            out.append((cs[i], gs[j]))
+            i, j = i + 1, j + 1
+        elif choice[i][j] == 1:
+            i += 1
+        else:
+            j += 1
+    return out
+
+
 def check_completeness(
     changes: Sequence[Change], entries: Sequence[EvidenceEvent], cited: Sequence[EvidenceEvent] = (),
     *, period: tuple[datetime, datetime], tolerance: timedelta = DEFAULT_TOLERANCE,
 ) -> dict[str, Any]:
-    """Match changes from an outside log against the pack's records.
+    """Match changes from an outside log against the pack's records (v1.5.0 review fixes).
 
-    First by source and source event ID (an observation of that very event),
-    then by resource, action and time within ``tolerance`` (the closest
-    record, each record matched once; an observation and the execution
-    evidence it was matched to are one change). An unmatched change dated
-    inside the pack's period is ``unmatched_changes`` (the store does not
-    record it); one outside the period is ``outside_period``. Records no
-    change matched are ``unmatched_records`` (the log may not cover every
-    source).
+    1. Changes repeating a (source, source event ID) pair already seen are
+       set aside (``duplicate_changes``).
+    2. A change with a source and source event ID matches the record that
+       names that very event when it agrees on resource and action (an
+       observation of that event); a record that names the event but another
+       resource or action is no match.
+    3. The rest are matched per (resource, action) by ``_match_bucket``: an
+       observation and the execution evidence it was matched to are one
+       change, represented by the execution evidence.
+
+    An unmatched change dated inside ``period`` (with ``tolerance`` either
+    side) is ``unmatched_changes`` (the store does not record it); one outside
+    is ``outside_period``. Records no change matched are ``unmatched_records``
+    (the log may not cover every source).
     """
     records = _records(entries, cited)
+    groups: dict[str, _Group] = {}
+    for record in records:
+        groups.setdefault(record.group, _Group(record.group, [])).members.append(record)
     used: set[str] = set()
     pairs: list[dict[str, Any]] = []
-    left: list[Change] = []
-    by_event = {(str(r.source), str(r.source_event_id)): r for r in records if r.source and r.source_event_id}
+    seen_events: set[tuple[str, str]] = set()
+    duplicates: list[Change] = []
+    unique: list[Change] = []
     for change in changes:
-        record = by_event.get((change.source, str(change.source_event_id))) if change.source else None
-        if record is not None and record.group not in used:
-            used.add(record.group)
-            pairs.append({"change": change.index, "kind": record.kind, "record_id": record.record_id,
-                          "store_sequence": record.store_sequence, "matched_by": "source_event_id"})
+        if change.source is not None and change.source_event_id is not None:
+            key = (change.source, change.source_event_id)
+            if key in seen_events:
+                duplicates.append(change)
+                continue
+            seen_events.add(key)
+        unique.append(change)
+    by_event: dict[tuple[str, str], _Record] = {}
+    for r in records:
+        if r.source is not None and r.source_event_id is not None:
+            by_event.setdefault((r.source, r.source_event_id), r)
+    left: list[Change] = []
+    for change in unique:
+        named = by_event.get((change.source, change.source_event_id)) \
+            if change.source is not None and change.source_event_id is not None else None
+        if named is not None and named.group not in used and named.resource_id == change.resource_id \
+                and named.action == change.action:
+            used.add(named.group)
+            pairs.append({"change": change.index, "kind": named.kind, "record_id": named.record_id,
+                          "store_sequence": named.store_sequence, "matched_by": "source_event_id"})
         else:
             left.append(change)
-    unmatched: list[Change] = []
+    buckets: dict[tuple[str, str], tuple[list[Change], list[_Group]]] = {}
     for change in left:
-        candidates = [r for r in records if r.group not in used and r.resource_id == change.resource_id
-                      and r.action == change.action and r.distance(change.changed_at) <= tolerance]
-        if not candidates:
-            unmatched.append(change)
+        buckets.setdefault((change.resource_id, change.action), ([], []))[0].append(change)
+    for group in groups.values():
+        if group.group in used:
             continue
-        record = min(candidates, key=lambda r: (r.distance(change.changed_at), r.store_sequence))
-        used.add(record.group)
-        pairs.append({"change": change.index, "kind": record.kind, "record_id": record.record_id,
-                      "store_sequence": record.store_sequence, "matched_by": "resource_action_time"})
+        rep = group.representative
+        if (rep.resource_id, rep.action) in buckets:
+            buckets[(rep.resource_id, rep.action)][1].append(group)
+    matched_changes: set[int] = set()
+    for key in sorted(buckets):
+        bucket_changes, bucket_groups = buckets[key]
+        for change, group in _match_bucket(bucket_changes, bucket_groups, tolerance):
+            used.add(group.group)
+            matched_changes.add(change.index)
+            rep = group.representative
+            pairs.append({"change": change.index, "kind": rep.kind, "record_id": rep.record_id,
+                          "store_sequence": rep.store_sequence, "matched_by": "resource_action_time"})
+    unmatched = [c for c in left if c.index not in matched_changes]
     start, end = period
     inside = [c for c in unmatched if start - tolerance <= c.changed_at <= end + tolerance]
     outside = [c for c in unmatched if c not in inside]
-    unmatched_records = sorted({r.group: r for r in records if r.group not in used}.values(),
+    unmatched_records = sorted((g.representative for g in groups.values() if g.group not in used),
                                key=lambda r: r.store_sequence)
     return {
         "changes": len(changes), "tolerance_seconds": int(tolerance.total_seconds()),
-        "period": {"from": start.isoformat(), "to": end.isoformat()},
+        "period": {"from": _iso(start), "to": _iso(end)},
         "pairs": sorted(pairs, key=lambda p: p["change"]),
-        "unmatched_changes": [c.to_dict() for c in inside],
-        "outside_period": [c.to_dict() for c in outside],
+        "unmatched_changes": [c.to_dict() for c in sorted(inside, key=lambda c: c.index)],
+        "outside_period": [c.to_dict() for c in sorted(outside, key=lambda c: c.index)],
+        "duplicate_changes": [c.to_dict() for c in duplicates],
         "unmatched_records": [{"kind": r.kind, "record_id": r.record_id, "store_sequence": r.store_sequence,
                                "resource_id": r.resource_id, "action": r.action} for r in unmatched_records],
         "complete": not inside,
@@ -768,8 +1081,42 @@ def check_completeness(
 
 
 def _cell(value: Any) -> str:
-    text = "" if value is None else str(value)
-    return text.replace("|", "\\|").replace("\n", " ")
+    """One value of the report, on one line (v1.5.0 review fixes).
+
+    A backslash is written ``\\\\``, a ``|`` ``\\|``; a line feed, carriage
+    return or tab ``\\n``, ``\\r``, ``\\t``; any other control character
+    (U+0000 to U+001F, U+007F to U+009F) and the line and paragraph
+    separators (U+2028, U+2029) ``\\uXXXX``. Nothing a record holds can end a
+    table row or start a line of its own. A value is written as itself when it
+    is a string, in decimal when it is an integer, ``true`` or ``false``, empty
+    when absent, and as canonical JSON otherwise.
+    """
+    if value is None:
+        text = ""
+    elif isinstance(value, bool):
+        text = "true" if value else "false"
+    elif isinstance(value, (str, int)):
+        text = str(value)
+    else:
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    out: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == "|":
+            out.append("\\|")
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ch == "\t":
+            out.append("\\t")
+        elif code < 0x20 or 0x7F <= code <= 0x9F or code in (0x2028, 0x2029):
+            out.append(f"\\u{code:04X}")
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> list[str]:
@@ -780,15 +1127,29 @@ def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> list[str]:
     return [*out, ""]
 
 
+def report_header(manifest: AuditPackManifest) -> dict[str, Any]:
+    """What ``render_report`` reads of a manifest (the NA renders it before the manifest is signed)."""
+    return {
+        "pack_id": manifest.pack_id, "sovereign_id": manifest.sovereign_id,
+        "from_sequence": manifest.from_sequence, "through_sequence": manifest.through_sequence,
+        "start_anchor_sequence": manifest.start_anchor_sequence, "end_anchor_sequence": manifest.end_anchor_sequence,
+        "created_at": _iso(manifest.created_at), "requested_by": manifest.requested_by,
+        "period_from": _iso(manifest.period_from) if manifest.period_from else None,
+        "period_until": _iso(manifest.period_until) if manifest.period_until else None,
+    }
+
+
 def render_report(
     *, manifest: Mapping[str, Any], entries: Sequence[EvidenceEvent], checks: Mapping[str, Any],
     states: Mapping[str, Mapping[str, Any]] | None = None, notices: Mapping[str, Any] | None = None,
 ) -> str:
     """``report.md``: what a reader of the pack sees first (Markdown, deterministic).
 
-    ``states`` (the NA's remediation states by subject) and ``notices`` (when
-    each actor was told) are the NA's operational records at pack time: they
-    are reported, not signed, and the report says so.
+    ``manifest`` is ``report_header(manifest)``. ``states`` (the NA's
+    remediation states by subject) and ``notices`` (when each actor was told)
+    are the NA's operational records at pack time (``states.json``): they are
+    reported, not signed, and the report says so. A verifier renders the
+    report from the pack's files and compares (``report_mismatch``).
     """
     states = states or {}
     notices = notices or {}
@@ -796,26 +1157,31 @@ def render_report(
     for e in entries:
         if e.entry.entry_kind == "judgement":
             judgements[(str(e.payload.get("subject_kind")), str(e.payload.get("subject_id")))] = e.payload
+    period = ""
+    if manifest.get("period_from") or manifest.get("period_until"):
+        period = (f"- Asked for: {_cell(manifest.get('period_from') or 'the start')} to "
+                  f"{_cell(manifest.get('period_until') or 'the last anchor')}")
     lines = [
-        f"# Audit pack {manifest.get('pack_id')}", "",
-        f"- Sovereign: {manifest.get('sovereign_id')}",
-        f"- Range: store entries {manifest.get('from_sequence')} to {manifest.get('through_sequence')}, "
-        f"ending at anchor {manifest.get('end_anchor_sequence')}"
-        + (f", starting after anchor {manifest.get('start_anchor_sequence')}"
+        f"# Audit pack {_cell(manifest.get('pack_id'))}", "",
+        f"- Sovereign: {_cell(manifest.get('sovereign_id'))}",
+        f"- Range: store entries {_cell(manifest.get('from_sequence'))} to {_cell(manifest.get('through_sequence'))}, "
+        f"ending at anchor {_cell(manifest.get('end_anchor_sequence'))}"
+        + (f", starting after anchor {_cell(manifest.get('start_anchor_sequence'))}"
            if manifest.get("start_anchor_sequence") else ""),
-        f"- Created: {manifest.get('created_at')}" + (f" for {manifest.get('requested_by')}"
-                                                      if manifest.get("requested_by") else ""),
+        f"- Created: {_cell(manifest.get('created_at'))}" + (f" for {_cell(manifest.get('requested_by'))}"
+                                                              if manifest.get("requested_by") else ""),
+        *([period] if period else []),
         "",
         "Verify it with `genesis-mesh audit verify <dir> --anchor <root public key> --known-anchors <anchors>`, "
         "from the root key and the anchors you hold. The remediation states and notices below are the "
-        "Network Authority's operational records at pack time, not signed records.", "",
+        "Network Authority's operational records at pack time (states.json), not signed records.", "",
         "## Checks", "",
         f"Verified by the Network Authority when it wrote the pack, against its own anchors: "
         f"**{'yes' if checks.get('verified') else 'no'}**.", "",
     ]
     lines += _table(["Reason", "File", "Entry", "Detail"],
                     [(f.get("reason"), f.get("file"), f.get("store_sequence"), f.get("detail"))
-                     for f in checks.get("failures", [])])
+                     for f in checks.get("failures", []) if isinstance(f, dict)])
     counts = checks.get("counts") or {}
     lines += ["## Totals", ""]
     lines += _table(["Records", "Count"], [(k, v) for k, v in sorted(counts.items()) if v])
@@ -827,16 +1193,21 @@ def render_report(
     break_glass: list[tuple[Any, ...]] = []
     quarantined: list[tuple[Any, ...]] = []
     others: list[tuple[Any, ...]] = []
+
+    def state_of(subject: Any) -> Any:
+        value = states.get(str(subject))
+        return value.get("state") if isinstance(value, Mapping) else None
+
     for e in entries:
         p, kind, seq = e.payload, e.entry.entry_kind, e.entry.store_sequence
         if kind == "execution":
-            state = states.get(str(p.get("decision_id")), {}).get("state", "recorded")
             changes.append((seq, kind, p.get("resource_id"), p.get("resource_action"), p.get("executed_at"),
-                            "prior_decision", state, p.get("executor_sovereign_id")))
+                            "prior_decision", state_of(p.get("decision_id")) or "recorded",
+                            p.get("executor_sovereign_id")))
         elif kind in ("observation", "break_glass"):
             record_id = str(p.get("observation_id") or p.get("break_glass_id"))
             judgement = judgements.get((kind, record_id))
-            state = states.get(str(judgement.get("judgement_id")), {}).get("state") if judgement else None
+            state = state_of(judgement.get("judgement_id")) if judgement else None
             if state is None:
                 state = ("observed" if judgement is None else
                          "matched" if judgement.get("governed_by") == "prior_decision"
@@ -868,14 +1239,15 @@ def render_report(
         elif kind in ("key_succession", "archive"):
             others.append((seq, kind, p.get("succession_id") or p.get("archive_id"),
                            p.get("effective_at") or p.get("archived_at")))
+    notice_rows = [(k, v.get("notified_at"), v.get("notified_by")) for k, v in sorted(notices.items())
+                   if isinstance(v, Mapping)]
     sections = [
         ("Changes", ["Entry", "Kind", "Resource", "Action", "Changed at", "Governed by", "State", "Actor"], changes),
         ("Denials", ["Entry", "Record", "ID", "Reason"], denials),
         ("Remediations", ["Entry", "Subject kind", "Subject", "Outcome", "Steps", "At", "Executor"], remediations),
         ("Reviews and deciders", ["Entry", "Subject", "Verdict", "Requested by", "Requester holder", "Decided by",
                                   "Decider holder", "Decided at"], reviews),
-        ("Notices", ["Subject", "Notified at", "By"],
-         [(k, v.get("notified_at"), v.get("notified_by")) for k, v in sorted(notices.items())]),
+        ("Notices", ["Subject", "Notified at", "By"], notice_rows),
         ("Break-glass uses", ["Entry", "Resource", "Capability", "Executed at", "Failure", "Justification"],
          break_glass),
         ("Quarantined records", ["Entry", "Record kind", "Resource", "Rejection", "At"], quarantined),
