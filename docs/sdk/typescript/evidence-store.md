@@ -12,7 +12,9 @@ separate trust-evidence client.
 | Store health and verification | `status()`, `verify()` |
 | Raw NDJSON, parsed page or paged export | `exportText(params)`, `export(params)`, `exportAll(sinceSequence, pageSize)` |
 | Executor keys | `registerExecutorKey(params)`, `listExecutorKeys()`, `retireExecutorKey(id)` |
-| Retention | `applyRetention(olderThanDays)`, `latestCheckpoint()` |
+| Retention (1.5.0: `throughSequence`, held back where no archive covers) | `applyRetention(olderThanDays, { throughSequence })`, `latestCheckpoint()` |
+| Store anchors | `anchors(params)`, `allAnchors()`, `anchor()` |
+| Audit packs and archives (1.5.0) | `auditPack(params)`, `archives()`, `recordArchive(manifest, location)` |
 
 All evidence-store reads use signed admin GETs. Submission uses the evidence's
 executor signature and does not send operator headers. The executor sovereign
@@ -24,6 +26,14 @@ or `status: 'duplicate'`.
 under one decision, and `prior_resource` links changes to one resource across
 decisions. Resource ID and action must be supplied together. Resource heads from
 retention checkpoints can be used as predecessors.
+
+`status()` reports the store's size, its latest retention checkpoint and
+anchor (`latest_anchor`, `unanchored_entries`, `anchoring_blocked`), records
+not judged yet, and with out-of-band records on the registry's health
+(`policy_history_started`, `registry_healthy`, `registry_problems`). From
+1.5.0 every store read accepts a read-tier key, so an auditor's key can ask
+for anchors and audit packs; see
+[Key succession, audit packs and independent verification](audit-packs.md).
 
 Search uses `after_sequence` and returns `next_after_sequence`. Export uses
 `since_sequence`; `exportAll` follows the last returned store sequence. Page sizes
