@@ -24,6 +24,10 @@ def build_app(settings: NASettings) -> Flask:
         genesis_block = GenesisBlock(**json.load(f))
 
     signer = load_signer(settings.key)
+    if settings.deployment == "managed" and not settings.retention_require_archive:
+        # v1.5.0 review fixes: a managed deployment removes nothing an archive does not cover.
+        raise ValueError("NA_DEPLOYMENT=managed refused: NA_RETENTION_REQUIRE_ARCHIVE=off is for local "
+                         "development only; archive packs before retention removes their entries")
     if settings.deployment == "managed":
         # v1.5.0: the root key signs successions and is kept offline; a managed NA host never holds it.
         findings = root_key_findings(
@@ -61,6 +65,7 @@ def build_app(settings: NASettings) -> Flask:
         review_max_waiver_seconds=settings.review_max_waiver_seconds,
         review_actor_holders=settings.review_actor_holders,
         retention_require_archive=settings.retention_require_archive,
+        decision_lifetime_seconds=settings.decision_lifetime_seconds,
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (e.g. 1 behind nginx) for the

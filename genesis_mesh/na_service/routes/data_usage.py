@@ -200,7 +200,8 @@ def create_data_usage_blueprint(service: "NetworkAuthorityService") -> Blueprint
         except Exception as exc:
             raise BadRequestError("Invalid intent or policy object", code="invalid_input") from exc
 
-        agent_keys = data.get("agent_public_keys") or service.na_public_keys_at(None)
+        # v1.5.0 review fixes: the NA key valid when the intent was declared.
+        agent_keys = data.get("agent_public_keys") or service.na_keys_for_record(intent.declared_at)
         # v1.2.0: refuse a signed field this release does not know, as every SDK does.
         detail = intent_refusal_detail(raw_intent, raw_policy, agent_keys)
         if detail:

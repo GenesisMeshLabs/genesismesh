@@ -307,7 +307,7 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
 
     check("schema migrated to the current version", service.db.schema_version() == expected_schema_version(),
           service.db.schema_version())
-    report = verify_database(service.db, na_key)
+    report = verify_database(service.db, na_key, genesis=state["genesis"])
     check("na verify-db", report.ok, report.failures)
 
     treaty_id = state["treaty"]["treaty_id"]

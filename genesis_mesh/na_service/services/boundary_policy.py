@@ -385,7 +385,8 @@ class BoundaryPolicyService:
     ) -> tuple[BoundaryDecision, JustificationProof]:
         """Evaluate a context against built-in gates and the active policy set."""
         loaded = self._na.db.load_active_boundary_policies()
-        engine = BoundaryEngine(operator_sovereign_id=self._na.genesis_block.network_name)
+        engine = BoundaryEngine(operator_sovereign_id=self._na.genesis_block.network_name,
+                                decision_valid_seconds=self._na.decision_lifetime_seconds)
         return engine.evaluate_with_policies(
             context,
             agreement,
@@ -465,7 +466,8 @@ class BoundaryPolicyService:
     ) -> tuple[BoundaryDecision, JustificationProof]:
         """Evaluate a context under an attestation basis and the active policy set."""
         loaded = self._na.db.load_active_boundary_policies()
-        engine = BoundaryEngine(operator_sovereign_id=self._na.genesis_block.network_name)
+        engine = BoundaryEngine(operator_sovereign_id=self._na.genesis_block.network_name,
+                                decision_valid_seconds=self._na.decision_lifetime_seconds)
         return engine.evaluate_attestation_with_policies(
             context,
             basis,

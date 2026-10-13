@@ -22,7 +22,7 @@ import hashlib
 import re
 import typing
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Literal, Sequence
 
 import nacl.signing
@@ -39,7 +39,8 @@ from ..models.evidence_store import (
 )
 from ..models.execution import ExecutionEvidence
 from ..models.justification import JustificationProof
-from ..models.key_succession import NAKeyHistory, na_keys_at
+from ..models import key_succession as _key_models
+from ..models.key_succession import NAKeyHistory, decision_outlives_key, na_keys_at
 from genesis_mesh.crypto.signing import SigningKeyLike
 from .. import strict_json
 
@@ -91,10 +92,58 @@ class ExecutorKey:
     retired: bool = False
     role: str = "executor"
     resource_prefix: str | None = None
+    #: v1.5.0 review fixes: where the store registered and retired the key, for a key read from
+    #: its registry records (an audit pack). A record verifies only with a key registered before
+    #: it and not retired before it: by store position, or, for a registry record backfilled at
+    #: an upgrade (``reconstructed``) or carried past retention, by its ``effective_at``. A key
+    #: supplied out of band has none of these and is not placed.
+    registered_sequence: int | None = None
+    registered_at: datetime | None = None
+    retired_sequence: int | None = None
+    retired_at: datetime | None = None
 
     def covers(self, resource_id: str | None) -> bool:
         """True when this key may sign for ``resource_id``."""
         return self.resource_prefix is None or (resource_id or "").startswith(self.resource_prefix)
+
+    def position_problem(self, store_sequence: int, recorded_at: datetime) -> str | None:
+        """Why a record at this store position and time may not carry this key's signature, or None."""
+        if self.registered_sequence is None and self.registered_at is None:
+            return None
+        at = _utc(recorded_at)
+        registered = (self.registered_sequence is not None and self.registered_sequence < store_sequence) or (
+            self.registered_at is not None and _utc(self.registered_at) <= at)
+        if not registered:
+            return "evidence_unknown_executor"
+        retired = (self.retired_sequence is not None and self.retired_sequence < store_sequence) or (
+            self.retired_at is not None and _utc(self.retired_at) <= at)
+        return "evidence_executor_key_retired" if retired else None
+
+
+#: v1.5.0 review fixes: the kinds retention appends again after its checkpoint, each with the time
+#: it was first recorded (v1.3.0 registry records; v1.5.0 key successions and archives).
+CARRIED_KINDS = frozenset({"registry", "key_succession", "archive"})
+
+#: v1.5.0 review fixes: how far an entry's ``recorded_at`` may fall behind an earlier entry's in
+#: store order (clock skew between NA instances). Entries retention carried forward are exempt.
+RECORD_TIME_TOLERANCE = timedelta(seconds=300)
+
+
+def carried_sequences(events: Iterable[EvidenceEvent]) -> set[int]:
+    """Store positions of the entries retention carried forward: entries of ``CARRIED_KINDS`` in an
+    unbroken run of positions right after a retention checkpoint entry (v1.5.0 review fixes)."""
+    out: set[int] = set()
+    previous: EvidenceStoreEntry | None = None
+    carrying = False
+    for event in sorted(events, key=lambda e: e.entry.store_sequence):
+        entry = event.entry
+        adjacent = previous is not None and entry.store_sequence == previous.store_sequence + 1
+        carrying = entry.entry_kind in CARRIED_KINDS and adjacent and previous is not None and (
+            previous.entry_kind == "retention_checkpoint" or carrying)
+        if carrying:
+            out.add(entry.store_sequence)
+        previous = entry
+    return out
 
 
 @dataclass(frozen=True)
@@ -570,8 +619,11 @@ def _unknown_payload_fields(
         keys = [key.public_key] if key is not None else []
     else:
         keys = na_keys_at(na_public_keys, None)
-        if kind == "key_succession" and isinstance(na_public_keys, NAKeyHistory) and na_public_keys.root_public_key:
-            keys.append(na_public_keys.root_public_key)
+        if kind == "key_succession":
+            if isinstance(na_public_keys, NAKeyHistory) and na_public_keys.root_public_key:
+                keys.append(na_public_keys.root_public_key)
+            if isinstance(payload.get("new_public_key"), str):
+                keys.append(payload["new_public_key"])
     return (found, []) if signed_as_received(model, payload, keys) else ([], found)
 
 
@@ -597,12 +649,19 @@ def _verify_payload(
     result: EvidenceVerification,
     na_public_keys: NAKeys,
     executor_keys: dict[str, ExecutorKey],
+    not_before: datetime | None = None,
 ) -> Any:
     """Verify one payload's signature; return the parsed model (or None).
 
     v1.5.0: an NA signature must be made by the key valid at the entry's
     ``recorded_at`` (the NA's key history); a signature by another key of the
-    history is ``na_key_not_valid_at_time``.
+    history is ``na_key_not_valid_at_time``. v1.5.0 review fixes:
+    ``not_before`` is the latest time of the entries before it in store order:
+    when that is later than its own time, the key must be valid then too, so an
+    entry appended after the store moved past a key's end, dated back into its
+    window, is refused. A decision may not stay valid past what its key may
+    vouch for (``decision_outlives_key``). A key-signed record's key is placed
+    in the store (``ExecutorKey.position_problem``).
     """
     entry = event.entry
     kind = entry.entry_kind
@@ -640,7 +699,8 @@ def _verify_payload(
         result.fail(entry.store_sequence, "payload_invalid")
         return None
     if kind == "key_succession":
-        _check_succession_entry(entry.store_sequence, model, event.payload, result, na_public_keys)
+        _check_succession_entry(entry.store_sequence, model, event.payload, result, na_public_keys,
+                                _utc(entry.recorded_at))
         return model
     sig = model.signature
     if kind in _KEY_SIGNED_KINDS:
@@ -652,8 +712,16 @@ def _verify_payload(
         keys = [key.public_key] if key is not None and key.executor_sovereign_id == sovereign \
             and key.role == role else []
         all_keys = keys
+        # v1.5.0 review fixes: a key registered later, or retired before, does not verify the record.
+        placed = key.position_problem(entry.store_sequence, entry.recorded_at) if key is not None and keys else None
+        if placed is not None:
+            result.fail(entry.store_sequence, placed, f"{kind} signed by {key.key_id if key else '-'}")
+            return model
     else:
         keys = na_keys_at(na_public_keys, _utc(entry.recorded_at))
+        if not_before is not None and _utc(not_before) > _utc(entry.recorded_at):
+            later = set(na_keys_at(na_public_keys, _utc(not_before)))
+            keys = [k for k in keys if k in later]
         all_keys = na_keys_at(na_public_keys, None)
     ok = sig is not None and any(verify_model_signature(model, sig, k) for k in keys)
     # v1.3.0: the signature must cover the record as received, in the form the reference
@@ -674,14 +742,21 @@ def _verify_payload(
         # v1.5.0: signed by a key of the NA's history, but not the one valid at the record's time.
         late = sig is not None and any(verify_model_signature(model, sig, k) for k in all_keys if k not in keys)
         result.fail(entry.store_sequence, "na_key_not_valid_at_time" if late else "invalid_signature", kind)
+    elif kind == "decision" and sig is not None:
+        signer = next(k for k in keys if verify_model_signature(model, sig, k))
+        if decision_outlives_key(na_public_keys, signer, model.decision_valid_until):
+            result.fail(entry.store_sequence, "decision_outlives_key", model.decision_id)
     return model
 
 
 def _check_succession_entry(
     seq: int, model: Any, raw: dict[str, Any], result: EvidenceVerification, na_public_keys: NAKeys,
+    recorded_at: datetime,
 ) -> None:
-    """v1.5.0: a key succession entry is signed by its outgoing key, an NA key; given the NA's key
-    history with its root key, it is one of the history's successions and the root key signed it."""
+    """v1.5.0: a key succession entry is signed by its outgoing key, an NA key, and by the new key
+    (v1.5.0 review fixes: its proof of possession); given the NA's key history with its root key, it
+    is one of the history's successions and the root key signed it. The store recorded it at least
+    ``SUCCESSION_MIN_LEAD`` before it takes effect (``succession_backdated``)."""
     from ..crypto import verify_signature
     from ..models.canonical_registry import strict_refusal
 
@@ -693,7 +768,7 @@ def _check_succession_entry(
     history = na_public_keys if isinstance(na_public_keys, NAKeyHistory) else None
     keys = na_keys_at(na_public_keys, None)
     root = history.root_public_key if history is not None else None
-    refusal = strict_refusal("KeySuccessionRecord", raw, [*keys, *([root] if root else [])])
+    refusal = strict_refusal("KeySuccessionRecord", raw, [*keys, *([root] if root else []), model.new_public_key])
     if refusal is not None:
         result.fail(seq, "invalid_signature" if refusal == "unknown_field" else refusal, "key_succession")
         return
@@ -703,9 +778,16 @@ def _check_succession_entry(
     if root is not None and not signed_by(root):
         result.fail(seq, "succession_invalid_root_signature", model.succession_id)
         return
+    if not signed_by(model.new_public_key):
+        result.fail(seq, "succession_invalid_new_key_signature", model.succession_id)
+        return
     if root is not None and history is not None \
             and model.digest() not in {s.digest() for s in history.successions}:
         result.fail(seq, "succession_not_in_history", model.succession_id)
+        return
+    if _utc(model.issued_at) > _utc(model.effective_at) \
+            or recorded_at + _key_models.SUCCESSION_MIN_LEAD > _utc(model.effective_at):
+        result.fail(seq, "succession_backdated", model.succession_id)
 
 
 def verify_evidence_events(
@@ -784,6 +866,23 @@ def verify_evidence_events(
       verified for authenticity (signatures, digests) but not as a run; the
       run then holds every chain from its start, and a record it cites that
       neither holds is ``cited_record_missing``.
+
+    v1.5.0 review fixes:
+
+    * in a contiguous run, an entry's ``recorded_at`` is not more than
+      ``RECORD_TIME_TOLERANCE`` behind an earlier entry's
+      (``recorded_at_out_of_order``), except the entries retention carried
+      forward (``carried_sequences``), which keep their first time; and an
+      NA-signed entry's key must also be valid at the latest earlier time
+      (``na_key_not_valid_at_time``);
+    * a retention checkpoint in the run (or cited) supplies the heads of the
+      resource and observation chains it removed, so a record continuing a
+      chain whose earlier records were removed verifies in a pack;
+    * a decision is refused when it stays valid past what its key may vouch
+      for (``decision_outlives_key``); a key succession entry carries the new
+      key's signature (``succession_invalid_new_key_signature``) and was
+      recorded at least ``SUCCESSION_MIN_LEAD`` before it takes effect
+      (``succession_backdated``).
     """
     result = EvidenceVerification()
     if checkpoint is not None and not verify_retention_checkpoint(checkpoint, na_public_keys):
@@ -827,12 +926,38 @@ def verify_evidence_events(
     # v1.5.0: with ``prior`` (an audit pack's cited records) every record the run cites is supplied,
     # and the chains continue from the records it holds.
     pack = prior is not None
+    # v1.5.0 review fixes: the latest recorded_at so far in the run, and whether the entries just
+    # visited are a block retention carried forward.
+    clock: datetime | None = None
+    carrying = False
+
+    def seed_heads(cp: RetentionCheckpoint) -> None:
+        # v1.5.0 review fixes: the chains a checkpoint removed continue from its heads.
+        for rid, h in cp.resource_heads.items():
+            held = resource_heads.get(rid)
+            if held is None or held.resource_sequence < h.resource_sequence:
+                resource_heads[rid] = ResourceHeadState(h.resource_sequence, h.record_digest)
+        for rid, position in (cp.observation_heads or {}).items():
+            if observation_heads.get(rid, 0) < position:
+                observation_heads[rid] = position
 
     def visit(event: EvidenceEvent, result: EvidenceVerification, cited_run: bool) -> None:
-        nonlocal prev, prev_digest, first_sequence, from_start
+        nonlocal prev, prev_digest, first_sequence, from_start, clock, carrying
         entry = event.entry
         digest = event.received_entry_digest()
         result.checked_entries += 1
+        not_before: datetime | None = None
+        if contiguous and not cited_run:
+            adjacent = prev is not None and entry.store_sequence == prev.store_sequence + 1
+            carrying = entry.entry_kind in CARRIED_KINDS and adjacent and prev is not None and (
+                prev.entry_kind == "retention_checkpoint" or carrying)
+            if not carrying:
+                at = _utc(entry.recorded_at)
+                if clock is not None and at < clock - RECORD_TIME_TOLERANCE:
+                    result.fail(entry.store_sequence, "recorded_at_out_of_order",
+                                f"recorded at {at.isoformat()}, after an entry recorded at {clock.isoformat()}")
+                not_before = clock
+                clock = at if clock is None or at > clock else clock
         if digest != event.entry_digest:
             result.fail(entry.store_sequence, "entry_digest_mismatch")
         if payload_digest(event.payload) != entry.payload_digest:
@@ -858,7 +983,7 @@ def verify_evidence_events(
             return
 
         failed_before = len(result.failures)
-        model = _verify_payload(event, result, na_public_keys, executor_keys)
+        model = _verify_payload(event, result, na_public_keys, executor_keys, not_before)
         if model is None:
             return
         authentic = len(result.failures) == failed_before
@@ -935,6 +1060,8 @@ def verify_evidence_events(
                                 f"removed {cp.removed_count} of {cp.removed_through_sequence - start} entries "
                                 f"after #{start} through #{cp.removed_through_sequence}")
             checkpoints[cp.checkpoint_id] = cp
+            if authentic:
+                seed_heads(cp)
         elif entry.entry_kind in ("observation", "break_glass"):
             subjects[(entry.entry_kind, record_id)] = (entry.payload_digest, entry.store_sequence)
             version = model.version_id if entry.entry_kind == "observation" \

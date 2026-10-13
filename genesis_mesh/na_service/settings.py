@@ -58,6 +58,7 @@ class NASettings:
     # v1.5.0 (Stage 4)
     retention_require_archive: bool = True
     deployment: str = "local"
+    decision_lifetime_seconds: int = 300
 
 
 def _json_object(env: Mapping[str, str], name: str) -> dict[str, str]:
@@ -123,6 +124,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
             read=_int(e, "NA_RATE_LIMIT_READ_PER_MINUTE", 120),
             admin_auth_failures=_int(e, "NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE", 30),
             observations=_int(e, "NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE", 120),
+            audit_packs=_int(e, "NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR", 12),
         ),
         operator_key_holders=_json_object(e, "OPERATOR_KEY_HOLDERS_JSON"),
         observation_max_backlog_seconds=_int(e, "NA_OBSERVATION_MAX_BACKLOG_SECONDS", 7 * 24 * 3600),
@@ -135,7 +137,17 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         review_actor_holders=_json_object(e, "NA_REVIEW_ACTOR_HOLDERS_JSON"),
         retention_require_archive=_on_off(e, "NA_RETENTION_REQUIRE_ARCHIVE", True),
         deployment=_deployment(e.get("NA_DEPLOYMENT", "local")),
+        decision_lifetime_seconds=_decision_lifetime(_int(e, "NA_DECISION_LIFETIME_SECONDS", 300)),
     )
+
+
+def _decision_lifetime(value: int) -> int:
+    """``NA_DECISION_LIFETIME_SECONDS`` (v1.5.0 review fixes): 1 to 300 seconds."""
+    from ..models.key_succession import MAX_DECISION_LIFETIME
+
+    if not 1 <= value <= int(MAX_DECISION_LIFETIME.total_seconds()):
+        raise ValueError(f"NA_DECISION_LIFETIME_SECONDS must be 1 to {int(MAX_DECISION_LIFETIME.total_seconds())}")
+    return value
 
 
 def _deployment(raw: str) -> str:

@@ -36,6 +36,8 @@ from ...models.execution import RESOURCE_CHAIN_FIELDS, ExecutionEvidence
 from ...models.key_succession import NAKeyHistory
 from ...models.justification import JustificationProof
 from ...trust.evidence_store import (
+    CARRIED_KINDS,
+    RECORD_TIME_TOLERANCE,
     EvidenceVerification,
     ExecutorKey,
     ResourceHeadState,
@@ -121,6 +123,11 @@ def _serialized_form_difference(raw: dict[str, Any], evidence: ExecutionEvidence
 
 class _AnchorRefused(Exception):
     """The store cannot be anchored; raised inside the write transaction."""
+
+
+def _aware(value: datetime) -> datetime:
+    """A stored time as an aware UTC datetime (a naive one is read as UTC)."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 class _RetentionRefused(Exception):
@@ -661,12 +668,18 @@ class EvidenceStoreService:
         The NA signs a new anchor only over a store that still contains what
         it anchored last: otherwise a database writer without the NA key
         could rewrite history and have the NA extend its signed chain over it.
+        v1.5.0 review fixes: nor over a tail whose time goes backwards (an
+        entry recorded more than ``RECORD_TIME_TOLERANCE`` before one stored
+        ahead of it, except entries retention carried forward): what a writer
+        holding a succeeded key appends, dated back into that key's window.
         """
         db = self._na.db
         if head_seq < latest.store_sequence or head_digest is None:
             return f"the store ends at {head_seq}, before anchored entry {latest.store_sequence}"
         start_seq, prev = latest.store_sequence, latest.entry_digest
         stored = db.entry_digest_at(latest.store_sequence)
+        clock: datetime | None = None
+        prev_kind: str | None = None
         if stored is not None:
             # The anchored entry itself, recomputed: its digest column alone could have been rewritten.
             rows = db.search_evidence({}, after_sequence=latest.store_sequence - 1, limit=1)
@@ -674,6 +687,9 @@ class EvidenceStoreService:
             if stored != latest.entry_digest or row is None or row["entry"].digest() != latest.entry_digest \
                     or payload_digest(row["payload"]) != row["entry"].payload_digest:
                 return f"entry {latest.store_sequence} no longer has the digest anchor {latest.anchor_sequence} names"
+            prev_kind = row["entry"].entry_kind
+            if prev_kind not in CARRIED_KINDS:
+                clock = _aware(row["entry"].recorded_at)
         else:
             cp = db.latest_retention_checkpoint()
             if cp is None or cp.removed_through_sequence < latest.store_sequence:
@@ -684,10 +700,20 @@ class EvidenceStoreService:
                 return f"the retention checkpoint names another digest for anchored entry {latest.store_sequence}"
             start_seq, prev = cp.removed_through_sequence, cp.last_removed_entry_digest
         expected = start_seq + 1
+        carrying = False
         for row in db.search_evidence({}, after_sequence=start_seq, limit=10**9):
             entry: EvidenceStoreEntry = row["entry"]
             if entry.store_sequence != expected:
                 return f"entry {expected} is missing"
+            carrying = entry.entry_kind in CARRIED_KINDS and prev_kind is not None and (
+                prev_kind == "retention_checkpoint" or carrying)
+            prev_kind = entry.entry_kind
+            if not carrying:
+                at = _aware(entry.recorded_at)
+                if clock is not None and at < clock - RECORD_TIME_TOLERANCE:
+                    return (f"entry {entry.store_sequence} is recorded at {at.isoformat()}, before an entry stored "
+                            f"ahead of it ({clock.isoformat()}): the store's time goes backwards")
+                clock = at if clock is None or at > clock else clock
             if (entry.prev_entry_digest != prev or entry.digest() != row["entry_digest"]
                     or payload_digest(row["payload"]) != entry.payload_digest):
                 return f"entry {entry.store_sequence} does not continue the anchored chain"
@@ -1078,8 +1104,13 @@ class EvidenceStoreService:
         n = plan_retention(candidates, **plan)
         # v1.3.1: say when records not judged yet hold retention back, with the records on or off.
         held_back = self._held_back(candidates, n, rows, **plan)
-        if held_back is None and archived is not None \
-                and plan_retention(candidates, cutoff=cutoff, now=now, through_sequence=through_sequence) > n:
+        unarchived = plan_retention(candidates, cutoff=cutoff, now=now, through_sequence=through_sequence) \
+            if archived is not None else n
+        # v1.5.0 review fixes: entries retention would carry forward anyway (the archive record of the
+        # pack itself, registry records, key successions) are not "not archived".
+        waiting = [r for r in rows if n < int(r["store_sequence"]) <= unarchived
+                   and r["entry_kind"] not in self.CARRIED_KINDS]
+        if held_back is None and archived is not None and waiting:
             held_back = {
                 "reason": "not_archived",
                 "archived_through_sequence": archived,

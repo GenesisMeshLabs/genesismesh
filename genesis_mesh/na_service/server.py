@@ -5,7 +5,7 @@ import logging
 import socket
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from flask import Flask
 from werkzeug.routing import PathConverter
@@ -138,6 +138,7 @@ class NetworkAuthorityService:
         review_max_waiver_seconds: int = 30 * 24 * 3600,
         review_actor_holders: Optional[dict[str, str]] = None,
         retention_require_archive: bool = True,
+        decision_lifetime_seconds: int = 300,
     ):
         """
         Initialize the Network Authority service.
@@ -302,6 +303,13 @@ class NetworkAuthorityService:
         self.review_max_waiver_seconds = review_max_waiver_seconds
         self.review_actor_holders = dict(review_actor_holders or {})
         self.retention_require_archive = bool(retention_require_archive)
+        # v1.5.0 review fixes: the lifetime of the decisions this NA issues, at most
+        # MAX_DECISION_LIFETIME (verifiers refuse a decision outliving its key by more).
+        from ..models.key_succession import MAX_DECISION_LIFETIME
+
+        if not 1 <= int(decision_lifetime_seconds) <= int(MAX_DECISION_LIFETIME.total_seconds()):
+            raise ValueError(f"NA_DECISION_LIFETIME_SECONDS must be 1 to {int(MAX_DECISION_LIFETIME.total_seconds())}")
+        self.decision_lifetime_seconds = int(decision_lifetime_seconds)
         self.operator_key_holders = dict(operator_key_holders or {})
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
@@ -398,6 +406,29 @@ class NetworkAuthorityService:
         history when ``at`` is None)."""
         history = self.key_history.history()
         return history.keys_at(at) if at is not None else history.all_keys()
+
+    def na_keys_for_record(self, at: Any) -> list[str]:
+        """The NA keys a record may carry, at its own signed time (v1.5.0 review fixes): what the
+        verify routes use when the caller supplies no keys. ``at`` is a datetime or the record's
+        raw time; a record without a readable time gets the key signing now."""
+        moment = at
+        if isinstance(at, str):
+            try:
+                moment = datetime.fromisoformat(at.replace("Z", "+00:00"))
+            except ValueError:
+                moment = None
+        if not isinstance(moment, datetime):
+            return [self.signer.public_key_b64]
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return self.na_public_keys_at(moment)
+
+    def na_keys_vouching(self, at: Any, now: Optional[datetime] = None) -> list[str]:
+        """The NA keys valid at a record's signed time and still accepted now (v1.5.0 review fixes): an
+        agreement this NA signed vouches only while the key that signed it does, since its
+        ``established_at`` is not signed and its ``agreed_terms.valid_from`` is chosen by the signer."""
+        current = set(self.na_public_keys_at(now or datetime.now(timezone.utc)))
+        return [k for k in self.na_keys_for_record(at) if k in current]
 
     def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
         """
@@ -581,6 +612,12 @@ class NetworkAuthorityService:
             db_info["error"] = type(exc).__name__
         checks["database"] = db_info
         checks["signing_key"] = self.signer.describe()
+        # v1.5.0 review fixes: an instance started with a new key before its succession takes
+        # effect, or whose key was succeeded or expired, signs nothing: not ready.
+        signing_state = self.key_history.signing_state()
+        checks["na_key"] = signing_state
+        if signing_state["state"] != "signing":
+            ready = False
         checks["rate_limiter"] = self.rate_limiter.store
         if not self.genesis_block:
             ready = False
@@ -618,6 +655,7 @@ def create_app(
     review_max_waiver_seconds: int = 30 * 24 * 3600,
     review_actor_holders: Optional[dict[str, str]] = None,
     retention_require_archive: bool = True,
+    decision_lifetime_seconds: int = 300,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -649,6 +687,7 @@ def create_app(
         review_max_waiver_seconds=review_max_waiver_seconds,
         review_actor_holders=review_actor_holders,
         retention_require_archive=retention_require_archive,
+        decision_lifetime_seconds=decision_lifetime_seconds,
     )
     return service.app
 

@@ -49,13 +49,8 @@ class RuntimePeerIdentity:
         if self.crl_gossip.is_certificate_revoked(cert.cert_id):
             raise ValueError("Peer certificate is revoked")
 
-        na_public_key = public_key_from_b64(
-            self.node.genesis_block.network_authority.public_key
-        )
-        if not any(
-            verify_model_signature(cert, signature, na_public_key)
-            for signature in cert.signatures
-        ):
+        # v1.5.0 review fixes: by the NA key valid when it was issued, from the key history.
+        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at):
             raise ValueError("Peer certificate signature is invalid")
 
         verify_key = public_key_from_b64(cert.node_public_key)
@@ -104,13 +99,7 @@ class RuntimePeerIdentity:
         if self.crl_gossip.is_certificate_revoked(cert.cert_id):
             return False, []
 
-        na_public_key = public_key_from_b64(
-            self.node.genesis_block.network_authority.public_key
-        )
-        if not any(
-            verify_model_signature(cert, signature, na_public_key)
-            for signature in cert.signatures
-        ):
+        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at):
             return False, []
         if not peer_info.announcement_signature:
             return False, []

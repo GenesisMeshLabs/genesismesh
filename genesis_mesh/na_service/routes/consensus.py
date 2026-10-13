@@ -49,7 +49,8 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         A proof is the NA's account of a decision it made; signing a vote or a
         consensus over one the caller wrote would lend it the NA's authority.
         """
-        result = verify_justification_proof(j_proof, service.na_public_keys_at(None))
+        # v1.5.0 review fixes: "this NA's own proof" is one its current signing key signed.
+        result = verify_justification_proof(j_proof, [service.signer.public_key_b64])
         if not result.valid:
             raise RequestValidationError(
                 "The justification proof is not signed by this Network Authority",
@@ -205,7 +206,8 @@ def create_consensus_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             )
         # The assembler default is deliberate and safe: it accepts only a proof
         # this NA itself signed, which a third party cannot forge.
-        assembler_keys = data.get("assembler_public_keys") or service.na_public_keys_at(None)
+        # v1.5.0 review fixes: the NA key valid when the consensus was reached, not any key it held.
+        assembler_keys = data.get("assembler_public_keys") or service.na_keys_for_record(cp.reached_at)
         result = verify_consensus_proof(
             proof=cp,
             validator_public_keys=validator_keys,

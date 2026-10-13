@@ -74,18 +74,24 @@ class AgreementTrust:
 
     def trusted_keys(self, sovereign_id: str, at: datetime | None = None) -> list[str]:
         """Public keys this NA trusts for ``sovereign_id`` (possibly none); for its own sovereign, the
-        key valid at ``at`` (v1.5.0; every key of its history when ``at`` is None)."""
+        key valid at ``at`` and still accepted now (v1.5.0 review fixes; ``na_keys_vouching``)."""
         na_keys = self._na.na_public_keys_at(None)
         if sovereign_id == self._na.genesis_block.network_name:
-            return self._na.na_public_keys_at(at)
+            return self._na.na_keys_vouching(at)
         keys: list[str] = []
         for treaty in self._treaties(sovereign_id):
             keys.extend(k for k in treaty.subject_public_keys if k not in na_keys and k not in keys)
         return keys
 
     def _issued_by_this_na(self, agreement: AgreementRecord) -> bool:
-        """An agreement this NA offered and accepted itself (privileged routes)."""
-        na_keys = self._na.na_public_keys_at(agreement.established_at)
+        """An agreement this NA offered and accepted itself (privileged routes).
+
+        v1.5.0 review fixes: ``established_at`` is outside the agreement's signed
+        form, so the key is placed at ``agreed_terms.valid_from`` (signed) and must
+        still be accepted now: an agreement a succeeded key signed stops vouching
+        when that key's hand-over ends, and is offered again under the new key.
+        """
+        na_keys = self._na.na_keys_vouching(agreement.agreed_terms.valid_from)
         return (
             agreement.offerer_sovereign_id == self._na.genesis_block.network_name
             and verify_agreement(agreement, na_keys, na_keys).accepted
@@ -104,14 +110,14 @@ class AgreementTrust:
         if offerer == responder:
             reason, party = "same_party", offerer
         elif self._issued_by_this_na(agreement):
-            na_keys = self._na.na_public_keys_at(agreement.established_at)
+            na_keys = self._na.na_keys_vouching(agreement.agreed_terms.valid_from)
             refusal = agreement_refusal(raw, na_keys, na_keys) if raw is not None else None
             if refusal is None:
                 return
             reason = refusal
         else:
-            offerer_keys = self.trusted_keys(offerer, agreement.established_at)
-            responder_keys = self.trusted_keys(responder, agreement.established_at)
+            offerer_keys = self.trusted_keys(offerer, agreement.agreed_terms.valid_from)
+            responder_keys = self.trusted_keys(responder, agreement.agreed_terms.valid_from)
             if not offerer_keys:
                 reason, party = "unknown_party", offerer
             elif not responder_keys:

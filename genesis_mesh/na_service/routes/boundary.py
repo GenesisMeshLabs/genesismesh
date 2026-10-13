@@ -100,7 +100,8 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         except Exception as exc:
             raise BadRequestError("Invalid context record", code="invalid_context") from exc
 
-        engine = BoundaryEngine(operator_sovereign_id=service.genesis_block.network_name)
+        engine = BoundaryEngine(operator_sovereign_id=service.genesis_block.network_name,
+                                decision_valid_seconds=service.decision_lifetime_seconds)
         try:
             decision = engine.evaluate(
                 context,
@@ -143,7 +144,9 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         # v1.2.0: after the signature's presence and the expiry, a record not
         # signed as received, with a field this release does not know, or not
         # in canonical form is refused, in every SDK's order.
-        refusal = decision_refusal(raw, supplied or service.na_public_keys_at(None), now)
+        # v1.5.0 review fixes: the form checks with the key valid at the decision's own time.
+        made_at = raw.get("decision_made_at") if isinstance(raw, dict) else None
+        refusal = decision_refusal(raw, supplied or service.na_keys_for_record(made_at), now)
         if refusal:
             service.db.add_audit_event("boundary_decision_verified", {
                 "decision_id": raw.get("decision_id"), "accepted": False,

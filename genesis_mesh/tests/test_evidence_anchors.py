@@ -692,7 +692,7 @@ def test_verify_export_after_retention_continues_from_the_checkpoint(client, cli
     monkeypatch.setattr(svc, "datetime", Later)
     third_decision = _decide(client)
     assert _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).status_code == 200
-    monkeypatch.undo()
+    # v1.5.0 review fixes: the store's entries are recorded in time order, so the clock stays ahead.
     third = controller.record(third_decision, action="rotate", prior_resource=second, sequence_no=1)
     assert _submit(client, third).status_code == 201
     export = tmp_path / "export.jsonl"

@@ -32,7 +32,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 import nacl.encoding
 import nacl.signing
@@ -291,30 +291,76 @@ def _public_key_of(path: Path) -> str | None:
     return key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode("utf-8")
 
 
-def root_key_findings(root_public_key: str, *, na_public_key: str, paths: Iterable[str | Path | None]) -> list[str]:
+#: v1.5.0 review fixes: how deep and how widely the root key custody check searches.
+CUSTODY_SEARCH_DEPTH = 3
+CUSTODY_SEARCH_FILES = 5000
+
+
+def _seed_public_key(value: str) -> str | None:
+    """The base64 public key of a base64 Ed25519 seed, or None."""
+    try:
+        seed = base64.b64decode(value.strip(), validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    if len(seed) != 32:
+        return None
+    return nacl.signing.SigningKey(seed).verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode("utf-8")
+
+
+def root_key_findings(
+    root_public_key: str, *, na_public_key: str, paths: Iterable[str | Path | None],
+    environ: Mapping[str, str] | None = None,
+) -> list[str]:
     """Where the root private key is found on this host (empty when nowhere checked).
 
-    ``paths`` are the NA's files (genesis block, NA key file, database); their
-    directories and those directories' ``keys/`` subdirectories are searched,
-    one level deep.
+    ``paths`` are the NA's files (genesis block, NA key file, database, its
+    settings file). v1.5.0 review fixes: the directory of each, its parent
+    (the configuration directory a ``keys/`` or ``secrets/`` directory sits
+    in), and every directory below them to ``CUSTODY_SEARCH_DEPTH`` levels are
+    searched, at most ``CUSTODY_SEARCH_FILES`` files, symbolic links not
+    followed; and every environment variable holding a base64 seed.
     """
     findings: list[str] = []
     if na_public_key == root_public_key:
         findings.append("the NA signing key is the root key")
-    directories: list[Path] = []
+    roots: list[Path] = []
     for value in paths:
         if not value:
             continue
         directory = Path(value).resolve().parent
-        for candidate in (directory, directory / "keys"):
-            if candidate.is_dir() and candidate not in directories:
-                directories.append(candidate)
-    for directory in directories:
-        try:
-            files = sorted(directory.iterdir())
-        except OSError:
-            continue
-        for path in files:
-            if _public_key_of(path) == root_public_key:
-                findings.append(f"the root private key is in {path}")
+        for candidate in (directory, directory.parent):
+            if candidate.is_dir() and candidate not in roots and candidate != Path(candidate.anchor):
+                roots.append(candidate)
+    seen: set[Path] = set()
+    checked = 0
+    for top in roots:
+        queue: list[tuple[Path, int]] = [(top, 0)]
+        while queue and checked < CUSTODY_SEARCH_FILES:
+            directory, depth = queue.pop(0)
+            try:
+                entries = sorted(directory.iterdir())
+            except OSError:
+                continue
+            for path in entries:
+                if checked >= CUSTODY_SEARCH_FILES:
+                    break
+                try:
+                    if path.is_symlink():
+                        continue
+                    if path.is_dir():
+                        if depth < CUSTODY_SEARCH_DEPTH and path.name not in (".git", "node_modules", ".venv"):
+                            queue.append((path, depth + 1))
+                        continue
+                except OSError:
+                    continue
+                resolved = path.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                checked += 1
+                if _public_key_of(path) == root_public_key:
+                    findings.append(f"the root private key is in {path}")
+    for name, value in sorted((os.environ if environ is None else environ).items()):
+        if 40 <= len(value.strip()) <= 64 and _seed_public_key(value) == root_public_key:
+            findings.append(f"the root private key is in the environment variable {name}")
     return findings
