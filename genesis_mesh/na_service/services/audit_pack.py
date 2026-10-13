@@ -252,6 +252,7 @@ class AuditPackService:
             start_anchor_sequence=start_anchor.anchor_sequence if start_anchor else None,
             end_anchor_sequence=end.anchor_sequence, issued_by=self._na.key_id, sign=self._na.signer.sign_model,
             states=states, notices={k: v for k, v in states.items() if v.get("notified_at")},
+            check_executor_keys=store.executor_keys(),
         )
         checks = json.loads(files[CHECKS_FILE])
         pack_id = manifest.pack_id
