@@ -1,7 +1,5 @@
 # Verifying a Pack
 
-*Unreleased.*
-
 `genesis-mesh audit verify` checks an audit pack offline: no network, no
 private key, nothing from the NA but the pack. What it trusts comes from you:
 

@@ -1,7 +1,5 @@
 # Independent Verification
 
-*Unreleased.*
-
 `genesis-mesh audit verify` is part of the Python package that also runs the
 Network Authority. An audit that trusts it trusts the same code base it
 audits. `genesis-mesh-verify` is a second verifier: a static binary built
