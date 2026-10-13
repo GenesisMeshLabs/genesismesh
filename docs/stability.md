@@ -45,8 +45,6 @@ interoperability workflow checks that every copy matches the reference's.
 
 ## Audit packs and the NA key history
 
-*Unreleased.*
-
 The audit pack format (`gm.audit.pack` version 1,
 {doc}`reference/audit-pack-format`), the signed forms of
 `KeySuccessionRecord`, `ArchiveRecord` and `AuditPackManifest`, and the

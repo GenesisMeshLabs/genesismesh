@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.4.0:
+As of v1.5.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.4.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,304 tests pass. The layer rule and public boundary rule are enforced
+- 2,394 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -186,11 +186,11 @@ As of v1.4.0:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 108 HTTP routes, 127 CLI
-  commands, the public Python API, 59 signed artifacts and every API error
+  as the Public Contract page) classifies all 112 HTTP routes, 135 CLI
+  commands, the public Python API, 62 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.3.1, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.4.0, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.4.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 15 suites and 709
+- A protocol conformance suite exists in `conformance/`: 16 suites and 837
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -1152,6 +1152,45 @@ interoperability, upgrade and documentation gate.
 **What became possible:** a change judged DENY after the fact is undone or
 waived on the record, by someone other than the person who made it, without
 breaking what reads it.
+
+### v1.5.0 — Audit Packs and Independent Verification
+
+The fourth stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). After 1.4 every governed change was on the record,
+judged and remediated, but proving it to someone outside meant trusting the
+Network Authority's own export, the NA key could never be replaced without
+breaking every signature it had made, and retention pruned on the operator's
+word that an archive existed.
+
+The NA key can now be succeeded: a succession signed by the offline root key,
+the new key and the outgoing one names the next key, and every verifier, the
+SDKs, the mesh nodes and the live routes accept a record signed by the key
+that was valid at the record's own time. For any range between two anchors an
+operator with a read-tier key produces an audit pack, everything the range's
+records rest on with a manifest the NA countersigns and a report, and a
+security team verifies it offline from the root key and anchors it holds
+itself, judging each record as of its time, checking cited records against
+packs it verified before, re-rendering the report, and checking completeness
+against the changes in any outside log. `genesis-mesh audit archive` writes a
+pack to immutable storage, reads it back and verifies it before anything is
+pruned, and retention refuses otherwise by default. The independent verifier
+`genesis-mesh-verify`, built from the Rust SDK's verification code, ships as
+signed, reproducible static binaries that need no key and no network, and
+agrees with the Python reference on a corpus of every kind and rejection.
+
+A critic and a skeptic reviewed the stage before its pull requests and the
+SDK ports reviewed it again; among 35 findings, a frozen fixture missing
+files in git, packs that failed after a prune, cited records never checked
+against the store, a succeeded key minting long-lived decisions, backdated
+records keeping an old key alive and keys registered later verifying earlier
+records each became a test.
+
+The release passed 2,394 core tests and every SDK, verifier, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** an auditor years later, offline, with code built
+separately, can verify what the evidence store holds for a period, that
+nothing was removed from it, and that the outside world's changes are in it.
 
 ---
 

@@ -1,7 +1,5 @@
 # Audit Pack Format
 
-*Unreleased.*
-
 An audit pack (format `gm.audit.pack`, version 1, Genesis Mesh 1.5.0) holds
 one range of a Network Authority's evidence store between two anchors,
 everything the range's records cite, the NA's key history, the NA's own
