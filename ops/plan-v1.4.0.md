@@ -133,7 +133,7 @@ below (redesigned after a review, 2026-10-11).
 ## Release Gate
 
 - [x] Stage 2 (1.3.0) released (2026-10-10)
-- [ ] Maintainer decisions recorded (date)
+- [x] Maintainer decisions recorded (2026-10-13: 1-16)
 - [x] Version bumped to `1.4.0` across the release train; `docs/sdk/index.md`
 - [x] CHANGELOG entries, `history.md`, `phase-n.md`
 - [x] `SECURITY.md`: 1.4.x supported, 1.3.x upgrade to 1.4
@@ -158,47 +158,47 @@ below (redesigned after a review, 2026-10-11).
 3. **A grace window before remediation** (Maintainer, 2026-10-08).
 
 4. **Cancel by rotating forward, then disabling**; `correct` and
-   `roll_back` dropped (taken as proposed, 2026-10-11).
-5. **One review record for reviews and waivers** (taken as proposed,
-   2026-10-11).
-6. **Approval at privileged tier** rather than a new approver tier (taken as
-   proposed, 2026-10-11).
+   `roll_back` dropped (Maintainer, 2026-10-13).
+5. **One review record for reviews and waivers** (Maintainer,
+   2026-10-13).
+6. **Approval at privileged tier** rather than a new approver tier (Maintainer,
+   2026-10-13).
 
-Open, from building Stage 3 (2026-10-11):
+From building Stage 3 (2026-10-11), confirmed 2026-10-13:
 
-7. **A switch of its own** (proposed): `EVIDENCE_REMEDIATION=on`, which needs
+7. **A switch of its own** (Maintainer, 2026-10-13): `EVIDENCE_REMEDIATION=on`, which needs
    `EVIDENCE_OUT_OF_BAND=on`, rather than reusing that switch: a 1.3.1 store
    that already has the Stage 2 records on would otherwise start writing
    kinds 1.3 verifiers refuse. While it is off, policies with the new
    sections are refused, since 1.3 SDKs refuse them as `unknown_field`.
    Judgements made before its first start are not armed (marked by the
    `remediation_enabled` audit event); a review can still be requested.
-8. **Guidance as a policy section keyed by gate** (proposed):
+8. **Guidance as a policy section keyed by gate** (Maintainer, 2026-10-13):
    `remediation: {gate_id | "*": {mode, grace_seconds}}`, a top-level
    optional field left out when absent, so 1.3 digests are unchanged and the
    registry's `omit_when_none` covers it. Among failing gates, `cancel` wins
    and the shortest grace applies; without guidance, the NA's defaults
    (`alert_only`, one day).
-9. **The resource case from the change's own record** (proposed): `create` is
+9. **The resource case from the change's own record** (Maintainer, 2026-10-13): `create` is
    a resource nothing reads yet (disable); `rotate` or `update` with a
    version is versioned (rotate forward, then disable) unless the record says
    `rotatable: false`; without a version, or for `revoke` and `delete`, it
    falls back to `alert_only`. No new signed field. The limit, stated in the
    docs: the observer that signs the record can turn a cancel into an alert
    with `rotatable: false`, never the other way round.
-10. **`uphold` means the change stands** (proposed), matching the state
+10. **`uphold` means the change stands** (Maintainer, 2026-10-13), matching the state
     table (`upheld` is not followed by remediation; `review_denied` is):
     `deny` makes remediation due, `waive_until` lets the change stand until a
     time. Waivers are bounded by the NA (`NA_REVIEW_MAX_WAIVER_SECONDS`) and
     by the model (90 days).
-11. **A pending review stops no clock** (redesigned after review,
-    2026-10-11, decision A): a review is a flag beside the state
+11. **A pending review stops no clock** (redesigned after review, decision A;
+    Maintainer, 2026-10-13): a review is a flag beside the state
     (`review_pending`), not a state; due times, waivers and emergency
     lifetimes run while it is pending, with their audit events, and its
     verdict applies when it is decided. A denial is due at the decision plus
     the grace, never later than it already was; a waiver's end re-arms with
     the grace again. A remediation is admitted only while due or overdue.
-12. **The actor's holder from configuration** (proposed):
+12. **The actor's holder from configuration** (Maintainer, 2026-10-13):
     `NA_REVIEW_ACTOR_HOLDERS_JSON` maps reported actors to holders (an actor
     named like a holder is that holder); the review records the mapping it
     used (`actor_holder`). The actor is source-reported, and an unmapped
@@ -206,11 +206,11 @@ Open, from building Stage 3 (2026-10-11):
     actor's holder may not request the review either
     (`review_requested_by_actor`), and a decision's actor is the operator key
     that asked for it, with its holder, recorded and embedded.
-13. **Both signed requests embedded** (proposed): the requester's as well as
+13. **Both signed requests embedded** (Maintainer, 2026-10-13): the requester's as well as
     the decider's, so the subject and justification verify offline too; the
     verifier checks the public keys against the holder registry in the
     export.
-14. **Emergency as a policy section on a capability of its own** (proposed):
+14. **Emergency as a policy section on a capability of its own** (Maintainer, 2026-10-13):
     `emergency: {stands_for, justification_parameter, max_lifetime_seconds}`
     on a policy selecting one exact emergency capability, with an enforced
     `required_parameter.v1` gate; it implies review. Observers name the
@@ -224,10 +224,10 @@ Open, from building Stage 3 (2026-10-11):
     refused), `stands_for` is an exact capability ID, and an observation of
     an emergency change is judged under the emergency policy and attaches to
     the decision's or break-glass record's review.
-15. **An emergency change's lifetime ends like a waiver** (proposed): an
+15. **An emergency change's lifetime ends like a waiver** (Maintainer, 2026-10-13): an
     upheld emergency change becomes due when its lifetime ends, with the
     policy's grace; a waiver cannot outlast it.
-16. **Remediation state beside the store** (proposed): the due queue and
+16. **Remediation state beside the store** (Maintainer, 2026-10-13): the due queue and
     `notified_at` live in an operational table (migration 016), not in a
     signed kind; every transition goes through one state table the
     conformance suite lists. The sweep compares times with the instance's
