@@ -89,6 +89,15 @@ A 1.5 database cannot be opened by 1.4: roll back by restoring the backup.
 - **The default due queue** (`GET /admin/evidence/remediations` without
   `state`) no longer lists remediated changes whose review is still pending;
   `state=review_pending` still does.
+- **The store's time order is checked.** Verifiers refuse an entry recorded
+  more than 300 seconds before an entry stored ahead of it
+  (`recorded_at_out_of_order`), and the NA refuses to anchor such a tail:
+  keep the NA instances' clocks in step (NTP) before upgrading. Run
+  `genesis-mesh na verify-db --genesis genesis.json` after the upgrade.
+- **Decisions live at most 300 seconds** (`NA_DECISION_LIFETIME_SECONDS`, the
+  default): a longer setting is refused at start.
+- **A managed deployment needs archives**: `NA_DEPLOYMENT=managed` refuses to
+  start with `NA_RETENTION_REQUIRE_ARCHIVE=off`.
 
 ## Upgrading to 1.4
 

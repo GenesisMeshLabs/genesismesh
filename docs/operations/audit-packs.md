@@ -28,8 +28,11 @@ own, years later, from the root key and the anchors it holds. The format is
   its state, denials, remediations, reviews and their deciders, notices sent,
   break-glass uses, quarantined records, key successions and archives,
   totals, and the checks. Remediation states and notices are the NA's
-  operational records at pack time and the report says so.
-- **`manifest.json`**: every file's SHA-256, signed by the NA.
+  operational records at pack time, kept in **`states.json`**, and the report
+  says so. The report is rendered from the pack's own files: a verifier
+  renders it again and refuses a report that differs.
+- **`manifest.json`**: every file's SHA-256, and the period you asked for
+  (`since`, `until`), signed by the NA.
 
 ## Writing a pack
 
@@ -54,7 +57,11 @@ directory back and checks it against the manifest.
 
 The route is `POST /admin/evidence/audit-pack` (`{from_sequence | since,
 until_sequence | until}`), answering `{manifest, files}`; `409
-audit_pack_not_anchored` when no anchor ends the range.
+audit_pack_not_anchored` when no anchor ends the range. Building a pack
+reads and verifies up to 50,000 entries, so the route has a rate limit of its
+own: `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` per client address (default 12;
+`429` beyond it). The NA records every pack it builds (its manifest's digest
+and whether its own checks passed): only such a pack can be archived.
 
 ## Storing packs
 

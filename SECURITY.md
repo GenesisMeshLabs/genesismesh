@@ -127,11 +127,28 @@ them externally.
   entire trust chain collapses. Mitigation is operational: keep this key
   offline, ideally on hardware.
 - **Network Authority private key compromise.** A compromised NA key allows
-  forging certificates and signed artifacts for that sovereign. There is no
-  rotation procedure that keeps the sovereign's identity yet; recovery is a
-  new identity, with counterparts re-issuing treaties. Mitigation: keep the
-  key in Azure Key Vault or another external secret manager (HA mode refuses
-  key files). See `docs/development/security-review-v1.md` (SR-06).
+  forging certificates and signed artifacts for that sovereign while the key
+  is valid. Since 1.5.0 a key succession, signed by the offline root key,
+  replaces the NA key and keeps the sovereign's identity; verifiers then
+  refuse records the old key signs dated after its window, decisions it signs
+  that outlive it, and entries appended after the store moved past its
+  window. Within the 300-second hand-over and the store's 300-second time
+  tolerance, an entry the holder of the outgoing key appends at once cannot
+  be told from one the NA wrote: the anchors the NA makes afterwards, held by
+  auditors, bound it. A key lost before its succession cannot sign one:
+  recovery is then a new identity. Mitigation: keep the key in Azure Key
+  Vault or another external secret manager (HA mode refuses key files). See
+  `docs/development/security-review-v1.md` (SR-06) and
+  `docs/operations/key-succession.md`.
+- **Archives rest on the archiving key's word.** An archive record (1.5.0)
+  proves the NA built the pack and that it passed the NA's own checks; that
+  the pack was written to immutable storage and read back intact is the
+  statement of the privileged key that recorded it, since the NA cannot see
+  the storage. Check the storage's lock and the archived manifest's digest
+  as part of each audit.
+- **Cited entries without earlier packs.** An audit pack's cited entries are
+  checked for authenticity; their place in the store is proven only against
+  the packs an auditor verified before or an anchor at their position.
 - **Operator workstation compromise.** An attacker who steals an operator
   private key can issue invites and revoke certificates. Mitigation:
   workstation hygiene, hardware key, short-lived operator credentials.

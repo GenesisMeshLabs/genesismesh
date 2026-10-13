@@ -124,12 +124,15 @@ Decisions 5 to 16 below.
 ## Security notes
 
 - A pack proves completeness only against anchors held outside the NA: the
-  verifier requires them, and the docs say an audit without them proves
-  integrity of what is present, not that nothing was removed.
+  verifier warns without them (`--require-anchors` fails), and the docs say
+  an audit without them proves integrity of what is present, not that
+  nothing was removed.
 - Succession is signed by the root key, which is kept offline; the NA host
   never holds it in a managed deployment.
 - Archive entries are made only after the archive is read back from immutable
-  storage.
+  storage and verified, and only for a pack the NA built whose own checks
+  passed; that it sits on immutable storage rests on the recording key's
+  word (the NA cannot see the storage), as the docs say.
 - The verifier never needs a private key and never contacts a network.
 - Packs hold metadata and actor identifiers: store them with audit-log access
   controls.
@@ -241,3 +244,71 @@ Open, from building Stage 4 (2026-10-13):
     refused at start; the default due queue leaves out remediated changes
     whose review is still pending (the NA was wrong, against the comment at
     `OPEN_STATES`; the SDK was not).
+
+Review fixes (2026-10-13), after a critic's and a skeptic's review and the
+TypeScript and Rust ports. They amend Decisions 5, 6, 7, 12, 13 and 15:
+
+17. **Three signatures on a succession** (amends 7, proposed): the root key,
+    the new key (proof of possession: `na succession prove`) and the
+    outgoing key over one canonical form; the root key is never an NA key;
+    `issued_at <= effective_at`, and in the store the entry is recorded at
+    least 60 seconds before it takes effect (`succession_backdated`). The
+    genesis block is strict like every root. Reasons come in one order,
+    `payload_invalid` first.
+18. **A decision may not outlive its key** (proposed): a key with an end
+    vouches for a decision only up to that end plus the hand-over plus 300
+    seconds, the longest lifetime the NA issues
+    (`NA_DECISION_LIFETIME_SECONDS`, 1 to 300).
+19. **Time order in the store** (amends 5, proposed): `recorded_at` never
+    more than 300 seconds behind an earlier entry (carried entries exempt);
+    an NA-signed entry's key valid at the latest earlier time too; the NA
+    refuses to anchor a tail whose time goes backwards; `verify-db` verifies
+    the key history from the genesis block's root key. The residual (an
+    entry appended at once within the hand-over and the tolerance) is
+    bounded by the anchors made afterwards, and documented.
+20. **Nodes follow the key history** (amends 7, proposed): the preferred
+    option, not a new genesis block: nodes read `GET /na/key-history`, adopt
+    it when it verifies from their genesis block's root key and continues
+    what they hold, cache it, and check certificates, policies and CRLs at
+    each one's `issued_at`.
+21. **A pending key may start** (amends 6, proposed): an instance started
+    with the new key before `effective_at` signs nothing and is not ready.
+22. **Records read alone, and live routes, at their own time** (amends 5,
+    proposed): a table of the time each NA-signed record read alone is
+    placed at; the verify routes default to the key valid at the record's
+    time, and "this NA's own proof" is its current key's. An agreement the NA
+    signed is placed at `agreed_terms.valid_from` and must still be
+    accepted now: `established_at` is not signed, and checking at a signed
+    time the signer chose would let an old key's holder backdate one.
+23. **Cited entries tied to what the verifier holds** (amends 12,
+    proposed): `--prior` packs and anchors at the exact position
+    (`cited_entry_mismatch`, warning `cited_entry_unanchored`); inclusion
+    proofs are a 1.6.0 candidate. Chains continue from the cited retention
+    checkpoint's heads, so a pack after a prune verifies.
+24. **Executor keys placed in the store** (proposed): by registry position,
+    or by `effective_at` for a backfilled or carried registry record; a
+    retired key verifies only what was stored before.
+25. **Archives of packs the NA built and verified** (proposed): the NA
+    records each pack's manifest digest and its own verdict; the CLI
+    verifies the pack it read back (`--force` overrides).
+26. **The report is normative** (proposed): rendered from the manifest, the
+    entries, `checks.json` and `states.json` (new), byte for byte, with
+    escaping specified; a report that differs is `report_mismatch`. A
+    verifier writes its own rendering with `--report`.
+27. **Completeness: the period and an exact matching** (amends 13,
+    proposed): the period starts at the start anchor; the period asked for is
+    in the manifest and `--period` fails a pack that does not cover it;
+    duplicates set aside; event IDs match only on their resource and action;
+    a non-crossing matching with the most pairs, then the least distance,
+    with a fixed tie order. Changes files: strict RFC 3339 times, string or
+    null fields.
+28. **Signatures as received everywhere in a pack** (proposed): the
+    manifest, policies, attestations, treaties and feeds, as the store's
+    records; `RecognitionTreaty` joins the field registry. A retention
+    checkpoint with a field outside its signature stays `payload_invalid`
+    (it is strict, as every kind since 1.3.0); the docs now say so.
+29. **The CLI runs without held anchors** (proposed): as the library and
+    the format, with a prominent warning; `--require-anchors` fails.
+30. **Custody search widened** (amends 15, proposed): the configuration
+    directory three levels deep and the environment; a managed deployment
+    also refuses `NA_RETENTION_REQUIRE_ARCHIVE=off`.
