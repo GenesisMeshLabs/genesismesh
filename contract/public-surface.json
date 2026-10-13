@@ -955,6 +955,10 @@
       "level": "beta"
     },
     {
+      "command": "na succession prove",
+      "level": "beta"
+    },
+    {
       "command": "na succession sign",
       "level": "beta"
     },
@@ -2894,6 +2898,11 @@
           "name": "na_public_key",
           "kind": "positional_or_keyword",
           "required": false
+        },
+        {
+          "name": "genesis",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
@@ -2913,6 +2922,11 @@
         },
         {
           "name": "na_public_key",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "genesis",
           "kind": "keyword_only",
           "required": false
         }
@@ -3555,6 +3569,8 @@
     "archive_conflict",
     "archive_manifest_invalid",
     "archive_not_contiguous",
+    "archive_pack_unknown",
+    "archive_pack_unverified",
     "asset_not_found",
     "attestation_issuer_mismatch",
     "attestation_not_found",
@@ -3784,7 +3800,9 @@
     "signed_at_outside_window",
     "stale_sequence",
     "succession_after_expiry",
+    "succession_backdated",
     "succession_chain_break",
+    "succession_invalid_new_key_signature",
     "succession_invalid_root_signature",
     "succession_key_reused",
     "succession_not_increasing",

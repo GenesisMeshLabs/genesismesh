@@ -172,7 +172,11 @@ Liveness probe. Does not perform dependency checks.
 
 ### `GET /readyz`
 
-Readiness probe. Verifies database connectivity and migration state.
+Readiness probe. Verifies database connectivity and migration state, and
+(v1.5.0) that this instance's NA key signs now: `na_key.state` is `signing`,
+`pending` (the instance started with a new key before its succession takes
+effect; `signs_from` says when) or `stopped` (succeeded or expired). Only
+`signing` is ready.
 
 ### `GET /nodes`
 
@@ -262,8 +266,8 @@ that signs now: after a key succession, a later key of the history, with
 *Unreleased.*
 
 The NA's key history (v1.5.0): `genesis` (the signed genesis block),
-`successions` (every `KeySuccessionRecord`, each signed by the root key and
-the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
+`successions` (every `KeySuccessionRecord`, each signed by the root key, the
+new key and the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
 `public_key`, `valid_from`, `succeeded_at`, `valid_to`, `valid_to_enforced`
 and `current`), `root_public_key`, `handover_seconds` (300) and
 `signing_key_sequence`. Public: a verifier checks it from the root key it
@@ -274,18 +278,22 @@ holds, never from the key this response names. See
 
 *Unreleased.*
 
-Privileged. `{"succession": <KeySuccessionRecord signed by the root key>}`:
-the NA checks it continues its key history, is signed by the root key and
-takes effect 60 seconds to 30 days from now, countersigns it with its current
-key and records it. `201` with `succession` (both signatures) and
+Privileged. `{"succession": <KeySuccessionRecord signed by the root key and
+the new key>}`: the NA checks it continues its key history, names neither the
+root key nor a key the history held, is signed by the root key and by the new
+key (proof of possession), was not issued after it takes effect and takes
+effect 60 seconds to 30 days from now, countersigns it with its current key
+and records it. `201` with `succession` (three signatures) and
 `key_history`. Errors: `400 invalid_succession`, `409
-succession_chain_break`, `succession_key_reused`, `succession_not_increasing`,
-`succession_sovereign_mismatch`, `succession_after_expiry`,
-`succession_times_invalid`, `succession_pending`, `422
-succession_invalid_root_signature`. From the succession's `effective_at`
+succession_chain_break`, `succession_key_reused`, `succession_backdated`,
+`succession_not_increasing`, `succession_sovereign_mismatch`,
+`succession_after_expiry`, `succession_times_invalid`, `succession_pending`,
+`422 succession_invalid_root_signature`,
+`succession_invalid_new_key_signature`. From the succession's `effective_at`
 anything needing an NA signature answers `503 na_key_succeeded` until the NA
-restarts with the new key; a succeeded-to key past its validity answers `503
-na_key_expired`.
+restarts with the new key; an instance started with the new key before then
+answers `503 na_key_not_yet_effective` and is not ready; a succeeded-to key
+past its validity answers `503 na_key_expired`.
 
 ### `GET /policy`
 

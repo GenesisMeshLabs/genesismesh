@@ -194,11 +194,12 @@ key, and each NA signature with the key valid at the record's time.
 | Command | What it does |
 |---|---|
 | `genesis-mesh audit pack --na <url> --out <dir>` | Write an audit pack: one range of the store between two anchors (`--from-sequence` or `--since`, `--until-sequence` or `--until`), what its records cite, the key history, `report.md` and the signed manifest. A read-tier key is enough. The directory is read back and checked against the manifest. See {doc}`../operations/audit-packs` |
-| `genesis-mesh audit verify <dir> --anchor <root key> --known-anchors <anchors>` | Verify a pack offline from the root public key and the anchors you hold; `--executor-keys` for a store without registry records; `--changes <csv or json>` matches a log kept outside Genesis Mesh (`--tolerance-seconds`, default 300); `--format json`. Exit code 1 when a check fails or a change has no record. See {doc}`../operations/audit-verification` |
-| `genesis-mesh audit archive --na <url> --to <dir>` | Write a pack from the end of the last archive to immutable storage, read it back and check it, record the archive, then prune through it (`--no-prune`, `--older-than-days`, `--until-sequence`, `--until`). Privileged key. Nothing is recorded or pruned when the write or the read-back fails. See {doc}`../operations/audit-and-retention` |
+| `genesis-mesh audit verify <dir> --anchor <root key> [--known-anchors <anchors>]` | Verify a pack offline from the root public key and the anchors you hold (without them: a warning, `no_held_anchors`; `--require-anchors` makes that a failure); `--prior <dir>` (repeatable) checks the entries the pack cites against packs verified before; `--period FROM UNTIL` fails when the pack does not cover it; `--report <file>` writes the report this verification renders; `--executor-keys` for a store without registry records; `--changes <csv or json>` matches a log kept outside Genesis Mesh (`--tolerance-seconds`, default 300); `--format json`. Exit code 1 when a check fails or a change has no record. See {doc}`../operations/audit-verification` |
+| `genesis-mesh audit archive --na <url> --to <dir>` | Write a pack from the end of the last archive to immutable storage, read it back, verify it (`--anchor <root key>`, default the pack's genesis block's), record the archive, then prune through it (`--no-prune`, `--older-than-days`, `--until-sequence`, `--until`). Privileged key. Nothing is recorded or pruned when the write or the read-back fails, or the pack read back does not verify (`--force` records it anyway). See {doc}`../operations/audit-and-retention` |
 | `genesis-mesh na succession history --na <url> --out <file>` | Save the NA's key history for the offline signing step |
 | `genesis-mesh na succession sign --history <file> --root-key <file> --new-public-key <key> --new-key-id <id> --effective-at <time> --out <file>` | Offline: verify the history from the root key, then sign the next NA key's succession with it (`--effective-in <seconds>` instead of `--effective-at`; `--valid-days`, default 365) |
-| `genesis-mesh na succession submit --na <url> --file <file>` | Record the root-signed succession; the NA countersigns it with its current key. Privileged key. See {doc}`../operations/key-succession` |
+| `genesis-mesh na succession prove --file <file> --new-key <file> --out <file>` | Where the new NA key lives: sign the succession with it, proving it is held (`--env-file <settings>` uses the key provider of the NA settings instead of a key file). The NA refuses a succession without it |
+| `genesis-mesh na succession submit --na <url> --file <file>` | Record the succession the root key and the new key signed; the NA countersigns it with its current key. Privileged key. See {doc}`../operations/key-succession` |
 | `genesis-mesh na doctor --env-file <file>` | Check an NA host against its settings: the root private key absent from where the NA's files live, the NA key valid now (and for how long), archives required. `--format json`. Exit code 1 when a check fails |
 
 `genesis-mesh init` warns that it writes the root private key next to the NA
@@ -233,7 +234,9 @@ Verify a Network Authority database (SQLite or PostgreSQL) after a restore or
 migration. It checks that boundary policies match their stored digests, that
 CRL sequences have no gaps with only the highest one active, and that the
 evidence store is an unbroken hash chain. With `--genesis` it also checks
-every evidence signature.
+every evidence signature, each NA signature with the key valid at the
+entry's time: the NA key history in the database is verified from the
+genesis block's root key, never taken from its rows alone (v1.5.0).
 
 ```bash
 genesis-mesh na verify-db --database-url "$DATABASE_URL" --genesis genesis.signed.json

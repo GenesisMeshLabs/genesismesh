@@ -81,6 +81,18 @@ changes and revocation reach a holder.
 
 - The edge agent (Stage 6).
 
+### Candidates from Stage 4 (to confirm or defer)
+
+- **Inclusion proofs for an audit pack's cited entries.** A 1.5.0 pack's
+  cited entries are checked for authenticity, and tied to the store only by
+  the packs an auditor verified before (`audit verify --prior`) or an anchor
+  at their exact position; one neither covers is the warning
+  `cited_entry_unanchored`. Anchors over a Merkle tree of the store (a root
+  in each anchor, an inclusion proof per cited entry in the pack, pack format
+  version 2) would prove each cited entry against the held anchors alone. It
+  changes `StoreAnchor`, a stable signed artifact, so it needs a new anchor
+  version alongside the current one.
+
 ## Security notes
 
 - A grant is pre-authorisation: short validity, closed envelopes and budgets

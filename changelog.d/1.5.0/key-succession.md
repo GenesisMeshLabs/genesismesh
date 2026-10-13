@@ -1,16 +1,22 @@
 ### Added
 
 - **NA key succession.** A `KeySuccessionRecord` names the Network Authority's next key, signed by the root
-  key (kept offline) and by the outgoing NA key; the genesis key and the successions are the NA's key history
+  key (kept offline), by the new key (proof that it is held) and by the outgoing NA key; the genesis key and the successions are the NA's key history
   (`GET /na/key-history`). The store, exports, anchors, retention checkpoints, audit packs, agreement trust
   (treaties and NA-issued attestations and agreements) and the verify routes accept an NA signature by the key
   valid at the record's own time, so records signed before and after a succession keep verifying. Record one
-  with `genesis-mesh na succession history`, `sign` (offline, with the root key file) and `submit`
+  with `genesis-mesh na succession history`, `sign` (offline, with the root key file), `prove` (where the new
+  key lives) and `submit`
   (`POST /admin/na/succession`, privileged); the NA countersigns it and, with the evidence store on, records a
   `key_succession` entry. From the succession's `effective_at` the outgoing key signs nothing
-  (`503 na_key_succeeded`), and the NA refuses to start with a key that is not valid now.
+  (`503 na_key_succeeded`); an instance may start with the new key before then, signs nothing and reports not
+  ready until it takes effect.
 - `genesis-mesh evidence verify-export --key-history <file> --root-key <key>` verifies an export across a
-  succession; `na verify-db` places each key of the database's key history in time.
+  succession; `na verify-db --genesis <file>` verifies the database's key history from the genesis block's
+  root key and places each key in time.
+- Mesh nodes follow the key history: they read `GET /na/key-history`, adopt it when it verifies from the root
+  key their genesis block names, cache it, and check join certificates, policies and CRLs with the NA key
+  valid at each one's `issued_at`.
 - `/sovereign.json` adds `signing_key` and `network_authority.valid_to_enforced`, and links the key history.
 
 ### Security
@@ -30,5 +36,3 @@
 - Verifiers before 1.5 refuse the `key_succession` and `archive` entry kinds (`unknown_entry_kind`); the NA
   writes them only when an operator records a succession or an archive. Upgrade the SDKs and tools that read
   your exports first.
-- Mesh nodes verify join certificates and CRLs against the genesis block's key and do not read the key
-  history yet: re-enrol them after a succession.
