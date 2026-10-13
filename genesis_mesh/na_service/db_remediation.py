@@ -80,14 +80,15 @@ class RemediationStoreMixin:
 
     def list_remediation_states(
         self, states: Sequence[str], *, review_pending: bool = False, after: tuple[str, str] | None = None,
-        limit: int = 100,
+        limit: int = 100, open_only: bool = False,
     ) -> list[dict[str, Any]]:
         """States in ``states`` (or, with ``review_pending``, also any state with a pending review),
-        oldest first by (created_at, subject_id), after a cursor."""
+        oldest first by (created_at, subject_id), after a cursor. ``open_only`` (v1.5.0) leaves out
+        a remediated change whose review is still pending: nothing is left to do about it."""
         marks = ", ".join("?" for _ in states)
         match = [f"state IN ({marks})"] if states else []
         if review_pending:
-            match.append("review_pending = 1")
+            match.append("(review_pending = 1 AND state <> 'remediated')" if open_only else "review_pending = 1")
         clauses = ["(" + " OR ".join(match) + ")"]
         params: list[Any] = list(states)
         if after is not None:
