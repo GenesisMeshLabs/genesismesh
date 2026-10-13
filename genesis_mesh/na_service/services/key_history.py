@@ -55,11 +55,6 @@ REFRESH_SECONDS = 30.0
 #: The migration that creates the key history table.
 KEY_HISTORY_SCHEMA = 17
 
-_CONFLICT_REASONS = (
-    "succession_sovereign_mismatch", "succession_chain_break", "succession_key_reused",
-    "succession_not_increasing", "succession_after_expiry",
-)
-
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -242,10 +237,20 @@ class KeyHistoryService:
             root_public_key=history.root_public_key, held_keys=history.all_keys(),
             require_previous_signature=False,
         )
-        if refusal in _CONFLICT_REASONS:
-            raise ConflictError(f"the succession does not continue the key history ({refusal})", code=refusal)
+        detail = f"the succession does not continue the key history ({refusal})"
+        if refusal == "succession_sovereign_mismatch":
+            raise ConflictError(detail, code="succession_sovereign_mismatch")
+        if refusal == "succession_chain_break":
+            raise ConflictError(detail, code="succession_chain_break")
+        if refusal == "succession_key_reused":
+            raise ConflictError(detail, code="succession_key_reused")
+        if refusal == "succession_not_increasing":
+            raise ConflictError(detail, code="succession_not_increasing")
+        if refusal == "succession_after_expiry":
+            raise ConflictError(detail, code="succession_after_expiry")
         if refusal == "succession_invalid_root_signature":
-            raise ValidationError("the succession is not signed by the root key", code=refusal)
+            raise ValidationError("the succession is not signed by the root key",
+                                  code="succession_invalid_root_signature")
         if refusal is not None:
             raise BadRequestError(f"the succession is not in its exact form ({refusal})", code="invalid_succession")
         effective = record.effective_at
