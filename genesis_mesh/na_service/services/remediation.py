@@ -575,7 +575,7 @@ class RemediationService:
     def queue(self, *, state: str | None, limit: str | None, after: str | None) -> dict[str, Any]:
         """``GET /admin/evidence/remediations``: states in ``state`` (a stored state, or
         ``review_pending`` for a pending review whatever the state; default: due, overdue and
-        waived, and any with a pending review), oldest first."""
+        waived, and any other with a pending review that is not remediated), oldest first."""
         self.require_enabled()
         if state is not None and state not in QUEUE_FILTERS:
             raise BadRequestError(f"state must be one of {', '.join(QUEUE_FILTERS)}", code="invalid_remediation_query")
@@ -595,7 +595,10 @@ class RemediationService:
             cursor = (stamp(at), subject)
         self.sweep()
         if state is None:
-            rows = self._db.list_remediation_states(list(OPEN_STATES), review_pending=True, after=cursor, limit=size)
+            # v1.5.0: a remediated change is settled, even with its review still pending (the
+            # comment at OPEN_STATES); state=review_pending still lists it.
+            rows = self._db.list_remediation_states(list(OPEN_STATES), review_pending=True, after=cursor, limit=size,
+                                                    open_only=True)
         elif state == "review_pending":
             rows = self._db.list_remediation_states([], review_pending=True, after=cursor, limit=size)
         else:

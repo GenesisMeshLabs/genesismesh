@@ -17,6 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
+| 1.4.x | Supported and rehearsed in CI, with the out-of-band and remediation records on. Read *Upgrading to 1.5* below first |
 | 1.3.x | Supported and rehearsed in CI, from 1.3.1 with the out-of-band records on. Read *Upgrading to 1.4* below first |
 | 1.1.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* below first |
 | 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
@@ -48,6 +49,55 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.5
+
+*Unreleased.*
+
+1.5 adds migration 017. On SQLite it rebuilds the evidence table once more
+(to accept the `key_succession` and `archive` entry kinds), with the same
+cost as in 1.4: one copy of the table on disk and the time the copy takes. On
+PostgreSQL the entry-kind constraint is changed in place under a lock that
+blocks evidence writes while it validates every stored entry. It also adds
+the NA key history and the archive records, both append-only. At its first
+start the NA records its genesis key as the first entry of the key history.
+A 1.5 database cannot be opened by 1.4: roll back by restoring the backup.
+
+- **Retention removes only what is archived.** `NA_RETENTION_REQUIRE_ARCHIVE`
+  is on by default: until you run `genesis-mesh audit archive` (or turn the
+  setting off, for local development only), `retention/apply` removes
+  nothing and answers `held_back` with `"reason": "not_archived"`. Set up
+  immutable storage first ({doc}`audit-and-retention`). Retention no longer
+  stops at a resource's latest record, and carries registry, key succession
+  and archive entries past its checkpoint with their first recorded time.
+- **Read-tier keys read the evidence store.** Every evidence store read
+  (search, status, verify, histories, resource heads, export, executor keys)
+  and the new audit pack route accept a `read` key; review which read keys
+  you have issued.
+- **New entry kinds.** `key_succession` and `archive` are written only when
+  you record a key succession or an archive. Verifiers before 1.5 refuse
+  them (`unknown_entry_kind`): upgrade the SDKs and tools that read your
+  exports first.
+- **The NA key's `valid_to` is still not enforced** for the genesis key; it
+  is for keys a succession names. Plan successions with
+  {doc}`key-succession`, and move the root key offline: `genesis-mesh na
+  doctor --env-file na.env` reports it, and `NA_DEPLOYMENT=managed` makes it
+  a start condition.
+- **`OPERATOR_KEY_HOLDERS_JSON` naming a key as its own holder** (`{"k":
+  "k"}`) is refused at start: such a key is unnamed and could take part in no
+  review. Remove the entry or name the holder.
+- **The default due queue** (`GET /admin/evidence/remediations` without
+  `state`) no longer lists remediated changes whose review is still pending;
+  `state=review_pending` still does.
+- **The store's time order is checked.** Verifiers refuse an entry recorded
+  more than 300 seconds before an entry stored ahead of it
+  (`recorded_at_out_of_order`), and the NA refuses to anchor such a tail:
+  keep the NA instances' clocks in step (NTP) before upgrading. Run
+  `genesis-mesh na verify-db --genesis genesis.json` after the upgrade.
+- **Decisions live at most 300 seconds** (`NA_DECISION_LIFETIME_SECONDS`, the
+  default): a longer setting is refused at start.
+- **A managed deployment needs archives**: `NA_DEPLOYMENT=managed` refuses to
+  start with `NA_RETENTION_REQUIRE_ARCHIVE=off`.
 
 ## Upgrading to 1.4
 

@@ -138,7 +138,8 @@ def _same_na(service, db_path: str, **overrides):
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
     settings = {"operator_public_keys": service.operator_public_keys, "operator_key_tiers": service.operator_key_tiers,
-                "evidence_store": "on", "evidence_out_of_band": "on", **overrides}
+                "evidence_store": "on", "evidence_out_of_band": "on",
+                "retention_require_archive": service.retention_require_archive, **overrides}
     restarted = NetworkAuthorityService(
         genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id,
         db_path=db_path, **settings,
@@ -522,6 +523,7 @@ def test_break_glass_records_must_be_authentic(client, clock):
 
 
 def test_a_refused_authentic_execution_record_is_quarantined_once(client, na_service, clock):
+    clock.at = datetime.now(timezone.utc)  # v1.5.0 review fixes: entries are recorded in time order
     controller = Controller(client)
     denied_decision = _decide(client, capability="secret.other")  # the attestation does not cover it
     assert denied_decision.authorized is False
@@ -712,6 +714,7 @@ def test_an_unjudged_record_stops_retention(clock, monkeypatch):
 
 
 def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, tmp_path, monkeypatch):
+    clock.at = datetime.now(timezone.utc)  # v1.5.0 review fixes: entries are recorded in time order
     """Migration 015 rebuilds the entries table (SQLite) or adds its columns (PostgreSQL); nothing a
     1.2 store held may change, and the backfill starts the policy history at the audit log's times."""
     import genesis_mesh.na_service.db as db_module

@@ -451,7 +451,7 @@ def verify_na_record(record: NaSigned, na_public_keys: Iterable[str]) -> bool:
 
 
 def entry_index(kind: str, record: Any) -> dict[str, Any]:
-    """Search fields of a Stage 2 (v1.4.0: or Stage 3) entry's envelope."""
+    """Search fields of a Stage 2 (v1.4.0: or Stage 3; v1.5.0: or Stage 4) entry's envelope."""
     if isinstance(record, ObservationRecord):
         return {"record_id": record.observation_id, "resource_id": record.resource_id,
                 "resource_action": record.action, "capability": record.capability,
@@ -477,4 +477,12 @@ def entry_index(kind: str, record: Any) -> dict[str, Any]:
         from .remediation import entry_index as stage3_index  # v1.4.0
 
         return stage3_index(record)
-    raise TypeError(f"not a Stage 2 or Stage 3 record: {kind}")
+    from ..models.audit_pack import ArchiveRecord
+    from ..models.key_succession import KeySuccessionRecord
+
+    # v1.5.0: Stage 4 entries carry their record's ID only.
+    if isinstance(record, KeySuccessionRecord):
+        return {"record_id": record.succession_id}
+    if isinstance(record, ArchiveRecord):
+        return {"record_id": record.archive_id}
+    raise TypeError(f"not a Stage 2, 3 or 4 record: {kind}")

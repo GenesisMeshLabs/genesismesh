@@ -44,9 +44,6 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     """Create boundary decision routes — decide, verify."""
     bp = Blueprint("boundary", __name__)
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -103,7 +100,8 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         except Exception as exc:
             raise BadRequestError("Invalid context record", code="invalid_context") from exc
 
-        engine = BoundaryEngine(operator_sovereign_id=service.genesis_block.network_name)
+        engine = BoundaryEngine(operator_sovereign_id=service.genesis_block.network_name,
+                                decision_valid_seconds=service.decision_lifetime_seconds)
         try:
             decision = engine.evaluate(
                 context,
@@ -139,12 +137,16 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         raw = data.get("decision")
         if not raw:
             raise BadRequestError("decision is required", code="missing_decision")
-        operator_keys = data.get("operator_public_keys") or [_pub_b64()]
+        supplied = data.get("operator_public_keys")
+        # v1.5.0: the NA's key history, read at the decision's time.
+        operator_keys = supplied or service.key_history.history()
         now = datetime.now(timezone.utc)
         # v1.2.0: after the signature's presence and the expiry, a record not
         # signed as received, with a field this release does not know, or not
         # in canonical form is refused, in every SDK's order.
-        refusal = decision_refusal(raw, operator_keys, now)
+        # v1.5.0 review fixes: the form checks with the key valid at the decision's own time.
+        made_at = raw.get("decision_made_at") if isinstance(raw, dict) else None
+        refusal = decision_refusal(raw, supplied or service.na_keys_for_record(made_at), now)
         if refusal:
             service.db.add_audit_event("boundary_decision_verified", {
                 "decision_id": raw.get("decision_id"), "accepted": False,

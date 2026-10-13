@@ -265,9 +265,9 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             policy = BoundaryPolicy.model_validate(raw)
         except ValidationError as exc:
             raise BadRequestError("Invalid policy object", code="invalid_policy") from exc
-        keys = data.get("issuer_public_keys") or [
-            service.signer.public_key_b64
-        ]
+        # v1.5.0 review fixes: the NA key valid when the policy was issued (the current key alone
+        # refused every policy issued before a succession).
+        keys = data.get("issuer_public_keys") or service.na_keys_for_record(policy.issued_at)
         if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
             raise BadRequestError("issuer_public_keys must be a list of strings", code="invalid_public_keys")
         result = verify_boundary_policy(policy, keys)

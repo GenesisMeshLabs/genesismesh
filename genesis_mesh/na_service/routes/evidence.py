@@ -40,9 +40,6 @@ def create_evidence_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     """Create trust evidence routes — build, verify."""
     bp = Blueprint("evidence", __name__)
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -131,7 +128,8 @@ def create_evidence_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         except Exception as exc:
             raise BadRequestError("Invalid evidence object", code="invalid_evidence") from exc
 
-        issuer_keys = data.get("issuer_public_keys") or [_pub_b64()]
+        # v1.5.0 review fixes: the NA key valid when the evidence was issued.
+        issuer_keys = data.get("issuer_public_keys") or service.na_keys_for_record(evidence.issued_at)
         expected_digest = data.get("expected_graph_digest")
         result = verify_trust_evidence(
             evidence,

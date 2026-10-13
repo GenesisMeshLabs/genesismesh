@@ -27,7 +27,15 @@ if (!result.verified) {
 }
 ```
 
-Supply trusted public keys independently of the export. Executor keys include
+Supply trusted public keys independently of the export. From 1.5.0
+`naPublicKeys` (and `operatorPublicKeys` for decisions) may be the NA's key
+history, verified from the root key: each record then verifies only with the
+key valid at its own time (`na_key_not_valid_at_time` otherwise), across key
+successions. A list of keys keeps the behaviour before 1.5.0. Anchors, audit
+packs and the key history are described in
+[Key succession, audit packs and independent verification](audit-packs.md).
+
+Executor keys include
 `key_id`, `public_key` and `executor_sovereign_id`. Retired keys remain useful for
 historical verification. Unknown keys and missing signatures fail verification.
 

@@ -35,6 +35,13 @@ class _StubNode:
         self.node_keypair = node_keypair
         self.join_certificate = join_certificate
 
+    def verify_na_signed(self, model, signatures, at):
+        """v1.5.0 review fixes: the node checks NA signatures through its key history (here the genesis key)."""
+        from genesis_mesh.crypto import verify_model_signature
+
+        key = self.genesis_block.network_authority.public_key
+        return any(verify_model_signature(model, sig, key) for sig in signatures)
+
 
 def _genesis(na_keypair) -> GenesisBlock:
     now = datetime.now(timezone.utc)

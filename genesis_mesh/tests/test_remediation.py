@@ -877,3 +877,41 @@ def test_a_denied_emergency_decision_is_cancelled_forward(client, na_service, cl
         at=clock.now()))
     assert done.status_code == 201, done.get_json()
     assert _offline(client, na_service)["verified"] is True
+
+
+# ---------------------------------------------------------------------------
+# v1.5.0: follow-ups from the 1.4 live smoke
+# ---------------------------------------------------------------------------
+
+
+def test_a_key_named_as_its_own_holder_is_refused_at_start(clock):
+    """A holder equal to its key ID is what the NA records for an unnamed key: every review would
+    be refused with review_needs_named_holder, so the NA refuses the setting at start."""
+    with pytest.raises(ValueError, match="own holder"):
+        _make_service(evidence_store="on", evidence_out_of_band="on",
+                      operator_key_holders={"operator-test": "operator-test"})
+    with pytest.raises(ValueError, match="own holder"):
+        _make_service(evidence_store="on", operator_key_holders={"operator-std": " operator-std "})
+    # A named holder is accepted.
+    assert _make_service(evidence_store="on", operator_key_holders={"operator-test": "bob"})
+
+
+def test_the_default_due_queue_leaves_out_a_remediated_change_with_a_pending_review(client, clock):
+    """The default queue is what is still to be done: due, overdue and waived changes, and other
+    changes with a pending review. A remediated change whose review is still pending is listed
+    only under state=review_pending (1.4.0 listed it by default)."""
+    _policy(client, guidance={"max-lifetime": {"mode": "alert_only", "grace_seconds": 600}})
+    clock.advance(minutes=2)
+    controller = Controller(client)
+    record, body = _denied_change(client, clock, Observer(client))
+    judgement = _judgement(body)
+    assert _request(client, judgement.judgement_id).status_code == 201
+    assert judgement.judgement_id in {i["subject_id"] for i in _queue(client)}
+    done = _submit_remediation(client, _remediation(
+        controller, subject_id=judgement.judgement_id, change_id=record.observation_id, outcome="alerted",
+        steps="none", at=clock.now()))
+    assert done.status_code == 201, done.get_json()
+    assert judgement.judgement_id not in {i["subject_id"] for i in _queue(client)}
+    pending = {i["subject_id"]: i for i in _queue(client, "review_pending")}
+    assert pending[judgement.judgement_id]["state"] == "remediated"
+    assert pending[judgement.judgement_id]["review_pending"] is True

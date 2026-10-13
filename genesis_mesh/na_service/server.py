@@ -5,7 +5,7 @@ import logging
 import socket
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from flask import Flask
 from werkzeug.routing import PathConverter
@@ -34,11 +34,18 @@ from .auth import (
 from .db import NADatabase, expected_schema_version
 from .db_policy import CrlSequenceConflict
 from .errors import ConflictError, register_error_handlers
-from .key_provider import KeyProviderConfig, Signer, as_signer, load_signer
+from .key_provider import GuardedSigner, KeyProviderConfig, Signer, as_signer, load_signer
 from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, RateLimits
-from .services import BoundaryPolicyService, EvidenceStoreService, OutOfBandService, RemediationService
+from .services import (
+    AuditPackService,
+    BoundaryPolicyService,
+    EvidenceStoreService,
+    OutOfBandService,
+    RemediationService,
+)
 from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.agreement_trust import AgreementTrust
+from .services.key_history import KeyHistoryService
 from .services.boundary_policy import ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
@@ -55,6 +62,7 @@ from .routes import (
     create_evidence_blueprint,
     create_evidence_store_blueprint,
     create_health_blueprint,
+    create_key_history_blueprint,
     create_public_blueprint,
     create_treaty_blueprint,
     create_out_of_band_blueprint,
@@ -129,6 +137,8 @@ class NetworkAuthorityService:
         remediation_default_mode: str = "alert_only",
         review_max_waiver_seconds: int = 30 * 24 * 3600,
         review_actor_holders: Optional[dict[str, str]] = None,
+        retention_require_archive: bool = True,
+        decision_lifetime_seconds: int = 300,
     ):
         """
         Initialize the Network Authority service.
@@ -193,12 +203,17 @@ class NetworkAuthorityService:
                 (v1.4.0; at most 90 days).
             review_actor_holders: observed actor -> holder, for refusing a
                 review decided by the holder of the change's actor (v1.4.0).
+            retention_require_archive: retention removes nothing an archive
+                record does not cover (v1.5.0, on by default; off only for
+                local development).
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
         # remains as an alias so existing callers keep working; it is the
-        # Signer, never the raw key.
-        self.signer = as_signer(na_private_key, key_id)
+        # Signer, never the raw key. v1.5.0: the signer asks the key history
+        # before each signature whether its key may still sign.
+        self.key_history = KeyHistoryService(self)
+        self.signer = GuardedSigner(as_signer(na_private_key, key_id), self.key_history.check_can_sign)
         self.na_private_key = self.signer
         self.key_id = key_id
         if ha_mode not in HA_MODES:
@@ -287,6 +302,14 @@ class NetworkAuthorityService:
         )
         self.review_max_waiver_seconds = review_max_waiver_seconds
         self.review_actor_holders = dict(review_actor_holders or {})
+        self.retention_require_archive = bool(retention_require_archive)
+        # v1.5.0 review fixes: the lifetime of the decisions this NA issues, at most
+        # MAX_DECISION_LIFETIME (verifiers refuse a decision outliving its key by more).
+        from ..models.key_succession import MAX_DECISION_LIFETIME
+
+        if not 1 <= int(decision_lifetime_seconds) <= int(MAX_DECISION_LIFETIME.total_seconds()):
+            raise ValueError(f"NA_DECISION_LIFETIME_SECONDS must be 1 to {int(MAX_DECISION_LIFETIME.total_seconds())}")
+        self.decision_lifetime_seconds = int(decision_lifetime_seconds)
         self.operator_key_holders = dict(operator_key_holders or {})
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
@@ -296,9 +319,20 @@ class NetworkAuthorityService:
                              if not isinstance(v, str) or not 1 <= len(v.strip()) <= 128 or len(v) > 128)
         if bad_holders:
             raise ValueError(f"operator key holders must be names of 1 to 128 characters: {bad_holders}")
+        # v1.5.0: a key named as its own holder is unnamed (it is what the NA records for a key
+        # without a holder), so every review it takes part in would be refused with
+        # review_needs_named_holder. Refused at start instead of accepted silently.
+        self_named = sorted(k for k, v in self.operator_key_holders.items() if v.strip() == k)
+        if self_named:
+            raise ValueError(
+                f"operator key holders name a key as its own holder, which leaves it unnamed: {self_named}; "
+                "name the person or team that holds each key (OPERATOR_KEY_HOLDERS_JSON), or leave the key out"
+            )
         self.evidence_store_service = EvidenceStoreService(self)
         self.out_of_band_service = OutOfBandService(self)
         self.remediation_service = RemediationService(self)
+        # v1.5.0: audit packs and archives.
+        self.audit_pack_service = AuditPackService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
         # this NA trusts (services/agreement_trust.py).
         self.agreements = AgreementTrust(self)
@@ -314,10 +348,9 @@ class NetworkAuthorityService:
                 logger.error("Invalid genesis signature from key %s", sig.key_id)
                 raise ValueError("Genesis block signature verification failed")
 
-        na_pub_b64 = genesis_block.network_authority.public_key
-        our_pub_b64 = self.signer.public_key_b64
-        if na_pub_b64 != our_pub_b64:
-            raise ValueError("NA private key does not match genesis block")
+        # v1.5.0: the NA key is the genesis block's, or one a recorded succession named and valid now
+        # (the key history, from the root key down; the genesis key is recorded at the first start).
+        self.key_history.ensure()
 
         self.app = Flask(__name__)
         # A path parameter may start with "/": a base64 node key does about 1
@@ -363,9 +396,39 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_evidence_store_blueprint(self))
         self.app.register_blueprint(create_out_of_band_blueprint(self))
         self.app.register_blueprint(create_remediation_blueprint(self))
+        self.app.register_blueprint(create_key_history_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
         self.app.register_blueprint(create_data_usage_blueprint(self))
+
+    def na_public_keys_at(self, at: Optional[datetime] = None) -> list[str]:
+        """The NA public keys a record dated ``at`` may be signed with (v1.5.0; every key of the
+        history when ``at`` is None)."""
+        history = self.key_history.history()
+        return history.keys_at(at) if at is not None else history.all_keys()
+
+    def na_keys_for_record(self, at: Any) -> list[str]:
+        """The NA keys a record may carry, at its own signed time (v1.5.0 review fixes): what the
+        verify routes use when the caller supplies no keys. ``at`` is a datetime or the record's
+        raw time; a record without a readable time gets the key signing now."""
+        moment = at
+        if isinstance(at, str):
+            try:
+                moment = datetime.fromisoformat(at.replace("Z", "+00:00"))
+            except ValueError:
+                moment = None
+        if not isinstance(moment, datetime):
+            return [self.signer.public_key_b64]
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return self.na_public_keys_at(moment)
+
+    def na_keys_vouching(self, at: Any, now: Optional[datetime] = None) -> list[str]:
+        """The NA keys valid at a record's signed time and still accepted now (v1.5.0 review fixes): an
+        agreement this NA signed vouches only while the key that signed it does, since its
+        ``established_at`` is not signed and its ``agreed_terms.valid_from`` is chosen by the signer."""
+        current = set(self.na_public_keys_at(now or datetime.now(timezone.utc)))
+        return [k for k in self.na_keys_for_record(at) if k in current]
 
     def _validate_roles(self, roles: list[str]) -> tuple[bool, str | None]:
         """
@@ -549,6 +612,12 @@ class NetworkAuthorityService:
             db_info["error"] = type(exc).__name__
         checks["database"] = db_info
         checks["signing_key"] = self.signer.describe()
+        # v1.5.0 review fixes: an instance started with a new key before its succession takes
+        # effect, or whose key was succeeded or expired, signs nothing: not ready.
+        signing_state = self.key_history.signing_state()
+        checks["na_key"] = signing_state
+        if signing_state["state"] != "signing":
+            ready = False
         checks["rate_limiter"] = self.rate_limiter.store
         if not self.genesis_block:
             ready = False
@@ -585,6 +654,8 @@ def create_app(
     remediation_default_mode: str = "alert_only",
     review_max_waiver_seconds: int = 30 * 24 * 3600,
     review_actor_holders: Optional[dict[str, str]] = None,
+    retention_require_archive: bool = True,
+    decision_lifetime_seconds: int = 300,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -615,6 +686,8 @@ def create_app(
         remediation_default_mode=remediation_default_mode,
         review_max_waiver_seconds=review_max_waiver_seconds,
         review_actor_holders=review_actor_holders,
+        retention_require_archive=retention_require_archive,
+        decision_lifetime_seconds=decision_lifetime_seconds,
     )
     return service.app
 

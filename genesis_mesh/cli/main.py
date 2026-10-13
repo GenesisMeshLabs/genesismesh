@@ -294,7 +294,8 @@ def info(genesis):
     click.echo(f"\nNetwork Authority:")
     click.echo(f"  Public Key:  {genesis_block.network_authority.public_key[:32]}...")
     click.echo(f"  Valid From:  {genesis_block.network_authority.valid_from}")
-    click.echo(f"  Valid To:    {genesis_block.network_authority.valid_to}")
+    click.echo(f"  Valid To:    {genesis_block.network_authority.valid_to} (shown, not enforced: the genesis "
+               "key signs until a key succession replaces it; see /na/key-history)")
     click.echo(f"\nCrypto Suites: {', '.join(genesis_block.allowed_crypto_suites)}")
     click.echo(f"Transports:    {', '.join(genesis_block.allowed_transports)}")
     click.echo(f"\nBootstrap Anchors ({len(genesis_block.bootstrap_anchors)}):")

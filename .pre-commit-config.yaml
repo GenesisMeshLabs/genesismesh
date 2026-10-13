@@ -14,10 +14,11 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: \.svg$
+        # Frozen audit pack fixtures are byte-exact: their manifest holds their digests.
+        exclude: (\.svg$|^conformance/fixtures/)
         stages: [pre-commit]
       - id: end-of-file-fixer
-        exclude: \.svg$
+        exclude: (\.svg$|^conformance/fixtures/)
         stages: [pre-commit]
       - id: check-yaml
         # Module invocation avoids Windows blocking the generated launcher.

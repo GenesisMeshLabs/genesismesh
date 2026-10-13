@@ -13,10 +13,7 @@ operational event on a running Network Authority or sovereign.
 
 monitoring
 audit-export
-evidence-anchors
-out-of-band-changes
-remediation-and-reviews
-emergency-changes
+governed-changes-and-audit
 incident-response
 backup-restore
 upgrade
@@ -44,36 +41,13 @@ Healthz, readyz, metrics, and external uptime checks.
 Exporting trust-decision events for downstream review or SIEM ingest.
 :::
 
-:::{grid-item-card} Evidence Anchors
-:link: evidence-anchors
+:::{grid-item-card} Governed Changes and Audit
+:link: governed-changes-and-audit
 :link-type: doc
 
-Signed store anchors, and how an auditor keeps copies that prove nothing was
-removed from the evidence store.
-:::
-
-:::{grid-item-card} Changes Outside the Controlled Path
-:link: out-of-band-changes
-:link-type: doc
-
-Observers, break-glass, judgements and quarantine: how changes made outside
-governed actions are recorded and judged.
-:::
-
-:::{grid-item-card} Remediation and Reviews
-:link: remediation-and-reviews
-:link-type: doc
-
-What a judged DENY leads to: remediation guidance, due times, the cancel
-pair, reviews by a second holder, waivers and notices.
-:::
-
-:::{grid-item-card} Emergency Changes and Break-Glass
-:link: emergency-changes
-:link-type: doc
-
-Urgent changes under an ordinary DENY, or while the NA does not answer: the
-emergency capability and break-glass.
+Evidence anchors, changes outside the controlled path, remediation and
+reviews, emergency changes, audit packs, archive before prune, verification
+and NA key succession.
 :::
 
 :::{grid-item-card} Incident Response Runbooks

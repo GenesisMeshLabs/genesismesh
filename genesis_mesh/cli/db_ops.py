@@ -22,6 +22,14 @@ def _na_public_key(genesis_path: Optional[Path]) -> Optional[str]:
     return genesis.network_authority.public_key
 
 
+def _genesis(genesis_path: Optional[Path]) -> Optional[dict]:
+    """The signed genesis block as written (v1.5.0 review fixes: the key history is verified from it)."""
+    if genesis_path is None:
+        return None
+    data = json.loads(genesis_path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else None
+
+
 def _sqlite_path(value: str) -> str:
     return sqlite_path_from_url(value) if value.startswith("sqlite:") else value
 
@@ -43,7 +51,8 @@ def migrate_db(source: str, target: str, genesis_path: Optional[Path], report_pa
     if not is_postgres_url(target):
         raise click.ClickException("--to must be a postgresql:// URL")
     try:
-        report = migrate_sqlite_to_postgres(_sqlite_path(source), target, na_public_key=_na_public_key(genesis_path))
+        report = migrate_sqlite_to_postgres(_sqlite_path(source), target, na_public_key=_na_public_key(genesis_path),
+                                            genesis=_genesis(genesis_path))
     except (MigrationError, DatabaseConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
     text = json.dumps(report, indent=2)
@@ -77,7 +86,7 @@ def verify_db(database_url: Optional[str], db_path: Optional[str], genesis_path:
     except DatabaseConfigError as exc:
         raise click.ClickException(str(exc)) from exc
     try:
-        report = verify_database(db, _na_public_key(genesis_path))
+        report = verify_database(db, _na_public_key(genesis_path), genesis=_genesis(genesis_path))
     finally:
         db.close()
     click.echo(json.dumps({"database": db.db_path, **report.to_dict()}, indent=2))

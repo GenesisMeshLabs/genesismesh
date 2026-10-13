@@ -159,7 +159,18 @@ fields, the same for both parties: `agreed_terms`, `graph_digest`,
 `responder_sovereign_id`.
 
 From 1.2.0 on, every optional field added to a signed record is omitted from
-its signed form when absent, and listed here.
+its signed form when absent, and listed here. The records of 1.3.0 and later
+(the Stage 2 to 4 records) omit every optional top-level field when absent;
+the registry lists them per record (`omit_when_none`).
+
+Since 1.5.0 the registry also describes the records of the NA's key history
+and of audit packs: `GenesisBlock` (signed by the root key; `signatures` is
+outside its signed form), `KeySuccessionRecord` (signed by the root key, the
+new NA key and the outgoing NA key, all in `signatures`;
+`previous_succession_digest` omitted when absent), `ArchiveRecord` and
+`AuditPackManifest` (signed by the NA; the manifest's `period_from` and
+`period_until` omitted when absent), and `RecognitionTreaty` (which a pack
+carries). See {doc}`audit-pack-format`.
 
 ## Unknown fields
 
@@ -188,7 +199,16 @@ know every signed field:
   takes its place in the chain;
 - when evidence verification finds a field outside a record's signature
   (records stored as submitted before 1.1.1), it reports it as the warning
-  `unsigned_field` and verifies the rest, as received (1.3.1).
+  `unsigned_field` and verifies the rest, as received (1.3.1). A decision, a
+  justification proof and execution evidence are otherwise accepted; a
+  retention checkpoint and every entry kind since 1.3.0 are read strictly, so
+  the record is also `payload_invalid` (see {doc}`evidence-event-schema`);
+- since 1.5.0 every signed record an audit pack carries (the manifest,
+  policies, attestations, treaties, feeds, as well as the store's records) is
+  checked as received, never over a form rebuilt from a model that fills in
+  defaults or drops fields it does not define. `RecognitionTreaty` is a
+  registry root for that reason; the genesis block is held to the same rules
+  as every root (`unknown_field`, `non_canonical_form`).
 
 The Python reference applies the same rules where it reads raw JSON: the
 verification routes (`/boundary/verify`, `/agreements/verify`,

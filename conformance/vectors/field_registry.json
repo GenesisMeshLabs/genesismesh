@@ -4,11 +4,13 @@
   "registry": {
     "version": 2,
     "entry_kinds": [
+      "archive",
       "break_glass",
       "decision",
       "execution",
       "judgement",
       "justification",
+      "key_succession",
       "observation",
       "quarantine",
       "registry",
@@ -78,6 +80,30 @@
           "version": null
         }
       },
+      "ArchiveRecord": {
+        "fields": {
+          "archive_id": null,
+          "archived_at": "timestamp",
+          "end_anchor_sequence": null,
+          "from_sequence": null,
+          "issued_by": null,
+          "issuer_sovereign_id": null,
+          "location": null,
+          "manifest_sha256": null,
+          "pack_id": null,
+          "recorded_by": null,
+          "signature": {
+            "object": "Signature"
+          },
+          "through_entry_digest": null,
+          "through_sequence": null
+        },
+        "root": true,
+        "signature_field": "signature",
+        "omit_when_none": [
+          "recorded_by"
+        ]
+      },
       "AttestationBinding": {
         "fields": {
           "attestation_digest": null,
@@ -85,6 +111,43 @@
           "issuer_sovereign_id": null,
           "revocation_seq_checked": null,
           "subject_id": null
+        }
+      },
+      "AuditPackManifest": {
+        "fields": {
+          "created_at": "timestamp",
+          "end_anchor_sequence": null,
+          "files": {
+            "list": "PackFile"
+          },
+          "format": null,
+          "format_version": null,
+          "from_sequence": null,
+          "issued_by": null,
+          "pack_id": null,
+          "period_from": "timestamp",
+          "period_until": "timestamp",
+          "requested_by": null,
+          "signature": {
+            "object": "Signature"
+          },
+          "sovereign_id": null,
+          "start_anchor_sequence": null,
+          "through_sequence": null
+        },
+        "root": true,
+        "signature_field": "signature",
+        "omit_when_none": [
+          "requested_by",
+          "start_anchor_sequence",
+          "period_from",
+          "period_until"
+        ]
+      },
+      "BootstrapAnchor": {
+        "fields": {
+          "endpoint": null,
+          "id": null
         }
       },
       "BoundaryDecision": {
@@ -381,6 +444,29 @@
           "result": null
         }
       },
+      "GenesisBlock": {
+        "fields": {
+          "allowed_crypto_suites": null,
+          "allowed_transports": null,
+          "bootstrap_anchors": {
+            "list": "BootstrapAnchor"
+          },
+          "network_authority": {
+            "object": "NetworkAuthority"
+          },
+          "network_name": null,
+          "network_version": null,
+          "policy_manifest": {
+            "object": "PolicyManifestRef"
+          },
+          "root_public_key": null,
+          "signatures": {
+            "list": "Signature"
+          }
+        },
+        "root": true,
+        "signature_field": "signatures"
+      },
       "JudgementRecord": {
         "fields": {
           "action": null,
@@ -445,6 +531,29 @@
         "root": true,
         "signature_field": "signature"
       },
+      "KeySuccessionRecord": {
+        "fields": {
+          "effective_at": "timestamp",
+          "issued_at": "timestamp",
+          "key_sequence": null,
+          "new_key_id": null,
+          "new_public_key": null,
+          "new_valid_to": "timestamp",
+          "previous_key_id": null,
+          "previous_public_key": null,
+          "previous_succession_digest": null,
+          "signatures": {
+            "list": "Signature"
+          },
+          "sovereign_id": null,
+          "succession_id": null
+        },
+        "root": true,
+        "signature_field": "signatures",
+        "omit_when_none": [
+          "previous_succession_digest"
+        ]
+      },
       "MembershipAttestation": {
         "fields": {
           "attestation_id": null,
@@ -464,6 +573,13 @@
         },
         "root": true,
         "signature_field": "signatures"
+      },
+      "NetworkAuthority": {
+        "fields": {
+          "public_key": null,
+          "valid_from": "timestamp",
+          "valid_to": "timestamp"
+        }
       },
       "ObservationRecord": {
         "fields": {
@@ -495,6 +611,13 @@
           "version_id"
         ]
       },
+      "PackFile": {
+        "fields": {
+          "bytes": null,
+          "path": null,
+          "sha256": null
+        }
+      },
       "PolicyBinding": {
         "fields": {
           "context_digest": null,
@@ -520,6 +643,12 @@
           "passed": null,
           "policy_id": null,
           "policy_version": null
+        }
+      },
+      "PolicyManifestRef": {
+        "fields": {
+          "hash": null,
+          "url": null
         }
       },
       "PolicySelector": {
@@ -553,6 +682,35 @@
         "omit_when_none": [
           "resource_id"
         ]
+      },
+      "RecognitionTreaty": {
+        "fields": {
+          "expires_at": "timestamp",
+          "issued_at": "timestamp",
+          "issued_by": null,
+          "issuer_sovereign_id": null,
+          "metadata": "open",
+          "scope": {
+            "object": "RecognitionTreatyScope"
+          },
+          "signatures": {
+            "list": "Signature"
+          },
+          "status": null,
+          "subject_public_keys": null,
+          "subject_sovereign_id": null,
+          "treaty_id": null,
+          "valid_from": "timestamp"
+        },
+        "root": true,
+        "signature_field": "signatures"
+      },
+      "RecognitionTreatyScope": {
+        "fields": {
+          "accepted_statuses": null,
+          "allowed_roles": null,
+          "claims": "open"
+        }
       },
       "RegistryRecord": {
         "fields": {
@@ -1474,6 +1632,238 @@
       },
       "expected": {
         "unknown_fields": []
+      }
+    },
+    {
+      "id": "archiverecord-clean",
+      "kind": "unknown_fields",
+      "description": "ArchiveRecord as the reference emits it",
+      "model": "ArchiveRecord",
+      "record": {
+        "archive_id": "00000000-0000-4000-8000-000000000003",
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "from_sequence": 1,
+        "through_sequence": 20,
+        "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "end_anchor_sequence": 3,
+        "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "archived_at": "2026-01-01T00:00:00Z",
+        "recorded_by": "operator-1",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "archiverecord-top",
+      "kind": "unknown_fields",
+      "description": "ArchiveRecord with an unknown top-level field",
+      "model": "ArchiveRecord",
+      "record": {
+        "archive_id": "00000000-0000-4000-8000-000000000003",
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "from_sequence": 1,
+        "through_sequence": 20,
+        "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "end_anchor_sequence": 3,
+        "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "archived_at": "2026-01-01T00:00:00Z",
+        "recorded_by": "operator-1",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "archiverecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "ArchiveRecord",
+      "record": {
+        "archive_id": "00000000-0000-4000-8000-000000000003",
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "from_sequence": 1,
+        "through_sequence": 20,
+        "through_entry_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "end_anchor_sequence": 3,
+        "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "location": "archive://audit-archive/packs/00000000-0000-4000-8000-000000000002",
+        "archived_at": "2026-01-01T00:00:00Z",
+        "recorded_by": "operator-1",
+        "issuer_sovereign_id": "sovereign-c",
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "7U3o07NptpzgVwCBQx7Md++0yjetL6Xw4J+KElOIt88eC4pPYOKagq77rfzWwArAC0CHHhTs0CJjcQwiCRTGDQ==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "auditpackmanifest-clean",
+      "kind": "unknown_fields",
+      "description": "AuditPackManifest as the reference emits it",
+      "model": "AuditPackManifest",
+      "record": {
+        "format": "gm.audit.pack",
+        "format_version": 1,
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "sovereign_id": "sovereign-c",
+        "created_at": "2026-01-01T00:00:00Z",
+        "requested_by": "auditor-1",
+        "from_sequence": 10,
+        "through_sequence": 20,
+        "start_anchor_sequence": 2,
+        "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
+        "files": [
+          {
+            "path": "entries.jsonl",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 1024
+          }
+        ],
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "auditpackmanifest-top",
+      "kind": "unknown_fields",
+      "description": "AuditPackManifest with an unknown top-level field",
+      "model": "AuditPackManifest",
+      "record": {
+        "format": "gm.audit.pack",
+        "format_version": 1,
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "sovereign_id": "sovereign-c",
+        "created_at": "2026-01-01T00:00:00Z",
+        "requested_by": "auditor-1",
+        "from_sequence": 10,
+        "through_sequence": 20,
+        "start_anchor_sequence": 2,
+        "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
+        "files": [
+          {
+            "path": "entries.jsonl",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 1024
+          }
+        ],
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
+        },
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "auditpackmanifest-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "AuditPackManifest",
+      "record": {
+        "format": "gm.audit.pack",
+        "format_version": 1,
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "sovereign_id": "sovereign-c",
+        "created_at": "2026-01-01T00:00:00Z",
+        "requested_by": "auditor-1",
+        "from_sequence": 10,
+        "through_sequence": 20,
+        "start_anchor_sequence": 2,
+        "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
+        "files": [
+          {
+            "path": "entries.jsonl",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 1024
+          }
+        ],
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw==",
+          "alg": "x"
+        }
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "auditpackmanifest-nested-files",
+      "kind": "unknown_fields",
+      "description": "AuditPackManifest.files (PackFile) with an unknown field",
+      "model": "AuditPackManifest",
+      "record": {
+        "format": "gm.audit.pack",
+        "format_version": 1,
+        "pack_id": "00000000-0000-4000-8000-000000000002",
+        "sovereign_id": "sovereign-c",
+        "created_at": "2026-01-01T00:00:00Z",
+        "requested_by": "auditor-1",
+        "from_sequence": 10,
+        "through_sequence": 20,
+        "start_anchor_sequence": 2,
+        "end_anchor_sequence": 3,
+        "period_from": "2025-12-02T00:00:00Z",
+        "period_until": "2026-01-01T00:00:00Z",
+        "files": [
+          {
+            "path": "entries.jsonl",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 1024,
+            "x_added_field": 1
+          }
+        ],
+        "issued_by": "na-key",
+        "signature": {
+          "key_id": "na-key",
+          "sig": "eJyyF3gU0Hq9ZSYiGYuJKRzkvyiUUYZ/5ikCF05cDKnIRFBZVt6w9Wz5XRsbN27xsknQ2XMpLSB7Wivnzeo4Cw=="
+        }
+      },
+      "expected": {
+        "unknown_fields": [
+          "files.0.x_added_field"
+        ]
       }
     },
     {
@@ -3772,6 +4162,277 @@
       }
     },
     {
+      "id": "genesisblock-clean",
+      "kind": "unknown_fields",
+      "description": "GenesisBlock as the reference emits it",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z"
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy"
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433"
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "genesisblock-top",
+      "kind": "unknown_fields",
+      "description": "GenesisBlock with an unknown top-level field",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z"
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy"
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433"
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA=="
+          }
+        ],
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "genesisblock-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z"
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy"
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433"
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA==",
+            "alg": "x"
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "genesisblock-nested-bootstrap_anchors",
+      "kind": "unknown_fields",
+      "description": "GenesisBlock.bootstrap_anchors (BootstrapAnchor) with an unknown field",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z"
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy"
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433",
+            "x_added_field": 1
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": [
+          "bootstrap_anchors.0.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "genesisblock-nested-network_authority",
+      "kind": "unknown_fields",
+      "description": "GenesisBlock.network_authority (NetworkAuthority) with an unknown field",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z",
+          "x_added_field": 1
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy"
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433"
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": [
+          "network_authority.x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "genesisblock-nested-policy_manifest",
+      "kind": "unknown_fields",
+      "description": "GenesisBlock.policy_manifest (PolicyManifestRef) with an unknown field",
+      "model": "GenesisBlock",
+      "record": {
+        "network_name": "sovereign-c",
+        "network_version": "v1",
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "network_authority": {
+          "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_to": "2027-01-01T00:00:00Z"
+        },
+        "allowed_crypto_suites": [
+          "ed25519",
+          "x25519"
+        ],
+        "allowed_transports": [
+          "quic",
+          "wireguard"
+        ],
+        "policy_manifest": {
+          "hash": "sha256:conformance",
+          "url": "https://na.example/policy",
+          "x_added_field": 1
+        },
+        "bootstrap_anchors": [
+          {
+            "id": "anchor-1",
+            "endpoint": "anchor.example:4433"
+          }
+        ],
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "FYuWMPuU4vPkc35VvP78Q/unNeNATncw5Eb2FfCdf+/mJ7vMWaJ0fD6Rdo7ui2dmGreCW6coRLBPWLRVQ1wOBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": [
+          "policy_manifest.x_added_field"
+        ]
+      }
+    },
+    {
       "id": "judgementrecord-clean",
       "kind": "unknown_fields",
       "description": "JudgementRecord as the reference emits it",
@@ -4633,6 +5294,118 @@
       }
     },
     {
+      "id": "keysuccessionrecord-clean",
+      "kind": "unknown_fields",
+      "description": "KeySuccessionRecord as the reference emits it",
+      "model": "KeySuccessionRecord",
+      "record": {
+        "succession_id": "00000000-0000-4000-8000-000000000001",
+        "sovereign_id": "sovereign-c",
+        "key_sequence": 2,
+        "previous_key_id": "na-key",
+        "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+        "previous_succession_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "new_key_id": "na-key-2",
+        "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+        "effective_at": "2026-01-31T00:00:00Z",
+        "new_valid_to": "2028-01-01T00:00:00Z",
+        "issued_at": "2026-01-30T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw=="
+          },
+          {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
+          },
+          {
+            "key_id": "na-key",
+            "sig": "xP/zmlthoioW5n28TxNI+euI462LC1XhT0qIuHtILxElIjzjS3hNF1ld78Ndlh7eJLR9EKr9vd9T7Fz+8Q7lBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "keysuccessionrecord-top",
+      "kind": "unknown_fields",
+      "description": "KeySuccessionRecord with an unknown top-level field",
+      "model": "KeySuccessionRecord",
+      "record": {
+        "succession_id": "00000000-0000-4000-8000-000000000001",
+        "sovereign_id": "sovereign-c",
+        "key_sequence": 2,
+        "previous_key_id": "na-key",
+        "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+        "previous_succession_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "new_key_id": "na-key-2",
+        "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+        "effective_at": "2026-01-31T00:00:00Z",
+        "new_valid_to": "2028-01-01T00:00:00Z",
+        "issued_at": "2026-01-30T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw=="
+          },
+          {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
+          },
+          {
+            "key_id": "na-key",
+            "sig": "xP/zmlthoioW5n28TxNI+euI462LC1XhT0qIuHtILxElIjzjS3hNF1ld78Ndlh7eJLR9EKr9vd9T7Fz+8Q7lBA=="
+          }
+        ],
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "keysuccessionrecord-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "KeySuccessionRecord",
+      "record": {
+        "succession_id": "00000000-0000-4000-8000-000000000001",
+        "sovereign_id": "sovereign-c",
+        "key_sequence": 2,
+        "previous_key_id": "na-key",
+        "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+        "previous_succession_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "new_key_id": "na-key-2",
+        "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+        "effective_at": "2026-01-31T00:00:00Z",
+        "new_valid_to": "2028-01-01T00:00:00Z",
+        "issued_at": "2026-01-30T00:00:00Z",
+        "signatures": [
+          {
+            "key_id": "root-key",
+            "sig": "ybjj9on3bFORKeHplRl7NbRtRvW0/zI14CVJySKTXmFe8Q3ct0HrK85H25RCAZgnbQ0K+Ha7p5UL6lF1I2mUBw==",
+            "alg": "x"
+          },
+          {
+            "key_id": "na-key-2",
+            "sig": "FXKGJISs8h7lEN6DXyFg9VLtg6OBGYoaaZvG10rh0lzBH2VUc9qnpV5Ta7qrb+jsg6BydZGh5FiLX5NWPsl5Bg=="
+          },
+          {
+            "key_id": "na-key",
+            "sig": "xP/zmlthoioW5n28TxNI+euI462LC1XhT0qIuHtILxElIjzjS3hNF1ld78Ndlh7eJLR9EKr9vd9T7Fz+8Q7lBA=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
       "id": "membershipattestation-clean",
       "kind": "unknown_fields",
       "description": "MembershipAttestation as the reference emits it",
@@ -5109,6 +5882,214 @@
       },
       "expected": {
         "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-clean",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty as the reference emits it",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-top",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty with an unknown top-level field",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ],
+        "x_added_field": 1
+      },
+      "expected": {
+        "unknown_fields": [
+          "x_added_field"
+        ]
+      }
+    },
+    {
+      "id": "recognitiontreaty-signature-extra",
+      "kind": "unknown_fields",
+      "description": "A field on the signature itself is outside the signed form",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ==",
+            "alg": "x"
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-open-metadata",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty.metadata is free-form: added keys are kept",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {}
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich",
+          "x_added_key": 1
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": []
+      }
+    },
+    {
+      "id": "recognitiontreaty-nested-scope",
+      "kind": "unknown_fields",
+      "description": "RecognitionTreaty.scope (RecognitionTreatyScope) with an unknown field",
+      "model": "RecognitionTreaty",
+      "record": {
+        "treaty_id": "00000000-0000-4000-8000-000000000003",
+        "issuer_sovereign_id": "sovereign-c",
+        "subject_sovereign_id": "sovereign-b",
+        "subject_public_keys": [
+          "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc="
+        ],
+        "scope": {
+          "allowed_roles": [
+            "role:anchor"
+          ],
+          "accepted_statuses": [
+            "active"
+          ],
+          "claims": {},
+          "x_added_field": 1
+        },
+        "status": "active",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "issued_by": "na-key",
+        "metadata": {
+          "note": "Z\u00fcrich"
+        },
+        "signatures": [
+          {
+            "key_id": "na-key",
+            "sig": "fT4ve2ulEXAYKD/n6mqRi7aTQTPScpfPZfdhCGSYXoJq5L5dtf1CBS7K/NiwJTSI/GVwFJIKEbfeDu2D4IYpDQ=="
+          }
+        ]
+      },
+      "expected": {
+        "unknown_fields": [
+          "scope.x_added_field"
+        ]
       }
     },
     {
@@ -7137,6 +8118,15 @@
       }
     },
     {
+      "id": "entry-kind-archive",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'archive'",
+      "entry_kind": "archive",
+      "expected": {
+        "known": true
+      }
+    },
+    {
       "id": "entry-kind-break_glass",
       "kind": "entry_kind",
       "description": "Export entry kind 'break_glass'",
@@ -7177,6 +8167,15 @@
       "kind": "entry_kind",
       "description": "Export entry kind 'justification'",
       "entry_kind": "justification",
+      "expected": {
+        "known": true
+      }
+    },
+    {
+      "id": "entry-kind-key_succession",
+      "kind": "entry_kind",
+      "description": "Export entry kind 'key_succession'",
+      "entry_kind": "key_succession",
       "expected": {
         "known": true
       }

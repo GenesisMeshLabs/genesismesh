@@ -48,9 +48,6 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def _sovereign_id() -> str:
         return service.genesis_block.network_name
 
-    def _pub_b64() -> str:
-        return service.signer.public_key_b64
-
     def _rate_key(prefix: str) -> str:
         return f"{prefix}:{request.remote_addr or 'unknown'}"
 
@@ -267,10 +264,13 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             raise BadRequestError("agreement is required", code="missing_agreement")
         graph = service.db.export_recognition_graph()
         expected_digest = graph_digest_from_export(graph) if not offerer_keys else None
+        # v1.5.0 review fixes: by default the NA keys valid at the agreement's signed time
+        # (agreed_terms.valid_from) and still accepted now.
+        terms = raw.get("agreed_terms") if isinstance(raw, dict) else None
+        own_keys = service.na_keys_vouching(terms.get("valid_from") if isinstance(terms, dict) else None)
         # v1.2.0: the signatures over the agreement as received, the graph,
         # unknown fields and the canonical form, in every SDK's order.
-        refusal = agreement_refusal(raw, offerer_keys or [_pub_b64()], responder_keys or [_pub_b64()],
-                                    expected_digest)
+        refusal = agreement_refusal(raw, offerer_keys or own_keys, responder_keys or own_keys, expected_digest)
         if refusal:
             service.db.add_audit_event("agreement_verified", {
                 "agreement_id": raw.get("agreement_id"), "accepted": False,
@@ -282,8 +282,8 @@ def create_agreement_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             raise BadRequestError("Invalid agreement object", code="invalid_agreement") from exc
         result = verify_agreement(
             agreement,
-            offerer_public_keys=offerer_keys or [_pub_b64()],
-            responder_public_keys=responder_keys or [_pub_b64()],
+            offerer_public_keys=offerer_keys or own_keys,
+            responder_public_keys=responder_keys or own_keys,
             expected_graph_digest=expected_digest,
         )
         service.db.add_audit_event("agreement_verified", {

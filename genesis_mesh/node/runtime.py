@@ -450,10 +450,11 @@ class MeshNodeRuntime:
             return
 
         crl = CertificateRevocationList.model_validate(response.json())
-        issuer_key = self._get_public_key(crl.issuer)
-        if not issuer_key or not crl.signatures:
+        if not crl.signatures:
             raise ValueError("CRL is missing issuer key or signature")
-        if not verify_model_signature(crl, crl.signatures[0], issuer_key):
+        # v1.5.0 review fixes: by the NA key valid when it was issued, from the NA's key history.
+        await asyncio.to_thread(self.node.refresh_key_history, self.na_endpoint)
+        if not self.node.verify_na_signed(crl, crl.signatures, crl.issued_at):
             raise ValueError("CRL signature verification failed")
         self.crl_gossip.set_crl(crl)
 
@@ -466,10 +467,18 @@ class MeshNodeRuntime:
         return self.peer_identity.noise_keypair()
 
     def _get_public_key(self, key_id: str) -> Optional[str]:
-        """Resolve known key IDs to public keys for signature verification."""
+        """Resolve known key IDs to public keys for signature verification.
+
+        v1.5.0 review fixes: an NA key ID or public key of the NA's key history
+        (verified from the root key) resolves to that key.
+        """
+        for key in reversed(self.node.key_history.keys):
+            if key_id in (key.key_id, key.public_key):
+                return key.public_key
         local_cert = self.node.join_certificate
         if local_cert and key_id == local_cert.issued_by:
-            return self.node.genesis_block.network_authority.public_key
+            signer = next((k for k in self.node.na_keys_at(local_cert.issued_at)), None)
+            return signer or self.node.genesis_block.network_authority.public_key
         if key_id == self.node.genesis_block.network_authority.public_key:
             return self.node.genesis_block.network_authority.public_key
         if key_id == "na-2025-q1":

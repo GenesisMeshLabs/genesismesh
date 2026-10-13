@@ -323,7 +323,10 @@ Operator keys are mapped to holders from `OPERATOR_KEY_HOLDERS_JSON`
 (`{"key-id": "holder"}`, each holder a string of 1 to 128 characters) when
 the store first runs with `EVIDENCE_OUT_OF_BAND=on`, the first start that
 records any holder. A key without an entry is its own holder (unnamed).
-After that first start the configuration names no holder (since 1.3.1): a
+Since 1.5.0 the NA refuses to start when an entry names a key as its own
+holder (`{"k": "k"}`): that is the unnamed holder, and every review the key
+took part in would be refused with `review_needs_named_holder`. Name the
+person or team, or leave the key out. After that first start the configuration names no holder (since 1.3.1): a
 key added later, and a key whose public key changes under the same key ID,
 is recorded unnamed until a holder change names its holder, and a change
 takes two holders. A key whose tier changes keeps its holder. The NA logs a

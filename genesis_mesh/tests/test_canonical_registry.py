@@ -43,6 +43,8 @@ FREE_FORM = {
     ("RetentionCheckpoint", "observation_heads"),
     # v1.4.0: an operator's signed admin request, kept whole in a review.
     ("AdminApproval", "body"), ("AdminApproval", "query"),
+    # v1.5.0 review fixes: the treaty, a root because packs carry it.
+    ("RecognitionTreaty", "metadata"), ("RecognitionTreatyScope", "claims"),
 }
 
 
@@ -145,8 +147,8 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 
 def test_entry_kinds_are_the_models(registry):
     assert registry["entry_kinds"] == [
-        "break_glass", "decision", "execution", "judgement", "justification", "observation", "quarantine",
-        "registry", "remediation", "retention_checkpoint", "review",
+        "archive", "break_glass", "decision", "execution", "judgement", "justification", "key_succession",
+        "observation", "quarantine", "registry", "remediation", "retention_checkpoint", "review",
     ]
 
 
