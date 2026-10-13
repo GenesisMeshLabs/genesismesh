@@ -114,10 +114,10 @@ class BoundaryPolicyService:
     def enforcement(self) -> str:
         return self._na.boundary_policy_enforcement
 
-    def policy_public_keys(self) -> list[str]:
-        return [
-            self._na.signer.public_key_b64
-        ]
+    def policy_public_keys(self, at: datetime | None = None) -> list[str]:
+        """The NA keys its records verify with: the key valid at ``at`` (v1.5.0, the key history), or
+        every key of the history."""
+        return self._na.na_public_keys_at(at)
 
     # -- intent -> policy ---------------------------------------------------
 
@@ -417,7 +417,7 @@ class BoundaryPolicyService:
         basis = assess_attestation_basis(
             attestation_id,
             attestation,
-            issuer_public_keys=self.policy_public_keys(),
+            issuer_public_keys=self.policy_public_keys(attestation.issued_at if attestation is not None else None),
             stored_status=row["status"] if row else None,
             feed_revoked=feed_revoked,
             revocation_seq_checked=seq,

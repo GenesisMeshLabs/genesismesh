@@ -24,13 +24,15 @@ HA mode refuses ``file`` so several hosts cannot quietly share key files.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from pathlib import Path
+from typing import Any, Callable, Iterable, Optional
 
 import nacl.encoding
 import nacl.signing
@@ -90,6 +92,26 @@ class Signer:
 
     def __repr__(self) -> str:
         return f"Signer(key_id={self.key_id!r}, provider={self.provider!r}, fingerprint={self.fingerprint[:16]}…)"
+
+
+class GuardedSigner(Signer):
+    """A signer that asks before each signature whether its key may still sign (v1.5.0).
+
+    After a key succession takes effect, or once a succeeded-to key's
+    enforced validity ends, an NA instance still holding the old key must
+    not sign: ``check`` raises (``503 na_key_succeeded`` or
+    ``na_key_expired``) and nothing is signed.
+    """
+
+    __slots__ = ("_check",)
+
+    def __init__(self, signer: Signer, check: Callable[[], None]) -> None:
+        super().__init__(signer._key, signer.key_id, signer.provider)
+        self._check = check
+
+    def sign(self, message: bytes) -> nacl.signing.SignedMessage:
+        self._check()
+        return super().sign(message)
 
 
 def _seed_from_text(text: str) -> nacl.signing.SigningKey:
@@ -229,3 +251,70 @@ def as_signer(key: "Signer | nacl.signing.SigningKey", key_id: str) -> Signer:
     if isinstance(key, nacl.signing.SigningKey):
         return Signer(key, key_id, "file")
     raise TypeError("na_private_key must be a Signer or nacl.signing.SigningKey")
+
+
+# ---------------------------------------------------------------------------
+# Root key custody (v1.5.0)
+# ---------------------------------------------------------------------------
+#
+# The root key signs the genesis block and every NA key succession. Whoever
+# holds it and the NA key can replace the NA's key history, so in a managed
+# deployment it stays offline and never on the NA host. ``genesis-mesh init``
+# still writes one next to the NA key for local use, and says so.
+# ``root_key_findings`` looks where an NA's files live (the directories of the
+# genesis block, the NA key and the database, and their ``keys/``
+# subdirectories) for a private key whose public key is the genesis block's
+# root key. ``NA_DEPLOYMENT=managed`` refuses to start when it finds one, and
+# ``genesis-mesh na doctor`` reports it. It cannot prove the key is nowhere on
+# the host: it checks where ``init`` and the deployment guides put keys. It
+# lives here because only the key provider reads private key material.
+
+#: Files larger than this are not key files.
+MAX_KEY_FILE_BYTES = 4096
+
+def _public_key_of(path: Path) -> str | None:
+    """The base64 public key of a file holding a base64 Ed25519 seed, or None."""
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_KEY_FILE_BYTES:
+            return None
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    body = "".join(line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#"))
+    try:
+        seed = base64.b64decode(body, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    if len(seed) != 32:
+        return None
+    key = nacl.signing.SigningKey(seed)
+    return key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode("utf-8")
+
+
+def root_key_findings(root_public_key: str, *, na_public_key: str, paths: Iterable[str | Path | None]) -> list[str]:
+    """Where the root private key is found on this host (empty when nowhere checked).
+
+    ``paths`` are the NA's files (genesis block, NA key file, database); their
+    directories and those directories' ``keys/`` subdirectories are searched,
+    one level deep.
+    """
+    findings: list[str] = []
+    if na_public_key == root_public_key:
+        findings.append("the NA signing key is the root key")
+    directories: list[Path] = []
+    for value in paths:
+        if not value:
+            continue
+        directory = Path(value).resolve().parent
+        for candidate in (directory, directory / "keys"):
+            if candidate.is_dir() and candidate not in directories:
+                directories.append(candidate)
+    for directory in directories:
+        try:
+            files = sorted(directory.iterdir())
+        except OSError:
+            continue
+        for path in files:
+            if _public_key_of(path) == root_public_key:
+                findings.append(f"the root private key is in {path}")
+    return findings

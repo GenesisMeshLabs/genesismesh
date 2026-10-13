@@ -62,10 +62,13 @@ OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
 
 
 def _out_of_band_omissions() -> dict[str, tuple[str, ...]]:
+    from .audit_pack import AUDIT_OMIT_WHEN_NONE
+    from .key_succession import KEY_SUCCESSION_OMIT_WHEN_NONE
     from .out_of_band import OUT_OF_BAND_OMIT_WHEN_NONE
     from .remediation import REMEDIATION_OMIT_WHEN_NONE
 
-    return {**OUT_OF_BAND_OMIT_WHEN_NONE, **REMEDIATION_OMIT_WHEN_NONE}
+    return {**OUT_OF_BAND_OMIT_WHEN_NONE, **REMEDIATION_OMIT_WHEN_NONE, **AUDIT_OMIT_WHEN_NONE,
+            "KeySuccessionRecord": KEY_SUCCESSION_OMIT_WHEN_NONE}
 
 #: Roots signed over a fixed list of fields rather than all of them.
 CANONICAL_FIELDS: dict[str, tuple[str, ...]] = {
@@ -109,12 +112,15 @@ def canonical_timestamp(value: str) -> bool:
 
 def _roots() -> list[type[BaseModel]]:
     from .agreement import AgreementRecord
+    from .audit_pack import ArchiveRecord, AuditPackManifest
     from .boundary_policy import BoundaryPolicy
     from .context import BoundaryDecision, ContextRecord
     from .data_usage import DataAccessIntent, DataLicensePolicy
     from .evidence_store import EvidenceStoreEntry, RetentionCheckpoint, StoreAnchor
     from .execution import ExecutionEvidence
+    from .genesis import GenesisBlock
     from .justification import JustificationProof
+    from .key_succession import KeySuccessionRecord
     from .out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord
     from .remediation import RemediationRecord, ReviewRecord
     from .sovereign import MembershipAttestation, SovereignRevocationFeed
@@ -124,6 +130,9 @@ def _roots() -> list[type[BaseModel]]:
         DataLicensePolicy, EvidenceStoreEntry, ExecutionEvidence, JudgementRecord, JustificationProof,
         MembershipAttestation, ObservationRecord, QuarantineRecord, RegistryRecord, RemediationRecord,
         RetentionCheckpoint, ReviewRecord, SovereignRevocationFeed, StoreAnchor,
+        # v1.5.0 (Stage 4): the key history (the genesis block the root key signs, and successions),
+        # archive records and pack manifests.
+        ArchiveRecord, AuditPackManifest, GenesisBlock, KeySuccessionRecord,
     ]
 
 

@@ -84,9 +84,9 @@ def _treaty_trust_keys(
       (``recognized_issuer_keys``).
     """
     own_id = service.genesis_block.network_name
-    own_key = service.genesis_block.network_authority.public_key
     if treaty.issuer_sovereign_id == own_id:
-        if supplied is not None and set(supplied) != {own_key}:
+        # v1.5.0: its own key is the key of its history valid when it issued the treaty.
+        if supplied is not None and not set(supplied) <= set(service.na_public_keys_at(None)):
             raise RequestValidationError(
                 "A treaty issued by this Network Authority verifies only against its own key",
                 code="caller_keys_not_accepted",
@@ -94,7 +94,7 @@ def _treaty_trust_keys(
         stored = service.db.get_recognition_treaty(treaty.treaty_id)
         if stored is None or _json_model(stored["treaty"]) != _json_model(treaty):
             return [], "this_authority", "not_held"
-        return [own_key], "this_authority", None
+        return service.na_public_keys_at(treaty.issued_at), "this_authority", None
     if supplied is not None:
         return supplied, "caller_supplied_keys", None
     pinned = _pinned_issuer_keys(service, treaty.issuer_sovereign_id)

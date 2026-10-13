@@ -9,6 +9,7 @@ from typing import Any, Literal, Sequence
 from ...crypto import verify_model_signature
 from ...models.boundary_policy import BoundaryPolicy, policy_set_digest
 from ...models.context import BoundaryDecision
+from ...models.key_succession import NAKeyHistory, na_keys_at
 from ...models.sovereign import MembershipAttestation
 
 BoundaryDecisionVerificationReason = Literal[
@@ -31,6 +32,8 @@ BoundaryDecisionVerificationReason = Literal[
     "attestation_binding_missing",
     "unknown_field",
     "non_canonical_form",
+    # v1.5.0: signed by a key of the NA's history, but not the one valid when the decision was made.
+    "na_key_not_valid_at_time",
 ]
 
 
@@ -63,14 +66,23 @@ class BoundaryDecisionVerificationResult:
 
 def verify_boundary_decision(
     decision: BoundaryDecision,
-    operator_public_keys: list[str],
+    operator_public_keys: Sequence[str] | NAKeyHistory,
     *,
     freshness_proof_issuer_keys: list[str] | None = None,
     now: datetime | None = None,
     expected_policies: Sequence[BoundaryPolicy] | None = None,
     expected_attestation: MembershipAttestation | None = None,
+    at_record_time: bool = False,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and expiry.
+
+    ``at_record_time`` (v1.5.0) judges the decision as of its own time
+    (``decision_made_at``) rather than now: an archived decision, verified in
+    an audit years later, was valid when it was made and used, and its expiry
+    since then says nothing against it. ``operator_public_keys`` may be the
+    NA's key history (v1.5.0): the decision must be signed by the key valid
+    at ``decision_made_at`` (``na_key_not_valid_at_time`` for another key of
+    the history).
 
     When freshness_proof_issuer_keys is provided and the decision embeds a
     FreshnessProof, also verifies the proof's signature and validity at
@@ -85,7 +97,7 @@ def verify_boundary_decision(
     AttestationBinding naming that attestation, its subject and issuer, with a
     digest equal to the attestation's canonical signed body.
     """
-    ts = _utc(now or datetime.now(timezone.utc))
+    ts = _utc(decision.decision_made_at) if at_record_time else _utc(now or datetime.now(timezone.utc))
 
     def _reject(reason: BoundaryDecisionVerificationReason) -> BoundaryDecisionVerificationResult:
         return BoundaryDecisionVerificationResult(
@@ -97,7 +109,11 @@ def verify_boundary_decision(
     # v1.3.1: a timestamp without an offset compares as UTC (it raised TypeError before).
     if ts > _utc(decision.decision_valid_until):
         return _reject("decision_expired")
-    if not any(verify_model_signature(decision, decision.signature, pub) for pub in operator_public_keys):
+    keys = na_keys_at(operator_public_keys, _utc(decision.decision_made_at))
+    if not any(verify_model_signature(decision, decision.signature, pub) for pub in keys):
+        others = [k for k in na_keys_at(operator_public_keys, None) if k not in keys]
+        if any(verify_model_signature(decision, decision.signature, pub) for pub in others):
+            return _reject("na_key_not_valid_at_time")
         return _reject("invalid_signature")
 
     if decision.freshness_proof is not None and freshness_proof_issuer_keys:

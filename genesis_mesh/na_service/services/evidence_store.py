@@ -33,6 +33,7 @@ from ...models.evidence_store import (
     payload_digest,
 )
 from ...models.execution import RESOURCE_CHAIN_FIELDS, ExecutionEvidence
+from ...models.key_succession import NAKeyHistory
 from ...models.justification import JustificationProof
 from ...trust.evidence_store import (
     EvidenceVerification,
@@ -144,8 +145,9 @@ class EvidenceStoreService:
         if not self.enabled:
             raise NotFoundError("The evidence store is not enabled", code="evidence_store_disabled")
 
-    def na_public_keys(self) -> list[str]:
-        return [self._na.signer.public_key_b64]
+    def na_public_keys(self) -> NAKeyHistory:
+        """The NA's key history (v1.5.0): records verify against the key valid at their time."""
+        return self._na.key_history.history()
 
     @staticmethod
     def key_from_row(row: Any) -> ExecutorKey:
@@ -864,38 +866,68 @@ class EvidenceStoreService:
     RETENTION_LEASE = "evidence-retention"
     RETENTION_LEASE_TTL_SECONDS = 300
 
-    def apply_retention(self, older_than_days: Any, applied_by: str) -> dict[str, Any]:
+    def apply_retention(self, older_than_days: Any, applied_by: str, through_sequence: Any = None) -> dict[str, Any]:
         """Remove a verifiable prefix of the store older than the cut-off.
 
         Runs under a job lease, so with several NA instances only one applies
         retention at a time; a concurrent request gets ``retention_in_progress``.
+
+        v1.5.0: ``through_sequence`` stops the prefix at a store position
+        (``older_than_days`` is then optional), and with
+        ``NA_RETENTION_REQUIRE_ARCHIVE`` on (the default) the prefix never goes
+        past what archive records cover.
         """
         self.require_enabled()
-        if isinstance(older_than_days, bool) or not isinstance(older_than_days, int) or older_than_days < 1:
+        if older_than_days is None and through_sequence is None:
+            raise BadRequestError("give older_than_days, through_sequence or both", code="invalid_retention")
+        if older_than_days is not None and (
+                isinstance(older_than_days, bool) or not isinstance(older_than_days, int) or older_than_days < 1):
             raise BadRequestError("older_than_days must be a positive integer", code="invalid_retention")
+        if through_sequence is not None and (
+                isinstance(through_sequence, bool) or not isinstance(through_sequence, int) or through_sequence < 1):
+            raise BadRequestError("through_sequence must be a positive integer", code="invalid_retention")
         # v1.3.0: an observation's dedupe key leaves with it, so the cut-off stays behind the
         # time bounds: an observation older than them is quarantined, never admitted again.
         # v1.3.1: a change may be dated up to twice the skew after it was recorded (observed
         # one skew after the change, recorded one skew before it was observed), so the floor
         # is the backlog plus twice the skew; and it holds while the store keeps such records
         # with EVIDENCE_OUT_OF_BAND off, since they can be submitted again once it is on.
+        # v1.5.0: with through_sequence alone the cut-off is that floor.
         oob = self._na.out_of_band_service
+        floor = timedelta(0)
         if oob.enabled or self._holds_out_of_band_records():
             floor = oob.bounds.max_backlog + 2 * oob.bounds.skew
-            if timedelta(days=older_than_days) <= floor:
+            if older_than_days is not None and timedelta(days=older_than_days) <= floor:
                 minimum = int(floor.total_seconds() // 86400) + 1
                 raise BadRequestError(
                     f"older_than_days must be at least {minimum}: observations within the backlog "
                     f"(NA_OBSERVATION_MAX_BACKLOG_SECONDS plus twice NA_OBSERVATION_CLOCK_SKEW_SECONDS) "
                     f"are kept", code="invalid_retention",
                 )
+        age = timedelta(days=older_than_days) if older_than_days is not None else floor
         holder = self._na.instance_id
         if not self._na.db.claim_lease(self.RETENTION_LEASE, holder, self.RETENTION_LEASE_TTL_SECONDS):
             raise ConflictError("Retention is already running on another instance", code="retention_in_progress")
         try:
-            return self._apply_retention(older_than_days, applied_by)
+            return self._apply_retention(older_than_days, age, through_sequence, applied_by)
         finally:
             self._na.db.release_lease(self.RETENTION_LEASE, holder)
+
+    # -- archives (v1.5.0) ------------------------------------------------------
+
+    def store_start(self) -> int:
+        """The first position the store holds: 1, or right after the latest retention checkpoint."""
+        cp = self._na.db.latest_retention_checkpoint()
+        return cp.removed_through_sequence + 1 if cp else 1
+
+    def archived_through(self) -> int:
+        """The last position an unbroken run of archive records covers from the store's start
+        (``store_start() - 1`` when none does)."""
+        covered = self.store_start() - 1
+        for row in self._na.db.list_archive_rows():
+            if int(row["from_sequence"]) <= covered + 1:
+                covered = max(covered, int(row["through_sequence"]))
+        return covered
 
     def _holds_out_of_band_records(self) -> bool:
         """True when the store holds records that carry a dedupe key bounded by time (v1.3.1)."""
@@ -982,9 +1014,14 @@ class EvidenceStoreService:
                        f"({count} in the store); {remedy}",
         }
 
-    def _apply_retention(self, older_than_days: int, applied_by: str) -> dict[str, Any]:
+    #: Kinds retention never removes (v1.3.0 registry; v1.5.0 key successions and archives): a removed
+    #: one is appended again unchanged, with the time it was first recorded, after the checkpoint.
+    CARRIED_KINDS = ("registry", "key_succession", "archive")
+
+    def _apply_retention(self, older_than_days: int | None, age: timedelta, through_sequence: int | None,
+                         applied_by: str) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
-        cutoff = now - timedelta(days=older_than_days)
+        cutoff = now - age
         rows = self._na.db.retention_candidates()
         valid_until: dict[str, datetime] = {}
         judged: set[tuple[str, str]] = set()
@@ -1034,16 +1071,30 @@ class EvidenceStoreService:
             )
             for r in rows
         ]
-        plan: dict[str, Any] = {"cutoff": cutoff, "now": now,
-                                "resource_latest": self._na.db.resource_latest_sequences()}
+        # v1.5.0: never past what the operator asked for, nor (by default) past what is archived.
+        archived = self.archived_through() if self._na.retention_require_archive else None
+        limits = [v for v in (through_sequence, archived) if v is not None]
+        plan: dict[str, Any] = {"cutoff": cutoff, "now": now, "through_sequence": min(limits) if limits else None}
         n = plan_retention(candidates, **plan)
         # v1.3.1: say when records not judged yet hold retention back, with the records on or off.
         held_back = self._held_back(candidates, n, rows, **plan)
+        if held_back is None and archived is not None \
+                and plan_retention(candidates, cutoff=cutoff, now=now, through_sequence=through_sequence) > n:
+            held_back = {
+                "reason": "not_archived",
+                "archived_through_sequence": archived,
+                "message": f"retention stops after entry {archived}, the last one an archive covers: archive the "
+                           "entries after it first (genesis-mesh audit archive), or set "
+                           "NA_RETENTION_REQUIRE_ARCHIVE=off for local development",
+            }
         if held_back is not None:
             logger.warning("evidence retention: %s", held_back["message"])
+        asked: dict[str, Any] = {"older_than_days": older_than_days}
+        if through_sequence is not None:
+            asked["through_sequence"] = through_sequence
         if n == 0:
             self._na.db.add_audit_event("evidence_retention_applied", {
-                "older_than_days": older_than_days, "removed_count": 0, "applied_by": applied_by,
+                **asked, "removed_count": 0, "applied_by": applied_by,
                 **({"held_back": held_back["reason"]} if held_back else {}),
             })
             return {"removed_count": 0, "checkpoint": None, **({"held_back": held_back} if held_back else {})}
@@ -1051,7 +1102,7 @@ class EvidenceStoreService:
         removed = [r for r in rows if int(r["store_sequence"]) <= n]
         heads: dict[str, ResourceHead] = {}
         observation_heads: dict[str, int] = {}
-        carried: list[tuple[dict[str, Any], str | None]] = []
+        carried: list[tuple[dict[str, Any], str | None, str, datetime]] = []
         for r in removed:
             if r["entry_kind"] == "execution" and r["resource_id"]:
                 record = ExecutionEvidence.model_validate(json.loads(r["payload_json"]))
@@ -1060,10 +1111,12 @@ class EvidenceStoreService:
                 )
             elif r["entry_kind"] == "observation" and r["resource_id"] and r["observation_sequence"]:
                 observation_heads[r["resource_id"]] = int(r["observation_sequence"])
-            elif r["entry_kind"] == "registry":
-                # v1.3.0: judgements replay the registry; a removed registry
-                # record is carried forward unchanged after the checkpoint.
-                carried.append((json.loads(r["payload_json"]), r["dedupe_key"]))
+            elif r["entry_kind"] in self.CARRIED_KINDS:
+                # v1.3.0: judgements replay the registry; a removed registry record is carried
+                # forward unchanged after the checkpoint. v1.5.0: key successions and archives
+                # too, each with the time it was first recorded, which its signature is judged at.
+                carried.append((json.loads(r["payload_json"]), r["dedupe_key"], r["entry_kind"],
+                                datetime.fromisoformat(r["recorded_at"])))
         previous = self._na.db.latest_retention_checkpoint()
         all_observation_heads = {**((previous.observation_heads or {}) if previous else {}), **observation_heads}
         checkpoint = sign_retention_checkpoint(
@@ -1082,11 +1135,14 @@ class EvidenceStoreService:
         )
         payload = json.loads(checkpoint.model_dump_json())
 
-        def carry(record: dict[str, Any], dedupe_key: str | None) -> Any:
-            index = {"record_id": record.get("registry_record_id"), "outcome": record.get("event")}
+        def carry(record: dict[str, Any], dedupe_key: str | None, kind: str, recorded_at: datetime) -> Any:
+            if kind == "registry":
+                index = {"record_id": record.get("registry_record_id"), "outcome": record.get("event")}
+            else:
+                index = {"record_id": record.get("succession_id" if kind == "key_succession" else "archive_id")}
             return (
-                lambda seq, prev, p=record, i=index: build_entry(
-                    store_sequence=seq, entry_kind="registry", recorded_at=now,
+                lambda seq, prev, p=record, i=index, k=kind, at=recorded_at: build_entry(
+                    store_sequence=seq, entry_kind=k, recorded_at=at,
                     payload=p, prev_entry_digest=prev, index=i,
                 ),
                 record,
@@ -1105,7 +1161,7 @@ class EvidenceStoreService:
                     store_sequence=seq, entry_kind="retention_checkpoint", recorded_at=now,
                     payload=payload, prev_entry_digest=prev, index={},
                 ),
-                carried=[carry(record, dedupe) for record, dedupe in carried],
+                carried=[carry(*item) for item in carried],
                 check=check,
             )
         except _RetentionRefused as exc:
@@ -1115,7 +1171,7 @@ class EvidenceStoreService:
                 "Retention cannot run over the evidence store: " + str(exc), code="evidence_retention_refused"
             ) from exc
         self._na.db.add_audit_event("evidence_retention_applied", {
-            "older_than_days": older_than_days,
+            **asked,
             "removed_through_sequence": n,
             "removed_count": len(removed),
             "checkpoint_id": checkpoint.checkpoint_id,

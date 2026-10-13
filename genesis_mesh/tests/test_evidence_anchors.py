@@ -215,7 +215,8 @@ def test_anchors_survive_retention_and_the_store_still_verifies(client, na_servi
     monkeypatch.setattr(svc, "datetime", Later)
     result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
     monkeypatch.undo()
-    assert result["removed_count"] == 3 + registry  # registry records are carried forward (v1.3.0)
+    # Registry records are carried forward (v1.3.0); v1.5.0: the latest record of the resource goes too.
+    assert result["removed_count"] == 6 + registry
     assert _anchors(client)[: len(before)] == before, "retention never removes or changes anchors"
     verified = _get(client, "/admin/evidence/verify").get_json()
     assert verified["verified"] is True, verified["failures"]

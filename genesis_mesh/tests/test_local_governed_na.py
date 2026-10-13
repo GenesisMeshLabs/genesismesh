@@ -26,6 +26,7 @@ from genesis_mesh.crypto import generate_keypair
 from genesis_mesh.na_service.app_factory import build_app
 from genesis_mesh.na_service.errors import RETRY_AFTER_SECONDS
 from genesis_mesh.na_service.rate_limit import DatabaseRateLimiter, RateLimiter, RateLimits
+from genesis_mesh.na_service.server import NetworkAuthorityService
 from genesis_mesh.na_service.settings import load_settings
 
 from .test_na_boundary_policy import _get, _headers, _make_service, _post
@@ -295,8 +296,17 @@ def test_the_database_store_throttles_across_instances(tmp_path):
     first = _client(rate_limits=RateLimits(admin_auth_failures=2), db_path=db_file, rate_limit_store="database")
     for i in range(2):
         assert _bad_admin(first, f"n{i}").status_code == 401
-    # A second NA on the same database sees the same failure count.
-    second = _client(rate_limits=RateLimits(admin_auth_failures=2), db_path=db_file, rate_limit_store="database")
+    # A second instance of the same NA on the same database sees the same failure count.
+    # (v1.5.0: a database belongs to one NA's key history; another genesis block is refused.)
+    service = first.service
+    second_service = NetworkAuthorityService(
+        genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id,
+        operator_public_keys=service.operator_public_keys, operator_key_tiers=service.operator_key_tiers,
+        rate_limits=RateLimits(admin_auth_failures=2), db_path=db_file, rate_limit_store="database",
+    )
+    second_service.app.config["TESTING"] = True
+    second = second_service.app.test_client()
+    second.environ_base["REMOTE_ADDR"] = "10.0.0.1"
     assert _bad_admin(second, "n9").status_code == 429
 
 

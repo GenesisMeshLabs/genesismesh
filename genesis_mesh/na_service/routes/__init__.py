@@ -15,6 +15,7 @@ from .evidence import create_evidence_blueprint
 from .evidence_store import create_evidence_store_blueprint
 from .out_of_band import create_out_of_band_blueprint
 from .health import create_health_blueprint
+from .key_history import create_key_history_blueprint
 from .public import create_public_blueprint
 from .remediation import create_remediation_blueprint
 from .treaties import create_treaty_blueprint
@@ -35,6 +36,7 @@ __all__ = [
     "create_evidence_store_blueprint",
     "create_out_of_band_blueprint",
     "create_health_blueprint",
+    "create_key_history_blueprint",
     "create_public_blueprint",
     "create_remediation_blueprint",
     "create_treaty_blueprint",

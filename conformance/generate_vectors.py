@@ -30,6 +30,9 @@ _SEEDS = {
     # v1.4.0: two operator keys of two holders (remediation.json)
     "d": bytes(range(96, 128)),   # 60..7f
     "e": bytes(range(128, 160)),  # 80..9f
+    # v1.5.0: a root key and the NA key that succeeds "c" (audit.json)
+    "f": bytes(range(160, 192)),  # a0..bf
+    "g": bytes(range(192, 224)),  # c0..df
 }
 KEYS: dict[str, nacl.signing.SigningKey] = {
     k: nacl.signing.SigningKey(seed) for k, seed in _SEEDS.items()
@@ -1011,6 +1014,7 @@ def _registry_samples() -> dict[str, dict]:
     return {
         **out_of_band,
         **_remediation_samples(),
+        **_audit_samples(),
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1134,6 +1138,46 @@ def _remediation_samples() -> dict[str, dict]:
         "RemediationRecord": remediation.model_copy(
             update={"signature": sign_model(remediation, KEYS["b"], "executor-b")}).to_wire(),
         "ReviewRecord": review.model_copy(update={"signature": sign_model(review, KEYS["c"], "na-key")}).to_wire(),
+    }
+
+
+def _audit_samples() -> dict[str, dict]:
+    """v1.5.0: one signed sample of each Stage 4 record, every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.audit_pack import ArchiveRecord, AuditPackManifest, PackFile
+    from genesis_mesh.models.genesis import BootstrapAnchor, GenesisBlock, NetworkAuthority, PolicyManifestRef
+    from genesis_mesh.models.key_succession import KeySuccessionRecord
+    from genesis_mesh.trust.key_succession import sign_succession
+
+    genesis = GenesisBlock(
+        network_name=SOV_C, network_version="v1", root_public_key=pub_b64("f"),
+        network_authority=NetworkAuthority(public_key=pub_b64("c"), valid_from=T0, valid_to=T1),
+        policy_manifest=PolicyManifestRef(hash="sha256:conformance", url="https://na.example/policy"),
+        bootstrap_anchors=[BootstrapAnchor(id="anchor-1", endpoint="anchor.example:4433")],
+    )
+    genesis.signatures.append(sign_model(genesis, KEYS["f"], "root-key"))
+    succession = KeySuccessionRecord(
+        succession_id=UUID1, sovereign_id=SOV_C, key_sequence=2, previous_key_id="na-key",
+        previous_public_key=pub_b64("c"), previous_succession_digest="8" * 64, new_key_id="na-key-2",
+        new_public_key=pub_b64("g"), effective_at=T0 + timedelta(days=30), new_valid_to=T1 + timedelta(days=365),
+        issued_at=T0 + timedelta(days=29),
+    )
+    succession = sign_succession(sign_succession(succession, KEYS["f"], "root-key"), KEYS["c"], "na-key")
+    manifest = AuditPackManifest(
+        pack_id=UUID2, sovereign_id=SOV_C, created_at=T0, requested_by="auditor-1", from_sequence=10,
+        through_sequence=20, start_anchor_sequence=2, end_anchor_sequence=3,
+        files=[PackFile(path="entries.jsonl", sha256="a" * 64, bytes=1024)], issued_by="na-key",
+    )
+    archive = ArchiveRecord(
+        archive_id=UUID3, pack_id=UUID2, from_sequence=1, through_sequence=20, through_entry_digest="b" * 64,
+        end_anchor_sequence=3, manifest_sha256="c" * 64, location="s3://audit-archive/packs/" + UUID2,
+        archived_at=T0, recorded_by="operator-1", issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    return {
+        "GenesisBlock": genesis.model_dump(mode="json"),
+        "KeySuccessionRecord": succession.to_wire(),
+        "AuditPackManifest": manifest.model_copy(update={"signature": sign_model(manifest, KEYS["c"], "na-key")}).to_wire(),
+        "ArchiveRecord": archive.model_copy(update={"signature": sign_model(archive, KEYS["c"], "na-key")}).to_wire(),
     }
 
 
