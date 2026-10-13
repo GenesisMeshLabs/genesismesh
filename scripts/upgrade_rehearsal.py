@@ -18,7 +18,9 @@
    policy history is backfilled from the past release's audit log, every
    record and decision is checked through the current HTTP routes and offline
    verifiers, an observation is judged and its remediation recorded, then the
-   resource chain is extended. A past release with out-of-band records (1.3+)
+   resource chain is extended. Since 1.5, the genesis key is the first entry of
+   the key history and an audit pack of the whole store verifies offline from
+   the root key and the anchors. A past release with out-of-band records (1.3+)
    populates with them on and records an observation and its judgement, so a
    1.3 store with its Stage 2 records is upgraded; that judgement is not
    remediated when the remediation records are turned on.
@@ -416,6 +418,29 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
     history = api.admin("GET", f"/admin/evidence/resources/{RESOURCE}").get_json()
     check("resource history verifies", history.get("verification", {}).get("verified") is True,
           history.get("verification"))
+
+    # 1.5: the genesis key is the first entry of the key history, and an audit pack of the whole
+    # store, written by the past release and this one, verifies offline from the root key and the
+    # anchors an auditor would hold.
+    from genesis_mesh.models.audit_pack import MANIFEST_FILE, AuditPackManifest
+    from genesis_mesh.models.evidence_store import StoreAnchor
+    from genesis_mesh.workflows.audit_pack import verify_audit_pack
+
+    view = api.client.get("/na/key-history").get_json()
+    check("the genesis key is the first entry of the key history", [k["public_key"] for k in view["keys"]]
+          == [na_key] and view["keys"][0]["valid_to_enforced"] is False, view.get("keys"))
+    api.admin("POST", "/admin/evidence/anchors", {})
+    pack = api.admin("POST", "/admin/evidence/audit-pack", {})
+    if pack.status_code != 200:
+        check("an audit pack of the upgraded store is written", False, pack.get_json())
+    else:
+        body = pack.get_json()
+        files = {path: text.encode("utf-8") for path, text in body["files"].items()}
+        files[MANIFEST_FILE] = AuditPackManifest.model_validate(body["manifest"]).file_bytes()
+        held = [StoreAnchor.model_validate(a) for a in api.expect(
+            api.admin("GET", "/admin/evidence/anchors?limit=1000"), 200)["anchors"]]
+        result = verify_audit_pack(files, root_public_key=state["genesis"]["root_public_key"], held_anchors=held)
+        check("an audit pack of the upgraded store verifies offline", result.verified, result.failures)
     service.db.close()
     return failures
 
