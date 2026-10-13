@@ -160,17 +160,32 @@
     },
     {
       "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/admin/evidence/archives",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/evidence/audit-pack",
+      "level": "beta"
+    },
+    {
+      "methods": [
         "POST"
       ],
       "path": "/admin/evidence/break-glass/<break_glass_id>/judge",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "GET"
       ],
       "path": "/admin/evidence/changes/<path:resource_id>",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -199,35 +214,35 @@
         "POST"
       ],
       "path": "/admin/evidence/observations/<observation_id>/judge",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "GET"
       ],
       "path": "/admin/evidence/operator-holders",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "GET"
       ],
       "path": "/admin/evidence/remediations",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "GET"
       ],
       "path": "/admin/evidence/remediations/<subject_id>",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "POST"
       ],
       "path": "/admin/evidence/remediations/<subject_id>/notified",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -255,21 +270,21 @@
         "POST"
       ],
       "path": "/admin/evidence/reviews",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "GET"
       ],
       "path": "/admin/evidence/reviews/<review_id>",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "POST"
       ],
       "path": "/admin/evidence/reviews/<review_id>/decide",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -303,8 +318,15 @@
       "methods": [
         "POST"
       ],
-      "path": "/admin/operator-keys/<key_id>/holder",
+      "path": "/admin/na/succession",
       "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/operator-keys/<key_id>/holder",
+      "level": "stable"
     },
     {
       "methods": [
@@ -318,7 +340,7 @@
         "POST"
       ],
       "path": "/admin/operator-keys/holder-changes/<proposal_id>/approve",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -558,7 +580,7 @@
         "POST"
       ],
       "path": "/evidence/break-glass",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -572,21 +594,21 @@
         "POST"
       ],
       "path": "/evidence/observations",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "POST"
       ],
       "path": "/evidence/observations/batch",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
         "POST"
       ],
       "path": "/evidence/remediations",
-      "level": "beta"
+      "level": "stable"
     },
     {
       "methods": [
@@ -642,6 +664,13 @@
         "GET"
       ],
       "path": "/metrics",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/na/key-history",
       "level": "beta"
     },
     {
@@ -806,6 +835,18 @@
       "level": "beta"
     },
     {
+      "command": "audit archive",
+      "level": "beta"
+    },
+    {
+      "command": "audit pack",
+      "level": "beta"
+    },
+    {
+      "command": "audit verify",
+      "level": "beta"
+    },
+    {
       "command": "dev down",
       "level": "beta"
     },
@@ -898,12 +939,32 @@
       "level": "beta"
     },
     {
+      "command": "na doctor",
+      "level": "beta"
+    },
+    {
       "command": "na migrate-db",
       "level": "stable"
     },
     {
       "command": "na start",
       "level": "stable"
+    },
+    {
+      "command": "na succession history",
+      "level": "beta"
+    },
+    {
+      "command": "na succession prove",
+      "level": "beta"
+    },
+    {
+      "command": "na succession sign",
+      "level": "beta"
+    },
+    {
+      "command": "na succession submit",
+      "level": "beta"
     },
     {
       "command": "na verify-db",
@@ -1844,6 +1905,11 @@
           "name": "expected_attestation",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "at_record_time",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
@@ -1926,6 +1992,11 @@
         },
         {
           "name": "checkpoint",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "prior",
           "kind": "keyword_only",
           "required": false
         }
@@ -2827,6 +2898,11 @@
           "name": "na_public_key",
           "kind": "positional_or_keyword",
           "required": false
+        },
+        {
+          "name": "genesis",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
@@ -2846,6 +2922,11 @@
         },
         {
           "name": "na_public_key",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "genesis",
           "kind": "keyword_only",
           "required": false
         }
@@ -3212,6 +3293,16 @@
       "level": "beta"
     },
     {
+      "model": "genesis_mesh.models.audit_pack:ArchiveRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.audit_pack:AuditPackManifest",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
       "model": "genesis_mesh.models.boundary_policy:BoundaryPolicy",
       "signature_field": "signature",
       "level": "stable"
@@ -3329,6 +3420,11 @@
     {
       "model": "genesis_mesh.models.justification:JustificationProof",
       "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.key_succession:KeySuccessionRecord",
+      "signature_field": "signatures",
       "level": "stable"
     },
     {
@@ -3469,9 +3565,17 @@
     "agent_not_registered",
     "agreement_untrusted",
     "ambiguous_basis",
+    "archive_anchor_mismatch",
+    "archive_conflict",
+    "archive_manifest_invalid",
+    "archive_not_contiguous",
+    "archive_pack_unknown",
+    "archive_pack_unverified",
     "asset_not_found",
     "attestation_issuer_mismatch",
     "attestation_not_found",
+    "audit_pack_not_anchored",
+    "audit_pack_too_large",
     "bad_request",
     "boundary_eval_failed",
     "boundary_policy_activation_conflict",
@@ -3521,6 +3625,7 @@
     "evidence_retention_refused",
     "evidence_secret_material",
     "evidence_store_disabled",
+    "evidence_store_incomplete",
     "evidence_store_unavailable",
     "evidence_unknown_executor",
     "executor_key_exists",
@@ -3539,9 +3644,11 @@
     "internal_server_error",
     "invalid_agent_descriptor",
     "invalid_agreement",
+    "invalid_archive",
     "invalid_attestation_id",
     "invalid_attestation_or_policy",
     "invalid_attestation_or_treaty",
+    "invalid_audit_pack",
     "invalid_boundary_policy",
     "invalid_break_glass",
     "invalid_commitment",
@@ -3579,6 +3686,7 @@
     "invalid_signed_at",
     "invalid_source",
     "invalid_sovereign_revocation_feed",
+    "invalid_succession",
     "invalid_threshold",
     "invalid_timestamp_order",
     "invalid_timestamps",
@@ -3621,6 +3729,9 @@
     "missing_validity_window",
     "missing_verify_fields",
     "missing_vote_fields",
+    "na_key_expired",
+    "na_key_not_yet_effective",
+    "na_key_succeeded",
     "no_policy",
     "node_auth_failed",
     "node_has_no_active_certificate",
@@ -3688,6 +3799,16 @@
     "service_unavailable",
     "signed_at_outside_window",
     "stale_sequence",
+    "succession_after_expiry",
+    "succession_backdated",
+    "succession_chain_break",
+    "succession_invalid_new_key_signature",
+    "succession_invalid_root_signature",
+    "succession_key_reused",
+    "succession_not_increasing",
+    "succession_pending",
+    "succession_sovereign_mismatch",
+    "succession_times_invalid",
     "treaty_not_found",
     "unauthorized",
     "unexpected_field",

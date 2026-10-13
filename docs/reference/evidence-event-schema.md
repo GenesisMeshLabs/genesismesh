@@ -31,13 +31,26 @@ Each event has three parts:
   | `registry` (1.3.0) | `RegistryRecord` | the NA |
   | `remediation` (1.4.0) | `RemediationRecord` | an executor key |
   | `review` (1.4.0) | `ReviewRecord` | the NA |
+  | `key_succession` (1.5.0) | `KeySuccessionRecord` | the root key, the new NA key and the outgoing NA key |
+  | `archive` (1.5.0) | `ArchiveRecord` | the NA |
 
   Entry kinds are added within schema version 1. A verifier refuses a kind it
   does not know by name (`unknown_entry_kind`) and keeps it in the chain. The
   NA writes the 1.3.0 kinds only with `EVIDENCE_OUT_OF_BAND=on`, and the
   1.4.0 kinds only with `EVIDENCE_REMEDIATION=on`, so a store stays readable
   by the verifiers of the release before until the switch is turned on. Since
-  1.4.0 a `quarantine` record's `record_kind` may also be `remediation`.
+  1.4.0 a `quarantine` record's `record_kind` may also be `remediation`. The
+  1.5.0 kinds are written only when an operator records a key succession or
+  an archive: upgrade the verifiers that read your exports before you do.
+
+  Since 1.5.0 an NA signature is checked with the NA's key history: the key
+  valid at the entry's `recorded_at` (a retention run carries registry,
+  key succession and archive entries past its checkpoint with the time they
+  were first recorded). Entries are recorded in time order: an entry's
+  `recorded_at` is at most 300 seconds behind any entry before it, except
+  the entries a retention run carried forward. The windows, the time order
+  and the record times of records outside the store are in
+  {doc}`audit-pack-format`.
 
 Verify an export offline with `genesis-mesh evidence verify-export` (see the
 {doc}`CLI reference <cli>`).
@@ -47,8 +60,8 @@ Verify an export offline with `genesis-mesh evidence verify-export` (see the
 Every verifier (the reference, the CLI and the SDKs) checks an export the
 same way and names each failure by the same reason, with the
 `store_sequence` of the entry it concerns. The shared cases are the
-conformance suites `field_registry`, `out_of_band` and (1.4.0)
-`remediation`.
+conformance suites `field_registry`, `out_of_band`, (1.4.0) `remediation`
+and (1.5.0) `audit`.
 
 ### Reading the lines
 
@@ -85,16 +98,25 @@ Each record:
 
 | Reason | The record |
 | --- | --- |
-| `payload_invalid` | cannot be read as its model, or carries a field outside its signature where none may be (records of 1.3.0 kinds) |
+| `payload_invalid` | cannot be read as its model, or carries a field outside its signature where none may be: a retention checkpoint and every kind since 1.3.0 (observation, break-glass, judgement, quarantine, registry, remediation, review, key succession, archive) |
 | `invalid_signature` | is not signed, as received, by a key allowed to sign it; also, with no `store_sequence`, a retention checkpoint passed to the verifier that the NA did not sign (1.3.1; nothing else is then checked) |
 | `unknown_field` | is authentic and carries a signed field this release does not know |
 | `non_canonical_form` | is authentic and signed over a form the reference does not write |
+| `na_key_not_valid_at_time` (1.5.0) | is signed by a key of the NA's key history that was not valid at the entry's `recorded_at`, or (review fixes) not at the latest `recorded_at` of the entries before it, when that is later |
+| `recorded_at_out_of_order` (1.5.0) | is recorded more than 300 seconds before an entry stored ahead of it (entries a retention run carried forward excepted: `registry`, `key_succession` and `archive` entries in an unbroken run right after a `retention_checkpoint` entry) |
+| `decision_outlives_key` (1.5.0) | is a decision that stays valid past what the key that signed it may vouch for: that key's end (its succession, or its enforced `valid_to`), the 300-second hand-over and 300 seconds |
+| `evidence_unknown_executor`, `evidence_executor_key_retired` (1.5.0, in a pack) | is a key-signed record whose key the registry records place after it, or retired before it |
+| `succession_invalid_root_signature`, `succession_invalid_new_key_signature`, `succession_not_in_history`, `succession_backdated` (1.5.0) | is a key succession the root key or the new key did not sign, one the key history the verifier holds does not contain, or one recorded less than 60 seconds before it takes effect (or issued after it) |
 | `envelope_mismatch` (1.3.0) | is a 1.3.0 kind whose envelope names something its payload does not: the fields below (since 1.3.1 all of them; 1.3.0 checked `record_id`, `resource_id` and a judgement's `subject_id`) |
 | `quarantine_digest_mismatch` (1.3.0) | is a quarantine record whose `record_digest` is not the digest of the record it holds |
 
 A record carrying a field outside its signature (stored as submitted before
 1.1.1) gets the warning `unsigned_field`; since 1.3.1 the rest of it is still
-checked as received.
+checked as received. That holds for decisions, justification proofs and
+execution evidence, whose models read extra fields; a retention checkpoint
+and every kind since 1.3.0 are read strictly, so such a field also makes the
+record `payload_invalid` (the conformance vector
+`export-checkpoint-unsigned-field` pins it).
 
 The envelope fields a 1.3.0 entry takes from its record, which must match
 (`envelope_mismatch`); an absent field is `null`:
@@ -108,6 +130,8 @@ The envelope fields a 1.3.0 entry takes from its record, which must match
 | `registry` | `record_id`: `registry_record_id`, `outcome`: `event` |
 | `remediation` (1.4.0) | `record_id`: `remediation_id`, `subject_id`, `resource_id`, `executor_sovereign_id`, `outcome` |
 | `review` (1.4.0) | `record_id`: `review_id`, `subject_id`, `resource_id`, `capability`, `outcome`: `verdict` |
+| `key_succession` (1.5.0) | `record_id`: `succession_id` |
+| `archive` (1.5.0) | `record_id`: `archive_id` |
 
 The chains and links between records:
 
@@ -122,6 +146,7 @@ The chains and links between records:
 | `judgement_match_missing` (1.3.1) | a judgement matching execution evidence or a break-glass record that the export does not hold before it, in an export from entry 1 |
 | `match_reused` | a second judgement matching the same record |
 | `retention_count_mismatch` (1.3.1) | a retention checkpoint that removed fewer or more entries than lay between the checkpoint before it (or entry 1) and its last removed position |
+| `cited_record_missing` (1.5.0) | in an audit pack, a record citing a decision, subject or matched record that neither the range nor the pack's cited records hold |
 
 Remediations and reviews (1.4.0). "From its start" means a run from entry 1
 or right after the retention checkpoint passed to the verifier: retention

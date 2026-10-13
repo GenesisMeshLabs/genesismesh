@@ -422,6 +422,12 @@ def test_sovereign_metadata_exposes_public_trust_material(client):
     assert payload["supported_surfaces"]["genesis"] == "https://na.example.test/genesis"
     assert payload["supported_surfaces"]["connectome"] == "https://na.example.test/connectome.json"
     assert "private" not in str(payload).lower()
+    # v1.5.0: the genesis key's valid_to is shown and said not to be enforced; the key that signs
+    # now, and the key history that says when each key is valid.
+    assert payload["network_authority"]["valid_to_enforced"] is False
+    assert payload["signing_key"]["key_sequence"] == 1
+    assert payload["signing_key"]["public_key"] == payload["network_authority"]["public_key"]
+    assert payload["supported_surfaces"]["key_history"] == "https://na.example.test/na/key-history"
 
 
 def _behind_proxies(na_service, monkeypatch, hops: int):

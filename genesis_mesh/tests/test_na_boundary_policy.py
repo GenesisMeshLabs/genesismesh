@@ -46,6 +46,9 @@ def _headers(keypair, key_id: str, body: dict, *, client, method: str, url: str)
 
 
 def _make_service(**kwargs) -> NetworkAuthorityService:
+    # v1.5.0: retention removes only archived entries by default; the tests of retention itself run
+    # it as local development does (NA_RETENTION_REQUIRE_ARCHIVE=off) unless they ask otherwise.
+    kwargs.setdefault("retention_require_archive", False)
     signing_key = nacl.signing.SigningKey.generate()
     pub = signing_key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
     privileged = generate_keypair()

@@ -17,6 +17,13 @@ Operators (operator-signed headers):
   POST /admin/evidence/retention/apply                 apply retention (privileged)
   GET  /admin/evidence/anchors                         signed store anchors (read tier, v1.2.0)
   POST /admin/evidence/anchors                         anchor the store's head now (read tier, v1.2.0)
+  POST /admin/evidence/audit-pack                      an audit pack between two anchors (read tier, v1.5.0)
+  GET  /admin/evidence/archives                        archive records (read tier, v1.5.0)
+  POST /admin/evidence/archives                        record an archive read back intact (privileged, v1.5.0)
+
+v1.5.0: every route that reads the store accepts the read tier (an
+auditor's key), so a read key can produce an audit pack; what changes the
+store or its keys still needs the standard or privileged tier.
 """
 
 from __future__ import annotations
@@ -64,48 +71,48 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
     def search():
         """Search stored entries by vendor, attestation, capability, resource, outcome or time."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.search(_query()))
 
     @bp.route("/admin/evidence/status", methods=["GET"])
     def status():
         """Store mode, size, last store sequence and latest retention checkpoint."""
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.status())
 
     @bp.route("/admin/evidence/verify", methods=["GET"])
     def verify():
         """Verify every stored entry, chain and signature."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.verify_store())
 
     @bp.route("/admin/evidence/resources/<path:resource_id>", methods=["GET"])
     def resource_history(resource_id: str):
         """Full history of one resource, decision to execution, with verification."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.resource_history(resource_id))
 
     @bp.route("/admin/evidence/resource-heads/<path:resource_id>", methods=["GET"])
     def resource_head(resource_id: str):
         """The head of one resource chain: what the next record must link to."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.resource_head(resource_id))
 
     @bp.route("/admin/evidence/vendors/<vendor_id>", methods=["GET"])
     def vendor_history(vendor_id: str):
         """A vendor's decisions and the evidence under them, with verification."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify(store.vendor_history(vendor_id))
 
     @bp.route("/admin/evidence/export", methods=["GET"])
     def export():
         """gm.evidence.event JSON Lines from since_sequence, for SIEM pipelines."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         lines = store.export_lines(_query())
         body = "".join(line + "\n" for line in lines)
         return Response(body, mimetype="application/x-ndjson")
@@ -114,7 +121,7 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
     def list_executor_keys():
         """Registered executor keys (public keys; retired keys included)."""
         store.require_enabled()
-        _admin({})
+        _admin({}, tier="read")
         return jsonify({"executor_keys": store.list_executor_keys()})
 
     @bp.route("/admin/evidence/executor-keys", methods=["POST"])
@@ -156,12 +163,39 @@ def create_evidence_store_blueprint(service: "NetworkAuthorityService") -> Bluep
                 "status": "anchored" if created else "unchanged"}
         return jsonify(body), (201 if created else 200)
 
+    @bp.route("/admin/evidence/audit-pack", methods=["POST"])
+    def audit_pack():
+        """An audit pack: one range between two anchors, what it cites, and the NA's signed manifest."""
+        store.require_enabled()
+        data = request_json_object()
+        operator = _admin(data, tier="read")
+        # v1.5.0 review fixes: building a pack is costly, so it has a rate limit of its own.
+        if not service.rate_limiter.allow(_rate_key("audit_pack"), service.rate_limits.audit_packs, 3600):
+            raise RateLimitError()
+        return jsonify(service.audit_pack_service.build(data, operator))
+
+    @bp.route("/admin/evidence/archives", methods=["GET"])
+    def list_archives():
+        """Archive records, and how far an unbroken run of them covers the store."""
+        store.require_enabled()
+        _admin({}, tier="read")
+        return jsonify(service.audit_pack_service.list_archives())
+
+    @bp.route("/admin/evidence/archives", methods=["POST"])
+    def record_archive():
+        """Record that a pack was written to immutable storage and read back intact."""
+        store.require_enabled()
+        data = request_json_object(required=True)
+        operator = _admin(data, tier="privileged")
+        body, status = service.audit_pack_service.record_archive(data, operator)
+        return jsonify(body), status
+
     @bp.route("/admin/evidence/retention/apply", methods=["POST"])
     def apply_retention():
         """Remove a verifiable prefix of old entries behind a signed checkpoint."""
         store.require_enabled()
         data = request_json_object()
         operator = _admin(data, tier="privileged")
-        return jsonify(store.apply_retention(data.get("older_than_days"), operator))
+        return jsonify(store.apply_retention(data.get("older_than_days"), operator, data.get("through_sequence")))
 
     return bp

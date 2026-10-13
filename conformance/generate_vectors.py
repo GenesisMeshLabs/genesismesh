@@ -30,6 +30,9 @@ _SEEDS = {
     # v1.4.0: two operator keys of two holders (remediation.json)
     "d": bytes(range(96, 128)),   # 60..7f
     "e": bytes(range(128, 160)),  # 80..9f
+    # v1.5.0: a root key and the NA key that succeeds "c" (audit.json)
+    "f": bytes(range(160, 192)),  # a0..bf
+    "g": bytes(range(192, 224)),  # c0..df
 }
 KEYS: dict[str, nacl.signing.SigningKey] = {
     k: nacl.signing.SigningKey(seed) for k, seed in _SEEDS.items()
@@ -1011,6 +1014,7 @@ def _registry_samples() -> dict[str, dict]:
     return {
         **out_of_band,
         **_remediation_samples(),
+        **_audit_samples(),
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1134,6 +1138,58 @@ def _remediation_samples() -> dict[str, dict]:
         "RemediationRecord": remediation.model_copy(
             update={"signature": sign_model(remediation, KEYS["b"], "executor-b")}).to_wire(),
         "ReviewRecord": review.model_copy(update={"signature": sign_model(review, KEYS["c"], "na-key")}).to_wire(),
+    }
+
+
+def _audit_samples() -> dict[str, dict]:
+    """v1.5.0: one signed sample of each Stage 4 record, every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.audit_pack import ArchiveRecord, AuditPackManifest, PackFile
+    from genesis_mesh.models.genesis import BootstrapAnchor, GenesisBlock, NetworkAuthority, PolicyManifestRef
+    from genesis_mesh.models.key_succession import KeySuccessionRecord
+    from genesis_mesh.trust.key_succession import sign_succession
+
+    genesis = GenesisBlock(
+        network_name=SOV_C, network_version="v1", root_public_key=pub_b64("f"),
+        network_authority=NetworkAuthority(public_key=pub_b64("c"), valid_from=T0, valid_to=T1),
+        policy_manifest=PolicyManifestRef(hash="sha256:conformance", url="https://na.example/policy"),
+        bootstrap_anchors=[BootstrapAnchor(id="anchor-1", endpoint="anchor.example:4433")],
+    )
+    genesis.signatures.append(sign_model(genesis, KEYS["f"], "root-key"))
+    succession = KeySuccessionRecord(
+        succession_id=UUID1, sovereign_id=SOV_C, key_sequence=2, previous_key_id="na-key",
+        previous_public_key=pub_b64("c"), previous_succession_digest="8" * 64, new_key_id="na-key-2",
+        new_public_key=pub_b64("g"), effective_at=T0 + timedelta(days=30), new_valid_to=T1 + timedelta(days=365),
+        issued_at=T0 + timedelta(days=29),
+    )
+    succession = sign_succession(sign_succession(sign_succession(succession, KEYS["f"], "root-key"), KEYS["g"],
+                                                 "na-key-2"), KEYS["c"], "na-key")
+    manifest = AuditPackManifest(
+        pack_id=UUID2, sovereign_id=SOV_C, created_at=T0, requested_by="auditor-1", from_sequence=10,
+        through_sequence=20, start_anchor_sequence=2, end_anchor_sequence=3,
+        period_from=T0 - timedelta(days=30), period_until=T0,
+        files=[PackFile(path="entries.jsonl", sha256="a" * 64, bytes=1024)], issued_by="na-key",
+    )
+    archive = ArchiveRecord(
+        archive_id=UUID3, pack_id=UUID2, from_sequence=1, through_sequence=20, through_entry_digest="b" * 64,
+        end_anchor_sequence=3, manifest_sha256="c" * 64, location="archive://audit-archive/packs/" + UUID2,
+        archived_at=T0, recorded_by="operator-1", issuer_sovereign_id=SOV_C, issued_by="na-key",
+    )
+    # v1.5.0 review fixes: a pack carries treaties (trust/treaties.jsonl), so the treaty is a root too.
+    from genesis_mesh.models.sovereign import RecognitionTreaty
+
+    treaty = RecognitionTreaty(
+        treaty_id=UUID3, issuer_sovereign_id=SOV_C, subject_sovereign_id=SOV_B, subject_public_keys=[pub_b64("b")],
+        scope={"allowed_roles": ["role:anchor"]}, status="active", issued_at=T0, valid_from=T0, expires_at=T1,
+        issued_by="na-key", metadata={"note": "Zürich"},
+    )
+    treaty.signatures.append(sign_model(treaty, KEYS["c"], "na-key"))
+    return {
+        "GenesisBlock": genesis.model_dump(mode="json"),
+        "KeySuccessionRecord": succession.to_wire(),
+        "RecognitionTreaty": treaty.model_dump(mode="json"),
+        "AuditPackManifest": manifest.model_copy(update={"signature": sign_model(manifest, KEYS["c"], "na-key")}).to_wire(),
+        "ArchiveRecord": archive.model_copy(update={"signature": sign_model(archive, KEYS["c"], "na-key")}).to_wire(),
     }
 
 
@@ -2980,6 +3036,63 @@ def gen_remediation() -> None:
     _write("remediation", {"suite": "remediation", "version": "1.4.0", "vectors": vectors})
 
 
+def gen_audit() -> None:
+    """v1.5.0: NA key succession, audit packs and the completeness check (``audit_vectors.py``).
+
+    ``canonical_form``: the signed forms of the new records. ``key_history``:
+    a genesis block and successions verified from a root key, each refusal by
+    name. ``key_at``: the NA keys a record dated at a time may carry
+    (hand-over, enforced end, the genesis key's end not enforced).
+    ``verify_export`` and ``verify_anchors``: a store and anchors across a
+    succession. ``decision_at_record_time``: an archived decision judged as of
+    its own time. ``pack``: packs, valid and refused, with the reasons in
+    sorted order. ``completeness``: matching an outside log. Also writes the
+    frozen 1.5.0 pack fixture (``fixtures/audit-pack-1.5.0``) once: later
+    runs never rewrite it. Deterministic, so regeneration is byte-stable.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from audit_vectors import audit_vectors
+    from audit_world import build_world, frozen_pack, pub
+
+    _write("audit", {"suite": "audit", "version": "1.5.0", "vectors": audit_vectors()})
+    fixture = Path(__file__).parent / "fixtures" / "audit-pack-1.5.0"
+    if fixture.exists():
+        problems = fixture_problems(fixture)
+        if problems:
+            # v1.5.0 review fixes: a fixture missing a file (one a checkout dropped) is never taken as frozen.
+            raise SystemExit(f"{fixture.relative_to(Path(__file__).parent)} is incomplete: " + "; ".join(problems)
+                             + ". Restore it from git; it is never regenerated.")
+        return
+    world = build_world()
+    for path, body in frozen_pack(world).items():
+        target = fixture / "pack" / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(body)
+    (fixture / "root.pub").write_bytes((pub("f") + "\n").encode())
+    anchors = [a.to_wire() for a in world.anchors]
+    (fixture / "anchors.json").write_bytes((json.dumps(anchors, indent=2, sort_keys=True) + "\n").encode())
+    print(f"  wrote {fixture.relative_to(Path(__file__).parent)} (frozen)")
+
+
+def fixture_problems(fixture: Path) -> list[str]:
+    """What a frozen pack fixture is missing: every file its manifest lists, with its digest and size,
+    and the root key and anchors beside it."""
+    import hashlib
+
+    problems = [f"{name} is missing" for name in ("root.pub", "anchors.json") if not (fixture / name).is_file()]
+    manifest_path = fixture / "pack" / "manifest.json"
+    if not manifest_path.is_file():
+        return [*problems, "pack/manifest.json is missing"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for item in manifest.get("files", []):
+        path = fixture / "pack" / item["path"]
+        if not path.is_file():
+            problems.append(f"pack/{item['path']} is missing")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != item["sha256"]:
+            problems.append(f"pack/{item['path']} does not match the manifest")
+    return problems
+
+
 def _at(record: dict, steps: list):
     """The nested object at ``steps`` inside ``record``."""
     node = record
@@ -3006,6 +3119,7 @@ GENERATORS = {
     "canonical": gen_canonical,
     "out_of_band": gen_out_of_band,
     "remediation": gen_remediation,
+    "audit": gen_audit,
 }
 
 

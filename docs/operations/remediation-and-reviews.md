@@ -250,8 +250,10 @@ observation names, and records it through the NA.
 - **The due queue.** `GET /admin/evidence/remediations?state=remediation_due`
   (also `overdue`, `waived`, `upheld`, `remediated`, the allowed states, or
   `review_pending` for every change with a pending review whatever its
-  state; without `state`, the due, overdue and waived ones and those with a
-  pending review), oldest first, paged with `limit` (1 to 500) and `after`
+  state; without `state`, the due, overdue and waived ones and the others
+  with a pending review, except remediated ones (since 1.5.0: a remediated
+  change is settled, and its pending review is listed under
+  `state=review_pending`)), oldest first, paged with `limit` (1 to 500) and `after`
   (the previous page's `next_after`).
 - **The notice.** `POST /admin/evidence/remediations/<subject_id>/notified`
   with an optional `{"channel": "email"}`: an audit event

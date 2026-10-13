@@ -47,11 +47,16 @@ class RateLimits:
     #: v1.3.0: observations and break-glass records, a bucket of their own so
     #: an observer's backlog does not crowd out controllers' evidence.
     observations: int = 120
+    #: v1.5.0 review fixes: audit packs per client address per hour, a bucket of their own (a pack
+    #: reads up to 50,000 entries and verifies them before it is written).
+    audit_packs: int = 12
 
     def __post_init__(self) -> None:
         for name in ("admin", "verify", "evidence", "read", "admin_auth_failures", "observations"):
             if getattr(self, name) < 1:
                 raise ValueError(f"rate limit {name} must be at least 1 per minute")
+        if self.audit_packs < 1:
+            raise ValueError("rate limit audit_packs must be at least 1 per hour")
 
 
 class RateLimiter:

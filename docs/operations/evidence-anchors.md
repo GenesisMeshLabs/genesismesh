@@ -26,8 +26,8 @@ The window matters: **a record can be removed without detection until the
 first anchor that covers it has been copied out.** Copy anchors on a schedule
 you choose, asking the NA to anchor its current head each time (below); that
 schedule is the window. A change made and then deleted inside the window is
-caught only by an independent log of changes (the completeness check planned
-for audit packs). The time to rely on is when a copy reached your storage, not
+caught only by an independent log of changes (the completeness check of
+{doc}`audit-verification`, since 1.5.0). The time to rely on is when a copy reached your storage, not
 the `anchored_at` the NA wrote.
 
 ## What the Network Authority does

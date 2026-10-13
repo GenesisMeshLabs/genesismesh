@@ -58,6 +58,8 @@ ENV/
 *.pem
 *.crt
 keys/
+# ... but a conformance fixture's keys/ holds public key histories, part of the frozen corpus
+!conformance/fixtures/**/keys/
 # Secret files handed to containers (the Compose examples read secrets/na_seed)
 secrets/
 *.seed

@@ -44,6 +44,9 @@ EntryKind = Literal[
     # v1.4.0 (Stage 3): remediations and reviews of changes governed after the
     # fact, written only with EVIDENCE_REMEDIATION=on.
     "remediation", "review",
+    # v1.5.0 (Stage 4): NA key successions and archives, written only by an
+    # operator's succession or archive (never pruned: carried past retention).
+    "key_succession", "archive",
 ]
 
 #: Envelope fields added in 1.3.0, left out of every serialized form when absent.
@@ -80,7 +83,7 @@ class EvidenceStoreEntry(BaseModel):
     # verification names it (``unknown_entry_kind``); the NA writes EntryKind only.
     entry_kind: str = Field(
         ..., description="decision, justification, execution, retention_checkpoint, observation, break_glass, "
-        "judgement, quarantine, registry, remediation or review; later releases may add kinds"
+        "judgement, quarantine, registry, remediation, review, key_succession or archive; later releases may add kinds"
     )
     recorded_at: datetime = Field(..., description="UTC time the NA stored the entry")
     payload_digest: str = Field(..., description="SHA-256 of the stored payload's canonical JSON")

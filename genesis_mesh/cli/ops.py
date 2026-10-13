@@ -65,7 +65,9 @@ from .support import (
     _validate_cli_roles,
 )
 
+from .audit_ops import audit
 from .evidence_store_ops import evidence
+from .key_ops import doctor, succession
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,7 @@ def register_operational_commands(cli: click.Group) -> None:
     cli.add_command(trust)
     cli.add_command(atlas)
     cli.add_command(evidence)
+    cli.add_command(audit)
 
 
 
@@ -106,6 +109,8 @@ def na() -> None:
 
 na.add_command(migrate_db)
 na.add_command(verify_db)
+na.add_command(succession)
+na.add_command(doctor)
 
 
 @na.command("start")

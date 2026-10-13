@@ -215,7 +215,8 @@ def test_anchors_survive_retention_and_the_store_still_verifies(client, na_servi
     monkeypatch.setattr(svc, "datetime", Later)
     result = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
     monkeypatch.undo()
-    assert result["removed_count"] == 3 + registry  # registry records are carried forward (v1.3.0)
+    # Registry records are carried forward (v1.3.0); v1.5.0: the latest record of the resource goes too.
+    assert result["removed_count"] == 6 + registry
     assert _anchors(client)[: len(before)] == before, "retention never removes or changes anchors"
     verified = _get(client, "/admin/evidence/verify").get_json()
     assert verified["verified"] is True, verified["failures"]
@@ -691,7 +692,7 @@ def test_verify_export_after_retention_continues_from_the_checkpoint(client, cli
     monkeypatch.setattr(svc, "datetime", Later)
     third_decision = _decide(client)
     assert _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).status_code == 200
-    monkeypatch.undo()
+    # v1.5.0 review fixes: the store's entries are recorded in time order, so the clock stays ahead.
     third = controller.record(third_decision, action="rotate", prior_resource=second, sequence_no=1)
     assert _submit(client, third).status_code == 201
     export = tmp_path / "export.jsonl"

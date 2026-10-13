@@ -251,6 +251,8 @@ def test_verify_export_ties_an_export_since_a_held_anchor_only_with_from_anchor(
 
 
 def _retain(client, monkeypatch) -> dict:
+    """Retention 400 days later, through the resource's history (v1.5.0: retention no longer keeps a
+    resource's latest record, so the later activity is kept by ``through_sequence``)."""
     import genesis_mesh.na_service.services.evidence_store as svc
 
     class Later(datetime):
@@ -259,7 +261,9 @@ def _retain(client, monkeypatch) -> dict:
             return datetime.now(tz) + timedelta(days=400)
 
     monkeypatch.setattr(svc, "datetime", Later)
-    applied = _post(client, "/admin/evidence/retention/apply", {"older_than_days": 30}).get_json()
+    through = getattr(client, "_history_through")
+    applied = _post(client, "/admin/evidence/retention/apply",
+                    {"older_than_days": 30, "through_sequence": through}).get_json()
     monkeypatch.undo()
     return applied
 
@@ -269,7 +273,9 @@ def _resource_history(client) -> None:
     first = controller.record(_decide(client))
     assert _submit(client, first).status_code == 201
     second = controller.record(_decide(client), action="rotate", prior_resource=first)
-    assert _submit(client, second).status_code == 201
+    resp = _submit(client, second)
+    assert resp.status_code == 201
+    setattr(client, "_history_through", resp.get_json()["entry"]["store_sequence"])
     _decide(client)  # later activity, so retention has entries to keep
 
 
@@ -331,19 +337,25 @@ def test_the_envelope_fields_checked_are_those_the_na_writes():
     from genesis_mesh.trust.evidence_store import _ENVELOPE_FIELDS
     from genesis_mesh.trust.out_of_band import entry_index
 
+    from genesis_mesh.models import audit_pack as audit_models
+    from genesis_mesh.models import key_succession as succession_models
     from genesis_mesh.models import remediation as remediation_models
 
-    vectors = [v for name in ("out_of_band", "remediation")
+    vectors = [v for name in ("out_of_band", "remediation", "audit")
                for v in json.loads((SUITES / f"{name}.json").read_text(encoding="utf-8"))["vectors"]]
     kinds = {"ObservationRecord": "observation", "BreakGlassRecord": "break_glass", "JudgementRecord": "judgement",
              "QuarantineRecord": "quarantine", "RegistryRecord": "registry",
              # v1.4.0
-             "RemediationRecord": "remediation", "ReviewRecord": "review"}
+             "RemediationRecord": "remediation", "ReviewRecord": "review",
+             # v1.5.0
+             "KeySuccessionRecord": "key_succession", "ArchiveRecord": "archive"}
+    modules = {"RemediationRecord": remediation_models, "ReviewRecord": remediation_models,
+               "KeySuccessionRecord": succession_models, "ArchiveRecord": audit_models}
     seen = set()
     for vector in vectors:
-        if vector["kind"] != "canonical_form":
+        if vector["kind"] != "canonical_form" or vector["model"] not in kinds:
             continue
-        models = remediation_models if vector["model"] in ("RemediationRecord", "ReviewRecord") else oob_models
+        models = modules.get(vector["model"], oob_models)
         record = getattr(models, vector["model"]).model_validate(vector["record"])
         kind = kinds[vector["model"]]
         seen.add(kind)
