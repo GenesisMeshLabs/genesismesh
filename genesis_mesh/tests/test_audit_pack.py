@@ -159,7 +159,17 @@ def test_a_read_key_produces_a_pack_that_verifies_offline_from_the_root_key_and_
     root.write_text(public_b64(net.root) + "\n", encoding="utf-8")
     anchors = tmp_path / "anchors.json"
     anchors.write_text(json.dumps([a.to_wire() for a in _held(client)]), encoding="utf-8")
-    service.db.close()  # no network: the NA is gone
+    service.db.close()  # the NA is gone
+
+    # No network at all: any connection the verifier tried would fail the test.
+    import socket
+
+    def no_network(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("audit verify tried to reach the network")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    monkeypatch.setattr(socket, "create_connection", no_network)
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
     verified = runner.invoke(cli, ["audit", "verify", str(tmp_path / "pack"), "--anchor", str(root),
                                    "--known-anchors", str(anchors), "--format", "json"])
     assert verified.exit_code == 0, verified.output
