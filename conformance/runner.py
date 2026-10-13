@@ -692,6 +692,25 @@ def run_remediation(vectors: list[dict]) -> list[str]:
 
 # ── Suite registry ───────────────────────────────────────────────────────────
 
+def run_audit(vectors: list[dict]) -> list[str]:
+    """v1.5.0: key succession, audit packs and the completeness check (``audit_vectors.evaluate``)."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    try:
+        from audit_vectors import evaluate
+    finally:
+        sys.path.pop(0)
+
+    failures: list[str] = []
+    for v in vectors:
+        try:
+            got = evaluate(v)
+            if got != v["expected"]:
+                failures.append(f"{v['id']}: got {json.dumps(got)[:300]}, want {json.dumps(v['expected'])[:300]}")
+        except Exception as exc:  # noqa: BLE001 -- a vector that raises fails, by name
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+    return failures
+
+
 SUITE_RUNNERS: dict[str, Any] = {
     "signatures": run_signatures,
     "treaties": run_treaties,
@@ -708,6 +727,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "canonical": run_canonical,
     "out_of_band": run_out_of_band,
     "remediation": run_remediation,
+    "audit": run_audit,
 }
 
 

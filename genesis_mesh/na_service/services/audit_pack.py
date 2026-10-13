@@ -22,27 +22,18 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError as PydanticValidationError
 
 from ...models.audit_pack import (
-    ANCHORS_FILE,
     ATTESTATIONS_FILE,
     CHECKS_FILE,
-    CITED_FILE,
-    ENTRIES_FILE,
-    EXECUTOR_KEYS_FILE,
     FEEDS_FILE,
-    GENESIS_FILE,
-    KEY_HISTORY_FILE,
+    MANIFEST_FILE,
     POLICIES_FILE,
-    REPORT_FILE,
     TREATIES_FILE,
     ArchiveRecord,
     AuditPackManifest,
-    PackFile,
-    canonical_bytes,
-    jsonl_bytes,
 )
 from ...models.evidence_store import EvidenceEvent, StoreAnchor
 from ...trust.evidence_store import build_entry
-from ...workflows.audit_pack import render_report, verify_audit_pack
+from ...workflows.audit_pack import compose_pack
 from ..errors import BadRequestError, ConflictError, ServiceUnavailableError, ValidationError
 
 if TYPE_CHECKING:
@@ -250,50 +241,27 @@ class AuditPackService:
         anchors = [a for a in db.list_store_anchors(limit=10**9)
                    if start - 1 <= a.store_sequence <= through and a.anchor_sequence <= end.anchor_sequence]
         history = self._na.key_history.public_view()
-        files: dict[str, bytes] = {
-            GENESIS_FILE: canonical_bytes(self._na.genesis_block.model_dump(mode="json")),
-            KEY_HISTORY_FILE: canonical_bytes({"successions": history["successions"]}),
-            EXECUTOR_KEYS_FILE: canonical_bytes({"executor_keys": store.list_executor_keys()}),
-            ANCHORS_FILE: jsonl_bytes([a.to_wire() for a in anchors]),
-            ENTRIES_FILE: "".join(e.to_json_line() + "\n" for e in entries).encode("utf-8"),
-            CITED_FILE: "".join(e.to_json_line() + "\n" for e in cited).encode("utf-8"),
-        }
-        for path, items in self._trust_material([*cited, *entries]).items():
-            files[path] = jsonl_bytes(items)
-        checks = verify_audit_pack(
-            files, root_public_key=self._na.genesis_block.root_public_key,
-            held_anchors=db.list_store_anchors(limit=10**9), check_manifest=False,
-        ).to_dict()
-        files[CHECKS_FILE] = canonical_bytes(checks)
-        now = self._now()
-        pack_id = str(uuid.uuid4())
-        header = {"pack_id": pack_id, "sovereign_id": self._na.genesis_block.network_name,
-                  "from_sequence": start, "through_sequence": through,
-                  "start_anchor_sequence": start_anchor.anchor_sequence if start_anchor else None,
-                  "end_anchor_sequence": end.anchor_sequence, "created_at": now.isoformat(),
-                  "requested_by": requested_by}
         subjects = sorted({str(e.payload.get("judgement_id")) for e in entries if e.entry.entry_kind == "judgement"}
                           | {str(e.entry.decision_id) for e in entries if e.entry.decision_id})
         states = self._na.remediation_service.states_for(subjects) if self._na.remediation_service.enabled else {}
-        notices = {k: v for k, v in states.items() if v.get("notified_at")}
-        files[REPORT_FILE] = render_report(manifest=header, entries=entries, checks=checks, states=states,
-                                           notices=notices).encode("utf-8")
-        manifest = AuditPackManifest(
-            pack_id=pack_id, sovereign_id=self._na.genesis_block.network_name, created_at=now,
-            requested_by=requested_by, from_sequence=start, through_sequence=through,
+        files, manifest = compose_pack(
+            genesis=self._na.genesis_block.model_dump(mode="json"), successions=history["successions"],
+            executor_keys=store.list_executor_keys(), anchors=anchors, entries=entries, cited=cited,
+            trust=self._trust_material([*cited, *entries]), held_anchors=db.list_store_anchors(limit=10**9),
+            pack_id=str(uuid.uuid4()), created_at=self._now(), requested_by=requested_by,
             start_anchor_sequence=start_anchor.anchor_sequence if start_anchor else None,
-            end_anchor_sequence=end.anchor_sequence,
-            files=[PackFile(path=path, sha256=hashlib.sha256(body).hexdigest(), bytes=len(body))
-                   for path, body in sorted(files.items())],
-            issued_by=self._na.key_id,
+            end_anchor_sequence=end.anchor_sequence, issued_by=self._na.key_id, sign=self._na.signer.sign_model,
+            states=states, notices={k: v for k, v in states.items() if v.get("notified_at")},
         )
-        manifest = manifest.model_copy(update={"signature": self._na.signer.sign_model(manifest)})
+        checks = json.loads(files[CHECKS_FILE])
+        pack_id = manifest.pack_id
         db.add_audit_event("audit_pack_built", {
             "pack_id": pack_id, "from_sequence": start, "through_sequence": through,
             "end_anchor_sequence": end.anchor_sequence, "requested_by": requested_by,
             "verified": checks["verified"],
         })
-        return {"manifest": manifest.to_wire(), "files": {path: body.decode("utf-8") for path, body in files.items()}}
+        return {"manifest": manifest.to_wire(),
+                "files": {path: body.decode("utf-8") for path, body in files.items() if path != MANIFEST_FILE}}
 
     # -- archives ------------------------------------------------------------------
 

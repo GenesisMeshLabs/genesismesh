@@ -489,3 +489,22 @@ def test_every_route_above_the_read_tier_refuses_a_read_key(net):
                 refused.append(f"{method} {rule.rule}: {resp.status_code} {code}")
     assert refused == []
     assert seen_read == READ_ROUTES
+
+
+# ---------------------------------------------------------------------------
+# The frozen 1.5.0 pack
+# ---------------------------------------------------------------------------
+
+
+def test_the_frozen_1_5_0_pack_verifies(tmp_path):
+    """Success criterion 3: a pack written by 1.5.0 is committed and verified by every later release,
+    as an auditor would, with the CLI."""
+    from genesis_mesh.cli.main import cli
+
+    fixture = Path(__file__).resolve().parents[2] / "conformance" / "fixtures" / "audit-pack-1.5.0"
+    result = CliRunner().invoke(cli, ["audit", "verify", str(fixture / "pack"), "--anchor", str(fixture / "root.pub"),
+                                      "--known-anchors", str(fixture / "anchors.json"), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    body = json.loads(result.output)
+    assert body["verified"] is True and body["report_differences"] == []
+    assert body["counts"]["key_successions"] == 1 and len(body["keys"]) == 2
