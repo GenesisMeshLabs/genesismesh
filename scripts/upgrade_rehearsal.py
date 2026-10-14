@@ -20,7 +20,11 @@
    verifiers, an observation is judged and its remediation recorded, then the
    resource chain is extended. Since 1.5, the genesis key is the first entry of
    the key history and an audit pack of the whole store verifies offline from
-   the root key and the anchors. A past release with out-of-band records (1.3+)
+   the root key and the anchors. Since 1.6, with grants on
+   (``EVIDENCE_GRANTS=on``), a grant is issued under the past release's
+   attestation and policy, a use of it continues the past release's resource
+   chain at the position the NA assigns, and the export and the pack holding
+   them verify offline. A past release with out-of-band records (1.3+)
    populates with them on and records an observation and its judgement, so a
    1.3 store with its Stage 2 records is upgraded; that judgement is not
    remediated when the remediation records are turned on.
@@ -81,7 +85,7 @@ def _has_out_of_band() -> bool:
 
 
 def _service(state: dict, *, db_path: str | None = None, database_url: str | None = None, out_of_band: bool = False,
-             remediation: bool = False):
+             remediation: bool = False, grants: bool = False):
     from genesis_mesh.models import GenesisBlock
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
@@ -92,6 +96,8 @@ def _service(state: dict, *, db_path: str | None = None, database_url: str | Non
         kwargs["evidence_out_of_band"] = "on"
     if remediation:  # 1.4+ only
         kwargs["evidence_remediation"] = "on"
+    if grants:  # 1.6+ only
+        kwargs["evidence_grants"] = "on"
     service = NetworkAuthorityService(
         genesis_block=GenesisBlock.model_validate(state["genesis"]),
         na_private_key=_key(state["seeds"]["na"]), key_id="na-upgrade",
@@ -300,7 +306,8 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
         if not ok:
             failures.append(f"{label}: {name}: {detail}")
 
-    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=True, remediation=True)
+    service = _service(state, db_path=db_path, database_url=database_url, out_of_band=True, remediation=True,
+                       grants=True)
     api = Api(service, state["seeds"]["operator"])
     na_key = _pub(_key(state["seeds"]["na"]))
     partner_key = _pub(_key(state["seeds"]["partner"]))
@@ -419,6 +426,28 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
     check("resource history verifies", history.get("verification", {}).get("verified") is True,
           history.get("verification"))
 
+    # 1.6: a grant under the past release's attestation and policy, used while the NA is (as far as the
+    # holder knows) unreachable; the NA places the use after the past release's records of the resource.
+    issued = api.admin("POST", "/admin/grants", {
+        "bearer_key_id": "ctrl-1", "capabilities": ["secret.rotate"], "attestation_id": state["vendor"]["attestation_id"],
+        "valid_until": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(), "max_uses": 2,
+        "parameter_envelope": {"app_id": {"one_of": ["billing"]}},
+    })
+    check("a grant is issued under the past release's policy and attestation", issued.status_code == 201,
+          issued.get_json())
+    if issued.status_code == 201:
+        use = _grant_use(state, issued.get_json())
+        admitted = api.client.post("/evidence/grant-executions", json={"evidence": use})
+        check("a grant use continues the resource chain after the upgrade", admitted.status_code == 201
+              and admitted.get_json().get("resource_sequence") == 4, admitted.get_json())
+        feed = api.client.get("/sovereign-revocation-feed").get_json()
+        check("the revocation feed lists revoked grants", feed.get("revoked_grant_ids") == [], feed)
+        lines = api.admin("GET", "/admin/evidence/export").get_data(as_text=True).splitlines()
+        events = [EvidenceEvent.model_validate_json(line) for line in lines if line.strip()]
+        offline = verify_evidence_events(events, na_public_keys=[na_key], executor_keys=keys)
+        check("the export with the grant and its use verifies offline", offline.verified
+              and offline.grant_executions == 1, offline.failures)
+
     # 1.5: the genesis key is the first entry of the key history, and an audit pack of the whole
     # store, written by the past release and this one, verifies offline from the root key and the
     # anchors an auditor would hold.
@@ -463,6 +492,22 @@ def _observation(key) -> dict:
         source_event_id=str(uuid.uuid4()), metadata={"secret_version": "v9"},
     )
     return record.model_copy(update={"signature": sign_model(record, key, "obs-1")}).to_wire()
+
+
+def _grant_use(state: dict, issued: dict) -> dict:
+    """The holder's signed use of the grant (1.6+): the first of its chain, on the rehearsal resource."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.grants import CapabilityGrant, GrantExecutionEvidence, TimeToken
+
+    grant = CapabilityGrant.model_validate(issued["grant"])
+    record = GrantExecutionEvidence(
+        grant_id=grant.grant_id, grant_digest=grant.digest(), use_sequence=1, executor_sovereign_id=EXECUTOR,
+        capability="secret.rotate", request_parameters={"app_id": "billing"}, resource_id=RESOURCE,
+        resource_action="rotate", executed_at=datetime.now(timezone.utc),
+        time_token=TimeToken.model_validate(issued["time_token"]), outcome="success",
+        execution_parameters={"secret_version": "v4"},
+    )
+    return record.model_copy(update={"signature": sign_model(record, _key(state["seeds"]["executor"]), "ctrl-1")}).to_wire()
 
 
 def _remediation(state: dict, due: dict) -> dict:
