@@ -99,19 +99,26 @@ The reviews found:
 
 ## Success Criteria
 
-- [ ] The agent enrols, registers its executor key at join, renews, and is
-      revoked with its key and grants in one step
-- [ ] A node-scoped decision is refused for another sovereign's request or a
+- [x] The agent enrols, registers its executor key at join, renews, and is
+      revoked with its key and grants in one step (`test_edge_nodes.py`;
+      sdk-rust `edge/tests/scenario.rs` `lifecycle`)
+- [x] A node-scoped decision is refused for another sovereign's request or a
       foreign attestation; the device holds no operator key
+      (`test_node_routes.py`; the scenarios assert no admin header reaches the
+      NA, and the agent's clippy configuration refuses admin signing)
 - [ ] With the NA stopped for two hours: N in-grant actions succeed through the
       local API; an out-of-envelope action is refused locally; an urgent
       action with a justification proceeds as break-glass; on reconnect every
       record uploads in order within T, refused ones quarantined (N and T set
       in the test)
-- [ ] An unauthenticated local client is refused
-- [ ] Size and memory on arm64 and x86-64 are measured in CI and within the
-      recorded budgets
-- [ ] The console shows edge nodes; node tests cover the view
+- [x] An unauthenticated local client is refused (scenario `local_auth`)
+- [x] Size and memory on arm64 and x86-64 are measured in CI and within the
+      recorded budgets (`edge/footprint-budgets.json`: 12 MiB binary, 32 MiB
+      resident). Measured on main at the merge: x86-64 binary 7,244,896 bytes,
+      6,536 KiB over the 120-second offline run and 22,412 KiB with a
+      2,000-record backlog; arm64 6,179,968 bytes, 5,896 KiB and 21,500 KiB
+- [x] The console shows edge nodes; node tests cover the view (gateway
+      `tools/test_ui_edge.mjs`, `tests/production.rs`)
 
 ## Release Gate
 
@@ -119,13 +126,13 @@ The reviews found:
       standing instruction to proceed with the next plan once 1.6.0 was
       green, 2026-10-14; Decision 5 of `plan-v1.2.0.md`)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.7.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries, `history.md`, `phase-n.md` closed for the program
-- [ ] `SECURITY.md`: 1.7.x supported, 1.6.x upgrade to 1.7; the edge agent
+- [x] Version bumped to `1.7.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries, `history.md`, `phase-n.md` closed for the program
+- [x] `SECURITY.md`: 1.7.x supported, 1.6.x upgrade to 1.7; the edge agent
       covered
-- [ ] Public contract: the node routes and the agent classified
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: the Rust SDK (`sdk-rust`), then core, then the gateway
+- [x] Public contract: the node routes and the agent classified
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] Merge order: the Rust SDK (`sdk-rust`), then core, then the gateway
       (Decision 16): core after re-running interop with all four SDK
       repositories on `feat/edge-agent`, the gateway right after core
 - [ ] Dry runs green; tags `v1.7.0`, releases, published-artifacts green
