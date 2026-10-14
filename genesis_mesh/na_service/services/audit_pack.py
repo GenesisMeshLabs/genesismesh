@@ -134,6 +134,8 @@ class AuditPackService:
                 return db.get_decision_entry(record_id)
             if kind == "execution":
                 return db.get_entry_by_evidence_id(record_id)
+            if kind == "grant_revocation_of":  # v1.6.0: a grant's revocation, by its grant
+                return db.grant_revocation_entry(record_id)
             return db.get_entry_by_record(kind, record_id)
 
         def refs(stored: dict[str, Any]) -> list[tuple[str, str | None]]:
@@ -142,12 +144,19 @@ class AuditPackService:
                 return [("decision", p.get("decision_id"))]
             if kind == "judgement":
                 return [(str(p.get("subject_kind")), p.get("subject_id")),
-                        ("execution", p.get("matched_evidence_id")), ("break_glass", p.get("matched_evidence_id"))]
+                        ("execution", p.get("matched_evidence_id")), ("break_glass", p.get("matched_evidence_id")),
+                        ("grant_execution", p.get("matched_evidence_id"))]
             if kind == "remediation":
                 return [(str(p.get("subject_kind")), p.get("subject_id")),
                         (str(p.get("change_kind")), p.get("change_id")), ("execution", p.get("rotation_evidence_id"))]
             if kind == "review":
                 return [(str(p.get("subject_kind")), p.get("subject_id"))]
+            # v1.6.0: a grant use rests on its grant and is checked against its revocation; a judgement
+            # may match a grant use.
+            if kind == "grant_execution":
+                return [("grant", p.get("grant_id")), ("grant_revocation_of", p.get("grant_id"))]
+            if kind == "grant_revocation":
+                return [("grant", p.get("grant_id"))]
             return []
 
         queue = list(entries)
@@ -159,16 +168,20 @@ class AuditPackService:
                     if added is not None:
                         nxt.append(added)
             queue = nxt
-        # The heads the range's chains continue from: per decision, per resource, per observed resource.
+        # The heads the range's chains continue from: per decision, per resource (v1.6.0: execution evidence
+        # or a grant use), per observed resource, per grant.
         decisions = {s["entry"].decision_id for s in entries if s["entry"].entry_kind == "execution"}
-        resources = {s["entry"].resource_id for s in entries if s["entry"].entry_kind == "execution"
-                     and s["entry"].resource_id}
+        resources = {s["entry"].resource_id for s in entries
+                     if s["entry"].entry_kind in ("execution", "grant_execution") and s["entry"].resource_id}
+        granted = {s["entry"].subject_id for s in entries if s["entry"].entry_kind == "grant_execution"}
         observed = {s["entry"].resource_id for s in entries if s["entry"].entry_kind == "observation"
                     and s["entry"].resource_id}
         for decision_id in sorted(d for d in decisions if d):
             keep(db.last_entry_before("execution", "decision_id", decision_id, start))
         for resource_id in sorted(r for r in resources if r):
-            keep(db.last_entry_before("execution", "resource_id", resource_id, start))
+            keep(db.last_resource_entry_before(resource_id, start))
+        for grant_id in sorted(g for g in granted if g):
+            keep(db.last_entry_before("grant_execution", "subject_id", grant_id, start))
         for resource_id in sorted(r for r in observed if r):
             keep(db.last_entry_before("observation", "resource_id", resource_id, start))
         # The registry and key history before the range, and the latest retention checkpoint.
@@ -199,6 +212,11 @@ class AuditPackService:
                 binding = p.get("policy_binding")
             elif kind == "break_glass" and p.get("attestation_id"):
                 attestation_ids.add(str(p["attestation_id"]))
+            elif kind == "grant":
+                # v1.6.0: the policy versions a grant is bound to, and its basis attestation.
+                binding = p.get("policy_binding")
+                if p.get("basis_kind") == "attestation" and p.get("basis_id"):
+                    attestation_ids.add(str(p["basis_id"]))
             elif kind == "registry" and p.get("event") == "policy_activated" and p.get("policy_id") \
                     and p.get("policy_version"):
                 versions.add((str(p["policy_id"]), int(p["policy_version"])))

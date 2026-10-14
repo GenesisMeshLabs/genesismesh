@@ -53,7 +53,7 @@
           "title": "Decision Id"
         },
         "entry_kind": {
-          "description": "decision, justification, execution, retention_checkpoint, observation, break_glass, judgement, quarantine, registry, remediation, review, key_succession or archive; later releases may add kinds",
+          "description": "decision, justification, execution, retention_checkpoint, observation, break_glass, judgement, quarantine, registry, remediation, review, key_succession, archive, grant, grant_execution or grant_revocation; later releases may add kinds",
           "title": "Entry Kind",
           "type": "string"
         },
