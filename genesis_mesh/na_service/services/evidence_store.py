@@ -291,6 +291,9 @@ class EvidenceStoreService:
         duplicate = self._stored_duplicate(evidence, digest, raw)
         if duplicate is not None:
             return duplicate, False
+        # v1.6.0 review fixes: observations match execution evidence and a grant use by ID.
+        if self._na.db.get_entry_by_record("grant_execution", evidence.evidence_id) is not None:
+            self._reject("evidence_conflict", "a grant use with this evidence_id is stored", evidence, digest, raw)
 
         key_row = self._na.db.get_executor_key(evidence.signature.key_id) if evidence.signature else None
         executor_key = self.key_from_row(key_row) if key_row else None
@@ -381,9 +384,15 @@ class EvidenceStoreService:
         return self._entry_body(existing)
 
     def _resource_head(self, resource_id: str) -> ResourceHeadState | None:
-        """The resource chain's head: its latest execution record (observations take no position)."""
+        """The resource chain's head: its latest execution record (observations take no position), or
+        (v1.6.0) grant use, whose position the NA assigned when it admitted it."""
         last = self._na.db.last_resource_record(resource_id)
         if last is not None:
+            if last["entry"].entry_kind == "grant_execution":
+                from ...models.grants import GrantExecutionEvidence
+
+                use = GrantExecutionEvidence.model_validate(last["payload"])
+                return ResourceHeadState(last["entry"].resource_sequence or 0, use.digest())
             record = ExecutionEvidence.model_validate(last["payload"])
             return ResourceHeadState(record.resource_sequence or 0, record.digest())
         cp = self._na.db.latest_retention_checkpoint()
@@ -452,6 +461,8 @@ class EvidenceStoreService:
         row = self._na.db.get_executor_key(key_id)
         assert row is not None
         self._na.out_of_band_service.key_retired(key_id, str(row["retired_at"]), retired_by)
+        # v1.6.0: the grants the key bears are revoked with it.
+        self._na.grant_service.on_key_retired(key_id)
         return {"key_id": key_id, "active": False}
 
     def list_executor_keys(self) -> list[dict[str, Any]]:
@@ -476,6 +487,9 @@ class EvidenceStoreService:
         filters = {k: v for k, v in args.items() if k in (
             "vendor_id", "attestation_id", "capability", "resource_id", "outcome", "entry_kind", "decision_id",
         ) and v}
+        if args.get("grant_id"):
+            # v1.6.0 review fixes: a grant's uses and its revocation (their envelope's subject_id).
+            filters["subject_id"] = args["grant_id"]
         after, limit = self._page(args)
         rows = self._na.db.search_evidence(
             filters, since=args.get("since") or None, until=args.get("until") or None,
@@ -529,10 +543,20 @@ class EvidenceStoreService:
         head = self._resource_head(resource_id)
         if head is None:
             raise NotFoundError("no evidence for this resource", code="resource_not_found")
+        # v1.6.0 review fixes: what the head is (additive): execution evidence or a grant use, with its
+        # record ID; retention_checkpoint (no record ID) once retention removed every stored record.
+        last = self._na.db.last_resource_record(resource_id)
+        if last is not None:
+            entry = last["entry"]
+            kind, record_id = entry.entry_kind, entry.evidence_id if entry.entry_kind == "execution" else entry.record_id
+        else:
+            kind, record_id = "retention_checkpoint", None
         return {
             "resource_id": resource_id,
             "resource_sequence": head.resource_sequence,
             "record_digest": head.record_digest,
+            "entry_kind": kind,
+            "record_id": record_id,
         }
 
     def resource_history(self, resource_id: str) -> dict[str, Any]:
@@ -655,6 +679,10 @@ class EvidenceStoreService:
             out["evidence_remediation"] = self._na.evidence_remediation
             if self._na.remediation_service.enabled:
                 out.update(self._na.remediation_service.counts())
+            # v1.6.0: grants by state, with the records on.
+            out["evidence_grants"] = self._na.evidence_grants
+            if self._na.grant_service.enabled:
+                out.update(self._na.grant_service.counts())
         return out
 
     # -- anchors (v1.2.0) -------------------------------------------------------
@@ -1025,6 +1053,16 @@ class EvidenceStoreService:
                            f"remediation is due, overdue or waived, whose review is pending or whose lifetime "
                            f"runs (GET /admin/evidence/remediations); it is kept until that is settled",
             }
+        if row["entry_kind"] == "grant":
+            # v1.6.0: a grant whose uses may still be uploaded.
+            return {
+                "reason": "usable_grants",
+                "store_sequence": first,
+                "entry_kind": "grant",
+                "record_id": row["record_id"],
+                "message": f"retention stops before entry {first}, a grant whose uses may still be uploaded (until "
+                           f"its end plus its validity); it is kept, with its uses, until then",
+            }
         judge = "POST /admin/evidence/observations/<id>/judge or /admin/evidence/break-glass/<id>/judge"
         remedy = f"judge them ({judge})" if self._na.out_of_band_service.enabled else (
             f"EVIDENCE_OUT_OF_BAND is off, so they cannot be judged: turn it on, judge them ({judge}), "
@@ -1062,6 +1100,11 @@ class EvidenceStoreService:
                 judgement_groups[r["record_id"]] = f"subject:{r['subject_id']}"
         # v1.4.0: the records of a change whose remediation is not settled are kept.
         open_subjects = self._na.db.open_remediation_subjects(now)
+        # v1.6.0: a grant whose uses may still be admitted is kept, with its uses and revocation.
+        from .grants import GrantService
+
+        usable_grants = {r["record_id"] for r in rows if r["entry_kind"] == "grant"
+                         and GrantService.retention_horizon(json.loads(r["payload_json"])) >= now}
 
         def group(r: Any) -> str | None:
             # v1.3.0: an observation or break-glass record stays with its judgement.
@@ -1073,6 +1116,18 @@ class EvidenceStoreService:
             # its decision, so an export after a checkpoint holds the subject of every one it holds.
             if r["entry_kind"] in ("remediation", "review") and r["subject_id"]:
                 return judgement_groups.get(r["subject_id"], r["subject_id"])
+            # v1.6.0: a grant stays with its uses and its revocation, so an export after a checkpoint holds
+            # the grant of every use it holds.
+            if r["entry_kind"] == "grant":
+                return f"grant:{r['record_id']}"
+            if r["entry_kind"] in ("grant_execution", "grant_revocation") and r["subject_id"]:
+                return f"grant:{r['subject_id']}"
+            if r["entry_kind"] == "quarantine":
+                # v1.6.0 review fixes: a quarantined use stays with its grant (its chain).
+                payload = json.loads(r["payload_json"])
+                record = payload.get("record") if payload.get("record_kind") == "grant_execution" else None
+                if isinstance(record, dict) and isinstance(record.get("grant_id"), str):
+                    return f"grant:{record['grant_id']}"
             return None
 
         def pinned(r: Any) -> bool:
@@ -1082,6 +1137,8 @@ class EvidenceStoreService:
                 return r["record_id"] in open_subjects
             if r["entry_kind"] == "decision":
                 return r["decision_id"] in open_subjects
+            if r["entry_kind"] == "grant":
+                return r["record_id"] in usable_grants
             return False
 
         candidates = [
@@ -1140,6 +1197,13 @@ class EvidenceStoreService:
                 heads[r["resource_id"]] = ResourceHead(
                     resource_sequence=record.resource_sequence or 0, record_digest=record.digest()
                 )
+            elif r["entry_kind"] == "grant_execution" and r["resource_id"] and r["resource_sequence"]:
+                # v1.6.0: a grant use's position is the NA's, in its envelope.
+                from ...models.grants import GrantExecutionEvidence
+
+                use = GrantExecutionEvidence.model_validate(json.loads(r["payload_json"]))
+                heads[r["resource_id"]] = ResourceHead(
+                    resource_sequence=int(r["resource_sequence"]), record_digest=use.digest())
             elif r["entry_kind"] == "observation" and r["resource_id"] and r["observation_sequence"]:
                 observation_heads[r["resource_id"]] = int(r["observation_sequence"])
             elif r["entry_kind"] in self.CARRIED_KINDS:

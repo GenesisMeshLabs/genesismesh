@@ -692,6 +692,15 @@ Both routes report which keys their answer rests on in `trust_basis`:
 Returns the current signed `SovereignRevocationFeed` for the local sovereign.
 The feed contains membership attestations revoked by this Network Authority.
 
+With `EVIDENCE_GRANTS=on` (v1.6.0) it also lists `revoked_grant_ids`: the
+grants this NA revoked that are not yet past their end, which holders stop
+using once they read the feed. `sequence` counts every grant revocation as
+well as every revoked attestation, with grants on or off, so it only grows.
+With grants off the field is left out and the feed keeps its 1.5 form: a 1.5
+verifier refuses a feed that carries it (`unknown_field`), so turn grants on
+once the verifiers reading the feed run 1.6. The NA refuses to start with
+grants off while a grant it issued has not ended.
+
 Response:
 
 ```json

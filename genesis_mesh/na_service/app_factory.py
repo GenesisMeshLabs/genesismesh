@@ -15,6 +15,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from ..models import GenesisBlock
 from .key_provider import load_signer, root_key_findings
 from .server import create_app
+from .services.grants import GrantLimits
 from .settings import NASettings
 
 
@@ -66,6 +67,11 @@ def build_app(settings: NASettings) -> Flask:
         review_actor_holders=settings.review_actor_holders,
         retention_require_archive=settings.retention_require_archive,
         decision_lifetime_seconds=settings.decision_lifetime_seconds,
+        evidence_grants=settings.evidence_grants,
+        grant_limits=GrantLimits(
+            max_validity_seconds=settings.grant_max_validity_seconds, max_uses=settings.grant_max_uses,
+            max_uses_per_time_token=settings.grant_max_uses_per_time_token,
+        ),
     )
 
     # Trust exactly NA_PROXY_HOPS reverse proxies (e.g. 1 behind nginx) for the

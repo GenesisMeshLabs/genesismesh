@@ -47,7 +47,8 @@ def test_unknown_resource_has_no_head(client):
 def test_head_is_the_last_record(client):
     records = _chain(client, 3)
     head = _get(client, f"/admin/evidence/resource-heads/{SECRET}").get_json()
-    assert head == {"resource_id": SECRET, "resource_sequence": 3, "record_digest": records[-1].digest()}
+    assert head == {"resource_id": SECRET, "resource_sequence": 3, "record_digest": records[-1].digest(),
+                    "entry_kind": "execution", "record_id": records[-1].evidence_id}
 
 
 def test_a_record_linked_to_the_head_is_accepted(client):

@@ -15,6 +15,7 @@ in {doc}`remediation-and-reviews`; break-glass records and judging in
 | The NA answers with an ordinary DENY | the **emergency capability** (since 1.4.0) | the controller requests the emergency capability with a justification; the NA decides it under the emergency policy before the change |
 | The NA cannot be reached, times out or answers `5xx` or `429` | **break-glass** (since 1.3.0) naming the emergency capability | the controller acts, keeps a signed break-glass record and submits it later; the NA judges it under the emergency policy |
 | An observer reports a change as an emergency | neither | not enough on its own: the change is judged under the ordinary capability and flagged |
+| A device that cannot reach the NA holds a grant for the change (since 1.6.0) | a **grant** ({doc}`grants`) | authorised in advance within the grant's envelope, uploaded later; governed by the grant, not judged. Once the grant has ended, is spent or revoked, the SDK falls back to break-glass |
 
 None of them is blocked, and each is judged: an emergency decision is a
 decision made before the change, a break-glass record is judged after it,

@@ -364,6 +364,7 @@ def judgement_from(
     possible_match_evidence_id: str | None = None,
     same_change_as: str | None = None,
     review_notes: Sequence[str] = (),
+    governed_by: str = "prior_decision",
 ) -> JudgementRecord:
     """Assemble the NA's verdict on one change (unsigned).
 
@@ -381,6 +382,10 @@ def judgement_from(
     facts needs a person to look at it (history the NA recorded late, a
     break-glass executor the NA cannot tie to its attestation): each is
     added to the reason and flags the judgement, unless a decision governs it.
+
+    ``governed_by`` (v1.6.0) is ``grant`` when the matched record is a grant
+    use (``matched_evidence_id`` is its ``use_id``): the grant governed the
+    change, as a decision does.
     """
     notes = "; ".join(review_notes)
     base: dict[str, Any] = dict(
@@ -398,18 +403,19 @@ def judgement_from(
         issued_by=issued_by,
     )
     if matched_evidence_id is not None or same_change_as is not None:
-        matched = ("matched recorded execution evidence" if same_change_as is None
-                   else f"the same change as recorded execution evidence {same_change_as}, already matched")
+        what = "a recorded grant use" if governed_by == "grant" else "recorded execution evidence"
+        matched = (f"matched {what}" if same_change_as is None
+                   else f"the same change as {what} {same_change_as}, already matched")
         if verdict is not None and verdict.verdict == "deny":
             denied = f"{matched}, but the observed change is denied on its own facts: {verdict.reason}"
             return JudgementRecord(
-                **base, governed_by="prior_decision", verdict="deny",
+                **base, governed_by=governed_by, verdict="deny",  # type: ignore[arg-type]
                 reason=(denied + (f"; {notes}" if notes else ""))[:1024],
                 policy_binding=verdict.binding, gate_results=list(verdict.gate_results), flagged_for_review=True,
                 matched_evidence_id=matched_evidence_id, matched_decision_id=matched_decision_id,
             )
         return JudgementRecord(
-            **base, governed_by="prior_decision", verdict="allow", reason=matched,
+            **base, governed_by=governed_by, verdict="allow", reason=matched,  # type: ignore[arg-type]
             matched_evidence_id=matched_evidence_id, matched_decision_id=matched_decision_id,
         )
     binding: PolicyBinding | None = verdict.binding if verdict is not None else None
@@ -451,7 +457,7 @@ def verify_na_record(record: NaSigned, na_public_keys: Iterable[str]) -> bool:
 
 
 def entry_index(kind: str, record: Any) -> dict[str, Any]:
-    """Search fields of a Stage 2 (v1.4.0: or Stage 3; v1.5.0: or Stage 4) entry's envelope."""
+    """Search fields of a Stage 2 (v1.4.0: or Stage 3; v1.5.0: or Stage 4; v1.6.0: or Stage 5) entry's envelope."""
     if isinstance(record, ObservationRecord):
         return {"record_id": record.observation_id, "resource_id": record.resource_id,
                 "resource_action": record.action, "capability": record.capability,
@@ -485,4 +491,10 @@ def entry_index(kind: str, record: Any) -> dict[str, Any]:
         return {"record_id": record.succession_id}
     if isinstance(record, ArchiveRecord):
         return {"record_id": record.archive_id}
-    raise TypeError(f"not a Stage 2, 3 or 4 record: {kind}")
+    from ..models.grants import CapabilityGrant, GrantExecutionEvidence, GrantRevocationRecord
+
+    if isinstance(record, (CapabilityGrant, GrantExecutionEvidence, GrantRevocationRecord)):
+        from .grants import entry_index as stage5_index  # v1.6.0
+
+        return stage5_index(record)
+    raise TypeError(f"not a Stage 2, 3, 4 or 5 record: {kind}")

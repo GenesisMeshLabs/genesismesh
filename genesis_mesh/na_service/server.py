@@ -40,6 +40,8 @@ from .services import (
     AuditPackService,
     BoundaryPolicyService,
     EvidenceStoreService,
+    GrantLimits,
+    GrantService,
     OutOfBandService,
     RemediationService,
 )
@@ -61,6 +63,7 @@ from .routes import (
     create_enrollment_blueprint,
     create_evidence_blueprint,
     create_evidence_store_blueprint,
+    create_grants_blueprint,
     create_health_blueprint,
     create_key_history_blueprint,
     create_public_blueprint,
@@ -139,6 +142,8 @@ class NetworkAuthorityService:
         review_actor_holders: Optional[dict[str, str]] = None,
         retention_require_archive: bool = True,
         decision_lifetime_seconds: int = 300,
+        evidence_grants: str = "off",
+        grant_limits: Optional[GrantLimits] = None,
     ):
         """
         Initialize the Network Authority service.
@@ -206,6 +211,13 @@ class NetworkAuthorityService:
             retention_require_archive: retention removes nothing an archive
                 record does not cover (v1.5.0, on by default; off only for
                 local development).
+            evidence_grants: "off" (default) or "on" (v1.6.0): issue
+                pre-issued grants and record them, their uses and their
+                revocations in the evidence store, and list revoked grants in
+                the revocation feed. Off keeps the store and the feed readable
+                by 1.5 verifiers. Needs ``evidence_out_of_band="on"``.
+            grant_limits: the longest validity, largest budget and most uses
+                per time token a grant may have (v1.6.0; ``NA_GRANT_*``).
         """
         self.genesis_block = genesis_block
         # v0.60: every NA signature goes through one Signer. ``na_private_key``
@@ -289,6 +301,13 @@ class NetworkAuthorityService:
         if evidence_remediation == "on" and evidence_out_of_band != "on":
             raise ValueError("evidence_remediation='on' needs evidence_out_of_band='on'")
         self.evidence_remediation = evidence_remediation
+        # v1.6.0 (Stage 5): pre-issued grants.
+        if evidence_grants not in ("off", "on"):
+            raise ValueError("evidence_grants must be 'off' or 'on'")
+        if evidence_grants == "on" and evidence_out_of_band != "on":
+            raise ValueError("evidence_grants='on' needs evidence_out_of_band='on'")
+        self.evidence_grants = evidence_grants
+        self.grant_limits = grant_limits or GrantLimits()
         if remediation_default_mode not in ("alert_only", "cancel"):
             raise ValueError("remediation_default_mode must be 'alert_only' or 'cancel'")
         if isinstance(remediation_grace_seconds, bool) or not isinstance(remediation_grace_seconds, int) \
@@ -331,6 +350,8 @@ class NetworkAuthorityService:
         self.evidence_store_service = EvidenceStoreService(self)
         self.out_of_band_service = OutOfBandService(self)
         self.remediation_service = RemediationService(self)
+        # v1.6.0: pre-issued grants.
+        self.grant_service = GrantService(self)
         # v1.5.0: audit packs and archives.
         self.audit_pack_service = AuditPackService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
@@ -374,6 +395,10 @@ class NetworkAuthorityService:
         self.out_of_band_service.ensure_registry()
         # v1.4.0: remediation states for judgements whose arming failed; due times passed.
         self.remediation_service.ensure_states()
+        # v1.6.0: revocations an interrupted request missed (a deactivation, a revoked basis, a retired key).
+        # Review fixes: grants are switched off only once every grant has ended.
+        self.grant_service.check_switch()
+        self.grant_service.ensure_grants()
         logger.info(
             "Network Authority service initialized for network: %s",
             genesis_block.network_name,
@@ -396,6 +421,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_evidence_store_blueprint(self))
         self.app.register_blueprint(create_out_of_band_blueprint(self))
         self.app.register_blueprint(create_remediation_blueprint(self))
+        self.app.register_blueprint(create_grants_blueprint(self))
         self.app.register_blueprint(create_key_history_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))
@@ -656,6 +682,8 @@ def create_app(
     review_actor_holders: Optional[dict[str, str]] = None,
     retention_require_archive: bool = True,
     decision_lifetime_seconds: int = 300,
+    evidence_grants: str = "off",
+    grant_limits: Optional[GrantLimits] = None,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -688,6 +716,8 @@ def create_app(
         review_actor_holders=review_actor_holders,
         retention_require_archive=retention_require_archive,
         decision_lifetime_seconds=decision_lifetime_seconds,
+        evidence_grants=evidence_grants,
+        grant_limits=grant_limits,
     )
     return service.app
 

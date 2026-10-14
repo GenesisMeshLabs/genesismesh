@@ -50,8 +50,9 @@ from .execution import ResourceAction
 from .genesis import Signature
 
 #: How the NA came to know a change (Stage 2): before it, through a decision,
-#: or after it, by judging a record of it. Stage 5 adds ``grant``.
-GovernedBy = Literal["prior_decision", "after_the_fact"]
+#: or after it, by judging a record of it. v1.6.0 (Stage 5): ``grant``, a change made under a grant the
+#: NA signed in advance (written only with EVIDENCE_GRANTS=on).
+GovernedBy = Literal["prior_decision", "after_the_fact", "grant"]
 
 #: A judgement's verdict. ``indeterminate``: the NA cannot tell what applied
 #: at the time (no policy covered the change, or its history does not reach
@@ -209,6 +210,8 @@ class JudgementRecord(_SignedRecord):
 
     ``governed_by: prior_decision`` means the change matched recorded
     execution evidence (``matched_evidence_id``, consumed by the match);
+    ``grant`` (v1.6.0) that it matched a grant use (``matched_evidence_id`` is
+    the use's ``use_id``): a change governed by the grant, not judged again;
     ``after_the_fact`` means the NA evaluated it, as of ``evaluated_as_of``,
     under the policies active then (``policy_binding``, ``gate_results``).
     ``current_verdict`` is the verdict under the policies active when the
@@ -259,8 +262,9 @@ class QuarantineRecord(_SignedRecord):
     """
 
     quarantine_id: str = Field(default_factory=lambda: str(uuid.uuid4()), min_length=1, max_length=128)
-    # v1.4.0: "remediation", written only with EVIDENCE_REMEDIATION=on.
-    record_kind: Literal["execution", "observation", "break_glass", "remediation"]
+    # v1.4.0: "remediation", written only with EVIDENCE_REMEDIATION=on; v1.6.0: "grant_execution",
+    # written only with EVIDENCE_GRANTS=on.
+    record_kind: Literal["execution", "observation", "break_glass", "remediation", "grant_execution"]
     record: dict[str, Any]
     record_digest: str = Field(..., min_length=64, max_length=64)
     rejection_code: str = Field(..., min_length=1, max_length=128)

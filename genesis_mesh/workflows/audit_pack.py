@@ -69,6 +69,7 @@ from pydantic import ValidationError
 
 from .. import strict_json
 from ..models.audit_pack import (
+    AGREEMENTS_FILE,
     ANCHORS_FILE,
     ATTESTATIONS_FILE,
     CHECKS_FILE,
@@ -79,6 +80,7 @@ from ..models.audit_pack import (
     GENESIS_FILE,
     KEY_HISTORY_FILE,
     MANIFEST_FILE,
+    OPTIONAL_PACK_FILES,
     PACK_FILES,
     POLICIES_FILE,
     REPORT_FILE,
@@ -89,6 +91,7 @@ from ..models.audit_pack import (
 from ..models.boundary_policy import BoundaryPolicy, policy_set_digest
 from ..models.context import BoundaryDecision
 from ..models.evidence_store import EvidenceEvent, RetentionCheckpoint, StoreAnchor
+from ..models.grants import CapabilityGrant
 from ..models.key_succession import NAKeyHistory
 from ..models.out_of_band import JudgementRecord, RegistryRecord
 from ..models.sovereign import MembershipAttestation, RecognitionTreaty, SovereignRevocationFeed
@@ -236,7 +239,7 @@ def _check_manifest(
         if path not in listed:
             result.fail(MANIFEST_FILE, None, "manifest_file_missing", f"{path} is not listed")
     for path, item in sorted(listed.items()):
-        if path not in PACK_FILES:
+        if path not in PACK_FILES and path not in OPTIONAL_PACK_FILES:
             # v1.5.0 review fixes: a pack holds the files of its format and nothing else.
             result.fail(MANIFEST_FILE, None, "manifest_unknown_file", f"{path} is not a file of the format")
             continue
@@ -589,6 +592,8 @@ def _check_cited_trust(
         raw_attestations = _jsonl(files[ATTESTATIONS_FILE])
         raw_treaties = _jsonl(files[TREATIES_FILE])
         raw_feeds = _jsonl(files[FEEDS_FILE])
+        raw_agreements = _jsonl(files[AGREEMENTS_FILE]) if AGREEMENTS_FILE in files else []
+        agreements = {str(a.get("agreement_id")): a for a in raw_agreements if isinstance(a, dict)}
         policies = [BoundaryPolicy.model_validate(p) for p in raw_policies]
         attestations = [MembershipAttestation.model_validate(a) for a in raw_attestations]
         treaties = [RecognitionTreaty.model_validate(t) for t in raw_treaties]
@@ -656,6 +661,26 @@ def _check_cited_trust(
                 binding = JudgementRecord.model_validate(event.payload).policy_binding
             except ValidationError:
                 continue
+        elif kind == "grant":
+            # v1.6.0: the policy versions a grant is bound to, and the attestation it rests on.
+            try:
+                grant = CapabilityGrant.model_validate(event.payload)
+            except ValidationError:
+                continue
+            binding = grant.policy_binding
+            if grant.basis_kind == "attestation":
+                bound = by_attestation.get(grant.basis_id)
+                if bound is None:
+                    result.fail(where, seq, "cited_attestation_missing", grant.basis_id)
+                elif bound.digest() != grant.basis_digest:
+                    result.fail(where, seq, "cited_attestation_mismatch", grant.basis_id)
+            else:
+                # v1.6.0 review fixes: an agreement basis too: held, the one the grant names, between the
+                # grant's parties, and signed by both with keys the pack vouches for.
+                problem = _agreement_problem(grant, agreements.get(grant.basis_id), history, issuer_keys)
+                if problem is not None:
+                    result.fail(AGREEMENTS_FILE if problem != "cited_agreement_missing" else where, seq, problem,
+                                grant.basis_id)
         if binding is None:
             continue
         if policy_set_digest(binding.policies) != binding.policy_set_digest:
@@ -666,6 +691,51 @@ def _check_cited_trust(
                 result.fail(where, seq, "cited_policy_missing", f"{applied.policy_id} v{applied.version}")
             elif held.digest() != applied.policy_digest:
                 result.fail(where, seq, "cited_policy_mismatch", f"{applied.policy_id} v{applied.version}")
+
+
+def _agreement_problem(grant: CapabilityGrant, raw: Any, history: NAKeyHistory,
+                       treaty_keys: Mapping[str, list[str]]) -> str | None:
+    """Why the agreement a grant rests on does not hold up in a pack, or None (v1.6.0 review fixes).
+
+    ``cited_agreement_missing``: the pack does not hold it; ``cited_agreement_mismatch``: it is not the
+    one the grant's ``basis_digest`` names, or its parties are not the grant's (the responder is the
+    requester, the offerer the provider); ``agreement_invalid_signature``: its two parties did not
+    sign it, as received, with keys the pack vouches for (the NA's key valid at
+    ``agreed_terms.valid_from`` for its own sovereign, a treaty's subject keys for another; an
+    agreement the NA offered and accepted itself carries the NA's signature for both).
+    """
+    import hashlib
+
+    from ..models.agreement import AgreementRecord
+    from ..models.canonical_registry import agreement_refusal
+    from ..models.key_succession import na_keys_at
+    from ..trust.agreement import verify_agreement
+
+    if raw is None:
+        return "cited_agreement_missing"
+    try:
+        agreement = AgreementRecord.model_validate(raw)
+    except ValidationError:
+        return "cited_agreement_mismatch"
+    digest = hashlib.sha256(agreement.to_canonical_json().encode("utf-8")).hexdigest()
+    if digest != grant.basis_digest or agreement.responder_sovereign_id != grant.requester_sovereign_id \
+            or agreement.offerer_sovereign_id != grant.provider_sovereign_id:
+        return "cited_agreement_mismatch"
+    own = history.sovereign_id
+    na_keys = na_keys_at(history, agreement.agreed_terms.valid_from)
+
+    def keys(party: str) -> list[str]:
+        return list(na_keys) if party == own else [k for k in treaty_keys.get(party, []) if k not in na_keys]
+
+    # The NA-offered-and-accepted exception holds, as on the NA's routes, only while the responder
+    # holds a treaty from this NA (one the pack carries).
+    self_accepted = agreement.offerer_sovereign_id == own and bool(treaty_keys.get(agreement.responder_sovereign_id))
+    for offerer, responder in ((keys(agreement.offerer_sovereign_id), keys(agreement.responder_sovereign_id)),
+                               (na_keys, na_keys) if self_accepted else ([], [])):
+        if offerer and responder and verify_agreement(agreement, offerer, responder).accepted \
+                and agreement_refusal(raw, offerer, responder) is None:
+            return None
+    return "agreement_invalid_signature"
 
 
 def differences_from_pack_checks(result: PackVerification, files: Mapping[str, bytes]) -> list[dict[str, Any]]:
@@ -749,6 +819,9 @@ def compose_pack(
     }
     for path in (POLICIES_FILE, ATTESTATIONS_FILE, TREATIES_FILE, FEEDS_FILE):
         files[path] = jsonl_bytes([dict(r) for r in trust.get(path, [])])
+    if trust.get(AGREEMENTS_FILE):
+        # v1.6.0 review fixes: only when the pack holds a grant under an agreement.
+        files[AGREEMENTS_FILE] = jsonl_bytes([dict(r) for r in trust[AGREEMENTS_FILE]])
     root = str(genesis.get("root_public_key"))
     checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors,
                                executor_keys=check_executor_keys, check_manifest=False).to_dict()
@@ -918,6 +991,11 @@ def _records(entries: Sequence[EvidenceEvent], cited: Sequence[EvidenceEvent]) -
                 at = _utc(datetime.fromisoformat(p["executed_at"]))
                 records.append(_Record(kind, p["evidence_id"], event.entry.store_sequence, p["resource_id"],
                                        p["resource_action"], at, at))
+            elif kind == "grant_execution" and p.get("resource_id"):
+                # v1.6.0: a change made under a grant.
+                at = _utc(datetime.fromisoformat(p["executed_at"]))
+                records.append(_Record(kind, p["use_id"], event.entry.store_sequence, p["resource_id"],
+                                       p["resource_action"], at, at))
         except (KeyError, TypeError, ValueError):
             continue
     # A governed change seen by an observer is one change: the observation and what it matched.
@@ -935,7 +1013,8 @@ class _Group:
 
     @property
     def representative(self) -> _Record:
-        # The execution evidence or break-glass record when the group holds one, else its observation.
+        # The execution evidence, grant use or break-glass record when the group holds one, else its
+        # observation.
         return min(self.members, key=lambda r: (r.kind == "observation", r.store_sequence))
 
 
@@ -1198,6 +1277,8 @@ def render_report(
     break_glass: list[tuple[Any, ...]] = []
     quarantined: list[tuple[Any, ...]] = []
     others: list[tuple[Any, ...]] = []
+    grants: list[tuple[Any, ...]] = []
+    grant_revocations: list[tuple[Any, ...]] = []
 
     def state_of(subject: Any) -> Any:
         value = states.get(str(subject))
@@ -1209,13 +1290,22 @@ def render_report(
             changes.append((seq, kind, p.get("resource_id"), p.get("resource_action"), p.get("executed_at"),
                             "prior_decision", state_of(p.get("decision_id")) or "recorded",
                             p.get("executor_sovereign_id")))
+        elif kind == "grant_execution":
+            # v1.6.0: a change made under a grant, governed by it.
+            changes.append((seq, kind, p.get("resource_id"), p.get("resource_action"), p.get("executed_at"),
+                            "grant", "recorded", p.get("executor_sovereign_id")))
+        elif kind == "grant":
+            grants.append((seq, p.get("grant_id"), p.get("bearer_sovereign_id"), p.get("capabilities"),
+                           p.get("valid_from"), p.get("valid_until"), p.get("max_uses")))
+        elif kind == "grant_revocation":
+            grant_revocations.append((seq, p.get("grant_id"), p.get("reason"), p.get("revoked_at")))
         elif kind in ("observation", "break_glass"):
             record_id = str(p.get("observation_id") or p.get("break_glass_id"))
             judgement = judgements.get((kind, record_id))
             state = state_of(judgement.get("judgement_id")) if judgement else None
             if state is None:
                 state = ("observed" if judgement is None else
-                         "matched" if judgement.get("governed_by") == "prior_decision"
+                         "matched" if judgement.get("governed_by") in ("prior_decision", "grant")
                          and judgement.get("verdict") != "deny" else
                          {"allow": "judged_allowed", "deny": "judged_denied"}.get(str(judgement.get("verdict")),
                                                                                   "indeterminate"))
@@ -1258,6 +1348,13 @@ def render_report(
         ("Quarantined records", ["Entry", "Record kind", "Resource", "Rejection", "At"], quarantined),
         ("Key successions and archives", ["Entry", "Kind", "ID", "At"], others),
     ]
+    # v1.6.0: grants and their revocations, only in a pack that holds them (a pack without them renders as
+    # it did in 1.5).
+    if grants:
+        sections.append(("Grants", ["Entry", "Grant", "Bearer", "Capabilities", "Valid from", "Valid until",
+                                    "Budget"], grants))
+    if grant_revocations:
+        sections.append(("Grant revocations", ["Entry", "Grant", "Reason", "Revoked at"], grant_revocations))
     for title, headers, rows in sections:
         lines += [f"## {title}", ""]
         lines += _table(headers, rows)

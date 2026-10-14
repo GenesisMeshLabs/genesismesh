@@ -193,10 +193,11 @@ class EvidenceStoreMixin:
         return self._row_to_stored(row) if row else None
 
     def last_resource_record(self, resource_id: str) -> dict[str, Any] | None:
-        """The resource's latest execution record (v1.3.0: observations name a resource without taking a position)."""
+        """The resource's latest record with a position in its chain (v1.3.0: observations name a
+        resource without taking a position; v1.6.0: execution evidence or a grant use)."""
         row = self.conn.execute(
-            """SELECT * FROM evidence_entries WHERE resource_id = ? AND entry_kind = 'execution'
-               ORDER BY resource_sequence DESC LIMIT 1""",
+            """SELECT * FROM evidence_entries WHERE resource_id = ? AND entry_kind IN ('execution', 'grant_execution')
+               AND resource_sequence IS NOT NULL ORDER BY resource_sequence DESC LIMIT 1""",
             (resource_id,),
         ).fetchone()
         return self._row_to_stored(row) if row else None
@@ -274,7 +275,8 @@ class EvidenceStoreMixin:
         limit: int, recorded_since: datetime | None, *, matched: bool,
     ) -> list[dict[str, Any]]:
         capabilities = [capability] if isinstance(capability, str) else list(capability)
-        clauses = ["e.entry_kind IN ('execution', 'break_glass')", "e.resource_id = ?", "e.resource_action = ?",
+        clauses = ["e.entry_kind IN ('execution', 'break_glass', 'grant_execution')", "e.resource_id = ?",
+                   "e.resource_action = ?",
                    f"e.capability IN ({', '.join('?' for _ in capabilities)})"]
         params: list[Any] = [resource_id, resource_action, *capabilities]
         if version_id is not None:
@@ -283,7 +285,8 @@ class EvidenceStoreMixin:
         if recorded_since is not None:
             clauses.append("e.recorded_at >= ?")
             params.append(recorded_since.isoformat())
-        # Execution evidence is identified by evidence_id, a break-glass record by record_id.
+        # Execution evidence is identified by evidence_id, a break-glass record (v1.6.0: or a grant
+        # use) by record_id.
         exists = "EXISTS" if matched else "NOT EXISTS"
         clauses.append(f"""{exists} (SELECT 1 FROM evidence_entries j
                                    WHERE j.matched_evidence_id = COALESCE(e.evidence_id, e.record_id))""")
@@ -361,11 +364,12 @@ class EvidenceStoreMixin:
         return max(times) if times else None
 
     def resource_changes(self, resource_id: str, limit: int, after_sequence: int = 0) -> list[dict[str, Any]]:
-        """A resource's execution records, observations, break-glass records and quarantine entries
-        after a store position, oldest first (v1.4.0: paged; their judgements are read apart)."""
+        """A resource's execution records, observations, break-glass records, quarantine entries and
+        (v1.6.0) grant uses after a store position, oldest first (v1.4.0: paged; their judgements are
+        read apart)."""
         rows = self.conn.execute(
             """SELECT * FROM evidence_entries WHERE resource_id = ? AND store_sequence > ?
-               AND entry_kind IN ('execution', 'observation', 'break_glass', 'quarantine')
+               AND entry_kind IN ('execution', 'observation', 'break_glass', 'quarantine', 'grant_execution')
                ORDER BY store_sequence LIMIT ?""",
             (resource_id, after_sequence, limit),
         ).fetchall()
@@ -439,12 +443,22 @@ class EvidenceStoreMixin:
 
     def last_entry_before(self, entry_kind: str, column: str, value: str, before_sequence: int) -> dict[str, Any] | None:
         """The latest entry of a kind whose ``column`` is ``value``, before a store position."""
-        if column not in ("decision_id", "resource_id"):
+        if column not in ("decision_id", "resource_id", "subject_id"):
             raise ValueError(f"unsupported column {column!r}")
         row = self.conn.execute(
             f"""SELECT * FROM evidence_entries WHERE entry_kind = ? AND {column} = ? AND store_sequence < ?
                 ORDER BY store_sequence DESC LIMIT 1""",
             (entry_kind, value, before_sequence),
+        ).fetchone()
+        return self._row_to_stored(row) if row else None
+
+    def last_resource_entry_before(self, resource_id: str, before_sequence: int) -> dict[str, Any] | None:
+        """The latest record with a position in a resource's chain before a store position (v1.6.0:
+        execution evidence or a grant use)."""
+        row = self.conn.execute(
+            """SELECT * FROM evidence_entries WHERE entry_kind IN ('execution', 'grant_execution') AND resource_id = ?
+               AND resource_sequence IS NOT NULL AND store_sequence < ? ORDER BY store_sequence DESC LIMIT 1""",
+            (resource_id, before_sequence),
         ).fetchone()
         return self._row_to_stored(row) if row else None
 
@@ -501,7 +515,8 @@ class EvidenceStoreMixin:
     def resource_latest_sequences(self) -> dict[str, int]:
         rows = self.conn.execute(
             """SELECT resource_id, MAX(resource_sequence) AS seq FROM evidence_entries
-               WHERE resource_id IS NOT NULL AND entry_kind = 'execution' GROUP BY resource_id"""
+               WHERE resource_id IS NOT NULL AND entry_kind IN ('execution', 'grant_execution')
+               AND resource_sequence IS NOT NULL GROUP BY resource_id"""
         ).fetchall()
         return {r["resource_id"]: int(r["seq"]) for r in rows}
 

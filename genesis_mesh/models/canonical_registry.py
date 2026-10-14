@@ -58,17 +58,21 @@ OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
     # v1.3.0: envelope fields added to every entry, omitted when absent.
     "EvidenceStoreEntry": ("record_id", "subject_id", "matched_evidence_id", "observation_sequence"),
     "RetentionCheckpoint": ("observation_heads",),
+    # v1.6.0: the revoked grants a feed lists, written only with EVIDENCE_GRANTS=on.
+    "SovereignRevocationFeed": ("revoked_grant_ids",),
 }
 
 
 def _out_of_band_omissions() -> dict[str, tuple[str, ...]]:
     from .audit_pack import AUDIT_OMIT_WHEN_NONE
+    from .grants import GRANTS_OMIT_WHEN_NONE
     from .key_succession import KEY_SUCCESSION_OMIT_WHEN_NONE
     from .out_of_band import OUT_OF_BAND_OMIT_WHEN_NONE
     from .remediation import REMEDIATION_OMIT_WHEN_NONE
 
     return {**OUT_OF_BAND_OMIT_WHEN_NONE, **REMEDIATION_OMIT_WHEN_NONE, **AUDIT_OMIT_WHEN_NONE,
-            "KeySuccessionRecord": KEY_SUCCESSION_OMIT_WHEN_NONE}
+            "KeySuccessionRecord": KEY_SUCCESSION_OMIT_WHEN_NONE,
+            **{k: v for k, v in GRANTS_OMIT_WHEN_NONE.items() if v}}
 
 #: Roots signed over a fixed list of fields rather than all of them.
 CANONICAL_FIELDS: dict[str, tuple[str, ...]] = {
@@ -119,6 +123,13 @@ def _roots() -> list[type[BaseModel]]:
     from .evidence_store import EvidenceStoreEntry, RetentionCheckpoint, StoreAnchor
     from .execution import ExecutionEvidence
     from .genesis import GenesisBlock
+    from .grants import (
+        CapabilityGrant,
+        GrantExecutionEvidence,
+        GrantRevocationRecord,
+        TimeToken,
+        TimeTokenRequest,
+    )
     from .justification import JustificationProof
     from .key_succession import KeySuccessionRecord
     from .out_of_band import BreakGlassRecord, JudgementRecord, ObservationRecord, QuarantineRecord, RegistryRecord
@@ -135,6 +146,8 @@ def _roots() -> list[type[BaseModel]]:
         ArchiveRecord, AuditPackManifest, GenesisBlock, KeySuccessionRecord,
         # v1.5.0 review fixes: every signed record a pack carries (a pack's treaties too).
         RecognitionTreaty,
+        # v1.6.0 (Stage 5): grants, their uses, time tokens and revocations.
+        CapabilityGrant, GrantExecutionEvidence, GrantRevocationRecord, TimeToken, TimeTokenRequest,
     ]
 
 

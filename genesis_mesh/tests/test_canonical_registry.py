@@ -45,6 +45,8 @@ FREE_FORM = {
     ("AdminApproval", "body"), ("AdminApproval", "query"),
     # v1.5.0 review fixes: the treaty, a root because packs carry it.
     ("RecognitionTreaty", "metadata"), ("RecognitionTreatyScope", "claims"),
+    # v1.6.0: a grant use's request (inside its grant's envelope) and its metadata.
+    ("GrantExecutionEvidence", "execution_parameters"), ("GrantExecutionEvidence", "request_parameters"),
 }
 
 
@@ -147,8 +149,9 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 
 def test_entry_kinds_are_the_models(registry):
     assert registry["entry_kinds"] == [
-        "archive", "break_glass", "decision", "execution", "judgement", "justification", "key_succession",
-        "observation", "quarantine", "registry", "remediation", "retention_checkpoint", "review",
+        "archive", "break_glass", "decision", "execution", "grant", "grant_execution", "grant_revocation",
+        "judgement", "justification", "key_succession", "observation", "quarantine", "registry", "remediation",
+        "retention_checkpoint", "review",
     ]
 
 
@@ -246,3 +249,14 @@ def test_the_verify_routes_refuse_unknown_fields(suite, monkeypatch):
                                                    "offerer_public_keys": agr["offerer_public_keys"],
                                                    "responder_public_keys": agr["responder_public_keys"]})
     assert resp.get_json()["accepted"] is True
+
+
+def test_every_conformance_vector_file_is_strict_json():
+    """v1.6.0 review fixes: every SDK reads the vector files with a strict JSON reader, which refuses a
+    whole file for one integer beyond 64 bits; an input like that is written as JSON text instead."""
+    from genesis_mesh import strict_json
+
+    files = sorted(SUITE.parent.glob("*.json"))
+    assert len(files) > 10
+    for path in files:
+        strict_json.loads(path.read_bytes())
