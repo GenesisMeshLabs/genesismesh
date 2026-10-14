@@ -89,6 +89,7 @@ from ..models.audit_pack import (
 from ..models.boundary_policy import BoundaryPolicy, policy_set_digest
 from ..models.context import BoundaryDecision
 from ..models.evidence_store import EvidenceEvent, RetentionCheckpoint, StoreAnchor
+from ..models.grants import CapabilityGrant
 from ..models.key_succession import NAKeyHistory
 from ..models.out_of_band import JudgementRecord, RegistryRecord
 from ..models.sovereign import MembershipAttestation, RecognitionTreaty, SovereignRevocationFeed
@@ -656,6 +657,19 @@ def _check_cited_trust(
                 binding = JudgementRecord.model_validate(event.payload).policy_binding
             except ValidationError:
                 continue
+        elif kind == "grant":
+            # v1.6.0: the policy versions a grant is bound to, and the attestation it rests on.
+            try:
+                grant = CapabilityGrant.model_validate(event.payload)
+            except ValidationError:
+                continue
+            binding = grant.policy_binding
+            if grant.basis_kind == "attestation":
+                bound = by_attestation.get(grant.basis_id)
+                if bound is None:
+                    result.fail(where, seq, "cited_attestation_missing", grant.basis_id)
+                elif bound.digest() != grant.basis_digest:
+                    result.fail(where, seq, "cited_attestation_mismatch", grant.basis_id)
         if binding is None:
             continue
         if policy_set_digest(binding.policies) != binding.policy_set_digest:
@@ -918,6 +932,11 @@ def _records(entries: Sequence[EvidenceEvent], cited: Sequence[EvidenceEvent]) -
                 at = _utc(datetime.fromisoformat(p["executed_at"]))
                 records.append(_Record(kind, p["evidence_id"], event.entry.store_sequence, p["resource_id"],
                                        p["resource_action"], at, at))
+            elif kind == "grant_execution" and p.get("resource_id"):
+                # v1.6.0: a change made under a grant.
+                at = _utc(datetime.fromisoformat(p["executed_at"]))
+                records.append(_Record(kind, p["use_id"], event.entry.store_sequence, p["resource_id"],
+                                       p["resource_action"], at, at))
         except (KeyError, TypeError, ValueError):
             continue
     # A governed change seen by an observer is one change: the observation and what it matched.
@@ -935,7 +954,8 @@ class _Group:
 
     @property
     def representative(self) -> _Record:
-        # The execution evidence or break-glass record when the group holds one, else its observation.
+        # The execution evidence, grant use or break-glass record when the group holds one, else its
+        # observation.
         return min(self.members, key=lambda r: (r.kind == "observation", r.store_sequence))
 
 
@@ -1198,6 +1218,8 @@ def render_report(
     break_glass: list[tuple[Any, ...]] = []
     quarantined: list[tuple[Any, ...]] = []
     others: list[tuple[Any, ...]] = []
+    grants: list[tuple[Any, ...]] = []
+    grant_revocations: list[tuple[Any, ...]] = []
 
     def state_of(subject: Any) -> Any:
         value = states.get(str(subject))
@@ -1209,13 +1231,22 @@ def render_report(
             changes.append((seq, kind, p.get("resource_id"), p.get("resource_action"), p.get("executed_at"),
                             "prior_decision", state_of(p.get("decision_id")) or "recorded",
                             p.get("executor_sovereign_id")))
+        elif kind == "grant_execution":
+            # v1.6.0: a change made under a grant, governed by it.
+            changes.append((seq, kind, p.get("resource_id"), p.get("resource_action"), p.get("executed_at"),
+                            "grant", "recorded", p.get("executor_sovereign_id")))
+        elif kind == "grant":
+            grants.append((seq, p.get("grant_id"), p.get("bearer_sovereign_id"), p.get("capabilities"),
+                           p.get("valid_from"), p.get("valid_until"), p.get("max_uses")))
+        elif kind == "grant_revocation":
+            grant_revocations.append((seq, p.get("grant_id"), p.get("reason"), p.get("revoked_at")))
         elif kind in ("observation", "break_glass"):
             record_id = str(p.get("observation_id") or p.get("break_glass_id"))
             judgement = judgements.get((kind, record_id))
             state = state_of(judgement.get("judgement_id")) if judgement else None
             if state is None:
                 state = ("observed" if judgement is None else
-                         "matched" if judgement.get("governed_by") == "prior_decision"
+                         "matched" if judgement.get("governed_by") in ("prior_decision", "grant")
                          and judgement.get("verdict") != "deny" else
                          {"allow": "judged_allowed", "deny": "judged_denied"}.get(str(judgement.get("verdict")),
                                                                                   "indeterminate"))
@@ -1258,6 +1289,13 @@ def render_report(
         ("Quarantined records", ["Entry", "Record kind", "Resource", "Rejection", "At"], quarantined),
         ("Key successions and archives", ["Entry", "Kind", "ID", "At"], others),
     ]
+    # v1.6.0: grants and their revocations, only in a pack that holds them (a pack without them renders as
+    # it did in 1.5).
+    if grants:
+        sections.append(("Grants", ["Entry", "Grant", "Bearer", "Capabilities", "Valid from", "Valid until",
+                                    "Budget"], grants))
+    if grant_revocations:
+        sections.append(("Grant revocations", ["Entry", "Grant", "Reason", "Revoked at"], grant_revocations))
     for title, headers, rows in sections:
         lines += [f"## {title}", ""]
         lines += _table(headers, rows)

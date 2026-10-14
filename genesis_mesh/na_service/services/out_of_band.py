@@ -244,7 +244,8 @@ class OutOfBandService:
     # -- quarantine -----------------------------------------------------------
 
     def quarantine(
-        self, kind: Literal["execution", "observation", "break_glass", "remediation"], raw: dict[str, Any],
+        self, kind: Literal["execution", "observation", "break_glass", "remediation", "grant_execution"],
+        raw: dict[str, Any],
         code: str, detail: str, resource_id: str | None,
     ) -> dict[str, Any]:
         """Keep an authentic record the NA refused after its action happened; idempotent per record."""
@@ -636,12 +637,14 @@ class OutOfBandService:
                     # A further observation of a recorded change (another observer, the same
                     # version, at the same time): the same change, not a new one.
                     seen = self._same_change(record, action, earliest, latest, db=db, caps=caps)
-                    if seen is not None and seen["entry"].entry_kind == "execution":
+                    if seen is not None and seen["entry"].entry_kind in ("execution", "grant_execution"):
                         prior: EvidenceStoreEntry = seen["entry"]
+                        granted = prior.entry_kind == "grant_execution"
                         judgement = self._sign(judgement_from(
                             subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest,
-                            verdict=verdict, same_change_as=prior.evidence_id,
-                            matched_decision_id=prior.decision_id, review_notes=notes, **issuer,
+                            verdict=verdict, same_change_as=prior.record_id if granted else prior.evidence_id,
+                            matched_decision_id=prior.decision_id, review_notes=notes,
+                            governed_by="grant" if granted else "prior_decision", **issuer,
                         ))
                     elif seen is not None:
                         judgement = self._matched_judgement(subject, seen, latest, earliest, now, db, verdict,
@@ -768,6 +771,12 @@ class OutOfBandService:
                 subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest, verdict=own,
                 matched_evidence_id=entry.evidence_id, matched_decision_id=entry.decision_id,
                 review_notes=notes, **issuer,
+            ))
+        if entry.entry_kind == "grant_execution":
+            # v1.6.0: a change made under a grant is governed by it, not judged after the fact.
+            return self._sign(judgement_from(
+                subject, judged_at=now, evaluated_as_of=latest, evaluated_from=earliest, verdict=own,
+                matched_evidence_id=entry.record_id, review_notes=notes, governed_by="grant", **issuer,
             ))
         # A break-glass record of the same change is the controller's own account: the
         # observation takes the stricter of its verdict and the observer's facts.
@@ -1557,6 +1566,8 @@ class OutOfBandService:
         rows = rows[:size]
         subjects = [s["entry"].record_id for s in rows if s["entry"].entry_kind in ("observation", "break_glass")]
         executions = [s["entry"].evidence_id for s in rows if s["entry"].entry_kind == "execution"]
+        # v1.6.0: grant uses, which observations match by their use_id.
+        executions += [s["entry"].record_id for s in rows if s["entry"].entry_kind == "grant_execution"]
         concerning = self._na.db.judgements_concerning(
             resource_id, [s for s in subjects if s], [*[e for e in executions if e], *[s for s in subjects if s]])
         judgements: dict[tuple[str, str], dict[str, Any]] = {}
@@ -1594,6 +1605,12 @@ class OutOfBandService:
                     change["justification"] = payload.get("justification")
                     change["observed_by"] = matched.get(entry.record_id or "")
                 changes.append(change)
+            elif kind == "grant_execution":
+                # v1.6.0: a change made under a grant, governed by it.
+                changes.append({**base, "record_id": entry.record_id, "action": entry.resource_action,
+                                "at": payload.get("executed_at"), "governed_by": "grant", "state": "recorded",
+                                "grant_id": entry.subject_id, "use_sequence": entry.exec_sequence_no,
+                                "observed_by": matched.get(entry.record_id or "")})
             elif kind == "quarantine":
                 changes.append({**base, "record_id": entry.record_id, "action": None,
                                 "at": payload.get("quarantined_at"), "governed_by": None, "state": "quarantined",
@@ -1627,7 +1644,7 @@ class OutOfBandService:
         Stage 3 (v1.4.0) replaces it with the remediation state when there is one."""
         if judgement is None:
             return "observed"
-        if judgement["governed_by"] == "prior_decision":
-            # Matched, unless the observer's own facts deny what the decision allowed.
+        if judgement["governed_by"] in ("prior_decision", "grant"):
+            # Matched, unless the observer's own facts deny what the decision (v1.6.0: or grant) allowed.
             return "judged_denied" if judgement["verdict"] == "deny" else "matched"
         return {"allow": "judged_allowed", "deny": "judged_denied"}.get(judgement["verdict"], "indeterminate")

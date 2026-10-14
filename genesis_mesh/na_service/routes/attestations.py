@@ -148,6 +148,8 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             "attestation_id": attestation_id,
             "reason": reason,
         })
+        # v1.6.0: the grants resting on the attestation are revoked with it.
+        service.grant_service.on_attestation_revoked(attestation_id)
         return jsonify({"attestation_id": attestation_id, "status": "revoked"}), 200
 
     @bp.route("/admin/recognition-policy", methods=["POST"])
@@ -263,13 +265,17 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             row["attestation"].attestation_id: row["revocation_reason"] or "unspecified"
             for row in revoked_rows
         }
+        # v1.6.0: with EVIDENCE_GRANTS=on, the revoked grants a holder may still hold (not yet past their
+        # end), and a sequence that counts every grant revocation too; off, the feed keeps its 1.5 form.
+        grants = service.grant_service.feed_revocations()
         feed = SovereignRevocationFeed(
             feed_id=str(uuid.uuid4()),
             issuer_sovereign_id=issuer_sovereign_id,
-            sequence=len(revoked_ids),
+            sequence=len(revoked_ids) + (grants[1] if grants else 0),
             issued_at=datetime.now(timezone.utc),
             revoked_attestation_ids=revoked_ids,
             revocation_reasons=reasons,
+            revoked_grant_ids=grants[0] if grants else None,
             issued_by=service.key_id,
             signatures=[],
         )

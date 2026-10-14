@@ -249,6 +249,8 @@ class BoundaryPolicyService:
                 "another version of this policy was activated concurrently; retry",
                 code="boundary_policy_activation_conflict",
             ) from exc
+        # v1.6.0: grants bound to the version it replaced are revoked, and grants it may deny are re-checked.
+        self._na.grant_service.on_policy_activated(policy, previous)
         return policy, previous
 
     def _refuse_emergency_conflict(self, policy: BoundaryPolicy) -> None:
@@ -281,6 +283,8 @@ class BoundaryPolicyService:
             raise NotFoundError("unknown boundary policy version", code="boundary_policy_not_found")
         if not self._na.out_of_band_service.deactivate_policy(policy_id, version, recorded_by, audit_event_id):
             raise ConflictError("boundary policy version is not active", code="boundary_policy_not_active")
+        # v1.6.0: grants bound to the version are revoked.
+        self._na.grant_service.on_policy_deactivated(policy_id, version)
 
     # -- inspection ---------------------------------------------------------
 
