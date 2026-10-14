@@ -108,5 +108,16 @@ class EdgeAgent:
                          context=context or {"request_parameters": {"lifetime_days": 30}}, **fields)
 
 
+def frozen_window(service: Any) -> Any:
+    """A service whose database rate limiter (PostgreSQL) counts in one clock-aligned minute for the whole
+    test, so a limit test never straddles a window boundary."""
+    from genesis_mesh.na_service.rate_limit import DatabaseRateLimiter
+
+    if isinstance(service.rate_limiter, DatabaseRateLimiter):
+        frozen = datetime.now(timezone.utc).timestamp()
+        service.rate_limiter = DatabaseRateLimiter(service.db, clock=lambda: frozen)
+    return service
+
+
 def stale(minutes: int = 10) -> datetime:
     return datetime.now(timezone.utc) - timedelta(minutes=minutes)

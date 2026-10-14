@@ -20,7 +20,7 @@ from genesis_mesh.crypto.node_auth import executor_key_id
 from genesis_mesh.models.out_of_band import BreakGlassRecord
 from genesis_mesh.na_service.services.evidence_store import EvidenceStoreService
 
-from .edge_support import PREFIX, SOVEREIGN, EdgeAgent, edge_invite, invite_token
+from .edge_support import PREFIX, SOVEREIGN, EdgeAgent, edge_invite, frozen_window, invite_token
 from .test_evidence_store import _client, _code
 from .test_grants import (  # noqa: F401  (clock is a fixture)
     CAPABILITY,
@@ -733,7 +733,7 @@ def test_an_executor_key_is_rate_limited(clock):
     """M7: break-glass, observations and grant uses count per executor key, after the signature verifies."""
     from genesis_mesh.na_service.rate_limit import RateLimits
 
-    service = _granting_service(rate_limits=RateLimits(executor=2))
+    service = frozen_window(_granting_service(rate_limits=RateLimits(executor=2)))
     client = _client(service)
     agent = EdgeAgent(client).enrolled(invite_token(client))
     # A record whose signature does not verify does not count against the key; it is refused for its signature.
@@ -751,7 +751,7 @@ def test_grant_uses_count_against_the_executor_limit(clock):
 
     from .test_grants import _submit_use
 
-    service = _granting_service(rate_limits=RateLimits(executor=1))
+    service = frozen_window(_granting_service(rate_limits=RateLimits(executor=1)))
     client = _client(service)
     agent = EdgeAgent(client).enrolled(invite_token(client))
     holder = Holder(client, key_id=agent.executor_key_id, sovereign=SOVEREIGN, register=False)

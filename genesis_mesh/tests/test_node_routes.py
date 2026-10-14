@@ -24,7 +24,7 @@ from genesis_mesh.crypto.node_auth import (
 from genesis_mesh.models.sovereign import MembershipAttestation
 from genesis_mesh.na_service.rate_limit import RateLimits
 
-from .edge_support import PREFIX, SOVEREIGN, EdgeAgent, invite_token, stale
+from .edge_support import PREFIX, SOVEREIGN, EdgeAgent, frozen_window, invite_token, stale
 from .test_edge_nodes import _attest, _details, _events, _grant
 from .test_evidence_store import _client, _code
 from .test_grants import CAPABILITY, _granting_service, _make_service, clock  # noqa: F401  (clock is a fixture)
@@ -294,7 +294,7 @@ def test_the_resource_head_matches_the_operators_view(agent, client, clock):
 
 
 def test_node_routes_are_rate_limited_per_node_and_per_address(clock):
-    service = _granting_service(rate_limits=RateLimits(node=2, node_address=4))
+    service = frozen_window(_granting_service(rate_limits=RateLimits(node=2, node_address=4)))
     client = _client(service)
     agent = EdgeAgent(client).enrolled(invite_token(client))
     assert [agent.call("/node/state").status_code for _ in range(3)] == [200, 200, 429]
