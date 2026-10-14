@@ -122,6 +122,8 @@ jobs:
           # v1.6.0: and the grants suite (grants, time tokens, grant uses, revocations).
           cmp conformance/vectors/grants.json sdks/sdk-typescript/tests/fixtures/conformance/grants.json
           cmp conformance/vectors/grants.json sdks/sdk-rust/tests/fixtures/grants.json
+          # v1.7.0: and the node suite (node request signatures), which only the Rust SDK runs.
+          cmp conformance/vectors/node.json sdks/sdk-rust/tests/fixtures/node.json
 
       - name: Go verifier conformance
         working-directory: sdks/sdk-go
