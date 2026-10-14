@@ -99,24 +99,34 @@ flowchart LR
    ```
 
 2. Issue an attestation to the site's sovereign ID whose
-   `claims.capabilities` lists what the site may do, and, for the changes it
-   must be able to make while disconnected, grants to its executor key
-   ({doc}`../operations/grants`).
+   `claims.capabilities` lists what the site may do.
 3. On the device, install the agent (binary and systemd unit, or the image),
    put the invite token where the unit reads it, and run
    `genesis-mesh-edge enroll`, then the service.
-4. While the NA answers, each action is decided by the NA; while it does not,
-   the agent acts under a grant it holds, or records an urgent change as
-   break-glass. Records reach the NA, in order, when the device reconnects.
-5. `genesis-mesh admin edge-nodes` (or the gateway console's *Edge nodes*
+4. Once the device has enrolled, issue grants to its executor key (the
+   `edge-…` key ID `genesis-mesh admin edge-nodes` shows; it exists only
+   after enrolment) for the changes it must be able to make while
+   disconnected ({doc}`../operations/grants`).
+5. While the NA answers, each action is decided by the NA; while it cannot be
+   reached, the agent acts under a grant it holds, or records an urgent
+   change as break-glass. Records reach the NA, in order, when the device
+   reconnects.
+6. `genesis-mesh admin edge-nodes` (or the gateway console's *Edge nodes*
    view) shows each site's status, the age of its trust snapshot and its
    pending uploads.
 
-Decommissioning a site with `genesis-mesh admin revoke` revokes all its
-certificates, retires its executor key and revokes the grants that key bears,
-in one step. Records the device has not uploaded yet are quarantined once its
-key is retired, so let its pending uploads reach 0 first unless it is
-compromised. The full guide is {doc}`../operations/edge-agent`.
+**Decommissioning a site.** Records the device has not uploaded yet are
+quarantined once its key is retired, so, unless it is compromised, wait until
+its pending uploads reach 0, stop the agent (`systemctl stop
+genesis-mesh-edge`), then revoke it with `genesis-mesh admin revoke`, which
+revokes all its certificates, retires its executor key and revokes the grants
+that key bears, in one step. A compromised device is revoked at once.
+
+**Re-enrolling a site** (a new device, or one whose certificate expired): on
+the device, `genesis-mesh-edge reset` (after its backlog drained), then
+`genesis-mesh-edge init`, a new edge invite bound to the node key it prints,
+and `genesis-mesh-edge enroll`. The full guide is
+{doc}`../operations/edge-agent`.
 
 ## Generating and Federating a Fleet
 
