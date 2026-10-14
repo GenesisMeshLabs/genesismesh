@@ -124,7 +124,9 @@ Applications reach the agent on a Unix socket (by default
 allow-lists) or on a loopback port with a bearer token. They call
 `/v1/authorize` with the capability, its parameters and the resource (under
 the device's prefix), act if allowed, and report the outcome. One
-authorization is open at a time.
+authorization is open at a time, and each peer (a uid, or a token's name) may
+ask at most `GM_EDGE_RATE_LIMIT_PER_MINUTE` times a minute (default 60);
+beyond that the agent answers `429 local_rate_limited` without asking the NA.
 
 ## How the agent decides
 
@@ -139,8 +141,9 @@ authorization is open at a time.
 
 "A DENY is final" holds because only an unreachable NA lets the agent act on
 its own: an NA that answers, even with an error, is obeyed. The agent also
-limits how fast local clients may ask, so a looping client cannot exhaust the
-NA's limits for the device.
+limits how fast local clients may ask (`429 local_rate_limited`, see
+[Let applications ask](#5-let-applications-ask)), so a looping client cannot
+exhaust the NA's limits for the device.
 
 A revoked agent refuses every request (`node_revoked`). With an expired
 certificate the agent cannot ask the NA, but grants, break-glass and uploads
