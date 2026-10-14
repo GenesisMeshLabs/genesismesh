@@ -314,3 +314,71 @@ Open for the Maintainer at release (from the skeptic's review):
   before it, be quarantined with a code of their own, so a reviewer can tell
   a legitimate backlog from forgeries?
 - Are the fixed footprint targets (Decision 35) the right ones?
+
+### Second review fixes (taken as proposed, 2026-10-14)
+
+The agent (sdk-rust):
+
+36. **Three answer classes** (revises Decision 32). An NA decision, or an NA
+    error with its JSON error body and a `4xx` other than `429`, is an answer:
+    final, no grant, no break-glass. An NA JSON error with `429` or `5xx`
+    means the NA is throttled or failing: grants may be used, never
+    break-glass. A connection failure, a timeout, or a `502`, `503`, `504` or
+    `520`–`527` without the NA's JSON body (a proxy's page) means
+    unreachable: grants, then break-glass with a justification. `/v1/status`
+    reports `na_state` and `last_na_error`.
+37. **The local API cannot be taken down**: accept errors never end the
+    loop, a 10-second header timeout, at most 64 connections; exit code 2 is
+    for configuration only.
+38. **systemd**: `@chown` allowed for `socket_group`; the invite token
+    credential falls back to an empty one, so the file may be removed after
+    enrolment.
+39. **No decision after SIGTERM**, and none for a client that disconnected
+    before its answer.
+40. **An expired certificate**: break-glass names the closest existing
+    `evaluation_failure` (the record format has no value for it), the agent
+    keeps trying to renew, and the docs give the recovery path.
+41. **Holders are rebuilt from the uses already made**, never from use 0; a
+    live grant that does not cover a request wins over an ended one
+    (`outside_grant`), with table-driven tests of the decision.
+42. **The device clock must be within five minutes of the NA's**; uploads run
+    even when the node state cannot be read; `node_auth_failed` is shown;
+    with `clock_behind` a grant that looks not yet valid counts as ended; the
+    NA's heartbeat answers outrank the device's view of its certificate's
+    expiry.
+43. **Large backlogs**: counts and flushes page through the outbox, old
+    authorizations are pruned, `outbox export [--dead-letters]` reads the
+    backlog, and a scenario with thousands of records measures memory.
+44. **Runbook**: `reset` (refuses while uploads are pending without
+    `--discard-pending`, and while `run` holds the state lock), then `init`,
+    a bound invite and `enroll`; `enroll` reads
+    `/etc/genesis-mesh-edge/invite-token`; the agent refuses to start when its
+    enrolment names another NA, or when its state is newer than it.
+45. **Smaller fixes**: bounded configuration durations, `Retry-After` on
+    uploads, a group- or world-writable state directory refused (exit 6), the
+    local limit at 30 requests a minute, a pinned image builder, and the soak
+    on x86_64 only for release pull requests (weekly unchanged).
+
+The gateway console:
+
+46. **Error texts** for the new codes, and the edge nodes table shows the
+    certificate (and when it expired), the executor key and the resource
+    prefix.
+
+The core (documentation only):
+
+47. **Grants after enrolment, re-enrolment with `reset`**: the edge example
+    issues grants once the executor key exists, and its runbooks stop the
+    agent after the backlog drained before revoking it.
+48. **Rate-limit tests freeze the window** on PostgreSQL: the
+    `DatabaseRateLimiter` counts in clock-aligned minutes, and a test whose
+    requests straddled a minute boundary saw its count reset
+    (`test_a_revoked_key_counts_like_an_unknown_one`, reproduced with a clock
+    that crosses the boundary).
+
+Also open for the Maintainer at release (second review):
+
+- Renewing an expired certificate while keeping its executor key, so an
+  expired device need not re-enrol (deferred).
+- Time derived from the NA (signed times) rather than the device clock for
+  freshness and grant validity (deferred).
