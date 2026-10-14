@@ -4,6 +4,7 @@ Operators (operator-signed headers):
   POST /admin/grants                      issue a grant (privileged)
   GET  /admin/grants                      grants, newest first (read tier)
   GET  /admin/grants/<grant_id>           one grant, its state and its revocation (read tier)
+  GET  /admin/grants/<grant_id>/uses      its use chain, newest first (read tier; v1.6.0 review fixes)
   POST /admin/grants/<grant_id>/revoke    revoke a grant (privileged)
 
 Holders (authenticated by the grant's bearer key, which signs the request or the record):
@@ -60,6 +61,7 @@ def create_grants_blueprint(service: "NetworkAuthorityService") -> Blueprint:
     def list_grants():
         """Grants, newest first: ?status=active|expired|revoked, ?bearer_key_id=, ?limit=, ?before=."""
         _admin({}, "read")
+        grants.maybe_reconcile()
         return jsonify(grants.list_grants({k: v for k, v in request.args.items()}))
 
     @bp.route("/admin/grants/<grant_id>", methods=["GET"])
@@ -67,6 +69,12 @@ def create_grants_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         """One grant, its state (uses, status) and its revocation."""
         _admin({}, "read")
         return jsonify(grants.get(grant_id))
+
+    @bp.route("/admin/grants/<grant_id>/uses", methods=["GET"])
+    def list_grant_uses(grant_id: str):
+        """A grant's use chain, newest first: admitted uses and quarantined uses that continued it."""
+        _admin({}, "read")
+        return jsonify(grants.list_uses(grant_id, {k: v for k, v in request.args.items()}))
 
     @bp.route("/admin/grants/<grant_id>/revoke", methods=["POST"])
     def revoke_grant(grant_id: str):

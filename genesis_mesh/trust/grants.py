@@ -27,6 +27,12 @@ Uses (``use_problem``)
     A use is checked against its grant, the use chain, its time token and
     the grant's revocation, in one order every implementation follows; the
     NA and the export verifier run the same checks with what each holds.
+    v1.6.0 review fixes: a use the NA refuses and quarantines still takes its
+    place in the holder's chain when it continues it (``continues_chain``),
+    so the holder's later uses are judged on their own; the budget counts
+    admitted uses only, and the order and time rules compare a use with the
+    last admitted one. At most ``max_uses_per_time_token`` uses follow the
+    use a time token names (a rule on the use and its token alone).
 
 A grant evaluates as ``parent_kind`` ``grant``: a gate on ``parent_kind``
 sees ``grant``, and a policy selects grants with ``parent_kinds: ["grant"]``.
@@ -104,17 +110,22 @@ GrantIssuanceRefusal = Literal[
 #: Why a use is refused at admission, in the order the NA checks (``use_problem`` and the checks
 #: before it). Codes marked final in ``QUARANTINED_USE_CODES`` keep an authentic use as a quarantine
 #: entry; the rest are refused outright (the holder retries, or the record is not authentic).
+#: v1.6.0 review fixes: the chain's checks come before the checks of the use against its grant (a
+#: quarantined use takes its place in the chain only when it continues it), the secret-material
+#: check right after the signature, and ``grant_use_out_of_scope`` (a bearer key with a resource
+#: prefix signing outside it) after ``grant_bearer_key_retired``.
 GrantUseRejectionCode = Literal[
     "grant_use_malformed",
     "grant_not_found",
     "grant_use_invalid_signature",
-    "grant_bearer_mismatch",
     "grant_use_secret_material",
-    "grant_bearer_key_retired",
-    "grant_mismatch",
     "grant_use_conflict",
     "grant_use_chain_gap",
     "grant_use_chain_mismatch",
+    "grant_bearer_mismatch",
+    "grant_bearer_key_retired",
+    "grant_use_out_of_scope",
+    "grant_mismatch",
     "grant_capability_mismatch",
     "grant_envelope_mismatch",
     "grant_budget_exhausted",
@@ -133,13 +144,16 @@ GrantUseRejectionCode = Literal[
 #: Refusals of an authentic use (its signature verifies with the grant's bearer key) that no later
 #: attempt can overcome: the use already happened, so it is kept as a quarantine entry. Left out: a
 #: use the chain does not reach yet (``grant_use_chain_gap``: the holder uploads the earlier ones
-#: first) and one carrying secret material (never stored).
+#: first), one carrying secret material (never stored) and (v1.6.0 review fixes) one dated in the
+#: future (``grant_use_in_future``: the holder retries once the NA's clock reaches it).
+#: A quarantined use that continues the chain (every code here but ``grant_use_conflict`` and
+#: ``grant_use_chain_mismatch``, which never do) becomes the chain's head.
 QUARANTINED_USE_CODES: frozenset[str] = frozenset({
-    "grant_bearer_mismatch", "grant_bearer_key_retired", "grant_mismatch", "grant_use_conflict",
-    "grant_use_chain_mismatch", "grant_capability_mismatch", "grant_envelope_mismatch", "grant_budget_exhausted",
-    "grant_time_token_invalid", "grant_time_token_mismatch", "grant_time_token_regressed",
-    "grant_time_token_exhausted", "grant_use_before_time_token", "grant_use_out_of_order",
-    "grant_use_outside_validity", "grant_use_in_future", "grant_use_uploaded_late", "grant_revoked",
+    "grant_use_conflict", "grant_use_chain_mismatch", "grant_bearer_mismatch", "grant_bearer_key_retired",
+    "grant_use_out_of_scope", "grant_mismatch", "grant_capability_mismatch", "grant_envelope_mismatch",
+    "grant_budget_exhausted", "grant_time_token_invalid", "grant_time_token_mismatch",
+    "grant_time_token_regressed", "grant_time_token_exhausted", "grant_use_before_time_token",
+    "grant_use_out_of_order", "grant_use_outside_validity", "grant_use_uploaded_late", "grant_revoked",
 })
 
 
@@ -323,6 +337,9 @@ def _decide_parameter(gate_type: str, config: Any, name: str, spec: EnvelopePara
         return ok, f"every item of {path} {'is' if ok else 'may not be'} within the allowed scope"
     if gate_type in ("allowlist.v1", "denylist.v1", "attestation_claim.v1"):
         if gate_type == "attestation_claim.v1":
+            if spec.one_of is not None and any(v is None for v in spec.one_of):
+                # v1.6.0 review fixes: the gate fails on a null value (a missing fact).
+                return False, f"{path} may be null"
             claims = (facts or {}).get("claims") if facts is not None else None
             allowed = claims.get(config.claim, MISSING) if isinstance(claims, dict) else MISSING
             if facts is None:
@@ -725,14 +742,18 @@ def check_grant(
 
 @dataclass(frozen=True)
 class PreviousUse:
-    """The use before this one in the grant's chain, as the NA or a verifier holds it."""
+    """The last admitted use of the grant before this one, as the NA or a verifier holds it: the
+    order and time rules compare a use with it (v1.6.0 review fixes: never with a quarantined use)."""
 
-    digest: str
     executed_at: datetime
-    time_token_id: str
     time_token_issued_at: datetime
-    #: How many uses up to and including this one cite its time token (they are consecutive).
-    token_uses: int
+
+
+def continues_chain(use: GrantExecutionEvidence, head: tuple[int, str | None]) -> bool:
+    """Whether a use continues a grant's use chain whose head is ``(use_sequence, digest)``
+    (``(0, None)`` before the first use). The head is the last use the chain holds: admitted, or
+    (v1.6.0 review fixes) quarantined after it continued the chain."""
+    return use.use_sequence == head[0] + 1 and use.prev_use_digest == head[1]
 
 
 def token_signature_valid(raw_token: Any, keys: Iterable[str]) -> bool:
@@ -747,6 +768,7 @@ def use_problem(
     *,
     grant: CapabilityGrant | None,
     previous: PreviousUse | None,
+    admitted: int | None,
     token_head: tuple[str, datetime] | None,
     token_keys: Sequence[str],
     raw_token: Any,
@@ -755,11 +777,14 @@ def use_problem(
 ) -> tuple[str, str] | None:
     """(code, detail) for the first rule a use breaks, or None (``GrantUseRejectionCode`` order).
 
-    Run after the use's signature, bearer key, grant digest and chain position
+    Run after the use's chain position, signature, bearer key and grant digest
     are checked. Each argument is what the caller holds: ``grant`` (None: the
-    checks that need it are skipped), ``previous`` (the use before it in the
-    chain, None for the first use or when it is not held), ``token_head`` (the
-    digest and time of the use the time token names, when held),
+    checks that need it are skipped), ``previous`` (the last admitted use
+    before it, None for none or when it is not held), ``admitted`` (how many
+    uses of the grant were admitted before it; None when the caller does not
+    hold the chain from its start: the budget is then not checked),
+    ``token_head`` (the digest and time of the use the time token names,
+    admitted or quarantined, when held),
     ``token_keys`` (the NA keys valid at the token's ``issued_at``),
     ``raw_token`` (the token as received), ``revoked_at`` (the grant's
     revocation recorded before the use) and ``recorded_at`` (the use's time in
@@ -773,9 +798,10 @@ def use_problem(
         problem = envelope_problem(grant.parameter_envelope, use.request_parameters)
         if problem is not None:
             return "grant_envelope_mismatch", problem
-        if use.use_sequence > grant.max_uses:
-            return "grant_budget_exhausted", f"use {use.use_sequence} of a budget of {grant.max_uses}"
-    if token.grant_id != use.grant_id or not token_signature_valid(raw_token, token_keys):
+        if admitted is not None and admitted >= grant.max_uses:
+            return "grant_budget_exhausted", f"{admitted} uses admitted of a budget of {grant.max_uses}"
+    if token.grant_id != use.grant_id or not token_signature_valid(raw_token, token_keys) or (
+            grant is not None and _utc(token.issued_at) < _utc(grant.issued_at)):
         return "grant_time_token_invalid", "the time token is not the NA's for this grant"
     if token.use_sequence >= use.use_sequence:
         return "grant_time_token_mismatch", (f"the time token was issued after use {token.use_sequence}, "
@@ -783,16 +809,16 @@ def use_problem(
     if token_head is not None and (token_head[0] != token.use_head_digest
                                    or _utc(token_head[1]) > _utc(token.issued_at) + GRANT_CLOCK_SKEW):
         return "grant_time_token_mismatch", f"use {token.use_sequence} is not the one the time token names"
-    if previous is not None:
-        if _utc(token.issued_at) < _utc(previous.time_token_issued_at):
-            return "grant_time_token_regressed", "the time token is older than the previous use's"
-        if grant is not None and previous.time_token_id == token.time_token_id \
-                and previous.token_uses >= grant.max_uses_per_time_token:
-            return "grant_time_token_exhausted", (f"{grant.max_uses_per_time_token} uses already cite time token "
-                                                  f"{token.time_token_id}")
-    if executed < _utc(token.issued_at):
-        return "grant_use_before_time_token", (f"executed at {_iso(executed)}, before the time token's "
-                                               f"{_iso(token.issued_at)}")
+    if previous is not None and _utc(token.issued_at) < _utc(previous.time_token_issued_at):
+        return "grant_time_token_regressed", "the time token is older than the previous use's"
+    if grant is not None and use.use_sequence - token.use_sequence > grant.max_uses_per_time_token:
+        return "grant_time_token_exhausted", (f"use {use.use_sequence} is more than "
+                                              f"{grant.max_uses_per_time_token} uses after the time token's "
+                                              f"{token.use_sequence}")
+    if executed < _utc(token.issued_at) - GRANT_CLOCK_SKEW:
+        return "grant_use_before_time_token", (f"executed at {_iso(executed)}, more than "
+                                               f"{int(GRANT_CLOCK_SKEW.total_seconds())} s before the time "
+                                               f"token's {_iso(token.issued_at)}")
     if previous is not None and executed < _utc(previous.executed_at):
         return "grant_use_out_of_order", f"executed at {_iso(executed)}, before the previous use"
     if grant is not None and not (_utc(grant.valid_from) <= executed <= _utc(grant.valid_until)):
@@ -810,13 +836,20 @@ def use_problem(
     return None
 
 
-def next_previous(use: GrantExecutionEvidence, digest: str, previous: PreviousUse | None) -> PreviousUse:
-    """The chain's state after a use: what the next use is checked against."""
-    token = use.time_token
-    same = previous is not None and previous.time_token_id == token.time_token_id
-    return PreviousUse(digest=digest, executed_at=_utc(use.executed_at), time_token_id=token.time_token_id,
-                       time_token_issued_at=_utc(token.issued_at),
-                       token_uses=(previous.token_uses + 1) if same and previous is not None else 1)
+def next_previous(use: GrantExecutionEvidence) -> PreviousUse:
+    """What the next use is checked against once this one is admitted."""
+    return PreviousUse(executed_at=_utc(use.executed_at), time_token_issued_at=_utc(use.time_token.issued_at))
+
+
+def envelope_secret_problem(envelope: dict[str, EnvelopeParameter]) -> str | None:
+    """Why a parameter envelope may carry secret material, or None (v1.6.0 review fixes): its names
+    and values are what every use's ``request_parameters`` carry, which the metadata guard checks."""
+    from .evidence_store import _secret_material
+
+    values: dict[str, Any] = {}
+    for name, spec in envelope.items():
+        values[name] = list(spec.one_of or spec.subset_of or [])
+    return _secret_material({"request_parameters": values})
 
 
 def use_secret_problem(use: GrantExecutionEvidence) -> str | None:

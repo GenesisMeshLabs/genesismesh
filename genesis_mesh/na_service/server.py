@@ -396,6 +396,8 @@ class NetworkAuthorityService:
         # v1.4.0: remediation states for judgements whose arming failed; due times passed.
         self.remediation_service.ensure_states()
         # v1.6.0: revocations an interrupted request missed (a deactivation, a revoked basis, a retired key).
+        # Review fixes: grants are switched off only once every grant has ended.
+        self.grant_service.check_switch()
         self.grant_service.ensure_grants()
         logger.info(
             "Network Authority service initialized for network: %s",

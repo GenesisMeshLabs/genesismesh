@@ -291,6 +291,9 @@ class EvidenceStoreService:
         duplicate = self._stored_duplicate(evidence, digest, raw)
         if duplicate is not None:
             return duplicate, False
+        # v1.6.0 review fixes: observations match execution evidence and a grant use by ID.
+        if self._na.db.get_entry_by_record("grant_execution", evidence.evidence_id) is not None:
+            self._reject("evidence_conflict", "a grant use with this evidence_id is stored", evidence, digest, raw)
 
         key_row = self._na.db.get_executor_key(evidence.signature.key_id) if evidence.signature else None
         executor_key = self.key_from_row(key_row) if key_row else None
@@ -484,6 +487,9 @@ class EvidenceStoreService:
         filters = {k: v for k, v in args.items() if k in (
             "vendor_id", "attestation_id", "capability", "resource_id", "outcome", "entry_kind", "decision_id",
         ) and v}
+        if args.get("grant_id"):
+            # v1.6.0 review fixes: a grant's uses and its revocation (their envelope's subject_id).
+            filters["subject_id"] = args["grant_id"]
         after, limit = self._page(args)
         rows = self._na.db.search_evidence(
             filters, since=args.get("since") or None, until=args.get("until") or None,
@@ -537,10 +543,20 @@ class EvidenceStoreService:
         head = self._resource_head(resource_id)
         if head is None:
             raise NotFoundError("no evidence for this resource", code="resource_not_found")
+        # v1.6.0 review fixes: what the head is (additive): execution evidence or a grant use, with its
+        # record ID; retention_checkpoint (no record ID) once retention removed every stored record.
+        last = self._na.db.last_resource_record(resource_id)
+        if last is not None:
+            entry = last["entry"]
+            kind, record_id = entry.entry_kind, entry.evidence_id if entry.entry_kind == "execution" else entry.record_id
+        else:
+            kind, record_id = "retention_checkpoint", None
         return {
             "resource_id": resource_id,
             "resource_sequence": head.resource_sequence,
             "record_digest": head.record_digest,
+            "entry_kind": kind,
+            "record_id": record_id,
         }
 
     def resource_history(self, resource_id: str) -> dict[str, Any]:
@@ -1106,6 +1122,12 @@ class EvidenceStoreService:
                 return f"grant:{r['record_id']}"
             if r["entry_kind"] in ("grant_execution", "grant_revocation") and r["subject_id"]:
                 return f"grant:{r['subject_id']}"
+            if r["entry_kind"] == "quarantine":
+                # v1.6.0 review fixes: a quarantined use stays with its grant (its chain).
+                payload = json.loads(r["payload_json"])
+                record = payload.get("record") if payload.get("record_kind") == "grant_execution" else None
+                if isinstance(record, dict) and isinstance(record.get("grant_id"), str):
+                    return f"grant:{record['grant_id']}"
             return None
 
         def pinned(r: Any) -> bool:

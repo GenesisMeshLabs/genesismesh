@@ -266,16 +266,17 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             for row in revoked_rows
         }
         # v1.6.0: with EVIDENCE_GRANTS=on, the revoked grants a holder may still hold (not yet past their
-        # end), and a sequence that counts every grant revocation too; off, the feed keeps its 1.5 form.
-        grants = service.grant_service.feed_revocations()
+        # end); off, the feed keeps its 1.5 form. Review fixes: the sequence counts every grant
+        # revocation, on or off, so switching grants off never makes it go back.
+        revoked_grants, grant_revocations = service.grant_service.feed_revocations()
         feed = SovereignRevocationFeed(
             feed_id=str(uuid.uuid4()),
             issuer_sovereign_id=issuer_sovereign_id,
-            sequence=len(revoked_ids) + (grants[1] if grants else 0),
+            sequence=len(revoked_ids) + grant_revocations,
             issued_at=datetime.now(timezone.utc),
             revoked_attestation_ids=revoked_ids,
             revocation_reasons=reasons,
-            revoked_grant_ids=grants[0] if grants else None,
+            revoked_grant_ids=revoked_grants,
             issued_by=service.key_id,
             signatures=[],
         )
