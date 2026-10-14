@@ -245,7 +245,9 @@ basis from the pack's `trust/agreements.jsonl` (a file a pack holds only when
 it holds a grant under an agreement): held (`cited_agreement_missing`), the
 one the grant's `basis_digest` names, between the grant's parties
 (`cited_agreement_mismatch`), and signed by both with keys the pack vouches
-for (`agreement_invalid_signature`). A pack cites the whole chain of a grant
+for (`agreement_invalid_signature`; an agreement the NA offered and accepted
+itself, its signature standing for both parties, vouches only while the pack
+carries a treaty for the responder, as on the NA's routes). A pack cites the whole chain of a grant
 its range uses, quarantined uses too. `renderReport` lists uses as changes
 governed by the grant, with *Grants* and *Grant revocations* sections in a
 pack that holds them.
