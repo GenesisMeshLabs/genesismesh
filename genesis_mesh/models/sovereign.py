@@ -275,6 +275,14 @@ class SovereignRevocationFeed(BaseModel):
         default_factory=list,
         description="Issuer signatures over the canonical feed",
     )
+    revoked_grant_ids: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Grants the issuer revoked that are not yet past their end (v1.6.0); left out of every "
+            "form when absent, which is how an NA without EVIDENCE_GRANTS=on writes the feed"
+        ),
+    )
 
     @model_validator(mode="after")
     def _normalize_revocations(self) -> "SovereignRevocationFeed":
@@ -284,6 +292,8 @@ class SovereignRevocationFeed(BaseModel):
         if unknown_reasons:
             raise ValueError("revocation_reasons contains unknown attestation IDs")
         self.revoked_attestation_ids = revoked
+        if self.revoked_grant_ids is not None:
+            self.revoked_grant_ids = sorted(set(self.revoked_grant_ids))
         return self
 
     def to_canonical_json(self) -> str:

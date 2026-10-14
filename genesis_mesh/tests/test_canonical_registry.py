@@ -45,6 +45,8 @@ FREE_FORM = {
     ("AdminApproval", "body"), ("AdminApproval", "query"),
     # v1.5.0 review fixes: the treaty, a root because packs carry it.
     ("RecognitionTreaty", "metadata"), ("RecognitionTreatyScope", "claims"),
+    # v1.6.0: a grant use's request (inside its grant's envelope) and its metadata.
+    ("GrantExecutionEvidence", "execution_parameters"), ("GrantExecutionEvidence", "request_parameters"),
 }
 
 
@@ -147,8 +149,9 @@ def test_values_of_the_wrong_type_are_left_to_validation(registry):
 
 def test_entry_kinds_are_the_models(registry):
     assert registry["entry_kinds"] == [
-        "archive", "break_glass", "decision", "execution", "judgement", "justification", "key_succession",
-        "observation", "quarantine", "registry", "remediation", "retention_checkpoint", "review",
+        "archive", "break_glass", "decision", "execution", "grant", "grant_execution", "grant_revocation",
+        "judgement", "justification", "key_succession", "observation", "quarantine", "registry", "remediation",
+        "retention_checkpoint", "review",
     ]
 
 

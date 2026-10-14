@@ -47,6 +47,9 @@ EntryKind = Literal[
     # v1.5.0 (Stage 4): NA key successions and archives, written only by an
     # operator's succession or archive (never pruned: carried past retention).
     "key_succession", "archive",
+    # v1.6.0 (Stage 5): pre-issued grants, their uses and revocations, written only with
+    # EVIDENCE_GRANTS=on.
+    "grant", "grant_execution", "grant_revocation",
 ]
 
 #: Envelope fields added in 1.3.0, left out of every serialized form when absent.
@@ -83,7 +86,8 @@ class EvidenceStoreEntry(BaseModel):
     # verification names it (``unknown_entry_kind``); the NA writes EntryKind only.
     entry_kind: str = Field(
         ..., description="decision, justification, execution, retention_checkpoint, observation, break_glass, "
-        "judgement, quarantine, registry, remediation, review, key_succession or archive; later releases may add kinds"
+        "judgement, quarantine, registry, remediation, review, key_succession, archive, grant, grant_execution or "
+        "grant_revocation; later releases may add kinds"
     )
     recorded_at: datetime = Field(..., description="UTC time the NA stored the entry")
     payload_digest: str = Field(..., description="SHA-256 of the stored payload's canonical JSON")
@@ -103,6 +107,7 @@ class EvidenceStoreEntry(BaseModel):
     exec_sequence_no: int | None = None
     resource_id: str | None = None
     resource_action: str | None = None
+    #: v1.6.0: a grant use's position in its resource's chain, assigned by the NA when it admits the use.
     resource_sequence: int | None = None
     # v1.3.0: the record's own id (observation, break-glass, judgement,
     # quarantine or registry record; v1.4.0 remediation or review record), the
