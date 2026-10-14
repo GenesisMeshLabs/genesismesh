@@ -50,11 +50,16 @@ range to the anchors around it. `cited.jsonl` holds, from before the range:
 
 - each record a record of the range (or of `cited.jsonl`) names: an
   execution's decision; a judgement's subject (observation or break-glass
-  record) and matched record; a remediation's subject (judgement or decision),
-  its change and its forward rotation; a review's subject;
+  record) and matched record (since 1.6.0 possibly a grant use); a
+  remediation's subject (judgement or decision), its change and its forward
+  rotation; a review's subject; (1.6.0) a grant use's grant and the grant's
+  revocation, and a grant revocation's grant;
 - the heads the range's chains continue from: for each decision with
   execution evidence in the range, its last execution before the range; for
-  each resource, its last execution and its last observation before the range;
+  each resource, its last record with a position in its chain (execution
+  evidence, or since 1.6.0 a grant use) and its last observation before the
+  range; (1.6.0) for each grant with uses in the range, its last use before
+  the range;
 - every registry, key succession and archive entry before the range (the
   executor, observer and operator key registries and the policy activations);
 - the latest retention checkpoint entry before the range: the heads of the
@@ -151,6 +156,8 @@ placed at its own signed time:
 | `AuditPackManifest` | `created_at` |
 | `BoundaryDecision` | `decision_made_at` |
 | `BoundaryPolicy` | `issued_at` |
+| `CapabilityGrant` (1.6.0) | `issued_at` |
+| `GrantRevocationRecord` (1.6.0) | `revoked_at` |
 | `JudgementRecord` | `judged_at` |
 | `JustificationProof` | `proof_issued_at` |
 | `MembershipAttestation` issued by the NA, `RecognitionTreaty` | `issued_at` |
@@ -159,6 +166,7 @@ placed at its own signed time:
 | `RetentionCheckpoint` | `created_at` |
 | `ReviewRecord` | `decided_at` |
 | `StoreAnchor` | `anchored_at` |
+| `TimeToken` (1.6.0), also nested in a grant use | `issued_at` |
 | `AgreementRecord` the NA signed | `agreed_terms.valid_from`, and the key must still be accepted now: `established_at` is outside the signed form |
 
 A signature by another key of the history is `na_key_not_valid_at_time`; a
@@ -266,7 +274,10 @@ verifies when nothing fails; warnings do not fail it.
    rotation: `remediation_subject_missing`, `remediation_rotation_missing`,
    `review_subject_missing`). Execution evidence names its decision by ID
    (`decision_id`): the decision it rests on is the one the pack holds under
-   that ID.
+   that ID. (1.6.0) A grant use or revocation whose grant neither holds is
+   `cited_record_missing`, and a grant use is checked against its grant, its
+   use chain, its time token and the grant's revocation with the reasons of
+   {doc}`evidence-event-schema`.
 6. **What the records rest on outside the store**, each signature checked
    over the record as received: unreadable files, `cited_trust_invalid`; a
    policy not signed by the NA key valid at its `issued_at`:
@@ -281,7 +292,11 @@ verifies when nothing fails; warnings do not fail it.
    digest, or a binding whose `policy_set_digest` does not match:
    `cited_policy_mismatch`; an attestation a decision binds that
    `trust/attestations.jsonl` does not hold: `cited_attestation_missing`;
-   held but not the one bound: `cited_attestation_mismatch`. Decisions are
+   held but not the one bound: `cited_attestation_mismatch`. Since 1.6.0 a
+   grant's `policy_binding` is checked as a decision's, and the attestation
+   a grant rests on (`basis_kind` `attestation`) must be held with the
+   grant's `basis_digest` (`cited_attestation_missing`,
+   `cited_attestation_mismatch`). Decisions are
    judged as of their own time: an expiry since they were made and used is
    not a failure.
 7. **The report**: `report.md` that differs from the report rendered from
@@ -313,7 +328,7 @@ differs is `cited_entry_mismatch`; one that neither covers is the warning
 `cited_entry_unanchored`. A verifier that holds the packs before this one
 covers every cited entry. Proving a cited entry against the anchors alone,
 without the earlier packs, needs a proof of inclusion that version 1 does not
-carry (a candidate for 1.6.0).
+carry (deferred from 1.6.0: a candidate for 1.7.0).
 
 (the-report)=
 ## The report
@@ -341,7 +356,19 @@ order:
 5. the sections `Changes`, `Denials`, `Remediations`, `Reviews and
    deciders`, `Notices`, `Break-glass uses`, `Quarantined records`, `Key
    successions and archives`, each `## <title>`, a blank line and its table,
-   rows in store order (notices by subject).
+   rows in store order (notices by subject);
+6. (1.6.0) only when the entries hold one: `Grants` (`Entry | Grant | Bearer
+   | Capabilities | Valid from | Valid until | Budget`: the grant's
+   `bearer_sovereign_id`, its `capabilities` as canonical JSON, its validity
+   and `max_uses`), then only when the entries hold one, `Grant revocations`
+   (`Entry | Grant | Reason | Revoked at`). A pack without them renders as a
+   1.5 pack does.
+
+In `Changes`, a grant use (1.6.0) is a row of kind `grant_execution`
+(`resource_id`, `resource_action`, `executed_at`, governed by `grant`, state
+`recorded`, the executor sovereign as its actor); an observation a judgement
+matched to a grant use shows `grant` and `matched`, as one matched to
+execution evidence shows `prior_decision` and `matched`.
 
 A table is a header row `| A | B |`, a row `|---|---|`, one row per item and
 a blank line; a table without rows is `None.` and a blank line. A cell holds
@@ -372,10 +399,10 @@ offset `+HH:MM` / `-HH:MM` (`T` and `Z` in either case); a date alone, a
 space for `T`, no offset, a leap second or a field out of range is refused.
 Fractions beyond microseconds are cut.
 
-Records of the range are its observations, break-glass records and execution
-evidence with a resource; an observation and the record a judgement matched
-it to are one change, represented by the matched record (the observation
-when there is none). Matching:
+Records of the range are its observations, break-glass records, execution
+evidence and (1.6.0) grant uses with a resource; an observation and the record
+a judgement matched it to are one change, represented by the matched record
+(the observation when there is none). Matching:
 
 1. a change repeating a (`source`, `source_event_id`) pair an earlier change
    gave is set aside (`duplicate_changes`, warning `change_duplicate`);
