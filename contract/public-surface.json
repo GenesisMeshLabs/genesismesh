@@ -1540,6 +1540,54 @@
       ]
     },
     {
+      "symbol": "genesis_mesh.crypto.node_auth:sign_node_request",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "body",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "node_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto.node_auth:sign_executor_proof",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "body",
+          "kind": "positional_or_keyword",
+          "required": true
+        },
+        {
+          "name": "executor_key",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto.node_auth:decode_ed25519_public_key",
+      "level": "beta",
+      "parameters": [
+        {
+          "name": "public_key_b64",
+          "kind": "positional_or_keyword",
+          "required": true
+        }
+      ]
+    },
+    {
+      "symbol": "genesis_mesh.crypto.node_auth:NODE_PURPOSES",
+      "level": "beta",
+      "kind": "constant"
+    },
+    {
       "symbol": "genesis_mesh.models:SovereignIdentity",
       "level": "stable"
     },
@@ -3766,6 +3814,7 @@
     "evidence_store_unavailable",
     "evidence_unknown_executor",
     "executor_key_exists",
+    "executor_key_is_edge_node",
     "executor_key_is_node_key",
     "executor_key_not_found",
     "executor_key_required",
@@ -3981,6 +4030,7 @@
     "resource_chain_gap",
     "resource_chain_mismatch",
     "resource_not_found",
+    "resource_prefix_overlap",
     "retention_in_progress",
     "review_after_remediation",
     "review_already_decided",
@@ -4096,7 +4146,7 @@
   "rules": {
     "http_status_codes": "Errors derived from a plain HTTP status (not_found, method_not_allowed, request_entity_too_large and other werkzeug status names) use the status name in snake case and are stable.",
     "error_envelope": "Every error response is {\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}. code is stable; message and details are for people and may change.",
-    "grant_fallback": "Pre-issued grants (v1.6.0, beta): an SDK acting under a grant checks it offline (the bearer key and its resource prefix, the capability, the closed parameter envelope, the budget counting its own uses, the validity, the time token's use limit: at most max_uses_per_time_token uses after the use the token names, and the revocation feed it holds), and checks a use's metadata for secret material before signing it, so it never chains a use on one the NA will not store. When a grant has ended, its budget or time token is spent, or it is revoked, and the NA cannot be reached (network error, timeout, 5xx, 429), the SDK does not block the change: it falls back to break-glass, so the change is recorded (a BreakGlassRecord in the outbox) and judged after the fact. A DENY is never broken through; an NA that answers issues decisions as before. The issuance check (check_grant) runs only at the NA: the grants conformance suite's issuance vectors are NA only, and an SDK skips them.",
-    "edge_agent": "Edge agent (v1.7.0, beta): an operator creates an edge invite (privileged tier; needs EVIDENCE_STORE=on and EVIDENCE_OUT_OF_BAND=on) naming the node's sovereign ID and resource prefix. At /join the agent registers its executor key, which co-signs the request; the key ID is 'edge-' and the first 32 hex digits of SHA-256 of the raw key. The agent calls /node/boundary/evaluate, /node/state and /node/evidence/resource-head with requests its node key signs, bound to a purpose and this NA (audience); it holds no operator key. It decides in this order: the NA when connected (a DENY is never broken through), then a grant it holds while its trust snapshot is fresh, then break-glass with a justification. A request a held grant names but does not cover is refused, even with a justification. Revoking any certificate of an edge node revokes all of them in one CRL, retires its executor key and revokes the grants that key bears (bearer_key_retired); its attestations are not revoked. The agent logs no keys, tokens, parameter values or justification text, and exits 0 (ok), 1 (internal error), 2 (usage or configuration), 3 (not enrolled), 4 (enrolment refused), 5 (NA unreachable during enrol) or 6 (insecure state permissions)."
+    "grant_fallback": "Pre-issued grants (v1.6.0, beta): an SDK acting under a grant checks it offline (the bearer key and its resource prefix, the capability, the closed parameter envelope, the budget (v1.7.0: counting every use of its chain, quarantined ones included, until the NA answers that a use was quarantined; such a use then stops counting, except one quarantined as grant_budget_exhausted, and its chain position stays consumed), the validity, the time token's use limit: at most max_uses_per_time_token uses after the use the token names, and the revocation feed it holds), and checks a use's metadata for secret material before signing it, so it never chains a use on one the NA will not store. When a grant has ended, its budget or time token is spent, or it is revoked, and the NA cannot be reached (network error, timeout, 5xx, 429), the SDK does not block the change: it falls back to break-glass, so the change is recorded (a BreakGlassRecord in the outbox) and judged after the fact. A DENY is never broken through; an NA that answers issues decisions as before. The issuance check (check_grant) runs only at the NA: the grants conformance suite's issuance vectors are NA only, and an SDK skips them.",
+    "edge_agent": "Edge agent (v1.7.0, beta): an operator creates an edge invite (privileged tier; needs EVIDENCE_STORE=on and EVIDENCE_OUT_OF_BAND=on) naming the node's sovereign ID and resource prefix. At /join the agent registers its executor key, which co-signs the request; the key ID is 'edge-' and the first 32 hex digits of SHA-256 of the raw key. The agent calls /node/boundary/evaluate, /node/state and /node/evidence/resource-head with requests its node key signs, bound to a purpose and this NA (audience); it holds no operator key. It decides in this order: the NA when it answers (a DENY, and any HTTP error the NA returns, including 429, are final: the agent refuses and never breaks glass on them), then, only when the NA cannot be reached at all, a grant it holds while its trust snapshot is fresh, then break-glass with a justification. A request a held grant names but does not cover is refused, even with a justification and when the snapshot is stale. An edge invite's resource prefix ends with '/' or ':' and overlaps no active executor key's or outstanding edge invite's prefix. Revoking any certificate of an edge node revokes all of them in one CRL, retires its executor key and revokes the grants that key bears (bearer_key_retired); its attestations are not revoked. The agent logs no keys, tokens, parameter values or justification text, and exits 0 (ok), 1 (internal error), 2 (usage or configuration), 3 (not enrolled), 4 (enrolment refused), 5 (NA unreachable during enrol) or 6 (insecure state permissions)."
   }
 }
