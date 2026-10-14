@@ -230,6 +230,8 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             "treaty_id": treaty_id,
             "reason": reason,
         })
+        # v1.6.0 review fixes: grants under agreements whose parties are no longer trusted are revoked.
+        service.grant_service.on_treaty_revoked(treaty_id)
         return jsonify({"treaty_id": treaty_id, "status": "revoked"}), 200
 
     @bp.route("/recognition-treaties/<treaty_id>", methods=["GET"])

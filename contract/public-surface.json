@@ -309,6 +309,35 @@
     },
     {
       "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/admin/grants",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/grants/<grant_id>",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/admin/grants/<grant_id>/revoke",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/admin/grants/<grant_id>/uses",
+      "level": "beta"
+    },
+    {
+      "methods": [
         "POST"
       ],
       "path": "/admin/invite",
@@ -593,6 +622,13 @@
       "methods": [
         "POST"
       ],
+      "path": "/evidence/grant-executions",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
       "path": "/evidence/observations",
       "level": "stable"
     },
@@ -630,6 +666,13 @@
       ],
       "path": "/genesis",
       "level": "stable"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/grants/time-tokens",
+      "level": "beta"
     },
     {
       "methods": [
@@ -3408,6 +3451,31 @@
       "level": "stable"
     },
     {
+      "model": "genesis_mesh.models.grants:CapabilityGrant",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.grants:GrantExecutionEvidence",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.grants:GrantRevocationRecord",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.grants:TimeToken",
+      "signature_field": "signature",
+      "level": "stable"
+    },
+    {
+      "model": "genesis_mesh.models.grants:TimeTokenRequest",
+      "signature_field": "signature",
+      "level": "beta"
+    },
+    {
       "model": "genesis_mesh.models.invocation_token:InvocationToken",
       "signature_field": "signature",
       "level": "beta"
@@ -3633,6 +3701,51 @@
     "executor_key_retired",
     "feed_issuer_mismatch",
     "forbidden",
+    "grant_already_revoked",
+    "grant_basis_invalid",
+    "grant_basis_not_fresh",
+    "grant_bearer_key_not_executor",
+    "grant_bearer_key_retired",
+    "grant_bearer_key_unknown",
+    "grant_bearer_mismatch",
+    "grant_budget_exhausted",
+    "grant_capability_mismatch",
+    "grant_capability_out_of_scope",
+    "grant_envelope_mismatch",
+    "grant_expired",
+    "grant_gate_may_deny",
+    "grant_issuance_conflict",
+    "grant_limit_exceeded",
+    "grant_mismatch",
+    "grant_not_found",
+    "grant_outlives_basis",
+    "grant_outlives_policy",
+    "grant_policy_resolution_failed",
+    "grant_policy_scheduled",
+    "grant_review_required",
+    "grant_revoked",
+    "grant_store_integrity_failed",
+    "grant_time_token_exhausted",
+    "grant_time_token_invalid",
+    "grant_time_token_mismatch",
+    "grant_time_token_regressed",
+    "grant_undecidable_attributes",
+    "grant_undecidable_freshness",
+    "grant_undecidable_gate_type",
+    "grant_undecidable_time",
+    "grant_use_before_time_token",
+    "grant_use_chain_gap",
+    "grant_use_chain_mismatch",
+    "grant_use_conflict",
+    "grant_use_in_future",
+    "grant_use_invalid_signature",
+    "grant_use_malformed",
+    "grant_use_out_of_order",
+    "grant_use_out_of_scope",
+    "grant_use_outside_validity",
+    "grant_use_secret_material",
+    "grant_use_uploaded_late",
+    "grants_disabled",
     "holder_change_already_approved",
     "holder_change_needs_named_holders",
     "holder_change_needs_second_holder",
@@ -3655,6 +3768,12 @@
     "invalid_context",
     "invalid_decision",
     "invalid_evidence",
+    "invalid_grant_envelope",
+    "invalid_grant_filter",
+    "invalid_grant_request",
+    "invalid_grant_revocation",
+    "invalid_grant_use",
+    "invalid_grant_validity",
     "invalid_holder",
     "invalid_input",
     "invalid_invite_token",
@@ -3688,6 +3807,7 @@
     "invalid_sovereign_revocation_feed",
     "invalid_succession",
     "invalid_threshold",
+    "invalid_time_token_request",
     "invalid_timestamp_order",
     "invalid_timestamps",
     "invalid_token_expiry_hours",
@@ -3809,6 +3929,11 @@
     "succession_pending",
     "succession_sovereign_mismatch",
     "succession_times_invalid",
+    "time_token_request_behind",
+    "time_token_request_invalid_signature",
+    "time_token_request_malformed",
+    "time_token_request_mismatch",
+    "time_token_request_stale",
     "treaty_not_found",
     "unauthorized",
     "unexpected_field",
@@ -3876,6 +4001,7 @@
   ],
   "rules": {
     "http_status_codes": "Errors derived from a plain HTTP status (not_found, method_not_allowed, request_entity_too_large and other werkzeug status names) use the status name in snake case and are stable.",
-    "error_envelope": "Every error response is {\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}. code is stable; message and details are for people and may change."
+    "error_envelope": "Every error response is {\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}. code is stable; message and details are for people and may change.",
+    "grant_fallback": "Pre-issued grants (v1.6.0, beta): an SDK acting under a grant checks it offline (the bearer key and its resource prefix, the capability, the closed parameter envelope, the budget counting its own uses, the validity, the time token's use limit: at most max_uses_per_time_token uses after the use the token names, and the revocation feed it holds), and checks a use's metadata for secret material before signing it, so it never chains a use on one the NA will not store. When a grant has ended, its budget or time token is spent, or it is revoked, and the NA cannot be reached (network error, timeout, 5xx, 429), the SDK does not block the change: it falls back to break-glass, so the change is recorded (a BreakGlassRecord in the outbox) and judged after the fact. A DENY is never broken through; an NA that answers issues decisions as before. The issuance check (check_grant) runs only at the NA: the grants conformance suite's issuance vectors are NA only, and an SDK skips them."
   }
 }

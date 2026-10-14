@@ -13,6 +13,7 @@ from .discovery import create_discovery_blueprint
 from .enrollment import create_enrollment_blueprint
 from .evidence import create_evidence_blueprint
 from .evidence_store import create_evidence_store_blueprint
+from .grants import create_grants_blueprint
 from .out_of_band import create_out_of_band_blueprint
 from .health import create_health_blueprint
 from .key_history import create_key_history_blueprint
@@ -34,6 +35,7 @@ __all__ = [
     "create_enrollment_blueprint",
     "create_evidence_blueprint",
     "create_evidence_store_blueprint",
+    "create_grants_blueprint",
     "create_out_of_band_blueprint",
     "create_health_blueprint",
     "create_key_history_blueprint",

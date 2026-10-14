@@ -15,6 +15,7 @@ from .db_boundary_policy import BoundaryPolicyStoreMixin
 from .db_data_usage import DataUsageStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
 from .db_evidence import EvidenceStoreMixin
+from .db_grants import GrantStoreMixin
 from .db_key_history import KeyHistoryStoreMixin
 from .db_policy import PolicyStoreMixin
 from .db_remediation import RemediationStoreMixin
@@ -45,6 +46,90 @@ def migration_files(backend: str) -> list[tuple[int, Path]]:
     return out
 
 
+
+class FetchedRows:
+    """A statement's result, read while the connection's lock is held (v1.6.0 review fixes): the rows,
+    ``rowcount``, ``lastrowid`` and ``description`` of a cursor, without the cursor."""
+
+    def __init__(self, cursor: sqlite3.Cursor) -> None:
+        self.description = cursor.description
+        self._rows = cursor.fetchall() if cursor.description is not None else []
+        self.rowcount = cursor.rowcount
+        self.lastrowid = cursor.lastrowid
+        self._next = 0
+
+    def fetchone(self) -> Any:
+        if self._next >= len(self._rows):
+            return None
+        self._next += 1
+        return self._rows[self._next - 1]
+
+    def fetchall(self) -> list[Any]:
+        rest, self._next = self._rows[self._next:], len(self._rows)
+        return rest
+
+    def fetchmany(self, size: int = 1) -> list[Any]:
+        rest = self._rows[self._next:self._next + size]
+        self._next += len(rest)
+        return rest
+
+    def __iter__(self) -> Any:
+        return iter(self.fetchall())
+
+
+class SerializedConnection:
+    """The SQLite connection the NA's threads share, used by one thread at a time (v1.6.0 review fixes).
+
+    Every statement, commit and ``with conn:`` block holds the database's
+    re-entrant lock, which ``exclusive_transaction`` holds for its whole
+    transaction: a write made outside the evidence store's transaction (an
+    audit event) never commits another thread's transaction half done, and a
+    read never sees another thread's uncommitted writes. PostgreSQL gives
+    each thread its own connection and needs none of this.
+    """
+
+    def __init__(self, conn: sqlite3.Connection, lock: Any) -> None:
+        self._conn = conn
+        self._lock = lock
+
+    def execute(self, *args: Any, **kwargs: Any) -> "FetchedRows":
+        with self._lock:
+            return FetchedRows(self._conn.execute(*args, **kwargs))
+
+    def executemany(self, *args: Any, **kwargs: Any) -> "FetchedRows":
+        with self._lock:
+            return FetchedRows(self._conn.executemany(*args, **kwargs))
+
+    def executescript(self, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return self._conn.executescript(*args, **kwargs)
+
+    def commit(self) -> None:
+        with self._lock:
+            self._conn.commit()
+
+    def rollback(self) -> None:
+        with self._lock:
+            self._conn.rollback()
+
+    def __enter__(self) -> "SerializedConnection":
+        self._lock.acquire()
+        try:
+            self._conn.__enter__()
+        except BaseException:
+            self._lock.release()
+            raise
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        try:
+            return self._conn.__exit__(*exc)
+        finally:
+            self._lock.release()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._conn, name)
+
 class NewerSchemaError(RuntimeError):
     """The database was migrated by a newer release than this one."""
 
@@ -63,6 +148,7 @@ class NADatabase(
     AgentStoreMixin,
     DataUsageStoreMixin,
     EvidenceStoreMixin,
+    GrantStoreMixin,
     KeyHistoryStoreMixin,
     RemediationStoreMixin,
     RuntimeStoreMixin,
@@ -112,6 +198,9 @@ class NADatabase(
             self.conn.execute("PRAGMA journal_mode = WAL")
         except sqlite3.OperationalError as exc:
             logger.warning("Could not enable SQLite WAL mode: %s", exc)
+        # v1.6.0 review fixes: one SQLite connection serves every thread, one statement or transaction
+        # at a time, so no thread's write commits or reads into another's exclusive transaction.
+        self.conn = SerializedConnection(self.conn, self._lock)
 
     # -- migrations -------------------------------------------------------------
 

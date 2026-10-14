@@ -56,6 +56,13 @@ PACK_FILES: tuple[str, ...] = (
     POLICIES_FILE, REPORT_FILE, STATES_FILE, ATTESTATIONS_FILE, FEEDS_FILE, TREATIES_FILE,
 )
 
+#: v1.6.0 review fixes: the agreements the pack's grants rest on (each as received). A pack holds it
+#: only when it holds a grant under an agreement, so a pack without one keeps the 1.5 file set.
+AGREEMENTS_FILE = "trust/agreements.jsonl"
+
+#: Files of the format a pack holds only when it has something to put in them.
+OPTIONAL_PACK_FILES: tuple[str, ...] = (AGREEMENTS_FILE,)
+
 
 def canonical_bytes(data: Any) -> bytes:
     """A JSON file of a pack: canonical JSON (sorted keys, no spaces) and a final newline."""

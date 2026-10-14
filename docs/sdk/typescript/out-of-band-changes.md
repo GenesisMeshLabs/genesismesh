@@ -36,9 +36,9 @@ keeps it as a dead letter. A record the NA admits outside its time bounds is
 kept by the NA as a quarantine entry and is listed in the run's
 `quarantined`.
 
-`flushRecords` submits pending break-glass records first, then observations
-up to 100 at a time, then (1.4.0) remediation records, each in the order they
-were added. From 1.3.1:
+`flushRecords` submits pending break-glass records first, then (1.6.0) grant
+uses, then observations up to 100 at a time, then (1.4.0) remediation
+records, each in the order they were added. From 1.3.1:
 
 - a batch the NA refuses as a whole, such as one holding a record its JSON
   reader refuses (`invalid_json`, a dead letter from 1.3.1), is split in

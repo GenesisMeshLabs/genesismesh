@@ -62,6 +62,8 @@ The SDK covers the controller side of the secret governance pilots:
   reviews and waivers, and urgent changes
 - {doc}`audit-packs` (1.5.0): the NA key history and key succession, and
   audit packs verified offline
+- {doc}`grants` (1.6.0): pre-issued grants: issuing them, acting within one
+  while the NA is unreachable, and verifying the records
 
 ---
 
@@ -89,4 +91,5 @@ high-availability
 out-of-band-changes
 remediation-and-reviews
 audit-packs
+grants
 ```

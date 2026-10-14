@@ -1,8 +1,9 @@
 # Governed Changes and Audit
 
 How a Network Authority records every change to the resources it governs,
-judges changes made outside the controlled path, settles them, and hands a
-security team an audit it verifies on its own, years later.
+judges changes made outside the controlled path, settles them, authorises
+changes in advance for devices that cannot reach it, and hands a security
+team an audit it verifies on its own, years later.
 
 ```{toctree}
 :maxdepth: 1
@@ -12,6 +13,7 @@ evidence-anchors
 out-of-band-changes
 remediation-and-reviews
 emergency-changes
+grants
 audit-and-retention
 audit-packs
 audit-verification
@@ -54,6 +56,15 @@ pair, reviews by a second holder, waivers and notices.
 
 Urgent changes under an ordinary DENY, or while the NA does not answer: the
 emergency capability and break-glass.
+:::
+
+:::{grid-item-card} Pre-Issued Grants
+:link: grants
+:link-type: doc
+
+Changes authorised in advance for a device that cannot reach the NA: when to
+use a grant instead of break-glass, its envelope, time tokens, revocation and
+the limits of offline trust (v1.6.0).
 :::
 
 ::::

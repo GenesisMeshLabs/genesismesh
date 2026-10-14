@@ -152,6 +152,7 @@ record was first signed, so older records verify unchanged):
 | `ContextRecord` | `attestation_id` |
 | `ExecutionEvidence` | `resource_id`, `resource_action`, `resource_sequence`, `prev_resource_digest` |
 | `StoreAnchor` | `previous_anchor_digest` |
+| `SovereignRevocationFeed` (1.6.0) | `revoked_grant_ids` |
 
 `AgreementRecord` (and `CapabilityCounter`) are signed over a fixed set of
 fields, the same for both parties: `agreed_terms`, `graph_digest`,
@@ -171,6 +172,18 @@ new NA key and the outgoing NA key, all in `signatures`;
 `AuditPackManifest` (signed by the NA; the manifest's `period_from` and
 `period_until` omitted when absent), and `RecognitionTreaty` (which a pack
 carries). See {doc}`audit-pack-format`.
+
+Since 1.6.0 it describes the grant records: `CapabilityGrant` (no optional
+field), `GrantExecutionEvidence` (`prev_use_digest`, `resource_id`,
+`resource_action` and `outcome_detail` omitted when absent),
+`GrantRevocationRecord` (`detail`, `revoked_by`), `TimeToken` and
+`TimeTokenRequest` (`use_head_digest`). A time token's `use_head_digest` is
+left out of every form when absent, also when the token is nested in a use,
+so the nested token is the token as the NA signed it. A grant's envelope
+writes a number with an integral value as an integer (`5`, never `5.0`), as
+every SDK writes it: a grant received with `5.0` is not in canonical form.
+`SovereignRevocationFeed` omits `revoked_grant_ids` when absent (an NA
+without `EVIDENCE_GRANTS=on` writes the 1.5 form).
 
 ## Unknown fields
 

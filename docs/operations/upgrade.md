@@ -17,6 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
+| 1.5.x | Supported and rehearsed in CI, with the out-of-band and remediation records on, and grants on after the upgrade. Read *Upgrading to 1.6* below first |
 | 1.4.x | Supported and rehearsed in CI, with the out-of-band and remediation records on. Read *Upgrading to 1.5* below first |
 | 1.3.x | Supported and rehearsed in CI, from 1.3.1 with the out-of-band records on. Read *Upgrading to 1.4* below first |
 | 1.1.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* below first |
@@ -49,6 +50,42 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.6
+
+*Unreleased.*
+
+1.6 adds migration 018. On SQLite it rebuilds the evidence table once more
+(to accept the `grant`, `grant_execution` and `grant_revocation` entry kinds),
+with the same cost as in 1.5: one copy of the table on disk and the time the
+copy takes. On PostgreSQL the entry-kind constraint is changed in place under
+a lock that blocks evidence writes while it validates every stored entry. It
+also adds the grant tables. A 1.6 database cannot be opened by 1.5: roll back
+by restoring the backup.
+
+- **Grants are off.** Nothing new is written, and the revocation feed keeps
+  its 1.5 form, until `EVIDENCE_GRANTS=on` (it needs
+  `EVIDENCE_OUT_OF_BAND=on`). Turn it on once every verifier that reads your
+  exports, packs and revocation feed runs 1.6: a 1.5 verifier refuses the new
+  entry kinds (`unknown_entry_kind`), a judgement `governed_by: grant` and the
+  feed's `revoked_grant_ids` (`unknown_field`). See {doc}`grants`.
+- **Grants are turned off only once they have ended.** An NA with
+  `EVIDENCE_GRANTS=off` refuses to start while a grant it issued has not
+  ended ({doc}`grants`, *Turning grants off*). The revocation feed's
+  `sequence` counts grant revocations with grants on or off.
+- **SQLite serializes its connection.** The NA's threads share one SQLite
+  connection; since 1.6 each statement, commit and transaction holds the
+  connection in turn, so a write outside the evidence store's transaction
+  (an audit event) never commits another thread's transaction half done.
+  PostgreSQL is unchanged (a connection per thread).
+- **Policies may select `parent_kinds: ["grant"]`.** A 1.5 NA instance finds
+  such a policy invalid and denies every evaluation while it is active: with
+  several instances, publish one only once every instance runs 1.6.
+- **Revocations follow policy changes.** With grants on, deactivating a
+  policy version (or activating another version of it) revokes the grants
+  bound to it, and activating a policy re-checks the grants it may cover.
+- **Retention keeps usable grants**: a grant and its uses stay until no more
+  uses can be uploaded (`held_back` with `"reason": "usable_grants"`).
 
 ## Upgrading to 1.5
 

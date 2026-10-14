@@ -471,6 +471,8 @@ READ_ROUTES = {
     ("GET", "/admin/evidence/changes/<path:resource_id>"), ("GET", "/admin/evidence/operator-holders"),
     ("GET", "/admin/evidence/remediations"), ("GET", "/admin/evidence/remediations/<subject_id>"),
     ("GET", "/admin/evidence/reviews/<review_id>"),
+    # v1.6.0: grants, read as the rest of the store is.
+    ("GET", "/admin/grants"), ("GET", "/admin/grants/<grant_id>"), ("GET", "/admin/grants/<grant_id>/uses"),
 }
 
 

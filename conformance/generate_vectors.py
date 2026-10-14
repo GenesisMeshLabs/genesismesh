@@ -991,8 +991,10 @@ def _registry_samples() -> dict[str, dict]:
         exec_sequence_no=1, resource_id="kv:vault/api-key", resource_action="rotate", resource_sequence=2,
     )
     feed = SovereignRevocationFeed(
-        feed_id=UUID1, issuer_sovereign_id=SOV_C, sequence=1, issued_at=T0, issued_by="na-key",
+        feed_id=UUID1, issuer_sovereign_id=SOV_C, sequence=2, issued_at=T0, issued_by="na-key",
         revoked_attestation_ids=[UUID3], revocation_reasons={UUID3: "compromised"},
+        # v1.6.0: a revoked grant (written with EVIDENCE_GRANTS=on).
+        revoked_grant_ids=[UUID2],
     )
     feed.signatures.append(sign_model(feed, KEYS["c"], "na-key"))
     context = ContextRecord(
@@ -1015,6 +1017,7 @@ def _registry_samples() -> dict[str, dict]:
         **out_of_band,
         **_remediation_samples(),
         **_audit_samples(),
+        **_grant_samples(),
         "AgreementRecord": by_id["agr-002"]["agreement"],
         "BoundaryDecision": decision,
         "BoundaryPolicy": by_id["bd-001"]["expected_policies"][0],
@@ -1191,6 +1194,68 @@ def _audit_samples() -> dict[str, dict]:
         "AuditPackManifest": manifest.model_copy(update={"signature": sign_model(manifest, KEYS["c"], "na-key")}).to_wire(),
         "ArchiveRecord": archive.model_copy(update={"signature": sign_model(archive, KEYS["c"], "na-key")}).to_wire(),
     }
+
+
+def grant_sample_records() -> dict[str, Any]:
+    """v1.6.0: one signed sample of each Stage 5 record (models), every optional field set."""
+    from genesis_mesh.crypto import sign_model
+    from genesis_mesh.models.boundary_policy import AppliedPolicy, policy_set_digest
+    from genesis_mesh.models.context import GateResult
+    from genesis_mesh.models.grants import (
+        CapabilityGrant, EnvelopeParameter, GrantExecutionEvidence, GrantGateOutcome, GrantPolicyBinding,
+        GrantRevocationRecord, NumericRange, TimeToken, TimeTokenRequest,
+    )
+
+    def signed(record: Any, key: str, key_id: str) -> Any:
+        return record.model_copy(update={"signature": sign_model(record, KEYS[key], key_id)})
+
+    applied = [AppliedPolicy(policy_id="secret-lifetime", version=1, policy_digest="d" * 64, signed_by="na-key")]
+    grant = signed(CapabilityGrant(
+        grant_id=UUID1, bearer_key_id="executor-b", bearer_public_key=pub_b64("b"), bearer_sovereign_id=SOV_B,
+        capabilities=["secret.rotate"], basis_kind="attestation", basis_id=UUID2, basis_digest="e" * 64,
+        requester_sovereign_id=SOV_A, provider_sovereign_id=SOV_C, valid_from=T0, valid_until=T0 + timedelta(hours=8),
+        max_uses=5, max_uses_per_time_token=2,
+        parameter_envelope={
+            "lifetime_days": EnvelopeParameter(number_range=NumericRange(
+                number_type="integer", minimum=1, maximum=90, exclusive_maximum=True)),
+            "region": EnvelopeParameter(one_of=["eu-west", "eu-north"]),
+            "scopes": EnvelopeParameter(required=False, subset_of=["read", "write"]),
+        },
+        basis_checks=[GateResult(gate_name="attestation_status", passed=True, detail="attestation is active")],
+        policy_binding=GrantPolicyBinding(
+            policies=applied, policy_set_digest=policy_set_digest(applied),
+            gate_outcomes=[GrantGateOutcome(
+                capability="secret.rotate", policy_id="secret-lifetime", policy_version=1, gate_id="max-lifetime",
+                gate_type="max_value.v1", mode="enforce", outcome="pass",
+                detail="every value of request_parameters.lifetime_days satisfies <= 90")],
+            registry_gate_types=["max_value.v1"]),
+        issued_at=T0, issuer_sovereign_id=SOV_C, issued_by="na-key",
+    ), "c", "na-key")
+    token = signed(TimeToken(time_token_id=UUID3, grant_id=UUID1, use_sequence=1, use_head_digest="f" * 64,
+                             issued_at=T0 + timedelta(minutes=5), issuer_sovereign_id=SOV_C, issued_by="na-key"),
+                   "c", "na-key")
+    request = signed(TimeTokenRequest(grant_id=UUID1, use_sequence=1, use_head_digest="f" * 64,
+                                      requested_at=T0 + timedelta(minutes=5)), "b", "executor-b")
+    use = signed(GrantExecutionEvidence(
+        use_id=UUID2, grant_id=UUID1, grant_digest=grant.digest(), use_sequence=2, prev_use_digest="f" * 64,
+        executor_sovereign_id=SOV_B, capability="secret.rotate",
+        request_parameters={"lifetime_days": 30, "region": "eu-west", "scopes": ["read"]},
+        resource_id="kv:vault/api-key", resource_action="rotate", executed_at=T0 + timedelta(minutes=10),
+        time_token=token, outcome="success", outcome_detail="rotated while the NA was unreachable",
+        execution_parameters={"version_id": "v4"},
+    ), "b", "executor-b")
+    revocation = signed(GrantRevocationRecord(
+        revocation_id=UUID3, grant_id=UUID1, grant_digest=grant.digest(), reason="operator",
+        detail="the device was lost", revoked_by="operator-1", revoked_at=T0 + timedelta(hours=1),
+        issuer_sovereign_id=SOV_C, issued_by="na-key",
+    ), "c", "na-key")
+    return {"CapabilityGrant": grant, "GrantExecutionEvidence": use, "GrantRevocationRecord": revocation,
+            "TimeToken": token, "TimeTokenRequest": request}
+
+
+def _grant_samples() -> dict[str, dict]:
+    """v1.6.0: the Stage 5 samples as wire records."""
+    return {name: record.to_wire() for name, record in grant_sample_records().items()}
 
 
 def gen_field_registry() -> None:
@@ -3074,6 +3139,18 @@ def gen_audit() -> None:
     print(f"  wrote {fixture.relative_to(Path(__file__).parent)} (frozen)")
 
 
+def gen_grants() -> None:
+    """v1.6.0: pre-issued grants (``grants_vectors.py``): the records' signed forms, envelopes, the
+    issuance check per gate type and each undecidable case, the use rules, and stores holding grants."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    try:
+        from grants_vectors import DESCRIPTION, NA_ONLY_KINDS, grants_vectors
+    finally:
+        sys.path.pop(0)
+    _write("grants", {"suite": "grants", "version": "1.6.0", "description": DESCRIPTION,
+                       "na_only_kinds": list(NA_ONLY_KINDS), "vectors": grants_vectors()})
+
+
 def fixture_problems(fixture: Path) -> list[str]:
     """What a frozen pack fixture is missing: every file its manifest lists, with its digest and size,
     and the root key and anchors beside it."""
@@ -3120,6 +3197,7 @@ GENERATORS = {
     "out_of_band": gen_out_of_band,
     "remediation": gen_remediation,
     "audit": gen_audit,
+    "grants": gen_grants,
 }
 
 

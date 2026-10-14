@@ -39,8 +39,10 @@ signed artifact. Vector files live in `conformance/vectors/` and are run by
 in their own tests, and the Rust SDK the `admin_auth`, `field_registry` and
 `canonical` suites; the TypeScript and Rust SDKs, which verify evidence
 exports, also run the `out_of_band` suite (1.3.0), the `remediation`
-suite (1.4.0) and the `audit` suite (1.5.0: key histories, records across an
-NA key succession, audit packs and the completeness check). The
+suite (1.4.0), the `audit` suite (1.5.0: key histories, records across an
+NA key succession, audit packs and the completeness check) and the `grants`
+suite (1.6.0: grant records, envelopes, the use rules and stores holding
+grants; its issuance vectors are the NA's, which an SDK may skip). The
 interoperability workflow checks that every copy matches the reference's.
 
 ## Audit packs and the NA key history
@@ -56,6 +58,17 @@ successions are beta; the Stage 2 and 3 routes (observations, break-glass,
 judgements, holders, remediations and reviews) are stable from 1.5.0.
 `scripts/export_reference_corpus.py --suite verification` writes the corpus a
 second verifier runs.
+
+## Pre-issued grants
+
+The signed forms of `CapabilityGrant`, `GrantExecutionEvidence`,
+`GrantRevocationRecord` and `TimeToken`, and the grant reason codes, are
+stable from 1.6.0: grants and their uses sit in audit packs for years. The
+grant routes (`/admin/grants`, `/grants/time-tokens`,
+`/evidence/grant-executions`) and `TimeTokenRequest` are beta, as is the
+rule every SDK acting under a grant follows (fall back to break-glass when the
+grant has ended, is spent or revoked and the NA cannot be reached). See
+{doc}`operations/grants`.
 
 Alternative implementations must pass all vectors to claim conformance.
 See `conformance/CONFORMANCE.md` for instructions.

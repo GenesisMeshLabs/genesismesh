@@ -69,6 +69,9 @@ NA_RECORD_TIME_FIELDS: dict[str, str] = {
     "AuditPackManifest": "created_at",
     "BoundaryDecision": "decision_made_at",
     "BoundaryPolicy": "issued_at",
+    # v1.6.0: a grant, its revocation, and a time token (read alone, or nested in a use).
+    "CapabilityGrant": "issued_at",
+    "GrantRevocationRecord": "revoked_at",
     "JudgementRecord": "judged_at",
     "JustificationProof": "proof_issued_at",
     "MembershipAttestation": "issued_at",
@@ -78,6 +81,7 @@ NA_RECORD_TIME_FIELDS: dict[str, str] = {
     "RetentionCheckpoint": "created_at",
     "ReviewRecord": "decided_at",
     "StoreAnchor": "anchored_at",
+    "TimeToken": "issued_at",
 }
 
 #: Optional fields a succession record omits from its signed form when absent.

@@ -176,6 +176,15 @@ an observer or a break-glass record and judged as of when it happened, under
 the policies active then (v1.3.0).
 :::
 
+:::{grid-item-card} Pre-Issued Grants
+:link: pre-issued-grants
+:link-type: doc
+
+A device rotates a secret while it cannot reach the NA, within a grant the NA
+checked against its policies in advance; its uses are uploaded, placed in the
+secret's history and governed by the grant (v1.6.0).
+:::
+
 :::{grid-item-card} Freshness Proofs
 :link: freshness-proofs
 :link-type: doc

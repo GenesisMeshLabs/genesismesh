@@ -33,6 +33,9 @@ Each event has three parts:
   | `review` (1.4.0) | `ReviewRecord` | the NA |
   | `key_succession` (1.5.0) | `KeySuccessionRecord` | the root key, the new NA key and the outgoing NA key |
   | `archive` (1.5.0) | `ArchiveRecord` | the NA |
+  | `grant` (1.6.0) | `CapabilityGrant` | the NA |
+  | `grant_execution` (1.6.0) | `GrantExecutionEvidence` | the grant's bearer key (a registered executor key); its nested time token by the NA |
+  | `grant_revocation` (1.6.0) | `GrantRevocationRecord` | the NA |
 
   Entry kinds are added within schema version 1. A verifier refuses a kind it
   does not know by name (`unknown_entry_kind`) and keeps it in the chain. The
@@ -41,7 +44,13 @@ Each event has three parts:
   by the verifiers of the release before until the switch is turned on. Since
   1.4.0 a `quarantine` record's `record_kind` may also be `remediation`. The
   1.5.0 kinds are written only when an operator records a key succession or
-  an archive: upgrade the verifiers that read your exports before you do.
+  an archive: upgrade the verifiers that read your exports before you do. The
+  1.6.0 kinds are written only with `EVIDENCE_GRANTS=on`, which also lets a
+  `quarantine` record's `record_kind` be `grant_execution` and a judgement's
+  `governed_by` be `grant`. A `grant_execution` entry's `resource_sequence`
+  is the position the NA assigned the use in its resource's chain when it
+  admitted it: it is in the envelope, not in the signed use, and the next
+  record of that resource links to the use's digest.
 
   Since 1.5.0 an NA signature is checked with the NA's key history: the key
   valid at the entry's `recorded_at` (a retention run carries registry,
@@ -60,8 +69,8 @@ Verify an export offline with `genesis-mesh evidence verify-export` (see the
 Every verifier (the reference, the CLI and the SDKs) checks an export the
 same way and names each failure by the same reason, with the
 `store_sequence` of the entry it concerns. The shared cases are the
-conformance suites `field_registry`, `out_of_band`, (1.4.0) `remediation`
-and (1.5.0) `audit`.
+conformance suites `field_registry`, `out_of_band`, (1.4.0) `remediation`,
+(1.5.0) `audit` and (1.6.0) `grants`.
 
 ### Reading the lines
 
@@ -132,6 +141,9 @@ The envelope fields a 1.3.0 entry takes from its record, which must match
 | `review` (1.4.0) | `record_id`: `review_id`, `subject_id`, `resource_id`, `capability`, `outcome`: `verdict` |
 | `key_succession` (1.5.0) | `record_id`: `succession_id` |
 | `archive` (1.5.0) | `record_id`: `archive_id` |
+| `grant` (1.6.0) | `record_id`: `grant_id`, `executor_sovereign_id`: `bearer_sovereign_id` |
+| `grant_execution` (1.6.0) | `record_id`: `use_id`, `subject_id`: `grant_id`, `resource_id`, `resource_action`, `capability`, `executor_sovereign_id`, `outcome`, `exec_sequence_no`: `use_sequence`; `resource_sequence` is set exactly when `resource_id` is |
+| `grant_revocation` (1.6.0) | `record_id`: `revocation_id`, `subject_id`: `grant_id`, `outcome`: `reason` |
 
 The chains and links between records:
 
@@ -171,6 +183,46 @@ remediation, so such a run holds them all.
 A review's approvals are checked with the review alone and the NA's public
 key (the audience); see *What a review proves offline* in
 {doc}`../operations/remediation-and-reviews`.
+
+Grants (1.6.0). A grant use is signed by its grant's bearer key, a
+registered executor key (its key is placed in the store as any executor
+key's); its nested time token by the NA key valid at the token's
+`issued_at`. A grant whose own signature fails is not held: its uses and its
+revocation are checked as for a grant the run does not hold.
+
+A grant's **use chain** is its admitted uses and the quarantined uses that
+continued it: a `quarantine` entry whose `record_kind` is `grant_execution`,
+whose record is signed by the grant's bearer key and is at the next
+position of the chain (`use_sequence` one past the head, `prev_use_digest`
+the head's digest) becomes the chain's head, so the next use may link to it
+and a time token may name it. The **budget** counts admitted uses, when the
+run holds the chain from its first use (a whole store, a pack, or a run
+whose first use of the grant is use 1); the **order and time rules** compare
+a use with the last admitted use.
+
+Each use is checked in this order (the chain first, then the use against its
+grant; the first rule of `use_problem` that applies is reported; checks that
+need the grant, the chain or an earlier use run only when the run holds
+them):
+
+| Reason | The entry |
+| --- | --- |
+| `grant_use_chain_break` | a use that does not continue its grant's chain (`use_sequence`, `prev_use_digest`), in a run that holds the chain from its start |
+| `grant_missing` | a grant use or revocation whose grant the run does not hold, or holds unauthenticated, in a run that holds the store from its start (in a pack: `cited_record_missing`) |
+| `grant_bearer_mismatch` | a use not signed by the grant's bearer key, or naming another executor sovereign than the grant's bearer |
+| `grant_use_out_of_scope` | a use signed by a key with a resource prefix, naming no resource or one outside the prefix |
+| `grant_mismatch` | a use or revocation naming another digest than its grant's (`grant_digest`) |
+| `grant_capability_mismatch`, `grant_envelope_mismatch`, `grant_budget_exhausted` | a use of a capability the grant does not name, outside its closed envelope, or after the grant's admitted uses reached its budget |
+| `grant_time_token_invalid` | a use whose time token is not signed by the NA (by the key valid at its `issued_at`), is another grant's, or is older than the grant (`issued_at`) |
+| `grant_time_token_mismatch` | a use whose time token was issued after a later use (its `use_sequence` is not below the use's), or names another use (`use_head_digest`) than the run holds at that position, or one dated more than 300 seconds after the token |
+| `grant_time_token_regressed`, `grant_time_token_exhausted` | a use citing an older token than the previous admitted use, or more than `max_uses_per_time_token` positions after the use its token names (`use_sequence` minus the token's `use_sequence`) |
+| `grant_use_before_time_token`, `grant_use_out_of_order` | a use dated more than 300 seconds before its time token, or before the previous admitted use |
+| `grant_use_outside_validity`, `grant_use_in_future`, `grant_use_uploaded_late` | a use dated outside its grant's validity, more than 300 seconds after its entry's `recorded_at`, or recorded longer after it was made than the grant's validity |
+| `grant_revoked` | a use dated at or after a revocation of its grant the run holds before it |
+| `duplicate_grant_revocation` | a second revocation of one grant |
+| `duplicate_record` | also a use whose `use_id` is the ID of execution evidence or a break-glass record (observations match all three by ID), or such a record whose ID is a use's |
+| `resource_chain_break` | a use whose envelope `resource_sequence` does not follow its resource's chain |
+| `envelope_mismatch` | also a use given a `resource_sequence` without a resource |
 
 ### Where an export starts
 
