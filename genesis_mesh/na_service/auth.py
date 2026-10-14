@@ -1,6 +1,5 @@
 """Authentication helpers for Network Authority HTTP requests."""
 
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +9,7 @@ from flask import request
 
 from ..crypto import verify_signature
 from ..crypto.admin_auth import admin_signing_payload
+from ..crypto.node_auth import node_signing_payload
 from .errors import ForbiddenError, RateLimitError, utc_timestamp
 from .rate_limit import RATE_LIMIT_WINDOW_SECONDS
 
@@ -187,11 +187,8 @@ def verify_node_request_signature(
         )
         return False, "Nonce already used (replay detected)"
 
-    payload = {k: v for k, v in sorted(data.items()) if k != "signature"}
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-
     try:
-        if not verify_signature(canonical.encode("utf-8"), signature_b64, node_public_key):
+        if not verify_signature(node_signing_payload(data), signature_b64, node_public_key):
             _audit_auth_failure(
                 service,
                 "node_auth_failed",

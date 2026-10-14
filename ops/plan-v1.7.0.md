@@ -72,10 +72,11 @@ The reviews found:
 - An authority on the edge (a Rust NA, deferred).
 - Policy evaluation on the device.
 
-### Candidates carried from Stage 5 (to confirm or defer)
+### Candidates carried from Stage 5 (deferred out of 1.7.0, Decision 17)
 
 - **Inclusion proofs for an audit pack's cited entries** (the Stage 4
-  candidate, deferred from 1.6.0). A pack's cited entries are tied to the
+  candidate, deferred from 1.6.0, and again from 1.7.0: moved to
+  `roadmap.md` as a post-program item when `phase-n.md` closes). A pack's cited entries are tied to the
   store only by the packs an auditor verified before (`audit verify --prior`)
   or an anchor at their exact position (warning `cited_entry_unanchored`
   otherwise). Anchors over a Merkle tree of the store (a root in each anchor,
@@ -114,8 +115,9 @@ The reviews found:
 
 ## Release Gate
 
-- [ ] Stage 5 (1.6.0) released; this stage confirmed (Decision 5 of
-      `plan-v1.2.0.md`)
+- [x] Stage 5 (1.6.0) released; this stage confirmed (the Maintainer's
+      standing instruction to proceed with the next plan once 1.6.0 was
+      green, 2026-10-14; Decision 5 of `plan-v1.2.0.md`)
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.7.0` across the release train; `docs/sdk/index.md`
 - [ ] CHANGELOG entries, `history.md`, `phase-n.md` closed for the program
@@ -123,7 +125,9 @@ The reviews found:
       covered
 - [ ] Public contract: the node routes and the agent classified
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
+- [ ] Merge order: the Rust SDK (`sdk-rust`), then core, then the gateway
+      (Decision 16): core after re-running interop with all four SDK
+      repositories on `feat/edge-agent`, the gateway right after core
 - [ ] Dry runs green; tags `v1.7.0`, releases, published-artifacts green
       (including the agent)
 - [ ] `"1.7.0"` added to the `upgrade.yml` matrix after the release
@@ -131,11 +135,250 @@ The reviews found:
 
 ## Decisions
 
-Open, for the Maintainer:
+1. **Agent image beta** until a release after 1.7.0 proves it in a
+   deployment (taken as proposed, 2026-10-14; Decision 14).
+2. **Executor key registered at join**, by the node's own signature, instead
+   of a privileged admin call per device (taken as proposed, 2026-10-14;
+   Decision 8).
+3. **A node-scoped evaluate route** instead of operator keys on devices
+   (taken as proposed, 2026-10-14; Decision 6).
 
-1. **Agent image beta** (proposed) until a release after 1.7.0 proves it in a
-   deployment.
-2. **Executor key registered at join** (proposed), by the node's own
-   signature, instead of a privileged admin call per device.
-3. **A node-scoped evaluate route** (proposed, after review) instead of
-   operator keys on devices.
+From the implementation contract (2026-10-14). Each was taken as proposed,
+2026-10-14, to be confirmed by the Maintainer at release, except where it
+says otherwise.
+
+### The agent and the SDK
+
+4. **The agent is the workspace member `sdk-rust/edge/`**: package and binary
+   `genesis-mesh-edge`, `publish = false`, the SDK's version, released by the
+   `sdk-rust` `v*` tag like the verifier.
+5. **A default `client` feature in the Rust SDK** gates `reqwest`,
+   `percent-encoding`, every HTTP client, governance, the grant holder and the
+   error variants that wrap `reqwest`; the verifier depends on the SDK with
+   `default-features = false`, and CI checks with `cargo tree` that neither
+   pulls in an HTTP, async or database stack.
+
+### The NA surface
+
+6. **Node-scoped routes**: `POST /node/boundary/evaluate` (Decision 3), and
+   two beyond the plan, `POST /node/state` (the attestations and grants
+   issued to the node, which a device cannot otherwise read) and
+   `POST /node/evidence/resource-head` (a device cannot read resource heads
+   through the admin route). Operators get `GET /admin/edge-nodes` (read
+   tier). All beta.
+7. **Edge invites need the privileged tier**: `/admin/invite` with
+   `node_sovereign_id` and `executor_resource_prefix`, since redeeming one
+   registers an executor key, a privileged act. At most one active edge node
+   per sovereign ID.
+8. **The executor key is registered at `/join`**: the node key signs the
+   request and the executor key co-signs it as proof of possession; its ID is
+   `edge-` and the first 32 hex digits of SHA-256 of the raw key
+   (Decision 2).
+9. **Revoking an edge node** revokes all its unrevoked certificates in one
+   CRL, retires its executor key and so revokes its grants, with the existing
+   reason `bearer_key_retired`: no new reason code, no signed-enum or
+   verifier change.
+
+### Verification and the decision order on the device
+
+10. **`GovernedVerification.any_bound_policies`** (Rust SDK, default
+    `false`): when set, a decision's policy binding is not compared with
+    `expected_policies`; the agent sets it and still checks the NA's
+    signature, the context binding and the attestation binding. It breaks
+    struct literals that list every field; the SDK is beta.
+11. **Decision order**: the NA decides when connected, a grant when not,
+    break-glass covers the rest. A request a held grant names but does not
+    cover is refused locally even with a justification, as the 1.6 SDKs
+    never fall back for a request the grant does not cover. Break-glass is
+    allowed when no held grant names the capability, the covering grant has
+    ended, is spent or revoked, or the snapshot is stale.
+12. **Treaties are left out of the snapshot**: nothing on the device reads
+    them (no policy evaluation, no peer verification on the device).
+
+### Console, release and merge order
+
+13. **The console is the gateway console's operator view**
+    (`edge-list-edge-nodes`), not the public mesh view, which is anonymous;
+    the mesh view is unchanged.
+14. **The agent and its image are beta** (Decision 1): the image is signed by
+    digest and tagged `X.Y.Z` only, with no `X.Y` or `latest` while beta.
+15. **The two-hour scenario runs in real time**, weekly and on release pull
+    requests (`edge-soak.yml`); a 120-second version of the same scenario
+    runs on every pull request on both architectures and doubles as the
+    footprint measurement.
+16. **Merge order: `sdk-rust`, then core, then the gateway**, as for 1.6.0:
+    the SDK first (its live tests skip when the core lacks `/node/state`),
+    core after interop runs with all four SDK repositories on
+    `feat/edge-agent`, the gateway right after core, whose catalog check
+    needs the core's routes. `feat/edge-agent` is also pushed, unchanged, to
+    `sdk-go`, `sdk-typescript` (with the fix in Decision 23) and `sdk-dotnet`
+    so interop pairs the branches. The gate line above is amended.
+
+### Deferred
+
+17. **Merkle inclusion proofs** (the Stage 5 candidate) are deferred out of
+    1.7.0: they change `StoreAnchor`, a stable signed artifact (a second
+    anchor version, verifiers updated first in three languages, a setting off
+    by default, pack format 2 and a new frozen fixture), share no code with
+    the agent, and the gap has workarounds (`audit verify --prior`, anchors
+    at the cited position) and a named warning.
+18. **Private-CA Network Authorities: deferred** (coordinator, 2026-10-14). No
+    `ClientOptions::with_root_certificates` and no `authority.ca_file` in
+    1.7.0; a deferred candidate.
+
+### The agent's behaviour and keys
+
+19. **An outcome not reported** within `report_timeout_seconds` is recorded
+    as `outcome: "failure"`, with a detail saying it was not reported.
+20. **Device keys are files** protected by permissions; platform key stores
+    (TPM, PKCS#11) are deferred; armv7 is not built.
+21. **No new switch on the NA**: the edge surface stays inert until an
+    operator creates an edge invite; the only new settings are the two rate
+    limits of the `/node/*` routes. Edge invites need `EVIDENCE_STORE=on` and
+    `EVIDENCE_OUT_OF_BAND=on`; grants also need `EVIDENCE_GRANTS=on`, without
+    which the agent works with decisions and break-glass only.
+
+### Coordinator (2026-10-14)
+
+22. **Revoking an edge node does not revoke its attestations**: retiring its
+    key already revokes its grants, and the node can no longer authenticate.
+23. **Grant budgets count quarantined uses only until the NA answers** (from
+    the 1.6.0 live smoke): the Rust and TypeScript grant holders count every
+    place of the use chain against `max_uses` while offline, the safe bound,
+    and stop counting a use once the NA has answered it as quarantined; the
+    chain position is still consumed (1.6 Decision 18). A use quarantined as
+    `grant_budget_exhausted` keeps counting (review fixes).
+
+### Review fixes (taken as proposed, 2026-10-14)
+
+From the critic's and the skeptic's reviews of the branch.
+
+The NA:
+
+24. **A revoked edge node holds no valid certificate.** After retiring the
+    node, the revocation re-lists its certificates and revokes any a renewal
+    issued meanwhile; `/renew` and `/heartbeat` refuse a revoked node's key
+    (`403 edge_node_retired`), a renewal that issued after the node was
+    retired revokes its own certificate, and the start-up check revokes what a
+    revoked node still holds.
+25. **Enrolment is one write.** The executor key and the edge node are written
+    in one transaction; what follows (audit events, the registry record) is
+    best effort. A failure after the invite was consumed spends it. `/join`
+    also needs out-of-band recording (`409 edge_requires_evidence_store`).
+26. **An edge node's key is retired only with the node**: the generic retire
+    route refuses it (`409 executor_key_is_edge_node`, a new code), and a node
+    whose key is retired otherwise is refused at the `/node/*` routes.
+27. **Delimited, disjoint prefixes**: an edge invite's prefix ends with `/` or
+    `:` and overlaps no active executor key's or outstanding edge invite's
+    prefix (`409 resource_prefix_overlap`, a new code). Keys without a prefix
+    are not compared.
+28. **An edge sovereign ID is no one else's**: not the NA's network name, an
+    active executor key's, or an attestation subject's, unless it was a
+    revoked edge node's (Decision 22); the console counts only the break-glass
+    records the node's own key signed.
+29. **Edge invites**: one outstanding per sovereign ID, one hour by default,
+    and documented bound to the node key `genesis-mesh-edge init` prints.
+30. **A limit per executor key** (`NA_RATE_LIMIT_EXECUTOR_PER_MINUTE`, 120) on
+    break-glass records, observations (a batch counts once per key) and grant
+    uses, counted once the signature verifies. It also applies to controllers
+    and observers that are not edge nodes.
+31. **No audit write before a signature**: a request naming a revoked
+    certificate is audited only when the node key signed it.
+
+The agent (sdk-rust):
+
+32. **An NA that answers is obeyed**: any HTTP error from the NA, `429`
+    included, is `na_refused`, never grants or break-glass; only
+    connection-level failures count as offline. A local rate limit on
+    `/v1/authorize`.
+33. **A stale snapshot keeps the envelope**: a request a held grant names but
+    does not cover is refused when the snapshot is stale too.
+34. **A retired executor key means revoked**; a clock behind the snapshot
+    makes it stale (`clock_behind`); `enroll` refuses non-loopback plain
+    HTTP; `genesis-mesh-edge init` prints the node key.
+35. **Footprint budgets are fixed targets** (binary 12 MiB, RSS 32 MiB), with
+    the measured values recorded beside them, and a variant of the offline
+    scenario in which the NA accepts connections and never answers.
+
+Open for the Maintainer at release (from the skeptic's review):
+
+- Is break-glass after an NA rate limit or `5xx` ever acceptable for devices?
+  (Decision 32 says no.)
+- When an operator revokes a grant, should the device be able to break glass
+  for the same capability (Decision 11)?
+- Do Decisions 12 and 22 hold when a sovereign ID is reused? Should edge
+  attestations require `subject_public_key`?
+- Is deferring private-CA support (Decision 18) acceptable for factory and
+  site NAs, which it pushes towards plain HTTP for `run`?
+- Should records that arrive after their key was retired, but are dated
+  before it, be quarantined with a code of their own, so a reviewer can tell
+  a legitimate backlog from forgeries?
+- Are the fixed footprint targets (Decision 35) the right ones?
+
+### Second review fixes (taken as proposed, 2026-10-14)
+
+The agent (sdk-rust):
+
+36. **Three answer classes** (revises Decision 32). An NA decision, or an NA
+    error with its JSON error body and a `4xx` other than `429`, is an answer:
+    final, no grant, no break-glass. An NA JSON error with `429` or `5xx`
+    means the NA is throttled or failing: grants may be used, never
+    break-glass. A connection failure, a timeout, or a `502`, `503`, `504` or
+    `520`–`527` without the NA's JSON body (a proxy's page) means
+    unreachable: grants, then break-glass with a justification. `/v1/status`
+    reports `na_state` and `last_na_error`.
+37. **The local API cannot be taken down**: accept errors never end the
+    loop, a 10-second header timeout, at most 64 connections; exit code 2 is
+    for configuration only.
+38. **systemd**: `@chown` allowed for `socket_group`; the invite token
+    credential falls back to an empty one, so the file may be removed after
+    enrolment.
+39. **No decision after SIGTERM**, and none for a client that disconnected
+    before its answer.
+40. **An expired certificate**: break-glass names the closest existing
+    `evaluation_failure` (the record format has no value for it), the agent
+    keeps trying to renew, and the docs give the recovery path.
+41. **Holders are rebuilt from the uses already made**, never from use 0; a
+    live grant that does not cover a request wins over an ended one
+    (`outside_grant`), with table-driven tests of the decision.
+42. **The device clock must be within five minutes of the NA's**; uploads run
+    even when the node state cannot be read; `node_auth_failed` is shown;
+    with `clock_behind` a grant that looks not yet valid counts as ended; the
+    NA's heartbeat answers outrank the device's view of its certificate's
+    expiry.
+43. **Large backlogs**: counts and flushes page through the outbox, old
+    authorizations are pruned, `outbox export [--dead-letters]` reads the
+    backlog, and a scenario with thousands of records measures memory.
+44. **Runbook**: `reset` (refuses while uploads are pending without
+    `--discard-pending`, and while `run` holds the state lock), then `init`,
+    a bound invite and `enroll`; `enroll` reads
+    `/etc/genesis-mesh-edge/invite-token`; the agent refuses to start when its
+    enrolment names another NA, or when its state is newer than it.
+45. **Smaller fixes**: bounded configuration durations, `Retry-After` on
+    uploads, a group- or world-writable state directory refused (exit 6), the
+    local limit at 30 requests a minute, a pinned image builder, and the soak
+    on x86_64 only for release pull requests (weekly unchanged).
+
+The gateway console:
+
+46. **Error texts** for the new codes, and the edge nodes table shows the
+    certificate (and when it expired), the executor key and the resource
+    prefix.
+
+The core (documentation only):
+
+47. **Grants after enrolment, re-enrolment with `reset`**: the edge example
+    issues grants once the executor key exists, and its runbooks stop the
+    agent after the backlog drained before revoking it.
+48. **Rate-limit tests freeze the window** on PostgreSQL: the
+    `DatabaseRateLimiter` counts in clock-aligned minutes, and a test whose
+    requests straddled a minute boundary saw its count reset
+    (`test_a_revoked_key_counts_like_an_unknown_one`, reproduced with a clock
+    that crosses the boundary).
+
+Also open for the Maintainer at release (second review):
+
+- Renewing an expired certificate while keeping its executor key, so an
+  expired device need not re-enrol (deferred).
+- Time derived from the NA (signed times) rather than the device clock for
+  freshness and grant validity (deferred).

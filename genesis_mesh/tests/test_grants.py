@@ -882,7 +882,7 @@ def test_a_1_5_store_upgrades_to_018_with_every_entry_and_anchor_intact(clock, t
         anchors = [a.to_wire() for a in old.db.list_store_anchors(limit=100)]
         old.db.close()
     upgraded = _restart(old, db_path)
-    assert upgraded.db.schema_version() == 18
+    assert upgraded.db.schema_version() >= 18
     after = {r["store_sequence"]: r["entry_digest"] for r in upgraded.db.conn.execute(
         "SELECT store_sequence, entry_digest FROM evidence_entries").fetchall()}
     assert after == before and [a.to_wire() for a in upgraded.db.list_store_anchors(limit=100)] == anchors

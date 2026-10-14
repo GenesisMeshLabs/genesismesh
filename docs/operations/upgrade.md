@@ -17,6 +17,7 @@ and verified, and migrated to PostgreSQL and verified.
 
 | From | Status |
 | --- | --- |
+| 1.6.x | Supported and rehearsed in CI, with grants on and an edge node enrolled after the upgrade. Read *Upgrading to 1.7* below first |
 | 1.5.x | Supported and rehearsed in CI, with the out-of-band and remediation records on, and grants on after the upgrade. Read *Upgrading to 1.6* below first |
 | 1.4.x | Supported and rehearsed in CI, with the out-of-band and remediation records on. Read *Upgrading to 1.5* below first |
 | 1.3.x | Supported and rehearsed in CI, from 1.3.1 with the out-of-band records on. Read *Upgrading to 1.4* below first |
@@ -50,6 +51,38 @@ built wheel before every release.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
    policy digests, CRL continuity and the evidence chain. `/readyz` must
    report the expected schema version.
+
+## Upgrading to 1.7
+
+*Unreleased.*
+
+1.7 adds migration 019: two columns of the invite table (an edge invite's
+sovereign ID and resource prefix), the `edge_nodes` table and an index of the
+evidence entries by executor sovereign and kind. Nothing is rebuilt; on a
+large evidence store the index takes the time of one pass over the table. A
+1.7 database cannot be opened by 1.6: roll back by restoring the backup.
+
+- **Nothing changes until an edge invite.** There is no new switch: the
+  `/node/*` routes answer `403 edge_node_not_enrolled` until an operator
+  creates an edge invite (privileged tier, with `EVIDENCE_STORE=on` and
+  `EVIDENCE_OUT_OF_BAND=on`) and an edge agent redeems it. See
+  {doc}`edge-agent`.
+- **Three rate limits.** `NA_RATE_LIMIT_NODE_PER_MINUTE` (120 per node key)
+  and `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` (600 per client address) apply
+  to the `/node/*` routes only. `NA_RATE_LIMIT_EXECUTOR_PER_MINUTE` (120 per
+  executor key) applies to every key's break-glass records, observations (a
+  batch counts once) and grant uses: raise it for a controller or observer
+  that submits more with one key ({doc}`../reference/configuration`).
+- **Retiring an edge node's executor key** through
+  `/admin/evidence/executor-keys/<key_id>/retire` is refused
+  (`409 executor_key_is_edge_node`): revoke the node instead.
+- **Revoking an edge node revokes all of it.** `/admin/revoke` on a
+  certificate of an edge node revokes every certificate the node holds, in
+  one CRL, retires its executor key and revokes the grants that key bears.
+  Revoking any other node is unchanged.
+- **Responses gain fields.** `/join` and `/renew` add an `edge` block for
+  edge nodes, `/admin/invite` the edge invite's fields and `/admin/revoke` an
+  `edge_node` block; clients that ignore unknown fields are unaffected.
 
 ## Upgrading to 1.6
 

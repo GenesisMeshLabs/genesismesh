@@ -42,7 +42,11 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.rate_limiter.allow(f"admin:{remote_addr}", service.rate_limits.admin, 60):
                 raise RateLimitError()
 
-            auth_ok, auth_err = service._verify_admin_request(data)
+            # v1.7.0: an edge invite registers an executor key when redeemed, a privileged act.
+            edge_invite = service.edge_service.is_edge_invite(data)
+            auth_ok, auth_err = service._verify_admin_request(
+                data, required_tier="privileged" if edge_invite else "standard"
+            )
             if not auth_ok:
                 raise UnauthorizedError(auth_err or "Unauthorized", code="admin_auth_failed")
 
@@ -63,7 +67,8 @@ def create_admin_blueprint(service) -> Blueprint:
             token_expiry_hours = positive_int_field(
                 data,
                 "token_expiry_hours",
-                default=24,
+                # v1.7.0 review fixes: an edge invite is short-lived unless the operator asks for longer.
+                default=service.edge_service.invite_expiry_hours if edge_invite else 24,
                 code="invalid_token_expiry_hours",
                 message="Token validity windows must be positive",
             )
@@ -72,11 +77,17 @@ def create_admin_blueprint(service) -> Blueprint:
             if not valid:
                 raise BadRequestError(error or "Invalid role", code="invalid_role")
 
+            node_sovereign_id = executor_resource_prefix = None
+            if edge_invite:
+                node_sovereign_id, executor_resource_prefix = service.edge_service.invite_fields(data)
+
             token = service.db.create_invite_token(
                 assigned_roles=roles,
                 max_validity_hours=max_validity_hours,
                 token_expiry_hours=token_expiry_hours,
                 recipient_public_key=recipient_public_key,
+                node_sovereign_id=node_sovereign_id,
+                executor_resource_prefix=executor_resource_prefix,
             )
             service.db.add_audit_event(
                 "invite_created",
@@ -84,17 +95,21 @@ def create_admin_blueprint(service) -> Blueprint:
                     "token_fingerprint": _token_fingerprint(token.token_id),
                     "roles": roles,
                     "recipient_public_key": recipient_public_key,
+                    "node_sovereign_id": node_sovereign_id,
+                    "executor_resource_prefix": executor_resource_prefix,
                     "remote_addr": remote_addr,
                 },
             )
 
             logger.info("Created invite token for roles %s", roles)
-            return jsonify(
-                {
-                    "token_id": token.token_id,
-                    "expires_at": token.expires_at.isoformat(),
-                }
-            ), 201
+            body = {
+                "token_id": token.token_id,
+                "expires_at": token.expires_at.isoformat(),
+            }
+            if edge_invite:
+                body["node_sovereign_id"] = node_sovereign_id
+                body["executor_resource_prefix"] = executor_resource_prefix
+            return jsonify(body), 201
         except ApiError:
             raise
         except Exception as exc:
@@ -216,6 +231,31 @@ def create_admin_blueprint(service) -> Blueprint:
             cert_row = service.db.get_cert(cert_id)
             if cert_row is None:
                 raise NotFoundError("Unknown certificate", code="certificate_not_found")
+
+            # v1.7.0: a certificate of an edge node revokes the node: every certificate it holds in
+            # one CRL, its executor key and the grants that key bears.
+            edge_revocation = service.edge_service.revoke(
+                cert_row, reason, request.headers.get("X-Admin-Key-Id") or "unknown"
+            )
+            if edge_revocation is not None:
+                crl, edge_node = edge_revocation
+                service.db.add_audit_event(
+                    "certificate_revoked",
+                    {
+                        "cert_id": cert_id,
+                        "reason": reason,
+                        "crl_sequence": crl.sequence,
+                        "remote_addr": remote_addr,
+                    },
+                )
+                service.db.evict_agent_registrations_for_revoked_keys([cert_row["node_public_key"]])
+                return jsonify(
+                    {
+                        "crl_sequence": crl.sequence,
+                        "revoked_count": len(crl.revoked_certificates),
+                        "edge_node": edge_node,
+                    }
+                )
 
             try:
                 # v0.60: rebuilt and retried if another instance publishes the

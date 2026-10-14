@@ -730,6 +730,61 @@ def run_grants(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_node(vectors: list[dict]) -> list[str]:
+    """v1.7.0: node request signatures, the edge join co-signature, join certificates and CRLs."""
+    from genesis_mesh.crypto import sign_data, verify_model_signature, verify_signature
+    from genesis_mesh.crypto.node_auth import (
+        executor_key_id,
+        executor_proof_payload,
+        node_signing_payload,
+        sign_executor_proof,
+    )
+    from genesis_mesh.models.certificates import JoinCertificate
+    from genesis_mesh.models.revocation import CertificateRevocationList
+
+    failures: list[str] = []
+    for v in vectors:
+        inp, exp, kind = v["input"], v["expected"], v["kind"]
+        try:
+            got: dict[str, Any]
+            if kind in ("node_request", "join_request"):
+                body = inp["body"]
+                got = {}
+                if kind == "join_request":
+                    body = sign_executor_proof(body, KEYS[inp["executor_key"]])
+                    got["executor_payload"] = executor_proof_payload(body).decode("utf-8")
+                    got["executor_signature_b64"] = body["executor_signature"]
+                    got["executor_key_id"] = executor_key_id(inp["executor_public_key_b64"])
+                    if not verify_signature(executor_proof_payload(body), body["executor_signature"],
+                                            inp["executor_public_key_b64"]):
+                        failures.append(f"{v['id']}: executor signature does not verify")
+                        continue
+                payload = node_signing_payload(body)
+                got["payload"] = payload.decode("utf-8")
+                got["signature_b64"] = sign_data(payload, KEYS[inp["node_key"]])
+                if not verify_signature(payload, got["signature_b64"], inp["node_public_key_b64"]):
+                    failures.append(f"{v['id']}: signature does not verify")
+                    continue
+            elif kind == "node_request_tampered":
+                payload = node_signing_payload(inp["body"])
+                got = {"payload": payload.decode("utf-8"),
+                       "verifies": verify_signature(payload, inp["signature_b64"], inp["node_public_key_b64"])}
+            elif kind in ("join_certificate", "crl"):
+                model = JoinCertificate if kind == "join_certificate" else CertificateRevocationList
+                record = model.model_validate(inp["certificate" if kind == "join_certificate" else "crl"])
+                got = {"payload": record.to_canonical_json(),
+                       "verifies": any(verify_model_signature(record, sig, key)
+                                       for sig in record.signatures for key in inp["na_public_keys"])}
+            else:
+                failures.append(f"{v['id']}: unknown kind {kind!r}")
+                continue
+            if got != exp:
+                failures.append(f"{v['id']}: got {json.dumps(got)[:300]}, want {json.dumps(exp)[:300]}")
+        except Exception as exc:  # noqa: BLE001 -- a vector that raises fails, by name
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+    return failures
+
+
 SUITE_RUNNERS: dict[str, Any] = {
     "signatures": run_signatures,
     "treaties": run_treaties,
@@ -748,6 +803,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "remediation": run_remediation,
     "audit": run_audit,
     "grants": run_grants,
+    "node": run_node,
 }
 
 

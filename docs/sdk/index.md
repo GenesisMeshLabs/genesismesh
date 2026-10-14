@@ -55,6 +55,13 @@ portable trust primitives as an embeddable crate (`genesis_mesh`), plus CLI
 binaries and a production trust-verification gateway built on top of it. See
 {doc}`rust/index` and {doc}`/concepts/rust-gateway`.
 
+From 1.7.0 the Rust SDK repository also releases the edge agent
+(`genesis-mesh-edge`, beta): a static binary and a container image that act
+for one device, enrolled with an edge invite. Applications on the device ask
+it over a local API; it asks the NA when it can, and acts under grants or
+break-glass when it cannot. Only the Rust SDK runs the `node` conformance
+suite (node request signatures). See {doc}`../operations/edge-agent`.
+
 ## Design principles
 
 All SDKs mirror the main repo's layer separation:

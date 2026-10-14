@@ -452,6 +452,17 @@ class EvidenceStoreService:
         return out
 
     def retire_executor_key(self, key_id: str, retired_by: str) -> dict[str, Any]:
+        """``POST /admin/evidence/executor-keys/<key_id>/retire``. An active edge node's key is retired by
+        revoking the node (``/admin/revoke``), which also revokes its certificates (v1.7.0)."""
+        self.require_enabled()
+        if self._na.edge_service.owns_active_key(key_id):
+            raise ConflictError("This executor key belongs to an edge node: revoke the node with /admin/revoke",
+                                code="executor_key_is_edge_node")
+        self.retire_executor_key_counted(key_id, retired_by)
+        return {"key_id": key_id, "active": False}
+
+    def retire_executor_key_counted(self, key_id: str, retired_by: str) -> int:
+        """Retire an executor key; returns how many grants it bore were revoked with it (v1.7.0)."""
         self.require_enabled()
         if self._na.db.get_executor_key(key_id) is None:
             raise NotFoundError("unknown executor key", code="executor_key_not_found")
@@ -462,8 +473,8 @@ class EvidenceStoreService:
         assert row is not None
         self._na.out_of_band_service.key_retired(key_id, str(row["retired_at"]), retired_by)
         # v1.6.0: the grants the key bears are revoked with it.
-        self._na.grant_service.on_key_retired(key_id)
-        return {"key_id": key_id, "active": False}
+        revoked: int = self._na.grant_service.on_key_retired(key_id)
+        return revoked
 
     def list_executor_keys(self) -> list[dict[str, Any]]:
         self.require_enabled()

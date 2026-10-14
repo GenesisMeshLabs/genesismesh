@@ -971,6 +971,8 @@ class GrantService:
         if sig is None or sig.key_id != grant.bearer_key_id \
                 or not verify_model_signature(use, sig, grant.bearer_public_key):
             self._refuse("grant_use_invalid_signature", "the use is not signed by the grant's bearer key", use, digest)
+        # v1.7.0 review fixes: uses count against their key's limit once authentic.
+        self._na.out_of_band_service.limit_executor(sig.key_id)
         # Authentic from here. A use carrying secret material is never stored.
         secret = use_secret_problem(use)
         if secret is not None:

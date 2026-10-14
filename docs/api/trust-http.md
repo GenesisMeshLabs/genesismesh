@@ -448,7 +448,7 @@ All operator-signed; the admin rate limits apply (see *Rate limits* above).
 | `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |
 | `GET /admin/evidence/executor-keys` | Registered executor and observer keys, including retired ones, with their `role` and `resource_prefix` |
 | `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}`, and since v1.3.0 `role` (`executor`, the default, or `observer`) and `resource_prefix` (the key signs only for resources whose ID starts with it) (privileged; `409 executor_key_exists`, `400 invalid_key_role`, `400 invalid_resource_prefix`) |
-| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged) |
+| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged). An active edge node's key is refused (`409 executor_key_is_edge_node`, v1.7.0): revoke the node with `/admin/revoke` |
 | `POST /admin/evidence/retention/apply` | `{ "older_than_days": N, "through_sequence": M }` (either or both; `through_sequence` since v1.5.0): remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged). `held_back` says when records not judged yet stop it (v1.3.1), or (v1.5.0, `"reason": "not_archived"`) when no archive covers what would go and `NA_RETENTION_REQUIRE_ARCHIVE` is on; `409 evidence_retention_refused` when the store does not hold every entry from its start, no longer continues from the latest anchor, or an entry to remove does not recompute (v1.3.1). Registry, key succession and archive entries are carried past the checkpoint with their first recorded time; since v1.5.0 a resource's latest record no longer stops it |
 | `POST /admin/evidence/audit-pack` | An audit pack (v1.5.0): `{from_sequence or since, until_sequence or until}` (all optional; the range widens to the anchors around it). `{manifest, files}`: the signed `AuditPackManifest` and every other file as text; see {doc}`../reference/audit-pack-format`. `409 audit_pack_not_anchored`, `409 audit_pack_too_large` (over 50,000 entries), `400 invalid_audit_pack`, `429` beyond `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` (a limit of its own); `read` tier. The NA records each pack it builds (manifest digest, whether its own checks passed) |
 | `GET /admin/evidence/archives` | Archive records, `archived_through_sequence` (how far an unbroken run of them covers the store) and `require_archive`; `read` tier (v1.5.0) |
@@ -799,6 +799,190 @@ With grants on, `GET /admin/evidence/status` reports `evidence_grants`,
 `observed_by`; `GET /admin/evidence/resource-heads/<resource_id>` names the
 head's `entry_kind` (`execution` or `grant_execution`) and `record_id`; and
 `GET /sovereign-revocation-feed` lists `revoked_grant_ids`.
+
+---
+
+## Edge nodes (v1.7.0)
+
+*Unreleased.*
+
+*Beta.* The routes an edge agent calls, and the operators' view of edge
+nodes. An edge node enrols with an edge invite and registers its executor key
+at `/join` (see {doc}`../reference/network-authority-api`); the operations
+guide is {doc}`../operations/edge-agent`.
+
+**Auth** for the three `/node/*` routes: a request the node key signs (the
+node request signature in {doc}`../reference/network-authority-api`), with
+these fields in the signed body:
+
+| Field | Value |
+| --- | --- |
+| `cert_id`, `node_public_key` | A certificate of the node and its key |
+| `purpose` | `node_boundary_evaluate`, `node_state` or `node_resource_head`: the route's own |
+| `audience` | This NA's public key (`network_authority.public_key` of `/sovereign.json`) |
+| `timestamp` | RFC 3339 UTC, within 300 seconds of the NA's clock |
+| `nonce` | A UUID, used once: the nonces of `/heartbeat` and every `/node/*` route share one scope per node key |
+| `signature` | Ed25519 by the node key over the canonical body without `signature` |
+
+The checks run in this order: `400 missing_certificate_identity`;
+`403 certificate_not_found`, `403 certificate_key_mismatch`,
+`403 certificate_revoked`; `401 node_auth_failed` (signature, timestamp,
+nonce, then a wrong `purpose` or `audience`, which spends the nonce);
+`403 certificate_expired`, `403 certificate_not_yet_valid`,
+`403 certificate_superseded`; `403 edge_node_not_enrolled` (the key is not an
+edge node's), `403 edge_node_retired` (the node was revoked, or its
+executor key retired). A request naming a revoked certificate is audited only
+when the node key signed it.
+
+**Rate limits**: `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` (600) per client
+address, counted before authentication, and `NA_RATE_LIMIT_NODE_PER_MINUTE`
+(120) per node key, after it; `429 rate_limit_exceeded`. The address limit
+is shared by every device behind one address. Break-glass records,
+observations and grant uses also count per executor key once their signature
+verifies (`NA_RATE_LIMIT_EXECUTOR_PER_MINUTE`, 120).
+
+### `POST /node/boundary/evaluate`
+
+A signed decision for the node, under an attestation issued to it, with the
+node's sovereign ID as the requester. An attestation is issued to the node
+when this NA issued it (`issuer_sovereign_id` is this sovereign), its
+`subject_id` is the node's sovereign ID and its `subject_public_key` is unset
+or the node key.
+
+**Request**
+
+```json
+{
+  "cert_id": "<certificate id>",
+  "node_public_key": "<node public key, base64>",
+  "purpose": "node_boundary_evaluate",
+  "audience": "<NA public key, base64>",
+  "attestation_id": "<attestation id>",
+  "requested_capability": "secret.rotate",
+  "context": {
+    "context_id": "<optional UUID>",
+    "request_parameters": {"lifetime_days": 30},
+    "attributes": {"site": "site7"},
+    "requester_sovereign_id": "site7-17"
+  },
+  "timestamp": "2026-10-14T09:30:00.000000+00:00",
+  "nonce": "<UUID>",
+  "signature": "<Ed25519 signature, base64>"
+}
+```
+
+`context.requester_sovereign_id` is optional; when present it must be the
+node's sovereign ID.
+
+**Response** `201` `{ "decision": {...}, "justification_proof": {...} }`: the
+same signed records as `POST /admin/boundary/evaluate`, stored in the
+evidence store with `requested_by` `node:<executor key ID>`. A revoked,
+expired or not yet valid attestation gives a signed DENY, as there.
+
+**Errors** (after authentication): `400 node_basis_unsupported` (an
+`agreement`), `400 invalid_attestation_id`, `400 missing_boundary_fields`,
+`400 invalid_context`; `403 node_requester_mismatch` (another requester);
+`403 node_attestation_foreign` (an attestation not issued to the node, or
+unknown). Neither `403` signs or stores a decision.
+
+### `POST /node/state`
+
+The node's certificate, its executor key, the attestations issued to it and
+the grants its executor key bears.
+
+**Request**
+
+```json
+{
+  "cert_id": "<certificate id>",
+  "node_public_key": "<node public key, base64>",
+  "purpose": "node_state",
+  "audience": "<NA public key, base64>",
+  "timestamp": "2026-10-14T09:30:00.000000+00:00",
+  "nonce": "<UUID>",
+  "signature": "<Ed25519 signature, base64>"
+}
+```
+
+**Response** `200`:
+
+| Field | Content |
+| --- | --- |
+| `server_time` | The NA's time |
+| `node` | `node_public_key`, `node_sovereign_id`, `cert_id` and `cert_expires_at` of the node's newest valid certificate, `roles` |
+| `executor_key` | `key_id`, `public_key`, `executor_sovereign_id`, `role`, `resource_prefix`, `registered_at`, `retired_at` |
+| `attestations` | `[{"attestation": <signed MembershipAttestation>, "status": "active"}]`: those issued to the node, active and not expired |
+| `grants` | The signed `CapabilityGrant`s whose `bearer_key_id` is the executor key, neither revoked nor past their end, newest first, at most 100; `[]` with `EVIDENCE_GRANTS=off` |
+
+### `POST /node/evidence/resource-head`
+
+Where the next record of a resource under the node's resource prefix must
+link.
+
+**Request**
+
+```json
+{
+  "cert_id": "<certificate id>",
+  "node_public_key": "<node public key, base64>",
+  "purpose": "node_resource_head",
+  "audience": "<NA public key, base64>",
+  "resource_id": "edge:site7-17/kv/db",
+  "timestamp": "2026-10-14T09:30:00.000000+00:00",
+  "nonce": "<UUID>",
+  "signature": "<Ed25519 signature, base64>"
+}
+```
+
+**Response** `200`: the body of `GET /admin/evidence/resource-heads/<id>`.
+**Errors**: `403 node_resource_out_of_scope` (a `resource_id` that is missing
+or does not start with the node's prefix), `404 resource_not_found`,
+`404 evidence_store_disabled`.
+
+### `GET /admin/edge-nodes`
+
+Edge nodes, newest enrolment first (by `enrolled_at`, then
+`node_public_key`). **Auth**: operator signature, `read` tier. Query:
+`?status=online|offline|revoked`, `?node_sovereign_id=`, `?limit=` (1-500,
+default 100), `?before=` (the previous page's `next_before`: the
+`node_public_key` of its last node).
+
+**Response** `200`
+
+```json
+{
+  "count": 1,
+  "next_before": null,
+  "edge_nodes": [{
+    "node_public_key": "<node public key>",
+    "node_sovereign_id": "site7-17",
+    "executor_key_id": "edge-3f1c0d4e9a7b2c6d8e0f1a2b3c4d5e6f",
+    "resource_prefix": "edge:site7-17/",
+    "roles": ["role:client"],
+    "status": "online",
+    "enrolled_at": "2026-10-14T09:00:00.000000+00:00",
+    "cert_id": "<certificate id>",
+    "cert_expires_at": "2026-10-21T09:00:00.000000+00:00",
+    "last_seen_at": "2026-10-14T09:29:40.000000+00:00",
+    "remote_addr": "203.0.113.17",
+    "agent": {"version": "1.7.0", "snapshot_age_seconds": 42, "pending_uploads": 0, "dead_letters": 0,
+              "reported_at": "2026-10-14T09:29:40.000000+00:00"},
+    "grants": {"usable": 2, "admitted_uses": 7},
+    "break_glass": {"records": 1, "last_executed_at": "2026-10-13T22:10:05Z"},
+    "revoked_at": null,
+    "revocation_reason": null
+  }]
+}
+```
+
+`status` is `revoked` once the node was revoked, `online` while its newest
+heartbeat (across its certificates) is under 300 seconds old, as for
+`/nodes`, and `offline` otherwise. `agent` is the agent block of its latest
+heartbeat (`null` before one); `grants` counts the usable grants its executor
+key bears and their admitted uses (`null` with grants off); `break_glass`
+counts the break-glass records of its sovereign ID since it enrolled (`null`
+with the store off). **Errors**: `400 invalid_edge_status`,
+`400 invalid_page`.
 
 ---
 

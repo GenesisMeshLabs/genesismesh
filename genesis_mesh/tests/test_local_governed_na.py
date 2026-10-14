@@ -33,7 +33,7 @@ from .test_na_boundary_policy import _get, _headers, _make_service, _post
 
 
 def _client(remote_addr: str = "10.0.0.1", **kwargs):
-    service = _make_service(**kwargs)
+    service = _freeze_window(_make_service(**kwargs))
     service.app.config["TESTING"] = True
     client = service.app.test_client()
     client.environ_base["REMOTE_ADDR"] = remote_addr
@@ -74,16 +74,24 @@ def test_failed_auth_limit_below_one_is_refused():
         RateLimits(admin_auth_failures=0)
 
 
-def _one_window(client) -> None:
+def _freeze_window(service, at: float | None = None):
     """Keep a fixed-window limiter in a single window for the whole test.
 
     On PostgreSQL the NA counts requests in clock-aligned minutes
     (``DatabaseRateLimiter``), so a test whose requests straddle a minute
-    boundary would see the count reset half way.
+    boundary would see the count reset half way (the 1.7.0 review saw
+    ``test_a_revoked_key_counts_like_an_unknown_one`` fail that way). Every
+    client and service of this module is frozen from its creation.
     """
-    if isinstance(client.service.rate_limiter, DatabaseRateLimiter):
-        frozen = time.time()
-        client.service.rate_limiter = DatabaseRateLimiter(client.service.db, clock=lambda: frozen)
+    if isinstance(service.rate_limiter, DatabaseRateLimiter):
+        frozen = time.time() if at is None else at
+        service.rate_limiter = DatabaseRateLimiter(service.db, clock=lambda: frozen)
+    return service
+
+
+def _one_window(client) -> None:
+    """``_freeze_window`` for a client's service (``_client`` already freezes it)."""
+    _freeze_window(client.service)
 
 
 def test_300_signed_admin_requests_a_minute_pass_at_the_default():
@@ -242,7 +250,7 @@ def test_all_failures_from_one_address_are_capped(monkeypatch):
 
 
 def test_a_key_throttled_at_one_address_works_from_another():
-    service = _make_service(rate_limits=RateLimits(admin_auth_failures=1))
+    service = _freeze_window(_make_service(rate_limits=RateLimits(admin_auth_failures=1)))
     service.app.config["TESTING"] = True
     shared = service.app.test_client()
     shared.environ_base["REMOTE_ADDR"] = "10.0.0.66"
@@ -278,7 +286,7 @@ def test_insufficient_tier_counts_as_a_failure_of_that_key():
 
 
 def test_another_address_is_not_throttled():
-    service = _make_service(rate_limits=RateLimits(admin_auth_failures=1))
+    service = _freeze_window(_make_service(rate_limits=RateLimits(admin_auth_failures=1)))
     service.app.config["TESTING"] = True
     attacker = service.app.test_client()
     attacker.environ_base["REMOTE_ADDR"] = "10.0.0.66"
@@ -304,6 +312,8 @@ def test_the_database_store_throttles_across_instances(tmp_path):
         operator_public_keys=service.operator_public_keys, operator_key_tiers=service.operator_key_tiers,
         rate_limits=RateLimits(admin_auth_failures=2), db_path=db_file, rate_limit_store="database",
     )
+    # The same frozen minute as the first instance's (both count in the same database rows).
+    second_service.rate_limiter = DatabaseRateLimiter(second_service.db, clock=first.service.rate_limiter._clock)
     second_service.app.config["TESTING"] = True
     second = second_service.app.test_client()
     second.environ_base["REMOTE_ADDR"] = "10.0.0.1"

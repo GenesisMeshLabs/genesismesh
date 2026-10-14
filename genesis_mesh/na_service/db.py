@@ -13,6 +13,7 @@ from .db_agents import AgentStoreMixin
 from .db_audit import AuditStoreMixin
 from .db_boundary_policy import BoundaryPolicyStoreMixin
 from .db_data_usage import DataUsageStoreMixin
+from .db_edge import EdgeStoreMixin
 from .db_enrollment import EnrollmentStoreMixin
 from .db_evidence import EvidenceStoreMixin
 from .db_grants import GrantStoreMixin
@@ -149,6 +150,7 @@ class NADatabase(
     DataUsageStoreMixin,
     EvidenceStoreMixin,
     GrantStoreMixin,
+    EdgeStoreMixin,
     KeyHistoryStoreMixin,
     RemediationStoreMixin,
     RuntimeStoreMixin,

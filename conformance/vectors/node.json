@@ -1,0 +1,380 @@
+{
+  "suite": "node",
+  "version": "1.7.0",
+  "description": "v1.7.0 (beta): node request signatures and what an edge agent verifies. A node signs the canonical JSON of its request body without 'signature' (sorted keys, no whitespace, ASCII escapes, Python float form) with its node key. At /join an edge node's executor key first signs the body without 'signature' and 'executor_signature'; the node key then signs the body including 'executor_signature'. The /node/* routes also sign 'purpose' and 'audience' (the NA public key). Keys: node 'a', executor 'b', NA 'c' (the fixed seeds). Kinds: 'node_request' (input.body is signed by input.node_key; expected payload and signature), 'join_request' (also expected executor_payload, executor_signature_b64 and executor_key_id), 'node_request_tampered' (input.signature_b64 over another body; expected verifies), 'join_certificate' and 'crl' (a record signed by the NA; expected the canonical payload, without 'signatures', and whether it verifies with input.na_public_keys).",
+  "vectors": [
+    {
+      "id": "node-001",
+      "kind": "node_request",
+      "description": "Heartbeat: the body without 'signature' is signed (no purpose or audience)",
+      "input": {
+        "route": "/heartbeat",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "status": "healthy",
+          "timestamp": "2026-01-01T00:00:01.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b1"
+        }
+      },
+      "expected": {
+        "payload": "{\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b1\",\"status\":\"healthy\",\"timestamp\":\"2026-01-01T00:00:01.123456+00:00\"}",
+        "signature_b64": "La7pdWZSGas5fLZBat8OXhWo6r7xM8iBSBu09v3tUUWgQopTxW03TD3lAxEq3VDHb+xrd/sfdnxVJ/J0eAGJDQ=="
+      }
+    },
+    {
+      "id": "node-002",
+      "kind": "node_request",
+      "description": "Heartbeat with the agent block (v1.7.0)",
+      "input": {
+        "route": "/heartbeat",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "status": "degraded",
+          "timestamp": "2026-01-01T00:00:02.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b2",
+          "agent": {
+            "version": "1.7.0",
+            "snapshot_age_seconds": 42,
+            "pending_uploads": 3,
+            "dead_letters": 0
+          }
+        }
+      },
+      "expected": {
+        "payload": "{\"agent\":{\"dead_letters\":0,\"pending_uploads\":3,\"snapshot_age_seconds\":42,\"version\":\"1.7.0\"},\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b2\",\"status\":\"degraded\",\"timestamp\":\"2026-01-01T00:00:02.123456+00:00\"}",
+        "signature_b64": "qc3WL1LtFe0l++S1w7KJTpGmERSEvjDwswNOs2JMOZdEWfvuQPlLsv/u7F1oQy657nkYW6cR/kF+/74AXCNgBg=="
+      }
+    },
+    {
+      "id": "node-003",
+      "kind": "join_request",
+      "description": "Edge /join: executor key 'b' co-signs the body first, then node key 'a' signs it including executor_signature; executor_key_id is 'edge-' + 32 hex of SHA-256 of the raw key",
+      "input": {
+        "route": "/join",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "executor_key": "b",
+        "executor_public_key_b64": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+        "body": {
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "invite_token": "invite-token-for-conformance-only",
+          "validity_hours": 168,
+          "executor_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "agent_version": "1.7.0",
+          "timestamp": "2026-01-01T00:00:03.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b3"
+        }
+      },
+      "expected": {
+        "executor_payload": "{\"agent_version\":\"1.7.0\",\"executor_public_key\":\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\",\"invite_token\":\"invite-token-for-conformance-only\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b3\",\"timestamp\":\"2026-01-01T00:00:03.123456+00:00\",\"validity_hours\":168}",
+        "executor_signature_b64": "Ht364aPOofCTVlBc4ePNNlU1GgLxgGHXS/1RYiP0k5jWg8UgZirR+ZNLf1F4foniZsO2iszzB/5c80gUkoWCBg==",
+        "executor_key_id": "edge-24f6ed6acbfe1009c030d7ca567c33ca",
+        "payload": "{\"agent_version\":\"1.7.0\",\"executor_public_key\":\"Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\",\"executor_signature\":\"Ht364aPOofCTVlBc4ePNNlU1GgLxgGHXS/1RYiP0k5jWg8UgZirR+ZNLf1F4foniZsO2iszzB/5c80gUkoWCBg==\",\"invite_token\":\"invite-token-for-conformance-only\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b3\",\"timestamp\":\"2026-01-01T00:00:03.123456+00:00\",\"validity_hours\":168}",
+        "signature_b64": "cpyAWawehRUWhQza/59qd2RIavgSB4hP52rK2kcDbjueN5eA5jUjS+hsMjbGddGJxsnMQsCfWWjIObKTvhjiBw=="
+      }
+    },
+    {
+      "id": "node-004",
+      "kind": "node_request",
+      "description": "Node-scoped evaluate: non-ASCII text signs as ASCII escapes, floats in Python form, nested values and null",
+      "input": {
+        "route": "/node/boundary/evaluate",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "purpose": "node_boundary_evaluate",
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "timestamp": "2026-01-01T00:00:04.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b4",
+          "attestation_id": "00000000-0000-4000-8000-000000000002",
+          "requested_capability": "secret.rotate",
+          "context": {
+            "context_id": "00000000-0000-4000-8000-000000000003",
+            "request_parameters": {
+              "note": "Z\u00fcrich \u2713 \ud83d\ude00",
+              "ratio": 0.1,
+              "epsilon": 1e-07,
+              "count": 3,
+              "nested": {
+                "list": [
+                  1,
+                  2.5,
+                  {
+                    "k": null
+                  }
+                ],
+                "flag": true
+              },
+              "none": null
+            },
+            "attributes": {
+              "site": "siebte Stra\u00dfe",
+              "shift": "night"
+            }
+          }
+        }
+      },
+      "expected": {
+        "payload": "{\"attestation_id\":\"00000000-0000-4000-8000-000000000002\",\"audience\":\"JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=\",\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"context\":{\"attributes\":{\"shift\":\"night\",\"site\":\"siebte Stra\\u00dfe\"},\"context_id\":\"00000000-0000-4000-8000-000000000003\",\"request_parameters\":{\"count\":3,\"epsilon\":1e-07,\"nested\":{\"flag\":true,\"list\":[1,2.5,{\"k\":null}]},\"none\":null,\"note\":\"Z\\u00fcrich \\u2713 \\ud83d\\ude00\",\"ratio\":0.1}},\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b4\",\"purpose\":\"node_boundary_evaluate\",\"requested_capability\":\"secret.rotate\",\"timestamp\":\"2026-01-01T00:00:04.123456+00:00\"}",
+        "signature_b64": "xixghIB9aajcIhQtzBtESILqHULlkhu9rKVDM5nxAJm+2SPkZgs8DVOM/r5l26+yTRk5t2lY8HMDSMU0yKXzAw=="
+      }
+    },
+    {
+      "id": "node-005",
+      "kind": "node_request",
+      "description": "Node-scoped state read",
+      "input": {
+        "route": "/node/state",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "purpose": "node_state",
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "timestamp": "2026-01-01T00:00:05.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b5"
+        }
+      },
+      "expected": {
+        "payload": "{\"audience\":\"JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=\",\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b5\",\"purpose\":\"node_state\",\"timestamp\":\"2026-01-01T00:00:05.123456+00:00\"}",
+        "signature_b64": "T7Iugs6aTOZyjKfXbKXYoHa+HYx9NBgr6lwkTxz5tokSV1uAxZHjreO2l0LXM+rnW3135IrO7TT1HAoDNaeICA=="
+      }
+    },
+    {
+      "id": "node-006",
+      "kind": "node_request",
+      "description": "Node-scoped resource head",
+      "input": {
+        "route": "/node/evidence/resource-head",
+        "node_key": "a",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "purpose": "node_resource_head",
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "timestamp": "2026-01-01T00:00:06.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b6",
+          "resource_id": "edge:site7-17/kv/db"
+        }
+      },
+      "expected": {
+        "payload": "{\"audience\":\"JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=\",\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b6\",\"purpose\":\"node_resource_head\",\"resource_id\":\"edge:site7-17/kv/db\",\"timestamp\":\"2026-01-01T00:00:06.123456+00:00\"}",
+        "signature_b64": "HpkHK6s6CjuJOJOHqbXmfum0QjOBOe+Umux46CqT3A3bU4K2TJskMvXxraKi3fxxDYiXYaKH/u4H6WnQIUgMDQ=="
+      }
+    },
+    {
+      "id": "node-007",
+      "kind": "node_request_tampered",
+      "description": "The node-004 signature over the same body with 'purpose' changed does not verify",
+      "input": {
+        "route": "/node/state",
+        "node_public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "body": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "purpose": "node_state",
+          "audience": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+          "timestamp": "2026-01-01T00:00:04.123456+00:00",
+          "nonce": "00000000-0000-4000-8000-0000000000b4",
+          "attestation_id": "00000000-0000-4000-8000-000000000002",
+          "requested_capability": "secret.rotate",
+          "context": {
+            "context_id": "00000000-0000-4000-8000-000000000003",
+            "request_parameters": {
+              "note": "Z\u00fcrich \u2713 \ud83d\ude00",
+              "ratio": 0.1,
+              "epsilon": 1e-07,
+              "count": 3,
+              "nested": {
+                "list": [
+                  1,
+                  2.5,
+                  {
+                    "k": null
+                  }
+                ],
+                "flag": true
+              },
+              "none": null
+            },
+            "attributes": {
+              "site": "siebte Stra\u00dfe",
+              "shift": "night"
+            }
+          }
+        },
+        "signature_b64": "xixghIB9aajcIhQtzBtESILqHULlkhu9rKVDM5nxAJm+2SPkZgs8DVOM/r5l26+yTRk5t2lY8HMDSMU0yKXzAw=="
+      },
+      "expected": {
+        "payload": "{\"attestation_id\":\"00000000-0000-4000-8000-000000000002\",\"audience\":\"JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=\",\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"context\":{\"attributes\":{\"shift\":\"night\",\"site\":\"siebte Stra\\u00dfe\"},\"context_id\":\"00000000-0000-4000-8000-000000000003\",\"request_parameters\":{\"count\":3,\"epsilon\":1e-07,\"nested\":{\"flag\":true,\"list\":[1,2.5,{\"k\":null}]},\"none\":null,\"note\":\"Z\\u00fcrich \\u2713 \\ud83d\\ude00\",\"ratio\":0.1}},\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"nonce\":\"00000000-0000-4000-8000-0000000000b4\",\"purpose\":\"node_state\",\"requested_capability\":\"secret.rotate\",\"timestamp\":\"2026-01-01T00:00:04.123456+00:00\"}",
+        "verifies": false
+      }
+    },
+    {
+      "id": "cert-001",
+      "kind": "join_certificate",
+      "description": "A JoinCertificate signed by the NA verifies; response extras such as 'edge' are not signed",
+      "input": {
+        "certificate": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "network_name": "edge-network",
+          "roles": [
+            "role:client"
+          ],
+          "issued_at": "2026-01-01T00:00:00.123456Z",
+          "expires_at": "2026-01-08T00:00:00.123456Z",
+          "issued_by": "key-c",
+          "signatures": [
+            {
+              "key_id": "key-c",
+              "sig": "ufWr0HnW48Jnk3nfY5Ujh7PamAbrdddzA9Fiy2dHcP3Z/zX4cz8jzq2sx3ZvO3nqFne8HtKJT60/IOwBHXNWDg=="
+            }
+          ],
+          "edge": {
+            "node_sovereign_id": "site7-17",
+            "executor_key": {
+              "key_id": "edge-24f6ed6acbfe1009c030d7ca567c33ca",
+              "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "executor_sovereign_id": "site7-17",
+              "role": "executor",
+              "resource_prefix": "edge:site7-17/",
+              "registered_at": "2026-01-01T00:00:00+00:00",
+              "retired_at": null
+            }
+          }
+        },
+        "na_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ]
+      },
+      "expected": {
+        "payload": "{\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"expires_at\":\"2026-01-08T00:00:00.123456Z\",\"issued_at\":\"2026-01-01T00:00:00.123456Z\",\"issued_by\":\"key-c\",\"network_name\":\"edge-network\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"roles\":[\"role:client\"]}",
+        "verifies": true
+      }
+    },
+    {
+      "id": "cert-002",
+      "kind": "join_certificate",
+      "description": "The same certificate with its roles altered does not verify",
+      "input": {
+        "certificate": {
+          "cert_id": "00000000-0000-4000-8000-000000000001",
+          "node_public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+          "network_name": "edge-network",
+          "roles": [
+            "role:anchor"
+          ],
+          "issued_at": "2026-01-01T00:00:00.123456Z",
+          "expires_at": "2026-01-08T00:00:00.123456Z",
+          "issued_by": "key-c",
+          "signatures": [
+            {
+              "key_id": "key-c",
+              "sig": "ufWr0HnW48Jnk3nfY5Ujh7PamAbrdddzA9Fiy2dHcP3Z/zX4cz8jzq2sx3ZvO3nqFne8HtKJT60/IOwBHXNWDg=="
+            }
+          ],
+          "edge": {
+            "node_sovereign_id": "site7-17",
+            "executor_key": {
+              "key_id": "edge-24f6ed6acbfe1009c030d7ca567c33ca",
+              "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+              "executor_sovereign_id": "site7-17",
+              "role": "executor",
+              "resource_prefix": "edge:site7-17/",
+              "registered_at": "2026-01-01T00:00:00+00:00",
+              "retired_at": null
+            }
+          }
+        },
+        "na_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ]
+      },
+      "expected": {
+        "payload": "{\"cert_id\":\"00000000-0000-4000-8000-000000000001\",\"expires_at\":\"2026-01-08T00:00:00.123456Z\",\"issued_at\":\"2026-01-01T00:00:00.123456Z\",\"issued_by\":\"key-c\",\"network_name\":\"edge-network\",\"node_public_key\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"roles\":[\"role:anchor\"]}",
+        "verifies": false
+      }
+    },
+    {
+      "id": "crl-001",
+      "kind": "crl",
+      "description": "A CRL with one entry signed by the NA verifies",
+      "input": {
+        "crl": {
+          "crl_id": "00000000-0000-4000-8000-000000000002",
+          "sequence": 7,
+          "issued_at": "2026-01-01T00:00:09.500000Z",
+          "next_update": "2026-01-02T00:00:09.500000Z",
+          "issuer": "key-c",
+          "revoked_certificates": [
+            {
+              "certificate_id": "00000000-0000-4000-8000-000000000001",
+              "revoked_at": "2026-01-01T00:00:09.500000Z",
+              "reason": "key_compromise",
+              "issuer": "key-c"
+            }
+          ],
+          "signatures": [
+            {
+              "key_id": "key-c",
+              "sig": "zfi8RUsFHDcqFhcKz65xZiVTvLrRqMjFBHIfapph70pAkNjKeudAaKqvGI8t13WnlhHQezMqnE4XEnLJqVhOBg=="
+            }
+          ]
+        },
+        "na_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ]
+      },
+      "expected": {
+        "payload": "{\"crl_id\":\"00000000-0000-4000-8000-000000000002\",\"issued_at\":\"2026-01-01T00:00:09.500000Z\",\"issuer\":\"key-c\",\"next_update\":\"2026-01-02T00:00:09.500000Z\",\"revoked_certificates\":[{\"certificate_id\":\"00000000-0000-4000-8000-000000000001\",\"issuer\":\"key-c\",\"reason\":\"key_compromise\",\"revoked_at\":\"2026-01-01T00:00:09.500000Z\"}],\"sequence\":7}",
+        "verifies": true
+      }
+    },
+    {
+      "id": "crl-002",
+      "kind": "crl",
+      "description": "The same CRL with its entry's certificate_id altered does not verify",
+      "input": {
+        "crl": {
+          "crl_id": "00000000-0000-4000-8000-000000000002",
+          "sequence": 7,
+          "issued_at": "2026-01-01T00:00:09.500000Z",
+          "next_update": "2026-01-02T00:00:09.500000Z",
+          "issuer": "key-c",
+          "revoked_certificates": [
+            {
+              "certificate_id": "00000000-0000-4000-8000-000000000003",
+              "revoked_at": "2026-01-01T00:00:09.500000Z",
+              "reason": "key_compromise",
+              "issuer": "key-c"
+            }
+          ],
+          "signatures": [
+            {
+              "key_id": "key-c",
+              "sig": "zfi8RUsFHDcqFhcKz65xZiVTvLrRqMjFBHIfapph70pAkNjKeudAaKqvGI8t13WnlhHQezMqnE4XEnLJqVhOBg=="
+            }
+          ]
+        },
+        "na_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ]
+      },
+      "expected": {
+        "payload": "{\"crl_id\":\"00000000-0000-4000-8000-000000000002\",\"issued_at\":\"2026-01-01T00:00:09.500000Z\",\"issuer\":\"key-c\",\"next_update\":\"2026-01-02T00:00:09.500000Z\",\"revoked_certificates\":[{\"certificate_id\":\"00000000-0000-4000-8000-000000000003\",\"issuer\":\"key-c\",\"reason\":\"key_compromise\",\"revoked_at\":\"2026-01-01T00:00:09.500000Z\"}],\"sequence\":7}",
+        "verifies": false
+      }
+    }
+  ]
+}

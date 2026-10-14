@@ -42,7 +42,9 @@ exports, also run the `out_of_band` suite (1.3.0), the `remediation`
 suite (1.4.0), the `audit` suite (1.5.0: key histories, records across an
 NA key succession, audit packs and the completeness check) and the `grants`
 suite (1.6.0: grant records, envelopes, the use rules and stores holding
-grants; its issuance vectors are the NA's, which an SDK may skip). The
+grants; its issuance vectors are the NA's, which an SDK may skip). The Rust
+SDK also runs the `node` suite (1.7.0: node request signatures, the edge
+join's executor co-signature, join certificates and CRLs). The
 interoperability workflow checks that every copy matches the reference's.
 
 ## Audit packs and the NA key history
@@ -69,6 +71,22 @@ grant routes (`/admin/grants`, `/grants/time-tokens`,
 rule every SDK acting under a grant follows (fall back to break-glass when the
 grant has ended, is spent or revoked and the NA cannot be reached). See
 {doc}`operations/grants`.
+
+## Edge agent
+
+The edge agent (`genesis-mesh-edge`, released with the Rust SDK, and its
+image `ghcr.io/genesismeshlabs/genesis-mesh-edge`, tagged `X.Y.Z` only) is
+beta from 1.7.0: its configuration, local API, state directory and exit codes
+may change in a minor release. So are the routes it calls
+(`/node/boundary/evaluate`, `/node/state`, `/node/evidence/resource-head`),
+`GET /admin/edge-nodes`, `genesis-mesh admin edge-nodes`, the node request
+fields `purpose` and `audience`, and `genesis_mesh.crypto.node_auth`.
+`/join`, `/heartbeat`, `/renew`, `/admin/invite` and `/admin/revoke` stay
+stable; their edge additions (the edge invite fields, the executor key at
+`/join`, the `edge` block of `/join` and `/renew`, the heartbeat's `agent`
+block and `/admin/revoke`'s `edge_node` block) are beta. The error codes they
+add are stable, as every error code is. No signed record changes. See
+{doc}`operations/edge-agent`.
 
 Alternative implementations must pass all vectors to claim conformance.
 See `conformance/CONFORMANCE.md` for instructions.

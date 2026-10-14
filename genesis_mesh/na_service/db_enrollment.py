@@ -23,8 +23,10 @@ class EnrollmentStoreMixin:
         max_validity_hours: int,
         token_expiry_hours: int,
         recipient_public_key: Optional[str] = None,
+        node_sovereign_id: Optional[str] = None,
+        executor_resource_prefix: Optional[str] = None,
     ) -> InviteToken:
-        """Create and persist a single-use invite token."""
+        """Create and persist a single-use invite token (v1.7.0: or an edge invite)."""
         now = datetime.now(timezone.utc)
         token = InviteToken(
             token_id=str(uuid.uuid4()),
@@ -33,6 +35,8 @@ class EnrollmentStoreMixin:
             created_at=now,
             expires_at=now + timedelta(hours=token_expiry_hours),
             recipient_public_key=recipient_public_key,
+            node_sovereign_id=node_sovereign_id,
+            executor_resource_prefix=executor_resource_prefix,
         )
         with self.conn:
             self.conn.execute(
@@ -40,8 +44,8 @@ class EnrollmentStoreMixin:
                 INSERT INTO invite_tokens (
                     token_id, assigned_roles_json, max_validity_hours,
                     created_at, expires_at, used_at, used_by_key,
-                    recipient_public_key
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    recipient_public_key, node_sovereign_id, executor_resource_prefix
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     token.token_id,
@@ -52,6 +56,8 @@ class EnrollmentStoreMixin:
                     None,
                     None,
                     token.recipient_public_key,
+                    token.node_sovereign_id,
+                    token.executor_resource_prefix,
                 ),
             )
         return token
@@ -258,4 +264,9 @@ class EnrollmentStoreMixin:
             used_at=datetime.fromisoformat(row["used_at"]) if row["used_at"] else None,
             used_by_key=row["used_by_key"],
             recipient_public_key=row["recipient_public_key"],
+            # v1.7.0 (migration 019): edge invites.
+            node_sovereign_id=row["node_sovereign_id"] if "node_sovereign_id" in row.keys() else None,
+            executor_resource_prefix=(
+                row["executor_resource_prefix"] if "executor_resource_prefix" in row.keys() else None
+            ),
         )

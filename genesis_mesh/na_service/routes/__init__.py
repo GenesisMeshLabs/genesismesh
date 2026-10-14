@@ -10,6 +10,7 @@ from .crl import create_crl_blueprint
 from .data_usage import create_data_usage_blueprint
 from .disclosure import create_disclosure_blueprint
 from .discovery import create_discovery_blueprint
+from .edge import create_edge_blueprint
 from .enrollment import create_enrollment_blueprint
 from .evidence import create_evidence_blueprint
 from .evidence_store import create_evidence_store_blueprint
@@ -32,6 +33,7 @@ __all__ = [
     "create_data_usage_blueprint",
     "create_disclosure_blueprint",
     "create_discovery_blueprint",
+    "create_edge_blueprint",
     "create_enrollment_blueprint",
     "create_evidence_blueprint",
     "create_evidence_store_blueprint",
