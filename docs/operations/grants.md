@@ -1,7 +1,5 @@
 # Pre-Issued Grants
 
-*Unreleased.*
-
 A grant is an authorisation the Network Authority (NA) signs in advance, so a
 device or controller can make a change while it cannot reach the NA. Where
 break-glass ({doc}`emergency-changes`) records a change made without a

@@ -679,8 +679,6 @@ emergency policy's capability, is refused with
 
 ### Pre-issued grants (v1.6.0)
 
-*Unreleased.*
-
 Grants a holder uses while it cannot reach the NA, with
 `EVIDENCE_GRANTS=on` (otherwise `404 grants_disabled`, after the caller is
 authenticated). The routes are beta; the records' signed forms are stable.
