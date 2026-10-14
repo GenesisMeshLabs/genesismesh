@@ -87,12 +87,15 @@ flowchart LR
     agent -->|records and grant uses| na
 ```
 
-1. For each site, create an edge invite naming its sovereign ID and resource
-   prefix (privileged operator key):
+1. On each device, run `genesis-mesh-edge init`, which creates its keys and
+   prints its node public key. Then create an edge invite naming the site's
+   sovereign ID and resource prefix, bound to that key (privileged operator
+   key; it expires after one hour):
 
    ```bash
    genesis-mesh admin invite --role client \
-     --node-sovereign-id factory-a --executor-resource-prefix edge:factory-a/
+     --node-sovereign-id factory-a --executor-resource-prefix edge:factory-a/ \
+     --recipient-key <node public key>
    ```
 
 2. Issue an attestation to the site's sovereign ID whose
@@ -111,7 +114,9 @@ flowchart LR
 
 Decommissioning a site with `genesis-mesh admin revoke` revokes all its
 certificates, retires its executor key and revokes the grants that key bears,
-in one step. The full guide is {doc}`../operations/edge-agent`.
+in one step. Records the device has not uploaded yet are quarantined once its
+key is retired, so let its pending uploads reach 0 first unless it is
+compromised. The full guide is {doc}`../operations/edge-agent`.
 
 ## Generating and Federating a Fleet
 

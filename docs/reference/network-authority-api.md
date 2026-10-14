@@ -378,14 +378,18 @@ the node key (`400 executor_key_is_node_key`); a proof that does not verify
 (`401 executor_proof_failed`); an executor key already registered
 (`409 executor_key_exists`), a node key that already belongs to an edge node
 (`409 edge_node_already_enrolled`), a sovereign ID an active edge node holds
-(`409 node_sovereign_in_use`); and the evidence store being off
-(`404 evidence_store_disabled`).
+(`409 node_sovereign_in_use`); the evidence store being off
+(`404 evidence_store_disabled`); and out-of-band recording being off
+(`409 edge_requires_evidence_store`).
 
-The NA then issues the certificate and registers the executor key as an
-operator would (`POST /admin/evidence/executor-keys`), with the invite's
-sovereign ID and resource prefix: the registry record names
-`recorded_by: node-join:<cert_id>`. If that fails, it revokes the new
-certificate (`unspecified`) and returns the error. The response is the
+The NA then consumes the invite, issues the certificate, and registers the
+executor key as an operator would (`POST /admin/evidence/executor-keys`),
+with the invite's sovereign ID and resource prefix, in the same transaction
+that records the edge node: the registry record names
+`recorded_by: node-join:<cert_id>`. If that write fails, nothing of it is
+kept, the NA revokes the new certificate (`unspecified`) and returns the
+error; the invite is spent by then, so the operator creates another. The
+audit events that follow a committed enrolment never fail it. The response is the
 `JoinCertificate` with one more field, which the certificate's signature does
 not cover:
 
@@ -417,7 +421,10 @@ certificates cannot renew, and requested validity is capped by the original
 invite validity policy stored with the issued certificate.
 
 *Beta (v1.7.0).* An edge node's renewal leaves its executor key as it is; the
-response carries the same `edge` block as `/join`.
+response carries the same `edge` block as `/join`. A revoked edge node's key
+is refused at `/renew` and `/heartbeat` (`403 edge_node_retired`) whatever
+certificate it presents, and a renewal that issued its certificate while the
+node was being revoked revokes it and is refused the same way.
 
 ## Admin Endpoints
 
@@ -488,15 +495,25 @@ Response:
 
 *Beta (v1.7.0).* An **edge invite** also names `node_sovereign_id` (matching
 `^[a-z0-9][a-z0-9._-]{0,63}$`) and `executor_resource_prefix` (1 to 256
-characters without control characters; `edge:<node_sovereign_id>/` is the
-recommended form). The node that redeems it registers its executor key for
-that sovereign ID and prefix, so an edge invite needs the privileged tier
-(`403 insufficient_operator_tier`), the evidence store and out-of-band
-recording (`409 edge_requires_evidence_store`), and a sovereign ID no active
-edge node holds (`409 node_sovereign_in_use`). Both fields or neither
-(`400 invalid_edge_invite`); `400 invalid_node_sovereign_id`,
-`400 invalid_resource_prefix`. The response and the `invite_created` audit
-event add both fields.
+characters without control characters, ending with `/` or `:`;
+`edge:<node_sovereign_id>/` is the recommended form). The node that redeems
+it registers its executor key for that sovereign ID and prefix, so an edge
+invite needs the privileged tier (`403 insufficient_operator_tier`) and the
+evidence store and out-of-band recording (`409 edge_requires_evidence_store`).
+Both fields or neither (`400 invalid_edge_invite`); `400
+invalid_node_sovereign_id`, `400 invalid_resource_prefix`.
+
+The sovereign ID must be no one else's (`409 node_sovereign_in_use`): not
+this NA's network name, an active edge node's, an outstanding (unused,
+unexpired) edge invite's, an active executor key's, or the subject of an
+attestation this NA issued, unless it was an edge node's that is now revoked
+(its successor keeps the attestations). The prefix must not overlap an
+active executor key's prefix or an outstanding edge invite's: neither may
+start with the other (`409 resource_prefix_overlap`); a prefix is a plain
+string prefix, which is why it ends with a delimiter. An edge invite expires
+after one hour unless `token_expiry_hours` says otherwise; bind it to the
+node key with `recipient_public_key` (the key `genesis-mesh-edge init`
+prints). The response and the `invite_created` audit event add both fields.
 
 ### `POST /admin/revoke`
 
