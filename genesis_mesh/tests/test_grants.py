@@ -1370,6 +1370,13 @@ def test_an_audit_pack_checks_the_agreement_a_grant_rests_on(tmp_path, clock):
     line = (json.dumps(changed, sort_keys=True, separators=(",", ":")) + "\n").encode()
     assert "cited_agreement_mismatch" in _reasons(_verify(net, _resign(net, pack, {"trust/agreements.jsonl": line}),
                                                           _held(client)))
+    # Without the responder's treaty in the pack, an agreement the NA signed for both parties vouches for
+    # nothing: the NA's routes trust it only while the responder holds a treaty from this NA.
+    responder = agreement["responder_sovereign_id"]
+    treaties = [t for t in pack["trust/treaties.jsonl"].decode().splitlines()
+                if json.loads(t).get("subject_sovereign_id") != responder]
+    stripped = _resign(net, pack, {"trust/treaties.jsonl": "".join(t + "\n" for t in treaties).encode()})
+    assert "agreement_invalid_signature" in _reasons(_verify(net, stripped, _held(client)))
     # A pack without a grant under an agreement keeps the 1.5 file set.
     plain = _granted(client, clock, Holder(client, "holder-2", "device-2"))
     assert _submit_use(client, plain.use(clock.advance(minutes=1))).status_code == 201
