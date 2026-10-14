@@ -38,7 +38,7 @@ writes ``<out>/verification/``:
 ``vectors/``
     The conformance suites a verifier runs as well (``canonical``,
     ``field_registry``, ``interop``, ``out_of_band``, ``remediation``,
-    ``audit``), copied unchanged.
+    ``audit``, v1.6.0 ``grants``), copied unchanged.
 
 Everything is deterministic: fixed seeds, times and identifiers, and
 Ed25519 signatures, so two runs write the same bytes. A difference between a
@@ -59,7 +59,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFORMANCE = ROOT / "conformance"
-COPIED_SUITES = ("canonical", "field_registry", "interop", "out_of_band", "remediation", "audit")
+COPIED_SUITES = ("canonical", "field_registry", "interop", "out_of_band", "remediation", "audit", "grants")
 
 
 def _dump(data: Any) -> bytes:
@@ -115,6 +115,11 @@ def _record_cases() -> list[dict[str, Any]]:
         "archive": ("ArchiveRecord", samples["ArchiveRecord"], na),
         "decision": ("BoundaryDecision", world.records["first_decision"].model_dump(mode="json"), na),
         "key_succession": ("KeySuccessionRecord", world.successions[0], ("f", "root")),
+        # v1.6.0: a grant, a use of it (signed by its bearer, an executor key; its time token by the NA) and
+        # a revocation.
+        "grant": ("CapabilityGrant", samples["CapabilityGrant"], na),
+        "grant_execution": ("GrantExecutionEvidence", samples["GrantExecutionEvidence"], executor),
+        "grant_revocation": ("GrantRevocationRecord", samples["GrantRevocationRecord"], na),
     }
     quarantined = copy.deepcopy(kinds["quarantine"][1])
     quarantined["record_digest"] = payload_digest(quarantined["record"])
@@ -144,7 +149,8 @@ def _record_cases() -> list[dict[str, Any]]:
                      and record[f].endswith("Z")), None)
 
     def string_field(model: str, record: dict[str, Any]) -> str:
-        preferred = ("resource_id", "reason", "justification", "location", "holder", "key_id", "new_key_id",
+        preferred = ("resource_id", "detail", "reason", "justification", "location", "holder", "key_id",
+                     "new_key_id",
                      "denial_reason", "operator_sovereign_id", "issued_by", "proof_id", "outcome")
         return next(f for f in preferred if isinstance(record.get(f), str))
 
@@ -192,10 +198,12 @@ def _record_cases() -> list[dict[str, Any]]:
 
 def _index(kind: str, model: str, record: dict[str, Any], entry_index: Any, execution_index: Any) -> dict[str, Any]:
     """The envelope fields the NA writes for a record (as written when it is admitted)."""
-    from genesis_mesh.models import audit_pack, key_succession, out_of_band, remediation
+    from genesis_mesh.models import audit_pack, grants, key_succession, out_of_band, remediation
     from genesis_mesh.models.execution import ExecutionEvidence
 
     classes = {
+        "CapabilityGrant": grants.CapabilityGrant, "GrantExecutionEvidence": grants.GrantExecutionEvidence,
+        "GrantRevocationRecord": grants.GrantRevocationRecord,
         "ObservationRecord": out_of_band.ObservationRecord, "BreakGlassRecord": out_of_band.BreakGlassRecord,
         "JudgementRecord": out_of_band.JudgementRecord, "QuarantineRecord": out_of_band.QuarantineRecord,
         "RegistryRecord": out_of_band.RegistryRecord, "RemediationRecord": remediation.RemediationRecord,

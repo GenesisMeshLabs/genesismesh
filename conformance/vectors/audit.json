@@ -5976,6 +5976,24 @@
       }
     },
     {
+      "id": "record-time-CapabilityGrant",
+      "kind": "record_time",
+      "description": "The time a CapabilityGrant read alone is placed at",
+      "model": "CapabilityGrant",
+      "expected": {
+        "field": "issued_at"
+      }
+    },
+    {
+      "id": "record-time-GrantRevocationRecord",
+      "kind": "record_time",
+      "description": "The time a GrantRevocationRecord read alone is placed at",
+      "model": "GrantRevocationRecord",
+      "expected": {
+        "field": "revoked_at"
+      }
+    },
+    {
       "id": "record-time-JudgementRecord",
       "kind": "record_time",
       "description": "The time a JudgementRecord read alone is placed at",
@@ -6054,6 +6072,15 @@
       "model": "StoreAnchor",
       "expected": {
         "field": "anchored_at"
+      }
+    },
+    {
+      "id": "record-time-TimeToken",
+      "kind": "record_time",
+      "description": "The time a TimeToken read alone is placed at",
+      "model": "TimeToken",
+      "expected": {
+        "field": "issued_at"
       }
     },
     {
