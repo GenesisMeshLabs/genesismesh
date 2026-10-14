@@ -439,9 +439,9 @@ All operator-signed; the admin rate limits apply (see *Rate limits* above).
 
 | Route | Purpose |
 |---|---|
-| `GET /admin/evidence` | Search by `vendor_id`, `attestation_id`, `capability`, `resource_id`, `outcome`, `entry_kind`, `decision_id`, `since`, `until`; page with `after_sequence` and `limit` (1-1000). Since v1.5.0 this and every evidence read below (status, verify, histories, resource heads, export, executor keys) accept the `read` tier |
+| `GET /admin/evidence` | Search by `vendor_id`, `attestation_id`, `capability`, `resource_id`, `outcome`, `entry_kind`, `decision_id`, `grant_id` (v1.6.0: a grant's uses and its revocation), `since`, `until`; page with `after_sequence` and `limit` (1-1000). Since v1.5.0 this and every evidence read below (status, verify, histories, resource heads, export, executor keys) accept the `read` tier |
 | `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result. At most 10,000 records (the oldest); `truncated: true` when a longer chain was cut, in which case read it through the export |
-| `GET /admin/evidence/resource-heads/<resource_id>` | `{resource_id, resource_sequence, record_digest}`: what the next record of the resource must link to (the latest stored record, or the latest retention checkpoint), from one indexed lookup; `404 resource_not_found` when there is none (v0.63.1). Controllers use this, not the history, before each action |
+| `GET /admin/evidence/resource-heads/<resource_id>` | `{resource_id, resource_sequence, record_digest, entry_kind, record_id}`: what the next record of the resource must link to (the latest stored record, or the latest retention checkpoint), from one indexed lookup; `404 resource_not_found` when there is none (v0.63.1). `entry_kind` and `record_id` (v1.6.0, additive) say what the head is: `execution` (its `evidence_id`), `grant_execution` (its `use_id`) or `retention_checkpoint` (`record_id` `null`). Controllers use this, not the history, before each action |
 | `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified; `truncated` as for resources |
 | `GET /admin/evidence/verify` | Verify every stored entry, chain and signature |
 | `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint, latest anchor and `unanchored_entries`; `unjudged_records`, reported whether `EVIDENCE_OUT_OF_BAND` is on or off since v1.3.1; `anchoring_blocked` while the latest anchor is dated ahead of this instance's clock (v1.3.1) |
@@ -733,19 +733,24 @@ first `TimeToken`, `use_sequence` 0), and its store entry (`entry`,
 | `invalid_grant_request`, `ambiguous_basis` | 400 | A missing bearer, capability list or budget; not exactly one basis; a freshness sequence with an attestation |
 | `invalid_grant_validity` | 400 | A time that is not RFC 3339, `valid_from` not before `valid_until`, or outside now to 24 hours from now |
 | `grant_limit_exceeded` | 400 | The validity, budget or uses per time token over this NA's limit (`details.limit`, `details.maximum`) |
-| `invalid_grant_envelope` | 400 | An envelope parameter that is not one of the kinds above (`details.errors`) |
+| `invalid_grant_envelope` | 400 | An envelope parameter that is not one of the kinds above (`details.errors`), or an envelope whose names or values look like secret material |
 | `grant_bearer_key_unknown`, `grant_bearer_key_not_executor`, `grant_bearer_key_retired` | 422 | The bearer is not an active registered executor key |
 | `invalid_agreement`, `agreement_untrusted` | 400, 422 | The agreement basis, as for evaluation |
 | `grant_basis_invalid` to `grant_gate_may_deny` | 422 | The issuance check refused it: the first problem's reason, with every problem in `details.problems` (`reason`, `detail`, and `capability`, `policy_id`, `policy_version`, `gate_id` where they apply). The reasons and their order are in {doc}`../operations/grants` |
+| `grant_issuance_conflict` | 409 | What the grant rests on (an active policy version, the bearer key, the attestation, the agreement's trust) changed between the check and the write, twice: retry |
 | `evidence_store_unavailable` | 503 | The grant could not be stored; retry |
+
+A `503 grant_store_integrity_failed` from any grant route means a grant the
+database holds no longer verifies under the NA's signature: it is not used.
 
 #### Reading and revoking grants
 
 | Route | Purpose |
 |---|---|
-| `GET /admin/grants` | Grants, newest first: `?status=active` (not revoked, not past its end), `expired` or `revoked`, `?bearer_key_id=`, `?limit=` (1-500, default 100), `?before=` (the previous page's `next_before`). `{grants: [...], next_before}`; each summary has `grant_id`, `status` (`active`, `scheduled`, `exhausted`, `expired`, `revoked`), `bearer_key_id`, `bearer_sovereign_id`, `capabilities`, `basis_kind`, `basis_id`, `valid_from`, `valid_until`, `max_uses`, `uses` (admitted), `issued_at`, `issued_by_operator`, `store_sequence`, `revoked_at`, `revocation_reason`. `400 invalid_grant_filter`, `400 invalid_page`; `read` tier |
-| `GET /admin/grants/<grant_id>` | One grant: its summary, `remaining_uses`, `grant` (the signed grant), `policy_versions` and `revocation` (the signed `GrantRevocationRecord`, or `null`); `404 grant_not_found`; `read` tier |
-| `POST /admin/grants/<grant_id>/revoke` | Revoke it now (privileged): `{ "reason": "..." }` (optional, 1 to 1024 characters, recorded as the revocation's `detail`). `200` with `revocation`, `entry`, `entry_digest`; `404 grant_not_found`, `409 grant_already_revoked`, `400 invalid_grant_revocation` |
+| `GET /admin/grants` | Grants, newest first by `issued_at`, then `grant_id`: `?status=active` (not revoked, not past its end; it includes summaries that say `scheduled` or `exhausted`), `expired` or `revoked`, `?bearer_key_id=`, `?limit=` (1-500, default 100), `?before=` (the previous page's `next_before`: the ID of its last grant). `{grants: [...], next_before}`; each summary has `grant_id`, `status` (`active`, `scheduled`, `exhausted`, `expired`, `revoked`), `bearer_key_id`, `bearer_sovereign_id`, `capabilities`, `basis_kind`, `basis_id`, `valid_from`, `valid_until`, `max_uses`, `uses` (admitted), `issued_at`, `issued_by_operator`, `store_sequence`, `revoked_at`, `revocation_reason`. `400 invalid_grant_filter`, `400 invalid_page`; `read` tier |
+| `GET /admin/grants/<grant_id>` | One grant: its summary, `remaining_uses`, `chain_length` (the positions of its use chain, admitted and quarantined), `grant` (the signed grant), `policy_versions` and `revocation` (the signed `GrantRevocationRecord`, or `null`); `404 grant_not_found`; `read` tier |
+| `GET /admin/grants/<grant_id>/uses` | Its use chain, newest first: `?limit=` (1-500, default 100), `?before=` (a `use_sequence`, the previous page's `next_before`). `{grant_id, uses: [...], next_before}`; each use has `use_id`, `use_sequence`, `state` (`admitted`, or `quarantined` for a refused use that continued the chain), `rejection_code` (`null` when admitted), `executed_at`, `recorded_at`, `store_sequence`, `resource_id`, `resource_sequence` (the position the NA assigned; `null` when quarantined or without a resource) and `outcome`. A use refused as a conflict or a chain mismatch is not in the chain (see the `quarantine` entries). `404 grant_not_found`, `400 invalid_page`; `read` tier (beta, v1.6.0 review fixes) |
+| `POST /admin/grants/<grant_id>/revoke` | Revoke it now (privileged): `{ "reason": "..." }` (optional, 1 to 1024 characters). The body's `reason` is stored as the revocation's `detail`; the revocation's `reason` is always `operator`. `200` with `revocation`, `entry`, `entry_digest`; `404 grant_not_found`, `409 grant_already_revoked`, `400 invalid_grant_revocation` |
 
 #### `POST /grants/time-tokens`
 
@@ -764,9 +769,10 @@ exact serialized form.
 `422 time_token_request_invalid_signature`, `422 time_token_request_stale`;
 `404 grant_not_found`; `409 grant_bearer_key_retired`, `409 grant_revoked`,
 `409 grant_expired` (the holder falls back to break-glass),
-`409 grant_budget_exhausted`; `409 time_token_request_behind` (the NA admitted
-more uses than the request reports), `409 time_token_request_mismatch` (the
-use the NA admitted at that position is not the one the request names).
+`409 grant_budget_exhausted`; `409 time_token_request_behind` (the NA holds
+more uses of the chain, admitted or quarantined, than the request reports),
+`409 time_token_request_mismatch` (the use the NA holds at that position is
+not the one the request names).
 
 #### `POST /evidence/grant-executions`
 
@@ -777,19 +783,24 @@ bearer key. Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`.
 **Response** `201` with `entry`, `entry_digest`, `payload`,
 `"status": "recorded"` and `resource_sequence` (the position the NA assigned
 in the resource's chain, or `null` without a resource); `200` with
-`"status": "duplicate"` for the same record again.
+`"status": "duplicate"` for the same record again, also when the retry raced
+its own admission.
 
 **Errors**: `400 invalid_grant_use`, then the reasons in
 {doc}`../operations/grants` (*What the NA refuses*), each `422` except
 `409 grant_use_conflict`; a refusal of an authentic use no retry overcomes
-names the `quarantine` entry that keeps it in `error.details.quarantine_id`.
+names the `quarantine` entry that keeps it in `error.details.quarantine_id`
+(the same one when the same use is uploaded again). Every check after the
+signature runs inside the write that stores the use or its quarantine entry.
 `503 evidence_store_unavailable`: retry.
 
 With grants on, `GET /admin/evidence/status` reports `evidence_grants`,
 `grants_issued`, `grants_active`, `grants_revoked` and `grant_uses`;
 `GET /admin/evidence/changes/<resource_id>` lists each use as a change of kind
 `grant_execution`, `governed_by: grant`, with `grant_id`, `use_sequence` and
-`observed_by`; and `GET /sovereign-revocation-feed` lists `revoked_grant_ids`.
+`observed_by`; `GET /admin/evidence/resource-heads/<resource_id>` names the
+head's `entry_kind` (`execution` or `grant_execution`) and `record_id`; and
+`GET /sovereign-revocation-feed` lists `revoked_grant_ids`.
 
 ---
 

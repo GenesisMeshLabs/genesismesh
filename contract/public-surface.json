@@ -331,6 +331,13 @@
     },
     {
       "methods": [
+        "GET"
+      ],
+      "path": "/admin/grants/<grant_id>/uses",
+      "level": "beta"
+    },
+    {
+      "methods": [
         "POST"
       ],
       "path": "/admin/invite",
@@ -3707,6 +3714,7 @@
     "grant_envelope_mismatch",
     "grant_expired",
     "grant_gate_may_deny",
+    "grant_issuance_conflict",
     "grant_limit_exceeded",
     "grant_mismatch",
     "grant_not_found",
@@ -3716,6 +3724,7 @@
     "grant_policy_scheduled",
     "grant_review_required",
     "grant_revoked",
+    "grant_store_integrity_failed",
     "grant_time_token_exhausted",
     "grant_time_token_invalid",
     "grant_time_token_mismatch",
@@ -3732,6 +3741,7 @@
     "grant_use_invalid_signature",
     "grant_use_malformed",
     "grant_use_out_of_order",
+    "grant_use_out_of_scope",
     "grant_use_outside_validity",
     "grant_use_secret_material",
     "grant_use_uploaded_late",
@@ -3992,6 +4002,6 @@
   "rules": {
     "http_status_codes": "Errors derived from a plain HTTP status (not_found, method_not_allowed, request_entity_too_large and other werkzeug status names) use the status name in snake case and are stable.",
     "error_envelope": "Every error response is {\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}. code is stable; message and details are for people and may change.",
-    "grant_fallback": "Pre-issued grants (v1.6.0, beta): an SDK acting under a grant checks it offline (the bearer key, the capability, the closed parameter envelope, the budget counting its own uses, the validity, the time token's use limit, and the revocation feed it holds). When a grant has ended, its budget or time token is spent, or it is revoked, and the NA cannot be reached (network error, timeout, 5xx, 429), the SDK does not block the change: it falls back to break-glass, so the change is recorded (a BreakGlassRecord in the outbox) and judged after the fact. A DENY is never broken through; an NA that answers issues decisions as before."
+    "grant_fallback": "Pre-issued grants (v1.6.0, beta): an SDK acting under a grant checks it offline (the bearer key and its resource prefix, the capability, the closed parameter envelope, the budget counting its own uses, the validity, the time token's use limit: at most max_uses_per_time_token uses after the use the token names, and the revocation feed it holds), and checks a use's metadata for secret material before signing it, so it never chains a use on one the NA will not store. When a grant has ended, its budget or time token is spent, or it is revoked, and the NA cannot be reached (network error, timeout, 5xx, 429), the SDK does not block the change: it falls back to break-glass, so the change is recorded (a BreakGlassRecord in the outbox) and judged after the fact. A DENY is never broken through; an NA that answers issues decisions as before. The issuance check (check_grant) runs only at the NA: the grants conformance suite's issuance vectors are NA only, and an SDK skips them."
   }
 }

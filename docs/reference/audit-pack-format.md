@@ -34,12 +34,15 @@ value per line, each line ending in LF; an empty file holds none.
 | `cited.jsonl` | `gm.evidence.event` lines before the range that the range's records rest on, in store order (below) |
 | `policies.jsonl` | Every `BoundaryPolicy` version a decision or judgement in the pack was made under, or a registry record in it activated |
 | `trust/attestations.jsonl` | Every `MembershipAttestation` a decision, context or break-glass record in the pack names |
-| `trust/treaties.jsonl` | The `RecognitionTreaty`s the NA issued for the issuers of those attestations (other sovereigns) |
+| `trust/treaties.jsonl` | The `RecognitionTreaty`s the NA issued for the issuers of those attestations (other sovereigns), and (1.6.0) for the parties of the agreements below |
 | `trust/feeds.jsonl` | The `SovereignRevocationFeed`s the NA imported from those issuers |
+| `trust/agreements.jsonl` | (1.6.0, only in a pack holding a grant under an agreement) Each `AgreementRecord` a grant rests on, as the NA received it |
 
 Every file above is present, and no other: a verifier refuses a pack with a
 file the manifest does not list, and a manifest that lists a file not in
-this table.
+this table. The one exception is `trust/agreements.jsonl` (1.6.0), present
+only in a pack that holds a grant under an agreement, so a pack without one
+keeps the 1.5 file set.
 
 ### The range and what it cites
 
@@ -58,8 +61,10 @@ range to the anchors around it. `cited.jsonl` holds, from before the range:
   execution evidence in the range, its last execution before the range; for
   each resource, its last record with a position in its chain (execution
   evidence, or since 1.6.0 a grant use) and its last observation before the
-  range; (1.6.0) for each grant with uses in the range, its last use before
-  the range;
+  range; (1.6.0) for each grant with uses (or quarantined uses) in the range,
+  the grant and its whole use chain before the range: its admitted uses and
+  the `quarantine` entries of the uses that continued the chain, so the
+  budget, the time-token heads and the chain are checked from use 1;
 - every registry, key succession and archive entry before the range (the
   executor, observer and operator key registries and the policy activations);
 - the latest retention checkpoint entry before the range: the heads of the
@@ -296,7 +301,16 @@ verifies when nothing fails; warnings do not fail it.
    grant's `policy_binding` is checked as a decision's, and the attestation
    a grant rests on (`basis_kind` `attestation`) must be held with the
    grant's `basis_digest` (`cited_attestation_missing`,
-   `cited_attestation_mismatch`). Decisions are
+   `cited_attestation_mismatch`). An agreement a grant rests on (`basis_kind`
+   `agreement`) must be held in `trust/agreements.jsonl`
+   (`cited_agreement_missing`), be the one the grant's `basis_digest` names
+   (the SHA-256 of its canonical form) with the grant's parties (its
+   responder the grant's requester, its offerer the provider:
+   `cited_agreement_mismatch`), and be signed, as received, by both parties
+   with keys the pack vouches for: the NA key valid at its
+   `agreed_terms.valid_from` for the NA's sovereign, the subject keys of a
+   treaty in the pack for another, or the NA's key for both when the NA
+   offered and accepted it itself (`agreement_invalid_signature`). Decisions are
    judged as of their own time: an expiry since they were made and used is
    not a failure.
 7. **The report**: `report.md` that differs from the report rendered from
