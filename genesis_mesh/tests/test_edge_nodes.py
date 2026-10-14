@@ -736,16 +736,14 @@ def test_an_executor_key_is_rate_limited(clock):
     service = _granting_service(rate_limits=RateLimits(executor=2))
     client = _client(service)
     agent = EdgeAgent(client).enrolled(invite_token(client))
-    statuses = [client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code
-                for _ in range(3)]
-    assert statuses == [201, 201, 429]
     # A record whose signature does not verify does not count against the key; it is refused for its signature.
-    service.rate_limiter = type(service.rate_limiter)()
     bad = _break_glass(agent, clock)
     bad["justification"] = "changed after signing"
     for _ in range(3):
         assert _code(client.post("/evidence/break-glass", json={"record": bad})) == "break_glass_invalid_signature"
-    assert client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code == 201
+    statuses = [client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code
+                for _ in range(3)]
+    assert statuses == [201, 201, 429]
 
 
 def test_grant_uses_count_against_the_executor_limit(clock):
