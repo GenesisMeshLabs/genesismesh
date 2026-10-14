@@ -7,10 +7,10 @@ external operators and implementers can evaluate and run.
 The current baseline is:
 
 - **Baseline date:** 2026-10-10
-- **Baseline release:** v1.6.0
+- **Baseline release:** v1.7.0
 - **Current phase:** Phase 2 - Externalization
-- **Current release program:** Governed Changes and Edge Trust (1.2 to 1.7),
-  Phase N in {doc}`phases/index`
+- **Last release program:** Governed Changes and Edge Trust (1.2 to 1.7,
+  complete), Phase N in {doc}`phases/index`
 
 For the detailed Phase 2 plan, see {doc}`externalization`.
 
@@ -27,9 +27,17 @@ reference and the only issuer of decisions.
 | v1.4.0 | Remediation by rotating forward, notification, reviews with second-person approval | Released |
 | v1.5.0 | Audit packs, key succession, the independent verifier `genesis-mesh-verify` | Released |
 | v1.6.0 | Pre-issued grants | Released |
-| v1.7.0 | The Rust edge agent | To be confirmed after v1.6.0 |
+| v1.7.0 | The edge agent `genesis-mesh-edge` (beta), node-scoped decisions, edge revocation | Released |
 
-{doc}`phases/phase-n` describes what each stage changes as it ships.
+{doc}`phases/phase-n` describes what each stage changed. The program is
+complete with v1.7.0. Candidates it deferred, each to be planned on its own:
+
+- **Audit packs:** inclusion proofs for a pack's cited entries (anchors over a
+  Merkle tree of the store, pack format version 2).
+- **Edge agent:** a private certificate authority for the NA's address,
+  renewing an expired certificate while keeping the executor key, time
+  derived from the NA's signed time, platform key stores, armv7 builds, and
+  taking the agent out of beta once a deployment proves it.
 
 ## Current position
 

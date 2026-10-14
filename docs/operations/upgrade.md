@@ -54,8 +54,6 @@ built wheel before every release.
 
 ## Upgrading to 1.7
 
-*Unreleased.*
-
 1.7 adds migration 019: two columns of the invite table (an edge invite's
 sovereign ID and resource prefix), the `edge_nodes` table and an index of the
 evidence entries by executor sovereign and kind. Nothing is rebuilt; on a
