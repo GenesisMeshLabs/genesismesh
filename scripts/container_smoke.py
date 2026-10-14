@@ -4,7 +4,8 @@
     python scripts/container_smoke.py --image genesis-mesh:local \
         [--gateway-image genesis-mesh-gateway:local] [--version 1.1.0] \
         [--legacy-image genesis-mesh:legacy] [--context-dir .] \
-        [--compose-file deploy/compose/docker-compose.images.yml] [--only NAME]
+        [--compose-file deploy/compose/docker-compose.images.yml] \
+        [--edge-image ghcr.io/genesismeshlabs/genesis-mesh-edge:1.7.0] [--only NAME]
 
 Every scenario starts real containers on a private Docker network, checks the
 behaviour an operator depends on, and removes everything it created (every
@@ -93,6 +94,7 @@ class Context:
     legacy_image: Optional[str] = None
     context_dir: Optional[str] = None
     compose_file: Optional[str] = None
+    edge_image: Optional[str] = None
     fixtures: Optional[Fixtures] = None
     containers: list[str] = field(default_factory=list)
     volumes: list[str] = field(default_factory=list)
@@ -1091,6 +1093,172 @@ def na_upgrade_from_legacy(ctx: Context) -> str:
             f"and redeemed that invite")
 
 
+#: The edge agent's local API port (loopback only, token mode) and the NA's port, both on the loopback
+#: interface of the network namespace the agent shares with the NA container.
+EDGE_PORT = 7600
+NA_PORT = 8443
+EDGE_UID = "65532"
+EDGE_STATE = "/var/lib/genesis-mesh-edge"
+
+
+def edge_env(root_public_key: str, local_token: str) -> dict[str, str]:
+    """The agent's configuration: the NA on loopback (enroll refuses plain HTTP to anything else), the
+    local API on loopback in token mode, and short intervals so the scenario sees changes quickly."""
+    return {
+        "GM_EDGE_NA_URL": f"http://127.0.0.1:{NA_PORT}",
+        "GM_EDGE_ROOT_PUBLIC_KEY": root_public_key,
+        "GM_EDGE_STATE_DIR": EDGE_STATE,
+        "GM_EDGE_LISTEN": f"tcp://127.0.0.1:{EDGE_PORT}",
+        "GM_EDGE_TOKENS": f"smoke:{hashlib.sha256(local_token.encode()).hexdigest()}",
+        "GM_EDGE_HEARTBEAT_INTERVAL_SECONDS": "5",
+        "GM_EDGE_SYNC_INTERVAL_SECONDS": "5",
+    }
+
+
+def edge_run_args(namespace: str, state: str, env: dict[str, str], image: str, *cmd: str,
+                  name: Optional[str] = None) -> list[str]:
+    """`docker run` arguments for the agent, in the network namespace of the container `namespace`
+    (the NA's), read-only, without capabilities; detached under `name`, or removed when it exits."""
+    args = ["run", *(["-d", "--name", name] if name else ["--rm"]), "--network", f"container:{namespace}",
+            "-v", f"{state}:{EDGE_STATE}", "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true"]
+    for key, value in env.items():
+        args += ["-e", f"{key}={value}"]
+    return [*args, image, *cmd]
+
+
+def admin_request(ctx: Context, f: Fixtures, na: str, method: str, path: str, body: dict) -> tuple[int, dict]:
+    """One operator-signed request from a container that holds only the operator key."""
+    script = (
+        "import json,sys,urllib.request,urllib.error\n"
+        "from genesis_mesh.crypto import load_private_key\n"
+        "from genesis_mesh.crypto.admin_auth import sign_admin_request\n"
+        "a=json.loads(sys.argv[1])\n"
+        "aud=json.load(urllib.request.urlopen(a['base']+'/sovereign.json'))['network_authority']['public_key']\n"
+        "h=sign_admin_request(load_private_key('/fixtures/home/keys/operator.key'),a['key_id'],method=a['m'],"
+        "path=a['path'],audience=aud,body=a['body'])\n"
+        "h['Content-Type']='application/json'\n"
+        "r=urllib.request.Request(a['base']+a['path'],data=json.dumps(a['body']).encode(),headers=h,method=a['m'])\n"
+        "try:\n"
+        "  x=urllib.request.urlopen(r,timeout=10);print(x.status);print(x.read().decode())\n"
+        "except urllib.error.HTTPError as e:\n"
+        "  print(e.code);print(e.read().decode())\n"
+    )
+    arg = json.dumps({"base": f"http://{na}:8443", "path": path, "m": method, "body": body,
+                      "key_id": f.operator_key_id})
+    out = docker("run", "--rm", "--network", NET, "-v", f"{f.operator}:/fixtures:ro", "--entrypoint", "python",
+                 ctx.image, "-c", script, arg).stdout
+    status, _, text = out.partition("\n")
+    return int(status), json.loads(text) if text.strip() else {}
+
+
+def edge_local(ctx: Context, namespace: str, path: str, token: str, *, method: str = "GET",
+               body: Optional[dict] = None) -> tuple[int, dict]:
+    """Call an edge agent's local API on its loopback address, from a helper in the network namespace it
+    shares with the container `namespace` (the NA's)."""
+    script = (
+        "import json,sys,urllib.request,urllib.error\n"
+        "a=json.loads(sys.argv[1])\n"
+        "r=urllib.request.Request(a['url'],data=a['data'].encode() if a['data'] else None,headers=a['h'],method=a['m'])\n"
+        "try:\n"
+        "  x=urllib.request.urlopen(r,timeout=30);print(x.status);print(x.read().decode())\n"
+        "except urllib.error.HTTPError as e:\n"
+        "  print(e.code);print(e.read().decode())\n"
+        "except Exception as e:\n"
+        "  print(0);print(json.dumps({'transport':type(e).__name__}))\n"
+    )
+    arg = json.dumps({"url": f"http://127.0.0.1:{EDGE_PORT}{path}", "m": method,
+                      "h": {"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+                      "data": json.dumps(body) if body is not None else ""})
+    out = docker("run", "--rm", "--network", f"container:gmt-{RUN}-{namespace}", "--entrypoint", "python",
+                 ctx.image, "-c", script, arg).stdout
+    status, _, text = out.partition("\n")
+    try:
+        return int(status), json.loads(text) if text.strip() else {}
+    except ValueError:
+        return int(status), {"raw": text[:300]}
+
+
+def edge_agent(ctx: Context) -> str:
+    """The released edge agent enrols at the released NA with an edge invite, gets a decision for one
+    action, and reaches state revoked after the operator revokes it (v1.7.0)."""
+    f = ctx.fixtures
+    assert f and ctx.edge_image
+    ctx.run("na", *ctx.na_env("file"), *ctx.na_mounts(), "-v", f"{ctx.volume('edge-na-data')}:/data",
+            "-e", "EVIDENCE_STORE=on", "-e", "EVIDENCE_OUT_OF_BAND=on", "-e", "EVIDENCE_GRANTS=on")
+    ctx.wait_ready("na")
+    sovereign, capability = "smoke-edge", "secret.rotate"
+    prefix = f"edge:{sovereign}/"
+    out = ctx.cli_as(f, "admin", "invite", "--na", "http://na:8443", "--operator-key", "/fixtures/home/keys/operator.key",
+                     "--operator-key-id", f.operator_key_id, "--node-sovereign-id", sovereign,
+                     "--executor-resource-prefix", prefix)
+    lines = [line.strip() for line in out.splitlines() if line.strip()]
+    expect(bool(lines), f"admin invite printed nothing: {out}")
+    invite_token = lines[-1].split()[-1]
+    status, body = admin_request(ctx, f, "na", "POST", "/admin/attestations", {
+        "subject_id": sovereign, "roles": ["role:client"], "claims": {"capabilities": [capability]}})
+    expect(status == 201, f"attestation for the edge node: {status} {body}")
+
+    state = ctx.volume("edge-state")
+    docker("run", "--rm", "--user", "0:0", "-v", f"{state}:/state", "--entrypoint", "sh", ctx.image, "-c",
+           f"chown {EDGE_UID}:{EDGE_UID} /state && chmod 700 /state")
+    local_token = new_token()
+    # The agent shares the NA container's network namespace and reaches it on loopback: enroll refuses
+    # plain HTTP to any other address, and the released images serve no TLS.
+    na = f"gmt-{RUN}-na"
+    env = edge_env(json.loads(f.genesis_json)["root_public_key"], local_token)
+    init = docker(*edge_run_args(na, state, env, ctx.edge_image, "init"), check=False, timeout=120)
+    expect(init.returncode == 0, f"init exited {init.returncode}: {(init.stdout + init.stderr)[-1500:]}")
+    enrol = docker(*edge_run_args(na, state, {**env, "GM_EDGE_INVITE_TOKEN": invite_token}, ctx.edge_image,
+                                  "enroll"), check=False, timeout=180)
+    expect(enrol.returncode == 0, f"enroll exited {enrol.returncode}: {(enrol.stdout + enrol.stderr)[-1500:]}")
+    expect(invite_token not in enrol.stdout + enrol.stderr, "enroll logged the invite token")
+    edge = f"gmt-{RUN}-edge"
+    docker("rm", "-f", "-v", edge, check=False)
+    ctx.containers.append(edge)
+    docker(*edge_run_args(na, state, env, ctx.edge_image, name=edge))
+
+    deadline = time.monotonic() + 120
+    status, agent = 0, {}
+    while time.monotonic() < deadline:
+        status, agent = edge_local(ctx, "na", "/v1/status", local_token)
+        if status == 200 and agent.get("state") == "active" and agent.get("connected"):
+            break
+        time.sleep(2)
+    expect(status == 200 and agent.get("state") == "active", f"agent not active: {status} {agent}\n"
+           f"{ctx.logs('edge')[-1500:]}")
+    status, _ = edge_local(ctx, "na", "/v1/status", new_token())
+    expect(status == 401, f"/v1/status with a wrong token returned {status}")
+
+    status, decision = edge_local(ctx, "na", "/v1/authorize", local_token, method="POST", body={
+        "capability": capability, "request_parameters": {"lifetime_days": 30},
+        "resource_id": f"{prefix}kv/db", "resource_action": "rotate"})
+    expect(status == 200 and decision.get("allowed") is True and decision.get("authority") == "decision",
+           f"authorize: {status} {decision}")
+    status, outcome = edge_local(ctx, "na", f"/v1/authorizations/{decision['authorization_id']}/outcome",
+                                 local_token, method="POST", body={"outcome": "success"})
+    expect(status == 200, f"outcome: {status} {outcome}")
+
+    status, revoked = admin_request(ctx, f, "na", "POST", "/admin/revoke",
+                                    {"cert_id": agent["cert_id"], "reason": "key_compromise"})
+    edge = revoked.get("edge_node") or {}
+    expect(status == 200 and edge.get("executor_key_retired") is True, f"revoke: {status} {revoked}")
+    deadline = time.monotonic() + 150
+    while time.monotonic() < deadline:
+        status, agent = edge_local(ctx, "na", "/v1/status", local_token)
+        if status == 200 and agent.get("state") == "revoked":
+            break
+        time.sleep(3)
+    expect(agent.get("state") == "revoked", f"agent did not reach state revoked: {status} {agent}\n"
+           f"{ctx.logs('edge')[-1500:]}")
+    logs = ctx.logs("edge")
+    expect(invite_token not in logs and local_token not in logs, "the agent logged a token")
+    ctx.stop("edge")
+    ctx.stop("na")
+    return ("edge invite; enroll registered the executor key; the running agent (loopback, token) got a "
+            "decision for one action; one /admin/revoke retired its key and the agent reached state revoked")
+
+
 def build_context(ctx: Context) -> str:
     """The .dockerignore allowlist keeps planted secrets anywhere in the tree out of the build context."""
     repo = Path(ctx.context_dir).resolve()
@@ -1196,6 +1364,7 @@ OPTIONAL: dict[str, tuple[str, Callable[[Context], str]]] = {
     "na-upgrade-from-legacy": ("legacy_image", na_upgrade_from_legacy),
     "build-context": ("context_dir", build_context),
     "compose-example": ("compose_file", compose_example),
+    "edge": ("edge_image", edge_agent),
 }
 
 
@@ -1207,6 +1376,7 @@ def main() -> int:
     parser.add_argument("--legacy-image", help="Earlier image whose /data volume the new image must adopt")
     parser.add_argument("--context-dir", help="Repository whose .dockerignore the build-context scenario checks")
     parser.add_argument("--compose-file", help="Compose example to run (needs --gateway-image)")
+    parser.add_argument("--edge-image", help="Edge agent image to run against the authority (v1.7.0)")
     parser.add_argument("--only", action="append", help="Run only these scenarios (repeatable)")
     args = parser.parse_args()
 
@@ -1221,13 +1391,16 @@ def main() -> int:
             parser.error(f"unknown scenario(s) {unknown}; known: {sorted(known)}")
         unrunnable = sorted(set(args.only) - {s[0] for s in scenarios})
         if unrunnable:
-            parser.error(f"{unrunnable} need --gateway-image / --legacy-image / --context-dir / --compose-file")
+            parser.error(f"{unrunnable} need --gateway-image / --legacy-image / --context-dir / --compose-file "
+                         "/ --edge-image")
         scenarios = [s for s in scenarios if s[0] in args.only]
     else:
         for name in sorted(known - {s[0] for s in scenarios}):
-            print(f"SKIP  {name:<24} (needs --gateway-image / --legacy-image / --context-dir / --compose-file)", flush=True)
+            print(f"SKIP  {name:<24} (needs --gateway-image / --legacy-image / --context-dir / --compose-file "
+                  "/ --edge-image)", flush=True)
     ctx = Context(image=args.image, gateway_image=args.gateway_image, version=args.version,
-                  legacy_image=args.legacy_image, context_dir=args.context_dir, compose_file=args.compose_file)
+                  legacy_image=args.legacy_image, context_dir=args.context_dir, compose_file=args.compose_file,
+                  edge_image=args.edge_image)
     docker("network", "create", "--label", f"gmt.run={RUN}", NET)
     failures = 0
     try:

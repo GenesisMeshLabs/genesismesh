@@ -269,7 +269,30 @@ Useful options:
 | `--operator-key-id` | Operator key ID. Defaults to `operator-local`. |
 | `--role` | Role to assign. Can be repeated. |
 | `--validity-hours` | Maximum certificate validity allowed by the invite. |
-| `--token-expiry-hours` | Invite token lifetime. |
+| `--token-expiry-hours` | Invite token lifetime (the NA's default: 24 hours, one hour for an edge invite). |
+| `--recipient-key` | Bind the invite to one node public key. |
+| `--node-sovereign-id` | Beta (v1.7.0): make an edge invite for the edge node with this sovereign ID. Needs `--executor-resource-prefix` and a privileged operator key. |
+| `--executor-resource-prefix` | Beta (v1.7.0): the resource prefix of the edge node's executor key, such as `edge:site7-17/`; it ends with `/` or `:` and overlaps no active key's or outstanding edge invite's prefix. |
+
+An edge invite is redeemed by the edge agent (`genesis-mesh-edge enroll`),
+which registers its executor key at `/join`. Bind it to the device with
+`--recipient-key` and the node key `genesis-mesh-edge init` prints; see
+{doc}`../operations/edge-agent`.
+
+### `genesis-mesh admin edge-nodes`
+
+*Beta (v1.7.0).* Lists edge nodes, newest enrolment first, as JSON
+(`GET /admin/edge-nodes`, read tier).
+
+```bash
+genesis-mesh admin edge-nodes --status offline --limit 50
+```
+
+| Option | Description |
+|---|---|
+| `--status` | `online`, `offline` or `revoked`. |
+| `--limit` | Edge nodes per page, 1 to 500 (default 100). |
+| `--before` | The `next_before` of the previous page. |
 
 ### `genesis-mesh admin revoke`
 
@@ -280,7 +303,9 @@ genesis-mesh admin revoke <cert-id> --reason key_compromise
 ```
 
 Useful reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
-and `unspecified`.
+and `unspecified`. For an edge node (v1.7.0) it revokes every certificate the
+node holds, retires its executor key and revokes the grants that key bears;
+the printed JSON has an `edge_node` block.
 
 ### `genesis-mesh admin revoke-operator-key`
 

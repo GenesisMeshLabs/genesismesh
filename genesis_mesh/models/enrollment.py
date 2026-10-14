@@ -23,3 +23,11 @@ class InviteToken(BaseModel):
         None,
         description="If set, only this node public key may redeem the token",
     )
+    node_sovereign_id: Optional[str] = Field(
+        None,
+        description="v1.7.0 (beta): an edge invite names the sovereign ID of the edge node that redeems it",
+    )
+    executor_resource_prefix: Optional[str] = Field(
+        None,
+        description="v1.7.0 (beta): the resource prefix of the executor key an edge node registers at /join",
+    )

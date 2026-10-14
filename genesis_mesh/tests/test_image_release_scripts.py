@@ -71,3 +71,28 @@ def test_the_gate_blocks_secrets():
 @pytest.mark.parametrize("report", [{}, {"Results": []}, {"Results": [{"Target": "x", "Class": "lang-pkgs"}]}])
 def test_the_gate_refuses_a_report_without_os_packages(report):
     assert any(line.startswith("NO-SCAN") for line in gate.evaluate(report))
+
+
+def test_the_edge_smoke_runs_the_agent_in_the_na_namespace_on_loopback():
+    """The edge agent enrols over plain HTTP only to a loopback NA: the smoke shares the NA container's
+    network namespace, read-only and without capabilities (v1.7.0)."""
+    import sys
+
+    # Its dataclasses resolve their annotations through sys.modules.
+    spec = importlib.util.spec_from_file_location("container_smoke", SCRIPTS / "container_smoke.py")
+    assert spec and spec.loader
+    smoke = importlib.util.module_from_spec(spec)
+    sys.modules["container_smoke"] = smoke
+    try:
+        spec.loader.exec_module(smoke)
+    finally:
+        sys.modules.pop("container_smoke", None)
+    env = smoke.edge_env("root-key", "local-token")
+    assert env["GM_EDGE_NA_URL"] == "http://127.0.0.1:8443" and "GM_EDGE_ALLOW_INSECURE_HTTP" not in env
+    assert env["GM_EDGE_LISTEN"] == "tcp://127.0.0.1:7600" and "local-token" not in str(env)
+    enrol = smoke.edge_run_args("gmt-x-na", "vol", env, "edge:1.7.0", "enroll")
+    assert enrol[:2] == ["run", "--rm"] and enrol[-2:] == ["edge:1.7.0", "enroll"]
+    assert enrol[enrol.index("--network") + 1] == "container:gmt-x-na"
+    assert {"--read-only", "ALL", "no-new-privileges:true", "vol:/var/lib/genesis-mesh-edge"} <= set(enrol)
+    run = smoke.edge_run_args("gmt-x-na", "vol", env, "edge:1.7.0", name="gmt-x-edge")
+    assert run[:4] == ["run", "-d", "--name", "gmt-x-edge"] and run[-1] == "edge:1.7.0"

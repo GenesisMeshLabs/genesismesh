@@ -3151,6 +3151,167 @@ def gen_grants() -> None:
                        "na_only_kinds": list(NA_ONLY_KINDS), "vectors": grants_vectors()})
 
 
+NODE_DESCRIPTION = (
+    "v1.7.0 (beta): node request signatures and what an edge agent verifies. A node signs the "
+    "canonical JSON of its request body without 'signature' (sorted keys, no whitespace, ASCII "
+    "escapes, Python float form) with its node key. At /join an edge node's executor key first "
+    "signs the body without 'signature' and 'executor_signature'; the node key then signs the "
+    "body including 'executor_signature'. The /node/* routes also sign 'purpose' and 'audience' "
+    "(the NA public key). Keys: node 'a', executor 'b', NA 'c' (the fixed seeds). Kinds: "
+    "'node_request' (input.body is signed by input.node_key; expected payload and signature), "
+    "'join_request' (also expected executor_payload, executor_signature_b64 and executor_key_id), "
+    "'node_request_tampered' (input.signature_b64 over another body; expected verifies), "
+    "'join_certificate' and 'crl' (a record signed by the NA; expected the canonical payload, "
+    "without 'signatures', and whether it verifies with input.na_public_keys)."
+)
+
+
+def _node_vectors() -> list[dict]:
+    """v1.7.0: the ``node`` suite (signed node requests, join certificates, CRLs)."""
+    from genesis_mesh.crypto import sign_data, sign_model, verify_model_signature, verify_signature
+    from genesis_mesh.crypto.node_auth import (
+        executor_key_id,
+        executor_proof_payload,
+        node_signing_payload,
+        sign_executor_proof,
+    )
+    from genesis_mesh.models.certificates import JoinCertificate
+    from genesis_mesh.models.revocation import CertificateRevocationList, RevokedCertificate
+
+    node_pub, executor_pub, na_pub = pub_b64("a"), pub_b64("b"), pub_b64("c")
+    cert_id = UUID1
+
+    def ts(seconds: int) -> str:
+        # The agent's form: microseconds and an explicit UTC offset.
+        return (T0 + timedelta(seconds=seconds, microseconds=123456)).isoformat()
+
+    def nonce(n: int) -> str:
+        return f"00000000-0000-4000-8000-0000000000{n:02x}"
+
+    def auth(purpose: str, n: int) -> dict:
+        return {"cert_id": cert_id, "node_public_key": node_pub, "purpose": purpose,
+                "audience": na_pub, "timestamp": ts(n), "nonce": nonce(0xb0 + n)}
+
+    def request_case(vid: str, route: str, description: str, body: dict) -> dict:
+        payload = node_signing_payload(body)
+        return {
+            "id": vid, "kind": "node_request", "description": description,
+            "input": {"route": route, "node_key": "a", "node_public_key_b64": node_pub, "body": body},
+            "expected": {"payload": payload.decode("utf-8"), "signature_b64": sign_data(payload, KEYS["a"])},
+        }
+
+    vectors: list[dict] = []
+    heartbeat = {"cert_id": cert_id, "node_public_key": node_pub, "status": "healthy",
+                 "timestamp": ts(1), "nonce": nonce(0xb1)}
+    vectors.append(request_case(
+        "node-001", "/heartbeat", "Heartbeat: the body without 'signature' is signed (no purpose or audience)",
+        heartbeat))
+    vectors.append(request_case(
+        "node-002", "/heartbeat", "Heartbeat with the agent block (v1.7.0)",
+        {**heartbeat, "timestamp": ts(2), "nonce": nonce(0xb2), "status": "degraded",
+         "agent": {"version": "1.7.0", "snapshot_age_seconds": 42, "pending_uploads": 3, "dead_letters": 0}}))
+
+    join = {"node_public_key": node_pub, "invite_token": "invite-token-for-conformance-only",
+            "validity_hours": 168, "executor_public_key": executor_pub, "agent_version": "1.7.0",
+            "timestamp": ts(3), "nonce": nonce(0xb3)}
+    cosigned = sign_executor_proof(join, KEYS["b"])
+    executor_payload = executor_proof_payload(cosigned)
+    payload = node_signing_payload(cosigned)
+    vectors.append({
+        "id": "node-003", "kind": "join_request",
+        "description": "Edge /join: executor key 'b' co-signs the body first, then node key 'a' signs it "
+                       "including executor_signature; executor_key_id is 'edge-' + 32 hex of SHA-256 of the raw key",
+        "input": {"route": "/join", "node_key": "a", "node_public_key_b64": node_pub, "executor_key": "b",
+                  "executor_public_key_b64": executor_pub, "body": join},
+        "expected": {
+            "executor_payload": executor_payload.decode("utf-8"),
+            "executor_signature_b64": cosigned["executor_signature"],
+            "executor_key_id": executor_key_id(executor_pub),
+            "payload": payload.decode("utf-8"),
+            "signature_b64": sign_data(payload, KEYS["a"]),
+        },
+    })
+
+    evaluate = {
+        **auth("node_boundary_evaluate", 4),
+        "attestation_id": UUID2,
+        "requested_capability": "secret.rotate",
+        "context": {
+            "context_id": UUID3,
+            "request_parameters": {"note": "Zürich ✓ 😀", "ratio": 0.1, "epsilon": 1e-07, "count": 3,
+                                   "nested": {"list": [1, 2.5, {"k": None}], "flag": True}, "none": None},
+            "attributes": {"site": "siebte Straße", "shift": "night"},
+        },
+    }
+    vectors.append(request_case(
+        "node-004", "/node/boundary/evaluate",
+        "Node-scoped evaluate: non-ASCII text signs as ASCII escapes, floats in Python form, nested values and null",
+        evaluate))
+    vectors.append(request_case("node-005", "/node/state", "Node-scoped state read", auth("node_state", 5)))
+    vectors.append(request_case(
+        "node-006", "/node/evidence/resource-head", "Node-scoped resource head",
+        {**auth("node_resource_head", 6), "resource_id": "edge:site7-17/kv/db"}))
+
+    tampered = {**evaluate, "purpose": "node_state"}
+    tampered_payload = node_signing_payload(tampered)
+    vectors.append({
+        "id": "node-007", "kind": "node_request_tampered",
+        "description": "The node-004 signature over the same body with 'purpose' changed does not verify",
+        "input": {"route": "/node/state", "node_public_key_b64": node_pub, "body": tampered,
+                  "signature_b64": vectors[3]["expected"]["signature_b64"]},
+        "expected": {"payload": tampered_payload.decode("utf-8"),
+                     "verifies": verify_signature(tampered_payload, vectors[3]["expected"]["signature_b64"], node_pub)},
+    })
+
+    cert = JoinCertificate(cert_id=cert_id, node_public_key=node_pub, network_name="edge-network",
+                           roles=["role:client"], issued_at=T0 + timedelta(microseconds=123456),
+                           expires_at=T0 + timedelta(hours=168, microseconds=123456),
+                           issued_by="key-c", signatures=[])
+    cert.signatures.append(sign_model(cert, KEYS["c"], key_id="key-c"))
+    edge_block = {"node_sovereign_id": "site7-17", "executor_key": {
+        "key_id": executor_key_id(executor_pub), "public_key": executor_pub, "executor_sovereign_id": "site7-17",
+        "role": "executor", "resource_prefix": "edge:site7-17/", "registered_at": T0.isoformat(),
+        "retired_at": None}}
+    altered = cert.model_copy(update={"roles": ["role:anchor"]})
+    for vid, record, description in (
+        ("cert-001", cert, "A JoinCertificate signed by the NA verifies; response extras such as 'edge' are not signed"),
+        ("cert-002", altered, "The same certificate with its roles altered does not verify"),
+    ):
+        vectors.append({
+            "id": vid, "kind": "join_certificate", "description": description,
+            "input": {"certificate": {**record.model_dump(mode="json"), "edge": edge_block}, "na_public_keys": [na_pub]},
+            "expected": {"payload": record.to_canonical_json(),
+                         "verifies": verify_model_signature(record, record.signatures[0], na_pub)},
+        })
+
+    crl = CertificateRevocationList(
+        crl_id=UUID2, sequence=7, issued_at=T0 + timedelta(seconds=9, microseconds=500000),
+        next_update=T0 + timedelta(hours=24, seconds=9, microseconds=500000), issuer="key-c",
+        revoked_certificates=[RevokedCertificate(certificate_id=cert_id, revoked_at=T0 + timedelta(seconds=9, microseconds=500000), reason="key_compromise",
+                                                 issuer="key-c")],
+        signatures=[])
+    crl.signatures.append(sign_model(crl, KEYS["c"], key_id="key-c"))
+    altered_crl = crl.model_copy(update={"revoked_certificates": [
+        crl.revoked_certificates[0].model_copy(update={"certificate_id": UUID3})]})
+    for vid, record, description in (
+        ("crl-001", crl, "A CRL with one entry signed by the NA verifies"),
+        ("crl-002", altered_crl, "The same CRL with its entry's certificate_id altered does not verify"),
+    ):
+        vectors.append({
+            "id": vid, "kind": "crl", "description": description,
+            "input": {"crl": record.model_dump(mode="json"), "na_public_keys": [na_pub]},
+            "expected": {"payload": record.to_canonical_json(),
+                         "verifies": verify_model_signature(record, record.signatures[0], na_pub)},
+        })
+    return vectors
+
+
+def gen_node() -> None:
+    """v1.7.0: node request signatures, the edge join co-signature, join certificates and CRLs."""
+    _write("node", {"suite": "node", "version": "1.7.0", "description": NODE_DESCRIPTION,
+                    "vectors": _node_vectors()})
+
+
 def fixture_problems(fixture: Path) -> list[str]:
     """What a frozen pack fixture is missing: every file its manifest lists, with its digest and size,
     and the root key and anchors beside it."""
@@ -3198,6 +3359,7 @@ GENERATORS = {
     "remediation": gen_remediation,
     "audit": gen_audit,
     "grants": gen_grants,
+    "node": gen_node,
 }
 
 

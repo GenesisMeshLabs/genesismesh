@@ -303,6 +303,35 @@ been revoked, the service returns a signed empty CRL.
 
 ## Enrollment
 
+### The node request signature
+
+`/join`, `/heartbeat`, `/renew` and (v1.7.0) the `/node/*` routes of
+{doc}`../api/trust-http` authenticate a node by its node key. The request body
+carries `timestamp` (RFC 3339; a value without an offset is taken as UTC) and
+`nonce`, and `signature`: Ed25519 by the node key, base64, over the canonical
+JSON of the body without its `signature` field. The canonical form is the one
+every signed record uses: keys sorted, no whitespace, every character outside
+ASCII escaped (`\u00fc`), numbers in Python's form (`0.1`, `1e-07`, `30`).
+Every field the body carries is signed, so a field the NA reads is never
+outside the signature.
+
+The NA refuses (`401 node_auth_failed`) a request without the three fields, a
+timestamp more than 300 seconds from its clock, a nonce already used, or a
+signature that does not verify. A nonce is used once per scope:
+`join:<node_public_key>` for `/join`, `node:<node_public_key>` for
+`/heartbeat`, `/renew` and every `/node/*` route.
+
+The `/node/*` routes (beta, v1.7.0) also need, inside the signed body,
+`purpose` (the route's own: `node_boundary_evaluate`, `node_state` or
+`node_resource_head`) and `audience` (this NA's public key, as admin requests
+name it), so a captured request is refused by another route or another NA.
+A wrong `purpose` or `audience` is `401 node_auth_failed` after the signature
+is checked, and spends the nonce.
+
+`genesis_mesh.crypto.node_auth` implements the format (`node_signing_payload`,
+`executor_proof_payload`, `executor_key_id`); the reference vectors are in
+`conformance/vectors/node.json`.
+
 ### `POST /join`
 
 Requests a join certificate.
@@ -326,6 +355,50 @@ key before the invite token is consumed.
 
 Response: a signed `JoinCertificate`.
 
+#### Edge invites: the executor key
+
+*Beta (v1.7.0).* An edge invite (below) is redeemed with an executor key as
+well as the node key. Three more fields go in the signed body:
+
+| Field | Value |
+| --- | --- |
+| `executor_public_key` | The executor key, base64 of 32 bytes of Ed25519; it must differ from the node key |
+| `executor_signature` | Ed25519 by the executor key over the canonical body without `signature` and `executor_signature` |
+| `agent_version` | Optional: the agent's version, up to 32 characters (recorded in the audit log) |
+
+The executor key signs first; the node key then signs the body including
+`executor_signature`. The executor key's ID is `edge-` and the first 32 hex
+digits of SHA-256 of its raw 32 bytes.
+
+Before the invite is consumed, so a refused request never uses it up, the NA
+refuses: executor fields with a plain invite (`403 invite_not_for_edge_node`);
+an edge invite without `executor_public_key` (`400 executor_key_required`); a
+key that is not 32 bytes of base64 (`400 invalid_executor_public_key`) or is
+the node key (`400 executor_key_is_node_key`); a proof that does not verify
+(`401 executor_proof_failed`); an executor key already registered
+(`409 executor_key_exists`), a node key that already belongs to an edge node
+(`409 edge_node_already_enrolled`), a sovereign ID an active edge node holds
+(`409 node_sovereign_in_use`); the evidence store being off
+(`404 evidence_store_disabled`); and out-of-band recording being off
+(`409 edge_requires_evidence_store`).
+
+The NA then consumes the invite, issues the certificate, and registers the
+executor key as an operator would (`POST /admin/evidence/executor-keys`),
+with the invite's sovereign ID and resource prefix, in the same transaction
+that records the edge node: the registry record names
+`recorded_by: node-join:<cert_id>`. If that write fails, nothing of it is
+kept, the NA revokes the new certificate (`unspecified`) and returns the
+error; the invite is spent by then, so the operator creates another. The
+audit events that follow a committed enrolment never fail it. The response is the
+`JoinCertificate` with one more field, which the certificate's signature does
+not cover:
+
+```json
+"edge": {"node_sovereign_id": "site7-17", "executor_key": {"key_id": "edge-…", "public_key": "…",
+  "executor_sovereign_id": "site7-17", "role": "executor", "resource_prefix": "edge:site7-17/",
+  "registered_at": "…", "retired_at": null}}
+```
+
 ## Node Operations
 
 ### `POST /heartbeat`
@@ -333,12 +406,25 @@ Response: a signed `JoinCertificate`.
 Updates node liveness. The request must prove possession of the node private key
 and is rejected if the certificate is expired, not yet valid, or revoked.
 
+*Beta (v1.7.0).* An edge node's heartbeat may carry an `agent` block in the
+signed body: `{"version": "<up to 32 characters>", "snapshot_age_seconds":
+<integer ≥ 0 or null>, "pending_uploads": <integer ≥ 0>, "dead_letters":
+<integer ≥ 0>}`. The NA keeps it for `GET /admin/edge-nodes`. Unknown fields
+and values of the wrong type are dropped, never refused, and the block is
+ignored for other nodes.
+
 ### `POST /renew`
 
 Requests certificate renewal. The request must prove possession of the node
 private key. Roles are preserved from server-side state, expired or revoked
 certificates cannot renew, and requested validity is capped by the original
 invite validity policy stored with the issued certificate.
+
+*Beta (v1.7.0).* An edge node's renewal leaves its executor key as it is; the
+response carries the same `edge` block as `/join`. A revoked edge node's key
+is refused at `/renew` and `/heartbeat` (`403 edge_node_retired`) whatever
+certificate it presents, and a renewal that issued its certificate while the
+node was being revoked revokes it and is refused the same way.
 
 ## Admin Endpoints
 
@@ -407,6 +493,28 @@ Response:
 }
 ```
 
+*Beta (v1.7.0).* An **edge invite** also names `node_sovereign_id` (matching
+`^[a-z0-9][a-z0-9._-]{0,63}$`) and `executor_resource_prefix` (1 to 256
+characters without control characters, ending with `/` or `:`;
+`edge:<node_sovereign_id>/` is the recommended form). The node that redeems
+it registers its executor key for that sovereign ID and prefix, so an edge
+invite needs the privileged tier (`403 insufficient_operator_tier`) and the
+evidence store and out-of-band recording (`409 edge_requires_evidence_store`).
+Both fields or neither (`400 invalid_edge_invite`); `400
+invalid_node_sovereign_id`, `400 invalid_resource_prefix`.
+
+The sovereign ID must be no one else's (`409 node_sovereign_in_use`): not
+this NA's network name, an active edge node's, an outstanding (unused,
+unexpired) edge invite's, an active executor key's, or the subject of an
+attestation this NA issued, unless it was an edge node's that is now revoked
+(its successor keeps the attestations). The prefix must not overlap an
+active executor key's prefix or an outstanding edge invite's: neither may
+start with the other (`409 resource_prefix_overlap`); a prefix is a plain
+string prefix, which is why it ends with a delimiter. An edge invite expires
+after one hour unless `token_expiry_hours` says otherwise; bind it to the
+node key with `recipient_public_key` (the key `genesis-mesh-edge init`
+prints). The response and the `invite_created` audit event add both fields.
+
 ### `POST /admin/revoke`
 
 Revokes a certificate and publishes a new CRL.
@@ -420,6 +528,23 @@ Revokes a certificate and publishes a new CRL.
 
 Allowed reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
 and `unspecified`.
+
+*Beta (v1.7.0).* For a certificate of an edge node, the NA revokes the node:
+every certificate its key holds (a renewed one and its predecessor) in one
+CRL, then its executor key, which revokes the grants that key bears
+(`bearer_key_retired`, listed in the revocation feed's `revoked_grant_ids`).
+The attestations issued to the node are not revoked. The response adds:
+
+```json
+"edge_node": {"node_public_key": "…", "executor_key_id": "edge-…", "revoked_cert_ids": ["…", "…"],
+  "executor_key_retired": true, "grants_revoked": 2}
+```
+
+A second call changes nothing (`revoked_cert_ids: []`, `grants_revoked: 0`).
+If the key cannot be retired (the store fails), the certificates stay
+revoked, `executor_key_retired` is `false`, the audit log records
+`edge_node_revocation_incomplete`, and the NA retires the key at its next
+start (or at the next `/admin/revoke` for the node).
 
 ## Operator tiers
 
