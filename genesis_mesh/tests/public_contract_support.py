@@ -94,12 +94,14 @@ def error_codes() -> set[str]:
     plus the revocation-feed reasons the feed import returns as codes and the
     refusal codes of submitted records (``EvidenceRejectionCode``,
     ``OutOfBandRejectionCode``; v1.4.0 ``RemediationRejectionCode``,
-    ``ReviewRejectionCode`` and the state table's ``TransitionRefusal``). Codes
+    ``ReviewRejectionCode`` and the state table's ``TransitionRefusal``; v1.6.0
+    ``GrantIssuanceRefusal`` and ``GrantUseRejectionCode``). Codes
     derived from a plain HTTP status (``not_found``, ``method_not_allowed``)
     are covered by the contract's rule for them, not listed here.
     """
     from genesis_mesh.na_service import errors
     from genesis_mesh.trust.evidence_store import EvidenceRejectionCode
+    from genesis_mesh.trust.grants import GrantIssuanceRefusal, GrantUseRejectionCode
     from genesis_mesh.trust.out_of_band import OutOfBandRejectionCode
     from genesis_mesh.trust.remediation import RemediationRejectionCode, ReviewRejectionCode, TransitionRefusal
     from genesis_mesh.trust.treaty import RevocationFeedReason
@@ -116,6 +118,9 @@ def error_codes() -> set[str]:
     codes.update(typing.get_args(EvidenceRejectionCode))
     codes.update(typing.get_args(OutOfBandRejectionCode))
     for refusals in (RemediationRejectionCode, ReviewRejectionCode, TransitionRefusal):
+        codes.update(typing.get_args(refusals))
+    # v1.6.0: a grant the NA refuses to issue, and a use it refuses to admit, carry the reason as the code.
+    for refusals in (GrantIssuanceRefusal, GrantUseRejectionCode):
         codes.update(typing.get_args(refusals))
     return codes
 
@@ -187,6 +192,12 @@ def render_contract_page(contract: dict[str, Any]) -> str:
     for r in contract["http_routes"]:
         w(f"| {', '.join(r['methods'])} | `{r['path']}` | {r['level']} |")
     w("")
+    if "grant_fallback" in contract["rules"]:
+        # v1.6.0: the behaviour every SDK that acts under a grant follows.
+        w("## Grants and break-glass")
+        w("")
+        w(contract["rules"]["grant_fallback"])
+        w("")
     w("## Error codes")
     w("")
     w(contract["rules"]["error_envelope"])
