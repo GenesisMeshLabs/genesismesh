@@ -22,11 +22,12 @@ services:
       OPERATOR_PUBLIC_KEYS_JSON: ${OPERATOR_PUBLIC_KEYS_JSON:?set OPERATOR_PUBLIC_KEYS_JSON}
       OPERATOR_KEY_TIERS_JSON: '{"ops": "privileged", "demo-ops": "privileged", "mesh-reader": "read"}'
       EVIDENCE_STORE: "on"
-      # v1.3 observations, judgements and break-glass, and v1.4 remediation and
-      # reviews: off unless .env turns them on. Operator key holders are named
+      # v1.3 observations, judgements and break-glass, v1.4 remediation and
+      # reviews, and v1.6 pre-issued grants: off unless .env turns them on. Operator key holders are named
       # at the first start with the records on, so set them before that start.
       EVIDENCE_OUT_OF_BAND: ${EVIDENCE_OUT_OF_BAND:-off}
       EVIDENCE_REMEDIATION: ${EVIDENCE_REMEDIATION:-off}
+      EVIDENCE_GRANTS: ${EVIDENCE_GRANTS:-off}
       OPERATOR_KEY_HOLDERS_JSON: ${OPERATOR_KEY_HOLDERS_JSON:-}
       BOUNDARY_POLICY_ENFORCEMENT: required
       # Every request arrives from the gateway or the demo job.
