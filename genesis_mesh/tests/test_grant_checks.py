@@ -210,6 +210,9 @@ def test_attestation_claim_under_the_pinned_attestation():
     assert _decision({"app": {"one_of": ["billing", "hr"]}}, gate) == "may_fail"
     no_claim = _basis(_attestation())
     assert _decision({"app": {"one_of": ["billing"]}}, gate, basis=no_claim) == "may_fail"
+    # The gate fails on a claim that is not a list of scalars, so it may fail here too.
+    mixed = _basis(_attestation(apps=["billing", {"name": "payroll"}]))
+    assert _decision({"app": {"one_of": ["billing"]}}, gate, basis=mixed) == "may_fail"
 
 
 def test_a_gate_on_a_fact_the_grant_fixes_is_decided_on_that_value():

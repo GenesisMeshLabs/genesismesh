@@ -327,8 +327,10 @@ def _decide_parameter(gate_type: str, config: Any, name: str, spec: EnvelopePara
             allowed = claims.get(config.claim, MISSING) if isinstance(claims, dict) else MISSING
             if facts is None:
                 return False, "the grant has no attestation basis"
-            if allowed is MISSING or not isinstance(allowed, list):
-                return False, f"the attestation has no list claim {config.claim!r}"
+            if allowed is MISSING or not isinstance(allowed, list) or not all(
+                    v is None or isinstance(v, (str, bool)) or _is_number(v) for v in allowed):
+                # The gate itself fails on a claim that is not a list of scalars (invalid_context).
+                return False, f"the attestation has no list claim {config.claim!r} of scalars"
             listed = list(allowed)
         else:
             listed = list(config.values)
