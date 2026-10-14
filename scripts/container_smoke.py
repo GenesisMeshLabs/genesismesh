@@ -1093,9 +1093,38 @@ def na_upgrade_from_legacy(ctx: Context) -> str:
             f"and redeemed that invite")
 
 
-#: The edge agent's local API port inside its container (loopback only, token mode).
+#: The edge agent's local API port (loopback only, token mode) and the NA's port, both on the loopback
+#: interface of the network namespace the agent shares with the NA container.
 EDGE_PORT = 7600
+NA_PORT = 8443
 EDGE_UID = "65532"
+EDGE_STATE = "/var/lib/genesis-mesh-edge"
+
+
+def edge_env(root_public_key: str, local_token: str) -> dict[str, str]:
+    """The agent's configuration: the NA on loopback (enroll refuses plain HTTP to anything else), the
+    local API on loopback in token mode, and short intervals so the scenario sees changes quickly."""
+    return {
+        "GM_EDGE_NA_URL": f"http://127.0.0.1:{NA_PORT}",
+        "GM_EDGE_ROOT_PUBLIC_KEY": root_public_key,
+        "GM_EDGE_STATE_DIR": EDGE_STATE,
+        "GM_EDGE_LISTEN": f"tcp://127.0.0.1:{EDGE_PORT}",
+        "GM_EDGE_TOKENS": f"smoke:{hashlib.sha256(local_token.encode()).hexdigest()}",
+        "GM_EDGE_HEARTBEAT_INTERVAL_SECONDS": "5",
+        "GM_EDGE_SYNC_INTERVAL_SECONDS": "5",
+    }
+
+
+def edge_run_args(namespace: str, state: str, env: dict[str, str], image: str, *cmd: str,
+                  name: Optional[str] = None) -> list[str]:
+    """`docker run` arguments for the agent, in the network namespace of the container `namespace`
+    (the NA's), read-only, without capabilities; detached under `name`, or removed when it exits."""
+    args = ["run", *(["-d", "--name", name] if name else ["--rm"]), "--network", f"container:{namespace}",
+            "-v", f"{state}:{EDGE_STATE}", "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true"]
+    for key, value in env.items():
+        args += ["-e", f"{key}={value}"]
+    return [*args, image, *cmd]
 
 
 def admin_request(ctx: Context, f: Fixtures, na: str, method: str, path: str, body: dict) -> tuple[int, dict]:
@@ -1123,9 +1152,10 @@ def admin_request(ctx: Context, f: Fixtures, na: str, method: str, path: str, bo
     return int(status), json.loads(text) if text.strip() else {}
 
 
-def edge_local(ctx: Context, name: str, path: str, token: str, *, method: str = "GET",
+def edge_local(ctx: Context, namespace: str, path: str, token: str, *, method: str = "GET",
                body: Optional[dict] = None) -> tuple[int, dict]:
-    """Call an edge agent's local API on its loopback address, from inside its network namespace."""
+    """Call an edge agent's local API on its loopback address, from a helper in the network namespace it
+    shares with the container `namespace` (the NA's)."""
     script = (
         "import json,sys,urllib.request,urllib.error\n"
         "a=json.loads(sys.argv[1])\n"
@@ -1140,7 +1170,7 @@ def edge_local(ctx: Context, name: str, path: str, token: str, *, method: str = 
     arg = json.dumps({"url": f"http://127.0.0.1:{EDGE_PORT}{path}", "m": method,
                       "h": {"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
                       "data": json.dumps(body) if body is not None else ""})
-    out = docker("run", "--rm", "--network", f"container:gmt-{RUN}-{name}", "--entrypoint", "python",
+    out = docker("run", "--rm", "--network", f"container:gmt-{RUN}-{namespace}", "--entrypoint", "python",
                  ctx.image, "-c", script, arg).stdout
     status, _, text = out.partition("\n")
     try:
@@ -1173,44 +1203,39 @@ def edge_agent(ctx: Context) -> str:
     docker("run", "--rm", "--user", "0:0", "-v", f"{state}:/state", "--entrypoint", "sh", ctx.image, "-c",
            f"chown {EDGE_UID}:{EDGE_UID} /state && chmod 700 /state")
     local_token = new_token()
-    env = {
-        "GM_EDGE_NA_URL": "http://na:8443",
-        "GM_EDGE_ALLOW_INSECURE_HTTP": "true",
-        "GM_EDGE_ROOT_PUBLIC_KEY": json.loads(f.genesis_json)["root_public_key"],
-        "GM_EDGE_STATE_DIR": "/var/lib/genesis-mesh-edge",
-        "GM_EDGE_LISTEN": f"tcp://127.0.0.1:{EDGE_PORT}",
-        "GM_EDGE_TOKENS": f"smoke:{hashlib.sha256(local_token.encode()).hexdigest()}",
-        "GM_EDGE_HEARTBEAT_INTERVAL_SECONDS": "5",
-        "GM_EDGE_SYNC_INTERVAL_SECONDS": "5",
-    }
-    args: list[str] = ["-v", f"{state}:/var/lib/genesis-mesh-edge", "--read-only", "--cap-drop", "ALL",
-                       "--security-opt", "no-new-privileges:true"]
-    for k, v in env.items():
-        args += ["-e", f"{k}={v}"]
-    enrol = docker("run", "--rm", "--network", NET, *args, "-e", f"GM_EDGE_INVITE_TOKEN={invite_token}",
-                   ctx.edge_image, "enroll", check=False, timeout=180)
+    # The agent shares the NA container's network namespace and reaches it on loopback: enroll refuses
+    # plain HTTP to any other address, and the released images serve no TLS.
+    na = f"gmt-{RUN}-na"
+    env = edge_env(json.loads(f.genesis_json)["root_public_key"], local_token)
+    init = docker(*edge_run_args(na, state, env, ctx.edge_image, "init"), check=False, timeout=120)
+    expect(init.returncode == 0, f"init exited {init.returncode}: {(init.stdout + init.stderr)[-1500:]}")
+    enrol = docker(*edge_run_args(na, state, {**env, "GM_EDGE_INVITE_TOKEN": invite_token}, ctx.edge_image,
+                                  "enroll"), check=False, timeout=180)
     expect(enrol.returncode == 0, f"enroll exited {enrol.returncode}: {(enrol.stdout + enrol.stderr)[-1500:]}")
     expect(invite_token not in enrol.stdout + enrol.stderr, "enroll logged the invite token")
-    ctx.run("edge", *args, image=ctx.edge_image)
+    edge = f"gmt-{RUN}-edge"
+    docker("rm", "-f", "-v", edge, check=False)
+    ctx.containers.append(edge)
+    docker(*edge_run_args(na, state, env, ctx.edge_image, name=edge))
 
     deadline = time.monotonic() + 120
     status, agent = 0, {}
     while time.monotonic() < deadline:
-        status, agent = edge_local(ctx, "edge", "/v1/status", local_token)
+        status, agent = edge_local(ctx, "na", "/v1/status", local_token)
         if status == 200 and agent.get("state") == "active" and agent.get("connected"):
             break
         time.sleep(2)
     expect(status == 200 and agent.get("state") == "active", f"agent not active: {status} {agent}\n"
            f"{ctx.logs('edge')[-1500:]}")
-    status, _ = edge_local(ctx, "edge", "/v1/status", new_token())
+    status, _ = edge_local(ctx, "na", "/v1/status", new_token())
     expect(status == 401, f"/v1/status with a wrong token returned {status}")
 
-    status, decision = edge_local(ctx, "edge", "/v1/authorize", local_token, method="POST", body={
+    status, decision = edge_local(ctx, "na", "/v1/authorize", local_token, method="POST", body={
         "capability": capability, "request_parameters": {"lifetime_days": 30},
         "resource_id": f"{prefix}kv/db", "resource_action": "rotate"})
     expect(status == 200 and decision.get("allowed") is True and decision.get("authority") == "decision",
            f"authorize: {status} {decision}")
-    status, outcome = edge_local(ctx, "edge", f"/v1/authorizations/{decision['authorization_id']}/outcome",
+    status, outcome = edge_local(ctx, "na", f"/v1/authorizations/{decision['authorization_id']}/outcome",
                                  local_token, method="POST", body={"outcome": "success"})
     expect(status == 200, f"outcome: {status} {outcome}")
 
@@ -1220,7 +1245,7 @@ def edge_agent(ctx: Context) -> str:
     expect(status == 200 and edge.get("executor_key_retired") is True, f"revoke: {status} {revoked}")
     deadline = time.monotonic() + 150
     while time.monotonic() < deadline:
-        status, agent = edge_local(ctx, "edge", "/v1/status", local_token)
+        status, agent = edge_local(ctx, "na", "/v1/status", local_token)
         if status == 200 and agent.get("state") == "revoked":
             break
         time.sleep(3)
