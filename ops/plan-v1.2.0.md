@@ -284,6 +284,8 @@ Recorded from the critic and skeptic reviews (Maintainer, 2026-10-09):
 5. **Stages 5 and 6 confirmed before they start**: grants and the edge agent
    stay planned, by Decision 3, and are confirmed or deferred when Stage 4
    ships; break-glass and the outbox meet the program's goals without them.
+   Stage 5 (pre-issued grants, `plan-v1.6.0.md`) confirmed (Maintainer,
+   2026-10-14).
 6. **One Rust verifier**: the Rust SDK's `verify` module is the Rust verifier;
    `genesis-mesh-verify` and the gateway build on it.
 7. **New kinds in three verifiers**: Python, TypeScript and Rust; Go, .NET and
