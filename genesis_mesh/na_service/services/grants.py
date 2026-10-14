@@ -15,16 +15,33 @@ good as a quarantine entry.
 Grants are revoked by an operator, and automatically when their basis
 attestation is revoked, a policy version they are bound to is deactivated, a
 policy activated since may deny within their envelope (the NA re-checks every
-usable grant the policy may cover), or their bearer key is retired. A
-revocation that follows another change (an activation, a key retirement) runs
-after that change commits; ``ensure_grants`` repeats the checks at start, so a
-revocation an interrupted request missed is made then.
+usable grant the policy may cover), their bearer key is retired, or (v1.6.0
+review fixes) the parties of their agreement basis are no longer trusted. A
+revocation that follows another change runs after that change commits;
+``reconcile`` repeats every check at start and at most every
+``RECONCILE_SECONDS`` while the NA serves grant routes and the revocation
+feed, so a revocation an interrupted request missed is made then.
+
+v1.6.0 review fixes:
+
+* every admission check that can quarantine a use reads the store inside the
+  write transaction that stores the use or its quarantine entry, so no
+  concurrent write makes the NA quarantine an honest use;
+* a use the NA quarantines takes its place in the holder's chain when it
+  continues it (``capability_grant_chain``); the budget counts admitted uses;
+* issuance checks again, inside the write transaction, that nothing it rests
+  on changed since the check (the active policy versions, the bearer key, the
+  attestation, the agreement's trust), and retries once when something did;
+* a grant read from the database is used only when the NA's signature over it
+  verifies.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -48,6 +65,7 @@ from ...models.grants import (
     TimeTokenRequest,
 )
 from ...models.key_succession import na_keys_at
+from ...models.out_of_band import QuarantineRecord
 from ...trust.evidence_store import build_entry
 from ...trust.grants import (
     QUARANTINED_USE_CODES,
@@ -55,16 +73,25 @@ from ...trust.grants import (
     GrantCheck,
     PreviousUse,
     check_grant,
+    envelope_secret_problem,
     entry_index,
     grant_horizon,
     next_previous,
     sign_grant_record,
     use_problem,
     use_secret_problem,
+    verify_signed,
 )
 from ...trust.remediation import rfc3339
 from ..db_remediation import stamp
-from ..errors import BadRequestError, ConflictError, NotFoundError, ServiceUnavailableError, ValidationError
+from ..errors import (
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+    RequestValidationError,
+    ServiceUnavailableError,
+    ValidationError,
+)
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -77,8 +104,12 @@ REQUEST_FIELDS: frozenset[str] = frozenset({
     "max_uses_per_time_token", "parameter_envelope", "context_freshness_seq",
 })
 
-#: Most grants one page of ``GET /admin/grants`` returns.
+#: Most grants (or uses of a grant) one page returns.
 LIST_LIMIT = 500
+
+#: How often, at most, the NA checks every usable grant again while it serves grant routes and the
+#: revocation feed (v1.6.0 review fixes): a revocation an interrupted request missed is made then.
+RECONCILE_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -100,7 +131,7 @@ class GrantLimits:
 
 
 class _Refused(Exception):
-    """A use refused inside the write transaction."""
+    """A use refused inside the write transaction without being stored."""
 
     def __init__(self, code: str, detail: str) -> None:
         super().__init__(detail)
@@ -108,8 +139,28 @@ class _Refused(Exception):
         self.detail = detail
 
 
+class _Duplicate(Exception):
+    """The use is already admitted (an identical resubmission); raised inside the write transaction."""
+
+    def __init__(self, stored: dict[str, Any]) -> None:
+        super().__init__("duplicate")
+        self.stored = stored
+
+
+class _Repeated(Exception):
+    """The use is already quarantined: its refusal is given again, nothing is written."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        super().__init__("repeated")
+        self.payload = payload
+
+
 class _AlreadyRevoked(Exception):
     """Another request revoked the grant first; raised inside the write transaction."""
+
+
+class _Changed(Exception):
+    """What an issuance rests on changed between its check and its write."""
 
 
 def _summarise(exc: PydanticValidationError) -> list[dict[str, str]]:
@@ -150,6 +201,9 @@ class GrantService:
 
     def __init__(self, service: "NetworkAuthorityService") -> None:
         self._na = service
+        self._verified: dict[str, tuple[str, CapabilityGrant]] = {}
+        self._reconcile_lock = threading.Lock()
+        self._next_reconcile = 0.0
 
     # -- shared -------------------------------------------------------------------
 
@@ -171,6 +225,22 @@ class GrantService:
         if not self.enabled:
             raise NotFoundError("Grants are not issued (EVIDENCE_GRANTS=off)", code="grants_disabled")
 
+    def check_switch(self) -> None:
+        """At start (v1.6.0 review fixes): grants may be switched off only once every grant has ended.
+
+        With grants off the NA admits no use, issues no time token and leaves
+        revoked grants out of the revocation feed, so a holder could not upload
+        its uses nor learn that a grant it holds was revoked.
+        """
+        if self.enabled or self._db.schema_version() < 18:
+            return
+        count, last = self._db.unended_grants(datetime.now(timezone.utc))
+        if count:
+            raise ValueError(
+                f"EVIDENCE_GRANTS is off (or EVIDENCE_OUT_OF_BAND is), but {count} grant(s) have not ended (the "
+                f"last ends at {last}): keep grants on until then. With grants off the NA admits no use of them "
+                "and leaves their revocations out of the revocation feed.")
+
     @property
     def limits(self) -> GrantLimits:
         limits: GrantLimits = self._na.grant_limits
@@ -187,9 +257,18 @@ class GrantService:
     def _sign(self, record: Any) -> Any:
         return sign_grant_record(record, self._na.signer, self._na.key_id)
 
-    @staticmethod
-    def _grant(row: dict[str, Any]) -> CapabilityGrant:
-        return CapabilityGrant.model_validate_json(row["grant_json"])
+    def _grant(self, row: dict[str, Any]) -> CapabilityGrant:
+        """The stored grant, used only when the NA's signature over it verifies (v1.6.0 review fixes)."""
+        cached = self._verified.get(row["grant_id"])
+        if cached is not None and cached[0] == row["grant_json"]:
+            return cached[1]
+        grant = CapabilityGrant.model_validate_json(row["grant_json"])
+        if grant.grant_id != row["grant_id"] or grant.digest() != row["grant_digest"] \
+                or not verify_signed(grant, self._na.na_keys_for_record(grant.issued_at)):
+            logger.error("stored grant %s does not verify", row["grant_id"])
+            raise ServiceUnavailableError("a stored grant does not verify", code="grant_store_integrity_failed")
+        self._verified[row["grant_id"]] = (row["grant_json"], grant)
+        return grant
 
     def _pending(self, kind: str, record: Any, now: datetime, *, resource_sequence: int | None = None,
                  lookup: dict[str, Any] | None = None) -> tuple[Any, dict[str, Any], dict[str, Any]]:
@@ -209,7 +288,8 @@ class GrantService:
         return {"entry": entry.model_dump(mode="json"), "entry_digest": entry.digest(), "payload": payload, **extra}
 
     def status_of(self, row: dict[str, Any], now: datetime | None = None) -> str:
-        """``revoked``, ``expired``, ``exhausted``, ``scheduled`` (not valid yet) or ``active``."""
+        """``revoked``, ``expired``, ``exhausted`` (its budget is spent), ``scheduled`` (not valid yet) or
+        ``active``."""
         now = now or self._now()
         if row["revoked_at"]:
             return "revoked"
@@ -298,6 +378,10 @@ class GrantService:
         except PydanticValidationError as exc:
             raise BadRequestError("invalid parameter envelope", code="invalid_grant_envelope",
                                   details={"errors": _summarise(exc)}) from exc
+        # v1.6.0 review fixes: every use carries these names and values, which the metadata guard checks.
+        secret = envelope_secret_problem(envelope)
+        if secret is not None:
+            bad(f"the parameter envelope may carry secret material: {secret}", code="invalid_grant_envelope")
         return {"bearer_key_id": bearer, "capabilities": list(capabilities), "attestation_id": attestation_id,
                 "agreement": data.get("agreement"), "context_freshness_seq": freshness, "valid_from": valid_from,
                 "valid_until": valid_until, "max_uses": max_uses, "max_uses_per_time_token": per_token,
@@ -328,9 +412,29 @@ class GrantService:
         self._na.agreements.require_trusted(agreement, route="/admin/grants", raw=raw)
         return GrantBasis.of_agreement(agreement, context_freshness_seq=request["context_freshness_seq"])
 
+    def _agreement_trusted(self, raw: Any) -> bool:
+        """Whether an agreement basis is still signed by two parties this NA trusts."""
+        try:
+            agreement = AgreementRecord.model_validate(raw)
+            self._na.agreements.require_trusted(agreement, route="grant reconcile", raw=raw)
+        except (RequestValidationError, PydanticValidationError, ValueError):
+            return False
+        return True
+
+    def _rests_on(self, db: Any, bearer_key_id: str, attestation_id: str | None, agreement: Any) -> tuple[Any, ...]:
+        """What an issuance rests on, as the database holds it now (v1.6.0 review fixes)."""
+        key = db.get_executor_key(bearer_key_id)
+        attestation = db.get_membership_attestation(attestation_id) if attestation_id is not None else None
+        return (
+            tuple(sorted(db.active_boundary_policy_versions().items())),
+            (key["retired_at"], key["key_role"], key["resource_prefix"]) if key is not None else None,
+            attestation["status"] if attestation is not None else None,
+            self._agreement_trusted(agreement) if agreement is not None else None,
+        )
+
     def _check(self, *, capabilities: list[str], envelope: dict[str, EnvelopeParameter], valid_from: datetime,
-               valid_until: datetime, basis: GrantBasis, check_basis: bool = True) -> GrantCheck:
-        loaded = self._db.load_active_boundary_policies()
+               valid_until: datetime, basis: GrantBasis, check_basis: bool = True, loaded: Any = None) -> GrantCheck:
+        loaded = loaded if loaded is not None else self._db.load_active_boundary_policies()
         return check_grant(
             capabilities=capabilities, envelope=envelope, valid_from=valid_from, valid_until=valid_until, basis=basis,
             policies=loaded.policies, registry=self._na.gate_registry,
@@ -339,10 +443,27 @@ class GrantService:
         )
 
     def issue(self, data: dict[str, Any], issued_by: str) -> dict[str, Any]:
-        """``POST /admin/grants``: check and sign a grant, store it, and give its first time token."""
+        """``POST /admin/grants``: check and sign a grant, store it, and give its first time token.
+
+        v1.6.0 review fixes: when a policy, the bearer key, the attestation or
+        the agreement's trust changes between the check and the write, the
+        grant is checked again once; a second change refuses it
+        (``409 grant_issuance_conflict``)."""
         self.require_enabled()
+        try:
+            return self._issue_once(data, issued_by)
+        except _Changed:
+            pass
+        try:
+            return self._issue_once(data, issued_by)
+        except _Changed:
+            raise ConflictError("what the grant rests on changed while it was issued; try again",
+                                code="grant_issuance_conflict") from None
+
+    def _issue_once(self, data: dict[str, Any], issued_by: str) -> dict[str, Any]:
         now = self._now()
         request = self._request(data, now)
+        rests_on = self._rests_on(self._db, request["bearer_key_id"], request["attestation_id"], request["agreement"])
         bearer = self._bearer(request["bearer_key_id"])
         basis = self._basis(request)
         check = self._check(capabilities=request["capabilities"], envelope=request["parameter_envelope"],
@@ -371,17 +492,21 @@ class GrantService:
                                   details={"errors": _summarise(exc)}) from exc
         token = self._sign(TimeToken(grant_id=grant.grant_id, use_sequence=0, issued_at=now, **self._issuer()))
         policies = [(p.policy_id, p.version) for p in grant.policy_binding.policies]
+        agreement = request["agreement"]
 
         def make(db: Any) -> list[Any]:
+            if self._rests_on(db, request["bearer_key_id"], request["attestation_id"], agreement) != rests_on:
+                raise _Changed()
             head, _ = db.store_head()
             db.insert_grant({
                 "grant_id": grant.grant_id, "grant_json": json.dumps(grant.to_wire(), sort_keys=True,
                                                                      separators=(",", ":")),
                 "grant_digest": grant.digest(), "bearer_key_id": grant.bearer_key_id,
                 "bearer_sovereign_id": grant.bearer_sovereign_id, "basis_kind": grant.basis_kind,
-                "basis_id": grant.basis_id, "valid_from": stamp(grant.valid_from),
-                "valid_until": stamp(grant.valid_until), "issued_at": stamp(grant.issued_at),
-                "issued_by_operator": issued_by, "store_sequence": head + 1,
+                "basis_id": grant.basis_id,
+                "basis_json": canonical_json(agreement) if agreement is not None else None,
+                "valid_from": stamp(grant.valid_from), "valid_until": stamp(grant.valid_until),
+                "issued_at": stamp(grant.issued_at), "issued_by_operator": issued_by, "store_sequence": head + 1,
             }, policies)
             return [self._pending("grant", grant, now)]
 
@@ -399,7 +524,7 @@ class GrantService:
     def _write(self, make: Any, unavailable: str) -> list[EvidenceStoreEntry]:
         try:
             entries: list[EvidenceStoreEntry] = self._db.append_evidence_entries_with(make)
-        except (_Refused, _AlreadyRevoked, *self._db.integrity_errors):
+        except (_Refused, _Duplicate, _Repeated, _AlreadyRevoked, _Changed, *self._db.integrity_errors):
             raise
         except self._db.database_errors as exc:
             logger.warning("grant store write failed: %s", exc)
@@ -422,33 +547,79 @@ class GrantService:
         grant = self._grant(row)
         revocation = self._db.grant_revocation_entry(grant_id)
         return {**self.summary(row), "remaining_uses": max(0, grant.max_uses - int(row["uses"])),
-                "grant": grant.to_wire(),
+                "chain_length": int(row["chain_length"]), "grant": grant.to_wire(),
                 "policy_versions": [{"policy_id": p, "version": v} for p, v in self._db.grant_policy_versions(grant_id)],
                 "revocation": revocation["payload"] if revocation is not None else None}
 
-    def list_grants(self, args: dict[str, str]) -> dict[str, Any]:
-        """``GET /admin/grants``: grants, newest first (``status``, ``bearer_key_id``, ``limit``, ``before``)."""
-        self.require_enabled()
-        status = args.get("status") or None
-        if status not in (None, "active", "expired", "revoked"):
-            raise BadRequestError("status must be active, expired or revoked", code="invalid_grant_filter")
+    def _limit(self, args: dict[str, str]) -> int:
         try:
             limit = int(args.get("limit") or 100)
         except ValueError:
             raise BadRequestError("limit must be an integer", code="invalid_page") from None
         if not 1 <= limit <= LIST_LIMIT:
             raise BadRequestError(f"limit must be 1..{LIST_LIMIT}", code="invalid_page")
-        before = args.get("before") or None
+        return limit
+
+    def list_grants(self, args: dict[str, str]) -> dict[str, Any]:
+        """``GET /admin/grants``: grants, newest first (``status``, ``bearer_key_id``, ``limit``, ``before``).
+
+        ``status`` is ``active`` (neither revoked nor ended: a summary may say
+        ``scheduled`` or ``exhausted``), ``expired`` or ``revoked``. ``before``
+        is a grant ID, ``next_before`` of the previous page (v1.6.0 review
+        fixes): the page holds the grants listed after it, by ``issued_at`` and
+        then ``grant_id``, so grants issued at the same time are never skipped."""
+        self.require_enabled()
+        status = args.get("status") or None
+        if status not in (None, "active", "expired", "revoked"):
+            raise BadRequestError("status must be active, expired or revoked", code="invalid_grant_filter")
+        limit = self._limit(args)
+        before: tuple[str, str] | None = None
+        if args.get("before"):
+            cursor = self._db.get_grant_row(args["before"])
+            if cursor is None:
+                raise BadRequestError("before must be the ID of a grant (next_before)", code="invalid_page")
+            before = (cursor["issued_at"], cursor["grant_id"])
         now = self._now()
         rows = self._db.list_grant_rows(status=status, bearer_key_id=args.get("bearer_key_id") or None, now=now,
-                                        after_issued_at=before, limit=limit)
+                                        before=before, limit=limit)
         return {"grants": [self.summary(r, now) for r in rows],
-                "next_before": rows[-1]["issued_at"] if len(rows) == limit else None}
+                "next_before": rows[-1]["grant_id"] if len(rows) == limit else None}
+
+    def list_uses(self, grant_id: str, args: dict[str, str]) -> dict[str, Any]:
+        """``GET /admin/grants/<id>/uses`` (v1.6.0 review fixes): the grant's use chain, newest first.
+
+        Each position of the chain: an admitted use, or a quarantined use that
+        continued it (``state`` ``quarantined`` and its ``rejection_code``).
+        ``before`` is a ``use_sequence`` (``next_before`` of the previous page).
+        A use refused before it continued the chain (a conflict or a chain
+        mismatch) is not in it: it is in the quarantine entries."""
+        self.require_enabled()
+        self._row(grant_id)
+        limit = self._limit(args)
+        before: int | None = None
+        if args.get("before"):
+            try:
+                before = int(args["before"])
+            except ValueError:
+                raise BadRequestError("before must be a use_sequence (next_before)", code="invalid_page") from None
+        rows = self._db.grant_chain_page(grant_id, before=before, limit=limit)
+        uses = [{
+            "use_id": r["use_id"], "use_sequence": int(r["use_sequence"]),
+            "state": "admitted" if int(r["admitted"]) else "quarantined", "rejection_code": r["rejection_code"],
+            "executed_at": _iso(_parse(r["executed_at"])),  # type: ignore[arg-type]
+            "recorded_at": _iso(_parse(r["recorded_at"])) if r["recorded_at"] else None,  # type: ignore[arg-type]
+            "store_sequence": int(r["store_sequence"]), "resource_id": r["resource_id"],
+            "resource_sequence": int(r["resource_sequence"]) if r["resource_sequence"] is not None else None,
+            "outcome": r["outcome"],
+        } for r in rows]
+        return {"grant_id": grant_id, "uses": uses,
+                "next_before": uses[-1]["use_sequence"] if len(uses) == limit else None}
 
     # -- revocation ------------------------------------------------------------------
 
     def revoke(self, grant_id: str, detail: Any, revoked_by: str) -> dict[str, Any]:
-        """``POST /admin/grants/<id>/revoke``: an operator's revocation."""
+        """``POST /admin/grants/<id>/revoke``: an operator's revocation. The body's ``reason`` is stored
+        as the revocation's ``detail``; its ``reason`` is ``operator``."""
         self.require_enabled()
         if detail is not None and (not isinstance(detail, str) or not 1 <= len(detail) <= 1024):
             raise BadRequestError("reason must be a string of 1 to 1024 characters", code="invalid_grant_revocation")
@@ -482,7 +653,7 @@ class GrantService:
         return self._body(entries[0], record.to_wire())
 
     def _revoke_quietly(self, row: dict[str, Any], reason: str, detail: str) -> bool:
-        """An automatic revocation; a failure is logged (``ensure_grants`` repeats it at start)."""
+        """An automatic revocation; a failure is logged (``reconcile`` repeats it)."""
         try:
             self._revoke(row, reason, detail, None)
             return True
@@ -492,29 +663,55 @@ class GrantService:
             logger.error("could not revoke grant %s (%s): %s", row["grant_id"], reason, exc)
             return False
 
+    def _each(self, rows: list[dict[str, Any]], step: Any) -> int:
+        """Run ``step(row)`` for each grant; one grant's failure never stops the others (v1.6.0 review
+        fixes: ``reconcile`` repeats it)."""
+        done = 0
+        for row in rows:
+            try:
+                done += int(step(row))
+            except Exception as exc:  # noqa: BLE001
+                logger.error("checking grant %s failed: %s", row.get("grant_id"), exc)
+        return done
+
     def on_attestation_revoked(self, attestation_id: str) -> int:
         """Revoke the usable grants resting on a revoked attestation. Returns how many."""
         if not self.enabled:
             return 0
         rows = [r for r in self._db.usable_grant_rows(self._now())
                 if r["basis_kind"] == "attestation" and r["basis_id"] == attestation_id]
-        return sum(self._revoke_quietly(r, "attestation_revoked", f"attestation {attestation_id} was revoked")
-                   for r in rows)
+        return self._each(rows, lambda r: self._revoke_quietly(
+            r, "attestation_revoked", f"attestation {attestation_id} was revoked"))
 
     def on_key_retired(self, key_id: str) -> int:
         """Revoke the usable grants a retired key bears."""
         if not self.enabled:
             return 0
         rows = [r for r in self._db.usable_grant_rows(self._now()) if r["bearer_key_id"] == key_id]
-        return sum(self._revoke_quietly(r, "bearer_key_retired", f"bearer key {key_id} was retired") for r in rows)
+        return self._each(rows, lambda r: self._revoke_quietly(r, "bearer_key_retired",
+                                                               f"bearer key {key_id} was retired"))
+
+    def on_treaty_revoked(self, treaty_id: str) -> int:
+        """v1.6.0 review fixes: revoke the usable grants under an agreement whose parties this NA no
+        longer trusts (``agreement_untrusted``)."""
+        if not self.enabled:
+            return 0
+        rows = [r for r in self._db.usable_grant_rows(self._now()) if r["basis_kind"] == "agreement"]
+        return self._each(rows, lambda r: self._check_agreement(r, f"treaty {treaty_id} was revoked"))
+
+    def _check_agreement(self, row: dict[str, Any], cause: str) -> bool:
+        if row["basis_json"] is not None and self._agreement_trusted(json.loads(row["basis_json"])):
+            return False
+        return self._revoke_quietly(row, "agreement_untrusted",
+                                    f"{cause}: agreement {row['basis_id']} is no longer signed by trusted parties")
 
     def on_policy_deactivated(self, policy_id: str, version: int) -> int:
         """Revoke the usable grants bound to a policy version that is no longer active."""
         if not self.enabled:
             return 0
         rows = self._db.grants_bound_to(policy_id, version, self._now())
-        return sum(self._revoke_quietly(r, "policy_deactivated", f"{policy_id} v{version} was deactivated")
-                   for r in rows)
+        return self._each(rows, lambda r: self._revoke_quietly(r, "policy_deactivated",
+                                                               f"{policy_id} v{version} was deactivated"))
 
     def on_policy_activated(self, policy: BoundaryPolicy, previous_version: int | None) -> int:
         """After an activation: the version it replaced is deactivated, and every usable grant the policy
@@ -526,16 +723,19 @@ class GrantService:
             revoked += self.on_policy_deactivated(policy.policy_id, previous_version)
         from ...trust.grants import capability_matches
 
-        for row in self._db.usable_grant_rows(self._now()):
+        loaded = self._db.load_active_boundary_policies()  # read once for every grant re-checked
+
+        def step(row: dict[str, Any]) -> int:
             grant = self._grant(row)
             if policy.selector.capabilities and not any(
                     capability_matches(p, c) for p in policy.selector.capabilities for c in grant.capabilities):
-                continue
-            revoked += self._recheck(row, grant, "policy_activated",
-                                     f"activating {policy.policy_id} v{policy.version}")
-        return revoked
+                return 0
+            return self._recheck(row, grant, "policy_activated", f"activating {policy.policy_id} v{policy.version}",
+                                 loaded)
 
-    def _recheck(self, row: dict[str, Any], grant: CapabilityGrant, reason: str, cause: str) -> int:
+        return revoked + self._each(self._db.usable_grant_rows(self._now()), step)
+
+    def _recheck(self, row: dict[str, Any], grant: CapabilityGrant, reason: str, cause: str, loaded: Any) -> int:
         """Check a usable grant again under the active policies, over the rest of its validity."""
         now = self._now()
         attestation = None
@@ -547,48 +747,81 @@ class GrantService:
         if start >= grant.valid_until:
             return 0
         check = self._check(capabilities=list(grant.capabilities), envelope=dict(grant.parameter_envelope),
-                            valid_from=start, valid_until=grant.valid_until, basis=basis, check_basis=False)
+                            valid_from=start, valid_until=grant.valid_until, basis=basis, check_basis=False,
+                            loaded=loaded)
         if check.allowed:
             return 0
         return int(self._revoke_quietly(row, reason, f"{cause}: {check.problems[0].reason}: "
                                                      f"{check.problems[0].detail}"))
 
-    def ensure_grants(self) -> None:
-        """At start: revoke usable grants whose bound policy versions are no longer active, whose basis
-        attestation is revoked or whose bearer key is retired, and check the rest again under the
-        active policies (a revocation an interrupted request missed is made now)."""
+    def reconcile(self) -> int:
+        """Revoke the usable grants whose bound policy versions are no longer active, whose basis
+        attestation is revoked, whose agreement's parties are no longer trusted or whose bearer key is
+        retired, and check the rest again under the active policies. At start and (v1.6.0 review
+        fixes) at most every ``RECONCILE_SECONDS`` after: a revocation an interrupted request missed
+        is made then. Returns how many grants it revoked."""
         if not self.enabled:
-            return
+            return 0
         try:
             active = self._db.active_boundary_policy_versions()
-            for row in self._db.usable_grant_rows(self._now()):
-                grant = self._grant(row)
-                key = self._db.get_executor_key(grant.bearer_key_id)
-                if key is None or key["retired_at"] is not None:
-                    self._revoke_quietly(row, "bearer_key_retired", f"bearer key {grant.bearer_key_id} was retired")
-                    continue
-                stale = [(p.policy_id, p.version) for p in grant.policy_binding.policies
-                         if active.get(p.policy_id, (None, None))[0] != p.version]
-                if stale:
-                    self._revoke_quietly(row, "policy_deactivated",
-                                         f"{stale[0][0]} v{stale[0][1]} is no longer active")
-                    continue
-                if grant.basis_kind == "attestation":
-                    stored = self._db.get_membership_attestation(grant.basis_id)
-                    if stored is None or stored["status"] != "active":
-                        self._revoke_quietly(row, "attestation_revoked", f"attestation {grant.basis_id} was revoked")
-                        continue
-                self._recheck(row, grant, "policy_activated", "the policies active at start")
-        except Exception as exc:  # noqa: BLE001 -- start must not fail on this; it runs again next start
-            logger.error("checking grants at start failed: %s", exc)
+            loaded = self._db.load_active_boundary_policies()
+            rows = self._db.usable_grant_rows(self._now())
+        except Exception as exc:  # noqa: BLE001 -- it runs again
+            logger.error("checking grants failed: %s", exc)
+            return 0
+
+        def step(row: dict[str, Any]) -> int:
+            grant = self._grant(row)
+            key = self._db.get_executor_key(grant.bearer_key_id)
+            if key is None or key["retired_at"] is not None:
+                return int(self._revoke_quietly(row, "bearer_key_retired",
+                                                f"bearer key {grant.bearer_key_id} was retired"))
+            stale = [(p.policy_id, p.version) for p in grant.policy_binding.policies
+                     if active.get(p.policy_id, (None, None))[0] != p.version]
+            if stale:
+                return int(self._revoke_quietly(row, "policy_deactivated",
+                                                f"{stale[0][0]} v{stale[0][1]} is no longer active"))
+            if grant.basis_kind == "attestation":
+                stored = self._db.get_membership_attestation(grant.basis_id)
+                if stored is None or stored["status"] != "active":
+                    return int(self._revoke_quietly(row, "attestation_revoked",
+                                                    f"attestation {grant.basis_id} was revoked"))
+            elif self._check_agreement(row, "checking grants"):
+                return 1
+            return self._recheck(row, grant, "policy_activated", "the policies active now", loaded)
+
+        return self._each(rows, step)
+
+    def ensure_grants(self) -> None:
+        """At start: ``reconcile``."""
+        self.reconcile()
+        self._next_reconcile = time.monotonic() + RECONCILE_SECONDS
+
+    def maybe_reconcile(self) -> None:
+        """``reconcile`` when ``RECONCILE_SECONDS`` have passed since the last run; never fails the caller,
+        and never runs twice at once."""
+        if not self.enabled or time.monotonic() < self._next_reconcile:
+            return
+        if not self._reconcile_lock.acquire(blocking=False):
+            return
+        try:
+            self._next_reconcile = time.monotonic() + RECONCILE_SECONDS
+            self.reconcile()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("checking grants failed: %s", exc)
+        finally:
+            self._reconcile_lock.release()
 
     # -- the revocation feed ------------------------------------------------------------
 
-    def feed_revocations(self) -> tuple[list[str], int] | None:
-        """(revoked grants not yet past their end, revocations ever made) for the revocation feed, or None
-        with the records off (the feed keeps its 1.5 form)."""
+    def feed_revocations(self) -> tuple[list[str] | None, int]:
+        """(revoked grants not yet past their end, or None with the records off; revocations ever made)
+        for the revocation feed. v1.6.0 review fixes: the feed's ``sequence`` counts grant revocations
+        whether grants are on or off, so switching them off never makes it go back."""
+        count = self._db.grant_revocation_count()
         if not self.enabled:
-            return None
+            return None, count
+        self.maybe_reconcile()
         return self._db.revoked_grant_ids(self._now()), self._db.grant_revocation_count()
 
     # -- time tokens ------------------------------------------------------------------
@@ -596,6 +829,7 @@ class GrantService:
     def issue_time_token(self, raw: Any) -> dict[str, Any]:
         """``POST /grants/time-tokens``: a time token for a request signed by the grant's bearer key."""
         self.require_enabled()
+        self.maybe_reconcile()
         if not isinstance(raw, dict):
             raise BadRequestError("request must be an object", code="invalid_time_token_request")
         try:
@@ -628,15 +862,14 @@ class GrantService:
             raise ConflictError("the grant has ended: a holder falls back to break-glass", code="grant_expired")
         if state == "exhausted":
             raise ConflictError("the grant's budget is spent", code="grant_budget_exhausted")
-        admitted = int(row["uses"])
-        if request.use_sequence < admitted:
-            raise ConflictError(f"the NA admitted {admitted} uses of this grant; the request reports "
+        length = int(row["chain_length"])
+        if request.use_sequence < length:
+            raise ConflictError(f"the NA holds {length} uses of this grant; the request reports "
                                 f"{request.use_sequence}", code="time_token_request_behind")
-        if 1 <= request.use_sequence <= admitted:
-            stored = self._db.grant_use_entry(request.grant_id, request.use_sequence)
-            digest = GrantExecutionEvidence.model_validate(stored["payload"]).digest() if stored else None
-            if digest != request.use_head_digest:
-                raise ConflictError(f"use {request.use_sequence} the NA admitted is not the one the request names",
+        if 1 <= request.use_sequence <= length:
+            item = self._db.grant_chain_item(request.grant_id, request.use_sequence)
+            if item is None or item["use_digest"] != request.use_head_digest:
+                raise ConflictError(f"use {request.use_sequence} the NA holds is not the one the request names",
                                     code="time_token_request_mismatch")
         token = self._sign(TimeToken(grant_id=grant.grant_id, use_sequence=request.use_sequence,
                                      use_head_digest=request.use_head_digest, issued_at=now, **self._issuer()))
@@ -648,14 +881,7 @@ class GrantService:
     # -- uses ---------------------------------------------------------------------------
 
     def _refuse(self, code: str, detail: str, use: GrantExecutionEvidence | None, digest: str,
-                raw: dict[str, Any] | None = None) -> NoReturn:
-        quarantine_id: str | None = None
-        if raw is not None and use is not None and code in QUARANTINED_USE_CODES:
-            try:
-                stored = self._na.out_of_band_service.quarantine("grant_execution", raw, code, detail, use.resource_id)
-                quarantine_id = str(stored["payload"]["quarantine_id"])
-            except Exception as exc:  # noqa: BLE001 -- the refusal itself must still be returned
-                logger.warning("could not quarantine refused grant use: %s", exc)
+                quarantine_id: str | None = None) -> NoReturn:
         self._db.add_evidence_rejection(
             code, submitted_digest=digest, evidence_id=use.use_id if use else None, decision_id=None,
             resource_id=use.resource_id if use else None,
@@ -668,9 +894,63 @@ class GrantService:
         error = ConflictError if code == "grant_use_conflict" else ValidationError
         raise error(detail, code=code, details={"quarantine_id": quarantine_id} if quarantine_id else None)
 
+    def _admission_problem(self, db: Any, use: GrantExecutionEvidence, grant: CapabilityGrant,
+                           current: dict[str, Any], raw: dict[str, Any], now: datetime) -> tuple[str, str] | None:
+        """The checks of a use that continues its chain, in order, from what the store holds now (inside
+        the write transaction)."""
+        if use.executor_sovereign_id != grant.bearer_sovereign_id:
+            return "grant_bearer_mismatch", (f"executor {use.executor_sovereign_id!r} is not the grant's "
+                                             f"bearer {grant.bearer_sovereign_id!r}")
+        row = db.get_executor_key(grant.bearer_key_id)
+        if row is None or row["retired_at"] is not None:
+            return "grant_bearer_key_retired", "the grant's bearer key is retired"
+        key = self._store.key_from_row(row)
+        if key.role != "executor":
+            return "grant_use_out_of_scope", f"the bearer key is an {key.role} key"
+        if key.resource_prefix is not None and (use.resource_id is None or not key.covers(use.resource_id)):
+            return "grant_use_out_of_scope", (f"the bearer key covers only resources starting with "
+                                              f"{key.resource_prefix!r}")
+        if use.grant_digest != current["grant_digest"]:
+            return "grant_mismatch", "grant_digest is not the stored grant's digest"
+        admitted = int(current["uses"])
+        previous = None
+        if admitted:
+            previous = PreviousUse(executed_at=_parse(current["last_use_executed_at"]),  # type: ignore[arg-type]
+                                   time_token_issued_at=_parse(current["last_token_issued_at"]))  # type: ignore[arg-type]
+        token = use.time_token
+        head = None
+        if 1 <= token.use_sequence <= int(current["chain_length"]):
+            item = db.grant_chain_item(use.grant_id, token.use_sequence)
+            if item is not None:
+                head = (item["use_digest"], _parse(item["executed_at"]))
+        return use_problem(
+            use, grant=grant, previous=previous, admitted=admitted, token_head=head,  # type: ignore[arg-type]
+            token_keys=na_keys_at(self._na.key_history.history(), token.issued_at), raw_token=raw.get("time_token"),
+            revoked_at=_parse(current["revoked_at"]), recorded_at=now)
+
+    def _quarantine_pending(self, raw: dict[str, Any], use: GrantExecutionEvidence, code: str, detail: str,
+                            now: datetime) -> tuple[Any, QuarantineRecord]:
+        oob = self._na.out_of_band_service
+        digest = payload_digest(raw)
+        record = oob._sign(QuarantineRecord(
+            record_kind="grant_execution", record=raw, record_digest=digest, rejection_code=code,
+            detail=detail[:1024], resource_id=use.resource_id, quarantined_at=now, **oob._issuer(),
+        ))
+        return oob._pending("quarantine", record, now=now, lookup={"dedupe_key": "q:" + digest}), record
+
     def submit_use(self, raw: Any) -> tuple[dict[str, Any], int]:
-        """``POST /evidence/grant-executions``: admit one use. Returns (body, HTTP status)."""
+        """``POST /evidence/grant-executions``: admit one use. Returns (body, HTTP status).
+
+        After the form, the grant and the signature, every check runs inside
+        the write transaction, in the order of ``GrantUseRejectionCode``: an
+        identical resubmission is a duplicate (or its refusal again), then the
+        chain (``grant_use_conflict``, ``grant_use_chain_gap``,
+        ``grant_use_chain_mismatch``), then the use against its grant. A use
+        refused for good is stored as a quarantine entry in the same
+        transaction and, when it continues the chain, becomes its head.
+        """
         self.require_enabled()
+        self.maybe_reconcile()
         if not isinstance(raw, dict):
             raise BadRequestError("evidence must be an object", code="invalid_grant_use")
         digest = payload_digest(raw)
@@ -691,87 +971,107 @@ class GrantService:
         if sig is None or sig.key_id != grant.bearer_key_id \
                 or not verify_model_signature(use, sig, grant.bearer_public_key):
             self._refuse("grant_use_invalid_signature", "the use is not signed by the grant's bearer key", use, digest)
-        # Authentic from here: a refusal no retry overcomes keeps the use as a quarantine entry.
-        if use.executor_sovereign_id != grant.bearer_sovereign_id:
-            self._refuse("grant_bearer_mismatch", f"executor {use.executor_sovereign_id!r} is not the grant's "
-                         f"bearer {grant.bearer_sovereign_id!r}", use, digest, raw)
+        # Authentic from here. A use carrying secret material is never stored.
         secret = use_secret_problem(use)
         if secret is not None:
             self._refuse("grant_use_secret_material", secret, use, digest)
-        key = self._db.get_executor_key(grant.bearer_key_id)
-        if key is None or key["retired_at"] is not None:
-            self._refuse("grant_bearer_key_retired", "the grant's bearer key is retired", use, digest, raw)
-        if use.grant_digest != row["grant_digest"]:
-            self._refuse("grant_mismatch", "grant_digest is not the stored grant's digest", use, digest, raw)
-        existing = self._db.get_entry_by_record("grant_execution", use.use_id)
-        if existing is not None:
-            if existing["entry"].payload_digest != digest:
-                self._refuse("grant_use_conflict", "a different use with this use_id is stored", use, digest, raw)
-            return {**self._body(existing["entry"], existing["payload"]), "status": "duplicate"}, 200
         now = self._now()
-        history = self._na.key_history.history()
-        position: dict[str, int | None] = {"resource_sequence": None}
+        use_digest = use.digest()
+        outcome: dict[str, Any] = {}
+
+        def quarantine(db: Any, code: str, detail: str, current: dict[str, Any], advance: bool) -> list[Any]:
+            pending, record = self._quarantine_pending(raw, use, code, detail, now)
+            head, _ = db.store_head()
+            if advance and not db.advance_grant_chain(use.grant_id, int(current["chain_length"]), {
+                "use_sequence": use.use_sequence, "use_id": use.use_id, "use_digest": use_digest,
+                "executed_at": stamp(use.executed_at), "admitted": False, "rejection_code": code,
+                "store_sequence": head + 1,
+            }, {"chain_length": int(current["chain_length"]) + 1, "chain_head_digest": use_digest}):
+                raise _Refused("grant_use_conflict", f"use {use.use_sequence} of this grant was recorded concurrently")
+            outcome.update(code=code, detail=detail, quarantine_id=record.quarantine_id)
+            return [pending]
 
         def make(db: Any) -> list[Any]:
             current = db.get_grant_row(use.grant_id)
-            admitted = int(current["uses"])
-            if use.use_sequence > admitted + 1:
-                raise _Refused("grant_use_chain_gap", f"use {use.use_sequence}, expected {admitted + 1}: upload the "
-                                                      f"earlier uses first")
-            if use.use_sequence < admitted + 1:
-                raise _Refused("grant_use_conflict", f"use {use.use_sequence} of this grant is already recorded")
-            if use.prev_use_digest != current["last_use_digest"]:
-                raise _Refused("grant_use_chain_mismatch", "prev_use_digest is not the previous use's digest")
-            previous = None
-            if admitted:
-                previous = PreviousUse(
-                    digest=current["last_use_digest"], executed_at=_parse(current["last_use_executed_at"]),  # type: ignore[arg-type]
-                    time_token_id=current["last_token_id"],
-                    time_token_issued_at=_parse(current["last_token_issued_at"]),  # type: ignore[arg-type]
-                    token_uses=int(current["last_token_uses"]))
-            token = use.time_token
-            head = None
-            if 1 <= token.use_sequence <= admitted:
-                stored = db.grant_use_entry(use.grant_id, token.use_sequence)
+            length = int(current["chain_length"])
+            # The same record again: admitted (a duplicate), or quarantined (the same refusal).
+            item = db.grant_chain_item(use.grant_id, use.use_sequence) if use.use_sequence <= length else None
+            if item is not None and item["use_digest"] == use_digest and int(item["admitted"]):
+                stored = db.grant_chain_entry(use.grant_id, use.use_sequence)
                 if stored is not None:
-                    held = GrantExecutionEvidence.model_validate(stored["payload"])
-                    head = (held.digest(), held.executed_at)
-            problem = use_problem(
-                use, grant=grant, previous=previous, token_head=head,
-                token_keys=na_keys_at(history, token.issued_at), raw_token=raw.get("time_token"),
-                revoked_at=_parse(current["revoked_at"]), recorded_at=now)
+                    raise _Duplicate(stored)
+            kept = db.get_entry_by_dedupe_key("q:" + digest)
+            if kept is not None:
+                raise _Repeated(kept["payload"])
+            # The chain.
+            if db.get_entry_by_record("grant_execution", use.use_id) is not None:
+                return quarantine(db, "grant_use_conflict", "a different use with this use_id is stored", current,
+                                  False)
+            taken = db.matchable_record_with_id(use.use_id)
+            if taken is not None:
+                return quarantine(db, "grant_use_conflict", f"a {taken} record with this ID is stored", current,
+                                  False)
+            if use.use_sequence <= length:
+                return quarantine(db, "grant_use_conflict", f"use {use.use_sequence} of this grant is already "
+                                                            f"recorded", current, False)
+            if use.use_sequence > length + 1:
+                raise _Refused("grant_use_chain_gap", f"use {use.use_sequence}, expected {length + 1}: upload the "
+                                                      f"earlier uses first")
+            if use.prev_use_digest != current["chain_head_digest"]:
+                return quarantine(db, "grant_use_chain_mismatch", "prev_use_digest is not the previous use's digest",
+                                  current, False)
+            # The use against its grant.
+            problem = self._admission_problem(db, use, grant, current, raw, now)
             if problem is not None:
-                raise _Refused(*problem)
+                if problem[0] not in QUARANTINED_USE_CODES:
+                    raise _Refused(*problem)
+                return quarantine(db, problem[0], problem[1], current, True)
+            position: int | None = None
             if use.resource_id is not None:
                 head_state = self._store._resource_head(use.resource_id)
-                position["resource_sequence"] = (head_state.resource_sequence + 1) if head_state else 1
-            after = next_previous(use, use.digest(), previous)
-            if not db.advance_grant_use(use.grant_id, admitted, {
-                "uses": admitted + 1, "last_use_digest": after.digest, "last_use_executed_at": stamp(after.executed_at),
-                "last_token_id": after.time_token_id, "last_token_issued_at": stamp(after.time_token_issued_at),
-                "last_token_uses": after.token_uses,
-            }):
+                position = (head_state.resource_sequence + 1) if head_state else 1
+            after = next_previous(use)
+            head, _ = db.store_head()
+            if not db.advance_grant_chain(use.grant_id, length, {
+                "use_sequence": use.use_sequence, "use_id": use.use_id, "use_digest": use_digest,
+                "executed_at": stamp(use.executed_at), "admitted": True, "store_sequence": head + 1,
+            }, {"uses": int(current["uses"]) + 1, "chain_length": length + 1, "chain_head_digest": use_digest,
+                "last_use_executed_at": stamp(after.executed_at),
+                "last_token_issued_at": stamp(after.time_token_issued_at)}):
                 raise _Refused("grant_use_conflict", f"use {use.use_sequence} of this grant was recorded concurrently")
+            outcome["resource_sequence"] = position
             version = use.execution_parameters.get("version_id")
-            return [self._pending("grant_execution", use, now, resource_sequence=position["resource_sequence"],
+            return [self._pending("grant_execution", use, now, resource_sequence=position,
                                   lookup={"version_id": version if isinstance(version, str) and version else None})]
 
         try:
             entries = self._write(make, "The use could not be stored")
+        except _Duplicate as exc:
+            return {**self._body(exc.stored["entry"], exc.stored["payload"]), "status": "duplicate"}, 200
+        except _Repeated as exc:
+            self._refuse(str(exc.payload["rejection_code"]), str(exc.payload.get("detail") or "refused before"),
+                         use, digest, str(exc.payload["quarantine_id"]))
         except _Refused as exc:
-            self._refuse(exc.code, exc.detail, use, digest, raw if exc.code != "grant_use_chain_gap" else None)
+            self._refuse(exc.code, exc.detail, use, digest)
         except self._db.integrity_errors:
-            existing = self._db.get_entry_by_record("grant_execution", use.use_id)
-            if existing is not None and existing["entry"].payload_digest == digest:
-                return {**self._body(existing["entry"], existing["payload"]), "status": "duplicate"}, 200
-            self._refuse("grant_use_conflict", "the use's position was taken by another record", use, digest, raw)
+            # Another writer stored this record or took its position first (the write lock makes this rare).
+            stored = self._db.get_entry_by_record("grant_execution", use.use_id)
+            if stored is not None and stored["entry"].payload_digest == digest:
+                return {**self._body(stored["entry"], stored["payload"]), "status": "duplicate"}, 200
+            self._refuse("grant_use_conflict", "the use's position was taken by another record", use, digest)
+        if "quarantine_id" in outcome:
+            self._db.add_audit_event("record_quarantined", {
+                "record_kind": "grant_execution", "record_digest": digest, "rejection_code": outcome["code"],
+                "quarantine_id": outcome["quarantine_id"], "store_sequence": entries[0].store_sequence,
+            })
+            self._refuse(outcome["code"], outcome["detail"], use, digest, outcome["quarantine_id"])
         self._db.add_audit_event("grant_use_recorded", {
             "use_id": use.use_id, "grant_id": use.grant_id, "use_sequence": use.use_sequence,
-            "resource_id": use.resource_id, "resource_sequence": position["resource_sequence"],
+            "resource_id": use.resource_id, "resource_sequence": outcome.get("resource_sequence"),
             "store_sequence": entries[0].store_sequence,
         })
         return {**self._body(entries[0], use.to_wire()), "status": "recorded",
-                "resource_sequence": position["resource_sequence"]}, 201
+                "resource_sequence": outcome.get("resource_sequence")}, 201
 
     # -- status -------------------------------------------------------------------------
 

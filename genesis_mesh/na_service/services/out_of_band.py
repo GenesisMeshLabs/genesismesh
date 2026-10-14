@@ -483,13 +483,16 @@ class OutOfBandService:
         def make(db: Any) -> list[Any]:
             if db.get_entry_by_record("observation", record.break_glass_id) is not None:
                 raise _IdTaken()
+            # v1.6.0 review fixes: observations match a break-glass record and a grant use by ID.
+            if db.get_entry_by_record("grant_execution", record.break_glass_id) is not None:
+                raise _IdTaken()
             return [self._pending("break_glass", record, now=now,
                                   lookup={"dedupe_key": dedupe, "version_id": _version_id(record.execution_parameters)})]
 
         try:
             entries = self._na.db.append_evidence_entries_with(make)
         except _IdTaken:
-            raise ConflictError("an observation with this break_glass_id is stored",
+            raise ConflictError("an observation or a grant use with this break_glass_id is stored",
                                 code="break_glass_conflict") from None
         except self._na.db.integrity_errors:
             duplicate = self._duplicate(dedupe, digest, "break_glass")

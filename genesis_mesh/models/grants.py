@@ -80,10 +80,16 @@ GrantBasisKind = Literal["agreement", "attestation"]
 #: the grant permits, it may fail for one, or it cannot be decided over a range.
 GrantGateDecision = Literal["pass", "may_fail", "undecidable"]
 
-#: Why a grant was revoked.
+#: Why a grant was revoked. v1.6.0 review fixes: ``agreement_untrusted``, when an agreement basis is
+#: no longer signed by parties the NA trusts (a recognition treaty was revoked or has expired).
 GrantRevocationReason = Literal[
     "operator", "attestation_revoked", "policy_deactivated", "policy_activated", "bearer_key_retired",
+    "agreement_untrusted",
 ]
+
+#: A use's ID: a UUID in its canonical lowercase form (v1.6.0 review fixes). The holder chooses it,
+#: and observations match a use by it, so it is never a free-form string.
+USE_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 #: Outcomes of a use, as execution evidence records them.
 GrantUseOutcome = Literal["success", "failure", "partial"]
@@ -372,8 +378,8 @@ class GrantExecutionEvidence(_SignedRecord):
 
     ``grant_digest`` is the grant's SHA-256 (its canonical form); the uses of
     one grant form a chain (``use_sequence`` from 1, ``prev_use_digest`` the
-    previous use's digest). ``time_token`` is the latest time token the holder
-    saw. ``resource_id`` and ``resource_action`` go together; the NA assigns
+    previous use's digest). ``use_id`` is a UUID (v1.6.0 review fixes).
+    ``time_token`` is the latest time token the holder saw. ``resource_id`` and ``resource_action`` go together; the NA assigns
     the use its place in the resource's chain when it admits it.
     ``execution_parameters`` and ``outcome_detail`` pass the metadata guard
     (identifiers, versions and times, never values).
@@ -395,6 +401,13 @@ class GrantExecutionEvidence(_SignedRecord):
     outcome_detail: str | None = Field(default=None, max_length=1024)
     execution_parameters: dict[str, Any] = Field(default_factory=dict)
     signature: Signature | None = None
+
+    @field_validator("use_id")
+    @classmethod
+    def _use_id(cls, value: str) -> str:
+        if not USE_ID.match(value):
+            raise ValueError("use_id must be a UUID in its canonical lowercase form")
+        return value
 
     @model_validator(mode="after")
     def _shape(self) -> "GrantExecutionEvidence":

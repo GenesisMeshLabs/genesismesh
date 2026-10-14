@@ -921,9 +921,24 @@ def verify_evidence_events(
     * a use takes the next position of its resource's chain, assigned by the
       NA in the envelope (``resource_sequence``; ``resource_chain_break``), and
       the next record of that resource links to the use's digest.
+
+    v1.6.0 review fixes:
+
+    * a quarantined use (a ``quarantine`` entry whose ``record_kind`` is
+      ``grant_execution``, signed by the grant's bearer key) that continues
+      its grant's use chain is the chain's head: the next use may link to it.
+      The budget counts the admitted uses (when the run holds the chain from
+      its first use), and the order and time rules compare a use with the
+      last admitted one;
+    * a use signed by a bearer key with a resource prefix is within it
+      (``grant_use_out_of_scope``), as execution evidence is;
+    * a use's ``use_id`` is not the ID of execution evidence or a break-glass
+      record (``duplicate_record``): observations match all three by ID;
+    * a grant whose signature fails is not held: its uses and revocation are
+      checked as for a grant the run does not hold.
     """
     from ..models.grants import GrantExecutionEvidence
-    from .grants import PreviousUse, next_previous, token_signature_valid, use_problem
+    from .grants import PreviousUse, continues_chain, next_previous, token_signature_valid, use_problem
 
     result = EvidenceVerification()
     if checkpoint is not None and not verify_retention_checkpoint(checkpoint, na_public_keys):
@@ -963,11 +978,18 @@ def verify_evidence_events(
     cited: set[str] = set()
     operator_keys: dict[str, list[tuple[datetime, str | None, str | None]]] = {}
     # v1.6.0: grants by ID (the record and its digest as received), when each was revoked, the head of
-    # each grant's use chain (its position and state), and each use's digest and time by position.
+    # each grant's use chain (its position and digest: an admitted use, or a quarantined one that
+    # continued the chain), its last admitted use, how many uses were admitted (when the chain is held
+    # from its first use), each chain use's digest and time by position, and the IDs of uses and of
+    # the other records observations match by ID.
     grants_held: dict[str, tuple[Any, str]] = {}
     revoked: dict[str, datetime] = {}
-    last_use: dict[str, tuple[int, PreviousUse]] = {}
+    chain_heads: dict[str, tuple[int, str]] = {}
+    last_admitted: dict[str, PreviousUse] = {}
+    admitted_uses: dict[str, int] = {}
     use_heads: dict[tuple[str, int], tuple[str, datetime]] = {}
+    use_ids: set[str] = set()
+    other_matchable: set[str] = set()
     first_sequence: int | None = None
     from_start = False
     # v1.5.0: with ``prior`` (an audit pack's cited records) every record the run cites is supplied,
@@ -987,6 +1009,28 @@ def verify_evidence_events(
         for rid, position in (cp.observation_heads or {}).items():
             if observation_heads.get(rid, 0) < position:
                 observation_heads[rid] = position
+
+    def quarantined_use(raw: Any) -> None:
+        # v1.6.0 review fixes: a quarantined use that continues its grant's chain is the chain's head.
+        try:
+            use = GrantExecutionEvidence.model_validate(raw)
+        except (ValueError, TypeError):
+            return
+        held = grants_held.get(use.grant_id)
+        if held is not None:
+            sig = use.signature
+            if sig is None or sig.key_id != held[0].bearer_key_id \
+                    or not verify_model_signature(use, sig, held[0].bearer_public_key):
+                return
+        head = chain_heads.get(use.grant_id)
+        expected = head if head is not None else ((0, None) if from_start or pack or use.use_sequence == 1 else None)
+        if expected is None or not continues_chain(use, expected):
+            return
+        digest = _received_digest("GrantExecutionEvidence", raw)
+        chain_heads[use.grant_id] = (use.use_sequence, digest)
+        use_heads[(use.grant_id, use.use_sequence)] = (digest, _utc(use.executed_at))
+        if use.use_sequence == 1:
+            admitted_uses.setdefault(use.grant_id, 0)
 
     def visit(event: EvidenceEvent, result: EvidenceVerification, cited_run: bool) -> None:
         nonlocal prev, prev_digest, first_sequence, from_start, clock, carrying
@@ -1085,6 +1129,9 @@ def verify_evidence_events(
                 result.fail(entry.store_sequence, "evidence_chain_break")
             last_exec[ev.decision_id] = (ev, received)
             matchable.add(ev.evidence_id)
+            if ev.evidence_id in use_ids:
+                result.fail(entry.store_sequence, "duplicate_record", f"execution {ev.evidence_id} is a grant use's ID")
+            other_matchable.add(ev.evidence_id)
             executed[ev.evidence_id] = _Execution(ev.resource_id, entry.store_sequence, _utc(ev.executed_at),
                                                   ev.executor_sovereign_id, ev.decision_id)
             if ev.resource_id is not None:
@@ -1126,6 +1173,9 @@ def verify_evidence_events(
             else:
                 result.break_glass += 1
                 matchable.add(record_id)
+                if record_id in use_ids:
+                    result.fail(entry.store_sequence, "duplicate_record", f"break_glass {record_id} is a grant use's ID")
+                other_matchable.add(record_id)
         elif entry.entry_kind == "judgement":
             result.judgements += 1
             not_decisions.add(model.judgement_id)
@@ -1159,6 +1209,8 @@ def verify_evidence_events(
             result.quarantined += 1
             if payload_digest(model.record) != model.record_digest:
                 result.fail(entry.store_sequence, "quarantine_digest_mismatch")
+            elif authentic and model.record_kind == "grant_execution":
+                quarantined_use(model.record)
         elif entry.entry_kind == "registry":
             # v1.4.0 review fixes: only a registry record the NA signed binds an operator key.
             if authentic and model.event == "operator_key_holder" and model.key_id is not None:
@@ -1180,7 +1232,10 @@ def verify_evidence_events(
             result.archives += 1
         elif entry.entry_kind == "grant":
             result.grants += 1
-            grants_held[model.grant_id] = (model, _received_digest("CapabilityGrant", event.payload))
+            # v1.6.0 review fixes: a grant whose signature fails is not held: its uses and revocation
+            # are checked as for a grant the run does not hold (grant_missing, cited_record_missing).
+            if authentic:
+                grants_held[model.grant_id] = (model, _received_digest("CapabilityGrant", event.payload))
         elif entry.entry_kind == "grant_revocation":
             result.grant_revocations += 1
             revoked_grant = grants_held.get(model.grant_id)
@@ -1202,39 +1257,50 @@ def verify_evidence_events(
             received = _received_digest("GrantExecutionEvidence", event.payload)
             held_grant = grants_held.get(use.grant_id)
             grant = held_grant[0] if held_grant is not None else None
+            sig = use.signature
+            signer = executor_keys.get(sig.key_id) if sig is not None else None
+            chain_head = chain_heads.get(use.grant_id)
+            expected = chain_head if chain_head is not None else ((0, None) if from_start else None)
+            if chained and expected is not None and not continues_chain(use, expected):
+                result.fail(entry.store_sequence, "grant_use_chain_break", use.grant_id)
             if held_grant is None or grant is None:
                 if pack and chained:
                     # A pack holds (or cites) the grant of every use and revocation in its range.
                     result.fail(entry.store_sequence, "cited_record_missing", f"grant {use.grant_id}")
                 elif chained and contiguous and from_start:
                     result.fail(entry.store_sequence, "grant_missing", use.grant_id)
-            else:
-                sig = use.signature
-                bearer = executor_keys.get(sig.key_id) if sig is not None else None
-                if sig is None or sig.key_id != grant.bearer_key_id or use.executor_sovereign_id !=                         grant.bearer_sovereign_id or (bearer is not None and bearer.public_key != grant.bearer_public_key):
-                    result.fail(entry.store_sequence, "grant_bearer_mismatch", use.use_id)
-                if use.grant_digest != held_grant[1]:
-                    result.fail(entry.store_sequence, "grant_mismatch", use.grant_id)
-            chain_head = last_use.get(use.grant_id)
-            if chained and (chain_head is not None or from_start) and (
-                    use.use_sequence != (chain_head[0] + 1 if chain_head else 1)
-                    or use.prev_use_digest != (chain_head[1].digest if chain_head else None)):
-                result.fail(entry.store_sequence, "grant_use_chain_break", use.grant_id)
-            previous = chain_head[1] if chain_head is not None and chain_head[0] == use.use_sequence - 1 else None
+            elif sig is None or sig.key_id != grant.bearer_key_id or use.executor_sovereign_id != \
+                    grant.bearer_sovereign_id or (signer is not None and signer.public_key != grant.bearer_public_key):
+                result.fail(entry.store_sequence, "grant_bearer_mismatch", use.use_id)
+            if signer is not None and signer.resource_prefix is not None and (
+                    use.resource_id is None or not signer.covers(use.resource_id)):
+                result.fail(entry.store_sequence, "grant_use_out_of_scope",
+                            f"signing key covers only resources starting with {signer.resource_prefix!r}")
+            if held_grant is not None and use.grant_digest != held_grant[1]:
+                result.fail(entry.store_sequence, "grant_mismatch", use.grant_id)
+            if use.use_sequence == 1:
+                admitted_uses.setdefault(use.grant_id, 0)
             token = use.time_token
             token_keys = na_keys_at(na_public_keys, _utc(token.issued_at))
             if chained:
                 named = use_heads.get((use.grant_id, token.use_sequence)) if token.use_sequence else None
                 problem = use_problem(
-                    use, grant=grant, previous=previous, token_head=named, token_keys=token_keys,
+                    use, grant=grant, previous=last_admitted.get(use.grant_id),
+                    admitted=admitted_uses.get(use.grant_id), token_head=named, token_keys=token_keys,
                     raw_token=event.payload.get("time_token"), revoked_at=revoked.get(use.grant_id),
                     recorded_at=entry.recorded_at)
                 if problem is not None:
                     result.fail(entry.store_sequence, problem[0], problem[1])
             elif not token_signature_valid(event.payload.get("time_token"), token_keys):
                 result.fail(entry.store_sequence, "grant_time_token_invalid", use.use_id)
-            last_use[use.grant_id] = (use.use_sequence, next_previous(use, received, previous))
+            chain_heads[use.grant_id] = (use.use_sequence, received)
+            last_admitted[use.grant_id] = next_previous(use)
+            if use.grant_id in admitted_uses:
+                admitted_uses[use.grant_id] += 1
             use_heads[(use.grant_id, use.use_sequence)] = (received, _utc(use.executed_at))
+            if use.use_id in other_matchable:
+                result.fail(entry.store_sequence, "duplicate_record", f"grant_execution {use.use_id} is another record's ID")
+            use_ids.add(use.use_id)
             matchable.add(use.use_id)
             if use.resource_id is not None:
                 head_state = resource_heads.get(use.resource_id)

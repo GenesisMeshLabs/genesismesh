@@ -34,7 +34,9 @@ from genesis_mesh.trust.grants import (
     GrantBasis,
     PreviousUse,
     check_grant,
+    continues_chain,
     envelope_problem,
+    envelope_secret_problem,
     in_range,
     next_previous,
     use_problem,
@@ -213,6 +215,10 @@ def test_attestation_claim_under_the_pinned_attestation():
     # The gate fails on a claim that is not a list of scalars, so it may fail here too.
     mixed = _basis(_attestation(apps=["billing", {"name": "payroll"}]))
     assert _decision({"app": {"one_of": ["billing"]}}, gate, basis=mixed) == "may_fail"
+    # Review fix (critic M1): the gate fails on a null value, even when the claim lists null.
+    with_null = _basis(_attestation(apps=["billing", None]))
+    assert _decision({"app": {"one_of": ["billing", None]}}, gate, basis=with_null) == "may_fail"
+    assert _decision({"app": {"one_of": ["billing"]}}, gate, basis=with_null) == "pass"
 
 
 def test_a_gate_on_a_fact_the_grant_fixes_is_decided_on_that_value():
@@ -385,6 +391,7 @@ def _use(grant: CapabilityGrant, at: datetime, token: TimeToken, n: int = 1, **o
 
 def _problem(use: GrantExecutionEvidence, grant: CapabilityGrant | None, **kwargs: Any) -> str | None:
     kwargs.setdefault("previous", None)
+    kwargs.setdefault("admitted", use.use_sequence - 1)
     kwargs.setdefault("token_head", None)
     kwargs.setdefault("revoked_at", None)
     kwargs.setdefault("recorded_at", use.executed_at)
@@ -393,7 +400,7 @@ def _problem(use: GrantExecutionEvidence, grant: CapabilityGrant | None, **kwarg
 
 
 def test_use_rules_in_order():
-    grant = _grant()
+    grant = _grant(issued_at=T0 - timedelta(hours=1))
     token = _token(T0, grant_id=grant.grant_id)
     at = T0 + timedelta(minutes=5)
     assert _problem(_use(grant, at, token), grant) is None
@@ -405,15 +412,14 @@ def test_use_rules_in_order():
     assert _problem(_use(grant, at, _token(T0, grant_id="other")), grant) == "grant_time_token_invalid"
     ahead = _token(T0, sequence=1, head="2" * 64, grant_id=grant.grant_id)
     assert _problem(_use(grant, at, ahead), grant) == "grant_time_token_mismatch"
-    previous = PreviousUse(digest="1" * 64, executed_at=at, time_token_id=token.time_token_id,
-                           time_token_issued_at=token.issued_at, token_uses=2)
+    previous = PreviousUse(executed_at=at, time_token_issued_at=token.issued_at)
     head = _token(T0 + timedelta(minutes=1), sequence=1, head="1" * 64, grant_id=grant.grant_id)
     assert _problem(_use(grant, at, head, n=2), grant, previous=previous, token_head=("9" * 64, at)) \
         == "grant_time_token_mismatch"
     old = _token(T0 - timedelta(minutes=1), grant_id=grant.grant_id)
     assert _problem(_use(grant, at, old, n=2), grant, previous=previous) == "grant_time_token_regressed"
-    assert _problem(_use(grant, at, token, n=2), grant, previous=previous) == "grant_time_token_exhausted"
-    assert _problem(_use(grant, T0 - timedelta(seconds=1), token), grant) == "grant_use_before_time_token"
+    assert _problem(_use(grant, at, token, n=3), grant, previous=previous) == "grant_time_token_exhausted"
+    assert _problem(_use(grant, T0 - timedelta(seconds=301), token), grant) == "grant_use_before_time_token"
     fresh = _token(T0 + timedelta(minutes=1), sequence=1, head="1" * 64, grant_id=grant.grant_id)
     assert _problem(_use(grant, at - timedelta(minutes=1), fresh, n=2), grant, previous=previous) \
         == "grant_use_out_of_order"
@@ -427,12 +433,70 @@ def test_use_rules_in_order():
     assert _problem(_use(grant, at, token, n=4, request_parameters={"n": 10}), None) is None
 
 
-def test_the_chain_state_counts_consecutive_uses_of_one_time_token():
+def test_the_budget_counts_admitted_uses_only():
+    """Review fix (critic H2): quarantined uses take positions in the chain, not budget."""
+    grant = _grant(max_uses_per_time_token=10)
+    token = _token(T0, grant_id=grant.grant_id)
+    at = T0 + timedelta(minutes=5)
+    # Use 6 after three quarantined uses: two admitted before it, within a budget of 3.
+    assert _problem(_use(grant, at, token, n=6), grant, admitted=2) is None
+    assert _problem(_use(grant, at, token, n=6), grant, admitted=3) == "grant_budget_exhausted"
+    # A verifier that does not hold the chain from its first use does not check the budget.
+    assert _problem(_use(grant, at, token, n=6), grant, admitted=None) is None
+
+
+def test_at_most_max_uses_per_time_token_follow_the_use_a_token_names():
+    """Review fix (skeptic 1, critic L2 and L3): a rule on the use and its token alone, so tokens taken
+    at one head and stored up allow no more uses than one of them, whatever their times."""
+    grant = _grant(max_uses=10, max_uses_per_time_token=2)
+    at = T0 + timedelta(minutes=5)
+    stock = [_token(T0 + timedelta(seconds=i), grant_id=grant.grant_id) for i in range(5)]
+    other = stock[0].model_copy(update={"time_token_id": "t-other", "signature": None})
+    same_time = [stock[0], other.model_copy(update={"signature": sign_model(other, NA, "na")})]
+    for tokens in (stock, same_time):
+        found = [_problem(_use(grant, at, tokens[(n - 1) % len(tokens)], n=n), grant) for n in range(1, 9)]
+        assert found == [None, None] + ["grant_time_token_exhausted"] * 6, found
+    later = _token(T0 + timedelta(minutes=1), sequence=4, head="4" * 64, grant_id=grant.grant_id)
+    assert _problem(_use(grant, at, later, n=6), grant) is None
+    assert _problem(_use(grant, at, later, n=7), grant) == "grant_time_token_exhausted"
+
+
+def test_a_time_token_is_not_older_than_its_grant_and_a_use_may_precede_it_by_the_skew():
+    """Review fixes (skeptic 7, critic M5)."""
+    grant = _grant(issued_at=T0)
+    before_grant = _token(T0 - timedelta(seconds=1), grant_id=grant.grant_id)
+    assert _problem(_use(grant, T0 + timedelta(minutes=1), before_grant), grant) == "grant_time_token_invalid"
+    token = _token(T0 + timedelta(minutes=10), grant_id=grant.grant_id)
+    assert _problem(_use(grant, T0 + timedelta(minutes=5), token), grant) is None
+    assert _problem(_use(grant, T0 + timedelta(minutes=5) - timedelta(seconds=1), token), grant) \
+        == "grant_use_before_time_token"
+
+
+def test_a_use_continues_the_chain_from_its_head():
     grant = _grant()
     token = _token(T0, grant_id=grant.grant_id)
-    first = next_previous(_use(grant, T0 + timedelta(minutes=1), token), "1" * 64, None)
-    second = next_previous(_use(grant, T0 + timedelta(minutes=2), token, n=2), "2" * 64, first)
-    assert (first.token_uses, second.token_uses) == (1, 2)
-    fresh = _token(T0 + timedelta(minutes=3), sequence=2, head="2" * 64, grant_id=grant.grant_id)
-    third = next_previous(_use(grant, T0 + timedelta(minutes=4), fresh, n=3), "3" * 64, second)
-    assert third.token_uses == 1 and third.time_token_id == fresh.time_token_id
+    first = _use(grant, T0 + timedelta(minutes=1), token)
+    assert continues_chain(first, (0, None)) and not continues_chain(first, (1, "1" * 64))
+    second = _use(grant, T0 + timedelta(minutes=2), token, n=2, prev_use_digest=first.digest())
+    assert continues_chain(second, (1, first.digest())) and not continues_chain(second, (1, "9" * 64))
+    after = next_previous(second)
+    assert (after.executed_at, after.time_token_issued_at) == (second.executed_at, token.issued_at)
+
+
+def test_a_use_id_is_a_uuid():
+    """Review fix (skeptic 8): observations match a use by its ID, which the holder chooses."""
+    grant = _grant()
+    token = _token(T0, grant_id=grant.grant_id)
+    for bad in ("use-1", "00000000-0000-4000-8000-00000000000A", "{00000000-0000-4000-8000-000000000001}"):
+        with pytest.raises(ValueError, match="use_id"):
+            _use(grant, T0 + timedelta(minutes=1), token, use_id=bad)
+    assert _use(grant, T0 + timedelta(minutes=1), token, use_id="00000000-0000-4000-8000-000000000001")
+
+
+def test_an_envelope_carrying_secret_material_is_refused():
+    """Review fix (skeptic 9): every use carries the envelope's names and values."""
+    assert envelope_secret_problem({"n": EnvelopeParameter.model_validate(_int_range(1, 9))}) is None
+    assert envelope_secret_problem({"password": EnvelopeParameter.model_validate({"one_of": ["x"]})}) is not None
+    pem = "-----BEGIN PRIVATE KEY-----"
+    assert envelope_secret_problem({"key": EnvelopeParameter.model_validate({"one_of": [pem]})}) is not None
+    assert envelope_secret_problem({"tags": EnvelopeParameter.model_validate({"subset_of": ["a", pem]})}) is not None

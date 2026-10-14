@@ -348,7 +348,8 @@ def test_uses_are_admitted_in_chain_order_and_take_the_next_resource_positions(c
     assert _submit_use(client, second).get_json()["resource_sequence"] == 2
     # The resource's head is the last use; execution evidence under a decision continues from it.
     head = _resource_head(client)
-    assert head == {"resource_id": SECRET, "resource_sequence": 2, "record_digest": second.digest()}
+    assert head == {"resource_id": SECRET, "resource_sequence": 2, "record_digest": second.digest(),
+                    "entry_kind": "grant_execution", "record_id": second.use_id}
     controller = Controller(client)
     evidence = _execution_after(client, controller, head)
     resp = _submit(client, evidence)
@@ -380,7 +381,7 @@ def test_two_holders_acting_offline_never_fork_a_resource_chain(client, na_servi
 
 def test_a_use_outside_the_envelope_is_quarantined_never_lost(client, clock):
     holder = _granted(client, clock)
-    resp = _submit_use(client, holder.use(clock.advance(minutes=1), {"lifetime_days": 400}, keep=False))
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1), {"lifetime_days": 400}))
     assert resp.status_code == 422 and _code(resp) == "grant_envelope_mismatch", resp.get_json()
     quarantine_id = resp.get_json()["error"]["details"]["quarantine_id"]
     stored = [e for e in _export(client) if e.entry.entry_kind == "quarantine"]
@@ -389,10 +390,12 @@ def test_a_use_outside_the_envelope_is_quarantined_never_lost(client, clock):
     assert stored[0].payload["rejection_code"] == "grant_envelope_mismatch"
     # A parameter outside the closed envelope, or a missing required one, is the same refusal.
     for params in ({"lifetime_days": 30, "owner": "x"}, {}):
-        assert _code(_submit_use(client, holder.use(clock.advance(minutes=1), params, keep=False))) \
+        assert _code(_submit_use(client, holder.use(clock.advance(minutes=1), params))) \
             == "grant_envelope_mismatch"
-    # The chain still starts at 1: a refused use takes no position.
+    # Each refused use took its place in the chain; the next use follows them and is admitted.
     assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
+    state = _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()
+    assert (state["uses"], state["chain_length"]) == (1, 4)
 
 
 def test_the_budget_counts_admitted_uses(client, clock):
@@ -402,7 +405,6 @@ def test_the_budget_counts_admitted_uses(client, clock):
     resp = _submit_use(client, holder.use(clock.advance(minutes=1)))
     assert _code(resp) == "grant_budget_exhausted" and resp.get_json()["error"]["details"]["quarantine_id"]
     assert _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()["status"] == "exhausted"
-    holder.uses.pop()
     assert _code(client.post("/grants/time-tokens", json={"request": holder.request(clock)})) \
         == "grant_budget_exhausted"
 
@@ -451,20 +453,20 @@ def test_time_tokens_bind_the_chain_head_and_anchor_each_use(client, na_service,
     holder = _granted(client, clock, per_token=2)
     issued = holder.token
     assert issued is not None
-    # A use is never dated before the time token it cites.
-    early = holder.use(issued.issued_at - timedelta(seconds=1), keep=False)
+    # A use is never dated more than the clock skew (300 s) before the time token it cites; refused, it
+    # still takes its place in the holder's chain.
+    early = holder.use(issued.issued_at - timedelta(seconds=301))
     assert _code(_submit_use(client, early)) == "grant_use_before_time_token"
     assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
-    assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
-    # Two uses per time token: the third needs a new one.
-    resp = _submit_use(client, holder.use(clock.advance(minutes=1), keep=False))
+    # Two uses per time token, counted from the use it names (0): use 3 needs a new one.
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1)))
     assert _code(resp) == "grant_time_token_exhausted"
     token = holder.refresh(client, clock)
-    assert token.use_sequence == 2 and token.use_head_digest == holder.uses[-1].digest()
+    assert token.use_sequence == 3 and token.use_head_digest == holder.uses[-1].digest()
     assert verify_model_signature(token, token.signature, na_service.signer.public_key_b64)
     assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
     # A later use may not go back to the older token.
-    resp = _submit_use(client, holder.use(clock.advance(minutes=1), token=issued, keep=False))
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1), token=issued))
     assert _code(resp) == "grant_time_token_regressed"
     assert _offline(client, na_service)["verified"] is True
 
@@ -478,11 +480,12 @@ def test_a_time_token_comes_after_the_uses_it_names(client, clock):
     resp = client.post("/grants/time-tokens", json={"request": ahead})
     assert resp.status_code == 201
     later = TimeToken.model_validate(resp.get_json()["time_token"])
-    resp = _submit_use(client, holder.use(clock.advance(minutes=1), token=later, keep=False))
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1), token=later))
     assert _code(resp) == "grant_time_token_mismatch"
     # A token whose head digest is not the use the store holds at that position.
-    forged = holder.request(clock, use_sequence=1, use_head_digest="2" * 64)
+    forged = holder.request(clock, use_sequence=2, use_head_digest="2" * 64)
     assert _code(client.post("/grants/time-tokens", json={"request": forged})) == "time_token_request_mismatch"
+    # Use 3 follows the refused use 2 and cites the token naming use 1.
     assert _submit_use(client, holder.use(clock.advance(minutes=1), token=token)).status_code == 201
 
 
@@ -502,13 +505,19 @@ def test_time_token_requests_are_signed_by_the_bearer_and_follow_the_admitted_ch
     assert _code(resp) == "time_token_request_malformed"
 
 
-def test_uses_outside_the_validity_in_the_future_or_uploaded_late_are_quarantined(client, clock):
+def test_uses_outside_the_validity_or_uploaded_late_are_quarantined_and_future_ones_retried(client, clock):
     holder = _granted(client, clock, hours=2)
     assert holder.grant is not None
-    late_use = holder.use(holder.grant.valid_until + timedelta(seconds=1), keep=False)
+    # A use dated in the future (beyond the 300 s skew) is refused without being stored: the holder
+    # retries once the NA's clock reaches it.
+    future = holder.use(clock.now() + timedelta(minutes=6))
+    resp = _submit_use(client, future)
+    assert _code(resp) == "grant_use_in_future" and not resp.get_json()["error"]["details"]
+    assert [e for e in _export(client) if e.entry.entry_kind == "quarantine"] == []
+    clock.advance(minutes=7)
+    assert _submit_use(client, future).status_code == 201
+    late_use = holder.use(holder.grant.valid_until + timedelta(seconds=1))
     assert _code(_submit_use(client, late_use)) == "grant_use_outside_validity"
-    future = holder.use(clock.now() + timedelta(minutes=6), keep=False)
-    assert _code(_submit_use(client, future)) == "grant_use_in_future"
     on_time = holder.use(clock.advance(minutes=1))
     clock.advance(hours=2, minutes=1)  # past the late-upload window (the grant's validity)
     resp = _submit_use(client, on_time)
@@ -622,13 +631,13 @@ def _granted_service_on_file(tmp_path):
     return _granting_service(db_path=str(tmp_path / "na.db"))
 
 
-def _restart(service, db_path: str):
+def _restart(service, db_path: str, grants: str = "on"):
     from genesis_mesh.na_service.server import NetworkAuthorityService
 
     restarted = NetworkAuthorityService(
         genesis_block=service.genesis_block, na_private_key=service.signer, key_id=service.key_id, db_path=db_path,
         operator_public_keys=service.operator_public_keys, operator_key_tiers=service.operator_key_tiers,
-        evidence_store="on", evidence_out_of_band="on", evidence_grants="on", retention_require_archive=False,
+        evidence_store="on", evidence_out_of_band="on", evidence_grants=grants, retention_require_archive=False,
     )
     setattr(restarted, "_test_operator_keypair", service._test_operator_keypair)
     setattr(restarted, "_std_keypair", service._std_keypair)
@@ -748,7 +757,8 @@ def test_retention_keeps_a_grant_while_its_uses_may_arrive(clock, monkeypatch):
                                     checkpoint=export_checkpoint(events))
     assert result.verified, result.failures
     assert _resource_head(client) == {"resource_id": SECRET, "resource_sequence": 1,
-                                      "record_digest": holder.uses[0].digest()}
+                                      "record_digest": holder.uses[0].digest(),
+                                      "entry_kind": "retention_checkpoint", "record_id": None}
 
 
 def test_an_audit_pack_holds_grants_their_uses_and_revocations_and_verifies_offline(tmp_path, clock):
@@ -917,3 +927,452 @@ def test_an_issuance_over_this_nas_limits_is_refused(clock):
         assert _code(resp) == "grant_limit_exceeded" and resp.get_json()["error"]["details"]["limit"] == limit
     resp = _issue_grant(client, holder, attestation, max_uses=2, hours=0.5)
     assert resp.status_code == 201 and resp.get_json()["grant"]["max_uses_per_time_token"] == 1
+
+
+# ---------------------------------------------------------------------------
+# v1.6.0 review fixes
+# ---------------------------------------------------------------------------
+
+
+def _token_for(client, holder: Holder, clock: Clock) -> TimeToken:
+    resp = client.post("/grants/time-tokens", json={"request": holder.request(clock)})
+    assert resp.status_code == 201, resp.get_json()
+    return TimeToken.model_validate(resp.get_json()["time_token"])
+
+
+def _quarantined(client) -> list[str]:
+    return [e.payload["rejection_code"] for e in _export(client) if e.entry.entry_kind == "quarantine"]
+
+
+def test_stored_up_time_tokens_allow_no_more_than_the_per_token_limit_after_a_revocation(client, na_service, clock):
+    """Skeptic 1, critic L2 and L3: tokens taken at one head while online, used after a revocation with
+    each use dated before it, allow at most max_uses_per_time_token uses beyond the head they name."""
+    holder = _granted(client, clock, per_token=2, max_uses=10)
+    stock = [holder.token]
+    for _ in range(4):
+        clock.advance(seconds=1)
+        stock.append(_token_for(client, holder, clock))
+    same_time = [_token_for(client, holder, clock) for _ in range(2)]
+    assert same_time[0].issued_at == same_time[1].issued_at
+    revoked_at = clock.advance(minutes=1)
+    assert _post(client, f"/admin/grants/{holder.grant.grant_id}/revoke", {"reason": "lost"}).status_code == 200
+    clock.advance(minutes=30)
+    dated = revoked_at - timedelta(seconds=30)
+    codes = []
+    tokens = stock + same_time
+    for i in range(10):
+        resp = _submit_use(client, holder.use(dated + timedelta(milliseconds=i), token=tokens[i % len(tokens)]))
+        codes.append(resp.status_code if resp.status_code == 201 else _code(resp))
+    assert codes[:2] == [201, 201], codes
+    assert set(codes[2:]) <= {"grant_time_token_exhausted", "grant_time_token_regressed"}, codes
+    assert _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()["uses"] == 2
+    assert _offline(client, na_service)["verified"] is True
+
+
+def test_a_scoped_bearer_key_acts_only_inside_its_prefix(client, na_service, clock):
+    """Critic H1, skeptic 2: a bearer key with a resource prefix is held to it, as for execution evidence."""
+    holder = Holder(client, register=False, key_id="scoped-1")
+    resp = _post(client, "/admin/evidence/executor-keys", {
+        "key_id": "scoped-1", "public_key": holder.public_key, "executor_sovereign_id": holder.sovereign,
+        "resource_prefix": "dev-1/"})
+    assert resp.status_code == 201, resp.get_json()
+    _granted(client, clock, holder)
+    for resource in ("prod/other-secret", None):
+        resp = _submit_use(client, holder.use(clock.advance(minutes=1), resource=resource))
+        assert _code(resp) == "grant_use_out_of_scope" and resp.get_json()["error"]["details"]["quarantine_id"]
+    assert _submit_use(client, holder.use(clock.advance(minutes=1), resource="dev-1/db")).status_code == 201
+    assert _quarantined(client) == ["grant_use_out_of_scope", "grant_use_out_of_scope"]
+    assert _offline(client, na_service)["verified"] is True
+
+
+def test_uses_after_a_quarantined_use_are_judged_on_their_own(client, na_service, clock):
+    """Critic H2: a quarantined use keeps its place in the holder's chain; the next use links to it and is
+    admitted; the budget counts admitted uses only."""
+    holder = _granted(client, clock, max_uses=2)
+    assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
+    bad = holder.use(clock.advance(minutes=1), {"lifetime_days": 400})
+    resp = _submit_use(client, bad)
+    assert _code(resp) == "grant_envelope_mismatch"
+    # A time token at the head of the holder's chain: the quarantined use.
+    assert holder.refresh(client, clock).use_head_digest == bad.digest()
+    good = holder.use(clock.advance(minutes=1))
+    quarantine_id = resp.get_json()["error"]["details"]["quarantine_id"]
+    # The refused use again: the same refusal, nothing new stored.
+    again = _submit_use(client, bad)
+    assert _code(again) == "grant_envelope_mismatch"
+    assert again.get_json()["error"]["details"]["quarantine_id"] == quarantine_id
+    resp = _submit_use(client, good)
+    assert resp.status_code == 201, resp.get_json()
+    assert _quarantined(client) == ["grant_envelope_mismatch"]
+    state = _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()
+    assert (state["uses"], state["chain_length"], state["status"]) == (2, 3, "exhausted")
+    assert _offline(client, na_service)["verified"] is True
+
+
+def test_a_use_refused_without_being_stored_does_not_move_the_chain(client, clock):
+    holder = _granted(client, clock)
+    future = holder.use(clock.now() + timedelta(minutes=10))
+    assert _code(_submit_use(client, future)) == "grant_use_in_future"
+    secret = holder.use(clock.advance(minutes=1), keep=False, execution_parameters={"password": "x"})
+    assert _code(_submit_use(client, secret)) == "grant_use_secret_material"
+    assert _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()["chain_length"] == 0
+    clock.advance(minutes=10)
+    assert _submit_use(client, future).status_code == 201
+
+
+def test_a_retry_racing_its_own_admission_is_a_duplicate(client, na_service, clock, monkeypatch):
+    """Critic M2: the check inside the write transaction finds the stored use: 200, not a conflict."""
+    holder = _granted(client, clock)
+    use = holder.use(clock.advance(minutes=1))
+    assert _submit_use(client, use).status_code == 201
+    db = na_service.db
+    real = db.get_entry_by_record
+    calls = {"n": 0}
+
+    def racing(kind, record_id):  # the first look ran before the other instance's commit
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real(kind, record_id)
+
+    monkeypatch.setattr(db, "get_entry_by_record", racing)
+    resp = _submit_use(client, use)
+    assert resp.status_code == 200 and resp.get_json()["status"] == "duplicate", resp.get_json()
+    assert _quarantined(client) == []
+
+
+def test_issuance_checks_again_when_a_policy_changes_during_it(client, na_service, clock, monkeypatch):
+    """Critic M3, skeptic 3: a stricter policy activated between the check and the write is seen."""
+    holder = Holder(client)
+    _lifetime_policy(client, 90)
+    attestation = _attestation(client)
+    service = na_service.grant_service
+    real = service._check
+    fired = {"n": 0}
+
+    def check_then_activate(**kwargs):
+        result = real(**kwargs)
+        if not fired["n"]:
+            fired["n"] = 1
+            _lifetime_policy(client, 10, policy_id="stricter")
+        return result
+
+    monkeypatch.setattr(service, "_check", check_then_activate)
+    resp = _issue_grant(client, holder, attestation)
+    assert _code(resp) == "grant_gate_may_deny", resp.get_json()
+    assert _get(client, "/admin/grants").get_json()["grants"] == []
+
+
+def test_issuance_is_refused_when_what_it_rests_on_keeps_changing(client, na_service, clock, monkeypatch):
+    holder = Holder(client)
+    _lifetime_policy(client, 90)
+    attestation = _attestation(client)
+    service = na_service.grant_service
+    real = service._check
+    versions = iter(range(2, 10))
+
+    def check_then_change(**kwargs):
+        result = real(**kwargs)
+        _lifetime_policy(client, 90, policy_id=f"other-{next(versions)}", selector={"capabilities": ["db.read"]})
+        return result
+
+    monkeypatch.setattr(service, "_check", check_then_change)
+    resp = _issue_grant(client, holder, attestation)
+    assert resp.status_code == 409 and _code(resp) == "grant_issuance_conflict"
+
+
+def test_issuance_sees_an_attestation_revoked_during_it(client, na_service, clock, monkeypatch):
+    holder = Holder(client)
+    _lifetime_policy(client, 90)
+    attestation = _attestation(client)
+    service = na_service.grant_service
+    real = service._check
+
+    def check_then_revoke(**kwargs):
+        result = real(**kwargs)
+        _post(client, f"/admin/attestations/{attestation}/revoke", {"reason": "offboarded"})
+        return result
+
+    monkeypatch.setattr(service, "_check", check_then_revoke)
+    assert _code(_issue_grant(client, holder, attestation)) == "grant_basis_invalid"
+
+
+def test_one_grant_failing_a_recheck_never_stops_the_others(client, na_service, clock, monkeypatch):
+    """Critic M3 and M6: a failure is per grant, and the periodic reconcile makes the missed revocation."""
+    first = _granted(client, clock)
+    second = Holder(client, "holder-2", "device-2")
+    resp = _issue_grant(client, second, _attestation(client))
+    second.take(resp.get_json())
+    service = na_service.grant_service
+    real = service._revoke
+
+    def failing(row, *args, **kwargs):
+        if row["grant_id"] == first.grant.grant_id:
+            raise RuntimeError("the store is busy")
+        return real(row, *args, **kwargs)
+
+    monkeypatch.setattr(service, "_revoke", failing)
+    assert _post(client, "/admin/boundary-policies/secret-lifetime/deactivate", {"version": 1}).status_code == 200
+    assert _get(client, f"/admin/grants/{first.grant.grant_id}").get_json()["status"] == "active"
+    assert _revocation(client, second.grant.grant_id)["reason"] == "policy_deactivated"
+    # The next reconcile (here forced: it runs at most every minute) makes the missed revocation.
+    monkeypatch.setattr(service, "_revoke", real)
+    service._next_reconcile = 0.0
+    feed = _feed(client)
+    assert feed.revoked_grant_ids is not None and first.grant.grant_id in feed.revoked_grant_ids
+    assert _revocation(client, first.grant.grant_id)["reason"] == "policy_deactivated"
+
+
+def test_revoking_a_treaty_revokes_grants_under_agreements_it_vouched_for(client, na_service, clock):
+    """Skeptic 4, critic L1."""
+    from .test_na_trust_api import _make_agreement
+
+    holder = Holder(client)
+    agreement = _make_agreement(client, na_service)
+    body = {"bearer_key_id": holder.key_id, "capabilities": ["read"], "agreement": agreement,
+            "valid_until": _iso_at(clock.now() + timedelta(hours=2)), "max_uses": 3,
+            "parameter_envelope": {"rows": _envelope()["lifetime_days"]}}
+    resp = _post(client, "/admin/grants", body)
+    assert resp.status_code == 201, resp.get_json()
+    holder.take(resp.get_json())
+    rows = na_service.db.list_recognition_treaties(subject_sovereign_id=agreement["responder_sovereign_id"],
+                                                    status="active")
+    assert rows
+    for row in rows:
+        tid = row["treaty"].treaty_id
+        assert _post(client, f"/admin/recognition-treaties/{tid}/revoke", {"reason": "x"}).status_code == 200
+    revocation = _revocation(client, holder.grant.grant_id)
+    assert revocation["reason"] == "agreement_untrusted"
+    assert _code(client.post("/grants/time-tokens", json={"request": holder.request(clock)})) == "grant_revoked"
+
+
+def test_grants_switch_off_only_once_every_grant_has_ended(tmp_path, clock, monkeypatch):
+    """Skeptic 5, critic M4: the feed's sequence never goes back, and the NA refuses to start with grants
+    off while a grant may still be used or revoked."""
+    import genesis_mesh.na_service.services.grants as grants_module
+
+    service = _granted_service_on_file(tmp_path)
+    client = _client(service)
+    holder = _granted(client, clock, hours=1)
+    assert _post(client, f"/admin/grants/{holder.grant.grant_id}/revoke", {}).status_code == 200
+    assert _feed(client).sequence == 1
+    service.db.close()
+    with pytest.raises(ValueError, match="have not ended"):
+        _restart(service, str(tmp_path / "na.db"), grants="off")
+
+    class _Later(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return clock.now()
+
+    clock.advance(hours=2)
+    monkeypatch.setattr(grants_module, "datetime", _Later)
+    off = _restart(service, str(tmp_path / "na.db"), grants="off")
+    feed = _feed(_client(off))
+    assert feed.sequence == 1 and feed.revoked_grant_ids is None
+
+
+def test_a_stored_grant_that_does_not_verify_is_never_used(client, na_service, clock):
+    """Skeptic 8: the NA's signature over a grant read from the database is checked."""
+    holder = _granted(client, clock)
+    db = na_service.db
+    with db.exclusive_transaction():
+        db.conn.execute("DROP TRIGGER capability_grants_guarded_update"
+                        + (" ON capability_grants" if db.backend == "postgres" else ""))
+        tampered = json.loads(db.get_grant_row(holder.grant.grant_id)["grant_json"])
+        tampered["max_uses"] = 9999
+        db.conn.execute("UPDATE capability_grants SET grant_json = ? WHERE grant_id = ?",
+                        (json.dumps(tampered), holder.grant.grant_id))
+    na_service.grant_service._verified.clear()
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1)))
+    assert resp.status_code == 503 and _code(resp) == "grant_store_integrity_failed"
+
+
+def test_the_grant_tables_refuse_changes_to_what_never_changes(client, na_service, clock):
+    """Skeptic 8: every immutable column, the policy binding and the use chain."""
+    holder = _granted(client, clock)
+    assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
+    db = na_service.db
+    gid = holder.grant.grant_id
+    for statement in ("UPDATE capability_grants SET basis_kind = 'agreement' WHERE grant_id = ?",
+                      "UPDATE capability_grants SET bearer_sovereign_id = 'x' WHERE grant_id = ?",
+                      "UPDATE capability_grants SET issued_at = 'x' WHERE grant_id = ?",
+                      "UPDATE capability_grants SET chain_length = 0 WHERE grant_id = ?",
+                      "UPDATE capability_grants SET revocation_reason = 'operator' WHERE grant_id = ?",
+                      "DELETE FROM capability_grant_policies WHERE grant_id = ?",
+                      "UPDATE capability_grant_chain SET admitted = 0 WHERE grant_id = ?",
+                      "DELETE FROM capability_grant_chain WHERE grant_id = ?"):
+        with pytest.raises(Exception, match="grant"):
+            with db.exclusive_transaction():
+                db.conn.execute(statement, (gid,))
+    assert _post(client, f"/admin/grants/{gid}/revoke", {}).status_code == 200
+    with pytest.raises(Exception, match="grant"):
+        with db.exclusive_transaction():
+            db.conn.execute("UPDATE capability_grants SET revocation_reason = 'policy_activated' WHERE grant_id = ?",
+                            (gid,))
+
+
+def test_a_use_id_is_a_uuid_and_never_another_records_id(client, na_service, clock):
+    """Skeptic 8: observations match execution evidence, break-glass records and grant uses by ID."""
+    holder = _granted(client, clock)
+    resp = _submit_use(client, {**holder.use(clock.advance(minutes=1), keep=False).to_wire(), "use_id": "use-1"})
+    assert _code(resp) == "grant_use_malformed"
+    controller = Controller(client)
+    evidence = _execution_after(client, controller, {"resource_sequence": 0, "record_digest": None})
+    assert _submit(client, evidence).status_code == 201, _submit(client, evidence).get_json()
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1), keep=False, use_id=evidence.evidence_id))
+    assert resp.status_code == 409 and _code(resp) == "grant_use_conflict"
+    use = holder.use(clock.advance(minutes=1))
+    assert _submit_use(client, use).status_code == 201
+    taken = _execution_after(client, controller, _resource_head(client))
+    taken = taken.model_copy(update={"evidence_id": use.use_id, "signature": None})
+    taken = taken.model_copy(update={"signature": sign_model(taken, controller.key, controller.key_id)})
+    assert _code(_submit(client, taken)) == "evidence_conflict"
+
+
+def test_an_envelope_carrying_secret_material_is_not_issued(client, clock):
+    """Skeptic 9."""
+    holder = Holder(client)
+    _lifetime_policy(client, 90)
+    resp = _issue_grant(client, holder, _attestation(client), envelope={"password": {"one_of": ["a"]}})
+    assert resp.status_code == 400 and _code(resp) == "invalid_grant_envelope"
+
+
+def test_grants_page_stably_by_issue_time_and_id(client, na_service, clock):
+    """Critic L4: grants issued at the same time are never skipped between pages."""
+    _lifetime_policy(client, 90)
+    attestation = _attestation(client)
+    holders = [Holder(client, f"holder-{i}", f"device-{i}") for i in range(3)]
+    issued = []
+    for h in holders:
+        resp = _issue_grant(client, h, attestation)  # the clock does not move: one issued_at
+        assert resp.status_code == 201
+        issued.append(resp.get_json()["grant"]["grant_id"])
+    seen: list[str] = []
+    before = None
+    while True:
+        page = _get(client, "/admin/grants?limit=1" + (f"&before={before}" if before else "")).get_json()
+        seen += [g["grant_id"] for g in page["grants"]]
+        before = page["next_before"]
+        if before is None:
+            break
+    assert sorted(seen) == sorted(issued) and len(seen) == 3
+    assert _code(_get(client, "/admin/grants?before=unknown")) == "invalid_page"
+
+
+def test_a_grants_uses_are_listed_newest_first(client, na_service, clock):
+    """Gateway and console: each position of the chain, admitted or quarantined."""
+    holder = _granted(client, clock)
+    first = holder.use(clock.advance(minutes=1))
+    assert _submit_use(client, first).status_code == 201
+    assert _code(_submit_use(client, holder.use(clock.advance(minutes=1), {"lifetime_days": 400}))) \
+        == "grant_envelope_mismatch"
+    third = holder.use(clock.advance(minutes=1), resource=None)
+    assert _submit_use(client, third).status_code == 201
+    body = _get(client, f"/admin/grants/{holder.grant.grant_id}/uses?limit=2").get_json()
+    assert [(u["use_sequence"], u["state"], u["rejection_code"]) for u in body["uses"]] == [
+        (3, "admitted", None), (2, "quarantined", "grant_envelope_mismatch")]
+    assert body["uses"][0]["resource_id"] is None and body["uses"][1]["resource_id"] == SECRET
+    assert body["uses"][0]["outcome"] == "success" and body["uses"][0]["recorded_at"]
+    assert body["next_before"] == 2
+    rest = _get(client, f"/admin/grants/{holder.grant.grant_id}/uses?before=2").get_json()
+    assert [(u["use_id"], u["resource_sequence"]) for u in rest["uses"]] == [(first.use_id, 1)]
+    assert rest["next_before"] is None
+    assert _code(_get(client, "/admin/grants/unknown/uses")) == "grant_not_found"
+    # Evidence search by grant: its uses (and its revocation).
+    found = _get(client, f"/admin/evidence?grant_id={holder.grant.grant_id}").get_json()["entries"]
+    assert [e["entry"]["record_id"] for e in found] == [first.use_id, third.use_id]
+
+
+def test_concurrent_uploads_never_quarantine_an_honest_use(client, na_service, clock):
+    """Skeptic 10: every admission check that can quarantine runs inside the write transaction."""
+    import threading
+
+    holder = _granted(client, clock, max_uses=5, per_token=5)
+    uses = [holder.use(clock.advance(seconds=10)) for _ in range(5)]
+    results: list[tuple[int, Any]] = []
+    lock = threading.Lock()
+
+    def upload() -> None:
+        own = _client(na_service)
+        for use in uses:
+            for _ in range(200):
+                resp = _submit_use(own, use)
+                if resp.status_code != 422 or _code(resp) != "grant_use_chain_gap":
+                    break
+            with lock:
+                results.append((use.use_sequence, resp.status_code if resp.status_code < 400 else _code(resp)))
+
+    threads = [threading.Thread(target=upload) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert {code for _, code in results} <= {200, 201}, results
+    assert _quarantined(client) == []
+    assert _get(client, f"/admin/grants/{holder.grant.grant_id}").get_json()["uses"] == 5
+    assert _offline(client, na_service)["verified"] is True
+
+
+def test_an_audit_pack_range_after_a_quarantined_use_verifies(tmp_path, clock):
+    """Critic H2 in packs: the range's grant chain is cited from its first use, quarantined ones too."""
+    from .succession_support import Network
+    from .test_audit_pack import _anchor, _held, _pack, _verify
+
+    net = Network(tmp_path)
+    service = net.start(evidence_out_of_band="on", evidence_grants="on")
+    client = _client(service)
+    holder = _granted(client, clock, max_uses=3, per_token=3)
+    assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
+    assert _code(_submit_use(client, holder.use(clock.advance(minutes=1), {"lifetime_days": 400}))) \
+        == "grant_envelope_mismatch"
+    first = _anchor(client)
+    assert _submit_use(client, holder.use(clock.advance(minutes=1))).status_code == 201
+    _anchor(client)
+    later = _pack(client, from_sequence=first["store_sequence"] + 1)
+    cited = [json.loads(line)["entry"]["entry_kind"] for line in later["cited.jsonl"].decode().splitlines()]
+    assert cited.count("grant_execution") == 1 and "quarantine" in cited and "grant" in cited
+    result = _verify(net, later, _held(client))
+    assert result.verified, result.failures
+
+
+def test_an_audit_pack_checks_the_agreement_a_grant_rests_on(tmp_path, clock):
+    """Rust port, item 21: an agreement basis is held in the pack and checked (digest, parties, signatures)."""
+    from .succession_support import Network
+    from .test_audit_pack import _anchor, _held, _pack, _reasons, _resign, _verify
+    from .test_na_trust_api import _make_agreement
+
+    net = Network(tmp_path)
+    service = net.start(evidence_out_of_band="on", evidence_grants="on")
+    client = _client(service)
+    holder = Holder(client)
+    agreement = _make_agreement(client, service)
+    resp = _post(client, "/admin/grants", {
+        "bearer_key_id": holder.key_id, "capabilities": ["read"], "agreement": agreement,
+        "valid_until": _iso_at(clock.now() + timedelta(hours=2)), "max_uses": 3,
+        "parameter_envelope": {"rows": _envelope()["lifetime_days"]}})
+    assert resp.status_code == 201, resp.get_json()
+    holder.take(resp.get_json())
+    assert _submit_use(client, holder.use(clock.advance(minutes=1), {"rows": 5}, capability="read")).status_code \
+        == 201
+    _anchor(client)
+    pack = _pack(client, from_sequence=1)
+    assert [json.loads(line)["agreement_id"] for line in pack["trust/agreements.jsonl"].decode().splitlines()] \
+        == [agreement["agreement_id"]]
+    result = _verify(net, pack, _held(client))
+    assert result.verified, result.failures
+    # Another agreement in its place, one the NA did not sign, or none at all: refused by name.
+    other = {**agreement, "agreement_id": str(uuid.uuid4())}
+    unsigned = {**agreement, "signatures": []}
+    for replaced, reason in ((other, "cited_agreement_missing"), (unsigned, "agreement_invalid_signature")):
+        line = (json.dumps(replaced, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        broken = _resign(net, pack, {"trust/agreements.jsonl": line})
+        assert reason in _reasons(_verify(net, broken, _held(client))), reason
+    changed = {**agreement, "agreed_terms": {**agreement["agreed_terms"], "capabilities": ["read", "delete"]}}
+    line = (json.dumps(changed, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    assert "cited_agreement_mismatch" in _reasons(_verify(net, _resign(net, pack, {"trust/agreements.jsonl": line}),
+                                                          _held(client)))
+    # A pack without a grant under an agreement keeps the 1.5 file set.
+    plain = _granted(client, clock, Holder(client, "holder-2", "device-2"))
+    assert _submit_use(client, plain.use(clock.advance(minutes=1))).status_code == 201
+    last = _anchor(client)
+    later = _pack(client, from_sequence=last["store_sequence"] - 1)
+    assert "trust/agreements.jsonl" not in later

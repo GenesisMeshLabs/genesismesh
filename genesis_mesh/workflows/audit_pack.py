@@ -69,6 +69,7 @@ from pydantic import ValidationError
 
 from .. import strict_json
 from ..models.audit_pack import (
+    AGREEMENTS_FILE,
     ANCHORS_FILE,
     ATTESTATIONS_FILE,
     CHECKS_FILE,
@@ -79,6 +80,7 @@ from ..models.audit_pack import (
     GENESIS_FILE,
     KEY_HISTORY_FILE,
     MANIFEST_FILE,
+    OPTIONAL_PACK_FILES,
     PACK_FILES,
     POLICIES_FILE,
     REPORT_FILE,
@@ -237,7 +239,7 @@ def _check_manifest(
         if path not in listed:
             result.fail(MANIFEST_FILE, None, "manifest_file_missing", f"{path} is not listed")
     for path, item in sorted(listed.items()):
-        if path not in PACK_FILES:
+        if path not in PACK_FILES and path not in OPTIONAL_PACK_FILES:
             # v1.5.0 review fixes: a pack holds the files of its format and nothing else.
             result.fail(MANIFEST_FILE, None, "manifest_unknown_file", f"{path} is not a file of the format")
             continue
@@ -590,6 +592,8 @@ def _check_cited_trust(
         raw_attestations = _jsonl(files[ATTESTATIONS_FILE])
         raw_treaties = _jsonl(files[TREATIES_FILE])
         raw_feeds = _jsonl(files[FEEDS_FILE])
+        raw_agreements = _jsonl(files[AGREEMENTS_FILE]) if AGREEMENTS_FILE in files else []
+        agreements = {str(a.get("agreement_id")): a for a in raw_agreements if isinstance(a, dict)}
         policies = [BoundaryPolicy.model_validate(p) for p in raw_policies]
         attestations = [MembershipAttestation.model_validate(a) for a in raw_attestations]
         treaties = [RecognitionTreaty.model_validate(t) for t in raw_treaties]
@@ -670,6 +674,13 @@ def _check_cited_trust(
                     result.fail(where, seq, "cited_attestation_missing", grant.basis_id)
                 elif bound.digest() != grant.basis_digest:
                     result.fail(where, seq, "cited_attestation_mismatch", grant.basis_id)
+            else:
+                # v1.6.0 review fixes: an agreement basis too: held, the one the grant names, between the
+                # grant's parties, and signed by both with keys the pack vouches for.
+                problem = _agreement_problem(grant, agreements.get(grant.basis_id), history, issuer_keys)
+                if problem is not None:
+                    result.fail(AGREEMENTS_FILE if problem != "cited_agreement_missing" else where, seq, problem,
+                                grant.basis_id)
         if binding is None:
             continue
         if policy_set_digest(binding.policies) != binding.policy_set_digest:
@@ -680,6 +691,48 @@ def _check_cited_trust(
                 result.fail(where, seq, "cited_policy_missing", f"{applied.policy_id} v{applied.version}")
             elif held.digest() != applied.policy_digest:
                 result.fail(where, seq, "cited_policy_mismatch", f"{applied.policy_id} v{applied.version}")
+
+
+def _agreement_problem(grant: CapabilityGrant, raw: Any, history: NAKeyHistory,
+                       treaty_keys: Mapping[str, list[str]]) -> str | None:
+    """Why the agreement a grant rests on does not hold up in a pack, or None (v1.6.0 review fixes).
+
+    ``cited_agreement_missing``: the pack does not hold it; ``cited_agreement_mismatch``: it is not the
+    one the grant's ``basis_digest`` names, or its parties are not the grant's (the responder is the
+    requester, the offerer the provider); ``agreement_invalid_signature``: its two parties did not
+    sign it, as received, with keys the pack vouches for (the NA's key valid at
+    ``agreed_terms.valid_from`` for its own sovereign, a treaty's subject keys for another; an
+    agreement the NA offered and accepted itself carries the NA's signature for both).
+    """
+    import hashlib
+
+    from ..models.agreement import AgreementRecord
+    from ..models.canonical_registry import agreement_refusal
+    from ..models.key_succession import na_keys_at
+    from ..trust.agreement import verify_agreement
+
+    if raw is None:
+        return "cited_agreement_missing"
+    try:
+        agreement = AgreementRecord.model_validate(raw)
+    except ValidationError:
+        return "cited_agreement_mismatch"
+    digest = hashlib.sha256(agreement.to_canonical_json().encode("utf-8")).hexdigest()
+    if digest != grant.basis_digest or agreement.responder_sovereign_id != grant.requester_sovereign_id \
+            or agreement.offerer_sovereign_id != grant.provider_sovereign_id:
+        return "cited_agreement_mismatch"
+    own = history.sovereign_id
+    na_keys = na_keys_at(history, agreement.agreed_terms.valid_from)
+
+    def keys(party: str) -> list[str]:
+        return list(na_keys) if party == own else [k for k in treaty_keys.get(party, []) if k not in na_keys]
+
+    for offerer, responder in ((keys(agreement.offerer_sovereign_id), keys(agreement.responder_sovereign_id)),
+                               (na_keys, na_keys) if agreement.offerer_sovereign_id == own else ([], [])):
+        if offerer and responder and verify_agreement(agreement, offerer, responder).accepted \
+                and agreement_refusal(raw, offerer, responder) is None:
+            return None
+    return "agreement_invalid_signature"
 
 
 def differences_from_pack_checks(result: PackVerification, files: Mapping[str, bytes]) -> list[dict[str, Any]]:
@@ -763,6 +816,9 @@ def compose_pack(
     }
     for path in (POLICIES_FILE, ATTESTATIONS_FILE, TREATIES_FILE, FEEDS_FILE):
         files[path] = jsonl_bytes([dict(r) for r in trust.get(path, [])])
+    if trust.get(AGREEMENTS_FILE):
+        # v1.6.0 review fixes: only when the pack holds a grant under an agreement.
+        files[AGREEMENTS_FILE] = jsonl_bytes([dict(r) for r in trust[AGREEMENTS_FILE]])
     root = str(genesis.get("root_public_key"))
     checks = verify_audit_pack(files, root_public_key=root, held_anchors=held_anchors,
                                executor_keys=check_executor_keys, check_manifest=False).to_dict()

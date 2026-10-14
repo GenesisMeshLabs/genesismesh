@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError as PydanticValidationError
 
 from ...models.audit_pack import (
+    AGREEMENTS_FILE,
     ATTESTATIONS_FILE,
     CHECKS_FILE,
     FEEDS_FILE,
@@ -174,14 +175,21 @@ class AuditPackService:
         resources = {s["entry"].resource_id for s in entries
                      if s["entry"].entry_kind in ("execution", "grant_execution") and s["entry"].resource_id}
         granted = {s["entry"].subject_id for s in entries if s["entry"].entry_kind == "grant_execution"}
+        # v1.6.0 review fixes: and a quarantined use's grant (it may be its chain's head).
+        granted |= {s["payload"]["record"].get("grant_id") for s in entries if s["entry"].entry_kind == "quarantine"
+                    and s["payload"].get("record_kind") == "grant_execution" and isinstance(s["payload"].get("record"), dict)}
         observed = {s["entry"].resource_id for s in entries if s["entry"].entry_kind == "observation"
                     and s["entry"].resource_id}
         for decision_id in sorted(d for d in decisions if d):
             keep(db.last_entry_before("execution", "decision_id", decision_id, start))
         for resource_id in sorted(r for r in resources if r):
             keep(db.last_resource_entry_before(resource_id, start))
-        for grant_id in sorted(g for g in granted if g):
-            keep(db.last_entry_before("grant_execution", "subject_id", grant_id, start))
+        for grant_id in sorted(g for g in granted if isinstance(g, str) and g):
+            # v1.6.0 review fixes: the grant's whole chain before the range (its uses, and the quarantined
+            # uses that continued it), so the budget, the time-token heads and the chain are checked.
+            keep(db.get_entry_by_record("grant", grant_id))
+            for stored in db.grant_chain_entries_before(grant_id, start):
+                keep(stored)
         for resource_id in sorted(r for r in observed if r):
             keep(db.last_entry_before("observation", "resource_id", resource_id, start))
         # The registry and key history before the range, and the latest retention checkpoint.
@@ -198,6 +206,8 @@ class AuditPackService:
         own = self._na.genesis_block.network_name
         versions: set[tuple[str, int]] = set()
         attestation_ids: set[str] = set()
+        agreements: dict[str, Any] = {}
+        parties: set[str] = set()
         for event in events:
             kind, p = event.entry.entry_kind, event.payload
             binding = None
@@ -213,10 +223,15 @@ class AuditPackService:
             elif kind == "break_glass" and p.get("attestation_id"):
                 attestation_ids.add(str(p["attestation_id"]))
             elif kind == "grant":
-                # v1.6.0: the policy versions a grant is bound to, and its basis attestation.
+                # v1.6.0: the policy versions a grant is bound to, and its basis attestation (review fixes:
+                # or agreement, with the treaties of its parties).
                 binding = p.get("policy_binding")
                 if p.get("basis_kind") == "attestation" and p.get("basis_id"):
                     attestation_ids.add(str(p["basis_id"]))
+                elif p.get("basis_kind") == "agreement" and p.get("grant_id"):
+                    row = db.get_grant_row(str(p["grant_id"]))
+                    if row is not None and row["basis_json"]:
+                        agreements[str(p["basis_id"])] = json.loads(row["basis_json"])
             elif kind == "registry" and p.get("event") == "policy_activated" and p.get("policy_id") \
                     and p.get("policy_version"):
                 versions.add((str(p["policy_id"]), int(p["policy_version"])))
@@ -235,12 +250,20 @@ class AuditPackService:
                 attestations.append(row["attestation"].model_dump(mode="json"))
                 if row["attestation"].issuer_sovereign_id != own:
                     issuers.add(row["attestation"].issuer_sovereign_id)
+        for agreement in agreements.values():
+            for party in (agreement.get("offerer_sovereign_id"), agreement.get("responder_sovereign_id")):
+                if isinstance(party, str) and party != own:
+                    parties.add(party)
         treaties, feeds = [], []
+        for party in sorted(parties - issuers):
+            treaties += [r["treaty"].model_dump(mode="json")
+                         for r in db.list_recognition_treaties(issuer_sovereign_id=own, subject_sovereign_id=party)]
         for issuer in sorted(issuers):
             treaties += [r["treaty"].model_dump(mode="json")
                          for r in db.list_recognition_treaties(issuer_sovereign_id=own, subject_sovereign_id=issuer)]
             feeds += [r["feed"].model_dump(mode="json") for r in db.list_sovereign_revocation_feeds(issuer)]
-        return {POLICIES_FILE: policies, ATTESTATIONS_FILE: attestations, TREATIES_FILE: treaties, FEEDS_FILE: feeds}
+        return {POLICIES_FILE: policies, ATTESTATIONS_FILE: attestations, TREATIES_FILE: treaties, FEEDS_FILE: feeds,
+                AGREEMENTS_FILE: [agreements[k] for k in sorted(agreements)]}
 
     # -- the pack ------------------------------------------------------------------
 

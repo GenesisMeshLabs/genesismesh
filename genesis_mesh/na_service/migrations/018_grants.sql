@@ -13,8 +13,9 @@
 --   * a grant use takes the next position of its resource's chain under the
 --     existing (resource_id, resource_sequence) index, which execution
 --     evidence shares: offline uses never fork a resource chain
---   * a grant's signed form never changes once stored; its uses only grow;
---     it is revoked at most once
+--   * a grant's signed form never changes once stored; its uses and its use
+--     chain only grow; it is revoked at most once; its policy binding and use
+--     chain are never changed or deleted
 
 CREATE TABLE evidence_entries_v18 (
     store_sequence INTEGER PRIMARY KEY,
@@ -126,8 +127,16 @@ BEGIN
 END;
 
 -- The grants this NA issued: the signed grant (also a store entry), what it
--- is bound to, and its operational state. The use counters move forward only,
--- in the transaction that appends each use; a grant is revoked at most once.
+-- is bound to, and its operational state. The use chain and the admitted
+-- uses only grow, in the transaction that appends each use or quarantines
+-- one; a grant is revoked at most once; nothing else in a row changes.
+--
+-- uses counts the admitted uses (the budget); chain_length and
+-- chain_head_digest are the head of the holder's use chain, which a
+-- quarantined use that continues it also moves; last_use_executed_at and
+-- last_token_issued_at are the last admitted use's (the order and time rules
+-- compare the next use with it). basis_json is an agreement basis as
+-- received, so the NA can check again that its parties are still trusted.
 CREATE TABLE IF NOT EXISTS capability_grants (
     grant_id TEXT PRIMARY KEY,
     grant_json TEXT NOT NULL,
@@ -136,17 +145,17 @@ CREATE TABLE IF NOT EXISTS capability_grants (
     bearer_sovereign_id TEXT NOT NULL,
     basis_kind TEXT NOT NULL CHECK (basis_kind IN ('agreement', 'attestation')),
     basis_id TEXT NOT NULL,
+    basis_json TEXT,
     valid_from TEXT NOT NULL,
     valid_until TEXT NOT NULL,
     issued_at TEXT NOT NULL,
     issued_by_operator TEXT,
     store_sequence INTEGER NOT NULL,
     uses INTEGER NOT NULL DEFAULT 0,
-    last_use_digest TEXT,
+    chain_length INTEGER NOT NULL DEFAULT 0,
+    chain_head_digest TEXT,
     last_use_executed_at TEXT,
-    last_token_id TEXT,
     last_token_issued_at TEXT,
-    last_token_uses INTEGER NOT NULL DEFAULT 0,
     revoked_at TEXT,
     revocation_reason TEXT,
     revocation_id TEXT
@@ -154,6 +163,7 @@ CREATE TABLE IF NOT EXISTS capability_grants (
 CREATE INDEX IF NOT EXISTS ix_grants_bearer ON capability_grants(bearer_key_id);
 CREATE INDEX IF NOT EXISTS ix_grants_basis ON capability_grants(basis_kind, basis_id);
 CREATE INDEX IF NOT EXISTS ix_grants_valid_until ON capability_grants(valid_until);
+CREATE INDEX IF NOT EXISTS ix_grants_issued ON capability_grants(issued_at, grant_id);
 
 CREATE TABLE IF NOT EXISTS capability_grant_policies (
     grant_id TEXT NOT NULL,
@@ -163,19 +173,42 @@ CREATE TABLE IF NOT EXISTS capability_grant_policies (
 );
 CREATE INDEX IF NOT EXISTS ix_grant_policies_version ON capability_grant_policies(policy_id, policy_version);
 
+-- Each position of a grant's use chain: an admitted use (its grant_execution
+-- entry) or a quarantined use that continued the chain (its quarantine entry).
+CREATE TABLE IF NOT EXISTS capability_grant_chain (
+    grant_id TEXT NOT NULL,
+    use_sequence INTEGER NOT NULL,
+    use_id TEXT NOT NULL,
+    use_digest TEXT NOT NULL,
+    executed_at TEXT NOT NULL,
+    admitted INTEGER NOT NULL CHECK (admitted IN (0, 1)),
+    rejection_code TEXT,
+    store_sequence INTEGER NOT NULL,
+    PRIMARY KEY (grant_id, use_sequence)
+);
+
 CREATE TRIGGER IF NOT EXISTS capability_grants_guarded_update
 BEFORE UPDATE ON capability_grants
 WHEN NEW.grant_id IS NOT OLD.grant_id
     OR NEW.grant_json IS NOT OLD.grant_json
     OR NEW.grant_digest IS NOT OLD.grant_digest
     OR NEW.bearer_key_id IS NOT OLD.bearer_key_id
+    OR NEW.bearer_sovereign_id IS NOT OLD.bearer_sovereign_id
+    OR NEW.basis_kind IS NOT OLD.basis_kind
     OR NEW.basis_id IS NOT OLD.basis_id
+    OR NEW.basis_json IS NOT OLD.basis_json
     OR NEW.valid_from IS NOT OLD.valid_from
     OR NEW.valid_until IS NOT OLD.valid_until
+    OR NEW.issued_at IS NOT OLD.issued_at
+    OR NEW.issued_by_operator IS NOT OLD.issued_by_operator
     OR NEW.store_sequence IS NOT OLD.store_sequence
     OR NEW.uses < OLD.uses
+    OR NEW.chain_length < OLD.chain_length
+    OR NEW.uses > NEW.chain_length
     OR (OLD.revoked_at IS NOT NULL AND (NEW.revoked_at IS NOT OLD.revoked_at
+                                        OR NEW.revocation_reason IS NOT OLD.revocation_reason
                                         OR NEW.revocation_id IS NOT OLD.revocation_id))
+    OR (NEW.revoked_at IS NULL AND (NEW.revocation_reason IS NOT NULL OR NEW.revocation_id IS NOT NULL))
 BEGIN
     SELECT RAISE(ABORT, 'a grant is never changed; its uses only grow and it is revoked once');
 END;
@@ -190,4 +223,22 @@ CREATE TRIGGER IF NOT EXISTS capability_grant_policies_no_update
 BEFORE UPDATE ON capability_grant_policies
 BEGIN
     SELECT RAISE(ABORT, 'a grant''s policy binding never changes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS capability_grant_policies_no_delete
+BEFORE DELETE ON capability_grant_policies
+BEGIN
+    SELECT RAISE(ABORT, 'a grant''s policy binding never changes');
+END;
+
+CREATE TRIGGER IF NOT EXISTS capability_grant_chain_no_update
+BEFORE UPDATE ON capability_grant_chain
+BEGIN
+    SELECT RAISE(ABORT, 'a grant''s use chain only grows');
+END;
+
+CREATE TRIGGER IF NOT EXISTS capability_grant_chain_no_delete
+BEFORE DELETE ON capability_grant_chain
+BEGIN
+    SELECT RAISE(ABORT, 'a grant''s use chain only grows');
 END;
