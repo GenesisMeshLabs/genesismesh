@@ -152,8 +152,9 @@ def _refusal(state: str, event: str) -> str:
 
 
 def judgement_state(verdict: str, governed_by: str) -> str:
-    """A judged change's Stage 2 state (the state table's entry point)."""
-    if governed_by == "prior_decision":
+    """A judged change's Stage 2 state (the state table's entry point). v1.6.0: a change matched to a
+    grant use is governed (``matched``), as one matched to execution evidence is."""
+    if governed_by in ("prior_decision", "grant"):
         return "judged_denied" if verdict == "deny" else "matched"
     return {"allow": "judged_allowed", "deny": "judged_denied"}.get(verdict, "indeterminate")
 
