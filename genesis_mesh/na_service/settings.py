@@ -132,6 +132,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
             audit_packs=_int(e, "NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR", 12),
             node=_int(e, "NA_RATE_LIMIT_NODE_PER_MINUTE", 120),
             node_address=_int(e, "NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE", 600),
+            executor=_int(e, "NA_RATE_LIMIT_EXECUTOR_PER_MINUTE", 120),
         ),
         operator_key_holders=_json_object(e, "OPERATOR_KEY_HOLDERS_JSON"),
         observation_max_backlog_seconds=_int(e, "NA_OBSERVATION_MAX_BACKLOG_SECONDS", 7 * 24 * 3600),

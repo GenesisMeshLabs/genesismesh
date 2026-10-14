@@ -320,3 +320,26 @@ def test_node_routes_are_inert_without_edge_nodes(clock):
     client = _client(_make_service())
     resp = client.post("/node/state", json={})
     assert resp.status_code == 400 and _code(resp) == "missing_certificate_identity"
+
+
+# -- review fixes (1.7.0) --------------------------------------------------------------------
+
+
+def test_a_node_whose_executor_key_is_retired_is_refused(agent, client, na_service):
+    """M1: a key retired outside /admin/revoke (an earlier release, the database) ends the node's requests."""
+    na_service.db.retire_executor_key(agent.executor_key_id, "op")
+    resp = agent.call("/node/state")
+    assert resp.status_code == 403 and _code(resp) == "edge_node_retired"
+
+
+def test_a_revoked_certificate_is_audited_only_for_a_signed_request(agent, client, na_service):
+    """C4: an unsigned request naming a revoked certificate writes no audit event."""
+    assert _post(client, "/admin/revoke", {"cert_id": agent.cert_id}).status_code == 200
+    before = len(_events(na_service, "node_request_refused"))
+    forged = agent.signed(agent.node_body("/node/state"))
+    forged["signature"] = EdgeAgent(client).signed(agent.node_body("/node/state"))["signature"]
+    resp = client.post("/node/state", json=forged)
+    assert resp.status_code == 403 and _code(resp) == "certificate_revoked"
+    assert len(_events(na_service, "node_request_refused")) == before
+    assert agent.call("/node/state").status_code == 403
+    assert len(_events(na_service, "node_request_refused")) == before + 1

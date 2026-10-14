@@ -67,7 +67,8 @@ def create_admin_blueprint(service) -> Blueprint:
             token_expiry_hours = positive_int_field(
                 data,
                 "token_expiry_hours",
-                default=24,
+                # v1.7.0 review fixes: an edge invite is short-lived unless the operator asks for longer.
+                default=service.edge_service.invite_expiry_hours if edge_invite else 24,
                 code="invalid_token_expiry_hours",
                 message="Token validity windows must be positive",
             )

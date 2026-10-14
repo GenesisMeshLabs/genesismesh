@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 
@@ -26,10 +27,74 @@ class EdgeStoreMixin:
                  values["resource_prefix"], values["enrolled_cert_id"], values["enrolled_at"]),
             )
 
-    def delete_edge_node(self, node_public_key: str) -> None:
-        """Remove an edge node whose enrolment failed before its executor key was registered."""
+    def enrol_edge_node(self, values: dict[str, Any], registered_by: str) -> str:
+        """Register an edge node's executor key and record the edge node in one transaction (review
+        fixes): neither is written without the other. Returns the key's registration time; an
+        integrity error when the key, the node key or an active sovereign ID is taken."""
+        registered_at = datetime.now(timezone.utc).isoformat()
         with self._lock, self.conn:
-            self.conn.execute("DELETE FROM edge_nodes WHERE node_public_key = ?", (node_public_key,))
+            self.conn.execute(
+                """INSERT INTO evidence_executor_keys(key_id, public_key, executor_sovereign_id,
+                       registered_at, registered_by, key_role, resource_prefix) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (values["executor_key_id"], values["executor_public_key"], values["node_sovereign_id"],
+                 registered_at, registered_by, "executor", values["resource_prefix"]),
+            )
+            self.conn.execute(
+                """INSERT INTO edge_nodes(node_public_key, node_sovereign_id, executor_key_id, resource_prefix,
+                       enrolled_cert_id, enrolled_at) VALUES (?, ?, ?, ?, ?, ?)""",
+                (values["node_public_key"], values["node_sovereign_id"], values["executor_key_id"],
+                 values["resource_prefix"], values["enrolled_cert_id"], values["enrolled_at"]),
+            )
+        return registered_at
+
+    def get_edge_node_by_executor_key(self, executor_key_id: str) -> Optional[dict[str, Any]]:
+        row = self.conn.execute("SELECT * FROM edge_nodes WHERE executor_key_id = ?", (executor_key_id,)).fetchone()
+        return _dict(row) if row is not None else None
+
+    def edge_nodes_of(self, node_sovereign_id: str) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM edge_nodes WHERE node_sovereign_id = ? ORDER BY enrolled_at", (node_sovereign_id,)
+        ).fetchall()
+        return [_dict(r) for r in rows]
+
+    def retired_edge_nodes(self) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM edge_nodes WHERE retired_at IS NOT NULL ORDER BY enrolled_at, node_public_key"
+        ).fetchall()
+        return [_dict(r) for r in rows]
+
+    def outstanding_edge_invites(self, now: datetime) -> list[dict[str, Any]]:
+        """Edge invites neither used nor expired: their sovereign IDs and prefixes."""
+        rows = self.conn.execute(
+            """SELECT token_id, node_sovereign_id, executor_resource_prefix, expires_at FROM invite_tokens
+               WHERE node_sovereign_id IS NOT NULL AND used_at IS NULL""",
+        ).fetchall()
+        out = []
+        for row in rows:
+            expires = datetime.fromisoformat(row["expires_at"])
+            if (expires if expires.tzinfo else expires.replace(tzinfo=timezone.utc)) >= now:
+                out.append(_dict(row))
+        return out
+
+    def active_executor_key_prefixes(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT resource_prefix FROM evidence_executor_keys WHERE retired_at IS NULL AND resource_prefix IS NOT NULL"
+        ).fetchall()
+        return [str(r["resource_prefix"]) for r in rows]
+
+    def active_executor_key_sovereign(self, executor_sovereign_id: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM evidence_executor_keys WHERE executor_sovereign_id = ? AND retired_at IS NULL",
+            (executor_sovereign_id,),
+        ).fetchone()
+        return row is not None
+
+    def attestation_subject_exists(self, issuer_sovereign_id: str, subject_id: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM membership_attestations WHERE issuer_sovereign_id = ? AND subject_id = ?",
+            (issuer_sovereign_id, subject_id),
+        ).fetchone()
+        return row is not None
 
     def get_edge_node(self, node_public_key: str) -> Optional[dict[str, Any]]:
         row = self.conn.execute("SELECT * FROM edge_nodes WHERE node_public_key = ?", (node_public_key,)).fetchone()

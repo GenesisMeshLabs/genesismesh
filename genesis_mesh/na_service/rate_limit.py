@@ -54,10 +54,13 @@ class RateLimits:
     #: authenticates) and per client address (counted before).
     node: int = 120
     node_address: int = 600
+    #: v1.7.0 review fixes: break-glass records, observations and grant uses per executor key, counted
+    #: once the record's signature verifies: a key on an unattended device cannot flood the store.
+    executor: int = 120
 
     def __post_init__(self) -> None:
         for name in ("admin", "verify", "evidence", "read", "admin_auth_failures", "observations",
-                     "node", "node_address"):
+                     "node", "node_address", "executor"):
             if getattr(self, name) < 1:
                 raise ValueError(f"rate limit {name} must be at least 1 per minute")
         if self.audit_packs < 1:
