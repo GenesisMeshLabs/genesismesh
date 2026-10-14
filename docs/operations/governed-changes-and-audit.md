@@ -14,6 +14,7 @@ out-of-band-changes
 remediation-and-reviews
 emergency-changes
 grants
+edge-agent
 audit-and-retention
 audit-packs
 audit-verification
@@ -65,6 +66,15 @@ emergency capability and break-glass.
 Changes authorised in advance for a device that cannot reach the NA: when to
 use a grant instead of break-glass, its envelope, time tokens, revocation and
 the limits of offline trust (v1.6.0).
+:::
+
+:::{grid-item-card} The Edge Agent
+:link: edge-agent
+:link-type: doc
+
+One device that changes what it holds while often offline: edge invites,
+decisions, grants and break-glass on the device, revocation and the console
+(v1.7.0, beta).
 :::
 
 ::::

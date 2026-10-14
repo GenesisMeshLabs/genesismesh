@@ -32,6 +32,7 @@ conformance/
 | selective_disclosure | `selective_disclosure.json` | 2 | Capability Merkle proof + nullifier |
 | consensus | `consensus.json` | 1 | 3-validator ConsensusProof assemble + verify |
 | data_usage | `data_usage.json` | 1 | DataAccessIntent policy verify |
+| node | `node.json` | 11 | Node request signatures (heartbeat, the edge `/join` executor co-signature, the `/node/*` routes with `purpose` and `audience`), a tampered body, join certificates and CRLs signed by the NA (v1.7.0; the Rust SDK runs it) |
 
 ## Vector format
 
@@ -67,6 +68,16 @@ All vectors use deterministic Ed25519 keys derived from fixed seeds:
 
 Seed "a" is `bytes(range(32))`, seed "b" is `bytes(range(32, 64))`, seed "c"
 is `bytes(range(64, 96))`.
+
+In the `node` suite, "a" is the node key, "b" the executor key and "c" the
+Network Authority's key. Each vector has a `kind`: `node_request` and
+`join_request` give the unsigned body (`input.body`) and expect the exact
+payload and the Ed25519 signature (deterministic), `join_request` also the
+executor's payload, signature and key ID; `node_request_tampered` expects a
+signature over another body not to verify; `join_certificate` and `crl` give
+a signed record as the NA serves it (a certificate with the `edge` block
+`/join` adds, which is not signed) and expect its canonical payload and
+whether it verifies.
 
 ## Running against the Python reference implementation
 
