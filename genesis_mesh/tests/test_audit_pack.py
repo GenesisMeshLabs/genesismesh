@@ -473,6 +473,8 @@ READ_ROUTES = {
     ("GET", "/admin/evidence/reviews/<review_id>"),
     # v1.6.0: grants, read as the rest of the store is.
     ("GET", "/admin/grants"), ("GET", "/admin/grants/<grant_id>"), ("GET", "/admin/grants/<grant_id>/uses"),
+    # v1.7.0: the edge nodes view.
+    ("GET", "/admin/edge-nodes"),
 }
 
 

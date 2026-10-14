@@ -39,6 +39,7 @@ from .rate_limit import RATE_LIMIT_STORES, DatabaseRateLimiter, RateLimiter, Rat
 from .services import (
     AuditPackService,
     BoundaryPolicyService,
+    EdgeService,
     EvidenceStoreService,
     GrantLimits,
     GrantService,
@@ -60,6 +61,7 @@ from .routes import (
     create_data_usage_blueprint,
     create_disclosure_blueprint,
     create_discovery_blueprint,
+    create_edge_blueprint,
     create_enrollment_blueprint,
     create_evidence_blueprint,
     create_evidence_store_blueprint,
@@ -352,6 +354,8 @@ class NetworkAuthorityService:
         self.remediation_service = RemediationService(self)
         # v1.6.0: pre-issued grants.
         self.grant_service = GrantService(self)
+        # v1.7.0: edge nodes (the edge agent).
+        self.edge_service = EdgeService(self)
         # v1.5.0: audit packs and archives.
         self.audit_pack_service = AuditPackService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
@@ -399,6 +403,8 @@ class NetworkAuthorityService:
         # Review fixes: grants are switched off only once every grant has ended.
         self.grant_service.check_switch()
         self.grant_service.ensure_grants()
+        # v1.7.0: executor keys of revoked edge nodes whose retirement an earlier revocation missed.
+        self.edge_service.ensure_retired()
         logger.info(
             "Network Authority service initialized for network: %s",
             genesis_block.network_name,
@@ -422,6 +428,7 @@ class NetworkAuthorityService:
         self.app.register_blueprint(create_out_of_band_blueprint(self))
         self.app.register_blueprint(create_remediation_blueprint(self))
         self.app.register_blueprint(create_grants_blueprint(self))
+        self.app.register_blueprint(create_edge_blueprint(self))
         self.app.register_blueprint(create_key_history_blueprint(self))
         self.app.register_blueprint(create_disclosure_blueprint(self))
         self.app.register_blueprint(create_consensus_blueprint(self))

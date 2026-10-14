@@ -198,6 +198,12 @@ def render_contract_page(contract: dict[str, Any]) -> str:
         w("")
         w(contract["rules"]["grant_fallback"])
         w("")
+    if "edge_agent" in contract["rules"]:
+        # v1.7.0: what the edge agent and the routes it calls promise.
+        w("## Edge agent")
+        w("")
+        w(contract["rules"]["edge_agent"])
+        w("")
     w("## Error codes")
     w("")
     w(contract["rules"]["error_envelope"])

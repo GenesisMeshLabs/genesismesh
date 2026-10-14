@@ -119,6 +119,49 @@ class PolicyStoreMixin:
             )
         return crl
 
+    def revoke_certs(
+        self,
+        cert_ids: list[str],
+        reason: str,
+        issuer: str,
+    ) -> CertificateRevocationList:
+        """Revoke several certificates in one next unsigned CRL (v1.7.0: every certificate of an
+        edge node). Certificates the active CRL already lists are left as they are; when it lists
+        them all, the active CRL is returned unchanged."""
+        with self._lock:
+            unknown = [cert_id for cert_id in cert_ids if not self.get_cert(cert_id)]
+            if unknown:
+                raise KeyError(f"Unknown certificate: {unknown[0]}")
+
+            current = self.get_active_crl()
+            if current is None:
+                current = CertificateRevocationList.create_empty(issuer=issuer, sequence=0)
+            listed = {rc.certificate_id for rc in current.revoked_certificates}
+            new_ids = list(dict.fromkeys(cert_id for cert_id in cert_ids if cert_id not in listed))
+            if not new_ids:
+                return current
+
+            now = datetime.now(timezone.utc)
+            additions = [
+                RevokedCertificate(certificate_id=cert_id, revoked_at=now, reason=reason, issuer=issuer)
+                for cert_id in new_ids
+            ]
+            crl = self._next_crl(
+                current,
+                self._retained_revocations(current.revoked_certificates + additions, now),
+                now,
+            )
+            with self.conn:
+                self.conn.executemany(
+                    """
+                    UPDATE issued_certs
+                    SET status = 'revoked', revoked_at = ?, revocation_reason = ?
+                    WHERE cert_id = ?
+                    """,
+                    [(now.isoformat(), reason, cert_id) for cert_id in new_ids],
+                )
+            return crl
+
     def sweep_superseded_certs(
         self,
         issuer: str,

@@ -18,36 +18,10 @@ from ..errors import (
     positive_int_field,
     request_json_object,
 )
+from ..services.edge import certificate_time_rejection as _certificate_time_rejection
+from ..services.edge import parse_db_datetime as _parse_db_datetime
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_db_datetime(value: str) -> datetime:
-    """Parse a persisted ISO datetime and normalize it to UTC."""
-    parsed = datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def _certificate_time_rejection(existing: dict) -> tuple[str, str] | None:
-    """Return an error/reason pair when a persisted certificate is not currently valid."""
-    now = datetime.now(timezone.utc)
-    issued_at = _parse_db_datetime(existing["issued_at"])
-    expires_at = _parse_db_datetime(existing["expires_at"])
-    if issued_at > now:
-        return "Certificate is not yet valid", "certificate_not_yet_valid"
-    if expires_at <= now:
-        return "Certificate expired; re-enrollment required", "certificate_expired"
-    # F-20: a renewed certificate's predecessor stays usable for a grace window,
-    # then stops being accepted here at the same instant it enters the CRL.
-    revoke_after = existing.get("revoke_after")
-    if revoke_after and _parse_db_datetime(revoke_after) <= now:
-        return (
-            "Certificate superseded by renewal; use the renewed certificate",
-            "certificate_superseded",
-        )
-    return None
 
 
 def _token_fingerprint(token_id: str) -> str:
@@ -122,6 +96,10 @@ def create_enrollment_blueprint(service) -> Blueprint:
                         code="node_key_compromised",
                     )
 
+            # v1.7.0: an edge invite's executor key is checked before the invite is consumed, so a
+            # refused request never burns it.
+            edge_join = service.edge_service.check_join(data, available_token, node_public_key)
+
             token = service.db.use_invite_token(invite_token, node_public_key)
             if token is None:
                 if not service.rate_limiter.allow(f"join-token-fail:{remote_addr}", 3, 60):
@@ -157,6 +135,9 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     "remote_addr": remote_addr,
                 },
             )
+            body = cert.model_dump(mode="json")
+            if edge_join is not None:
+                body["edge"] = service.edge_service.enrol(edge_join, cert)
 
             service.connected_nodes[cert.cert_id] = {
                 "node_public_key": node_public_key,
@@ -166,7 +147,7 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 "remote_addr": remote_addr,
             }
             logger.info("Issued join certificate %s for roles %s", cert.cert_id, roles)
-            return jsonify(cert.model_dump(mode="json")), 201
+            return jsonify(body), 201
         except ApiError:
             raise
         except Exception as exc:
@@ -235,6 +216,8 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 status=status,
                 remote_addr=request.remote_addr or "unknown",
             )
+            # v1.7.0: an edge agent's status (beta); ignored for other nodes.
+            service.edge_service.record_agent_status(node_public_key, data.get("agent"))
             mirror_info = service.connected_nodes.get(cert_id, {})
             service.connected_nodes[cert_id] = {
                 **mirror_info,
@@ -396,7 +379,12 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 "renewed_from": cert_id,
             }
             logger.info("Renewed certificate %s... -> %s...", cert_id[:8], new_cert.cert_id[:8])
-            return jsonify(new_cert.model_dump(mode="json")), 201
+            body = new_cert.model_dump(mode="json")
+            # v1.7.0: an edge node's executor key, unchanged by the renewal (beta).
+            edge = service.edge_service.edge_block(node_public_key)
+            if edge is not None:
+                body["edge"] = edge
+            return jsonify(body), 201
         except ApiError:
             raise
         except Exception as exc:
