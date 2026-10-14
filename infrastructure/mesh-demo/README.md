@@ -30,9 +30,10 @@ leaves it.
 `.env` (mode 600): `GENESIS_MESH_VERSION`, `GATEWAY_VERSION`,
 `NA_PRIVATE_KEY_SEED`, `NA_PUBLIC_KEY`, `OPERATOR_PUBLIC_KEYS_JSON` (`ops`,
 `demo-ops` and `mesh-reader`), `REFERENCE_PUBLIC_KEY`, `DEMO_OPERATOR_SEED`,
-`DEMO_EXECUTOR_SEED`. Optional: `EVIDENCE_OUT_OF_BAND` and
-`EVIDENCE_REMEDIATION` (`on` or `off`, default `off`; the second needs the
-first) and `OPERATOR_KEY_HOLDERS_JSON` (key ID to the person who holds it).
+`DEMO_EXECUTOR_SEED`. Optional: `EVIDENCE_OUT_OF_BAND`,
+`EVIDENCE_REMEDIATION` and `EVIDENCE_GRANTS` (`on` or `off`, default `off`;
+the last two need the first; grants turn off only once every grant has
+ended) and `OPERATOR_KEY_HOLDERS_JSON` (key ID to the person who holds it).
 The NA names holders at the first start with `EVIDENCE_OUT_OF_BAND=on`, and
 reviews need two named holders, so set the holders before that start; see
 the out-of-band and remediation runbooks.
