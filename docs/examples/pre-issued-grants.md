@@ -1,7 +1,5 @@
 # Example: Pre-Issued Grants
 
-*Unreleased.*
-
 A device at a remote site rotates a credential it uses every day. Its link to
 the Network Authority (NA) drops for hours at a time, and the rotation must
 not wait for it. Before 1.6 the device had two choices while disconnected:

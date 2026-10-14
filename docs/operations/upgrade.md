@@ -53,8 +53,6 @@ built wheel before every release.
 
 ## Upgrading to 1.6
 
-*Unreleased.*
-
 1.6 adds migration 018. On SQLite it rebuilds the evidence table once more
 (to accept the `grant`, `grant_execution` and `grant_revocation` entry kinds),
 with the same cost as in 1.5: one copy of the table on disk and the time the
