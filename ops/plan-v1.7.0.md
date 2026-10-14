@@ -72,10 +72,11 @@ The reviews found:
 - An authority on the edge (a Rust NA, deferred).
 - Policy evaluation on the device.
 
-### Candidates carried from Stage 5 (to confirm or defer)
+### Candidates carried from Stage 5 (deferred out of 1.7.0, Decision 17)
 
 - **Inclusion proofs for an audit pack's cited entries** (the Stage 4
-  candidate, deferred from 1.6.0). A pack's cited entries are tied to the
+  candidate, deferred from 1.6.0, and again from 1.7.0: moved to
+  `roadmap.md` as a post-program item when `phase-n.md` closes). A pack's cited entries are tied to the
   store only by the packs an auditor verified before (`audit verify --prior`)
   or an anchor at their exact position (warning `cited_entry_unanchored`
   otherwise). Anchors over a Merkle tree of the store (a root in each anchor,
@@ -114,8 +115,9 @@ The reviews found:
 
 ## Release Gate
 
-- [ ] Stage 5 (1.6.0) released; this stage confirmed (Decision 5 of
-      `plan-v1.2.0.md`)
+- [x] Stage 5 (1.6.0) released; this stage confirmed (the Maintainer's
+      standing instruction to proceed with the next plan once 1.6.0 was
+      green, 2026-10-14; Decision 5 of `plan-v1.2.0.md`)
 - [ ] Maintainer decisions recorded (date)
 - [ ] Version bumped to `1.7.0` across the release train; `docs/sdk/index.md`
 - [ ] CHANGELOG entries, `history.md`, `phase-n.md` closed for the program
@@ -123,7 +125,9 @@ The reviews found:
       covered
 - [ ] Public contract: the node routes and the agent classified
 - [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
+- [ ] Merge order: the Rust SDK (`sdk-rust`), then core, then the gateway
+      (Decision 16): core after re-running interop with all four SDK
+      repositories on `feat/edge-agent`, the gateway right after core
 - [ ] Dry runs green; tags `v1.7.0`, releases, published-artifacts green
       (including the agent)
 - [ ] `"1.7.0"` added to the `upgrade.yml` matrix after the release
@@ -131,11 +135,115 @@ The reviews found:
 
 ## Decisions
 
-Open, for the Maintainer:
+1. **Agent image beta** until a release after 1.7.0 proves it in a
+   deployment (taken as proposed, 2026-10-14; Decision 14).
+2. **Executor key registered at join**, by the node's own signature, instead
+   of a privileged admin call per device (taken as proposed, 2026-10-14;
+   Decision 8).
+3. **A node-scoped evaluate route** instead of operator keys on devices
+   (taken as proposed, 2026-10-14; Decision 6).
 
-1. **Agent image beta** (proposed) until a release after 1.7.0 proves it in a
-   deployment.
-2. **Executor key registered at join** (proposed), by the node's own
-   signature, instead of a privileged admin call per device.
-3. **A node-scoped evaluate route** (proposed, after review) instead of
-   operator keys on devices.
+From the implementation contract (2026-10-14). Each was taken as proposed,
+2026-10-14, to be confirmed by the Maintainer at release, except where it
+says otherwise.
+
+### The agent and the SDK
+
+4. **The agent is the workspace member `sdk-rust/edge/`**: package and binary
+   `genesis-mesh-edge`, `publish = false`, the SDK's version, released by the
+   `sdk-rust` `v*` tag like the verifier.
+5. **A default `client` feature in the Rust SDK** gates `reqwest`,
+   `percent-encoding`, every HTTP client, governance, the grant holder and the
+   error variants that wrap `reqwest`; the verifier depends on the SDK with
+   `default-features = false`, and CI checks with `cargo tree` that neither
+   pulls in an HTTP, async or database stack.
+
+### The NA surface
+
+6. **Node-scoped routes**: `POST /node/boundary/evaluate` (Decision 3), and
+   two beyond the plan, `POST /node/state` (the attestations and grants
+   issued to the node, which a device cannot otherwise read) and
+   `POST /node/evidence/resource-head` (a device cannot read resource heads
+   through the admin route). Operators get `GET /admin/edge-nodes` (read
+   tier). All beta.
+7. **Edge invites need the privileged tier**: `/admin/invite` with
+   `node_sovereign_id` and `executor_resource_prefix`, since redeeming one
+   registers an executor key, a privileged act. At most one active edge node
+   per sovereign ID.
+8. **The executor key is registered at `/join`**: the node key signs the
+   request and the executor key co-signs it as proof of possession; its ID is
+   `edge-` and the first 32 hex digits of SHA-256 of the raw key
+   (Decision 2).
+9. **Revoking an edge node** revokes all its unrevoked certificates in one
+   CRL, retires its executor key and so revokes its grants, with the existing
+   reason `bearer_key_retired`: no new reason code, no signed-enum or
+   verifier change.
+
+### Verification and the decision order on the device
+
+10. **`GovernedVerification.any_bound_policies`** (Rust SDK, default
+    `false`): when set, a decision's policy binding is not compared with
+    `expected_policies`; the agent sets it and still checks the NA's
+    signature, the context binding and the attestation binding. It breaks
+    struct literals that list every field; the SDK is beta.
+11. **Decision order**: the NA decides when connected, a grant when not,
+    break-glass covers the rest. A request a held grant names but does not
+    cover is refused locally even with a justification, as the 1.6 SDKs
+    never fall back for a request the grant does not cover. Break-glass is
+    allowed when no held grant names the capability, the covering grant has
+    ended, is spent or revoked, or the snapshot is stale.
+12. **Treaties are left out of the snapshot**: nothing on the device reads
+    them (no policy evaluation, no peer verification on the device).
+
+### Console, release and merge order
+
+13. **The console is the gateway console's operator view**
+    (`edge-list-edge-nodes`), not the public mesh view, which is anonymous;
+    the mesh view is unchanged.
+14. **The agent and its image are beta** (Decision 1): the image is signed by
+    digest and tagged `X.Y.Z` only, with no `X.Y` or `latest` while beta.
+15. **The two-hour scenario runs in real time**, weekly and on release pull
+    requests (`edge-soak.yml`); a 120-second version of the same scenario
+    runs on every pull request on both architectures and doubles as the
+    footprint measurement.
+16. **Merge order: `sdk-rust`, then core, then the gateway**, as for 1.6.0:
+    the SDK first (its live tests skip when the core lacks `/node/state`),
+    core after interop runs with all four SDK repositories on
+    `feat/edge-agent`, the gateway right after core, whose catalog check
+    needs the core's routes. `feat/edge-agent` is also pushed, unchanged, to
+    `sdk-go`, `sdk-typescript` (with the fix in Decision 23) and `sdk-dotnet`
+    so interop pairs the branches. The gate line above is amended.
+
+### Deferred
+
+17. **Merkle inclusion proofs** (the Stage 5 candidate) are deferred out of
+    1.7.0: they change `StoreAnchor`, a stable signed artifact (a second
+    anchor version, verifiers updated first in three languages, a setting off
+    by default, pack format 2 and a new frozen fixture), share no code with
+    the agent, and the gap has workarounds (`audit verify --prior`, anchors
+    at the cited position) and a named warning.
+18. **Private-CA Network Authorities: deferred** (coordinator, 2026-10-14). No
+    `ClientOptions::with_root_certificates` and no `authority.ca_file` in
+    1.7.0; a deferred candidate.
+
+### The agent's behaviour and keys
+
+19. **An outcome not reported** within `report_timeout_seconds` is recorded
+    as `outcome: "failure"`, with a detail saying it was not reported.
+20. **Device keys are files** protected by permissions; platform key stores
+    (TPM, PKCS#11) are deferred; armv7 is not built.
+21. **No new switch on the NA**: the edge surface stays inert until an
+    operator creates an edge invite; the only new settings are the two rate
+    limits of the `/node/*` routes. Edge invites need `EVIDENCE_STORE=on` and
+    `EVIDENCE_OUT_OF_BAND=on`; grants also need `EVIDENCE_GRANTS=on`, without
+    which the agent works with decisions and break-glass only.
+
+### Coordinator (2026-10-14)
+
+22. **Revoking an edge node does not revoke its attestations**: retiring its
+    key already revokes its grants, and the node can no longer authenticate.
+23. **Grant budgets count quarantined uses only until the NA answers** (from
+    the 1.6.0 live smoke): the Rust and TypeScript grant holders count every
+    place of the use chain against `max_uses` while offline, the safe bound,
+    and stop counting a use once the NA has answered it as quarantined; the
+    chain position is still consumed (1.6 Decision 18).
