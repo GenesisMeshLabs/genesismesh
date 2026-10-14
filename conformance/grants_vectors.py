@@ -21,15 +21,25 @@ Kinds:
 ``issuance``
     The NA's issuance check (``trust.grants.check_grant``): per gate type,
     decided over the envelope (``pass``, ``may_fail``), every undecidable
-    case by name, selectors, policy validity, the basis checks. The NA runs
-    it; an SDK may skip these vectors.
+    case by name, selectors, policy validity, the basis checks. NA only:
+    only the Network Authority issues grants, so an SDK skips these vectors
+    and never ports the policy engine (``NA_ONLY_KINDS``).
 ``use``
     The rules a use is checked by (``trust.grants.use_problem``), in order,
-    with what a holder or verifier holds of its chain.
+    with what a holder or verifier holds of its chain: the last admitted use
+    (``previous``), how many uses were admitted (``admitted``; null when the
+    chain is not held from its first use) and the use a time token names.
 ``verify_export``
     Stores holding grants, their uses (with the NA's resource positions),
-    revocations, quarantined uses and observations governed by a grant:
-    which verify, and variants refused by named reason.
+    revocations, quarantined uses (in the chain or not) and observations
+    governed by a grant: which verify, and variants refused by named reason.
+
+v1.6.0 review fixes: the file is strict JSON (an input every strict reader
+refuses, an integer beyond 64 bits, is written as JSON text in
+``parameter_json``); the use rules follow the review fixes (a stateless limit
+per time token, the budget over admitted uses, a 300 s skew before a token, a
+token not older than its grant); the verifier places quarantined uses in the
+chain and holds scoped bearer keys to their prefix.
 """
 
 from __future__ import annotations
@@ -41,6 +51,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import nacl.signing
+
+#: Kinds only the Network Authority runs: an SDK skips them.
+NA_ONLY_KINDS = ("issuance",)
 
 SEEDS = {
     "a": bytes(range(32)),       # an observer
@@ -105,6 +118,7 @@ def evaluate(vector: dict[str, Any]) -> dict[str, Any]:
     """What the Python reference makes of one vector's input (the runner compares it with ``expected``)."""
     from pydantic import ValidationError
 
+    from genesis_mesh import strict_json
     from genesis_mesh.models.boundary_policy import BoundaryPolicy
     from genesis_mesh.models.canonical_registry import received_canonical, signed_as_received
     from genesis_mesh.models.grants import CapabilityGrant, EnvelopeParameter, GrantExecutionEvidence
@@ -123,7 +137,9 @@ def evaluate(vector: dict[str, Any]) -> dict[str, Any]:
         return {"valid": signed_as_received(vector["model"], vector["record"], [vector["public_key"]])}
     if kind == "envelope_parameter":
         try:
-            spec = EnvelopeParameter.model_validate(inp["parameter"])
+            # JSON text for an input a strict reader refuses (an integer beyond 64 bits): refused either way.
+            raw = strict_json.loads(inp["parameter_json"]) if "parameter_json" in inp else inp["parameter"]
+            spec = EnvelopeParameter.model_validate(raw)
         except (ValidationError, ValueError):
             return {"valid": False}
         return {"valid": True, "normalized": spec.model_dump(mode="json")}
@@ -164,12 +180,11 @@ def evaluate(vector: dict[str, Any]) -> dict[str, Any]:
         use = GrantExecutionEvidence.model_validate(inp["use"])
         prev = inp.get("previous")
         previous = PreviousUse(
-            digest=prev["digest"], executed_at=when(prev["executed_at"]), time_token_id=prev["time_token_id"],  # type: ignore[arg-type]
-            time_token_issued_at=when(prev["time_token_issued_at"]), token_uses=prev["token_uses"],  # type: ignore[arg-type]
+            executed_at=when(prev["executed_at"]), time_token_issued_at=when(prev["time_token_issued_at"]),  # type: ignore[arg-type]
         ) if prev else None
         head = inp.get("token_head")
         found = use_problem(
-            use, grant=grant, previous=previous,
+            use, grant=grant, previous=previous, admitted=inp.get("admitted"),
             token_head=(head["digest"], when(head["executed_at"])) if head else None,  # type: ignore[arg-type]
             token_keys=inp["na_public_keys"], raw_token=inp["use"].get("time_token"),
             revoked_at=when(inp.get("revoked_at")), recorded_at=when(inp.get("recorded_at")),
@@ -177,7 +192,8 @@ def evaluate(vector: dict[str, Any]) -> dict[str, Any]:
         return {"code": found[0] if found else None}
     if kind == "verify_export":
         keys = {r["key_id"]: ExecutorKey(key_id=r["key_id"], public_key=r["public_key"],
-                                         executor_sovereign_id=r["executor_sovereign_id"], role=r["role"])
+                                         executor_sovereign_id=r["executor_sovereign_id"], role=r["role"],
+                                         resource_prefix=r.get("resource_prefix"))
                 for r in inp["executor_keys"]}
         result = verify_evidence_events(parse_export_lines(inp["lines"].split("\n")),
                                         na_public_keys=inp["na_public_keys"], executor_keys=keys,
@@ -300,6 +316,12 @@ def _issuance_vectors() -> list[dict[str, Any]]:
         if failing is not None:
             case(f"{vid}-may-deny", f"{g['gate_type']}: a value of the envelope may fail", failing, [_policy([g])],
                  expect_reason="grant_gate_may_deny")
+    claim_gate = gate("attestation_claim.v1", path="request_parameters.app", claim="apps")
+    with_null = {"kind": "attestation", "attestation": _attestation(apps=["billing", None]),
+                 "provider_sovereign_id": NA_SOVEREIGN}
+    case("attestation-claim-null", "attestation_claim.v1: a null value fails the gate, even when the claim lists "
+         "null", {"app": {"one_of": ["billing", None]}}, [_policy([claim_gate])], basis=with_null,
+         expect_reason="grant_gate_may_deny")
     case("parent-kind-denied", "A policy forbidding grants (denylist on parent_kind grant)", {},
          [_policy([gate("denylist.v1", path="parent_kind", values=["grant"])])], expect_reason="grant_gate_may_deny")
     office = gate("time_window.v1", weekdays=[1, 2, 3, 4, 5], utc_hour_start=7, utc_hour_end=19)
@@ -382,11 +404,14 @@ def _envelope_vectors() -> list[dict[str, Any]]:
         ("empty-integer-range", "An integer range holding no integer: refused", _int_range(3, 3, exclusive_minimum=True)),
         ("boolean-bound", "A boolean bound: refused", {"number_range": {"number_type": "number", "minimum": True,
                                                                          "maximum": 3}}),
-        ("bound-beyond-64-bits", "An integer bound beyond 64 bits: refused", _int_range(0, 2**64)),
+        ("bound-beyond-64-bits", "An integer bound beyond 64 bits, as JSON text (a strict reader refuses it): "
+         "refused", '{"number_range":{"number_type":"integer","minimum":0,"maximum":18446744073709551616}}'),
+        ("bound-at-64-bits", "The largest integer bound, 2^64 - 1", _int_range(0, 2**64 - 1)),
         ("object-value", "An object in one_of: refused", {"one_of": [{"a": 1}]}),
     ):
+        key = "parameter_json" if isinstance(parameter, str) else "parameter"
         vector = {"id": f"parameter-{vid}", "kind": "envelope_parameter", "description": desc,
-                  "input": {"parameter": parameter}}
+                  "input": {key: parameter}}
         vector["expected"] = evaluate(vector)
         out.append(vector)
     envelope = {"n": _int_range(1, 9), "region": {"one_of": ["eu-west", 1]},
@@ -424,7 +449,7 @@ def _grant(**overrides: Any) -> Any:
         valid_until=T0 + timedelta(hours=4), max_uses=3, max_uses_per_time_token=2,
         parameter_envelope={"lifetime_days": EnvelopeParameter.model_validate(_int_range(1, 90))},
         policy_binding={"policies": [a.model_dump() for a in applied], "policy_set_digest": policy_set_digest(applied)},
-        issued_at=T0, issuer_sovereign_id=NA_SOVEREIGN, issued_by="na-key",
+        issued_at=T0 - timedelta(hours=1), issuer_sovereign_id=NA_SOVEREIGN, issued_by="na-key",
     )
     fields.update(overrides)
     return _signed(CapabilityGrant(**fields), "c", "na-key")
@@ -458,10 +483,14 @@ def _use_vectors() -> list[dict[str, Any]]:
     at = T0 + timedelta(minutes=5)
     first = _use(grant, 1, at, token, None)
 
+    unset: Any = object()
+
     def case(vid: str, desc: str, use: Any, *, expect: str | None, with_grant: bool = True, previous: dict | None = None,
              token_head: dict | None = None, revoked_at: datetime | None = None,
-             recorded_at: datetime | None = None) -> None:
-        inp = {"grant": grant.to_wire() if with_grant else None, "use": use.to_wire(), "previous": previous,
+             recorded_at: datetime | None = None, admitted: Any = unset, of: Any = None) -> None:
+        held = of or grant
+        inp = {"grant": held.to_wire() if with_grant else None, "use": use.to_wire(), "previous": previous,
+               "admitted": use.use_sequence - 1 if admitted is unset else admitted,
                "token_head": token_head, "revoked_at": _iso(revoked_at) if revoked_at else None,
                "recorded_at": _iso(recorded_at or use.executed_at), "na_public_keys": [pub("c")]}
         vector = {"id": f"use-{vid}", "kind": "use", "description": desc, "input": inp}
@@ -469,8 +498,7 @@ def _use_vectors() -> list[dict[str, Any]]:
         assert vector["expected"]["code"] == expect, (vid, vector["expected"])
         out.append(vector)
 
-    previous = {"digest": first.digest(), "executed_at": _iso(at), "time_token_id": token.time_token_id,
-                "time_token_issued_at": _iso(token.issued_at), "token_uses": 2}
+    previous = {"executed_at": _iso(at), "time_token_issued_at": _iso(token.issued_at)}
     fresh = _token(T0 + timedelta(minutes=6), 1, first.digest(), n=31)
     case("admitted", "A use inside its grant", first, expect=None)
     case("capability", "A capability the grant does not name", _use(grant, 1, at, token, None,
@@ -496,11 +524,33 @@ def _use_vectors() -> list[dict[str, Any]]:
     case("token-regressed", "A time token older than the previous use's",
          _use(grant, 2, at + timedelta(minutes=2), _token(T0 - timedelta(minutes=1), n=33), first.digest()),
          previous=previous, expect="grant_time_token_regressed")
-    case("token-exhausted", "A third use citing one time token (two allowed)",
-         _use(grant, 2, at + timedelta(minutes=2), token, first.digest()), previous=previous,
+    case("token-exhausted", "Use 3 cites a time token naming use 0: at most two uses follow it",
+         _use(grant, 3, at + timedelta(minutes=2), token, first.digest()), previous=previous,
          expect="grant_time_token_exhausted")
-    case("before-token", "A use dated before its time token", _use(grant, 1, T0 - timedelta(seconds=1), token, None),
-         expect="grant_use_before_time_token")
+    case("token-limit-quarantined-positions", "Positions a quarantined use took count toward the limit too "
+         "(use 3 after a quarantined use 2, token naming use 0)",
+         _use(grant, 3, at + timedelta(minutes=2), token, "2" * 64), previous=previous, admitted=1,
+         expect="grant_time_token_exhausted")
+    case("token-limit-later-head", "Use 3 cites a time token naming use 1: within two of it",
+         _use(grant, 3, at + timedelta(minutes=2), fresh, "2" * 64), previous=previous,
+         token_head={"digest": first.digest(), "executed_at": _iso(at)}, expect=None)
+    stored_up = _token(T0 + timedelta(minutes=1), n=36)
+    case("token-stored-up", "Another token naming use 0, taken later and kept: the same limit",
+         _use(grant, 3, at + timedelta(minutes=2), stored_up, "2" * 64), previous=previous,
+         expect="grant_time_token_exhausted")
+    later = _token(T0 + timedelta(minutes=10), n=39)
+    case("before-token", "A use dated more than 300 s before its time token",
+         _use(grant, 1, later.issued_at - timedelta(seconds=301), later, None), expect="grant_use_before_time_token")
+    case("before-token-skew", "A use dated up to 300 s before its time token (clock skew)",
+         _use(grant, 1, later.issued_at - timedelta(seconds=300), later, None), expect=None)
+    case("token-before-grant", "A time token the NA signed before the grant was issued",
+         _use(grant, 1, at, _token(T0 - timedelta(hours=2), n=37), None), expect="grant_time_token_invalid")
+    case("budget-counts-admitted-uses", "Use 5 after two quarantined uses: two admitted, within a budget of three",
+         _use(grant, 5, at + timedelta(minutes=2), _token(T0 + timedelta(minutes=1), 4, "4" * 64, n=38), "4" * 64),
+         previous=previous, admitted=2, expect=None)
+    case("budget-unknown", "A verifier that does not hold the chain from its first use does not check the budget",
+         _use(grant, 5, at + timedelta(minutes=2), _token(T0 + timedelta(minutes=1), 4, "4" * 64, n=38), "4" * 64),
+         previous=previous, admitted=None, expect=None)
     case("out-of-order", "A use dated before the previous use",
          _use(grant, 2, at - timedelta(minutes=1), _token(T0 + timedelta(minutes=1), 1, first.digest(), n=34),
               first.digest()), previous=previous, expect="grant_use_out_of_order")
@@ -592,7 +642,7 @@ def _export_vectors() -> list[dict[str, Any]]:
     from genesis_mesh.trust.out_of_band import entry_index
 
     out: list[dict[str, Any]] = []
-    keys = [
+    keys: list[dict[str, Any]] = [
         {"key_id": "executor-b", "public_key": pub("b"), "executor_sovereign_id": DEVICE, "role": "executor"},
         {"key_id": "executor-d", "public_key": pub("d"), "executor_sovereign_id": DEVICE, "role": "executor"},
         {"key_id": "observer-a", "public_key": pub("a"), "executor_sovereign_id": "cloud-observer", "role": "observer"},
@@ -645,9 +695,9 @@ def _export_vectors() -> list[dict[str, Any]]:
         return "\n".join(out_lines)
 
     def case(vid: str, desc: str, items: list, *, expect: list[dict] | None = None, first: int = 1,
-             prev: str | None = None) -> None:
-        inp = {"lines": lines(items, first, prev), "na_public_keys": [pub("c")], "executor_keys": keys,
-               "contiguous": True}
+             prev: str | None = None, executor_keys: list[dict] | None = None) -> None:
+        inp = {"lines": lines(items, first, prev), "na_public_keys": [pub("c")],
+               "executor_keys": executor_keys or keys, "contiguous": True}
         vector = {"id": f"export-{vid}", "kind": "verify_export", "description": desc, "input": inp}
         vector["expected"] = evaluate(vector)
         if expect is not None:
@@ -751,6 +801,55 @@ def _export_vectors() -> list[dict[str, Any]]:
     # A run that starts after the grant (an export page): the uses are checked by their key and time token.
     case("page-after-grant", "An export page starting at a use: the grant is not held", copy.deepcopy(base[2:4]),
          first=3, prev="0" * 64, expect=[])
+
+    # v1.6.0 review fixes.
+    def quarantined(use: Any, code: str, at: datetime, n: int) -> tuple[str, dict, dict, datetime]:
+        record = _signed(QuarantineRecord(
+            quarantine_id=uid(n), record_kind="grant_execution", record=use.to_wire(),
+            record_digest=payload_digest(use.to_wire()), rejection_code=code, detail="refused",
+            resource_id=use.resource_id, quarantined_at=at, issuer_sovereign_id=NA_SOVEREIGN, issued_by="na-key",
+        ), "c", "na-key")
+        return item("quarantine", record, at)
+
+    refused2 = _use(grant, 2, t[4], token1, use1.digest(), request_parameters={"lifetime_days": 400})
+    token_q = _token(t[5], 2, refused2.digest(), n=40)
+    after_q = _use(grant, 3, t[6], token_q, refused2.digest())
+    in_chain = [base[0], item("grant_execution", use1, t[5], resource_sequence=1),
+                quarantined(refused2, "grant_envelope_mismatch", t[5] + timedelta(seconds=1), 410)]
+    case("quarantined-use-in-chain", "A quarantined use that continued the chain is its head: the next use links "
+         "to it, and its time token may name it", [*copy.deepcopy(in_chain),
+                                                   item("grant_execution", after_q, t[7], resource_sequence=2)],
+         expect=[])
+    stray = _use(grant, 2, t[4], token1, "0" * 64)
+    case("quarantined-use-off-chain", "A quarantined use that did not continue the chain (a chain mismatch) is not "
+         "its head", [*copy.deepcopy(in_chain[:2]), quarantined(stray, "grant_use_chain_mismatch", t[5], 411),
+                      item("grant_execution", _use(grant, 3, t[6], _token(t[5], 2, stray.digest(), n=41),
+                                                   stray.digest()), t[7], resource_sequence=2)],
+         expect=[{"store_sequence": 4, "reason": "grant_use_chain_break"}])
+    token_4 = _token(t[8], 4, "0" * 64, n=42)
+    use4 = _use(grant, 4, t[9], _token(t[7], 3, after_q.digest(), n=43), after_q.digest())
+    use5 = _use(grant, 5, t[10], _token(t[9], 4, use4.digest(), n=44), use4.digest())
+    del token_4
+    case("budget-counts-admitted-uses", "A budget of three: uses 1, 3 and 4 are admitted around the quarantined use "
+         "2; use 5 is over the budget", [*copy.deepcopy(in_chain),
+                                         item("grant_execution", after_q, t[7], resource_sequence=2),
+                                         item("grant_execution", use4, t[9], resource_sequence=3),
+                                         item("grant_execution", use5, t[10], resource_sequence=4)],
+         expect=[{"store_sequence": 6, "reason": "grant_budget_exhausted"}])
+    scoped = [{**k, "resource_prefix": "kv:other/"} if k["key_id"] == "executor-b" else k for k in keys]
+    case("bearer-key-out-of-scope", "A use signed by a bearer key whose resource prefix does not cover its resource",
+         copy.deepcopy(base[:2]), executor_keys=scoped,
+         expect=[{"store_sequence": 2, "reason": "grant_use_out_of_scope"}])
+    taken = _use(grant, 3, t[10], token2, use2.digest(), use_id=execution.evidence_id)
+    case("use-id-taken", "A use whose use_id is a stored execution record's ID (observations match both by ID)",
+         [*copy.deepcopy(base[:4]), item("grant_execution", taken, t[11], resource_sequence=4)],
+         expect=[{"store_sequence": 5, "reason": "duplicate_record"}])
+    forged_grant = _signed(grant.model_copy(update={"signature": None}), "d", "na-key")
+    case("grant-not-authentic", "A grant whose signature fails is not held: its uses and revocation are checked "
+         "as for a grant the store does not hold",
+         [item("grant", forged_grant, t[1]), *copy.deepcopy(base[1:3]), copy.deepcopy(base[4])],
+         expect=[{"store_sequence": 1, "reason": "invalid_signature"}, *[
+             {"store_sequence": n, "reason": "grant_missing"} for n in (2, 3, 4)]])
     return out
 
 
@@ -759,5 +858,12 @@ def grants_vectors() -> list[dict[str, Any]]:
     return [*_record_vectors(), *_envelope_vectors(), *_issuance_vectors(), *_use_vectors(), *_export_vectors()]
 
 
+DESCRIPTION = (
+    "Pre-issued grants (1.6.0). The issuance vectors are NA only (check_grant, the policy engine over an "
+    "envelope): an SDK skips them (na_only_kinds). Every other kind is for every verifier."
+)
+
+
 def dump(vectors: list[dict[str, Any]]) -> str:
-    return json.dumps({"suite": "grants", "version": "1.6.0", "vectors": vectors}, indent=2) + "\n"
+    return json.dumps({"suite": "grants", "version": "1.6.0", "description": DESCRIPTION,
+                       "na_only_kinds": list(NA_ONLY_KINDS), "vectors": vectors}, indent=2) + "\n"

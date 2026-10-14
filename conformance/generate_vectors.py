@@ -3144,10 +3144,11 @@ def gen_grants() -> None:
     issuance check per gate type and each undecidable case, the use rules, and stores holding grants."""
     sys.path.insert(0, str(Path(__file__).parent))
     try:
-        from grants_vectors import grants_vectors
+        from grants_vectors import DESCRIPTION, NA_ONLY_KINDS, grants_vectors
     finally:
         sys.path.pop(0)
-    _write("grants", {"suite": "grants", "version": "1.6.0", "vectors": grants_vectors()})
+    _write("grants", {"suite": "grants", "version": "1.6.0", "description": DESCRIPTION,
+                       "na_only_kinds": list(NA_ONLY_KINDS), "vectors": grants_vectors()})
 
 
 def fixture_problems(fixture: Path) -> list[str]:
