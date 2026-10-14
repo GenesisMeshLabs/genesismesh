@@ -124,27 +124,31 @@ or pack format, and the candidate is carried to `plan-v1.7.0.md`.
 - [x] Grant evidence is admitted within the envelope, budget and time rules;
       a use outside them is quarantined; two holders never fork a resource
       chain (`test_grants.py`)
-- [ ] Revoking a basis attestation, deactivating a bound policy, or activating
+- [x] Revoking a basis attestation, deactivating a bound policy, or activating
       a stricter covering policy revokes the grant; holders refuse revoked
       grants once their snapshot is fresh (the NA side is tested in
-      `test_grants.py`; the holders' side is in the SDKs)
-- [ ] With the NA stopped, an SDK acts within a grant, keeps the evidence, and
+      `test_grants.py`; the holders' side in sdk-typescript
+      `grant-holder.test.ts` and sdk-rust `tests/grant_holder.rs`)
+- [x] With the NA stopped, an SDK acts within a grant, keeps the evidence, and
       uploads it on reconnect with every record admitted; past the grant's
-      expiry it falls back to break-glass
-- [ ] `grants.json` passes in the Python, TypeScript and Rust verifiers
+      expiry it falls back to break-glass (the same SDK tests)
+- [x] `grants.json` passes in the Python, TypeScript and Rust verifiers
+      (`conformance/runner.py`, `grants-conformance.test.ts`,
+      `tests/grants.rs`; interop compares the SDKs' copies)
 
 ## Release Gate
 
 - [x] Stage 4 (1.5.0) released (2026-10-14); this stage confirmed (Maintainer,
       2026-10-14; Decision 5 of `plan-v1.2.0.md`)
 - [ ] Maintainer decisions recorded (date)
-- [ ] Version bumped to `1.6.0` across the release train; `docs/sdk/index.md`
-- [ ] CHANGELOG entries, `history.md`, `phase-n.md`
-- [ ] `SECURITY.md`: 1.6.x supported, 1.5.x upgrade to 1.6
+- [x] Version bumped to `1.6.0` across the release train; `docs/sdk/index.md`
+- [x] CHANGELOG entries, `history.md`, `phase-n.md`
+- [x] `SECURITY.md`: 1.6.x supported, 1.5.x upgrade to 1.6
 - [x] Public contract: grant routes, models, kinds and codes classified (beta
       routes and `TimeTokenRequest`; the grant records' signed forms stable)
-- [ ] All tests pass, including PostgreSQL, conformance, interop and upgrade
-- [ ] Merge order: core, then the SDKs, then the gateway
+- [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
+- [x] Merge order: core, then the SDKs, then the gateway (the SDKs merged
+      first, with the core's interop re-run once all were on main)
 - [ ] Dry runs green; tags `v1.6.0`, releases, published-artifacts green
 - [ ] `"1.6.0"` added to the `upgrade.yml` matrix after the release
 - [ ] Both production hosts upgraded
