@@ -625,4 +625,3 @@ class EdgeService:
                     "grants_revoked": grants_revoked, "executor_key_retired": True, "crl_sequence": None,
                 })
         return done
-
