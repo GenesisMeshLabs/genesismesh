@@ -23,8 +23,9 @@ services:
       OPERATOR_KEY_TIERS_JSON: '{"ops": "privileged", "demo-ops": "privileged", "mesh-reader": "read"}'
       EVIDENCE_STORE: "on"
       # v1.3 observations, judgements and break-glass, v1.4 remediation and
-      # reviews, and v1.6 pre-issued grants: off unless .env turns them on. Operator key holders are named
-      # at the first start with the records on, so set them before that start.
+      # reviews, and v1.6 pre-issued grants: off unless .env turns them on.
+      # Operator key holders are named at the first start with the records on,
+      # so set them before that start.
       EVIDENCE_OUT_OF_BAND: ${EVIDENCE_OUT_OF_BAND:-off}
       EVIDENCE_REMEDIATION: ${EVIDENCE_REMEDIATION:-off}
       EVIDENCE_GRANTS: ${EVIDENCE_GRANTS:-off}
