@@ -69,7 +69,15 @@ from ...trust.out_of_band import (
     validity_change_times,
     verify_na_record,
 )
-from ..errors import BadRequestError, ConflictError, NotFoundError, ServiceUnavailableError, ValidationError
+from ..errors import (
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+    RateLimitError,
+    ServiceUnavailableError,
+    ValidationError,
+)
+from ..rate_limit import RATE_LIMIT_WINDOW_SECONDS
 
 if TYPE_CHECKING:
     from ..server import NetworkAuthorityService
@@ -241,6 +249,24 @@ class OutOfBandService:
         row = self._na.db.get_executor_key(key_id) if key_id else None
         return self._store.key_from_row(row) if row is not None else None
 
+    def limit_executor(self, key_id: str) -> None:
+        """Count one record against its signing key's limit (v1.7.0 review fixes): break-glass records,
+        observations and grant uses, once their signature verified. ``429 rate_limit_exceeded``."""
+        if not self._na.rate_limiter.allow(f"executor:{key_id}", self._na.rate_limits.executor,
+                                           RATE_LIMIT_WINDOW_SECONDS):
+            raise RateLimitError("Too many records signed by this key; retry later")
+
+    def _limit_signed(self, kind: str, check: EvidenceCheck, key_id: str | None,
+                      counted: set[str] | None = None) -> None:
+        """Count a record whose signature verified; a batch counts once per key (``counted``)."""
+        if not key_id or check.code in (f"{kind}_invalid_signature", f"{kind}_unknown_key"):
+            return
+        if counted is not None:
+            if key_id in counted:
+                return
+            counted.add(key_id)
+        self.limit_executor(key_id)
+
     # -- quarantine -----------------------------------------------------------
 
     def quarantine(
@@ -337,8 +363,9 @@ class OutOfBandService:
 
     # -- observations -----------------------------------------------------------
 
-    def submit_observation(self, raw: Any) -> tuple[dict[str, Any], int]:
-        """Admit one signed observation. Returns (body, HTTP status)."""
+    def submit_observation(self, raw: Any, counted: set[str] | None = None) -> tuple[dict[str, Any], int]:
+        """Admit one signed observation. Returns (body, HTTP status). ``counted``: the keys a batch has
+        already counted against their limit."""
         self.require_enabled()
         if not isinstance(raw, dict):
             raise BadRequestError("observation must be an object", code="invalid_observation")
@@ -353,6 +380,8 @@ class OutOfBandService:
             self._refuse("observation_malformed", f"observation is not in its exact serialized form: {difference}",
                          observation, digest, "observation")
         check = check_observation(observation, self._key(observation.signature.key_id if observation.signature else None))
+        self._limit_signed("observation", check, observation.signature.key_id if observation.signature else None,
+                           counted)
         if not check.accepted:
             assert check.code is not None
             self._refuse(check.code, check.detail, observation, digest, "observation",
@@ -427,11 +456,12 @@ class OutOfBandService:
             return 1, datetime.min.replace(tzinfo=timezone.utc)
 
         results: list[dict[str, Any]] = []
+        counted: set[str] = set()
         for index, item in sorted(enumerate(raw), key=lambda pair: order(pair[1])):
             try:
-                body, _ = self.submit_observation(item)
+                body, _ = self.submit_observation(item, counted)
                 results.append({"index": index, **body})
-            except (BadRequestError, ValidationError, ConflictError) as exc:
+            except (BadRequestError, ValidationError, ConflictError, RateLimitError) as exc:
                 error: dict[str, Any] = {"code": exc.code, "message": exc.message}
                 if exc.details:
                     error["details"] = exc.details
@@ -465,6 +495,7 @@ class OutOfBandService:
             self._refuse("break_glass_malformed", f"record is not in its exact serialized form: {difference}",
                          record, digest, "break_glass")
         check = check_break_glass(record, self._key(record.signature.key_id if record.signature else None))
+        self._limit_signed("break_glass", check, record.signature.key_id if record.signature else None)
         if not check.accepted:
             assert check.code is not None
             self._refuse(check.code, check.detail, record, digest, "break_glass",

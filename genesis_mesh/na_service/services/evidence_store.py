@@ -452,6 +452,12 @@ class EvidenceStoreService:
         return out
 
     def retire_executor_key(self, key_id: str, retired_by: str) -> dict[str, Any]:
+        """``POST /admin/evidence/executor-keys/<key_id>/retire``. An active edge node's key is retired by
+        revoking the node (``/admin/revoke``), which also revokes its certificates (v1.7.0)."""
+        self.require_enabled()
+        if self._na.edge_service.owns_active_key(key_id):
+            raise ConflictError("This executor key belongs to an edge node: revoke the node with /admin/revoke",
+                                code="executor_key_is_edge_node")
         self.retire_executor_key_counted(key_id, retired_by)
         return {"key_id": key_id, "active": False}
 

@@ -260,7 +260,8 @@ def admin() -> None:
 @click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
 @click.option("--role", "roles", multiple=True, default=["client"], help="Role to assign.")
 @click.option("--validity-hours", default=168, type=int, help="Maximum certificate validity.")
-@click.option("--token-expiry-hours", default=24, type=int, help="Invite validity.")
+@click.option("--token-expiry-hours", default=None, type=int,
+              help="Invite validity (default: 24 hours, one hour for an edge invite).")
 @click.option(
     "--recipient-key",
     "recipient_public_key",
@@ -284,7 +285,7 @@ def admin_invite(
     operator_key_id: str,
     roles: tuple[str, ...],
     validity_hours: int,
-    token_expiry_hours: int,
+    token_expiry_hours: int | None,
     recipient_public_key: str | None,
     node_sovereign_id: str | None,
     executor_resource_prefix: str | None,
@@ -300,13 +301,16 @@ def admin_invite(
     if not endpoint_value:
         raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
     _require_positive_int("--validity-hours", validity_hours)
-    _require_positive_int("--token-expiry-hours", token_expiry_hours)
+    if token_expiry_hours is not None:
+        _require_positive_int("--token-expiry-hours", token_expiry_hours)
     endpoint = endpoint_value.rstrip("/")
     body: dict[str, Any] = {
         "roles": _validate_cli_roles(roles),
         "max_validity_hours": validity_hours,
-        "token_expiry_hours": token_expiry_hours,
     }
+    # The NA's default: 24 hours, one hour for an edge invite (v1.7.0).
+    if token_expiry_hours is not None:
+        body["token_expiry_hours"] = token_expiry_hours
     if recipient_public_key:
         body["recipient_public_key"] = recipient_public_key
     if node_sovereign_id is not None:

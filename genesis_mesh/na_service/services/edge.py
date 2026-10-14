@@ -23,8 +23,14 @@ from typing import TYPE_CHECKING, Any, Optional
 from flask import request
 
 from ...crypto import verify_signature
-from ...crypto.node_auth import decode_ed25519_public_key, executor_key_id, executor_proof_payload
+from ...crypto.node_auth import (
+    decode_ed25519_public_key,
+    executor_key_id,
+    executor_proof_payload,
+    node_signing_payload,
+)
 from ...models import InviteToken, JoinCertificate
+from ...trust.evidence_store import ExecutorKey
 from ..auth import _audit_auth_failure, verify_node_request_signature
 from ..errors import (
     ApiError,
@@ -52,6 +58,12 @@ STATE_GRANT_LIMIT = 100
 MAX_PAGE = 500
 DEFAULT_PAGE = 100
 EDGE_STATUSES = ("online", "offline", "revoked")
+#: An edge resource prefix ends with one of these, so it is a whole path segment (review fixes).
+PREFIX_DELIMITERS = ("/", ":")
+#: Default lifetime of an edge invite, in hours (review fixes); an operator may ask for longer.
+EDGE_INVITE_EXPIRY_HOURS = 1
+#: How many times a revocation re-lists a node's certificates for ones issued meanwhile.
+REVOKE_PASSES = 5
 #: The migration that adds edge nodes (019_edge_nodes.sql).
 EDGE_SCHEMA_VERSION = 19
 
@@ -130,6 +142,8 @@ class EdgeService:
 
     # -- edge invites -----------------------------------------------------------
 
+    invite_expiry_hours = EDGE_INVITE_EXPIRY_HOURS
+
     @staticmethod
     def is_edge_invite(data: dict[str, Any]) -> bool:
         """Whether an invite request asks for an edge invite (it then needs the privileged tier)."""
@@ -149,20 +163,57 @@ class EdgeService:
                 "node_sovereign_id must match ^[a-z0-9][a-z0-9._-]{0,63}$",
                 code="invalid_node_sovereign_id",
             )
-        if not isinstance(prefix, str) or not 1 <= len(prefix) <= 256 or _has_control_characters(prefix):
+        if (not isinstance(prefix, str) or not 1 <= len(prefix) <= 256 or _has_control_characters(prefix)
+                or not prefix.endswith(PREFIX_DELIMITERS)):
             raise BadRequestError(
-                "executor_resource_prefix must be a string of 1 to 256 characters without control characters",
+                "executor_resource_prefix must be a string of 1 to 256 characters without control characters, "
+                "ending with '/' or ':'",
                 code="invalid_resource_prefix",
             )
+        self._require_out_of_band()
+        self._check_sovereign_free(sovereign)
+        self._check_prefix_free(prefix)
+        return sovereign, prefix
+
+    def _require_out_of_band(self) -> None:
         if not self._na.out_of_band_service.enabled:
             raise ConflictError(
-                "Edge invites need the evidence store and out-of-band recording "
+                "Edge nodes need the evidence store and out-of-band recording "
                 "(EVIDENCE_STORE=on, EVIDENCE_OUT_OF_BAND=on)",
                 code="edge_requires_evidence_store",
             )
-        if self._db.get_active_edge_node_by_sovereign(sovereign) is not None:
-            raise ConflictError("An active edge node already has this sovereign ID", code="node_sovereign_in_use")
-        return sovereign, prefix
+
+    def _check_sovereign_free(self, sovereign: str) -> None:
+        """An edge sovereign ID is no other party's (review fixes): not this NA's network name, not an
+        active edge node's or an outstanding edge invite's, not an active executor key's, and not the
+        subject of an attestation this NA issued, unless every earlier use of it was an edge node of
+        that sovereign, now revoked (its successor keeps its attestations, Decision 22)."""
+        network = self._na.genesis_block.network_name
+        earlier = self._db.edge_nodes_of(sovereign)
+        taken = (
+            sovereign == network
+            or any(not node["retired_at"] for node in earlier)
+            or any(invite["node_sovereign_id"] == sovereign
+                   for invite in self._db.outstanding_edge_invites(datetime.now(timezone.utc)))
+            or self._db.active_executor_key_sovereign(sovereign)
+            or (not earlier and self._db.attestation_subject_exists(network, sovereign))
+        )
+        if taken:
+            raise ConflictError(
+                "This sovereign ID is in use: this NA's name, an edge node or an outstanding edge invite, an "
+                "active executor key, or the subject of an attestation this NA issued",
+                code="node_sovereign_in_use",
+            )
+
+    def _check_prefix_free(self, prefix: str) -> None:
+        """An edge prefix overlaps no active executor key's prefix and no outstanding edge invite's: neither
+        is a prefix of the other (review fixes)."""
+        held = [*self._db.active_executor_key_prefixes(),
+                *(invite["executor_resource_prefix"]
+                  for invite in self._db.outstanding_edge_invites(datetime.now(timezone.utc)))]
+        if any(prefix.startswith(other) or other.startswith(prefix) for other in held if other):
+            raise ConflictError("The resource prefix overlaps an active executor key's or an outstanding "
+                                "edge invite's", code="resource_prefix_overlap")
 
     # -- /join ------------------------------------------------------------------
 
@@ -198,6 +249,7 @@ class EdgeService:
         if self._db.get_active_edge_node_by_sovereign(token.node_sovereign_id) is not None:
             raise ConflictError("An active edge node already has this sovereign ID", code="node_sovereign_in_use")
         self._na.evidence_store_service.require_enabled()
+        self._require_out_of_band()
         version = data.get("agent_version")
         return EdgeJoin(
             node_public_key=node_public_key,
@@ -209,36 +261,46 @@ class EdgeService:
         )
 
     def enrol(self, join: EdgeJoin, cert: JoinCertificate) -> dict[str, Any]:
-        """Register the executor key of a node just issued ``cert`` and record the edge node; returns
-        the response's ``edge`` block. All or nothing: when a step fails, the certificate is revoked
-        (``unspecified``) and the error returned."""
+        """Register the executor key of a node just issued ``cert`` and record the edge node, in one
+        transaction; returns the response's ``edge`` block. When the write fails, nothing of it is
+        kept, the certificate is revoked (``unspecified``) and the error returned; the invite is spent.
+        What follows the write (the audit events, the registry record) is best effort."""
+        registered_by = f"node-join:{cert.cert_id}"
         try:
             try:
-                self._db.insert_edge_node({
+                registered_at = self._db.enrol_edge_node({
                     "node_public_key": join.node_public_key, "node_sovereign_id": join.node_sovereign_id,
-                    "executor_key_id": join.executor_key_id, "resource_prefix": join.resource_prefix,
-                    "enrolled_cert_id": cert.cert_id, "enrolled_at": _stamp(cert.issued_at),
-                })
+                    "executor_key_id": join.executor_key_id, "executor_public_key": join.executor_public_key,
+                    "resource_prefix": join.resource_prefix, "enrolled_cert_id": cert.cert_id,
+                    "enrolled_at": _stamp(cert.issued_at),
+                }, registered_by)
             except self._db.integrity_errors:
-                # Another request enrolled the node key or the sovereign ID first.
+                # Another request registered the key, enrolled the node key or the sovereign ID first.
+                if self._db.get_executor_key(join.executor_key_id) is not None:
+                    raise ConflictError("This executor key is already registered",
+                                        code="executor_key_exists") from None
                 if self._db.get_edge_node(join.node_public_key) is not None:
                     raise ConflictError("This node key already belongs to an edge node",
                                         code="edge_node_already_enrolled") from None
                 raise ConflictError("An active edge node already has this sovereign ID",
                                     code="node_sovereign_in_use") from None
-            try:
-                self._na.evidence_store_service.register_executor_key({
-                    "key_id": join.executor_key_id, "public_key": join.executor_public_key,
-                    "executor_sovereign_id": join.node_sovereign_id, "role": "executor",
-                    "resource_prefix": join.resource_prefix,
-                }, registered_by=f"node-join:{cert.cert_id}")
-            except BaseException:
-                self._db.delete_edge_node(join.node_public_key)
-                raise
         except BaseException as exc:
             self._undo_certificate(cert, join, exc)
             raise
-        self._db.add_audit_event("edge_node_enrolled", {
+        self._audit_quietly("executor_key_registered", {
+            "key_id": join.executor_key_id, "executor_sovereign_id": join.node_sovereign_id,
+            "registered_by": registered_by, "role": "executor", "resource_prefix": join.resource_prefix,
+        })
+        try:
+            self._na.out_of_band_service.key_registered(
+                ExecutorKey(key_id=join.executor_key_id, public_key=join.executor_public_key,
+                            executor_sovereign_id=join.node_sovereign_id, role="executor",
+                            resource_prefix=join.resource_prefix),
+                registered_at, registered_by,
+            )
+        except Exception as exc:  # noqa: BLE001 -- the start-up registry backfill records it
+            logger.error("could not record the registration of executor key %s: %s", join.executor_key_id, exc)
+        self._audit_quietly("edge_node_enrolled", {
             "cert_id": cert.cert_id, "node_public_key": join.node_public_key,
             "node_sovereign_id": join.node_sovereign_id, "executor_key_id": join.executor_key_id,
             "resource_prefix": join.resource_prefix, "agent_version": join.agent_version,
@@ -246,6 +308,14 @@ class EdgeService:
         block = self.edge_block(join.node_public_key)
         assert block is not None
         return block
+
+    def _audit_quietly(self, event: str, details: dict[str, Any]) -> None:
+        """An audit event after a change already committed: a failure is logged, never returned."""
+        try:
+            self._db.add_audit_event(event, details)
+        except Exception as exc:  # noqa: BLE001
+            self._na.audit_write_failures += 1
+            logger.error("could not write the %s audit event: %s", event, exc)
 
     def _undo_certificate(self, cert: JoinCertificate, join: EdgeJoin, exc: BaseException) -> None:
         reason = exc.code if isinstance(exc, ApiError) else type(exc).__name__
@@ -256,7 +326,7 @@ class EdgeService:
         except Exception as undo_exc:  # noqa: BLE001 -- the original failure is what the caller sees
             logger.error("could not revoke certificate %s after a failed edge enrolment: %s",
                          cert.cert_id, undo_exc)
-        self._db.add_audit_event("edge_node_enrollment_failed", {
+        self._audit_quietly("edge_node_enrollment_failed", {
             "cert_id": cert.cert_id, "node_public_key": join.node_public_key,
             "node_sovereign_id": join.node_sovereign_id, "executor_key_id": join.executor_key_id,
             "reason": reason,
@@ -282,6 +352,27 @@ class EdgeService:
             return None
         return {"node_sovereign_id": edge["node_sovereign_id"],
                 "executor_key": self._executor_key(edge["executor_key_id"])}
+
+    def refuse_retired(self, node_public_key: str) -> None:
+        """A revoked edge node's key is refused at /heartbeat and /renew too (review fixes), whatever
+        certificate it presents."""
+        edge = self._db.get_edge_node(node_public_key) if self._ready else None
+        if edge is not None and edge["retired_at"]:
+            raise ForbiddenError("This edge node has been revoked", code="edge_node_retired")
+
+    def after_renewal(self, node_public_key: str, cert_id: str) -> None:
+        """A renewal that issued after the node was revoked: revoke the new certificate and refuse."""
+        edge = self._db.get_edge_node(node_public_key) if self._ready else None
+        if edge is None or not edge["retired_at"]:
+            return
+        self._na.publish_crl(lambda: self._db.revoke_cert(
+            cert_id=cert_id, reason=edge["retired_reason"] or "unspecified", issuer=self._na.key_id))
+        raise ForbiddenError("This edge node has been revoked", code="edge_node_retired")
+
+    def owns_active_key(self, executor_key_id: str) -> bool:
+        """Whether an executor key belongs to an edge node not revoked."""
+        edge = self._db.get_edge_node_by_executor_key(executor_key_id) if self._ready else None
+        return edge is not None and not edge["retired_at"]
 
     # -- /heartbeat ---------------------------------------------------------------
 
@@ -324,8 +415,11 @@ class EdgeService:
         if cert.get("node_public_key") != node_public_key:
             raise ForbiddenError("Public key does not match certificate", code="certificate_key_mismatch")
         if cert.get("status") == "revoked":
-            self._refused("node_request_refused", {
-                "cert_id": cert_id, "purpose": purpose, "reason": cert.get("revocation_reason") or "revoked"})
+            # Audited only for a request the node key signed (review fixes): anyone may name a certificate.
+            signature = data.get("signature")
+            if isinstance(signature, str) and verify_signature(node_signing_payload(data), signature, node_public_key):
+                self._refused("node_request_refused", {
+                    "cert_id": cert_id, "purpose": purpose, "reason": cert.get("revocation_reason") or "revoked"})
             raise ForbiddenError("Certificate revoked", code="certificate_revoked")
         ok, error = verify_node_request_signature(self._na, data, node_public_key)
         if not ok:
@@ -345,7 +439,8 @@ class EdgeService:
         edge = self._db.get_edge_node(node_public_key) if self._ready else None
         if edge is None:
             raise ForbiddenError("This node is not an enrolled edge node", code="edge_node_not_enrolled")
-        if edge["retired_at"]:
+        key = self._db.get_executor_key(edge["executor_key_id"])
+        if edge["retired_at"] or key is None or key["retired_at"]:
             raise ForbiddenError("This edge node has been revoked", code="edge_node_retired")
         return cert, edge
 
@@ -503,8 +598,11 @@ class EdgeService:
         for row in self._db.break_glass_entries_of(edge["node_sovereign_id"]):
             if parse_db_datetime(row["recorded_at"]) < since:
                 continue
+            payload = json.loads(row["payload_json"])
+            if (payload.get("signature") or {}).get("key_id") != edge["executor_key_id"]:
+                continue
             records += 1
-            executed = json.loads(row["payload_json"]).get("executed_at")
+            executed = payload.get("executed_at")
             if isinstance(executed, str) and (last is None or parse_db_datetime(executed) > parse_db_datetime(last)):
                 last = executed
         return {"records": records, "last_executed_at": last}
@@ -554,19 +652,19 @@ class EdgeService:
         edge = self._db.get_edge_node(node_public_key) if self._ready else None
         if edge is None:
             return None
-        unrevoked = [c["cert_id"] for c in self._db.get_certs_by_node_key(node_public_key)
-                     if c.get("status") != "revoked"]
-        cert_ids = list(dict.fromkeys([cert["cert_id"], *unrevoked]))
-        crl = self._na.publish_crl(lambda: self._db.revoke_certs(cert_ids, reason, issuer=self._na.key_id))
-        assert crl is not None
-        for cert_id in unrevoked:
-            if cert_id in self._na.connected_nodes:
-                self._na.connected_nodes[cert_id]["status"] = "revoked"
-                self._na.connected_nodes[cert_id]["revocation_reason"] = reason
+        crl, unrevoked = self._revoke_certificates(node_public_key, reason, also=cert["cert_id"])
         if edge["retired_at"]:
             retired, grants_revoked = True, 0
         else:
             retired, grants_revoked = self._retire(edge, reason, retired_by)
+        # A renewal that committed while the certificates were listed issued one more (review fixes):
+        # revoke what the node holds until it holds nothing valid. Renewals after the node retired
+        # are refused, and one already past that check revokes its own certificate.
+        for _ in range(REVOKE_PASSES):
+            later_crl, later = self._revoke_certificates(node_public_key, reason)
+            if not later:
+                break
+            crl, unrevoked = later_crl, [*unrevoked, *later]
         block = {"node_public_key": node_public_key, "executor_key_id": edge["executor_key_id"],
                  "revoked_cert_ids": unrevoked, "executor_key_retired": retired, "grants_revoked": grants_revoked}
         self._db.add_audit_event("edge_node_revoked", {
@@ -575,6 +673,23 @@ class EdgeService:
             "executor_key_retired": retired, "crl_sequence": crl.sequence,
         })
         return crl, block
+
+    def _revoke_certificates(self, node_public_key: str, reason: str,
+                             also: Optional[str] = None) -> tuple[Any, list[str]]:
+        """Revoke every unrevoked certificate of a node key (and ``also``) in one CRL publish:
+        (the CRL, the certificates revoked now)."""
+        unrevoked = [c["cert_id"] for c in self._db.get_certs_by_node_key(node_public_key)
+                     if c.get("status") != "revoked"]
+        cert_ids = list(dict.fromkeys([*([also] if also else []), *unrevoked]))
+        if not cert_ids:
+            return self._db.get_active_crl(), []
+        crl = self._na.publish_crl(lambda: self._db.revoke_certs(cert_ids, reason, issuer=self._na.key_id))
+        assert crl is not None
+        for cert_id in unrevoked:
+            if cert_id in self._na.connected_nodes:
+                self._na.connected_nodes[cert_id]["status"] = "revoked"
+                self._na.connected_nodes[cert_id]["revocation_reason"] = reason
+        return crl, unrevoked
 
     def _retire(self, edge: dict[str, Any], reason: str, retired_by: str) -> tuple[bool, int]:
         """Retire an edge node's executor key, then mark the node revoked. (retired, grants revoked);
@@ -606,6 +721,12 @@ class EdgeService:
         done = 0
         if not self._ready:
             return done
+        # A revoked node holds no valid certificate (review fixes: one a renewal issued during its revocation).
+        for edge in self._db.retired_edge_nodes():
+            try:
+                self._revoke_certificates(edge["node_public_key"], edge["retired_reason"] or "unspecified")
+            except Exception as exc:  # noqa: BLE001 -- never stops the NA starting
+                logger.error("could not revoke the certificates of edge node %s: %s", edge["node_sovereign_id"], exc)
         for edge in self._db.unretired_edge_nodes():
             certs = self._db.get_certs_by_node_key(edge["node_public_key"])
             if not certs or any(c.get("status") != "revoked" for c in certs):

@@ -209,6 +209,8 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     },
                 )
                 raise ForbiddenError(error, code=reason)
+            # v1.7.0 review fixes: a revoked edge node's key is refused whatever certificate it presents.
+            service.edge_service.refuse_retired(node_public_key)
 
             now = datetime.now(timezone.utc)
             service.db.mark_heartbeat(
@@ -308,6 +310,7 @@ def create_enrollment_blueprint(service) -> Blueprint:
                     },
                 )
                 raise ForbiddenError(error, code=reason)
+            service.edge_service.refuse_retired(node_public_key)
 
             roles = json.loads(existing_node.get("roles_json", '["role:client"]'))
             if "roles" in data and sorted(data["roles"]) != sorted(roles):
@@ -351,6 +354,8 @@ def create_enrollment_blueprint(service) -> Blueprint:
                 renewed_from=cert_id,
                 max_validity_hours=int(max_validity_hours),
             )
+            # v1.7.0 review fixes: the node was revoked while this renewal ran: the new certificate is too.
+            service.edge_service.after_renewal(node_public_key, new_cert.cert_id)
             # F-20: schedule the predecessor's revocation instead of revoking it
             # outright. The grace window lets the node adopt the new certificate
             # (and retry a renewal whose response was lost) and lets peers refresh

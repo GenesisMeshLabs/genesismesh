@@ -214,13 +214,14 @@ def test_an_edge_join_needs_the_store(client, na_service):
 
 
 def test_a_join_whose_key_registration_fails_revokes_its_certificate(client, na_service, monkeypatch):
-    def fail(self, data, registered_by):
+    def fail(values, registered_by):
         raise RuntimeError("store down")
 
-    monkeypatch.setattr(EvidenceStoreService, "register_executor_key", fail)
+    monkeypatch.setattr(na_service.db, "enrol_edge_node", fail)
     agent = EdgeAgent(client)
     resp = agent.join(invite_token(client))
     assert resp.status_code == 500
+    assert na_service.db.get_executor_key(agent.executor_key_id) is None
     certs = na_service.db.get_certs_by_node_key(agent.node_public_key)
     assert [c["status"] for c in certs] == ["revoked"]
     assert na_service.db.get_edge_node(agent.node_public_key) is None
@@ -353,7 +354,8 @@ def test_an_incomplete_revocation_is_completed_at_start(client, na_service, monk
 
 def test_an_already_retired_executor_key_counts_as_retired(client, na_service):
     agent = EdgeAgent(client).enrolled(invite_token(client))
-    assert _post(client, f"/admin/evidence/executor-keys/{agent.executor_key_id}/retire", {}).status_code == 200
+    # Retired outside /admin/revoke (which the generic route now refuses for an active edge node's key).
+    assert na_service.db.retire_executor_key(agent.executor_key_id, "op")
     resp = _post(client, "/admin/revoke", {"cert_id": agent.cert_id})
     assert resp.get_json()["edge_node"]["executor_key_retired"] is True
     assert na_service.db.get_edge_node(agent.node_public_key)["retired_at"] is not None
@@ -488,6 +490,8 @@ def test_the_cli_creates_edge_invites_and_lists_edge_nodes(tmp_path, monkeypatch
     assert invited.output.strip() == "edge-token"
     assert sent[0][2]["json"]["node_sovereign_id"] == SOVEREIGN
     assert sent[0][2]["json"]["executor_resource_prefix"] == PREFIX
+    # The NA's own default expiry applies (one hour for an edge invite).
+    assert "token_expiry_hours" not in sent[0][2]["json"]
     listed = runner.invoke(cli, ["admin", "edge-nodes", "--config", str(config_path), "--status", "offline",
                                  "--limit", "5"])
     assert listed.exit_code == 0, listed.output
@@ -497,3 +501,275 @@ def test_the_cli_creates_edge_invites_and_lists_edge_nodes(tmp_path, monkeypatch
     assert json.loads(listed.output)["edge_nodes"] == []
     refused = runner.invoke(cli, ["admin", "edge-nodes", "--config", str(config_path), "--status", "gone"])
     assert refused.exit_code != 0
+
+
+# -- review fixes (1.7.0) --------------------------------------------------------------------
+
+
+def _break_glass(agent: EdgeAgent, clock: Clock, *, key=None, key_id: str | None = None,
+                 resource_id: str = f"{PREFIX}kv/db") -> dict:
+    record = BreakGlassRecord(
+        executor_sovereign_id=SOVEREIGN, resource_id=resource_id, resource_action="rotate",
+        capability=CAPABILITY, justification="The NA is unreachable", evaluation_request_digest="0" * 64,
+        evaluation_failure="network_error", executed_at=clock.now() - timedelta(seconds=30), outcome="success",
+    )
+    signed = record.model_copy(update={"signature": sign_model(record, key or agent.executor_key,
+                                                               key_id or agent.executor_key_id)})
+    return dict(signed.to_wire())
+
+
+def test_a_renewal_racing_a_revocation_is_revoked_too(client, na_service):
+    """C1: a /renew committed between the revocation's listing and its CRL publish leaves no valid certificate."""
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    first = agent.cert_id
+    db = na_service.db
+    original = db.get_certs_by_node_key
+    fired = {"done": False}
+
+    def racing(node_public_key):
+        rows = original(node_public_key)
+        if not fired["done"] and node_public_key == agent.node_public_key:
+            fired["done"] = True
+            assert agent.renew().status_code == 201
+        return rows
+
+    db.get_certs_by_node_key = racing
+    try:
+        resp = _post(client, "/admin/revoke", {"cert_id": first, "reason": "key_compromise"})
+    finally:
+        db.get_certs_by_node_key = original
+    assert resp.status_code == 200, resp.get_json()
+    second = agent.cert_id
+    assert second != first and db.get_cert(second)["status"] == "revoked"
+    assert second in resp.get_json()["edge_node"]["revoked_cert_ids"]
+    assert second in {e["certificate_id"] for e in client.get("/crl").get_json()["revoked_certificates"]}
+    assert agent.heartbeat().status_code == 403
+    assert agent.renew().status_code == 403
+
+
+def test_a_retired_edge_node_cannot_heartbeat_or_renew(client, na_service):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    na_service.db.retire_edge_node(agent.node_public_key, datetime.now(timezone.utc).isoformat(), "test", "test")
+    for resp in (agent.heartbeat(), agent.renew()):
+        assert resp.status_code == 403 and _code(resp) == "edge_node_retired"
+
+
+def test_a_renewal_that_issues_after_the_node_retired_revokes_its_certificate(client, na_service, monkeypatch):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    db = na_service.db
+    original = db.issue_cert
+    issued: list[str] = []
+
+    def retire_then_issue(cert, **kwargs):
+        # The revocation retires the node after the renewal checked it and before it issued.
+        db.retire_edge_node(agent.node_public_key, datetime.now(timezone.utc).isoformat(), "key_compromise", "op")
+        issued.append(cert.cert_id)
+        return original(cert, **kwargs)
+
+    monkeypatch.setattr(db, "issue_cert", retire_then_issue)
+    resp = agent.renew()
+    assert resp.status_code == 403 and _code(resp) == "edge_node_retired"
+    assert issued and db.get_cert(issued[0])["status"] == "revoked"
+
+
+def test_ensure_retired_revokes_the_certificates_of_a_retired_node(client, na_service):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    na_service.db.retire_edge_node(agent.node_public_key, datetime.now(timezone.utc).isoformat(),
+                                   "cessation_of_operation", "op")
+    na_service.edge_service.ensure_retired()
+    assert na_service.db.get_cert(agent.cert_id)["status"] == "revoked"
+    assert agent.cert_id in {e["certificate_id"] for e in client.get("/crl").get_json()["revoked_certificates"]}
+
+
+def test_an_enrolment_survives_a_failed_audit_write(client, na_service, monkeypatch):
+    """C2: the audit writes after the enrolment committed are best effort."""
+    db = na_service.db
+    original = db.add_audit_event
+
+    def failing(event_type, details, **kwargs):
+        if event_type in ("executor_key_registered", "edge_node_enrolled"):
+            raise RuntimeError("audit store down")
+        return original(event_type, details, **kwargs)
+
+    monkeypatch.setattr(db, "add_audit_event", failing)
+    agent = EdgeAgent(client)
+    resp = agent.join(invite_token(client))
+    assert resp.status_code == 201, resp.get_json()
+    assert db.get_executor_key(agent.executor_key_id)["retired_at"] is None
+    assert db.get_edge_node(agent.node_public_key) is not None
+
+
+def test_a_failed_enrolment_leaves_no_executor_key(client, na_service, monkeypatch):
+    """C2: the key and the edge node are written together; a conflict leaves neither and revokes the certificate."""
+    token = invite_token(client)
+    db = na_service.db
+    original = db.use_invite_token
+    rival = EdgeAgent(client)
+
+    def raced(token_id, node_key):
+        used = original(token_id, node_key)
+        # Another node of the same sovereign enrolled meanwhile.
+        db.insert_edge_node({"node_public_key": rival.node_public_key, "node_sovereign_id": SOVEREIGN,
+                             "executor_key_id": rival.executor_key_id, "resource_prefix": PREFIX,
+                             "enrolled_cert_id": "rival", "enrolled_at": datetime.now(timezone.utc).isoformat()})
+        return used
+
+    monkeypatch.setattr(db, "use_invite_token", raced)
+    agent = EdgeAgent(client)
+    resp = agent.join(token)
+    assert resp.status_code == 409 and _code(resp) == "node_sovereign_in_use"
+    assert db.get_executor_key(agent.executor_key_id) is None
+    assert [c["status"] for c in db.get_certs_by_node_key(agent.node_public_key)] == ["revoked"]
+
+
+def test_an_edge_join_needs_out_of_band_recording(client, na_service):
+    token = invite_token(client)
+    na_service.evidence_out_of_band = "off"
+    resp = EdgeAgent(client).join(token)
+    assert resp.status_code == 409 and _code(resp) == "edge_requires_evidence_store"
+    assert _unused(na_service, token)
+
+
+def test_an_edge_nodes_executor_key_is_retired_only_by_revoking_the_node(client, na_service):
+    """M1: the generic retire route refuses an active edge node's key."""
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    resp = _post(client, f"/admin/evidence/executor-keys/{agent.executor_key_id}/retire", {})
+    assert resp.status_code == 409 and _code(resp) == "executor_key_is_edge_node"
+    assert na_service.db.get_executor_key(agent.executor_key_id)["retired_at"] is None
+
+
+@pytest.mark.parametrize("prefix", ["edge:site7-1", "edge:site7-17", "e"])
+def test_an_edge_prefix_ends_with_a_delimiter(client, prefix):
+    resp = edge_invite(client, prefix=prefix)
+    assert resp.status_code == 400 and _code(resp) == "invalid_resource_prefix"
+
+
+def _controller(client, sovereign: str = "controllers", prefix: str = "kv:shared/") -> None:
+    resp = _post(client, "/admin/evidence/executor-keys", {
+        "key_id": "controller", "public_key": EdgeAgent(client).executor_public_key,
+        "executor_sovereign_id": sovereign, "resource_prefix": prefix})
+    assert resp.status_code == 201, resp.get_json()
+
+
+def test_edge_prefixes_never_overlap(client, na_service):
+    """M2: a prefix that is a prefix of, or starts with, an active key's or an outstanding edge invite's."""
+    _controller(client)
+    for prefix in ("kv:", "kv:shared/site/"):
+        resp = edge_invite(client, "site-a", prefix=prefix)
+        assert resp.status_code == 409 and _code(resp) == "resource_prefix_overlap"
+    assert edge_invite(client, "site-a", prefix="edge:site-a/").status_code == 201
+    resp = edge_invite(client, "site-b", prefix="edge:site-a/b/")
+    assert resp.status_code == 409 and _code(resp) == "resource_prefix_overlap"
+    assert edge_invite(client, "site-b", prefix="edge:site-ab/").status_code == 201
+
+
+def test_a_successor_reuses_the_prefix_of_a_revoked_node(client):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    assert _post(client, "/admin/revoke", {"cert_id": agent.cert_id}).status_code == 200
+    assert edge_invite(client).status_code == 201
+
+
+@pytest.mark.parametrize("taken_by", ["executor_key", "attestation"])
+def test_a_sovereign_id_in_use_elsewhere_is_refused(client, taken_by):
+    """M3: an active executor key's sovereign, or the subject of an attestation this NA issued."""
+    if taken_by == "executor_key":
+        _controller(client, sovereign=SOVEREIGN)
+    else:
+        _attest(client)
+    resp = edge_invite(client)
+    assert resp.status_code == 409 and _code(resp) == "node_sovereign_in_use"
+
+
+def test_the_network_name_is_refused_as_an_edge_sovereign(client, na_service):
+    na_service.genesis_block = na_service.genesis_block.model_copy(update={"network_name": "site7-99"})
+    resp = edge_invite(client, "site7-99")
+    assert resp.status_code == 409 and _code(resp) == "node_sovereign_in_use"
+
+
+def test_a_successor_keeps_the_attestations_of_its_sovereign(client):
+    """Decision 22: the successor of a revoked edge node may reuse its sovereign ID and attestations."""
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    attestation_id = _attest(client)
+    assert _post(client, "/admin/revoke", {"cert_id": agent.cert_id}).status_code == 200
+    successor = EdgeAgent(client).enrolled(invite_token(client))
+    assert successor.evaluate(attestation_id, CAPABILITY).status_code == 201
+
+
+def test_one_outstanding_edge_invite_per_sovereign_with_a_short_default_expiry(client):
+    """M6."""
+    first = edge_invite(client)
+    assert first.status_code == 201
+    expires = datetime.fromisoformat(first.get_json()["expires_at"])
+    assert expires - datetime.now(timezone.utc) <= timedelta(hours=1)
+    resp = edge_invite(client)
+    assert resp.status_code == 409 and _code(resp) == "node_sovereign_in_use"
+    longer = edge_invite(client, "site7-18", token_expiry_hours=24)
+    assert datetime.fromisoformat(longer.get_json()["expires_at"]) - datetime.now(timezone.utc) > timedelta(hours=23)
+
+
+def test_a_recipient_bound_edge_invite_enrols_only_that_node(client, na_service):
+    agent, other = EdgeAgent(client), EdgeAgent(client)
+    token = invite_token(client, recipient_public_key=agent.node_public_key)
+    resp = other.join(token)
+    assert resp.status_code == 403 and _code(resp) == "invalid_invite_token"
+    assert agent.join(token).status_code == 201
+
+
+def test_break_glass_counts_only_the_nodes_executor_key(client, na_service, clock: Clock):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    other = EdgeAgent(client)
+    # A key registered for the same sovereign after the node enrolled.
+    assert _post(client, "/admin/evidence/executor-keys", {
+        "key_id": "same-sovereign", "public_key": other.executor_public_key, "executor_sovereign_id": SOVEREIGN,
+        "resource_prefix": "kv:other/"}).status_code == 201
+    record = _break_glass(agent, clock, key=other.executor_key, key_id="same-sovereign", resource_id="kv:other/db")
+    assert client.post("/evidence/break-glass", json={"record": record}).status_code == 201
+    assert _view(client)["edge_nodes"][0]["break_glass"]["records"] == 0
+    assert client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code == 201
+    assert _view(client)["edge_nodes"][0]["break_glass"]["records"] == 1
+
+
+def test_an_executor_key_is_rate_limited(clock):
+    """M7: break-glass, observations and grant uses count per executor key, after the signature verifies."""
+    from genesis_mesh.na_service.rate_limit import RateLimits
+
+    service = _granting_service(rate_limits=RateLimits(executor=2))
+    client = _client(service)
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    statuses = [client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code
+                for _ in range(3)]
+    assert statuses == [201, 201, 429]
+    # A record whose signature does not verify does not count against the key; it is refused for its signature.
+    service.rate_limiter = type(service.rate_limiter)()
+    bad = _break_glass(agent, clock)
+    bad["justification"] = "changed after signing"
+    for _ in range(3):
+        assert _code(client.post("/evidence/break-glass", json={"record": bad})) == "break_glass_invalid_signature"
+    assert client.post("/evidence/break-glass", json={"record": _break_glass(agent, clock)}).status_code == 201
+
+
+def test_grant_uses_count_against_the_executor_limit(clock):
+    from genesis_mesh.na_service.rate_limit import RateLimits
+
+    from .test_grants import _submit_use
+
+    service = _granting_service(rate_limits=RateLimits(executor=1))
+    client = _client(service)
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    holder = Holder(client, key_id=agent.executor_key_id, sovereign=SOVEREIGN, register=False)
+    holder.key, holder.public_key = agent.executor_key, agent.executor_public_key
+    _lifetime_policy(client, 90)
+    resp = _issue_grant(client, holder, _attest(client))
+    assert resp.status_code == 201, resp.get_json()
+    holder.take(resp.get_json())
+    assert _submit_use(client, holder.use(clock.advance(minutes=1), resource=f"{PREFIX}kv/a")).status_code == 201
+    resp = _submit_use(client, holder.use(clock.advance(minutes=1), resource=f"{PREFIX}kv/b"))
+    assert resp.status_code == 429 and _code(resp) == "rate_limit_exceeded"
+
+
+def test_the_executor_rate_limit_is_a_setting():
+    from genesis_mesh.na_service.settings import load_settings
+
+    assert load_settings({"GENESIS_FILE": "g.json",
+                          "NA_RATE_LIMIT_EXECUTOR_PER_MINUTE": "30"}).rate_limits.executor == 30
+    assert load_settings({"GENESIS_FILE": "g.json"}).rate_limits.executor == 120
