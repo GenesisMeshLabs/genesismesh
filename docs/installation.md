@@ -22,8 +22,8 @@ The Network Authority and the trust gateway are also published as signed
 container images for `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.5.0
-docker pull ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.5.0
+docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.6.0
+docker pull ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.6.0
 ```
 
 Verify their signatures and deploy by digest; see
@@ -31,7 +31,7 @@ Verify their signatures and deploy by digest; see
 the `genesis-mesh` CLI:
 
 ```bash
-docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.5.0 --version
+docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.6.0 --version
 ```
 
 ## Development Install (Contributors)

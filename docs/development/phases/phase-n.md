@@ -19,11 +19,12 @@ Authority stays the Python reference and the only issuer of decisions.
 | 2 | v1.3.0 | Observations, after-the-fact judgements, break-glass when the Network Authority is unreachable, quarantined records | Released |
 | 3 | v1.4.0 | Remediation (cancel by rotating forward), notification, one review record with second-person approval | Released |
 | 4 | v1.5.0 | Audit packs, key succession, archive before prune, the independent verifier `genesis-mesh-verify` | Released |
-| 5 | v1.6.0 | Pre-issued grants in the core and the SDKs | To be confirmed |
+| 5 | v1.6.0 | Pre-issued grants in the core and the SDKs | Released |
 | 6 | v1.7.0 | The Rust edge agent | To be confirmed |
 
 Each stage is a release of the whole train and ships when its gate is green.
-Stages 5 and 6 are confirmed or deferred once Stage 4 ships. The plans are in
+Stage 5 was confirmed when Stage 4 shipped; Stage 6 is confirmed or
+deferred once Stage 5 ships. The plans are in
 `ops/plan-v1.2.0.md` onwards.
 
 ## What Changed
@@ -95,3 +96,4 @@ hand an auditor a pack to verify independently.
 | v1.3.0 | Stage 2, Observations, Judgements and Break-Glass: changes made outside governed actions recorded and judged once as of their time, break-glass records, quarantine, the store's signed registry |
 | v1.4.0 | Stage 3, Remediation, Reviews and Notification: a change judged DENY cancelled by rotating forward after a grace window, one review record for reviews and waivers decided by a second holder, emergency capabilities, the due queue and notices |
 | v1.5.0 | Stage 4, Audit Packs and Independent Verification: NA key succession with an offline root key, audit packs verified offline from held anchors, completeness against outside logs, archive before prune, read-tier evidence access, the independent verifier `genesis-mesh-verify` |
+| v1.6.0 | Stage 5, Pre-Issued Grants: capability grants issued only for envelopes every applied policy allows, NA-signed time tokens, grant uses admitted or quarantined on one resource chain, revocation from a time listed in the revocation feed, grant holders in the TypeScript and Rust SDKs that fall back to break-glass |

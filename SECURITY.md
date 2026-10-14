@@ -30,12 +30,13 @@ Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEP
 
 | Version | Status |
 |---|---|
-| `1.5.x` | Supported |
-| `1.4.x` | Unsupported: upgrade to 1.5 |
-| `1.3.x` | Unsupported: upgrade to 1.5 |
-| `1.2.x` | Unsupported: upgrade to 1.5 |
-| `1.1.x` | Unsupported: upgrade to 1.5 |
-| `1.0.x` | Unsupported: upgrade to 1.5 |
+| `1.6.x` | Supported |
+| `1.5.x` | Unsupported: upgrade to 1.6 |
+| `1.4.x` | Unsupported: upgrade to 1.6 |
+| `1.3.x` | Unsupported: upgrade to 1.6 |
+| `1.2.x` | Unsupported: upgrade to 1.6 |
+| `1.1.x` | Unsupported: upgrade to 1.6 |
+| `1.0.x` | Unsupported: upgrade to 1.6 |
 | `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
@@ -124,6 +125,16 @@ deployment.
   Linux binaries with `SHA256SUMS` and Sigstore bundles signed by the Rust SDK's
   release workflow, reproducible from source; it never needs a private key or a
   network. "Independent" means separate code by the same project.
+- **Pre-authorisation beyond its terms** (1.6.0, off until
+  `EVIDENCE_GRANTS=on`). A pre-issued grant names one registered executor key,
+  lasts at most 24 hours, carries a budget and a closed parameter envelope,
+  and is issued only when every applied policy allows every request the
+  envelope permits; what cannot be decided over the envelope refuses the
+  grant by name. A use outside the envelope, the budget, the grant's time or
+  the bearer key's scope is quarantined, never admitted. Revoking what a grant
+  rests on (its attestation, agreement, treaty or bound policy) or activating
+  a stricter covering policy revokes it, and holders refuse it once their
+  revocation feed lists it.
 - **Trust changes by routine keys.** Operator keys have tiers; issuing,
   revoking, treaties, feed imports, policies, agreement acceptance and data
   license policies require a privileged key.
@@ -159,6 +170,12 @@ them externally.
   statement of the privileged key that recorded it, since the NA cannot see
   the storage. Check the storage's lock and the archived manifest's digest
   as part of each audit.
+- **A stolen grant holder key** (1.6.0). Whoever holds a grant's bearer key
+  can spend the grant's remaining budget, within its envelope, until the grant
+  is revoked and the holder sees the revocation. An offline holder controls
+  its clock: NA-signed time tokens, a use limit per token and a late-upload
+  window no longer than the grant bound what it can backdate, not more. Keep
+  budgets small and validity short. See `docs/operations/grants.md`.
 - **Cited entries without earlier packs.** An audit pack's cited entries are
   checked for authenticity; their place in the store is proven only against
   the packs an auditor verified before or an anchor at their position.

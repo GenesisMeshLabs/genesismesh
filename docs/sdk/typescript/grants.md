@@ -1,7 +1,5 @@
 # Pre-issued grants
 
-*Unreleased.*
-
 From Genesis Mesh 1.6.0 the Network Authority (NA) can authorise a change in
 advance. A **grant** is a bounded authorisation the NA signs for one holder:
 one bearer key, a few capabilities, a validity of at most 24 hours, a budget

@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.5.0:
+As of v1.6.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.5.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,394 tests pass. The layer rule and public boundary rule are enforced
+- 2,516 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -186,11 +186,11 @@ As of v1.5.0:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 112 HTTP routes, 135 CLI
-  commands, the public Python API, 62 signed artifacts and every API error
+  as the Public Contract page) classifies all 118 HTTP routes, 135 CLI
+  commands, the public Python API, 67 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.4.0, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.5.0, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.5.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 16 suites and 837
+- A protocol conformance suite exists in `conformance/`: 17 suites and 1026
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -1191,6 +1191,45 @@ interoperability, upgrade and documentation gate.
 **What became possible:** an auditor years later, offline, with code built
 separately, can verify what the evidence store holds for a period, that
 nothing was removed from it, and that the outside world's changes are in it.
+
+### v1.6.0 — Pre-Issued Grants
+
+The fifth stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). After 1.5 a change made while the Network Authority
+could not be reached was recorded as break-glass and judged afterwards: the
+change was on the record, but nothing had allowed it beforehand.
+
+The NA now signs, in advance, a capability grant: one registered executor key
+may use a set of capabilities for at most 24 hours, within a budget and a
+closed parameter envelope, under an attestation the NA issued or an agreement
+it trusts. It issues one only when every applied policy allows every request
+the envelope permits, and names whatever it cannot decide over the envelope.
+A holder asks for NA-signed time tokens while it can reach the NA, acts
+within the grant while it cannot, and uploads its uses on reconnect; the NA
+admits each use that keeps to the grant at its own place in the resource's
+chain and quarantines the rest, so two holders never fork a chain. Revoking
+what a grant rests on, or activating a stricter policy over it, revokes the
+grant from that time, and the signed revocation feed lists it for holders.
+The TypeScript and Rust SDKs carry grant holders that fall back to
+break-glass once a grant is spent, ended or revoked; audit packs, the
+completeness check and `genesis-mesh-verify` read grants, uses and
+revocations; grants are off until `EVIDENCE_GRANTS=on`.
+
+A critic and a skeptic reviewed the stage before its pull requests, and the
+SDK ports reviewed it again; their findings became decisions 17 to 27 of the
+plan and tests, among them a per-token use limit that holds without state,
+a quarantined use keeping its place in the holder's chain, the bearer key's
+resource scope, issuance re-checked inside the write that stores the grant,
+a shared SQLite connection that let one thread commit another's transaction,
+and an agreement the NA signed for both parties trusted in a pack without
+the responder's treaty.
+
+The release passed 2,516 core tests and every SDK, verifier, gateway, image,
+interoperability, upgrade and documentation gate.
+
+**What became possible:** a device that loses its link to the Network
+Authority still acts only as policy allowed beforehand, and every action it
+takes is on the record, judged against the grant, once it reconnects.
 
 ---
 
