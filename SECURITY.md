@@ -95,6 +95,7 @@ deployment.
   multiple surfaces:
   - `/heartbeat` returns 403
   - `/renew` returns 403
+  - the `/node/*` routes of an edge agent return 403 (1.7.0)
   - Peer handshake is closed with an audit log entry
   - Route announcements from a revoked sender are ignored
 - **Stale CRL propagation.** CRL versions are monotonic and signed. Nodes
@@ -135,6 +136,18 @@ deployment.
   rests on (its attestation, agreement, treaty or bound policy) or activating
   a stricter covering policy revokes it, and holders refuse it once their
   revocation feed lists it.
+- **A device acting beyond its own identity** (1.7.0, beta). An edge agent
+  holds no operator key: it enrols with an edge invite, which only a
+  privileged operator key creates, and registers its executor key at `/join`,
+  where that key co-signs the request. The routes it calls take requests its
+  node key signs for one route (`purpose`) and one Network Authority
+  (`audience`), with a nonce used once across them; it evaluates only under
+  an attestation this Network Authority issued to its own sovereign ID, as
+  that sovereign, and reads resource heads only under its resource prefix.
+  Revoking any certificate of an edge node revokes all of them in one CRL and
+  retires its executor key, which revokes the grants it bears. The agent's
+  local API refuses peers outside its allow-lists (Unix socket) or without
+  its token (loopback).
 - **Trust changes by routine keys.** Operator keys have tiers; issuing,
   revoking, treaties, feed imports, policies, agreement acceptance and data
   license policies require a privileged key.
