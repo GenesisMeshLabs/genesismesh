@@ -246,4 +246,71 @@ says otherwise.
     the 1.6.0 live smoke): the Rust and TypeScript grant holders count every
     place of the use chain against `max_uses` while offline, the safe bound,
     and stop counting a use once the NA has answered it as quarantined; the
-    chain position is still consumed (1.6 Decision 18).
+    chain position is still consumed (1.6 Decision 18). A use quarantined as
+    `grant_budget_exhausted` keeps counting (review fixes).
+
+### Review fixes (taken as proposed, 2026-10-14)
+
+From the critic's and the skeptic's reviews of the branch.
+
+The NA:
+
+24. **A revoked edge node holds no valid certificate.** After retiring the
+    node, the revocation re-lists its certificates and revokes any a renewal
+    issued meanwhile; `/renew` and `/heartbeat` refuse a revoked node's key
+    (`403 edge_node_retired`), a renewal that issued after the node was
+    retired revokes its own certificate, and the start-up check revokes what a
+    revoked node still holds.
+25. **Enrolment is one write.** The executor key and the edge node are written
+    in one transaction; what follows (audit events, the registry record) is
+    best effort. A failure after the invite was consumed spends it. `/join`
+    also needs out-of-band recording (`409 edge_requires_evidence_store`).
+26. **An edge node's key is retired only with the node**: the generic retire
+    route refuses it (`409 executor_key_is_edge_node`, a new code), and a node
+    whose key is retired otherwise is refused at the `/node/*` routes.
+27. **Delimited, disjoint prefixes**: an edge invite's prefix ends with `/` or
+    `:` and overlaps no active executor key's or outstanding edge invite's
+    prefix (`409 resource_prefix_overlap`, a new code). Keys without a prefix
+    are not compared.
+28. **An edge sovereign ID is no one else's**: not the NA's network name, an
+    active executor key's, or an attestation subject's, unless it was a
+    revoked edge node's (Decision 22); the console counts only the break-glass
+    records the node's own key signed.
+29. **Edge invites**: one outstanding per sovereign ID, one hour by default,
+    and documented bound to the node key `genesis-mesh-edge init` prints.
+30. **A limit per executor key** (`NA_RATE_LIMIT_EXECUTOR_PER_MINUTE`, 120) on
+    break-glass records, observations (a batch counts once per key) and grant
+    uses, counted once the signature verifies. It also applies to controllers
+    and observers that are not edge nodes.
+31. **No audit write before a signature**: a request naming a revoked
+    certificate is audited only when the node key signed it.
+
+The agent (sdk-rust):
+
+32. **An NA that answers is obeyed**: any HTTP error from the NA, `429`
+    included, is `na_refused`, never grants or break-glass; only
+    connection-level failures count as offline. A local rate limit on
+    `/v1/authorize`.
+33. **A stale snapshot keeps the envelope**: a request a held grant names but
+    does not cover is refused when the snapshot is stale too.
+34. **A retired executor key means revoked**; a clock behind the snapshot
+    makes it stale (`clock_behind`); `enroll` refuses non-loopback plain
+    HTTP; `genesis-mesh-edge init` prints the node key.
+35. **Footprint budgets are fixed targets** (binary 12 MiB, RSS 32 MiB), with
+    the measured values recorded beside them, and a variant of the offline
+    scenario in which the NA accepts connections and never answers.
+
+Open for the Maintainer at release (from the skeptic's review):
+
+- Is break-glass after an NA rate limit or `5xx` ever acceptable for devices?
+  (Decision 32 says no.)
+- When an operator revokes a grant, should the device be able to break glass
+  for the same capability (Decision 11)?
+- Do Decisions 12 and 22 hold when a sovereign ID is reused? Should edge
+  attestations require `subject_public_key`?
+- Is deferring private-CA support (Decision 18) acceptable for factory and
+  site NAs, which it pushes towards plain HTTP for `run`?
+- Should records that arrive after their key was retired, but are dated
+  before it, be quarantined with a code of their own, so a reviewer can tell
+  a legitimate backlog from forgeries?
+- Are the fixed footprint targets (Decision 35) the right ones?
