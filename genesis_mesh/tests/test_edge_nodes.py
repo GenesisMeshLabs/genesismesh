@@ -451,3 +451,49 @@ def test_a_1_6_store_upgrades_to_019_with_its_invites(clock, tmp_path, monkeypat
     agent = EdgeAgent(client)
     assert agent.join(token, executor=False).status_code == 201
     assert EdgeAgent(client).join(invite_token(client)).status_code == 201
+
+
+# -- CLI ------------------------------------------------------------------------------------
+
+
+def test_the_cli_creates_edge_invites_and_lists_edge_nodes(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from genesis_mesh.cli.main import cli
+
+    config_path, runner = tmp_path / "genesis-mesh.toml", CliRunner()
+    init = runner.invoke(cli, ["init", "--config", str(config_path), "--home", str(tmp_path / "home"), "--force"])
+    assert init.exit_code == 0, init.output
+    sent: list[tuple[str, str, dict]] = []
+
+    class Response:
+        def __init__(self, status: int, body: dict) -> None:
+            self.status_code, self._body, self.text = status, body, json.dumps(body)
+
+        def json(self):
+            return self._body
+
+    def fake_request(self, method, url, *args, **kwargs):
+        if url.endswith("/sovereign.json"):
+            return Response(200, {"network_authority": {"public_key": "na-key"}})
+        sent.append((method, url, kwargs))
+        if url.endswith("/admin/invite"):
+            return Response(201, {"token_id": "edge-token", "node_sovereign_id": SOVEREIGN})
+        return Response(200, {"count": 0, "next_before": None, "edge_nodes": []})
+
+    monkeypatch.setattr("requests.sessions.Session.request", fake_request)
+    invited = runner.invoke(cli, ["admin", "invite", "--config", str(config_path), "--node-sovereign-id", SOVEREIGN,
+                                  "--executor-resource-prefix", PREFIX])
+    assert invited.exit_code == 0, invited.output
+    assert invited.output.strip() == "edge-token"
+    assert sent[0][2]["json"]["node_sovereign_id"] == SOVEREIGN
+    assert sent[0][2]["json"]["executor_resource_prefix"] == PREFIX
+    listed = runner.invoke(cli, ["admin", "edge-nodes", "--config", str(config_path), "--status", "offline",
+                                 "--limit", "5"])
+    assert listed.exit_code == 0, listed.output
+    method, url, kwargs = sent[1]
+    assert method == "GET" and url.endswith("/admin/edge-nodes")
+    assert kwargs["params"] == {"status": "offline", "limit": "5"}
+    assert json.loads(listed.output)["edge_nodes"] == []
+    refused = runner.invoke(cli, ["admin", "edge-nodes", "--config", str(config_path), "--status", "gone"])
+    assert refused.exit_code != 0
