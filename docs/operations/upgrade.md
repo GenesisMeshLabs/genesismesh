@@ -69,6 +69,15 @@ by restoring the backup.
   exports, packs and revocation feed runs 1.6: a 1.5 verifier refuses the new
   entry kinds (`unknown_entry_kind`), a judgement `governed_by: grant` and the
   feed's `revoked_grant_ids` (`unknown_field`). See {doc}`grants`.
+- **Grants are turned off only once they have ended.** An NA with
+  `EVIDENCE_GRANTS=off` refuses to start while a grant it issued has not
+  ended ({doc}`grants`, *Turning grants off*). The revocation feed's
+  `sequence` counts grant revocations with grants on or off.
+- **SQLite serializes its connection.** The NA's threads share one SQLite
+  connection; since 1.6 each statement, commit and transaction holds the
+  connection in turn, so a write outside the evidence store's transaction
+  (an audit event) never commits another thread's transaction half done.
+  PostgreSQL is unchanged (a connection per thread).
 - **Policies may select `parent_kinds: ["grant"]`.** A 1.5 NA instance finds
   such a policy invalid and denies every evaluation while it is active: with
   several instances, publish one only once every instance runs 1.6.

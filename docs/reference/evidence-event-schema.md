@@ -187,24 +187,40 @@ key (the audience); see *What a review proves offline* in
 Grants (1.6.0). A grant use is signed by its grant's bearer key, a
 registered executor key (its key is placed in the store as any executor
 key's); its nested time token by the NA key valid at the token's
-`issued_at`. Each use is checked in this order (the first that applies is
-reported; checks that need the grant, or the use before it, run only when
-the run holds them):
+`issued_at`. A grant whose own signature fails is not held: its uses and its
+revocation are checked as for a grant the run does not hold.
+
+A grant's **use chain** is its admitted uses and the quarantined uses that
+continued it: a `quarantine` entry whose `record_kind` is `grant_execution`,
+whose record is signed by the grant's bearer key and is at the next
+position of the chain (`use_sequence` one past the head, `prev_use_digest`
+the head's digest) becomes the chain's head, so the next use may link to it
+and a time token may name it. The **budget** counts admitted uses, when the
+run holds the chain from its first use (a whole store, a pack, or a run
+whose first use of the grant is use 1); the **order and time rules** compare
+a use with the last admitted use.
+
+Each use is checked in this order (the chain first, then the use against its
+grant; the first rule of `use_problem` that applies is reported; checks that
+need the grant, the chain or an earlier use run only when the run holds
+them):
 
 | Reason | The entry |
 | --- | --- |
-| `grant_missing` | a grant use or revocation whose grant is not in a run that holds the store from its start (in a pack: `cited_record_missing`) |
+| `grant_use_chain_break` | a use that does not continue its grant's chain (`use_sequence`, `prev_use_digest`), in a run that holds the chain from its start |
+| `grant_missing` | a grant use or revocation whose grant the run does not hold, or holds unauthenticated, in a run that holds the store from its start (in a pack: `cited_record_missing`) |
 | `grant_bearer_mismatch` | a use not signed by the grant's bearer key, or naming another executor sovereign than the grant's bearer |
+| `grant_use_out_of_scope` | a use signed by a key with a resource prefix, naming no resource or one outside the prefix |
 | `grant_mismatch` | a use or revocation naming another digest than its grant's (`grant_digest`) |
-| `grant_use_chain_break` | a use that does not follow the previous use of its grant (`use_sequence`, `prev_use_digest`), in a run that holds the chain from its start |
-| `grant_capability_mismatch`, `grant_envelope_mismatch`, `grant_budget_exhausted` | a use of a capability the grant does not name, outside its closed envelope, or past its budget |
-| `grant_time_token_invalid` | a use whose time token is not signed by the NA (by the key valid at its `issued_at`) or is another grant's |
+| `grant_capability_mismatch`, `grant_envelope_mismatch`, `grant_budget_exhausted` | a use of a capability the grant does not name, outside its closed envelope, or after the grant's admitted uses reached its budget |
+| `grant_time_token_invalid` | a use whose time token is not signed by the NA (by the key valid at its `issued_at`), is another grant's, or is older than the grant (`issued_at`) |
 | `grant_time_token_mismatch` | a use whose time token was issued after a later use (its `use_sequence` is not below the use's), or names another use (`use_head_digest`) than the run holds at that position, or one dated more than 300 seconds after the token |
-| `grant_time_token_regressed`, `grant_time_token_exhausted` | a use citing an older token than the previous use, or a token more uses cite than the grant allows |
-| `grant_use_before_time_token`, `grant_use_out_of_order` | a use dated before its time token, or before the previous use |
+| `grant_time_token_regressed`, `grant_time_token_exhausted` | a use citing an older token than the previous admitted use, or more than `max_uses_per_time_token` positions after the use its token names (`use_sequence` minus the token's `use_sequence`) |
+| `grant_use_before_time_token`, `grant_use_out_of_order` | a use dated more than 300 seconds before its time token, or before the previous admitted use |
 | `grant_use_outside_validity`, `grant_use_in_future`, `grant_use_uploaded_late` | a use dated outside its grant's validity, more than 300 seconds after its entry's `recorded_at`, or recorded longer after it was made than the grant's validity |
 | `grant_revoked` | a use dated at or after a revocation of its grant the run holds before it |
 | `duplicate_grant_revocation` | a second revocation of one grant |
+| `duplicate_record` | also a use whose `use_id` is the ID of execution evidence or a break-glass record (observations match all three by ID), or such a record whose ID is a use's |
 | `resource_chain_break` | a use whose envelope `resource_sequence` does not follow its resource's chain |
 | `envelope_mismatch` | also a use given a `resource_sequence` without a resource |
 

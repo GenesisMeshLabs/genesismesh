@@ -135,7 +135,10 @@ admitted, not by the devices.
 A third use with a lifetime of 400 days would be refused,
 `422 grant_envelope_mismatch`, and kept as a `quarantine` entry
 (`error.details.quarantine_id`): the change happened, so its record is not
-lost.
+lost. It keeps its place in the device's use chain: the device's next use
+links to it and is judged on its own, and the budget counts only the two
+admitted uses. `GET /admin/grants/<grant_id>/uses` lists the chain, each use
+`admitted` or `quarantined` with its code.
 
 ### 5. The observer agrees
 
