@@ -24,7 +24,9 @@
    (``EVIDENCE_GRANTS=on``), a grant is issued under the past release's
    attestation and policy, a use of it continues the past release's resource
    chain at the position the NA assigns, and the export and the pack holding
-   them verify offline. A past release with out-of-band records (1.3+)
+   them verify offline. Since 1.7, an edge invite on the upgraded store enrols
+   an edge node, whose executor key is registered at /join and appears in the
+   audit pack. A past release with out-of-band records (1.3+)
    populates with them on and records an observation and its judgement, so a
    1.3 store with its Stage 2 records is upgraded; that judgement is not
    remediated when the remediation records are turned on.
@@ -447,6 +449,28 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
         offline = verify_evidence_events(events, na_public_keys=[na_key], executor_keys=keys)
         check("the export with the grant and its use verifies offline", offline.verified
               and offline.grant_executions == 1, offline.failures)
+
+    # 1.7: an edge invite on the upgraded store enrols an edge node; its executor key, which co-signs the
+    # /join request, is registered there (and the audit pack below holds its registry record).
+    import nacl.signing
+
+    from genesis_mesh.crypto.node_auth import executor_key_id, sign_executor_proof, sign_node_request
+
+    invite = api.admin("POST", "/admin/invite", {"node_sovereign_id": "rehearsal-edge",
+                                                 "executor_resource_prefix": "edge:rehearsal-edge/"})
+    check("an edge invite is created on the upgraded store", invite.status_code == 201, invite.get_json())
+    if invite.status_code == 201:
+        node, executor = nacl.signing.SigningKey.generate(), nacl.signing.SigningKey.generate()
+        join = sign_executor_proof({
+            "node_public_key": _pub(node), "invite_token": invite.get_json()["token_id"], "validity_hours": 24,
+            "executor_public_key": _pub(executor), "timestamp": datetime.now(timezone.utc).isoformat(),
+            "nonce": str(uuid.uuid4()),
+        }, executor)
+        enrolled = api.client.post("/join", json=sign_node_request(join, node))
+        key = (enrolled.get_json() or {}).get("edge", {}).get("executor_key", {})
+        check("an edge node enrols and registers its executor key after the upgrade",
+              enrolled.status_code == 201 and key.get("key_id") == executor_key_id(_pub(executor)),
+              enrolled.get_json())
 
     # 1.5: the genesis key is the first entry of the key history, and an audit pack of the whole
     # store, written by the past release and this one, verifies offline from the root key and the
