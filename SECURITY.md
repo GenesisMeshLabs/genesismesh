@@ -144,8 +144,14 @@ deployment.
   (`audience`), with a nonce used once across them; it evaluates only under
   an attestation this Network Authority issued to its own sovereign ID, as
   that sovereign, and reads resource heads only under its resource prefix.
-  Revoking any certificate of an edge node revokes all of them in one CRL and
-  retires its executor key, which revokes the grants it bears. The agent's
+  Resource prefixes are plain string prefixes that end with a delimiter
+  (`/` or `:`), and no two active keys' or outstanding edge invites'
+  prefixes overlap. An edge sovereign ID cannot be another party's (this
+  NA's name, an active key's, an attestation subject's). Revoking any
+  certificate of an edge node revokes all of them, retires its executor key,
+  which revokes the grants it bears, and refuses the node's heartbeats and
+  renewals; break-glass records, observations and grant uses are rate limited
+  per executor key. The agent's
   local API refuses peers outside its allow-lists (Unix socket) or without
   its token (loopback).
 - **Trust changes by routine keys.** Operator keys have tiers; issuing,

@@ -67,9 +67,15 @@ large evidence store the index takes the time of one pass over the table. A
   creates an edge invite (privileged tier, with `EVIDENCE_STORE=on` and
   `EVIDENCE_OUT_OF_BAND=on`) and an edge agent redeems it. See
   {doc}`edge-agent`.
-- **Two rate limits.** `NA_RATE_LIMIT_NODE_PER_MINUTE` (120 per node key)
+- **Three rate limits.** `NA_RATE_LIMIT_NODE_PER_MINUTE` (120 per node key)
   and `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` (600 per client address) apply
-  to the `/node/*` routes only ({doc}`../reference/configuration`).
+  to the `/node/*` routes only. `NA_RATE_LIMIT_EXECUTOR_PER_MINUTE` (120 per
+  executor key) applies to every key's break-glass records, observations (a
+  batch counts once) and grant uses: raise it for a controller or observer
+  that submits more with one key ({doc}`../reference/configuration`).
+- **Retiring an edge node's executor key** through
+  `/admin/evidence/executor-keys/<key_id>/retire` is refused
+  (`409 executor_key_is_edge_node`): revoke the node instead.
 - **Revoking an edge node revokes all of it.** `/admin/revoke` on a
   certificate of an edge node revokes every certificate the node holds, in
   one CRL, retires its executor key and revokes the grants that key bears.

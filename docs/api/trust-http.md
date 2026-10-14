@@ -448,7 +448,7 @@ All operator-signed; the admin rate limits apply (see *Rate limits* above).
 | `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |
 | `GET /admin/evidence/executor-keys` | Registered executor and observer keys, including retired ones, with their `role` and `resource_prefix` |
 | `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}`, and since v1.3.0 `role` (`executor`, the default, or `observer`) and `resource_prefix` (the key signs only for resources whose ID starts with it) (privileged; `409 executor_key_exists`, `400 invalid_key_role`, `400 invalid_resource_prefix`) |
-| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged) |
+| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged). An active edge node's key is refused (`409 executor_key_is_edge_node`, v1.7.0): revoke the node with `/admin/revoke` |
 | `POST /admin/evidence/retention/apply` | `{ "older_than_days": N, "through_sequence": M }` (either or both; `through_sequence` since v1.5.0): remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged). `held_back` says when records not judged yet stop it (v1.3.1), or (v1.5.0, `"reason": "not_archived"`) when no archive covers what would go and `NA_RETENTION_REQUIRE_ARCHIVE` is on; `409 evidence_retention_refused` when the store does not hold every entry from its start, no longer continues from the latest anchor, or an entry to remove does not recompute (v1.3.1). Registry, key succession and archive entries are carried past the checkpoint with their first recorded time; since v1.5.0 a resource's latest record no longer stops it |
 | `POST /admin/evidence/audit-pack` | An audit pack (v1.5.0): `{from_sequence or since, until_sequence or until}` (all optional; the range widens to the anchors around it). `{manifest, files}`: the signed `AuditPackManifest` and every other file as text; see {doc}`../reference/audit-pack-format`. `409 audit_pack_not_anchored`, `409 audit_pack_too_large` (over 50,000 entries), `400 invalid_audit_pack`, `429` beyond `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` (a limit of its own); `read` tier. The NA records each pack it builds (manifest digest, whether its own checks passed) |
 | `GET /admin/evidence/archives` | Archive records, `archived_through_sequence` (how far an unbroken run of them covers the store) and `require_archive`; `read` tier (v1.5.0) |
@@ -830,11 +830,16 @@ The checks run in this order: `400 missing_certificate_identity`;
 nonce, then a wrong `purpose` or `audience`, which spends the nonce);
 `403 certificate_expired`, `403 certificate_not_yet_valid`,
 `403 certificate_superseded`; `403 edge_node_not_enrolled` (the key is not an
-edge node's), `403 edge_node_retired` (the node was revoked).
+edge node's), `403 edge_node_retired` (the node was revoked, or its
+executor key retired). A request naming a revoked certificate is audited only
+when the node key signed it.
 
 **Rate limits**: `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` (600) per client
 address, counted before authentication, and `NA_RATE_LIMIT_NODE_PER_MINUTE`
-(120) per node key, after it; `429 rate_limit_exceeded`.
+(120) per node key, after it; `429 rate_limit_exceeded`. The address limit
+is shared by every device behind one address. Break-glass records,
+observations and grant uses also count per executor key once their signature
+verifies (`NA_RATE_LIMIT_EXECUTOR_PER_MINUTE`, 120).
 
 ### `POST /node/boundary/evaluate`
 
