@@ -72,6 +72,19 @@ The reviews found:
 - An authority on the edge (a Rust NA, deferred).
 - Policy evaluation on the device.
 
+### Candidates carried from Stage 5 (to confirm or defer)
+
+- **Inclusion proofs for an audit pack's cited entries** (the Stage 4
+  candidate, deferred from 1.6.0). A pack's cited entries are tied to the
+  store only by the packs an auditor verified before (`audit verify --prior`)
+  or an anchor at their exact position (warning `cited_entry_unanchored`
+  otherwise). Anchors over a Merkle tree of the store (a root in each anchor,
+  an inclusion proof per cited entry, pack format version 2) would prove each
+  cited entry against the held anchors alone. It changes `StoreAnchor`, a
+  stable signed artifact, so it needs a new anchor version alongside the
+  current one. Since 1.6.0 a pack also cites grants, grant uses and
+  revocations, which the proofs would cover the same way.
+
 ## Security notes
 
 - No operator key lives on a device; the node-scoped route can decide only for
