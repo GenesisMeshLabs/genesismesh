@@ -140,7 +140,7 @@ or pack format, and the candidate is carried to `plan-v1.7.0.md`.
 
 - [x] Stage 4 (1.5.0) released (2026-10-14); this stage confirmed (Maintainer,
       2026-10-14; Decision 5 of `plan-v1.2.0.md`)
-- [ ] Maintainer decisions recorded (date)
+- [x] Maintainer decisions recorded (2026-10-14: 2-27)
 - [x] Version bumped to `1.6.0` across the release train; `docs/sdk/index.md`
 - [x] CHANGELOG entries, `history.md`, `phase-n.md`
 - [x] `SECURITY.md`: 1.6.x supported, 1.5.x upgrade to 1.6
@@ -149,22 +149,28 @@ or pack format, and the candidate is carried to `plan-v1.7.0.md`.
 - [x] All tests pass, including PostgreSQL, conformance, interop and upgrade
 - [x] Merge order: core, then the SDKs, then the gateway (the SDKs merged
       first, with the core's interop re-run once all were on main)
-- [ ] Dry runs green; tags `v1.6.0`, releases, published-artifacts green
-- [ ] `"1.6.0"` added to the `upgrade.yml` matrix after the release
-- [ ] Both production hosts upgraded
+- [x] Dry runs green; tags `v1.6.0`, releases, published-artifacts green
+      (2026-10-14, the verifier binaries included)
+- [x] `"1.6.0"` added to the `upgrade.yml` matrix after the release
+- [x] Both production hosts upgraded (2026-10-14). The demo NA runs with
+      grants on: the live smoke run issued, used offline, quarantined and
+      revoked a grant there (59 checks), and a pack of its whole store,
+      grants included, verified with `genesis-mesh audit verify` and the
+      released `genesis-mesh-verify` with the network off; the read-only
+      reference on Azure verifies its public records
 
 ## Decisions
 
 1. **Pre-issued grants for offline action** (Maintainer, 2026-10-08).
 2. **A new `CapabilityGrant` model** rather than extending invocation tokens
-   (taken as proposed, 2026-10-14).
+   (Maintainer, 2026-10-14).
 3. **Limits**: validity at most 24 hours, budget required, late upload within
    the grant's validity, a use limit per time token; configurable within
-   those bounds (taken as proposed, 2026-10-14).
+   those bounds (Maintainer, 2026-10-14).
 
-Open, from building Stage 5 (2026-10-14):
+From building Stage 5 (2026-10-14; confirmed by the Maintainer, 2026-10-14):
 
-4. **Off until `EVIDENCE_GRANTS=on`** (proposed), which needs
+4. **Off until `EVIDENCE_GRANTS=on`** (Maintainer, 2026-10-14), which needs
    `EVIDENCE_OUT_OF_BAND=on` (quarantine and judging): a 1.5 verifier refuses
    the new entry kinds (`unknown_entry_kind`), a judgement `governed_by:
    grant` and a quarantine of a grant use (the Python reference reads them as
@@ -173,23 +179,23 @@ Open, from building Stage 5 (2026-10-14):
    verifier check the feed's fields against the registry). No envelope field
    is added: a use's position is the existing `resource_sequence`, its grant
    the existing `subject_id`, its place in its chain `exec_sequence_no`.
-5. **Grants and revocations are store entries** (proposed), kinds `grant` and
+5. **Grants and revocations are store entries** (Maintainer, 2026-10-14), kinds `grant` and
    `grant_revocation` besides `grant_execution`: packs must hold what uses
    rest on, and a verifier must see a revocation before the uses it refuses.
    Retention keeps a grant with its uses and revocation (one group) until no
    use can be uploaded any more (its end, plus its validity, plus the skew).
-6. **The bearer is a registered executor key** (proposed), one per grant, its
+6. **The bearer is a registered executor key** (Maintainer, 2026-10-14), one per grant, its
    public key and sovereign in the grant: verifiers place it as any executor
    key, retiring it revokes its grants and refuses every use it signs,
    whatever time the use claims (the remedy for a compromised device).
-7. **A grant evaluates as `parent_kind` `grant`** (proposed): a policy can
+7. **A grant evaluates as `parent_kind` `grant`** (Maintainer, 2026-10-14): a policy can
    forbid grants (a `denylist.v1` gate on `parent_kind`) or select them
    (`parent_kinds: ["grant"]`, now a valid selector value); a selector naming
    the basis kind (`attestation`, or `agreement` and `direct`) also applies,
    so a policy written for requests under that basis covers its grants. A
    selector's `parameter_equals` on a request parameter narrows the envelope
    to the requests it selects.
-8. **What cannot be decided, by name** (proposed): `attributes.*` (the facts
+8. **What cannot be decided, by name** (Maintainer, 2026-10-14): `attributes.*` (the facts
    and identifiers an external system supplies per request, which a grant
    cannot fix), `context_freshness_seq`, `requested_at` outside
    `time_window.v1`, and gate types other than the nine built-in ones, each
@@ -198,12 +204,12 @@ Open, from building Stage 5 (2026-10-14):
    no grant (`grant_review_required`): a review per use is not
    pre-authorisation. Observe-mode gates never refuse; their outcome
    (`pass`, `may_fail`, `undecidable`) is recorded in the grant.
-9. **Numbers and sets** (proposed): an integral number is an integer (`5.0`
+9. **Numbers and sets** (Maintainer, 2026-10-14): an integral number is an integer (`5.0`
    is `5`, as every SDK reads it), written as one in a grant; integers within
    64 bits; comparisons exact (`Fraction`); booleans never numbers; set
    membership type-strict as `scalar_equals` (`true` is not `1`, `1` is
    `1.0`).
-10. **The NA assigns the resource position at admission** (proposed): a use
+10. **The NA assigns the resource position at admission** (Maintainer, 2026-10-14): a use
     carries no position; the NA gives it the next position of its resource's
     chain under the store's write lock and writes it in the envelope's
     `resource_sequence` (the `(resource_id, resource_sequence)` index execution
@@ -214,7 +220,7 @@ Open, from building Stage 5 (2026-10-14):
     resource has one (`envelope_mismatch`). Offline uses never fork a chain;
     a controller that acts online after a pending grant use uploads it first.
 11. **Time tokens bound to the chain head, without a staleness rule**
-    (proposed): a token names the uses the holder had made when it asked
+    (Maintainer, 2026-10-14): a token names the uses the holder had made when it asked
     (`use_sequence`, `use_head_digest`, both in the request its bearer key
     signs), so a use citing it comes after them and the chain before it
     cannot be rewritten. A rule refusing a use that cites an older token than
@@ -224,7 +230,7 @@ Open, from building Stage 5 (2026-10-14):
     revocation a holder can make at most `max_uses_per_time_token` uses beyond
     the use its last token names, dated before the revocation, whatever
     tokens it kept; the docs state it.
-12. **Revocation from a time** (proposed): a use made before the revocation
+12. **Revocation from a time** (Maintainer, 2026-10-14): a use made before the revocation
     stands, one at or after it is refused (`grant_revoked`, quarantined), at
     admission and in verification alike. The automatic revocations run after
     the change that causes them commits; `reconcile` repeats every check at
@@ -232,17 +238,17 @@ Open, from building Stage 5 (2026-10-14):
     feed, one grant's failure never stopping the others (Decision 22). A
     re-check after an activation covers the usable grants whose capabilities
     the policy's selector may match, reading the active policies once.
-13. **The feed** (proposed): `revoked_grant_ids` lists the revoked grants not
+13. **The feed** (Maintainer, 2026-10-14): `revoked_grant_ids` lists the revoked grants not
     yet past their end (an ended grant cannot be used anyway), and `sequence`
     counts every grant revocation as well as every revoked attestation, with
     grants on or off, so it never goes back (Decision 24); the field is left
     out with grants off.
-14. **Defaults** (proposed): `NA_GRANT_MAX_VALIDITY_SECONDS` 86400 (the
+14. **Defaults** (Maintainer, 2026-10-14): `NA_GRANT_MAX_VALIDITY_SECONDS` 86400 (the
     bound), `NA_GRANT_MAX_USES` 100 (at most 10,000),
     `NA_GRANT_MAX_USES_PER_TIME_TOKEN` 10 (at most 1,000); the skew, for
     future-dated uses and for uses dated before their time token, is a fixed
     300 seconds, so every verifier applies one rule.
-15. **One check order for a use** (proposed; revised by the review fixes,
+15. **One check order for a use** (Maintainer, 2026-10-14; revised by the review fixes,
     2026-10-14): the form (a `use_id` that is not a UUID is malformed), the
     grant, the signature, the metadata guard, then the chain (an identical
     resubmission is a duplicate, or its refusal again; a conflict, a gap, a
@@ -255,7 +261,7 @@ Open, from building Stage 5 (2026-10-14):
     (retried), secret material (never stored) and a use in the future
     (retried). Every check after the signature reads the store inside the
     write that stores the use or its quarantine entry.
-16. **Packs** (proposed): a pack cites a range's uses' grant, its whole use
+16. **Packs** (Maintainer, 2026-10-14): a pack cites a range's uses' grant, its whole use
     chain before the range (Decision 18) and its revocation; checks a grant's
     policy binding and basis (an attestation, or an agreement held in
     `trust/agreements.jsonl`, Decision 25) as a decision's; reports grants and
@@ -264,7 +270,7 @@ Open, from building Stage 5 (2026-10-14):
     verifies. Inclusion proofs (the Stage 4 candidate) are deferred to 1.7.0.
 
 Review fixes (2026-10-14; the coordinator's decisions on the review of the
-core branch, recorded here):
+core branch, recorded here; confirmed by the Maintainer, 2026-10-14):
 
 17. **A stateless per-token limit**: a use is refused
     (`grant_time_token_exhausted`) when its `use_sequence` minus its token's
