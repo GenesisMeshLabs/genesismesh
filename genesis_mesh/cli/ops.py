@@ -267,6 +267,16 @@ def admin() -> None:
     default=None,
     help="Bind the invite to this node public key; only that key may redeem it.",
 )
+@click.option(
+    "--node-sovereign-id",
+    default=None,
+    help="Beta (v1.7.0): make an edge invite for the edge node with this sovereign ID (privileged tier).",
+)
+@click.option(
+    "--executor-resource-prefix",
+    default=None,
+    help="Beta (v1.7.0): the resource prefix of the edge node's executor key, e.g. edge:<sovereign-id>/.",
+)
 def admin_invite(
     config_path: str | None,
     na_endpoint: str | None,
@@ -276,8 +286,15 @@ def admin_invite(
     validity_hours: int,
     token_expiry_hours: int,
     recipient_public_key: str | None,
+    node_sovereign_id: str | None,
+    executor_resource_prefix: str | None,
 ) -> None:
-    """Create a single-use invite token and print it."""
+    """Create a single-use invite token and print it.
+
+    With --node-sovereign-id and --executor-resource-prefix (beta), the token
+    is an edge invite: the edge agent that redeems it registers its executor
+    key for that sovereign ID and prefix.
+    """
     config = _load_cli_config(config_path, required=operator_key is None)
     endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
     if not endpoint_value:
@@ -292,6 +309,10 @@ def admin_invite(
     }
     if recipient_public_key:
         body["recipient_public_key"] = recipient_public_key
+    if node_sovereign_id is not None:
+        body["node_sovereign_id"] = node_sovereign_id
+    if executor_resource_prefix is not None:
+        body["executor_resource_prefix"] = executor_resource_prefix
     payload = _request_json(
         requests.Session(),
         "POST",
@@ -338,6 +359,51 @@ def admin_revoke(
         headers=_admin_headers_from_inputs(
             config_path, operator_key, operator_key_id, config, body,
             method="POST", base_url=endpoint, path="/admin/revoke",
+        ),
+    )
+    click.echo(json.dumps(payload, indent=2))
+
+
+@admin.command("edge-nodes")
+@click.option("--config", "config_path", default=None, help="Config path.")
+@click.option("--na", "na_endpoint", default=None, help="Network Authority URL.")
+@click.option("--operator-key", default=None, help="Operator private key.")
+@click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
+@click.option("--status", type=click.Choice(["online", "offline", "revoked"]), default=None,
+              help="Only edge nodes in this state.")
+@click.option("--limit", type=int, default=None, help="Edge nodes per page (1 to 500, default 100).")
+@click.option("--before", default=None, help="The next_before of the previous page.")
+def admin_edge_nodes(
+    config_path: str | None,
+    na_endpoint: str | None,
+    operator_key: str | None,
+    operator_key_id: str,
+    status: str | None,
+    limit: int | None,
+    before: str | None,
+) -> None:
+    """List edge nodes, newest enrolment first (beta, v1.7.0; read tier)."""
+    config = _load_cli_config(config_path, required=operator_key is None)
+    endpoint_value = na_endpoint or get_config_value(config, "network", "na_endpoint")
+    if not endpoint_value:
+        raise click.ClickException("No NA endpoint. Pass --na or set [network].na_endpoint in config.")
+    endpoint = endpoint_value.rstrip("/")
+    query: dict[str, Any] = {}
+    if status is not None:
+        query["status"] = status
+    if limit is not None:
+        query["limit"] = str(limit)
+    if before is not None:
+        query["before"] = before
+    payload = _request_json(
+        requests.Session(),
+        "GET",
+        f"{endpoint}/admin/edge-nodes",
+        params=query,
+        label="edge node listing",
+        headers=_admin_headers_from_inputs(
+            config_path, operator_key, operator_key_id, config, {},
+            method="GET", base_url=endpoint, path="/admin/edge-nodes", query=query,
         ),
     )
     click.echo(json.dumps(payload, indent=2))
@@ -393,6 +459,7 @@ def _admin_headers_from_inputs(
     method: str,
     base_url: str,
     path: str,
+    query: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """Create signed admin headers from direct key flags or a CLI config."""
     if operator_key:
@@ -402,9 +469,9 @@ def _admin_headers_from_inputs(
             operator_key_id,
         )
         return _signed_admin_headers(
-            signer_key_id, key_path, body, method=method, base_url=base_url, path=path
+            signer_key_id, key_path, body, method=method, base_url=base_url, path=path, query=query
         )
-    return _admin_headers(config, body, method=method, base_url=base_url, path=path)
+    return _admin_headers(config, body, method=method, base_url=base_url, path=path, query=query)
 
 
 @click.command()

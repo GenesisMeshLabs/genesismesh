@@ -50,9 +50,14 @@ class RateLimits:
     #: v1.5.0 review fixes: audit packs per client address per hour, a bucket of their own (a pack
     #: reads up to 50,000 entries and verifies them before it is written).
     audit_packs: int = 12
+    #: v1.7.0: the /node/* routes an edge agent calls, per node key (counted after its request
+    #: authenticates) and per client address (counted before).
+    node: int = 120
+    node_address: int = 600
 
     def __post_init__(self) -> None:
-        for name in ("admin", "verify", "evidence", "read", "admin_auth_failures", "observations"):
+        for name in ("admin", "verify", "evidence", "read", "admin_auth_failures", "observations",
+                     "node", "node_address"):
             if getattr(self, name) < 1:
                 raise ValueError(f"rate limit {name} must be at least 1 per minute")
         if self.audit_packs < 1:
