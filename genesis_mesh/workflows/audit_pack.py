@@ -727,8 +727,11 @@ def _agreement_problem(grant: CapabilityGrant, raw: Any, history: NAKeyHistory,
     def keys(party: str) -> list[str]:
         return list(na_keys) if party == own else [k for k in treaty_keys.get(party, []) if k not in na_keys]
 
+    # The NA-offered-and-accepted exception holds, as on the NA's routes, only while the responder
+    # holds a treaty from this NA (one the pack carries).
+    self_accepted = agreement.offerer_sovereign_id == own and bool(treaty_keys.get(agreement.responder_sovereign_id))
     for offerer, responder in ((keys(agreement.offerer_sovereign_id), keys(agreement.responder_sovereign_id)),
-                               (na_keys, na_keys) if agreement.offerer_sovereign_id == own else ([], [])):
+                               (na_keys, na_keys) if self_accepted else ([], [])):
         if offerer and responder and verify_agreement(agreement, offerer, responder).accepted \
                 and agreement_refusal(raw, offerer, responder) is None:
             return None
