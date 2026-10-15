@@ -804,8 +804,6 @@ head's `entry_kind` (`execution` or `grant_execution`) and `record_id`; and
 
 ## Edge nodes (v1.7.0)
 
-*Unreleased.*
-
 *Beta.* The routes an edge agent calls, and the operators' view of edge
 nodes. An edge node enrols with an edge invite and registers its executor key
 at `/join` (see {doc}`../reference/network-authority-api`); the operations

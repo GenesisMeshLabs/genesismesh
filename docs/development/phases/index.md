@@ -17,7 +17,7 @@ narrative.
 | H | v0.26.0 – v0.31.0 | Governed Relationships |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer |
 | J | v0.38.0 – v1.1.0 | Third Trust Cycle |
-| N | v1.2.0 – | Governed Changes and Edge Trust |
+| N | v1.2.0 – v1.7.0 | Governed Changes and Edge Trust |
 
 ```{toctree}
 :maxdepth: 1
