@@ -68,7 +68,7 @@ TypeScript, Go and .NET SDK releases, told in the narrative below.
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
 | J | v0.38.0 – v1.1.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
-| N | v1.2.0 – | Governed Changes and Edge Trust | {doc}`phases/phase-n` |
+| N | v1.2.0 – v1.7.0 | Governed Changes and Edge Trust | {doc}`phases/phase-n` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
 proved it carries real workloads and crosses real cloud boundaries.
@@ -128,7 +128,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.6.0:
+As of v1.7.0:
 
 - A working permissioned mesh runs in production on Azure, with
   cryptographic identity, signed join certificates, Noise XX peer
@@ -178,7 +178,7 @@ As of v1.6.0:
   change: five for the v0.26–v0.30 pipeline model and seven for the peer
   risk signal as implemented. The pipeline model predates the current
   release; see the formal verification notes for scope.
-- 2,516 tests pass. The layer rule and public boundary rule are enforced
+- 2,618 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in AGENT.md.
 - 25 animated terminal GIF demos cover every protocol feature across all
   three phases, with shared rendering and bootstrap infrastructure.
@@ -186,11 +186,11 @@ As of v1.6.0:
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
 - A machine-checked public contract (`contract/public-surface.json`, rendered
-  as the Public Contract page) classifies all 118 HTTP routes, 135 CLI
+  as the Public Contract page) classifies all 122 HTTP routes, 136 CLI
   commands, the public Python API, 67 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.5.0, are rehearsed in
+- Upgrades from every supported release, 0.59.1 to 1.6.0, are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -198,7 +198,7 @@ As of v1.6.0:
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 17 suites and 1026
+- A protocol conformance suite exists in `conformance/`: 18 suites and 1037
   deterministic vectors, run by a reference runner; every official SDK runs
   the shared suites, and CI checks that their copies match.
 - All SDK-required stable protocol operations are exposed over HTTP via
@@ -1230,6 +1230,47 @@ interoperability, upgrade and documentation gate.
 **What became possible:** a device that loses its link to the Network
 Authority still acts only as policy allowed beforehand, and every action it
 takes is on the record, judged against the grant, once it reconnects.
+
+### v1.7.0 — The Edge Agent
+
+The sixth and last stage of the Governed Changes and Edge Trust program
+({doc}`phases/phase-n`). After 1.6 a device could hold grants, but only
+through an SDK built into an application, and asking the Network Authority
+for a decision while connected needed an operator key on the device.
+
+`genesis-mesh-edge`, a small static Rust agent (beta) released with the Rust
+SDK, runs as a node on the device. It enrols with an edge invite, generating
+its node key and its executor key on the device, and the NA registers the
+executor key at join on the node's own signature, under a resource prefix
+and a sovereign ID that no other party holds. Local services ask it, over a
+Unix socket checked by peer credentials or a loopback token, whether an
+action may run: it asks the NA for a node-scoped decision, which the NA signs
+only under attestations issued to that node; when the NA cannot be reached it
+acts within its grants; and only then, with a justification, it breaks the
+glass. An answer from the NA is final. Every record waits in a durable
+outbox and uploads in order on reconnect. Revoking the node revokes all its
+certificates, retires its executor key and revokes its grants in one step,
+and the console lists edge nodes with what their agents last reported. The
+Rust SDK's verification code no longer carries a network dependency.
+
+A critic and a skeptic reviewed the stage twice before its pull requests;
+among their findings, a local process turning an NA rate limit into
+break-glass, a proxy's error page read as an answer, a renewal racing a
+revocation, overlapping resource prefixes and colliding sovereign IDs, a
+failed enrolment leaving a usable executor key, and a local API that idle
+connections could stop each became a test.
+
+The release passed 2,618 core tests and every SDK, agent, verifier, gateway,
+image, interoperability, upgrade and documentation gate, with the agent's
+size and memory within their budgets on both architectures.
+
+**What became possible:** a device at the edge of a network asks for, acts
+within and records every governed change with keys it generated itself, and
+an operator ends its authority in one step.
+
+The program is complete: every change leaves a signed record, whether or not
+the Network Authority could be reached, and a security team can verify those
+records years later without trusting whoever runs the Network Authority.
 
 ---
 

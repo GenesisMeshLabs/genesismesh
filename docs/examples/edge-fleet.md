@@ -63,8 +63,6 @@ If Factory B is decommissioned:
 
 ## Governed Changes on the Devices (v1.7.0)
 
-*Unreleased.*
-
 *Beta.* When the sites must change the resources they hold (rotate a
 credential, scale a local service) and keep a record of it the NA can audit,
 run the edge agent, `genesis-mesh-edge`, on each device instead of enrolling
