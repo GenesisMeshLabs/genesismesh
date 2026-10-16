@@ -57,6 +57,41 @@ def test_source_files(path):
     assert check.is_source(path)
 
 
+
+def test_a_deleted_test_does_not_count_as_a_test():
+    assert check.problems("fix: x", False, ["genesis_mesh/na_service/db.py"], ["genesis_mesh/tests/test_db_migration.py"])
+
+
+def test_deleting_a_test_is_a_source_change():
+    assert check.problems("fix: x", False, [], ["genesis_mesh/tests/test_db_migration.py"])
+
+
+def test_deleting_a_source_file_is_a_source_change():
+    assert check.problems("fix: x", False, ["docs/index.md"], ["genesis_mesh/na_service/db_edge.py"])
+    assert check.problems("fix: x", False, ["genesis_mesh/tests/test_edge_nodes.py"],
+                          ["genesis_mesh/na_service/db_edge.py"]) == []
+
+
+def test_deleting_docs_or_vectors_only_needs_no_test():
+    assert check.problems("fix: x", False, [], ["docs/old.md", "conformance/vectors/old.json"]) == []
+
+
+@pytest.mark.parametrize("data", [
+    "conformance/vectors/grants.json",
+    "conformance/fixtures/audit-pack/manifest.json",
+    "genesis_mesh/tests/fixtures/genesis.json",
+    "interop/fixtures/scenario.json",
+    "tests/testdata/conformance/audit.json",
+    "genesis_mesh/tests/vectors/gen.py",
+])
+def test_vectors_and_fixtures_alone_do_not_count_as_a_test(data):
+    assert not check.is_test(data)
+    assert check.problems("fix: x", False, ["genesis_mesh/na_service/db.py", data])
+
+
+def test_a_fix_changing_only_fixtures_needs_no_test():
+    assert check.problems("fix: x", False, ["genesis_mesh/tests/fixtures/genesis.json"]) == []
+
 def _env(monkeypatch, **values: str) -> None:
     for name in ("EVENT_NAME", "PR_TITLE", "NO_TEST_NEEDED", "BASE_SHA", "HEAD_SHA"):
         monkeypatch.delenv(name, raising=False)
@@ -102,3 +137,9 @@ def test_reads_the_changed_files_from_git(tmp_path, monkeypatch):
     monkeypatch.setenv("NO_TEST_NEEDED", "false")
     monkeypatch.setenv("HEAD_SHA", git("rev-parse", "HEAD"))
     assert check.main() == 0
+    # Deleting that test in a later fix is a source change, not a test change.
+    git("rm", "-q", "test_app.py")
+    git("commit", "-qm", "drop the test")
+    monkeypatch.setenv("BASE_SHA", git("rev-parse", "HEAD~1"))
+    monkeypatch.setenv("HEAD_SHA", git("rev-parse", "HEAD"))
+    assert check.main() == 1
