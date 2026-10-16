@@ -385,7 +385,11 @@ Trust code is not complete until failure paths are tested.
 `scripts/coverage_floor.py` (today's values, rounded down). Floors only rise.
 
 **Property tests** — parsers and canonical forms get hypothesis tests next
-to their example tests (`test_strict_json_properties.py`).
+to their example tests (`test_strict_json_properties.py`). CI runs them
+derandomized (the `ci` profile in `conftest.py`, chosen when `CI` is set), so
+a required check never fails on a fresh seed; explore locally with random
+inputs, and before changing a parser run `HYPOTHESIS_PROFILE=deep` (20,000
+inputs per test). Keep any input that found a bug as an `@example`.
 
 ### Test Naming
 
