@@ -11,7 +11,7 @@ git clone https://github.com/GenesisMeshLabs/genesismesh.git
 cd genesismesh
 python -m venv .venv
 source .venv/bin/activate        # PowerShell: .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev,docs]"
+pip install -e ".[dev,docs,postgres]"
 pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
@@ -30,9 +30,16 @@ pytest genesis_mesh/tests -q -m "not integration"
 # Tamarin model checks (proof tests skip unless tamarin-prover is installed)
 pytest genesis_mesh/tests/test_tamarin_proofs.py \
        genesis_mesh/tests/test_risk_signal_tamarin.py -q
+
+# The suite on a throwaway PostgreSQL 17 cluster, as CI runs it
+# (needs initdb and pg_ctl on PATH, or --pg-bin)
+python scripts/test_postgres.py
 ```
 
-The test suite must pass in full before any PR is reviewed.
+The test suite must pass in full, on SQLite and on PostgreSQL, before any PR
+is reviewed. Tests that need PostgreSQL or nginx skip without them; CI sets
+`GM_E2E_REQUIRED=1` where it provides them, and there a missing service fails
+the test instead of skipping it.
 
 ## 3. Docs build
 
@@ -78,7 +85,17 @@ chore(hooks): add pip-audit and cli-smoke to pre-push stage
 
 - One feature or fix per PR. Mixed-scope PRs are not accepted.
 - Fill in the pull request template completely.
-- CI must pass before review begins (tests + Sphinx + pip-audit + cli-smoke).
+- Record user-visible changes as a fragment in `changelog.d/<version>/`
+  (see `changelog.d/README.md`). Only a `release/<version>` PR edits
+  `CHANGELOG.md`; the "Changelog fragments" check refuses it elsewhere.
+- A bug fix carries the test that fails without it. The "Regression test"
+  check fails a PR titled `fix: ...` or `fix(scope): ...` that changes source
+  files but no test, unless the Maintainer labels it `no-test-needed`.
+- Every required check must pass. The merge queue re-runs them on top of
+  `main` (and of the PRs queued ahead) before a PR merges.
+- CODEOWNERS routes reviews by area. Changes to the contract, conformance
+  vectors, migrations, signing code, workflows or `SECURITY.md` are merged by
+  the Maintainer.
 - For protocol changes, the plan file must exist in `ops/` before the PR is opened.
 
 ## 7. Protocol changes
@@ -111,6 +128,7 @@ For manual releases, see `ops/release-checklist.md` for the step-by-step
 procedure.
 
 Releases are tagged on `main`. Version numbers follow
-[Semantic Versioning](https://semver.org/). The project is pre-1.0; breaking
-changes are possible between minor versions and will be documented in
-CHANGELOG.
+[Semantic Versioning](https://semver.org/). The public surface is classified in
+`contract/public-surface.json`: a stable surface does not break within 1.x,
+and deprecations follow `DEPRECATION_POLICY.md` (see `docs/stability.md`).
+A behaviour change carries an `### Upgrading` entry in its changelog fragment.

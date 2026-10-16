@@ -1,18 +1,50 @@
-# Genesis Mesh — Code Owners
+# Genesis Mesh: code owners
 #
-# Each entry assigns review responsibility for a path.
-# A PR touching a path cannot be merged without approval from the listed owner.
+# Review routing by area. The last matching pattern wins, so the catch-all
+# comes first and the specific areas follow. Every area is owned by the
+# maintainers team today; an area gains its own owners as contributors join.
 
-# Protocol core — trust models and cryptographic primitives
-genesis_mesh/trust/         @GenesisMeshLabs/maintainers
-genesis_mesh/models/        @GenesisMeshLabs/maintainers
-genesis_mesh/crypto/        @GenesisMeshLabs/maintainers
+# Everything not listed below.
+*                                       @GenesisMeshLabs/maintainers
 
-# Formal verification models
-ops/tamarin/                @GenesisMeshLabs/maintainers
+# Security-critical: signing, verification, trust logic, keys and admin auth.
+/genesis_mesh/crypto/                   @GenesisMeshLabs/maintainers
+/genesis_mesh/trust/                    @GenesisMeshLabs/maintainers
+/genesis_mesh/models/                   @GenesisMeshLabs/maintainers
+/genesis_mesh/na_service/auth.py        @GenesisMeshLabs/maintainers
+/genesis_mesh/na_service/key_provider.py @GenesisMeshLabs/maintainers
+/SECURITY.md                            @GenesisMeshLabs/maintainers
+/ops/tamarin/                           @GenesisMeshLabs/maintainers
 
-# CLI
-genesis_mesh/cli/           @GenesisMeshLabs/maintainers
+# Network Authority service, storage and migrations.
+/genesis_mesh/na_service/               @GenesisMeshLabs/maintainers
+/genesis_mesh/na_service/migrations/    @GenesisMeshLabs/maintainers
+/genesis_mesh/na_service/storage/       @GenesisMeshLabs/maintainers
 
-# Docs
-docs/                       @GenesisMeshLabs/maintainers
+# Public contract and conformance vectors (copied into every SDK).
+/contract/                              @GenesisMeshLabs/maintainers
+/conformance/                           @GenesisMeshLabs/maintainers
+/interop/                               @GenesisMeshLabs/maintainers
+
+# CLI.
+/genesis_mesh/cli/                      @GenesisMeshLabs/maintainers
+
+# CI workflows and repository settings.
+/.github/                               @GenesisMeshLabs/maintainers
+/CODEOWNERS                             @GenesisMeshLabs/maintainers
+
+# Packaging, images and deployment.
+/pyproject.toml                         @GenesisMeshLabs/maintainers
+/setup.py                               @GenesisMeshLabs/maintainers
+/requirements*.txt                      @GenesisMeshLabs/maintainers
+/requirements*.lock                     @GenesisMeshLabs/maintainers
+/requirements-build.in                  @GenesisMeshLabs/maintainers
+/VERSION                                @GenesisMeshLabs/maintainers
+/Dockerfile                             @GenesisMeshLabs/maintainers
+/docker/                                @GenesisMeshLabs/maintainers
+/deploy/                                @GenesisMeshLabs/maintainers
+/infrastructure/                        @GenesisMeshLabs/maintainers
+/scripts/                               @GenesisMeshLabs/maintainers
+
+# Docs.
+/docs/                                  @GenesisMeshLabs/maintainers
