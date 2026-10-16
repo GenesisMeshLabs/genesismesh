@@ -5,7 +5,8 @@ Set ``GENESIS_MESH_TEST_DATABASE_URL`` to a PostgreSQL database created with
 of its own: the same ``db_path`` within one test maps to the same schema (so
 restart tests share state), ``:memory:`` always gets a fresh one, and every
 schema is dropped when the test ends. Tests marked ``sqlite_only`` are
-skipped; tests marked ``postgres`` run only in this mode.
+skipped; tests marked ``postgres`` run only in this mode, and fail instead of
+skipping without it when ``GM_E2E_REQUIRED=1`` (``e2e_support.py``).
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from urllib.parse import quote
 import pytest
 
 from genesis_mesh.na_service import db as na_db
+
+from .e2e_support import skip_unless_required
 
 TEST_DATABASE_URL = os.environ.get("GENESIS_MESH_TEST_DATABASE_URL", "")
 
@@ -32,7 +35,7 @@ def postgres_test_database(request, monkeypatch):
     """Route NADatabase to per-test PostgreSQL schemas when configured."""
     if not TEST_DATABASE_URL:
         if request.node.get_closest_marker("postgres"):
-            pytest.skip("needs GENESIS_MESH_TEST_DATABASE_URL")
+            skip_unless_required("needs GENESIS_MESH_TEST_DATABASE_URL")
         yield
         return
     if request.node.get_closest_marker("sqlite_only"):
