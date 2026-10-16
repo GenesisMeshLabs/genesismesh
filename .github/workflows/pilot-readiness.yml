@@ -13,6 +13,8 @@ on:
     branches:
       - main
   pull_request:
+  # The merge queue re-tests a pull request on top of main before it merges.
+  merge_group:
   workflow_dispatch:
 
 permissions:

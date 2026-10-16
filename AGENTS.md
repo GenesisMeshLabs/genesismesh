@@ -36,7 +36,12 @@ genesis_mesh/
   interop/       JOSE, SPIFFE, and W3C Verifiable Credential bridges
   models/        Pydantic domain models (certificates, revocation, discovery)
   monitoring/    health and telemetry
-  na_service/    Network Authority (Flask app, routes, db, migrations)
+  na_service/    Network Authority: Flask app (server.py, app_factory.py,
+                 settings.py), routes/ (HTTP adapters), services/ (application
+                 logic), db.py + db_*.py storage mixins, storage/ (SQLite and
+                 PostgreSQL backends), migrations/ (NNN_name.sql numbered
+                 001..N once each, optional NNN_name.postgres.sql override),
+                 operator_console/ (operator pages)
   node/          node runtime, peer manager, cert manager, discovery client
   observability/ structured observability (separate from monitoring/)
   routing/       distance-vector routing, envelopes, provenance
@@ -45,10 +50,17 @@ genesis_mesh/
   trust/         trust evaluation primitives
   workflows/     multi-step orchestration (federation, proof, trust_bundle)
 
+changelog.d/     changelog fragments, one per change (see its README.md)
+conformance/     conformance vectors and runner (copied into the SDKs)
+contract/        public-surface.json, the classified public surface
+deploy/, docker/ Compose, systemd and container files
 docs/            Sphinx documentation source
 examples/        agent-network reference applications
 infrastructure/  Terraform for Azure deployment
-ops/             strategy.md, roadmap.md, go-to-market.md
+interop/         four-language interoperability scenario (CI "Interoperability")
+ops/             maintainer plans (plan-*.md), release-checklist.md,
+                 go-to-market.md, tamarin/ formal models
+scripts/         release, changelog, upgrade-rehearsal and smoke scripts
 ```
 
 The package name is `genesis_mesh` (underscore). The CLI command is
@@ -92,7 +104,9 @@ concerns belong in `examples/` or in dedicated overlay modules, never in core.
 
 ### 2. Modular Boundaries — The Layer Rule
 
-Each module has exactly one responsibility. The enforced layer rule is:
+Each module has exactly one responsibility. The layer rule is below. CI does
+not check it yet, and the code has known violations (trust→trust imports,
+route→db calls) that are being reduced: do not add new ones.
 
 ```
 models/*              = Pydantic entities + pure data helpers only
@@ -189,8 +203,9 @@ Windows 11 with PowerShell. CI runs on Linux. Code must work on both.
 
 ## Pre-commit Gates
 
-Every commit runs:
+Every commit runs (`.pre-commit-config.yaml`):
 
+- `python scripts/check_version.py` and a large-file check
 - `mypy genesis_mesh --ignore-missing-imports`
 - `python -m compileall genesis_mesh -q`
 - `python -m sphinx -b html -W docs docs/pages` (warnings are errors)
@@ -198,6 +213,8 @@ Every commit runs:
 
 Every `git push` additionally runs:
 
+- `python -m pip_audit -r requirements.txt -r requirements-dev.txt`
+- `python -m genesis_mesh.cli dev up` (CLI smoke)
 - `python -m pytest genesis_mesh/tests -q`
 
 Before pushing a change to the core, also run the suite on PostgreSQL, as the
@@ -222,6 +239,12 @@ pre-commit install --hook-type pre-commit --hook-type pre-push
 
 **Never bypass hooks** (`--no-verify`, `--no-gpg-sign`) unless explicitly
 asked. If a hook fails, fix the underlying issue.
+
+Pull requests: add a `changelog.d/<version>/<name>.md` fragment instead of
+editing `CHANGELOG.md`; a `fix:` PR that changes source files also changes a
+test (the "Regression test" check); fill in `.github/pull_request_template.md`.
+Tests that need PostgreSQL or nginx fail instead of skipping when
+`GM_E2E_REQUIRED=1`, which CI sets where it provides them.
 
 ---
 

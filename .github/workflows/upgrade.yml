@@ -11,6 +11,8 @@ on:
     branches:
       - main
   pull_request:
+  # The merge queue re-tests a pull request on top of main before it merges.
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -60,3 +62,18 @@ jobs:
 
       - name: Rehearse the upgrade
         run: python scripts/upgrade_rehearsal.py --from "${{ matrix.from }}" --postgres-url postgresql://genesis:genesis@localhost:5432/gm_test
+
+  # One stable required-check name over the matrix, which grows by one
+  # version per release: fails if any rehearsal failed or was cancelled.
+  rehearsals:
+    name: Upgrade rehearsals
+    needs: upgrade
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every upgrade rehearsal passed
+        env:
+          RESULT: ${{ needs.upgrade.result }}
+        run: |
+          echo "Upgrade rehearsals: $RESULT"
+          test "$RESULT" = success
