@@ -4,6 +4,12 @@ Thank you for considering a contribution. Genesis Mesh is a protocol project —
 contributions that touch the trust models, cryptographic primitives, or formal
 verification files go through a higher bar than docs or tooling changes.
 
+Start with the code architecture page,
+[docs/development/architecture.md](docs/development/architecture.md): the
+package map, the layer rules CI enforces, and recipes for where a change goes
+(a route, a setting, a migration, a record kind, a CLI command, a conformance
+suite, an error code), each with the test that fails if a file is missed.
+
 ## 1. Development setup
 
 ```bash

@@ -1,45 +1,12 @@
 # Module Structure
 
-Genesis Mesh keeps operational boundaries visible in the package layout. New
-code should extend these boundaries instead of adding unrelated responsibilities
-to an existing large module.
+The package map, the layer rules and "where a change goes" for the Network
+Authority, the protocol core and the CLI are in {doc}`architecture`. This
+page keeps the internals of the mesh node runtime.
 
-## Network Authority
-
-The Network Authority uses a Flask application factory and domain blueprints.
-
-```{mermaid}
-flowchart TB
-    app["na_service/server.py<br/>create_app + service orchestration"]
-    auth["na_service/auth.py<br/>operator + node request verification"]
-    limiter["na_service/rate_limit.py<br/>sliding-window limiter"]
-    db["na_service/db.py<br/>SQLite persistence"]
-    routes["na_service/routes/*<br/>Flask blueprints"]
-    enrollment["routes/enrollment.py<br/>join heartbeat renew"]
-    admin["routes/admin.py<br/>invite revoke policy"]
-    public["routes/public.py<br/>genesis policy"]
-    crl["routes/crl.py<br/>CRL publication"]
-    health["routes/health.py<br/>health readiness nodes"]
-
-    app --> auth
-    app --> limiter
-    app --> db
-    app --> routes
-    routes --> enrollment
-    routes --> admin
-    routes --> public
-    routes --> crl
-    routes --> health
-```
-
-Guidelines:
-
-- Add HTTP endpoints to the blueprint for their domain.
-- Keep shared request authentication in `na_service/auth.py`.
-- Keep rate limiting in `na_service/rate_limit.py`.
-- Keep durable state access in `na_service/db.py`.
-- Keep `na_service/server.py` focused on construction, shared service methods,
-  and blueprint registration.
+`node/`, `transport/`, `routing/` and `gossip/` are **dormant and internal**
+({doc}`decisions/0007-dormant-packages`): they are not in the public
+contract, and new work does not build on them without a decision.
 
 ## Node Control Plane
 
@@ -126,25 +93,7 @@ Guidelines:
 - Keep ping, pong, and latency tracking in `transport/heartbeat.py`.
 - Keep message schemas and message factories in `transport/protocol.py`.
 
-## Test Layout
-
-Network Authority route tests mirror the route blueprints.
-
-```text
-genesis_mesh/tests/
-  conftest.py             shared NA fixtures
-  na_server_helpers.py    signed request helpers
-  test_na_enrollment.py   /join /heartbeat /renew
-  test_na_admin.py        /admin/invite /admin/policy
-  test_na_crl.py          /crl and revocation effects
-  test_na_health.py       /readyz and restart persistence
-```
-
-New Network Authority tests should go into the file that matches the owning
-blueprint. Shared setup belongs in `conftest.py`; request-building helpers
-belong in `na_server_helpers.py`.
-
-## CLI
+## Node CLI and Client
 
 The primary operational CLI is `genesis-mesh`. Persona-oriented commands live
 under `genesis_mesh/cli/ops.py`; config discovery and TOML persistence live in
