@@ -4,7 +4,9 @@ The CI check "Regression test" runs this on every pull request and merge
 group. A pull request whose title starts with ``fix:``, ``fix(`` or ``fix!:``
 and that changes source files (anything but docs, CI, changelog fragments,
 plans, the contract and conformance vectors) fails unless it also changes a
-test file, or carries the label ``no-test-needed`` (set by the Maintainer when
+test file (added or modified; a deleted test is a source change, and test
+data such as fixtures or vectors is not a test), or carries the label
+``no-test-needed`` (set by the Maintainer when
 a fix cannot be tested, with the reason in the pull request). Other pull
 requests and merge groups pass: the queue re-runs a pull request that already
 passed this check.
@@ -39,6 +41,10 @@ NOT_SOURCE_PREFIXES = (
     "ops/",
 )
 NOT_SOURCE_SUFFIXES = (".md", ".rst")
+#: Code a test is written in; anything else in a test tree is test data.
+TEST_CODE_SUFFIXES = (".py", ".go", ".ts", ".js", ".mjs", ".cs", ".rs", ".sh")
+#: Directories that hold test data (fixtures, vectors), never tests themselves.
+TEST_DATA_DIRS = {"fixtures", "vectors", "testdata", "conformance"}
 NOT_SOURCE_FILES = {
     ".gitattributes",
     ".gitignore",
@@ -49,38 +55,46 @@ NOT_SOURCE_FILES = {
 }
 
 
-def is_test(path: str) -> bool:
-    """A test file: the test tree, the interop harness, or a ``test_*.py`` / ``*_test.py`` file."""
+def in_test_tree(path: str) -> bool:
+    """In the test tree or the interop harness (test code or test data)."""
     p = PurePosixPath(path)
-    return (
-        path.startswith(("genesis_mesh/tests/", "interop/"))
-        or "tests" in p.parts[:-1]
-        or p.name.startswith("test_")
-        or p.stem.endswith("_test")
-    )
+    return path.startswith(("genesis_mesh/tests/", "interop/")) or "tests" in p.parts[:-1]
+
+
+def is_test(path: str) -> bool:
+    """Test code: a code file in the test tree or named ``test_*`` / ``*_test``, not fixtures or vectors."""
+    p = PurePosixPath(path)
+    if not path.endswith(TEST_CODE_SUFFIXES) or TEST_DATA_DIRS & set(p.parts[:-1]):
+        return False
+    return in_test_tree(path) or p.name.startswith("test_") or p.stem.endswith("_test")
+
+
+def is_doc_ci_or_data(path: str) -> bool:
+    """Docs, CI, changelog fragments, plans, the contract and conformance vectors."""
+    return path.startswith(NOT_SOURCE_PREFIXES) or path.endswith(NOT_SOURCE_SUFFIXES) or path in NOT_SOURCE_FILES
 
 
 def is_source(path: str) -> bool:
-    """A file whose change can introduce or fix a bug: not a test, not docs, CI, plans or vectors."""
-    if is_test(path):
-        return False
-    return not (
-        path.startswith(NOT_SOURCE_PREFIXES)
-        or path.endswith(NOT_SOURCE_SUFFIXES)
-        or path in NOT_SOURCE_FILES
-    )
+    """A file whose change can introduce or fix a bug: not test code or test data, docs, CI, plans or vectors."""
+    return not (in_test_tree(path) or is_test(path) or is_doc_ci_or_data(path))
 
 
 def is_fix(title: str) -> bool:
     return bool(FIX_TITLE.match(title.strip()))
 
 
-def problems(title: str, labelled: bool, changed: Iterable[str]) -> list[str]:
-    """Why the pull request fails the check (empty when it passes)."""
+def problems(title: str, labelled: bool, changed: Iterable[str], deleted: Iterable[str] = ()) -> list[str]:
+    """Why the pull request fails the check (empty when it passes).
+
+    ``changed`` are added or modified files, ``deleted`` deleted ones. Only an
+    added or modified test counts as a test; a deleted file (a test too) counts
+    as a source change unless it is docs, CI, plans or vectors.
+    """
     if not is_fix(title) or labelled:
         return []
     files = list(changed)
-    source = [f for f in files if is_source(f)]
+    removed = list(deleted)
+    source = [f for f in files if is_source(f)] + [f for f in removed if not is_doc_ci_or_data(f)]
     if not source or any(is_test(f) for f in files):
         return []
     shown = ", ".join(source[:5]) + (f" and {len(source) - 5} more" if len(source) > 5 else "")
@@ -90,12 +104,19 @@ def problems(title: str, labelled: bool, changed: Iterable[str]) -> list[str]:
     ]
 
 
-def changed_files(base: str, head: str) -> list[str]:
+def changed_files(base: str, head: str) -> tuple[list[str], list[str]]:
+    """``(added or modified, deleted)`` paths between the merge base and ``head``."""
     out = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", f"{base}...{head}"],
+        ["git", "diff", "--name-status", "--no-renames", f"{base}...{head}"],
         check=True, capture_output=True, text=True,
     )
-    return [line for line in out.stdout.splitlines() if line]
+    changed: list[str] = []
+    deleted: list[str] = []
+    for line in out.stdout.splitlines():
+        status, _, path = line.partition("\t")
+        if path:
+            (deleted if status.startswith("D") else changed).append(path)
+    return changed, deleted
 
 
 def main() -> int:
@@ -115,7 +136,8 @@ def main() -> int:
     if not base or not head:
         print("::error::BASE_SHA and HEAD_SHA are required for a pull request")
         return 1
-    found = problems(title, labelled, changed_files(base, head))
+    changed, deleted = changed_files(base, head)
+    found = problems(title, labelled, changed, deleted)
     for problem in found:
         print(f"::error::{problem}")
     if not found:
