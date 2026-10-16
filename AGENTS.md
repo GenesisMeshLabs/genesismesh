@@ -54,6 +54,7 @@ genesis_mesh/
   workflows/     multi-step orchestration (federation, proof, trust_bundle)
 
 changelog.d/     changelog fragments, one per change (see its README.md)
+upgrade.d/       upgrade-note fragments for docs/operations/upgrade.md (its README.md)
 conformance/     conformance vectors and runner (copied into the SDKs)
 contract/        public-surface.json, the classified public surface
 deploy/, docker/ Compose, systemd and container files
@@ -107,9 +108,12 @@ concerns belong in `examples/` or in dedicated overlay modules, never in core.
 
 ### 2. Modular Boundaries — The Layer Rule
 
-Each module has exactly one responsibility. The layer rule is below. CI does
-not check it yet, and the code has known violations (trust→trust imports,
-route→db calls) that are being reduced: do not add new ones.
+Each module has exactly one responsibility. The layer rule is below.
+`genesis_mesh/tests/test_architecture.py` enforces it in the unit suite: the
+layer table, no trust→trust imports and no `service.db` in route files. The
+violations that existed on 2026-10-16 are allowlisted there; the test also
+fails when one of them is fixed but still listed, so the lists only shrink.
+Never add to them: move the code instead.
 
 ```
 models/*              = Pydantic entities + pure data helpers only
@@ -209,6 +213,8 @@ Windows 11 with PowerShell. CI runs on Linux. Code must work on both.
 Every commit runs (`.pre-commit-config.yaml`):
 
 - `python scripts/check_version.py` and a large-file check
+- `python -m ruff check genesis_mesh scripts conformance` (lint only: pyflakes
+  and import errors; `ruff.toml` holds a per-file baseline that may only shrink)
 - `mypy genesis_mesh --ignore-missing-imports`
 - `python -m compileall genesis_mesh -q`
 - `python -m sphinx -b html -W docs docs/pages` (warnings are errors)
@@ -244,7 +250,8 @@ pre-commit install --hook-type pre-commit --hook-type pre-push
 asked. If a hook fails, fix the underlying issue.
 
 Pull requests: add a `changelog.d/<version>/<name>.md` fragment instead of
-editing `CHANGELOG.md`; a `fix:` PR that changes source files also changes a
+editing `CHANGELOG.md`, and an `upgrade.d/<version>/<name>.md` fragment
+instead of a new section in `docs/operations/upgrade.md`; a `fix:` PR that changes source files also changes a
 test (the "Regression test" check); fill in `.github/pull_request_template.md`.
 Tests that need PostgreSQL or nginx fail instead of skipping when
 `GM_E2E_REQUIRED=1`, which CI sets where it provides them.
@@ -372,6 +379,13 @@ AI Research stops accepting the member.
 - missing required claim
 
 Trust code is not complete until failure paths are tested.
+
+**Coverage floors** — CI measures line coverage of `trust/`, `models/` and
+`na_service/services/` in the unit suite and fails below the floors in
+`scripts/coverage_floor.py` (today's values, rounded down). Floors only rise.
+
+**Property tests** — parsers and canonical forms get hypothesis tests next
+to their example tests (`test_strict_json_properties.py`).
 
 ### Test Naming
 

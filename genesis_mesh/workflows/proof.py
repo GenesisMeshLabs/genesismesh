@@ -11,7 +11,7 @@ from typing import Any
 
 import requests
 
-from ..cli.support import (
+from .remote import (
     _request_json,
     _require_positive_int,
     _signed_admin_headers,

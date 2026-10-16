@@ -27,7 +27,7 @@ from typing import Any, cast
 
 import requests
 
-from ..cli.support import _request_json
+from .remote import _request_json
 
 BUNDLE_TYPE = "genesis-mesh.trust-bundle"
 BUNDLE_VERSION = "v1"

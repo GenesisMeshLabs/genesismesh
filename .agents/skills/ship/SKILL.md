@@ -136,12 +136,14 @@ not write a single file, and wait for the user to resolve the issue before
 continuing.
 
 ### 3A — Layer rule
-`trust/` must never import from `na_service/`. Grep:
+The architecture test checks every layer rule of AGENTS.md (the layer table,
+trust→trust imports, `service.db` in route files) against an allowlist that
+may only shrink:
 ```
-grep -rn "from.*na_service" genesis_mesh/trust/
-grep -rn "import.*na_service" genesis_mesh/trust/
+python -m pytest genesis_mesh/tests/test_architecture.py -q
 ```
-If any matches: **HARD STOP** — layer boundary violated.
+If it fails with a new violation: **HARD STOP** — layer boundary violated.
+Never add to its allowlists.
 
 ### 3B — Public boundary rule
 Private key material must not leave `na_service/`. Grep new/changed files for:
@@ -425,7 +427,9 @@ fragments (see `docs/development/versioning.md`, *Changelogs*). The release PR,
 on a branch named `release/{X.Y.Z}`, folds them in with
 `python scripts/changelog.py release {X.Y.Z} --heading "## v{X.Y.Z} - {Title}"`
 (SDKs: `"## [{X.Y.Z}] - {date}"`), in every repository of the train, so
-`CHANGELOG.md` contains an entry for `v{X.Y.Z}` above all prior versions. Remove
+`CHANGELOG.md` contains an entry for `v{X.Y.Z}` above all prior versions. In
+the core, the same PR folds `upgrade.d/{X.Y.Z}/` into
+`docs/operations/upgrade.md` with `python scripts/upgrade_notes.py release {X.Y.Z}`. Remove
 the `*Unreleased.*` markers under the version's documentation headings in the
 same PR. Do NOT create a separate release-notes file.
 
