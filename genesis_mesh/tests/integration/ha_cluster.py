@@ -219,10 +219,14 @@ class HACluster:
         wait_ready(self.url, timeout=15)
         return self
 
-    def kill(self, name: str, sig: int = signal.SIGKILL) -> None:
-        """Kill an instance's whole process group (master and workers), as a crash would."""
+    def kill(self, name: str, sig: Optional[int] = None) -> None:
+        """Kill an instance's whole process group (master and workers), as a crash would.
+
+        ``sig`` defaults to SIGKILL, looked up when called: Windows has no
+        SIGKILL, and a default evaluated at import broke test collection there.
+        """
         instance = next(i for i in self.instances if i.name == name)
-        os.killpg(instance.process.pid, sig)
+        os.killpg(instance.process.pid, signal.SIGKILL if sig is None else sig)
         instance.process.wait(timeout=15)
         # Workers outlive the master by a moment and still hold the listening
         # socket: a connection accepted then is reset after nginx has sent the
