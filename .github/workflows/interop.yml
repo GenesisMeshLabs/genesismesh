@@ -123,15 +123,26 @@ jobs:
           # v1.5.0: and the audit suite (key history, packs, completeness).
           cmp conformance/vectors/audit.json sdks/sdk-typescript/tests/fixtures/conformance/audit.json
           cmp conformance/vectors/audit.json sdks/sdk-rust/tests/fixtures/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-go/genesismesh/testdata/conformance/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/audit.json
           # v1.6.0: and the grants suite (grants, time tokens, grant uses, revocations).
           cmp conformance/vectors/grants.json sdks/sdk-typescript/tests/fixtures/conformance/grants.json
           cmp conformance/vectors/grants.json sdks/sdk-rust/tests/fixtures/grants.json
+          cmp conformance/vectors/grants.json sdks/sdk-go/genesismesh/testdata/conformance/grants.json
+          cmp conformance/vectors/grants.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/grants.json
           # v1.7.0: and the node suite (node request signatures), which only the Rust SDK runs.
           cmp conformance/vectors/node.json sdks/sdk-rust/tests/fixtures/node.json
 
+      # A filter that matches no test passes in Go ("no tests to run"): require
+      # at least one, so a renamed test cannot turn this step green.
       - name: Go verifier conformance
         working-directory: sdks/sdk-go
-        run: go test ./... -run 'Conformance|Canonical'
+        run: |
+          set -o pipefail
+          go test ./... -run 'Conformance|Canonical' -v | tee "$RUNNER_TEMP/go-conformance.txt"
+          passed="$(grep -c '^--- PASS' "$RUNNER_TEMP/go-conformance.txt" || true)"
+          echo "Go conformance tests passed: $passed"
+          if [ "$passed" -eq 0 ]; then echo "::error::no Go conformance test matched"; exit 1; fi
 
       - name: Run the four legs
         env:
