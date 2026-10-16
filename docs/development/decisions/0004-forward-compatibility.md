@@ -15,7 +15,9 @@ before an operator may switch the feature on.
   with its count), or the verifier is tied to a negotiated format level. The
   core designs it first, as an ADR with vectors; the SDKs follow through the
   bundle.
-- Unknown **fields** in a known kind stay refused (`unknown_field`).
+- Unknown **signed** fields in a known kind stay refused (`unknown_field`).
+  Unsigned extras keep today's behaviour: a record that otherwise verifies
+  is still verified, with the extras reported (`docs/reference/canonical-form.md`).
 
 ## Consequences
 
