@@ -23,7 +23,10 @@ project-facing guidance.
 ## Current Repo Layout
 
 This is what exists today. Do not rename or reorganize these modules without
-explicit instruction.
+explicit instruction. `docs/development/architecture.md` has the package map,
+the layer table and the recipes for where a change goes; read it before
+adding a route, setting, migration, record kind, CLI command, conformance
+suite or error code.
 
 ```text
 genesis_mesh/
