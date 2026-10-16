@@ -1,0 +1,34 @@
+name: Regression test
+
+# A bug-fix pull request (title "fix: ..." or "fix(scope): ...") that changes
+# source files must change a test file too, unless the Maintainer labels it
+# "no-test-needed". See scripts/regression_test_check.py.
+
+on:
+  pull_request:
+    # edited: the title decides; labeled/unlabeled: the label does.
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+  # The pull request passed this check before it was queued.
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  regression-test:
+    name: Regression test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: A bug fix changes a test
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          NO_TEST_NEEDED: ${{ contains(github.event.pull_request.labels.*.name, 'no-test-needed') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/regression_test_check.py
