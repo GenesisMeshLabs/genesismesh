@@ -33,6 +33,11 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
 
+      # pyflakes and import errors on the package, scripts and conformance
+      # runner; ruff.toml holds the rules and the per-file baseline.
+      - name: Lint (ruff)
+        run: python -m ruff check genesis_mesh scripts conformance
+
       - name: Verify release version
         run: python scripts/check_version.py
 

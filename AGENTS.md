@@ -209,6 +209,8 @@ Windows 11 with PowerShell. CI runs on Linux. Code must work on both.
 Every commit runs (`.pre-commit-config.yaml`):
 
 - `python scripts/check_version.py` and a large-file check
+- `python -m ruff check genesis_mesh scripts conformance` (lint only: pyflakes
+  and import errors; `ruff.toml` holds a per-file baseline that may only shrink)
 - `mypy genesis_mesh --ignore-missing-imports`
 - `python -m compileall genesis_mesh -q`
 - `python -m sphinx -b html -W docs docs/pages` (warnings are errors)
