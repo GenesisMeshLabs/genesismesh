@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 
 import nacl.encoding
 import nacl.signing
 import pytest
 from flask import Flask
+from hypothesis import HealthCheck, settings
 
 from genesis_mesh.audit import logger as audit_logger_module
 from genesis_mesh.crypto import generate_keypair, sign_model
@@ -20,6 +22,20 @@ from .na_server_helpers import SigningTestClient
 # Admin signatures (v1.0.2) bind method, path and query: every NA test client
 # signs requests marked by na_server_helpers.admin_headers when they are sent.
 Flask.test_client_class = SigningTestClient
+
+# Hypothesis profiles. Loaded here, before any test module builds its
+# settings, so every property test inherits the active one:
+#   dev   (default)  random inputs each run, failures replayed from .hypothesis/
+#   ci    (CI set)   the same inputs on every run and no example database, so a
+#                    required check never fails on a fresh seed; a property bug is
+#                    found locally (dev, deep) and kept as an @example
+#   deep  (opt-in)   HYPOTHESIS_PROFILE=deep: 20,000 random inputs per test
+settings.register_profile(
+    "dev", max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow]
+)
+settings.register_profile("ci", settings.get_profile("dev"), derandomize=True, database=None)
+settings.register_profile("deep", settings.get_profile("dev"), max_examples=20_000)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE") or ("ci" if os.environ.get("CI") else "dev"))
 
 
 @pytest.fixture(autouse=True)

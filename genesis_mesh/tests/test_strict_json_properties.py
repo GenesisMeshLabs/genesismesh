@@ -14,25 +14,28 @@ SDK, so these properties are what interoperability rests on:
   same value or the same first fault as scanning the whole text first;
 * a timestamp the reference writes is canonical; its other spellings are not.
 
-Each test runs ``max_examples`` generated inputs (seconds in CI); a failure
-prints the smallest input that breaks the property.
+Each test runs the active hypothesis profile's ``max_examples`` inputs
+(conftest.py: fixed inputs in CI, random locally, ``HYPOTHESIS_PROFILE=deep``
+for a long local run); a failure prints the smallest input that breaks the
+property.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from hypothesis import HealthCheck, assume, example, given, settings
+from hypothesis import assume, example, given, settings
 from hypothesis import strategies as st
 from pydantic import TypeAdapter
 
 from genesis_mesh import strict_json
 from genesis_mesh.models.canonical_registry import canonical_timestamp
 
-PROPERTIES = settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+PROPERTIES = settings()  # the active profile (conftest.py)
 
 # The range every SDK reads exactly (strict_json docstring), written out: not read from the module.
 MIN, MAX = -(2**63), 2**64 - 1
@@ -267,7 +270,7 @@ TOKENS = [
 ]
 
 
-@settings(max_examples=500, deadline=None)
+@settings(max_examples=settings().max_examples * 5 // 2)
 @given(st.lists(st.sampled_from(TOKENS), min_size=1, max_size=14).map("".join))
 def test_loads_names_the_first_fault_as_scanning_first_does(text):
     assert outcome(strict_json.loads, text) == outcome(scan_first, text)
@@ -300,3 +303,19 @@ def test_the_reference_writes_canonical_timestamps_only(moment, zone):
     if written.endswith("Z"):
         assert not canonical_timestamp(written[:-1] + "+00:00")
         assert not canonical_timestamp(written[:-1] + "z")
+
+
+# -- the profile reaches every property test --------------------------------------------------
+
+
+def test_every_property_test_runs_under_the_active_profile():
+    """In CI (the ``ci`` profile) every test here draws the same inputs on every run."""
+    active = settings()
+    tests = [value for name, value in globals().items()
+             if name.startswith("test_") and hasattr(value, "_hypothesis_internal_use_settings")]
+    assert len(tests) == 15
+    for test in tests:
+        used = test._hypothesis_internal_use_settings
+        assert (used.derandomize, used.database) == (active.derandomize, active.database), test.__name__
+    if os.environ.get("CI") and not os.environ.get("HYPOTHESIS_PROFILE"):
+        assert active.derandomize and active.database is None
