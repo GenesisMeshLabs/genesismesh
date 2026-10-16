@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -85,7 +86,8 @@ def _intent(
     *,
     use_real_now: bool = False,
 ) -> DataAccessIntent:
-    t = _REAL_NOW if use_real_now else (now or _NOW)
+    # The wall clock when signed, not at import: a long run must not expire it (1.7.1).
+    t = datetime.now(timezone.utc) if use_real_now else (now or _NOW)
     return create_data_access_intent(
         "agent-a", "dec-1",
         sources or [_source()],
@@ -384,3 +386,16 @@ def test_cli_data_record() -> None:
         rec = DataAccessRecord.model_validate_json(out.read_text())
         assert rec.signature is not None
         assert rec.actual_volume_bytes == 512
+
+
+def test_real_time_intents_stay_valid_however_long_the_run_takes(monkeypatch) -> None:
+    """An intent signed "now" is valid at the gate even when the module was imported long ago (1.7.1).
+
+    ``_intent(use_real_now=True)`` used the import-time clock: once the suite had
+    run for more than the intent's 300 seconds (a slow PostgreSQL run), the gate
+    and CLI tests saw it as expired.
+    """
+    monkeypatch.setattr(sys.modules[__name__], "_REAL_NOW", datetime.now(timezone.utc) - timedelta(minutes=10))
+    sk = _sk()
+    result = DataUsageGate(_intent(sk, use_real_now=True), _policy(), [_pub_b64(sk)])(None, None)  # type: ignore[attr-defined]
+    assert result.passed is True, result.detail
