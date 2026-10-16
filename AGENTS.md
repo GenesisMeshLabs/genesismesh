@@ -51,6 +51,7 @@ genesis_mesh/
   workflows/     multi-step orchestration (federation, proof, trust_bundle)
 
 changelog.d/     changelog fragments, one per change (see its README.md)
+upgrade.d/       upgrade-note fragments for docs/operations/upgrade.md (its README.md)
 conformance/     conformance vectors and runner (copied into the SDKs)
 contract/        public-surface.json, the classified public surface
 deploy/, docker/ Compose, systemd and container files
@@ -246,7 +247,8 @@ pre-commit install --hook-type pre-commit --hook-type pre-push
 asked. If a hook fails, fix the underlying issue.
 
 Pull requests: add a `changelog.d/<version>/<name>.md` fragment instead of
-editing `CHANGELOG.md`; a `fix:` PR that changes source files also changes a
+editing `CHANGELOG.md`, and an `upgrade.d/<version>/<name>.md` fragment
+instead of a new section in `docs/operations/upgrade.md`; a `fix:` PR that changes source files also changes a
 test (the "Regression test" check); fill in `.github/pull_request_template.md`.
 Tests that need PostgreSQL or nginx fail instead of skipping when
 `GM_E2E_REQUIRED=1`, which CI sets where it provides them.

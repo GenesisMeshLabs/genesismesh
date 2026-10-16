@@ -225,3 +225,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
         run: python3 scripts/changelog.py check ${BASE_REF:+--base origin/$BASE_REF} --branch "$HEAD_REF"
+      # Pull requests add upgrade.d/<version>/<name>.md; only the release adds
+      # the "Upgrading to <version>" section of docs/operations/upgrade.md.
+      - name: Upgrade notes are fragments
+        run: python3 scripts/upgrade_notes.py check
