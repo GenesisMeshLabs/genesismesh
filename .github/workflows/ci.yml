@@ -46,8 +46,15 @@ jobs:
         env:
           RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
 
-      - name: Run unit tests
-        run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
+      - name: Run unit tests (measuring coverage of trust, models and services)
+        run: >-
+          python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
+          --cov=genesis_mesh.trust --cov=genesis_mesh.models --cov=genesis_mesh.na_service.services
+          --cov-report=json:coverage.json
+
+      # A one-way ratchet: the floors in the script only rise.
+      - name: Coverage floors
+        run: python scripts/coverage_floor.py coverage.json
 
       - name: Run integration tests (capability demos)
         run: python -m pytest genesis_mesh/tests/integration -v -W error::DeprecationWarning -m integration
