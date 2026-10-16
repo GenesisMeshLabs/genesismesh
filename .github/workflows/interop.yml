@@ -12,6 +12,8 @@ on:
     branches:
       - main
   pull_request:
+  # The merge queue re-tests a pull request on top of main before it merges.
+  merge_group:
 
 permissions:
   contents: read
@@ -26,7 +28,9 @@ jobs:
       # A change can span the core and the SDKs (one release train), so a core
       # branch is tested against the SDK branches of the same name when they all
       # exist, and against main otherwise. Only these refs are run: a run on the
-      # default branch never executes code from a ref someone chose.
+      # default branch never executes code from a ref someone chose. In the merge
+      # queue the ref is gh-readonly-queue/..., so main is used: merge the SDK
+      # side of a coordinated change before queueing the core side.
       - name: Choose the SDK revision
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
