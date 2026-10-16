@@ -81,7 +81,9 @@ Full documentation, operator guides, protocol RFCs, and example walkthroughs:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, branch naming,
-commit style, and the protocol-change process.
+commit style, and the protocol-change process, and
+[docs/development/architecture.md](docs/development/architecture.md) for the
+package map, the layer rules and where a change goes.
 
 ## Security
 

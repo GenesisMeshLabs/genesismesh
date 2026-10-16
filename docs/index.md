@@ -279,6 +279,7 @@ rfcs/index
 :caption: Contributing
 
 development/contributing
+development/architecture
 development/module-structure
 development/testing
 development/interoperability
