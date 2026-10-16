@@ -106,11 +106,14 @@ The reviews found:
       foreign attestation; the device holds no operator key
       (`test_node_routes.py`; the scenarios assert no admin header reaches the
       NA, and the agent's clippy configuration refuses admin signing)
-- [ ] With the NA stopped for two hours: N in-grant actions succeed through the
+- [x] With the NA stopped for two hours: N in-grant actions succeed through the
       local API; an out-of-envelope action is refused locally; an urgent
       action with a justification proceeds as break-glass; on reconnect every
       record uploads in order within T, refused ones quarantined (N and T set
-      in the test)
+      in the test: N = 8, T = 120 s). The soak on sdk-rust's release pull
+      request ran 7,207 s with the NA stopped and passed, at 6,804 KiB
+      resident (x86-64); every pull request runs the same scenario for 120 s
+      on both architectures
 - [x] An unauthenticated local client is refused (scenario `local_auth`)
 - [x] Size and memory on arm64 and x86-64 are measured in CI and within the
       recorded budgets (`edge/footprint-budgets.json`: 12 MiB binary, 32 MiB
@@ -125,7 +128,7 @@ The reviews found:
 - [x] Stage 5 (1.6.0) released; this stage confirmed (the Maintainer's
       standing instruction to proceed with the next plan once 1.6.0 was
       green, 2026-10-14; Decision 5 of `plan-v1.2.0.md`)
-- [ ] Maintainer decisions recorded (date)
+- [x] Maintainer decisions recorded (2026-10-16: 1-48)
 - [x] Version bumped to `1.7.0` across the release train; `docs/sdk/index.md`
 - [x] CHANGELOG entries, `history.md`, `phase-n.md` closed for the program
 - [x] `SECURITY.md`: 1.7.x supported, 1.6.x upgrade to 1.7; the edge agent
@@ -135,24 +138,33 @@ The reviews found:
 - [x] Merge order: the Rust SDK (`sdk-rust`), then core, then the gateway
       (Decision 16): core after re-running interop with all four SDK
       repositories on `feat/edge-agent`, the gateway right after core
-- [ ] Dry runs green; tags `v1.7.0`, releases, published-artifacts green
-      (including the agent)
-- [ ] `"1.7.0"` added to the `upgrade.yml` matrix after the release
-- [ ] Both production hosts upgraded
+- [x] Dry runs green; tags `v1.7.0`, releases, published-artifacts green
+      (including the agent; 2026-10-16). The sdk-rust tag's edge release job
+      failed on a path before it signed or published anything; with the
+      Maintainer's approval the tag was re-pointed to the fix (sdk-rust #45,
+      the workflow only), with the immutable-tag rule disabled for that push
+      and enabled again
+- [x] `"1.7.0"` added to the `upgrade.yml` matrix after the release
+- [x] Both production hosts upgraded (2026-10-15). On the demo NA a test
+      agent (the released image) enrolled with a recipient-bound edge
+      invite, got an ALLOW and a final DENY, was revoked with its key in one
+      step and reached state revoked; a pack of the whole store verified
+      with the released `genesis-mesh-verify` 1.7.0. The read-only
+      reference on Azure verifies its public records
 
 ## Decisions
 
 1. **Agent image beta** until a release after 1.7.0 proves it in a
-   deployment (taken as proposed, 2026-10-14; Decision 14).
+   deployment (taken as proposed, 2026-10-14; confirmed by the Maintainer, 2026-10-16; Decision 14).
 2. **Executor key registered at join**, by the node's own signature, instead
-   of a privileged admin call per device (taken as proposed, 2026-10-14;
+   of a privileged admin call per device (taken as proposed, 2026-10-14; confirmed by the Maintainer, 2026-10-16;
    Decision 8).
 3. **A node-scoped evaluate route** instead of operator keys on devices
-   (taken as proposed, 2026-10-14; Decision 6).
+   (taken as proposed, 2026-10-14; confirmed by the Maintainer, 2026-10-16; Decision 6).
 
 From the implementation contract (2026-10-14). Each was taken as proposed,
-2026-10-14, to be confirmed by the Maintainer at release, except where it
-says otherwise.
+2026-10-14, and confirmed by the Maintainer, 2026-10-16, except where it says
+otherwise.
 
 ### The agent and the SDK
 
@@ -256,7 +268,7 @@ says otherwise.
     chain position is still consumed (1.6 Decision 18). A use quarantined as
     `grant_budget_exhausted` keeps counting (review fixes).
 
-### Review fixes (taken as proposed, 2026-10-14)
+### Review fixes (taken as proposed, 2026-10-14; confirmed by the Maintainer, 2026-10-16)
 
 From the critic's and the skeptic's reviews of the branch.
 
@@ -307,7 +319,7 @@ The agent (sdk-rust):
     the measured values recorded beside them, and a variant of the offline
     scenario in which the NA accepts connections and never answers.
 
-Open for the Maintainer at release (from the skeptic's review):
+Left open by the Maintainer at release (2026-10-16; from the skeptic's review):
 
 - Is break-glass after an NA rate limit or `5xx` ever acceptable for devices?
   (Decision 32 says no.)
@@ -322,7 +334,7 @@ Open for the Maintainer at release (from the skeptic's review):
   a legitimate backlog from forgeries?
 - Are the fixed footprint targets (Decision 35) the right ones?
 
-### Second review fixes (taken as proposed, 2026-10-14)
+### Second review fixes (taken as proposed, 2026-10-14; confirmed by the Maintainer, 2026-10-16)
 
 The agent (sdk-rust):
 
@@ -383,7 +395,7 @@ The core (documentation only):
     (`test_a_revoked_key_counts_like_an_unknown_one`, reproduced with a clock
     that crosses the boundary).
 
-Also open for the Maintainer at release (second review):
+Also left open (second review):
 
 - Renewing an expired certificate while keeping its executor key, so an
   expired device need not re-enrol (deferred).
