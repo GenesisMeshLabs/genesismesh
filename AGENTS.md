@@ -375,6 +375,13 @@ AI Research stops accepting the member.
 
 Trust code is not complete until failure paths are tested.
 
+**Coverage floors** — CI measures line coverage of `trust/`, `models/` and
+`na_service/services/` in the unit suite and fails below the floors in
+`scripts/coverage_floor.py` (today's values, rounded down). Floors only rise.
+
+**Property tests** — parsers and canonical forms get hypothesis tests next
+to their example tests (`test_strict_json_properties.py`).
+
 ### Test Naming
 
 Describe the behavior, not the function under test:
