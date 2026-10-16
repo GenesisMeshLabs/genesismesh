@@ -1,0 +1,29 @@
+# 0002: SDK capability tiers; Go and .NET as verifier plus thin client
+
+**Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
+
+## Context
+
+The Go and .NET SDKs cover 23 of the core's routes and verify a subset of
+records offline; the TypeScript and Rust SDKs cover the governed lifecycle.
+The docs implied every SDK wraps the same API. Neither Go nor .NET shows
+measurable use, and both carry API debt that lockstep versioning would freeze
+until a core 2.0.
+
+## Decision
+
+- Publish **capability tiers** (verifier plus thin client: Go, .NET;
+  governed client: TypeScript, Rust; edge: Rust) with a generated capability
+  matrix, instead of aiming for feature parity.
+- Go and .NET release on their own cadence and each takes **one deliberate
+  2.0 now**, outside lockstep: typed requests from the core's schemas,
+  deprecated fields removed, a generic signed call and `Evaluate`, and
+  idiomatic .NET (`Async` names, cancellation, immutable models, internals
+  hidden, dependency injection).
+- The governed lifecycle (outbox, grants, remediation, audit packs) is not
+  ported to Go or .NET without a named user.
+
+## Consequences
+
+Users choosing an SDK see what it does. The 2.0s are cheap while adoption
+is zero.
