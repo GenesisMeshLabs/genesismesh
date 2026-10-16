@@ -171,6 +171,8 @@ jobs:
           --health-retries 10
     env:
       GENESIS_MESH_TEST_DATABASE_URL: postgresql://genesis:genesis@localhost:5432/gm_test
+      # This job provides PostgreSQL and nginx: a test that needs them fails instead of skipping.
+      GM_E2E_REQUIRED: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
