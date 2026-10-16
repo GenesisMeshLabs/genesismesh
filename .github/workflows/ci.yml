@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  # The merge queue re-tests a pull request on top of main before it merges.
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -77,7 +79,8 @@ jobs:
           fetch-depth: 0
 
       # A coordinated change is tested against the gateway branch of the same
-      # name when it exists, and against main otherwise.
+      # name when it exists, and against main otherwise (always in the merge
+      # queue, whose ref is gh-readonly-queue/...: merge the gateway side first).
       - name: Choose the gateway revision
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -132,6 +135,20 @@ jobs:
             --legacy-image genesis-mesh:legacy --context-dir . \
             --compose-file deploy/compose/docker-compose.images.yml
 
+  # One stable required-check name over the architecture matrix.
+  containers:
+    name: Container images
+    needs: container
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every architecture passed
+        env:
+          RESULT: ${{ needs.container.result }}
+        run: |
+          echo "Container images: $RESULT"
+          test "$RESULT" = success
+
   postgres:
     name: PostgreSQL backend and HA failover
     runs-on: ubuntu-latest
@@ -154,6 +171,8 @@ jobs:
           --health-retries 10
     env:
       GENESIS_MESH_TEST_DATABASE_URL: postgresql://genesis:genesis@localhost:5432/gm_test
+      # This job provides PostgreSQL and nginx: a test that needs them fails instead of skipping.
+      GM_E2E_REQUIRED: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

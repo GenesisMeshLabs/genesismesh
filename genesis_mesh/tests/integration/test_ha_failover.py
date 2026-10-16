@@ -35,14 +35,18 @@ from genesis_mesh.na_service.db import NADatabase
 from genesis_mesh.trust.execution import record_execution
 from genesis_mesh.workflows.db_migration import verify_database
 
+from genesis_mesh.tests.e2e_support import skip_unless_required
 from genesis_mesh.tests.pg_support import fresh_postgres_url
 from genesis_mesh.tests.integration.ha_cluster import HACluster, get_json
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.postgres,
-    pytest.mark.skipif(shutil.which("nginx") is None, reason="needs nginx"),
-]
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
+
+
+@pytest.fixture(autouse=True)
+def _needs_nginx() -> None:
+    # Skips on a developer machine; fails in the CI job that installs nginx (GM_E2E_REQUIRED=1).
+    if shutil.which("nginx") is None:
+        skip_unless_required("needs nginx")
 
 RUN_SECONDS_BEFORE_KILL = 4.0
 RUN_SECONDS_AFTER_KILL = 4.0
