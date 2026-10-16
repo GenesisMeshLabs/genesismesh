@@ -44,6 +44,13 @@ repos:
         pass_filenames: false
         stages: [pre-commit, pre-push]
 
+      - id: ruff
+        name: ruff (lint; rules and baseline in ruff.toml)
+        entry: python -m ruff check genesis_mesh scripts conformance
+        language: system
+        pass_filenames: false
+        types: [python]
+
       - id: mypy
         name: mypy (genesis_mesh)
         entry: python -m mypy genesis_mesh --ignore-missing-imports

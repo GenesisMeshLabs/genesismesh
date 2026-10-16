@@ -24,6 +24,11 @@ wheels/
 
 # Test and tooling caches
 .pytest_cache/
+.hypothesis/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.json
 .wrangler/
 node_modules/
 

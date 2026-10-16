@@ -33,6 +33,11 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
 
+      # pyflakes and import errors on the package, scripts and conformance
+      # runner; ruff.toml holds the rules and the per-file baseline.
+      - name: Lint (ruff)
+        run: python -m ruff check genesis_mesh scripts conformance
+
       - name: Verify release version
         run: python scripts/check_version.py
 
@@ -41,8 +46,15 @@ jobs:
         env:
           RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
 
-      - name: Run unit tests
-        run: python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
+      - name: Run unit tests (measuring coverage of trust, models and services)
+        run: >-
+          python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
+          --cov=genesis_mesh.trust --cov=genesis_mesh.models --cov=genesis_mesh.na_service.services
+          --cov-report=json:coverage.json
+
+      # A one-way ratchet: the floors in the script only rise.
+      - name: Coverage floors
+        run: python scripts/coverage_floor.py coverage.json
 
       - name: Run integration tests (capability demos)
         run: python -m pytest genesis_mesh/tests/integration -v -W error::DeprecationWarning -m integration
@@ -213,3 +225,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
         run: python3 scripts/changelog.py check ${BASE_REF:+--base origin/$BASE_REF} --branch "$HEAD_REF"
+      # Pull requests add upgrade.d/<version>/<name>.md; only the release adds
+      # the "Upgrading to <version>" section of docs/operations/upgrade.md.
+      - name: Upgrade notes are fragments
+        run: python3 scripts/upgrade_notes.py check

@@ -65,6 +65,10 @@ dev = [
     "pytest==9.0.3",
     "pytest-asyncio==1.4.0",
     "mypy==2.1.0",
+    "ruff==0.17.1",
+    "hypothesis==6.170.0",
+    "pytest-cov==7.1.0",
+    "coverage==7.16.2",
     "pip-audit==2.10.0",
     "pre-commit==4.4.0",
 ]
