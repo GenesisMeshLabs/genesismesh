@@ -88,6 +88,8 @@ chore(hooks): add pip-audit and cli-smoke to pre-push stage
 - Record user-visible changes as a fragment in `changelog.d/<version>/`
   (see `changelog.d/README.md`). Only a `release/<version>` PR edits
   `CHANGELOG.md`; the "Changelog fragments" check refuses it elsewhere.
+  Operator upgrade steps go in `upgrade.d/<version>/` the same way (see
+  `upgrade.d/README.md`), not in `docs/operations/upgrade.md`.
 - A bug fix carries the test that fails without it. The "Regression test"
   check fails a PR titled `fix: ...` or `fix(scope): ...` that changes source
   files but no test, unless the Maintainer labels it `no-test-needed`.

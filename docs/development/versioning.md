@@ -85,6 +85,11 @@ SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
    holds only `### Section` headings at the start of a line, no line starting
    with `## ` even in a code block (it would end the version's release
    notes), and no byte order mark.
+4. Upgrade notes work the same way: a change that needs an operator step on
+   upgrade adds `upgrade.d/<version>/<name>.md` (see `upgrade.d/README.md`),
+   and the release PR folds them into `docs/operations/upgrade.md` with
+   `python scripts/upgrade_notes.py release <version>`. The same CI check
+   refuses an "Upgrading to" section for a version newer than `VERSION`.
 
 Documentation follows the same rule for versioned headings: a section for an
 unreleased version carries its marker on a line of its own below the heading
