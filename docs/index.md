@@ -298,6 +298,7 @@ development/roadmap
 development/milestones
 development/rfc-program
 development/rfc-decisions
+development/decisions/index
 development/atlas
 development/governance
 ```
