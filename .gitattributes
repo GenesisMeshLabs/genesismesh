@@ -16,3 +16,15 @@
 
 # Frozen audit pack fixtures are byte-exact: their manifest holds their digests.
 conformance/fixtures/** -text
+
+# Generated files: collapsed in pull-request diffs (linguist-generated), so a
+# review shows the code that produced them. Regenerate, never hand-edit:
+# conformance vectors (conformance/generate_vectors.py and *_vectors.py; SDKs
+# copy them), the frozen audit pack fixtures, the rendered contract page
+# (scripts/render_public_contract.py) and the hashed lock files
+# (scripts/lock_image_requirements.py).
+conformance/vectors/** linguist-generated=true
+conformance/fixtures/** linguist-generated=true
+docs/reference/public-contract.md linguist-generated=true
+requirements-image.lock linguist-generated=true
+requirements-build.lock linguist-generated=true
