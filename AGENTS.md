@@ -104,9 +104,12 @@ concerns belong in `examples/` or in dedicated overlay modules, never in core.
 
 ### 2. Modular Boundaries — The Layer Rule
 
-Each module has exactly one responsibility. The layer rule is below. CI does
-not check it yet, and the code has known violations (trust→trust imports,
-route→db calls) that are being reduced: do not add new ones.
+Each module has exactly one responsibility. The layer rule is below.
+`genesis_mesh/tests/test_architecture.py` enforces it in the unit suite: the
+layer table, no trust→trust imports and no `service.db` in route files. The
+violations that existed on 2026-10-16 are allowlisted there; the test also
+fails when one of them is fixed but still listed, so the lists only shrink.
+Never add to them: move the code instead.
 
 ```
 models/*              = Pydantic entities + pure data helpers only
