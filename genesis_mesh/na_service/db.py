@@ -34,14 +34,50 @@ logger = logging.getLogger(__name__)
 POSTGRES_OVERRIDE_SUFFIX = ".postgres.sql"
 
 
+class MigrationNumberingError(RuntimeError):
+    """The shipped migrations are not numbered 001, 002, ... once each (1.7.1)."""
+
+
+def _migration_number(path: Path) -> int:
+    prefix = path.name.split("_", 1)[0]
+    if not prefix.isdigit():
+        raise MigrationNumberingError(f"migration {path.name} does not start with its number (NNN_name.sql)")
+    return int(prefix)
+
+
 def migration_files(backend: str) -> list[tuple[int, Path]]:
-    """Return ``(version, path)`` per migration, using dialect overrides for ``backend``."""
-    shared = sorted(
-        p for p in MIGRATIONS_DIR.glob("*.sql") if not p.name.endswith(POSTGRES_OVERRIDE_SUFFIX)
-    )
-    out: list[tuple[int, Path]] = []
+    """Return ``(version, path)`` per migration, using dialect overrides for ``backend``.
+
+    Raises :class:`MigrationNumberingError` unless the shared migrations are
+    numbered 1 to N, once each, and every PostgreSQL override names a shared
+    migration (1.7.1): two branches that each add the same number would
+    otherwise merge cleanly, and SQLite would skip the second migration as if
+    another worker had applied it.
+    """
+    files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    shared = [p for p in files if not p.name.endswith(POSTGRES_OVERRIDE_SUFFIX)]
+    by_version: dict[int, Path] = {}
     for path in shared:
-        version = int(path.stem.split("_", 1)[0])
+        version = _migration_number(path)
+        if version in by_version:
+            raise MigrationNumberingError(
+                f"migrations {by_version[version].name} and {path.name} share the number {version:03d}; "
+                "renumber the later one"
+            )
+        by_version[version] = path
+    for path in files:
+        if path.name.endswith(POSTGRES_OVERRIDE_SUFFIX):
+            target = path.name[: -len(POSTGRES_OVERRIDE_SUFFIX)] + ".sql"
+            if not (MIGRATIONS_DIR / target).exists():
+                raise MigrationNumberingError(f"PostgreSQL override {path.name} has no shared migration {target}")
+    missing = sorted(set(range(1, len(by_version) + 1)) - set(by_version))
+    if missing:
+        raise MigrationNumberingError(
+            "migration numbers must run 001, 002, ... without gaps; missing "
+            + ", ".join(f"{version:03d}" for version in missing)
+        )
+    out: list[tuple[int, Path]] = []
+    for version, path in sorted(by_version.items()):
         override = path.with_name(path.stem + POSTGRES_OVERRIDE_SUFFIX)
         out.append((version, override if backend == "postgres" and override.exists() else path))
     return out
@@ -221,13 +257,9 @@ class NADatabase(
             "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
         )
         self._refuse_newer_schema()
-        applied = {
-            row["version"]
-            for row in self.conn.execute("SELECT version FROM schema_version")
-        }
-
         for version, path in migration_files("sqlite"):
-            if version in applied:
+            # Read per migration (1.7.1): another worker may have applied it since this one started.
+            if self.conn.execute("SELECT 1 FROM schema_version WHERE version = ?", (version,)).fetchone():
                 continue
             self._apply_sqlite_migration(version, path.read_text(encoding="utf-8"))
 
