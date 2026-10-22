@@ -89,6 +89,44 @@ def _signed_by(model: str, raw: dict[str, Any], public_key: str) -> bool:
     return signed_as_received(model, raw, [public_key])
 
 
+def na_record_refusal(model: str, raw: Any, history: NAKeyHistory, *, now: datetime | None = None) -> str | None:
+    """Why an NA-signed record of ``model`` does not verify, or None (1.8.0).
+
+    The reference for the ``vouching`` conformance suite. The record is placed at the time
+    its kind names (``NA_VOUCHING_TIME_FIELDS``), its signature checked over the record as
+    received with the NA keys valid then, and, when ``now`` is given, the vouching horizon
+    applied: a record whose key ended more than the hand-over and the grace before ``now``
+    no longer vouches for the present. Reasons, in order: ``unknown_field`` or
+    ``non_canonical_form``, ``na_key_not_valid_at_time``, ``invalid_signature``,
+    ``outlives_key``. Without ``now`` the record is judged at its own time only.
+    """
+    from ..models.canonical_registry import signed_as_received, strict_refusal
+    from ..models.key_succession import NA_VOUCHING_TIME_FIELDS, record_outlives_key
+
+    field_name = NA_VOUCHING_TIME_FIELDS.get(model)
+    if field_name is None:
+        raise ValueError(f"{model} is not a kind the vouching horizon applies to")
+    if not isinstance(raw, dict) or not isinstance(raw.get(field_name), str):
+        return "invalid_signature"
+    try:
+        at = _utc(datetime.fromisoformat(raw[field_name].replace("Z", "+00:00")))
+    except ValueError:
+        return "invalid_signature"
+    keys = history.keys_at(at)
+    signer = next((k for k in keys if signed_as_received(model, raw, [k])), None)
+    if signer is None:
+        others = [k for k in history.all_keys() if k not in keys]
+        if others and signed_as_received(model, raw, others):
+            return "na_key_not_valid_at_time"
+        return "invalid_signature"
+    refusal = strict_refusal(model, raw, [signer])
+    if refusal is not None:
+        return refusal
+    if now is not None and record_outlives_key(history, signer, now):
+        return "outlives_key"
+    return None
+
+
 def genesis_refusal(raw: Any, root_public_key: str | None) -> tuple[str | None, GenesisBlock | None]:
     """(reason the genesis block is refused or None, the parsed block).
 
