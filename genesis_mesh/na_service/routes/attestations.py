@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from flask import Blueprint, jsonify, request
 
 from ...models import MembershipAttestation, RecognitionPolicy, SovereignRevocationFeed
-from ...trust import verify_membership_attestation
+from ...trust import AttestationVerificationResult, verify_membership_attestation
 from ..errors import (
     BadRequestError,
     NotFoundError,
@@ -312,6 +312,13 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
 
         policy = _policy_with_db_revocation(service, attestation, policy)
         result = verify_membership_attestation(attestation, policy)
+        if result.accepted and not service.attestation_held_if_own(attestation):
+            result = AttestationVerificationResult(
+                accepted=False,
+                reason="not_held",
+                issuer_sovereign_id=attestation.issuer_sovereign_id,
+                attestation_id=attestation.attestation_id,
+            )
         service.db.add_audit_event("membership_attestation_verified", {
             "attestation_id": attestation.attestation_id,
             "issuer_sovereign_id": attestation.issuer_sovereign_id,
