@@ -1,12 +1,22 @@
 # Sovereign Health and Trust Dashboard
 
-The sovereign dashboard is a read-only operator view over local Network
-Authority state. It summarizes health, treaty lifecycle risk, revocation-feed
+The sovereign dashboard is a public, read-only view over local Network
+Authority state. It needs no operator key, so anyone who can reach the NA can
+read it. It summarizes health, treaty lifecycle risk, revocation-feed
 freshness, recent trust-state changes, and links to raw JSON surfaces.
 
 The dashboard is not a source of trust. It cannot create, mutate, authorize, or
 revoke recognition. Treaties, revocation feeds, policy, and audit records remain
 the source of truth.
+
+## See It Run
+
+```{image} ../examples/assets/images/genesis-mesh-sovereign-health-dashboard.gif
+:alt: A recorded run of the sovereign health and trust dashboard
+:class: screenshot
+```
+
+Recorded from the example scripts; the steps and output are in {doc}`../examples/sovereign-health-dashboard`.
 
 ## Open The Dashboard
 
@@ -17,7 +27,9 @@ curl -fsS http://127.0.0.1:8443/dashboard
 curl -fsS http://127.0.0.1:8443/dashboard.json
 ```
 
-For the live Azure sovereign:
+The public reference dashboard at na.genesismesh.org serves the same page
+over its demo authorities (it is a read-only dashboard, not a Network
+Authority API):
 
 ```powershell
 curl -fsS https://na.genesismesh.org/dashboard
@@ -37,6 +49,8 @@ Use the HTML page for operator review and screenshots. Use
 - imported sovereign revocation feed freshness;
 - the newest complete accept, import, reject trust cycle;
 - recent trust-relevant audit events with sanitized details;
+- boundary policy health: the active policies, and a warning when a policy
+  fails re-verification (every policy-aware evaluation is then denied);
 - verification links to the raw JSON and generated references.
 
 ## Empty States
@@ -49,7 +63,7 @@ Use federation bootstrap to create the first direct-recognition treaty:
 
 ```powershell
 genesis-mesh federation bootstrap `
-  --acceptor https://na.genesismesh.org `
+  --acceptor https://acceptor.example.org `
   --issuer-bundle .\issuer-trust-bundle.json `
   --operator-key .genesis-mesh\keys\operator.key `
   --operator-key-id operator-local `

@@ -1,7 +1,15 @@
 # Network Authority API
 
-The Network Authority exposes HTTP endpoints for enrollment, policy, revocation,
-and health.
+The Network Authority exposes HTTP endpoints for enrollment, node operations,
+policy, revocation, sovereign trust and health; they are described here. The
+Trust API routes (agreements, boundary decisions and policies, the evidence
+store, out-of-band records, remediation, grants, the edge node routes, data
+usage, disclosure and consensus) are in the {doc}`../api/trust-http`
+reference.
+
+Routes are stable unless marked beta. {doc}`public-contract` lists every
+route's level. Some routes answer only when a setting is on; they say so, and
+answer `404` with a `*_disabled` code otherwise.
 
 ```{tip}
 Try the read and verify operations without running anything: the gateway at
@@ -13,7 +21,7 @@ that can read and verify, but not change, its two sovereigns.
 flowchart TB
     home["Browser console<br/>/"]
     health["Health and metrics<br/>/healthz /readyz /metrics"]
-    public["Public network data<br/>/sovereign.json /genesis /policy /crl"]
+    public["Public network data<br/>/sovereign.json /genesis /policy /crl /na/key-history"]
     enrollment["Enrollment<br/>/join"]
     node_ops["Node operations<br/>/heartbeat /renew"]
     admin["Admin operations<br/>/admin/invite /admin/revoke /admin/policy"]
@@ -36,35 +44,56 @@ flowchart TB
 
 ## The public read surface
 
-This is the authoritative classification of what this service answers to an
-unauthenticated caller. The same classification is generated into the live
-`/api-reference` page and `/swagger.json` from
-`genesis_mesh/na_service/operator_console/surfaces.py`, so it cannot drift from
-what the service actually exposes.
+This section summarises what the service answers to each kind of caller. The
+live `/api-reference` page and `/swagger.json` are generated from
+`genesis_mesh/na_service/operator_console/surfaces.py`, and a test keeps that
+catalog's routes equal to the routes the service registers. The tables below
+are written by hand from the same code.
 
 | Class | Meaning |
 |---|---|
 | **Public** | Answers any caller. Membership is not enumerated: the node, agent and attestation lists give counts only; treaties and revocation feeds, which are trust material between sovereigns, are listed in full. |
-| **Internal** | Not gated in code; must be restricted by deployment (management interface or firewall). |
+| **Deployment-restricted** | Not gated in code; must be restricted by deployment (management interface or firewall). |
 | **Operator** | Requires operator signature headers. |
 | **Node** | Requires node proof-of-possession. |
+| **Registered key** | Signed by a key the operator registered: an executor, observer or grant bearer key. |
+
+The rate limits below count per client address. With the `memory` rate-limit
+store, the default on SQLite, each worker process counts on its own, so a
+client can make up to `WEB_CONCURRENCY` times each limit; see
+{ref}`config-request-limits`.
+
+### Public routes
 
 | Surface | Class | Rate limit | Notes |
 |---|---|---|---|
-| `GET /healthz`, `/readyz`, `/health` | Public | — | Liveness and readiness only. |
-| `GET /metrics` | **Internal** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. |
+| `GET /healthz`, `/readyz` | Public | — | Liveness and readiness. `/readyz` also names the database path or PostgreSQL host (`db_path`). |
+| `GET /health` | Public | — | Summary: network, version, boundary policy health, enforcement mode and evidence store mode. Not a readiness check. |
+| `GET /metrics` | **Deployment-restricted** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. Beta. |
 | `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. A `read` key is enough. |
 | `GET /agents?capability=` | Public | — | Peer discovery protocol. Returns matching descriptors. |
 | `GET /agents` (unfiltered) | Public (count) | — | Does not enumerate the registry. |
 | `GET /genesis`, `/policy`, `/crl`, `/sovereign.json` | Public | — | Signed trust material, public by design. |
+| `GET /na/key-history` | Public | 120/min per IP | The NA's key history (beta, v1.5.0). |
+| `GET /data-usage/policy` | Public | 120/min per IP | The active data license policy; see the Trust API reference. |
 | `GET /attestations` | Public (count) / **Operator** (list) | — | The list names each subject with its public key, roles and claims. A `read` key is enough. |
 | `GET /attestations/<id>` | Public | — | One attestation by its ID, which only its holder and the parties it was shown to know. |
 | `GET /recognition-treaties`, `/recognition-treaties/<id>`, `/recognition-policy`, `/sovereign-revocation-feed` | Public | — | Signed cross-sovereign trust material. |
 | `GET /recognition-graph`, `/connectome`, `/connectome.json`, `/connectome/trust-path`, `/atlas`, `/atlas.json` | Public | — | Views derived from the recognition graph. |
 | `GET /`, `/dashboard`, `/dashboard.json`, `/surfaces`, `/api-reference`, `/cli-reference`, `/swagger.json` | Public | — | Read-only console pages and their JSON. |
 | `POST /*/verify` (ten endpoints) and `POST /disclosure/prove` | Public | **60/min per IP** | Stateless signature checking and proof building over caller-supplied material. Public by protocol design; see below. |
-| `POST /evidence/execution` | Executor | 120/min per IP | Signed by a registered executor key; see the [Trust API reference](../api/trust-http.md). |
-| `POST /join`, `/heartbeat`, `/renew`, `/agents`; `DELETE /agents/<key>` | Node | varies | Node-signed. |
+
+### Signed routes
+
+| Surface | Class | Rate limit | Notes |
+|---|---|---|---|
+| `POST /evidence/execution` | Registered key | 120/min per IP | Signed by a registered executor key. Needs `EVIDENCE_STORE=on` (off by default); otherwise `404 evidence_store_disabled`. See the [Trust API reference](../api/trust-http.md). |
+| `POST /evidence/observations`, `/evidence/observations/batch`, `/evidence/break-glass` | Registered key | 120/min per IP; 120/min per executor key | Signed by a registered observer or executor key. Need `EVIDENCE_OUT_OF_BAND=on` (off by default); otherwise `404 out_of_band_disabled`. |
+| `POST /evidence/remediations` | Registered key | 120/min per IP | Signed by a registered executor key. Needs `EVIDENCE_REMEDIATION=on` (off by default); otherwise `404 remediation_disabled`. |
+| `POST /grants/time-tokens`, `/evidence/grant-executions` | Registered key | 120/min per IP; 120/min per executor key | Signed by a grant's bearer key. Beta. Need `EVIDENCE_GRANTS=on` (off by default); otherwise `404 grants_disabled`. |
+| `POST /join`, `/heartbeat`, `/renew` | Node | `/join`: 10/min per IP | Node-signed. |
+| `POST /node/boundary/evaluate`, `/node/state`, `/node/evidence/resource-head` | Node | 120/min per node key; 600/min per IP | Signed by an edge node's key (beta, v1.7.0). |
+| `POST /agents`; `DELETE /agents/<key>` | Node | `POST`: 30/min per IP | Node-signed descriptor or delete envelope (beta). |
 | `GET` and `POST /admin/*` | Operator | 300/min per IP by default; 30 failed authentications/min per IP and active operator key, 30 per IP for requests naming no active key, 120 per IP in all | Operator-signed. Past a failed-authentication limit, its failing requests get `429 admin_auth_throttled` (v1.1.0, scoped by key since v1.2.0; correctly signed requests are still served since v1.3.1; see {doc}`configuration`). The operator views of `GET /nodes` and `GET /attestations` count against the same limit (v1.1.0), and `X-Admin-*` headers longer than 256 characters are refused. |
 
 ### Why the verification endpoints are public
@@ -108,10 +137,12 @@ Common statuses:
 | `400` | Malformed request or invalid request parameters. |
 | `401` | Missing or invalid operator/node signature. |
 | `403` | Authenticated principal is not allowed to perform the action. |
-| `404` | Referenced resource does not exist. |
+| `404` | Referenced resource does not exist, or the feature is off (`evidence_store_disabled`, `out_of_band_disabled`, `remediation_disabled`, `grants_disabled`). |
 | `409` | Request conflicts with persisted trust state, such as a stale sequence. |
+| `413` | Request body larger than `NA_MAX_REQUEST_BYTES` (2 MiB by default): `request_entity_too_large`. |
 | `422` | JSON body is syntactically valid but fails schema/model validation. |
 | `429` | Request exceeded the configured rate limit. |
+| `503` | Not ready (`service_not_ready`), the NA key may not sign now (`na_key_succeeded`, `na_key_not_yet_effective`, `na_key_expired`), or the store is unavailable (`evidence_store_unavailable`). |
 | `500` | Unexpected server error. The response is sanitized and never includes stack traces, secret tokens, private keys, file paths, or internal implementation details. |
 
 ## Browser Console
@@ -152,7 +183,7 @@ from the installed CLI.
 
 ### `GET /atlas` and `GET /atlas.json`
 
-`/atlas` renders the Trust Atlas, the recognition graph as a page. `/atlas.json`
+`/atlas.json` is beta; `/atlas` is an internal console page. `/atlas` renders the Trust Atlas, the recognition graph as a page. `/atlas.json`
 returns its summary: `sovereigns`, `recognition_edges`, `active_treaty_count`,
 `revoked_trust_material_count` and `graph_digest`, the digest that
 `genesis-mesh atlas` commands and trust evidence records name. To work with a
@@ -172,11 +203,25 @@ Liveness probe. Does not perform dependency checks.
 
 ### `GET /readyz`
 
-Readiness probe. Verifies database connectivity and migration state, and
-(v1.5.0) that this instance's NA key signs now: `na_key.state` is `signing`,
-`pending` (the instance started with a new key before its succession takes
-effect; `signs_from` says when) or `stopped` (succeeded or expired). Only
-`signing` is ready.
+Readiness probe. `200` when the database accepts writes at the expected
+schema version, the NA key signs now (v1.5.0) and, with `NA_HA_MODE=on`, the
+rate limiter uses the database. Otherwise `503 service_not_ready`, with the
+checks in `error.details`. `na_key.state` is `signing`, `pending` (the
+instance started with a new key before its succession takes effect;
+`signs_from` says when) or `stopped` (succeeded or expired). Only `signing`
+is ready.
+
+The ready response also carries `db_path`: the SQLite file path, or the
+PostgreSQL URL with the password removed. The route is public, so anyone who
+can reach it sees that path or host. Filter it at the proxy if that matters.
+
+### `GET /health`
+
+A summary, not a readiness check: `status` is always `healthy`. It also
+returns `network`, `version`, `boundary_policies` (`healthy`, or `unhealthy`
+when an active boundary policy fails re-verification, which makes every
+policy-aware evaluation deny), `boundary_policy_enforcement` and
+`evidence_store` (`on` or `off`).
 
 ### `GET /nodes`
 
@@ -206,7 +251,8 @@ Returns Prometheus text metrics for Network Authority operations. The endpoint
 includes counters and gauges for issued certificates, recently active nodes,
 revoked certificates, active CRL sequence, and persisted policy versions.
 
-**Classification: internal.** These are aggregate counters with no per-node
+**Access: not gated in code (restrict by deployment).** Stability: beta (see
+{doc}`public-contract`). These are aggregate counters with no per-node
 detail, and Prometheus cannot perform this service's signed-envelope
 authentication, so the endpoint is not gated in code. Bind it to the management
 interface or firewall it; do not expose it to untrusted networks.
@@ -229,7 +275,7 @@ Response excerpt:
   "sovereign_id": "USG-NB",
   "network_name": "USG-NB",
   "network_version": "v0.1",
-  "endpoint": "http://164.92.250.135:8443",
+  "endpoint": "https://na.example.org",
   "network_authority": {
     "public_key": "<base64-ed25519-public-key>",
     "valid_from": "<iso8601>",
@@ -243,10 +289,10 @@ Response excerpt:
   },
   "root_public_key": "<base64-ed25519-public-key>",
   "supported_surfaces": {
-    "genesis": "http://164.92.250.135:8443/genesis",
-    "recognition_treaties": "http://164.92.250.135:8443/recognition-treaties",
-    "sovereign_revocation_feed": "http://164.92.250.135:8443/sovereign-revocation-feed",
-    "connectome": "http://164.92.250.135:8443/connectome.json"
+    "genesis": "https://na.example.org/genesis",
+    "recognition_treaties": "https://na.example.org/recognition-treaties",
+    "sovereign_revocation_feed": "https://na.example.org/sovereign-revocation-feed",
+    "connectome": "https://na.example.org/connectome.json"
   }
 }
 ```
@@ -263,18 +309,19 @@ that signs now: after a key succession, a later key of the history, with
 
 ### `GET /na/key-history`
 
-The NA's key history (v1.5.0): `genesis` (the signed genesis block),
+*Beta (v1.5.0).* The NA's key history: `genesis` (the signed genesis block),
 `successions` (every `KeySuccessionRecord`, each signed by the root key, the
 new key and the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
 `public_key`, `valid_from`, `succeeded_at`, `valid_to`, `valid_to_enforced`
 and `current`), `root_public_key`, `handover_seconds` (300) and
 `signing_key_sequence`. Public: a verifier checks it from the root key it
-holds, never from the key this response names. See
+holds, never from the key this response names. Limited to 120 requests a
+minute per address (`NA_RATE_LIMIT_READ_PER_MINUTE`). See
 {doc}`../operations/key-succession`.
 
 ### `POST /admin/na/succession`
 
-Privileged. `{"succession": <KeySuccessionRecord signed by the root key and
+*Beta (v1.5.0).* Privileged. `{"succession": <KeySuccessionRecord signed by the root key and
 the new key>}`: the NA checks it continues its key history, names neither the
 root key nor a key the history held, is signed by the root key and by the new
 key (proof of possession), was not issued after it takes effect and takes
@@ -293,8 +340,9 @@ past its validity answers `503 na_key_expired`.
 
 ### `GET /policy`
 
-Returns the active policy manifest. The policy is backed by SQLite; if no policy
-has been published, the service creates and returns a default signed policy.
+Returns the active policy manifest, stored in the NA's database (SQLite or
+PostgreSQL). If no policy has been published, the service creates, stores and
+returns a default signed policy.
 
 ### `GET /crl`
 
@@ -353,7 +401,14 @@ The Network Authority assigns roles from the invite token and ignores
 client-supplied role claims. The signature proves possession of the node private
 key before the invite token is consumed.
 
-Response: a signed `JoinCertificate`.
+Response: `201` with a signed `JoinCertificate`.
+
+A node key that once had a certificate revoked for `key_compromise` cannot
+join again (`403 node_key_compromised`), even with a valid invite; generate a
+new key. Other errors: `400 missing_node_public_key`, `403
+missing_invite_token`, `403 invalid_invite_token` (unknown, expired, used, or
+bound to another key) and `401 node_auth_failed`. At most 10 requests and 3
+failed invite tokens a minute per address.
 
 #### Edge invites: the executor key
 
@@ -484,7 +539,11 @@ Creates a single-use invite token.
 }
 ```
 
-Response:
+`roles` defaults to `["role:client"]`, `max_validity_hours` to 168 and
+`token_expiry_hours` to 24. `recipient_public_key` binds any invite to one
+node key. A plain invite needs the `standard` tier.
+
+Response `201`:
 
 ```json
 {
@@ -527,7 +586,11 @@ Revokes a certificate and publishes a new CRL.
 ```
 
 Allowed reasons are `key_compromise`, `cessation_of_operation`, `superseded`,
-and `unspecified`.
+and `unspecified`; `reason` defaults to `unspecified`. Privileged.
+
+Response: `{"crl_sequence": N, "revoked_count": N}`. Errors: `400
+missing_cert_id`, `400 invalid_revocation_reason`, `404
+certificate_not_found`.
 
 *Beta (v1.7.0).* For a certificate of an edge node, the NA revokes the node:
 every certificate its key holds (a renewed one and its predecessor) in one
@@ -556,24 +619,25 @@ during an incident.
 
 | Tier | May do |
 |---|---|
-| `read` | Read the operator views of `GET /nodes` (the roster) and `GET /attestations` (the list) (v1.0.2); list or request evidence store anchors, `GET` and `POST /admin/evidence/anchors` (v1.2.0); read a resource's changes and the operator key holders (v1.3.0) and the remediation queue, states and reviews (v1.4.0); and since v1.5.0 every evidence store read (search, status, verify, resource and vendor histories, resource heads, export, executor keys), audit packs (`POST /admin/evidence/audit-pack`) and the archive list. Nothing that changes the store or its keys. For dashboards, auditors and other readers. |
-| `standard` | Everything a read key may do, **plus** day-to-day work: invitations, admin reads, and routine operations. |
+| `read` | Reads only. For dashboards, auditors and other readers. Nothing that changes the store or its keys. |
+| `standard` | Everything a read key may do, **plus** day-to-day work: plain invitations, the other admin reads, and routine operations. |
 | `privileged` | Everything a standard key may do, **plus** anything that grants trust, withdraws trust, or changes policy. |
 
 Each tier satisfies the requirements of the tiers below it; the reverse is not
-true.
+true. The table below groups the admin routes by area and names the lowest
+tier each needs. The live `/api-reference` page lists every route.
 
-**Privileged routes** — `POST /admin/revoke`,
-`POST /admin/operator-keys/{key_id}/revoke`, `POST /admin/policy`,
-`POST /admin/policy/rollback`, `POST /admin/attestations`,
-`POST /admin/attestations/{id}/revoke`, `POST /admin/recognition-treaties`,
-`POST /admin/recognition-treaties/{id}/revoke`,
-`POST /admin/recognition-policy`,
-`POST /admin/sovereign-revocation-feeds/import`, `POST /admin/agreements/accept`
-and, since v1.1.1, `POST /admin/agreements/counter`.
-
-Every other admin route requires `standard`, so a `read` key gets `403` on
-all of them.
+| Area | `read` | `standard` | `privileged` |
+|---|---|---|---|
+| Nodes and certificates | `GET /nodes` roster (v1.0.2); `GET /admin/edge-nodes` (beta, v1.7.0) | `POST /admin/invite` (plain invite) | `POST /admin/invite` (edge invite, v1.7.0); `POST /admin/revoke` |
+| Operator keys | `GET /admin/evidence/operator-holders` (v1.3.0) | — | `POST /admin/operator-keys/{key_id}/revoke`; holder changes and their approval (`POST /admin/operator-keys/{key_id}/holder`, `.../holder-changes/{id}/approve`) |
+| Network policy | — | `GET /admin/policy/history` | `POST /admin/policy`, `POST /admin/policy/rollback` |
+| Attestations, treaties and feeds | `GET /attestations` list (v1.0.2) | — | Issue and revoke attestations and treaties; `POST /admin/recognition-policy`; `POST /admin/sovereign-revocation-feeds/import` |
+| Agreements and boundary | — | Offers, `/admin/boundary/evaluate`, `/admin/boundary/decide`, boundary policy reads and validation, data access intents, trust evidence, consensus and disclosure | `POST /admin/agreements/accept` and `/counter` (v1.1.1); publish, activate and deactivate boundary policies; `POST /admin/data-usage/policy` |
+| Evidence store | Every read (search, status, verify, resource and vendor histories, resource heads, export, executor keys) (v1.5.0); `GET` and `POST /admin/evidence/anchors` (v1.2.0); `POST /admin/evidence/audit-pack` and the archive list (v1.5.0) | — | Register and retire executor keys; `POST /admin/evidence/archives`; `POST /admin/evidence/retention/apply` |
+| Out-of-band, remediation and reviews | A resource's changes (v1.3.0); the remediation queue, states and reviews (v1.4.0) | Judge observations and break-glass records; mark a remediation notified; open a review | `POST /admin/evidence/reviews/{id}/decide` |
+| Grants (beta) | `GET /admin/grants`, `/admin/grants/{id}`, `/admin/grants/{id}/uses` (v1.6.0) | — | `POST /admin/grants`, `POST /admin/grants/{id}/revoke` |
+| Key succession (beta) | — | — | `POST /admin/na/succession` |
 
 A key that authenticates but lacks the tier receives **`403
 insufficient_operator_tier`** — deliberately distinct from the `401` an unknown
@@ -581,9 +645,10 @@ or revoked key receives, so that "who are you?" and "you may not do that" stay
 separable in an incident log. Denials are audited as `admin_authz_denied` with
 the holder and required tiers.
 
-Configure tiers with `--operator-key-tier key-id=read|standard|privileged` or the
-`OPERATOR_KEY_TIERS_JSON` environment variable, alongside the existing key
-configuration. For a local NA, `genesis-mesh keygen operator --tier ... --env-file`
+Configure tiers with the `OPERATOR_KEY_TIERS_JSON` environment variable,
+alongside the existing key configuration (or with `--operator-key-tier
+key-id=tier` when you run `python -m genesis_mesh.na_service.server`
+directly; `genesis-mesh na start` has no such option). For a local NA, `genesis-mesh keygen operator --tier ... --env-file`
 writes both (v1.1.0).
 
 ### `POST /admin/operator-keys/{key_id}/revoke`
@@ -599,9 +664,11 @@ The check runs before signature verification and before the nonce is consumed,
 so a revoked key cannot perform any admin action — including revoking other
 operators.
 
-**Terminal.** There is no un-revoke endpoint; a revoked `key_id` stays revoked
-for the life of the deployment. Restoring one means editing configuration and
-restarting, deliberately.
+**Terminal.** There is no un-revoke endpoint. The revocation is stored in the
+NA's database, so a revoked `key_id` stays revoked for the life of the
+deployment, across restarts and configuration edits: the same key ID with a
+new public key is still refused. To replace the key, configure a new key
+under a new key ID and restart.
 
 | Response | Meaning |
 |---|---|
@@ -617,7 +684,11 @@ event naming who performed it.
 
 ### `POST /admin/policy`
 
-Publishes and activates a signed policy version.
+Privileged. The caller does not send a signed policy: the NA builds a policy
+manifest from `policy_id` (optional; generated when absent),
+`min_client_version` (default `0.1.0`), `allowed_ports` (default
+`[443, 8443]`), `allowed_services` and `routing`, signs it with the NA key and
+makes it active. Response `201` with the signed manifest.
 
 ### `GET /admin/policy/history`
 
@@ -625,7 +696,7 @@ Lists persisted policy versions.
 
 ### `POST /admin/policy/rollback`
 
-Activates a previously persisted policy version.
+Privileged. Activates a previously persisted policy version.
 
 ```json
 {
@@ -633,7 +704,11 @@ Activates a previously persisted policy version.
 }
 ```
 
-## Agent Discovery (v0.7+)
+Errors: `400 missing_policy_id`, `404 policy_not_found`.
+
+## Agent Discovery (beta, v0.7+)
+
+*Beta.* Every route in this section is beta in the public contract.
 
 Agents announce their capabilities to the Network Authority so peers can find
 them by capability tag rather than by hardcoded node public key. The registry
@@ -670,10 +745,12 @@ against the public key embedded in the descriptor.
 
 Rejection conditions:
 
-- `400` — malformed descriptor, inverted expiry window, or wrong `network_name`
-- `401` — missing or invalid signature
-- `403` — node has no active join certificate, or the key appears in the CRL
-- `429` — rate-limited
+- `422 invalid_agent_descriptor`: the descriptor does not match the model
+- `400 descriptor_expired` (`expires_at` not in the future) or
+  `descriptor_network_mismatch`
+- `401 descriptor_signature_required` or `invalid_signature`
+- `403 node_has_no_active_certificate` or `node_key_revoked`
+- `429`: more than 30 registrations a minute from one address
 
 Success response:
 
@@ -826,7 +903,9 @@ verifier refuses a feed that carries it (`unknown_field`), so turn grants on
 once the verifiers reading the feed run 1.6. The NA refuses to start with
 grants off while a grant it issued has not ended.
 
-Response:
+Response (`issued_by` and the signature's `key_id` are the NA key ID,
+`NA_KEY_ID`, not the public key; with `EVIDENCE_GRANTS=on` the feed also
+carries `"revoked_grant_ids": [...]`):
 
 ```json
 {
@@ -838,10 +917,10 @@ Response:
   "revocation_reasons": {
     "<attestation-id>": "key_compromise"
   },
-  "issued_by": "<na-public-key>",
+  "issued_by": "<NA key ID, e.g. na-2025-q1>",
   "signatures": [
     {
-      "key_id": "<na-public-key>",
+      "key_id": "<NA key ID>",
       "sig": "<base64-signature>"
     }
   ]
@@ -891,9 +970,14 @@ refused with `400 missing_issuer_public_keys`. The response and the
 Responses:
 
 - `200` when the feed is verified and imported
-- `400` for malformed feeds, invalid signatures or missing keys
-- `409` for stale feed sequences
+- `422 invalid_sovereign_revocation_feed` for a feed that does not match the
+  model
+- `400` for a feed that does not verify (the reason is the code), or
+  `missing_issuer_public_keys`
+- `409 stale_sequence` for a sequence not above the last imported one
 - `422 caller_keys_not_accepted` for keys that differ from the pinned ones
+
+The import needs a privileged key.
 
 ## Connectome Operator View (v0.12+)
 
@@ -902,7 +986,7 @@ They do not create a second trust source.
 
 ### `GET /recognition-graph`
 
-Exports the raw sovereign recognition graph:
+*Beta.* Exports the raw sovereign recognition graph:
 
 - `sovereigns`
 - `recognition_edges`
@@ -946,7 +1030,7 @@ Response excerpt:
 
 ### `GET /connectome/trust-path`
 
-Explains current trust between two sovereigns.
+*Beta.* Explains current trust between two sovereigns.
 
 ```text
 GET /connectome/trust-path?from=sovereign-a&to=sovereign-b

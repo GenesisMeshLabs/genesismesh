@@ -37,10 +37,14 @@ treaties they issued.
    decisions: they revoke them on their side. Until they do, they keep
    accepting attestations you signed earlier that are still valid, so revoke
    those first if you want them rejected.
-4. **Keep your evidence.** Export it before decommissioning
-   (`GET /admin/evidence/export`, verifiable offline with
-   `genesis-mesh evidence verify-export`), and keep a database backup
-   (`genesis-mesh managed backup`).
+4. **Keep your evidence.** If the evidence store is on (`EVIDENCE_STORE=on`,
+   off by default), write an audit pack of the whole store
+   (`genesis-mesh audit pack`) or archive it (`genesis-mesh audit archive`),
+   and keep the anchors you fetched, so you can verify it offline later
+   (`genesis-mesh audit verify`). Keep a database backup:
+   `genesis-mesh managed backup` for SQLite, `pg_dump` for PostgreSQL.
+   Without the evidence store, the database backup and the audit log export
+   (`genesis-mesh managed audit-export`, SQLite only) are all there is.
 
 ## Leaving a managing partner
 
@@ -58,18 +62,36 @@ never hold your root or operator keys (see {doc}`managing-partner-boundary`).
    so counterparts' treaties keep working.
 4. **If the partner ever held your NA signing key** (the "managed NA key"
    custody model in {doc}`../operations/managed-sovereign`), treat the key as
-   exposed: you cannot prove a copy was destroyed. There is no NA key rotation
-   procedure that preserves your identity yet (an open question in RFC-001),
-   so the safe path is a new sovereign identity: create a new genesis and keys,
-   publish them, and ask counterparts to issue treaties to it and revoke the
-   old ones. This is why the split-operation model, where the operator keeps
-   the keys, is the recommended pilot model.
+   exposed: you cannot prove a copy was destroyed. What you can do depends on
+   the root key:
+   - **The partner never held the root key, and you still hold the NA key.**
+     Succeed the NA key ({doc}`../operations/key-succession`): sign a
+     succession with your offline root key, have the new key sign it, submit
+     it, and restart the NA with the new key at `effective_at`. Your sovereign
+     identity stays the same, and your NA signs nothing with the old key after
+     the hand-over. Verifiers that read your key history (`/na/key-history`)
+     still accept old-key signatures dated before the hand-over ends, so
+     whoever holds a copy can still make records that look earlier: treat
+     what the old key signed in that window as suspect. Counterparts' treaties
+     name your NA public key, so ask each counterpart to issue a new treaty
+     that names the new key (see {doc}`treaty-lifecycle`).
+   - **The partner held the root key, or the NA key is lost.** A succession
+     is not possible. Create a new genesis and keys, publish them, and ask
+     counterparts to issue treaties to the new identity and revoke the old
+     ones.
+
+   This is why the split-operation model, where the operator keeps the keys,
+   is the recommended pilot model.
 
 ## Forking
 
 - The code is MIT-licensed. A fork may change anything.
 - The protocol is public: RFC-001 to RFC-004 define identity, treaties, trust
-  bundles and revocation feeds, including the exact signed bytes.
+  bundles and revocation feeds, including the exact signed bytes. Key
+  succession (1.5.0) is not in an RFC yet: its records and rules are in
+  {doc}`../reference/audit-pack-format` and
+  {doc}`../operations/key-succession`, and the `audit` conformance suite
+  covers them.
 - Compatibility is testable without Genesis Core: a fork that passes the
   conformance vectors (`conformance/vectors/`) produces and accepts the same
   signed artifacts, so it interoperates with unmodified sovereigns.
@@ -82,5 +104,6 @@ never hold your root or operator keys (see {doc}`managing-partner-boundary`).
   force a counterpart to revoke or keep a treaty it issued.
 - Evidence and audit records written by your NA are yours; copies held by
   counterparts (decisions they received, attestations they cached) are theirs.
-- Without NA key rotation, recovering from a key held by someone you no longer
-  trust means a new identity (see above).
+- A key succession replaces an NA key held by someone you no longer trust, as
+  long as you hold the root key and the NA key. If the root key was exposed,
+  or the NA key is already lost, recovery means a new identity (see above).
