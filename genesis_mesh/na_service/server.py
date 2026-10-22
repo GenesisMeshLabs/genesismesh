@@ -558,6 +558,10 @@ class NetworkAuthorityService:
             if crl is None:
                 return None
             if not crl.signatures:
+                # The next CRL is built from the active one, whose issuer may be a key
+                # this NA no longer signs with (1.7.1): name the key that signs it.
+                if crl.issuer != self.signer.key_id:
+                    crl = crl.model_copy(update={"issuer": self.signer.key_id, "signatures": []})
                 crl.signatures.append(self.signer.sign_model(crl))
             try:
                 self.db.save_crl(crl, active=True)
