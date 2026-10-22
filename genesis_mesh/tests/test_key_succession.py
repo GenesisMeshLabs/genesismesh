@@ -483,3 +483,28 @@ def test_verify_export_reads_the_key_history_from_the_root_key(net, tmp_path):
     wrong_root = CliRunner().invoke(cli, [*base, "--key-history", str(history), "--root-key",
                                           public_b64(net.na_keys[0])])
     assert wrong_root.exit_code != 0 and "genesis_root_mismatch" in wrong_root.output
+
+
+def test_a_crl_signed_after_a_succession_names_the_new_key_as_its_issuer(net, monkeypatch):
+    """Review fix (1.7.1): the next CRL copied the previous CRL's ``issuer``.
+
+    After a succession the CRL is signed by the new key, but its ``issuer``
+    still named the old key, so every verifier that finds the key by ``issuer``
+    (the gateway, node CRL gossip) refused the authority's own CRL.
+    """
+    from genesis_mesh.crypto import verify_model_signature
+    from genesis_mesh.na_service import server as server_module
+
+    service = net.start()
+    before = service._get_or_create_active_crl()
+    assert before.issuer == "na-1" and before.signatures[0].key_id == "na-1"
+
+    _record, restarted, _client_ = _succeeded(net, service, _client(service))
+    # Make the active CRL due for refresh, so the new key signs the next one.
+    monkeypatch.setattr(server_module, "CRL_REFRESH_MARGIN", timedelta(days=2))
+    after = restarted._get_or_create_active_crl()
+
+    assert after.sequence == before.sequence + 1
+    assert after.signatures[0].key_id == "na-2"
+    assert after.issuer == "na-2"
+    assert verify_model_signature(after, after.signatures[0], net.na_keys[-1].verify_key)
