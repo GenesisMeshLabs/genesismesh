@@ -13,12 +13,21 @@ them has a bug, settled against this page.
 How to produce and verify a pack is in {doc}`../operations/audit-packs` and
 {doc}`../operations/audit-verification`.
 
+Packs exist only with the evidence store on (`EVIDENCE_STORE=on`, off by
+default), and only over anchored entries. The NA anchors every
+`NA_ANCHOR_INTERVAL_SECONDS` (default 3600; `0` anchors only on request). The
+audit-pack, archive and anchor routes are beta in the public contract
+({doc}`public-contract`); the file format below is version 1.
+
 ## Files
 
-Every file is UTF-8 without a byte order mark. A JSON file is canonical JSON
-(keys sorted, no whitespace between tokens, characters outside ASCII written
-as themselves) followed by one LF. A JSON Lines file holds one canonical JSON
-value per line, each line ending in LF; an empty file holds none.
+Every file is UTF-8 without a byte order mark. A JSON file is written with
+sorted keys and no whitespace between tokens, characters outside ASCII
+written as themselves, followed by one LF. This differs from the canonical
+form signatures cover ({doc}`canonical-form`), which escapes characters
+outside ASCII, so a file's bytes are not the bytes its signature covers. A
+JSON Lines file holds one such JSON value per line, each line ending in LF;
+an empty file holds none.
 
 | Path | Holds |
 |---|---|
@@ -342,7 +351,8 @@ differs is `cited_entry_mismatch`; one that neither covers is the warning
 `cited_entry_unanchored`. A verifier that holds the packs before this one
 covers every cited entry. Proving a cited entry against the anchors alone,
 without the earlier packs, needs a proof of inclusion that version 1 does not
-carry (deferred from 1.6.0: a candidate for 1.7.0).
+carry. It is a deferred candidate (pack format version 2); see
+{doc}`../development/roadmap`.
 
 (the-report)=
 ## The report

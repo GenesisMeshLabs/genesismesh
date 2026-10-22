@@ -35,74 +35,175 @@ operator_public_key = ".genesis-mesh/keys/operator.pub"
 node_private_key = ".genesis-mesh/keys/node.key"
 node_certificate = ".genesis-mesh/node.cert.json"
 policy = ".genesis-mesh/policy.json"
+db = ".genesis-mesh/na.db"
 
 [na]
 key_id = "na-local"
 host = "127.0.0.1"
 port = 8443
+evidence_store = "off"
 
 [operator]
 key_id = "operator-local"
 ```
 
+`db` defaults to `na.db` under `home`. `evidence_store = "on"` turns on the
+evidence store for `genesis-mesh na start` without `--env-file`.
+
 Private-key paths in this file are local secrets and must not be committed.
 
 ## Network Authority Environment
+
+The Network Authority's variables are grouped below: this section, then
+{ref}`config-evidence-features` and {ref}`config-request-limits`. Every
+switch that adds a feature is off by default, and the groups that hold one
+say so in their heading. Variables marked beta follow the beta level of the
+routes they configure (see {doc}`public-contract`).
+
+### Startup and files
 
 | Variable | Required | Description |
 |---|---:|---|
 | `SERVICE_ROLE` | no | Set to `na` for Network Authority startup. Defaults to `na`. |
 | `GENESIS_FILE` | yes | Path to the signed genesis block. `start.sh` defaults it to `genesis.signed.json` in the working directory (`/data` in the container image). |
 | `GENESIS_JSON` | no | `start.sh`: the signed genesis block itself, used when `GENESIS_FILE` does not exist. It is written to a private in-memory directory (`/dev/shm` when available) and removed from the environment. |
+| `PORT` | no | HTTP bind port. Defaults to `8443`. |
+| `WEB_CONCURRENCY` | no | Gunicorn worker count. Defaults to `4`. |
+| `DB_PATH` | no | SQLite database path. Defaults to `genesis_mesh_na.db`; the container image sets `/data/genesis_mesh_na.db`. |
+| `DATABASE_URL` | no | `postgresql://...` stores all state in shared PostgreSQL (v0.60); `sqlite:///path` names a SQLite file. Unset: SQLite at `DB_PATH`. |
+
+### Signing key
+
+| Variable | Required | Description |
+|---|---:|---|
+| `NA_KEY_PROVIDER` | no | `file` (default), `env` or `azure-keyvault`: where the signing key comes from (v0.60, see [High Availability](../operations/high-availability.md)). |
+| `NA_KEY_ID` | no | Key ID named in the NA's signatures. Defaults to `na-2025-q1`; set it to the ID recorded in the NA key file (`na-local` for keys from `genesis-mesh init`) and keep it stable, since trust bundles and gateway policies refer to it. |
 | `NA_PRIVATE_KEY_FILE` | with the `file` key provider | Path to the Network Authority private key. `start.sh` defaults it to `keys/na.key` in the working directory. |
 | `NA_PRIVATE_KEY` | no | `start.sh`: the private key file's contents, used when `NA_PRIVATE_KEY_FILE` does not exist. Handled like `GENESIS_JSON`. Prefer a mounted file or the `env` provider with `NA_PRIVATE_KEY_SEED_FILE`. |
-| `NA_KEY_PROVIDER` | no | `file` (default), `env` or `azure-keyvault`: where the signing key comes from (v0.60, see [High Availability](../operations/high-availability.md)). |
 | `NA_PRIVATE_KEY_SEED` | with the `env` provider | Base64 Ed25519 seed injected by the platform's secret store. `start.sh` moves it to a private in-memory file at start, so the server processes do not carry it in their environment. |
 | `NA_PRIVATE_KEY_SEED_FILE` | with the `env` provider | Path to a file holding the base64 seed, for Docker and Kubernetes secrets. Set this or `NA_PRIVATE_KEY_SEED`, not both (v1.0.2). |
 | `NA_KEY_SEED_ENV` | no | Name of the variable that holds the seed for the `env` provider (default `NA_PRIVATE_KEY_SEED`); the file variant is that name with `_FILE` appended. |
 | `AZURE_KEY_VAULT_URL` / `NA_KEY_SECRET_NAME` | with the `azure-keyvault` provider | Vault URL and the secret holding the seed; read with the managed identity (`AZURE_CLIENT_ID` selects a user-assigned one). |
-| `DATABASE_URL` | no | `postgresql://...` stores all state in shared PostgreSQL (v0.60); `sqlite:///path` names a SQLite file. Unset: SQLite at `DB_PATH`. |
-| `NA_HA_MODE` | no | `off` (default) or `on`; `on` refuses to start without PostgreSQL, a non-file key provider and shared rate limits. |
-| `RATE_LIMIT_STORE` | no | `memory` or `database`; defaults to `database` on PostgreSQL. |
-| `NA_KEY_ID` | no | Key ID named in the NA's signatures. Defaults to `na-2025-q1`; set it to the ID recorded in the NA key file (`na-local` for keys from `genesis-mesh init`) and keep it stable, since trust bundles and gateway policies refer to it. |
-| `DB_PATH` | no | SQLite database path. Defaults to `genesis_mesh_na.db`; the container image sets `/data/genesis_mesh_na.db`. |
-| `PORT` | no | HTTP bind port. Defaults to `8443`. |
-| `WEB_CONCURRENCY` | no | Gunicorn worker count. Defaults to `4`. |
+| `NA_DEPLOYMENT` | no | `local` (default) or `managed`. `managed` refuses to start when the root private key is found where the NA's files live (the directories of the genesis block, the NA key file and the database, their parent directory and three levels below it) or in an environment variable, when the NA key is the root key, or when `NA_RETENTION_REQUIRE_ARCHIVE` is `off`. The search is bounded: at most 5,000 files, no symbolic links, no `.git`, `node_modules` or `.venv` directories, files of at most 4 KiB, and not the database directory when `DATABASE_URL` is set. A start that passes does not prove the root key is absent from the host; keeping it offline is still a procedure. See {doc}`../operations/key-succession` (v1.5.0). |
+
+### Operator keys
+
+| Variable | Required | Description |
+|---|---:|---|
 | `OPERATOR_PUBLIC_KEYS_JSON` | yes for admin APIs | JSON object mapping operator key IDs to base64 public keys. |
+| `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `read`, `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
+| `OPERATOR_KEY_HOLDERS_JSON` | no | JSON object mapping operator key IDs to the person or team holding them, recorded in the evidence store at the first start with `EVIDENCE_OUT_OF_BAND=on`; each holder is a string of 1 to 128 characters. A key without an entry is its own holder (unnamed); an entry naming a key as its own holder is refused at start (v1.5.0), since reviews need a named holder. After that first start the configuration names no holder (v1.3.1): a key added later, or given a new public key, is its own holder until a holder change, which a second named holder approves, names one (v1.3.0). |
+
+### Certificates and decisions
+
+| Variable | Required | Description |
+|---|---:|---|
+| `RENEWAL_GRACE_SECONDS` | no | How long a renewed certificate's predecessor stays usable before the NA revokes it and lists it in the CRL (default 900). It must outlast a node's renewal retries and CRL propagation. `0` revokes the predecessor at once. |
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
-| `NA_ANCHOR_INTERVAL_SECONDS` | no | After an append to the evidence store, sign a new store anchor once this many seconds have passed since the last one (default 3600); `0` anchors only on `POST /admin/evidence/anchors`. See {doc}`../operations/evidence-anchors` (v1.2.0). |
+| `NA_DECISION_LIFETIME_SECONDS` | no | How long a boundary decision the NA issues stays valid: 1 to 300 seconds (default 300). Verifiers refuse a decision that outlives the key that signed it by more than 300 seconds past its hand-over (`decision_outlives_key`), so 300 is also the most this may be (v1.5.0). |
+
+### High availability (off by default)
+
+| Variable | Required | Description |
+|---|---:|---|
+| `NA_HA_MODE` | no | `off` (default) or `on`; `on` refuses to start without PostgreSQL, a non-file key provider and shared rate limits. |
+| `RATE_LIMIT_STORE` | no | `memory` (each worker process counts on its own) or `database` (counted in the shared database, across workers and instances). Defaults to `database` on PostgreSQL and `memory` on SQLite. |
+
+### Proxy and public URL
+
+| Variable | Required | Description |
+|---|---:|---|
+| `NA_PROXY_HOPS` | no | Number of reverse proxies in front of the NA whose `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host` are trusted (default `0`, the NA reached directly; `1` before v1.3.1). Set it to the number of proxies in front, `1` behind one nginx or load balancer: with too many, clients can choose the address rate limits apply to (v0.62); with too few, every client shares the proxy's address. The proxy must set or overwrite each of these headers with values it chooses: nginx passes on a client's `X-Forwarded-Host` unless told otherwise, and `$host` and `$http_host` carry the `Host` the client sent, so use `proxy_set_header X-Forwarded-Host $server_name;` in a server block that names the NA, and set `NA_PUBLIC_URL`. |
+| `NA_PUBLIC_URL` | no | The NA's public origin, e.g. `https://na.example.org` (v1.2.0). When set, `/sovereign.json` and `/swagger.json` advertise it whatever the request says; otherwise they take the scheme and host from the request as the trusted proxies leave it, which a client can influence through `Host` (a host that is not a valid origin gets `400`, v1.3.1). Set it in production. Since v1.3.1 the NA refuses to start unless it is exactly `http` or `https`, a DNS name or IP address (IPv6 in brackets), and an optional port of 1 to 65535, with nothing after it but a `/`. |
+
+(config-evidence-features)=
+## Evidence Features (off by default)
+
+The evidence store, out-of-band records, remediation and grants are each off
+until their switch is on. Out-of-band records need the evidence store, and
+remediation and grants each need out-of-band records.
+
+### Evidence store
+
+With `EVIDENCE_STORE=off` the NA records nothing, and the evidence routes
+answer `404 evidence_store_disabled`. Entries are not written retroactively:
+turn it on before the first decision you want recorded.
+
+| Variable | Required | Description |
+|---|---:|---|
 | `EVIDENCE_STORE` | no | `off` (default) or `on`; `on` keeps an append-only record of decisions and execution evidence (v0.59). |
+| `NA_ANCHOR_INTERVAL_SECONDS` | no | After an append to the evidence store, sign a new store anchor once this many seconds have passed since the last one (default 3600); `0` anchors only on `POST /admin/evidence/anchors`. See {doc}`../operations/evidence-anchors` (v1.2.0). |
+| `NA_RETENTION_REQUIRE_ARCHIVE` | no | `on` (default) or `off`. With `on`, retention removes nothing past the last entry an unbroken run of archive records covers (`genesis-mesh audit archive`); `off` is for local development only. See {doc}`../operations/audit-and-retention` (v1.5.0). |
+
+### Out-of-band records
+
+| Variable | Required | Description |
+|---|---:|---|
 | `EVIDENCE_OUT_OF_BAND` | no | `off` (default) or `on`; `on` records observations, break-glass records, judgements, quarantine and registry entries in the evidence store, and opens their routes. Needs `EVIDENCE_STORE=on`. Turn it on once every verifier that reads exports runs 1.3: a 1.2 verifier refuses the new entry kinds. See {doc}`../operations/out-of-band-changes` (v1.3.0). |
 | `NA_OBSERVATION_MAX_BACKLOG_SECONDS` | no | How long after a change an observation or break-glass record is still admitted (default 604800, 7 days); an older one is quarantined. See {doc}`../operations/out-of-band-changes` (v1.3.0). |
 | `NA_OBSERVATION_CLOCK_SKEW_SECONDS` | no | Clock skew tolerated between observers, controllers and the NA (default 300) (v1.3.0). |
 | `NA_JUDGE_ON_ADMISSION` | no | `on` (default) judges each observation and break-glass record when it is admitted; `off` leaves judging to the judge routes (v1.3.0). |
+
+### Remediation and reviews
+
+| Variable | Required | Description |
+|---|---:|---|
 | `EVIDENCE_REMEDIATION` | no | `off` (default) or `on`; `on` records remediation and review entries in the evidence store, opens their routes and accepts boundary policies with `remediation`, `review_required` or `emergency` sections. Needs `EVIDENCE_OUT_OF_BAND=on`. Turn it on once every verifier that reads exports and every SDK that reads policies runs 1.4: a 1.3 verifier refuses the new entry kinds and a 1.3 SDK the new policy sections. See {doc}`../operations/remediation-and-reviews` (v1.4.0). |
-| `EVIDENCE_GRANTS` | no | `off` (default) or `on`; `on` issues pre-issued grants, records grants, their uses and revocations in the evidence store, opens their routes, and lists revoked grants in the revocation feed. Needs `EVIDENCE_OUT_OF_BAND=on`. Turn it on once every verifier that reads exports, packs and the revocation feed runs 1.6: a 1.5 verifier refuses the new entry kinds and the feed's `revoked_grant_ids`. See {doc}`../operations/grants` (v1.6.0). |
-| `NA_GRANT_MAX_VALIDITY_SECONDS` | no | The longest validity of a grant this NA issues: 60 to 86400 seconds (default 86400, 24 hours, the most any grant may have). A use is uploaded no later than its grant's validity after it was made (v1.6.0). |
-| `NA_GRANT_MAX_USES` | no | The largest budget of a grant: 1 to 10000 (default 100) (v1.6.0). |
-| `NA_GRANT_MAX_USES_PER_TIME_TOKEN` | no | The most uses that may follow the use a time token names: 1 to 1000 (default 10), and the default of a grant that names none (v1.6.0). |
-| `NA_RETENTION_REQUIRE_ARCHIVE` | no | `on` (default) or `off`. With `on`, retention removes nothing past the last entry an unbroken run of archive records covers (`genesis-mesh audit archive`); `off` is for local development only. See {doc}`../operations/audit-and-retention` (v1.5.0). |
-| `NA_DEPLOYMENT` | no | `local` (default) or `managed`. `managed` refuses to start when the root private key is found where the NA's files live (the directories of the genesis block, the NA key file and the database, their parent directory and three levels below it) or in an environment variable, when the NA key is the root key, or when `NA_RETENTION_REQUIRE_ARCHIVE` is `off`. See {doc}`../operations/key-succession` (v1.5.0). |
-| `NA_DECISION_LIFETIME_SECONDS` | no | How long a boundary decision the NA issues stays valid: 1 to 300 seconds (default 300). Verifiers refuse a decision that outlives the key that signed it by more than 300 seconds past its hand-over (`decision_outlives_key`), so 300 is also the most this may be (v1.5.0). |
 | `NA_REMEDIATION_GRACE_SECONDS` | no | Grace before a remediation is due when no policy gives one (default 86400, one day; 0 to 2592000): `remediation_due_at = judged_at + grace` (v1.4.0). |
 | `NA_REMEDIATION_DEFAULT_MODE` | no | `alert_only` (default) or `cancel`: what a judged DENY leads to when no policy gives guidance (v1.4.0). |
 | `NA_REVIEW_MAX_WAIVER_SECONDS` | no | Longest waiver a review may grant (default 2592000, 30 days; at most 90 days) (v1.4.0). |
 | `NA_REVIEW_ACTOR_HOLDERS_JSON` | no | JSON object mapping observed actors (as sources report them) to operator key holders: a review decided by the holder an observed actor maps to is refused. An actor equal to a holder's name is that holder without an entry. The actor is not authenticated; see *Who may decide* in {doc}`../operations/remediation-and-reviews` (v1.4.0). |
-| `OPERATOR_KEY_HOLDERS_JSON` | no | JSON object mapping operator key IDs to the person or team holding them, recorded in the evidence store at the first start with `EVIDENCE_OUT_OF_BAND=on`; each holder is a string of 1 to 128 characters. A key without an entry is its own holder (unnamed); an entry naming a key as its own holder is refused at start (v1.5.0), since reviews need a named holder. After that first start the configuration names no holder (v1.3.1): a key added later, or given a new public key, is its own holder until a holder change, which a second named holder approves, names one (v1.3.0). |
+
+### Grants (beta)
+
+| Variable | Required | Description |
+|---|---:|---|
+| `EVIDENCE_GRANTS` | no | `off` (default) or `on`; `on` issues pre-issued grants, records grants, their uses and revocations in the evidence store, opens their routes, and lists revoked grants in the revocation feed. Needs `EVIDENCE_OUT_OF_BAND=on`. Turn it on once every verifier that reads exports, packs and the revocation feed runs 1.6: a 1.5 verifier refuses the new entry kinds and the feed's `revoked_grant_ids`. See {doc}`../operations/grants`. Beta (v1.6.0). |
+| `NA_GRANT_MAX_VALIDITY_SECONDS` | no | The longest validity of a grant this NA issues: 60 to 86400 seconds (default 86400, 24 hours, the most any grant may have). A use is uploaded no later than its grant's validity after it was made. Beta (v1.6.0). |
+| `NA_GRANT_MAX_USES` | no | The largest budget of a grant: 1 to 10000 (default 100). Beta (v1.6.0). |
+| `NA_GRANT_MAX_USES_PER_TIME_TOKEN` | no | The most uses that may follow the use a time token names: 1 to 1000 (default 10), and the default of a grant that names none. Beta (v1.6.0). |
+
+(config-request-limits)=
+## Request Limits
+
+### Request size and general limits
+
+| Variable | Required | Description |
+|---|---:|---|
 | `NA_MAX_REQUEST_BYTES` | no | Largest accepted request body in bytes (default 2097152, 2 MiB); larger requests get `413 request_entity_too_large` before they are parsed (v0.62). |
 | `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | no | Admin requests per minute per client address (default 300; 30 before v1.1.0). Every governed action calls `/admin/boundary/evaluate`, so size this to the controllers behind one address (v0.63.1). |
 | `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` | no | Failed admin authentications per minute (default 30): a bad or missing signature, an unknown or revoked key, a stale timestamp, a replayed nonce, or a key below the route's tier. Failures that name an active operator key count against that key at the client address; failures that name no active key (none, an unknown or a revoked one) count against the address (v1.2.0). All failures from one address are also capped at four times the limit. Once a request's scope or its address is over the limit, a request that fails gets `429 admin_auth_throttled` instead of `401`, at its first failed check (headers, key, timestamp and nonce before the signature), and is neither counted nor audited again; a request correctly signed by an active operator key is still served (v1.3.1), so requests forged from a shared address cannot lock its operators out. One `admin_auth_throttled` audit event is written per scope and minute instead of one per request (v1.1.0). |
 | `NA_RATE_LIMIT_VERIFY_PER_MINUTE` | no | Public verification and proof requests per minute per client address (default 60). |
+| `NA_RATE_LIMIT_READ_PER_MINUTE` | no | Reads of the data-usage policy (`GET /data-usage/policy`) and the NA key history (`GET /na/key-history`) per minute per client address (default 120). Other public reads are not rate limited. |
+
+### Evidence and edge-node limits
+
+| Variable | Required | Description |
+|---|---:|---|
 | `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` | no | Execution evidence submissions per minute per client address (default 120). |
 | `NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE` | no | Observation and break-glass submissions per minute per client address (default 120), a bucket of their own (v1.3.0). |
 | `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` | no | Audit packs (`POST /admin/evidence/audit-pack`) per hour per client address (default 12), a bucket of their own: a pack reads and verifies up to 50,000 entries (v1.5.0). |
+| `NA_RATE_LIMIT_EXECUTOR_PER_MINUTE` | no | Break-glass records, observations and grant uses per minute per executor key, counted once the record's signature verifies (default 120; an observation batch counts once per key): a key on an unattended device cannot flood the evidence store. A device uploading a backlog is paced by it and retries (v1.7.0). |
 | `NA_RATE_LIMIT_NODE_PER_MINUTE` | no | Requests to the `/node/*` routes an edge agent calls, per minute per node key, counted after the request authenticates (default 120). Beta (v1.7.0). |
 | `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` | no | Requests to the `/node/*` routes per minute per client address, counted before authentication (default 600). Every device behind one address (a site NAT) shares it, and anything at that address can use it up; the agents then refuse rather than act offline. Raise it when many edge nodes share one address. Beta (v1.7.0). |
-| `NA_RATE_LIMIT_EXECUTOR_PER_MINUTE` | no | Break-glass records, observations and grant uses per minute per executor key, counted once the record's signature verifies (default 120; an observation batch counts once per key): a key on an unattended device cannot flood the evidence store. A device uploading a backlog is paced by it and retries (v1.7.0). |
-| `NA_RATE_LIMIT_READ_PER_MINUTE` | no | Public policy reads per minute per client address (default 120). Enrollment (`/join`) limits are fixed anti-abuse controls. |
-| `NA_PROXY_HOPS` | no | Number of reverse proxies in front of the NA whose `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host` are trusted (default `0`, the NA reached directly; `1` before v1.3.1). Set it to the number of proxies in front, `1` behind one nginx or load balancer: with too many, clients can choose the address rate limits apply to (v0.62); with too few, every client shares the proxy's address. The proxy must set or overwrite each of these headers with values it chooses: nginx passes on a client's `X-Forwarded-Host` unless told otherwise, and `$host` and `$http_host` carry the `Host` the client sent, so use `proxy_set_header X-Forwarded-Host $server_name;` in a server block that names the NA, and set `NA_PUBLIC_URL`. |
-| `NA_PUBLIC_URL` | no | The NA's public origin, e.g. `https://na.example.org` (v1.2.0). When set, `/sovereign.json` and `/swagger.json` advertise it whatever the request says; otherwise they take the scheme and host from the request as the trusted proxies leave it, which a client can influence through `Host` (a host that is not a valid origin gets `400`, v1.3.1). Set it in production. Since v1.3.1 the NA refuses to start unless it is exactly `http` or `https`, a DNS name or IP address (IPv6 in brackets), and an optional port of 1 to 65535, with nothing after it but a `/`. |
-| `OPERATOR_KEY_TIERS_JSON` | yes for admin APIs | JSON object mapping each operator key ID to `read`, `standard` or `privileged`. **Required for every configured key — the service refuses to start otherwise.** |
+
+### How the limits count
+
+- **Per worker unless the store is shared.** With the `memory` store, the
+  default on SQLite, each Gunicorn worker counts on its own. `start.sh` runs
+  `WEB_CONCURRENCY` workers (default 4), so a client can make up to four
+  times each limit. Set `RATE_LIMIT_STORE=database` to count each limit
+  across workers and instances; it is the default on PostgreSQL and required
+  with `NA_HA_MODE=on`.
+- **Fixed limits.** Enrollment (`/join`: 10 requests and 3 failed invite
+  tokens a minute per address) and agent registration (`POST /agents`: 30 a
+  minute per address) are fixed anti-abuse controls, not settings.
+- **`Retry-After`.** Every `429` response carries `Retry-After: 60` (v1.1.0).
+  Every limit counts per minute except audit packs, which count per hour: a
+  client refused an audit pack may wait up to an hour, whatever
+  `Retry-After` says.
+
+## Startup Checks and Settings Files
 
 `start.sh` refuses to start the Network Authority when `GENESIS_FILE` is
 missing, when `NA_PRIVATE_KEY_FILE` is missing with the `file` key provider,
@@ -110,9 +211,6 @@ when the SQLite database's directory does not exist or is not writable by the
 user it runs as, or when `NA_KEY_SEED_ENV` is not a variable name. The
 Network Authority then refuses to start when the signing key does not match
 the genesis block.
-
-Every `429` response carries `Retry-After: 60`: each limit counts per minute,
-so a minute is the longest a client waits (v1.1.0).
 
 These variables configure the production entry point (`start.sh`, or Gunicorn
 with `genesis_mesh.na_service.wsgi:app`). The local development server reads

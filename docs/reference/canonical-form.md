@@ -153,6 +153,7 @@ record was first signed, so older records verify unchanged):
 | `ExecutionEvidence` | `resource_id`, `resource_action`, `resource_sequence`, `prev_resource_digest` |
 | `StoreAnchor` | `previous_anchor_digest` |
 | `SovereignRevocationFeed` (1.6.0) | `revoked_grant_ids` |
+| `BoundaryPolicy` (1.4.0) | `remediation`, `review_required`, `emergency` |
 
 `AgreementRecord` (and `CapabilityCounter`) are signed over a fixed set of
 fields, the same for both parties: `agreed_terms`, `graph_digest`,
@@ -168,9 +169,10 @@ Since 1.5.0 the registry also describes the records of the NA's key history
 and of audit packs: `GenesisBlock` (signed by the root key; `signatures` is
 outside its signed form), `KeySuccessionRecord` (signed by the root key, the
 new NA key and the outgoing NA key, all in `signatures`;
-`previous_succession_digest` omitted when absent), `ArchiveRecord` and
-`AuditPackManifest` (signed by the NA; the manifest's `period_from` and
-`period_until` omitted when absent), and `RecognitionTreaty` (which a pack
+`previous_succession_digest` omitted when absent), `ArchiveRecord`
+(`recorded_by` omitted when absent) and `AuditPackManifest` (`requested_by`,
+`start_anchor_sequence`, `period_from` and `period_until` omitted when
+absent), both signed by the NA, and `RecognitionTreaty` (which a pack
 carries). See {doc}`audit-pack-format`.
 
 Since 1.6.0 it describes the grant records: `CapabilityGrant` (no optional

@@ -105,8 +105,10 @@ Therefore, within 1.x:
 4. **Old artifacts stay verifiable**: an artifact signed by 0.59.0 or any
    later release verifies on every later 1.x release. Earlier artifacts are
    not covered. The upgrade rehearsal (`scripts/upgrade_rehearsal.py`) checks
-   this against real databases written by 0.59.1, 0.60.0, 0.61.1, 0.62.0,
-   0.63.0, 0.63.1, 0.64.0, 0.64.1, 0.65.0, 1.0.0, 1.0.1 and 1.0.2.
+   this against real databases written by earlier releases: every release
+   from 0.59.1 to 1.7.0 in the matrix of `.github/workflows/upgrade.yml`,
+   which gains each new release. That matrix is the list of tested
+   versions.
 
 Beta signed artifacts may change in a minor version; the CHANGELOG says how
 artifacts from the previous version are handled.
@@ -134,8 +136,12 @@ release will define (`x_added_field`, the entry kind `x-unknown-kind`).
 ## Configuration
 
 Environment variables and configuration keys documented in
-`docs/reference/configuration.md` are stable. Unset values keep the previous
-behaviour.
+`docs/reference/configuration.md` are stable, except those it marks beta
+(the edge-agent and grant settings). An unset value keeps the previous
+behaviour, except when a default changes under the deprecation cycle or in a
+security fix; the CHANGELOG says so. Two defaults changed this way within
+1.x: `NA_RATE_LIMIT_ADMIN_PER_MINUTE` from 30 to 300 (1.1.0) and
+`NA_PROXY_HOPS` from 1 to 0 (1.3.1, a security fix).
 
 ## Container images
 

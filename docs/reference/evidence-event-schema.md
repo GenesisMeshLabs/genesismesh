@@ -5,6 +5,13 @@ Lines). This is GenesisMesh's stable, versioned structured event model for the
 evidence store (v0.59). SIEM-specific formats such as CEF or Elastic Common
 Schema are not part of GenesisMesh core: map them from this model outside it.
 
+The evidence store is off by default. With `EVIDENCE_STORE=off` the NA records
+nothing and the evidence routes answer `404 evidence_store_disabled`. Turn it
+on before the first decision you want recorded: entries are not written
+retroactively. The entry kinds of 1.3.0, 1.4.0 and 1.6.0 need further
+switches, listed with each kind below. Edge nodes (1.7.0) need
+`EVIDENCE_STORE=on` and `EVIDENCE_OUT_OF_BAND=on`.
+
 Each event has three parts:
 
 - `entry`: the store envelope (`store_sequence`, `entry_kind`, `recorded_at`,
@@ -62,15 +69,17 @@ Each event has three parts:
   {doc}`audit-pack-format`.
 
 Verify an export offline with `genesis-mesh evidence verify-export` (see the
-{doc}`CLI reference <cli>`).
+{doc}`CLI reference <cli/evidence-audit>`).
 
 ## Verifying an export
 
-Every verifier (the reference, the CLI and the SDKs) checks an export the
-same way and names each failure by the same reason, with the
+Every verifier of exports (the Python reference and CLI, the TypeScript SDK,
+and the Rust SDK with `genesis-mesh-verify`) checks an export the same way
+and names each failure by the same reason, with the
 `store_sequence` of the entry it concerns. The shared cases are the
 conformance suites `field_registry`, `out_of_band`, (1.4.0) `remediation`,
-(1.5.0) `audit` and (1.6.0) `grants`.
+(1.5.0) `audit` and (1.6.0) `grants`. The Go and .NET SDKs do not verify
+exports.
 
 ### Reading the lines
 

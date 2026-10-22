@@ -42,8 +42,32 @@ Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEP
 
 ## In Scope: What Genesis Mesh Defends Against
 
-Each defense is enforced in code today. Each item is testable against the live
-deployment.
+Each defense is enforced in code today. Some apply only when a setting is
+on, and the item says which. Each item is testable against a deployment
+configured that way.
+
+### Off by default
+
+These switches are off in a new deployment. A guarantee that rests on one
+holds only after you turn it on:
+
+| Setting | Default | What turning it on adds |
+|---|---|---|
+| `EVIDENCE_STORE` | `off` | The hash-chained, anchored evidence store, its export, anchors, audit packs and archives. Off: the evidence routes answer `404 evidence_store_disabled` and nothing is recorded. |
+| `EVIDENCE_OUT_OF_BAND` | `off` | Observations, break-glass records and their judgements (needs `EVIDENCE_STORE=on`). Also required for edge nodes. |
+| `EVIDENCE_REMEDIATION` | `off` | Remediation and review records (needs `EVIDENCE_OUT_OF_BAND=on`). |
+| `EVIDENCE_GRANTS` | `off` | Pre-issued grants (needs `EVIDENCE_OUT_OF_BAND=on`). |
+| `BOUNDARY_POLICY_ENFORCEMENT` | `optional` | `required` refuses the legacy `/admin/boundary/decide` route. |
+| `NA_DEPLOYMENT` | `local` | `managed` refuses to start when it finds the root private key near the NA's files. |
+| `NA_HA_MODE` | `off` | `on` refuses to start without PostgreSQL, a non-file key provider and shared rate limits. |
+| `RATE_LIMIT_STORE` | `memory` on SQLite | `database` counts each rate limit across workers and instances. With `memory`, each worker process counts on its own. |
+| `NA_PUBLIC_URL` | unset | The URLs the NA advertises no longer follow the request's `Host`. |
+
+`genesis-mesh init --env-file` writes a settings file with
+`EVIDENCE_STORE=on` and `BOUNDARY_POLICY_ENFORCEMENT=required`; a deployment
+configured any other way starts with the defaults above. The outbox,
+break-glass, observations, remediation helpers and grant holders on the
+client side exist only in the TypeScript and Rust SDKs and in the edge agent.
 
 ### Enrollment
 
@@ -105,28 +129,34 @@ deployment.
 
 ### Operational
 
-- **NA private key exposure.** The NA private key never leaves the NA
-  process; admin callers use **operator keys**, not the NA key.
+- **NA private key exposure over the API.** The NA never sends its private
+  key over the network, and admin callers use **operator keys**, not the NA
+  key. The key is still a file or a secret on the host (or in Key Vault), and
+  tools such as `genesis-mesh init` write it; protect it as described under
+  *VM/host compromise* below.
 - **Reverse-proxy IP spoofing.** The NA trusts exactly `NA_PROXY_HOPS`
   reverse proxies (default 0 since 1.3.1) for `X-Forwarded-For`, `X-Forwarded-Proto` and
   `X-Forwarded-Host`, and none when it is set to 0, so a client cannot choose
-  the address its rate limits apply to. Set it to match the deployment, and
+  the address its rate limits apply to. This holds only when the setting
+  matches the number of proxies in front of the NA. Set it to match, and
   have the proxy overwrite each of these headers. Set `NA_PUBLIC_URL` so the
   URLs the NA advertises do not depend on the request's `Host`.
 - **Oversized requests.** Request bodies above `NA_MAX_REQUEST_BYTES`
   (default 2 MiB) are refused with 413 before they are parsed.
-- **Evidence reads with a read-tier key** (1.5.0). The routes an audit pack
+- **Evidence reads with a read-tier key** (1.5.0, with `EVIDENCE_STORE=on`).
+  The routes an audit pack
   needs (evidence reads, the audit pack, the archive list) accept a `read` key,
   so a security team can produce and verify packs without a key that changes
   anything; every route that writes still refuses it
   (`403 insufficient_operator_tier`). A read key sees the evidence store's
   metadata and actor identifiers: hand it out as you would audit-log access.
   Audit packs have an hourly limit of their own.
-- **Independent verification.** `genesis-mesh-verify`, built from the Rust SDK,
+- **Offline verification.** `genesis-mesh-verify`, built from the Rust SDK,
   verifies records, exports and audit packs offline. It is released as static
   Linux binaries with `SHA256SUMS` and Sigstore bundles signed by the Rust SDK's
   release workflow, reproducible from source; it never needs a private key or a
-  network. "Independent" means separate code by the same project.
+  network. It is a second implementation by the same project, ported from the
+  Python reference, not an independent one.
 - **Pre-authorisation beyond its terms** (1.6.0, off until
   `EVIDENCE_GRANTS=on`). A pre-issued grant names one registered executor key,
   lasts at most 24 hours, carries a budget and a closed parameter envelope,
@@ -137,7 +167,9 @@ deployment.
   rests on (its attestation, agreement, treaty or bound policy) or activating
   a stricter covering policy revokes it, and holders refuse it once their
   revocation feed lists it.
-- **A device acting beyond its own identity** (1.7.0, beta). An edge agent
+- **A device acting beyond its own identity** (1.7.0, beta; needs
+  `EVIDENCE_STORE=on` and `EVIDENCE_OUT_OF_BAND=on`, otherwise edge invites
+  are refused with `409 edge_requires_evidence_store`). An edge agent
   holds no operator key: it enrols with an edge invite, which only a
   privileged operator key creates, and registers its executor key at `/join`,
   where that key co-signs the request. The routes it calls take requests its
@@ -155,9 +187,11 @@ deployment.
   per executor key. The agent's
   local API refuses peers outside its allow-lists (Unix socket) or without
   its token (loopback).
-- **Trust changes by routine keys.** Operator keys have tiers; issuing,
-  revoking, treaties, feed imports, policies, agreement acceptance and data
-  license policies require a privileged key.
+- **Trust changes by routine keys.** Operator keys have tiers (`read`,
+  `standard`, `privileged`); revoking, treaties, attestations, feed imports,
+  policies, agreement acceptance, data license policies, grants, executor
+  keys, archives, retention, key successions, operator key holder changes,
+  review decisions and edge invites require a privileged key.
 
 ## Out of Scope: What Genesis Mesh Does NOT Defend Against
 
@@ -179,9 +213,21 @@ them externally.
   window. Within the 300-second hand-over and the store's 300-second time
   tolerance, an entry the holder of the outgoing key appends at once cannot
   be told from one the NA wrote: the anchors the NA makes afterwards, held by
-  auditors, bound it. A key lost before its succession cannot sign one:
-  recovery is then a new identity. Mitigation: keep the key in Azure Key
-  Vault or another external secret manager (HA mode refuses key files). See
+  auditors, bound it.
+
+  A succession carries three signatures: the root key's, the new key's and
+  the outgoing key's. The NA adds the outgoing key's signature itself, with
+  the key it runs, when that key is the newest in the history and may still
+  sign (not succeeded, not past its `new_valid_to`). Nothing checks whether
+  the key was copied, so an exposed NA key that you still hold can sign its
+  own succession: succeed it at once. Whoever holds the copy can still sign
+  records dated before the hand-over ends, so treat what that key signed in
+  its window as suspect. A key that is lost, or past its `new_valid_to`,
+  cannot sign its own succession. If the root key was exposed, whoever also
+  obtains an NA key can write a succession of their own. In either case
+  recovery is a new identity. Mitigation: keep the NA key
+  in Azure Key Vault or another external secret manager (HA mode refuses key
+  files) and the root key offline. See
   `docs/development/security-review-v1.md` (SR-06) and
   `docs/operations/key-succession.md`.
 - **Archives rest on the archiving key's word.** An archive record (1.5.0)
@@ -200,8 +246,11 @@ them externally.
   checked for authenticity; their place in the store is proven only against
   the packs an auditor verified before or an anchor at their position.
 - **Operator workstation compromise.** An attacker who steals an operator
-  private key can issue invites and revoke certificates. Mitigation:
-  workstation hygiene, hardware key, short-lived operator credentials.
+  private key can do what its tier allows. A `read` key reads; a `standard`
+  key also issues plain invites; a `privileged` key also revokes
+  certificates and changes policies, treaties and the other trust material
+  listed above. Mitigation: keep privileged keys few and offline,
+  workstation hygiene, hardware keys, short-lived operator credentials.
 - **Insider abuse by an authorized operator.** Genesis Mesh enforces what an
   operator is *cryptographically allowed* to do; it does not detect a
   legitimate operator acting maliciously.
@@ -209,9 +258,13 @@ them externally.
 ### Network-layer attacks
 
 - **Denial of service.** Admin, verification and `/join` routes are rate
-  limited per client, but `/heartbeat`, `/renew` and peer connections are
-  not, and no per-IP limit stops a distributed flood. Mitigate with a CDN,
-  WAF, or load balancer in front of the NA.
+  limited per client address, but `/heartbeat`, `/renew` and peer
+  connections are not, and no per-IP limit stops a distributed flood. With
+  the `memory` rate-limit store (the default on SQLite) each Gunicorn worker
+  counts on its own, so a client can make up to `WEB_CONCURRENCY` (default 4)
+  times each limit; set `RATE_LIMIT_STORE=database` to count across workers
+  and instances. Mitigate with a CDN, WAF, or load balancer in front of the
+  NA.
 - **Traffic analysis.** Noise XX hides payload content; it does not hide that
   two peers are communicating, message timing, or message sizes.
 - **Resource exhaustion via routing churn.** A compromised peer can announce
