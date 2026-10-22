@@ -102,12 +102,20 @@ env:
     value: /run/secrets/genesis-mesh/genesis.signed.json
   - name: NA_PRIVATE_KEY_FILE
     value: /run/secrets/genesis-mesh/na.key
+  # The key ID recorded in na.key (genesis-mesh init writes na-local).
+  - name: NA_KEY_ID
+    value: na-local
   - name: DB_PATH
     value: /var/lib/genesis-mesh/na.db
   - name: PORT
     value: "8443"
   - name: WEB_CONCURRENCY
     value: "4"
+  # Proxies in front whose X-Forwarded-* headers are trusted: 0 as shipped
+  # (reached through the Service); set "1" behind an Ingress or a proxying
+  # load balancer, so rate limits apply to the client's address.
+  - name: NA_PROXY_HOPS
+    value: "0"
   - name: OPERATOR_PUBLIC_KEYS_JSON
     valueFrom:
       secretKeyRef:
@@ -122,12 +130,15 @@ env:
 
 `OPERATOR_KEY_TIERS_JSON` maps each operator key ID to `read`, `standard` or
 `privileged`. Every configured key must appear in it — the pod will fail to
-start otherwise, by design.
+start otherwise, by design. Without `NA_KEY_ID` the NA signs as `na-2025-q1`,
+which does not match the key ID `init` writes.
 
 ## Probes
 
 `/healthz` is liveness only and does not touch the database. `/readyz` checks
-DB, genesis block, and NA key state.
+that the database is writable at the expected schema, the genesis block, and
+that the loaded NA key is the key in effect (not a successor before its
+`effective_at`, and not succeeded or expired; see {doc}`key-succession`).
 
 ```yaml
 livenessProbe:
@@ -140,7 +151,12 @@ readinessProbe:
 
 - **Do not run multiple Network Authority pods against the same SQLite file.**
   SQLite is treated as a single-writer deployment store. Keep `replicas: 1` and
-  the rollout `strategy: Recreate`.
+  the rollout `strategy: Recreate`. The shipped manifests are single-replica
+  SQLite.
+- **To run more than one replica**, use PostgreSQL (`DATABASE_URL`, a
+  database created with C collation), `NA_KEY_PROVIDER=env` with
+  `NA_PRIVATE_KEY_SEED_FILE` from a secret volume, and `NA_HA_MODE=on`. A
+  rolling update is then safe. See {doc}`high-availability`.
 - Keep the NA private key and operator keys inside Kubernetes secrets or an
   external secret manager (Vault, External Secrets, etc.). Admin callers should
   use operator keys, not the NA private key.

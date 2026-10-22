@@ -9,9 +9,25 @@ Authority exposes HTTP health endpoints.
   respond.
 - `GET /readyz`: readiness. Use this to determine whether the service is ready
   to receive traffic.
-- `GET /metrics`: Prometheus text exposition for Network Authority counters,
-  including issued certificates, active nodes, revoked certificates, CRL
-  sequence, and policy versions.
+- `GET /metrics` (beta): Prometheus text exposition. It is not
+  authenticated: restrict it at the proxy. It exposes six series:
+
+  | Series | Type | Meaning |
+  | --- | --- | --- |
+  | `genesis_mesh_na_issued_certs_total` | gauge | Certificates issued |
+  | `genesis_mesh_na_active_nodes` | gauge | Recently active nodes |
+  | `genesis_mesh_na_revoked_certs_total` | gauge | Certificates marked revoked |
+  | `genesis_mesh_na_crl_sequence` | gauge | Sequence of the active CRL |
+  | `genesis_mesh_na_policy_versions_total` | gauge | Persisted policy versions |
+  | `genesis_mesh_na_audit_write_failures_total` | counter | Auth-failure audit events that could not be written |
+
+  Alert on any increase of `genesis_mesh_na_audit_write_failures_total`:
+  the audit log is missing events.
+
+`/readyz` is not ready (`503`) when the database is not writable or not at the
+current schema, or when the NA key it loaded is not the key in effect: a successor before its
+`effective_at`, a succeeded key, or an expired one (`na_key.state`, see
+{doc}`key-succession`).
 
 ## Node Health
 
@@ -27,7 +43,9 @@ For a node, monitor:
 ## Operational Signals
 
 Track these signals in production-like deployments because they identify
-membership, trust, and routing failures before users see message loss:
+membership, trust, and routing failures before users see message loss. No
+metric exposes the first seven yet: read them from the logs and the audit
+events.
 
 - join success and failure rates
 - invite-token rejection rates
@@ -38,6 +56,22 @@ membership, trust, and routing failures before users see message loss:
 - route withdrawal and route rejection counts
 - database migration state
 - database backup freshness
+
+### Evidence store signals
+
+With the evidence store on (`EVIDENCE_STORE=on`, off by default), also watch
+these. Each needs an operator key (read tier):
+
+- `GET /admin/evidence/status`: `unanchored_entries` and the age of
+  `latest_anchor`; `anchoring_blocked` (an instance's clock ran ahead);
+  `unjudged_records`; with out-of-band records on, the registry's health; with
+  remediation on, remediations by state.
+- `GET /admin/evidence/remediations` (with `EVIDENCE_REMEDIATION=on`): the
+  due queue, including overdue remediations.
+- The age of the newest anchor copy you hold
+  (`genesis-mesh evidence anchors fetch`, {doc}`evidence-anchors`).
+- Offline edge nodes and their pending uploads:
+  `genesis-mesh admin edge-nodes --status offline` ({doc}`edge-agent`).
 
 ## Example Alert Thresholds
 
@@ -69,12 +103,11 @@ curl -fsS http://127.0.0.1:8443/connectome.json
 For public endpoints, run the same probes from outside the VM or cluster so
 ingress, TLS, DNS, and firewall state are included in the check.
 
-## Continuous Trust-Cycle Canary
+## Trust-Cycle Canary
 
-The Azure reference deployment runs
-`genesis-mesh-trust-cycle-canary.timer` once per day. It exercises the existing
-`001-NA` and `anonymous-NA` maintainer sovereigns through their signed HTTP
-APIs. Both services bind only to loopback on the reference VM:
+A canary exercises the recognition and revocation path end to end, which
+`/healthz` cannot. `genesis-mesh proof canary` runs one cycle between two
+sovereigns you operate, through their signed HTTP APIs:
 
 1. the issuer creates an attestation;
 2. the acceptor creates a scoped recognition treaty;
@@ -83,25 +116,29 @@ APIs. Both services bind only to loopback on the reference VM:
 5. the acceptor imports the higher-sequence signed revocation feed;
 6. the identical attestation is rejected as locally revoked.
 
-The timer is persistent, so a missed run executes when the host returns. The
-latest operator-safe proof receipt is signed by `001-NA`, verified immediately,
-and written to `/var/lib/genesis-mesh/trust-cycle-canary/latest.signed.json`.
-Its safe payload and digest are recorded as an audit event in USG observability.
-This audit event does not change USG trust decisions. Private keys and request
-signatures are never copied into the public dashboard.
+It signs a receipt of the cycle (`--receipt-signing-key`), writes it to
+`--receipt` and records it in `--audit-db`. Run it from a systemd timer or
+another scheduler, and alert when a run fails or the last receipt is older
+than your interval. See `genesis-mesh proof canary --help` for the options.
 
-Verify the timer and the last completed cycle:
+Treat `/healthz` and the canary as separate signals. Liveness proves that the
+API responds. A fresh verified cycle proves that the recognition and
+revocation path was exercised successfully.
+
+### The public reference
+
+The public reference at na.genesismesh.org runs no Network Authority, so it
+does not use `proof canary`. Its `genesis-mesh-public-maintenance.timer` runs
+hourly; once a day the run includes a canary that issues a demo attestation,
+accepts it, revokes it and checks the rejection (see
+{doc}`public-reference-dashboard`). A failed run starts
+`genesis-mesh-public-alert.service`, which logs a line starting with
+`PUBLIC_FEED_IMPORT_FAILED`. Check it with:
 
 ```bash
-systemctl status genesis-mesh-trust-cycle-canary.timer
-systemctl show genesis-mesh-trust-cycle-canary.service -p Result
-curl -fsS http://127.0.0.1:8443/dashboard.json \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["trust_cycle_summary"])'
+systemctl status genesis-mesh-public-maintenance.timer
+systemctl show genesis-mesh-public-maintenance.service -p Result
 ```
-
-Treat `/healthz` and the trust-cycle summary as separate signals. Liveness
-proves that the API responds. A fresh verified cycle proves that the
-recognition and revocation path was exercised successfully.
 
 ## Logging
 

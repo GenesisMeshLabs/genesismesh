@@ -10,7 +10,10 @@ A managed sovereign is pilot-ready only when these are in place:
 
 - signed Genesis block and NA key custody model;
 - operator key ownership and rotation procedure;
-- durable SQLite storage;
+- durable database storage (a SQLite volume, or PostgreSQL for HA);
+- `NA_DEPLOYMENT=managed` (default `local`): the NA refuses to start when the
+  root private key is on its host, or when retention may prune without an
+  archive ({doc}`key-succession`);
 - tested backup and restore procedure;
 - audit export procedure;
 - health, readiness, metrics, and external uptime probes;
@@ -25,7 +28,7 @@ A managed sovereign is pilot-ready only when these are in place:
 | Genesis block | Stores and deploys approved signed genesis | Owns sovereign name, root trust decision, and policy intent |
 | NA private key | Custody depends on selected model | Approves custody model and rotation policy |
 | Operator keys | Installs approved operator public keys | Owns who can perform admin actions |
-| SQLite database | Backs up, restores, monitors disk and locks | Defines retention and incident disclosure needs |
+| Database | Backs up, restores, monitors disk and locks | Defines retention and incident disclosure needs |
 | Recognition treaties | Executes approved treaty operations | Decides which sovereigns to recognize |
 | Revocation feeds | Imports approved feeds and verifies results | Decides which issuer feeds are trusted |
 | Audit exports | Produces redacted exports and incident bundles | Reviews trust decisions and compliance evidence |
@@ -33,10 +36,16 @@ A managed sovereign is pilot-ready only when these are in place:
 
 ## Key Custody Models
 
-### Customer-Held NA Key
+### Owner-Held Root Key
 
-The customer keeps the NA private key and signs trust material through their own
-process. Genesis Mesh operates hosting and verification infrastructure.
+The sovereign owner keeps the root key offline and signs key successions with
+it ({doc}`key-succession`). The managed operator holds only the NA key, in the
+secret store, and runs the NA with `NA_DEPLOYMENT=managed`, which refuses to
+start if the root key is on the host.
+
+A hosted NA cannot run without its NA key: the running NA signs every
+certificate, CRL, treaty and decision. If the sovereign owner must also hold
+the NA key, the sovereign owner runs the NA.
 
 Use this when sovereignty and compliance requirements dominate convenience.
 
@@ -66,7 +75,11 @@ blurring policy ownership.
 - [ ] `genesis-mesh managed backup` has produced a backup.
 - [ ] `genesis-mesh managed restore` has been tested against a non-production
       DB.
-- [ ] `genesis-mesh managed audit-export` has produced a redacted export.
+- [ ] `genesis-mesh managed audit-export` has produced a redacted export
+      (SQLite only; the audit log is not signed, see {doc}`audit-export`).
 - [ ] Incident response contacts are known.
-- [ ] The customer understands that billing, multi-tenancy, and active-active HA
-      are not part of v0.16.
+- [ ] The sovereign owner understands that billing, multi-tenancy and multi-region
+      active-active are not offered. Single-region HA with PostgreSQL is
+      ({doc}`high-availability`).
+- [ ] The root key is offline with the sovereign owner, and
+      `NA_DEPLOYMENT=managed` is set.
