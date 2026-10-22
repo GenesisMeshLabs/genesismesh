@@ -16,6 +16,8 @@ The core invariant is:
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/delegation-chain-demo.py --no-gif`.
+
 ## What a chain proves
 
 - **Identity at every hop**: each `DelegatedAgreementRecord` requires two

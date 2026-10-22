@@ -24,6 +24,8 @@ sequenceDiagram
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/trust-evidence-demo.py --no-gif`.
+
 ## Why TrustEvidence matters
 
 A Network Authority can already answer *does A recognize B?* through the

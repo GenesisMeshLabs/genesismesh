@@ -1,0 +1,47 @@
+==> A local NA (SQLite) with one enrolled node
+$ genesis-mesh init --config genesis-mesh.toml --home .genesis-mesh --network-name RESTORE-DRILL --na-endpoint http://127.0.0.1:18451 --na-port 18451 --env-file na.env
+Initialized Genesis Mesh config: genesis-mesh.toml
+NA settings: na.env (start with: genesis-mesh na start --env-file na.env)
+$ genesis-mesh na start --env-file na.env &
+$ genesis-mesh join --config node/node.toml --na http://127.0.0.1:18451 --token 03284001-674c-4b5d-8322-85c7479f52d5
+Joined RESTORE-DRILL as role:anchor
+Certificate: 05b3d66d-a6b2-4c5e-a48b-27c7073bd479
+==> 1. Online backup while the NA runs
+$ genesis-mesh managed backup --db-path .genesis-mesh/na.db --output backups/na-backup.db
+{
+  "db_path": ".genesis-mesh\\na.db",
+  "backup_path": "backups\\na-backup.db"
+}
+==> 2. A revocation made after the backup
+$ genesis-mesh admin revoke --config genesis-mesh.toml 05b3d66d-a6b2-4c5e-a48b-27c7073bd479 --reason key_compromise
+{
+  "crl_sequence": 1,
+  "revoked_count": 1
+}
+$ curl -s http://127.0.0.1:18451/crl | python -c "import json,sys; c=json.load(sys.stdin); print('sequence', c['sequence'], 'revoked', [r['certificate_id'] for r in c['revoked_certificates']])"
+sequence 1 revoked ['05b3d66d-a6b2-4c5e-a48b-27c7073bd479']
+==> 3. Stop the NA, restore the backup, verify the database
+$ kill $NA_PID
+$ genesis-mesh managed restore --db-path .genesis-mesh/na.db --backup backups/na-backup.db --pre-restore-backup backups/na-before-restore.db --yes
+{
+  "db_path": ".genesis-mesh\\na.db",
+  "restored_from": "backups\\na-backup.db",
+  "pre_restore_backup": "backups\\na-before-restore.db"
+}
+$ genesis-mesh na verify-db --db-path .genesis-mesh/na.db --genesis .genesis-mesh/genesis.signed.json | python -c "import json,sys; r=json.load(sys.stdin); print('ok', r['ok'], 'crl', r['checks']['crl'], 'failures', r['failures'])"
+!ok ok True crl {'versions': 0, 'active_sequence': []} failures []
+==> 4. Start again: ready, and the later revocation is gone
+$ genesis-mesh na start --env-file na.env &
+$ curl -s -o readyz.json -w '/readyz HTTP %{http_code}\n' http://127.0.0.1:18451/readyz && python -c "import json; r=json.load(open('readyz.json')); e=r.get('error', {}); print(r.get('status', e.get('code')), 'na_key', e.get('details', r)['na_key'])"
+!ok /readyz HTTP 200
+!ok ready na_key {'key_sequence': 1, 'state': 'signing'}
+$ curl -s http://127.0.0.1:18451/crl | python -c "import json,sys; c=json.load(sys.stdin); print('sequence', c['sequence'], 'revoked', [r['certificate_id'] for r in c['revoked_certificates']])"
+!no sequence 0 revoked []
+!dim # the certificate revoked after the backup is valid again: revoke it again
+$ genesis-mesh admin revoke --config genesis-mesh.toml 05b3d66d-a6b2-4c5e-a48b-27c7073bd479 --reason key_compromise
+{
+  "crl_sequence": 1,
+  "revoked_count": 1
+}
+$ curl -s http://127.0.0.1:18451/crl | python -c "import json,sys; c=json.load(sys.stdin); print('sequence', c['sequence'], 'revoked', [r['certificate_id'] for r in c['revoked_certificates']])"
+!ok sequence 1 revoked ['05b3d66d-a6b2-4c5e-a48b-27c7073bd479']

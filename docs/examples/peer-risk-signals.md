@@ -11,6 +11,8 @@
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/peer-risk-signals-demo.py --no-gif`.
+
 ## What are peer risk signals?
 
 A `PeerRiskSignal` is a locally-computed, time-decaying summary of how reliably

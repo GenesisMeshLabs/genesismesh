@@ -124,8 +124,4 @@ python -m pytest `
   -q
 ```
 
-Expected result:
-
-```text
-18 passed
-```
+All tests pass. As of 1.7.0 the two files hold 36 tests.

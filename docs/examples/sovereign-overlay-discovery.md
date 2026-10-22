@@ -27,6 +27,8 @@ endpoint belongs to the identity.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/sovereign-overlay-discovery-demo.py --no-gif`.
+
 ## Step 1 — Announce your endpoint
 
 ```bash

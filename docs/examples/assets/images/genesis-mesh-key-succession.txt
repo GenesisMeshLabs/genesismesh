@@ -1,0 +1,51 @@
+==> A local NA signing with its genesis key (na-local)
+$ genesis-mesh na start --env-file na.env &
+$ ops-demo-client record --count 1
+kv:billing/api-key create seq 1  decision 7a6bfaa2 authorized=True  evidence 5df06a8c
+$ curl -s -o readyz.json -w '/readyz HTTP %{http_code}\n' http://127.0.0.1:18451/readyz && python -c "import json; r=json.load(open('readyz.json')); e=r.get('error', {}); print(r.get('status', e.get('code')), 'na_key', e.get('details', r)['na_key'])"
+!ok /readyz HTTP 200
+ready na_key {'key_sequence': 1, 'state': 'signing'}
+==> 1. History, root signature, new-key proof, submit
+$ genesis-mesh keygen network-authority --output na-2 --key-id na-2
+Public key (base64): 1irbE0Jq3YVg6kjmzkt1R66vpAanvRTC3+9PsJeNAIc=
+$ genesis-mesh na succession history --na http://127.0.0.1:18451 --out history.json
+Key history of SUCCESSION-DEMO: 1 key(s); saved to history.json
+$ genesis-mesh na succession sign --history history.json --root-key .genesis-mesh/keys/root.key --new-public-key na-2.pub --new-key-id na-2 --effective-in 70 --out succession.json
+Succession 8275ca6e-3153-4c03-b1b9-726bb06ce6b4: key 2 (na-2) takes effect at 2026-10-22T00:50:27+00:00 and is valid until 2027-10-22T00:50:27+00:00.
+$ genesis-mesh na succession prove --file succession.json --new-key na-2.key --out succession.json
+Signed by the new key na-2; written to succession.json. Submit it with 'na succession submit'.
+$ genesis-mesh na succession submit --na http://127.0.0.1:18451 --file succession.json --config genesis-mesh.toml
+!ok Recorded: key 2 (na-2) takes effect at 2026-10-22T00:50:27Z. Restart the NA with the new key then; the old key signs nothing after it.
+$ curl -s http://127.0.0.1:18451/na/key-history | python -c "import json,sys; h=json.load(sys.stdin); [print(k['key_sequence'], k['key_id'], k['public_key'][:12] + '...', 'from', k['valid_from'], 'succeeded_at', k['succeeded_at'], 'current', k['current']) for k in h['keys']]"
+1 na-local 5b1XsIPi0xFI... from None succeeded_at 2026-10-22T00:50:27Z current True
+2 na-2 1irbE0Jq3YVg... from 2026-10-22T00:50:27Z succeeded_at None current False
+==> 2. After effective_at: the old key's instance is not ready
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-10-22T00:50:30Z
+$ curl -s -o readyz.json -w '/readyz HTTP %{http_code}\n' http://127.0.0.1:18451/readyz && python -c "import json; r=json.load(open('readyz.json')); e=r.get('error', {}); print(r.get('status', e.get('code')), 'na_key', e.get('details', r)['na_key'])"
+!no /readyz HTTP 503
+!no service_not_ready na_key {'key_sequence': 1, 'state': 'stopped'}
+$ kill $NA_PID
+==> 3. Restart on the same port with the new key
+$ sed -i -e 's|^NA_PRIVATE_KEY_FILE=.*|NA_PRIVATE_KEY_FILE=na-2.key|' -e 's|^NA_KEY_ID=.*|NA_KEY_ID=na-2|' na.env && grep -E '^NA_(PRIVATE_KEY_FILE|KEY_ID)=' na.env
+NA_PRIVATE_KEY_FILE=na-2.key
+NA_KEY_ID=na-2
+$ genesis-mesh na start --env-file na.env &
+$ curl -s -o readyz.json -w '/readyz HTTP %{http_code}\n' http://127.0.0.1:18451/readyz && python -c "import json; r=json.load(open('readyz.json')); e=r.get('error', {}); print(r.get('status', e.get('code')), 'na_key', e.get('details', r)['na_key'])"
+!ok /readyz HTTP 200
+!ok ready na_key {'key_sequence': 2, 'state': 'signing'}
+$ ops-demo-client record --count 1
+kv:billing/api-key rotate seq 2  decision c0b2c7f5 authorized=True  evidence 975ce7a1
+==> 4. Records signed by both keys verify from the root key
+$ curl -s http://127.0.0.1:18451/na/key-history > key-history.json && ops-demo-client admin GET /admin/evidence/export > export.jsonl && ops-demo-client admin GET /admin/evidence/executor-keys > executor-keys.json
+$ genesis-mesh evidence verify-export --file export.jsonl --key-history key-history.json --root-key .genesis-mesh/keys/root.pub --executor-keys executor-keys.json
+Entries    : 11
+Decisions  : 2
+Executions : 2
+!ok Result     : VERIFIED
+!dim # with only the genesis key, the records the new key signed fail
+$ genesis-mesh evidence verify-export --file export.jsonl --na-public-key .genesis-mesh/keys/na.pub --executor-keys executor-keys.json; echo exit=$?
+!no Result     : FAILED
+!no   - #9: invalid_signature decision
+!no   - #10: invalid_signature justification
+!no exit=1

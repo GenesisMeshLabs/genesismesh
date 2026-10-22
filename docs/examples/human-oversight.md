@@ -34,6 +34,8 @@ proceed       propose()       reject
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/human-oversight-demo.py --no-gif`.
+
 ## Research basis
 
 **arXiv:2603.00318 — AESP (2026)**: 8-check deterministic policy engine with three-tier
@@ -109,20 +111,26 @@ genesis-mesh trust oversight evaluate \
 Output:
 ```
 Result: HUMAN_APPROVE
+
 Checks:
-  PASS          capability_scope
-  PASS          counterparty_allowlist
-  PASS          value_threshold
-  PASS          time_window
-  PASS          frequency_limit
-  ESCALATE      irreversibility
-  PASS          novel_counterparty
-  PASS          anomaly_flag
+  PASS  capability_scope
+  PASS  counterparty_allowlist
+  ESCALATE  value_threshold
+  ESCALATE  time_window
+  PASS  frequency_limit
+  ESCALATE  irreversibility
+  PASS  novel_counterparty
+  PASS  anomaly_flag
 
 Escalation reasons:
+  - action value 50000.0 > threshold 10000.0
+  - request hour 0 UTC outside allowed window [9, 17)
   - action is tagged as irreversible
 ```
 Exit codes: 0=automatic, 1=human_approve, 2=block.
+
+This run was at 00:29 UTC. `time_window` depends on the hour of the run: it
+passes between 09:00 and 17:00 UTC and escalates outside that window.
 
 ### Step 2 — Agent proposes
 
@@ -282,8 +290,10 @@ assert result.valid and result.reason == "valid"
 | `valid` | Both signatures valid; optional cross-checks passed |
 | `missing_agent_signature` | No agent signature on commitment |
 | `missing_human_signature` | No human signature on commitment |
-| `request_response_mismatch` | `commitment.request_id ≠ request.request_id` |
-| `invalid_agent_signature` | Agent sig does not verify against request body |
+| `request_response_mismatch` | `commitment.request_id ≠ request.request_id` (only when the request is supplied) |
+| `legacy_unverifiable_format` | The commitment predates `request_digest`, so its `CommitmentCore` cannot be rebuilt; reissue it |
+| `invalid_agent_signature` | Agent signature does not verify against the CommitmentCore |
+| `request_digest_mismatch` | The request's digest is not the commitment's `request_digest` (only when the request is supplied) |
 | `invalid_human_signature` | Human sig does not verify against commitment body |
 | `expired` | Current time is past `commitment.expires_at` |
 

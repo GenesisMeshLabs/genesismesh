@@ -1,12 +1,16 @@
 # Trust & Sovereignty Examples
 
 These examples are the architectural heart of Genesis Mesh, shown in running
-code: portable trust between independently administered sovereigns, treaty-based
+code: portable trust between separately administered sovereigns, treaty-based
 recognition, cross-boundary revocation propagation, and a human-visible
 recognition graph.
 
 Read this section if you want to understand or demonstrate how trust travels
 across sovereign boundaries without a central authority.
+
+Several features here are off by default and say so on their page: the
+evidence store, out-of-band records and pre-issued grants, and the opt-in
+gates added to the BoundaryEngine.
 
 ```{toctree}
 :maxdepth: 2
@@ -21,7 +25,10 @@ trust-security
 rust-trust-core-walkthrough
 ```
 
-## Start Here
+## Core trust and sovereignty
+
+Attestations, treaties, revocation propagation and the recognition graph.
+See {doc}`trust-core`.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -50,14 +57,6 @@ Signed revocation feeds that propagate trust withdrawal across recognized
 sovereigns without revoking the treaty itself.
 :::
 
-:::{grid-item-card} Connectome Operator View
-:link: connectome
-:link-type: doc
-
-The recognition graph rendered for an operator, including trust-path
-explanations and revocation blast-radius summaries.
-:::
-
 :::{grid-item-card} Independent Sovereigns Proof
 :link: independent-sovereigns
 :link-type: doc
@@ -76,12 +75,12 @@ the signed feed import (v1.1). A single-host walkthrough, not a production
 federation proof.
 :::
 
-:::{grid-item-card} Trust Evidence
-:link: trust-evidence
+:::{grid-item-card} Connectome Operator View
+:link: connectome
 :link-type: doc
 
-Two independently keyed sovereigns produce and verify a signed TrustEvidence
-record offline — no shared backend or identity provider required.
+The recognition graph rendered for an operator, including trust-path
+explanations and revocation blast-radius summaries.
 :::
 
 :::{grid-item-card} Trust Atlas
@@ -93,22 +92,23 @@ treaty scope, and TrustEvidence overlay — as a live console page or a
 self-contained static snapshot.
 :::
 
-:::{grid-item-card} Rust Trust Core Walkthrough
-:link: rust-trust-core-walkthrough
-:link-type: doc
+::::
 
-Mint and verify a join certificate with the Rust CLI, run the gateway
-against a local policy, verify a certificate over HTTP, and preflight a
-candidate authority — no Python runtime required.
-:::
+## Relationships and agreements
+
+Agreements, delegation, relationship context, boundary policies and trust
+evidence. See {doc}`trust-relationships`.
+
+::::{grid} 1 1 2 2
+:gutter: 3
 
 :::{grid-item-card} Relationship Agreement
 :link: relationship-agreement
 :link-type: doc
 
 Two sovereigns exchange a dual-signed AgreementRecord via Offer → Counter →
-Acceptance. Neither party can produce the record alone. The first artifact
-in GM that requires two independent signatures.
+Acceptance. Neither party can produce the record alone: it needs both
+parties' signatures.
 :::
 
 :::{grid-item-card} Delegation Chain
@@ -116,8 +116,8 @@ in GM that requires two independent signatures.
 :link-type: doc
 
 A party holding an AgreementRecord delegates a strict subset of its rights
-to a third party. Every hop in the chain is independently signed. Capabilities
-can only narrow — never widen — at each hop.
+to a third party. Every hop in the chain is signed. Capabilities can only
+narrow — never widen — at each hop.
 :::
 
 :::{grid-item-card} Relationship Context
@@ -149,13 +149,32 @@ by an imported revocation feed) denies every later request. Opt-in via
 `attestation_id` on `/admin/boundary/evaluate`; this is not identity proofing.
 :::
 
+:::{grid-item-card} Trust Evidence
+:link: trust-evidence
+:link-type: doc
+
+Two separately keyed sovereigns produce and verify a signed TrustEvidence
+record offline — no shared backend or identity provider required.
+:::
+
+::::
+
+## Evidence and audit
+
+Execution chains, the evidence store, out-of-band changes, pre-issued grants,
+freshness proofs, justification proofs and data usage attestation. See
+{doc}`trust-evidence-audit`.
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
 :::{grid-item-card} Execution Evidence Chain
 :link: execution-evidence-chain
 :link-type: doc
 
 After execution, each event is recorded as a signed ExecutionEvidence record
-linked by prev_evidence_digest. Any insertion, deletion, reorder, or tampering
-breaks the chain and is immediately detectable.
+linked by prev_evidence_digest. Insertion, reordering, tampering and dropping
+early records are detected. Dropping the latest records is not.
 :::
 
 :::{grid-item-card} Evidence Store
@@ -173,7 +192,7 @@ secret. Opt-in (`EVIDENCE_STORE=on`); metadata only, never secret values.
 
 A secret changed in the cloud console or while the NA was down is recorded by
 an observer or a break-glass record and judged as of when it happened, under
-the policies active then (v1.3.0).
+the policies active then (v1.3.0). Off by default.
 :::
 
 :::{grid-item-card} Pre-Issued Grants
@@ -182,34 +201,17 @@ the policies active then (v1.3.0).
 
 A device rotates a secret while it cannot reach the NA, within a grant the NA
 checked against its policies in advance; its uses are uploaded, placed in the
-secret's history and governed by the grant (v1.6.0).
+secret's history and governed by the grant (v1.6.0). Off by default.
 :::
 
 :::{grid-item-card} Freshness Proofs
 :link: freshness-proofs
 :link-type: doc
 
-A FreshnessProof binds revocation-feed state to a specific time. The
-BoundaryEngine embeds valid proofs in every BoundaryDecision; execution
-records produced after the proof window are flagged as stale.
-:::
-
-:::{grid-item-card} Formal Verification + Interop Bridges
-:link: formal-verification
-:link-type: doc
-
-The GenesisMesh protocol is formally verified with Tamarin Prover (five
-security lemmas). GM records cross ecosystem boundaries via SPIFFE, W3C VC,
-and JOSE/JWT bridges without losing provability guarantees.
-:::
-
-:::{grid-item-card} Invocation-Bound Capability Tokens
-:link: invocation-bound-tokens
-:link-type: doc
-
-A compact signed token that lets an agent prove offline what it can do,
-how often, and until when — without calling the GM stack. Supports budget
-caps, policy constraints, and tamper-evident use chains.
+A FreshnessProof binds revocation-feed state to a specific time. A
+BoundaryEngine created with `require_freshness_proof=True` embeds a valid proof
+in its decision. Execution records produced after the proof window are flagged
+as stale when the verifier is given the decision.
 :::
 
 :::{grid-item-card} Justification Proofs
@@ -219,6 +221,36 @@ caps, policy constraints, and tamper-evident use chains.
 A signed artifact that proves not just what the BoundaryEngine decided,
 but how: the ordered gate inputs, intermediate results, and short-circuit
 point. Any auditor can verify the reasoning offline without re-running the engine.
+:::
+
+:::{grid-item-card} Data Usage Attestation Layer
+:link: data-usage-attestation
+:link-type: doc
+
+Signed pre- and post-execution attestation for data access. DataLicensePolicy
+defines source allowlists and volume caps. DataAccessIntent and DataAccessRecord
+bind the agent's declared intent to actual access. DataUsageGate integrates with
+BoundaryEngine. Payment and settlement are explicitly out of scope.
+:::
+
+::::
+
+## Authorization controls
+
+Capability tokens, human oversight, selective disclosure, process-level
+mediation and the ephemeral identity purge. See {doc}`trust-authorization`.
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Invocation-Bound Capability Tokens
+:link: invocation-bound-tokens
+:link-type: doc
+
+A compact signed token that lets an agent prove offline what it can do,
+how often, and until when — without calling the GM stack. The budget check
+counts only the use records the verifier is given, and the use chain has no
+verifier in this release.
 :::
 
 :::{grid-item-card} Human Oversight
@@ -239,6 +271,37 @@ capability without revealing the full capability set, the agreement ID, or any
 other capability. CapabilityNullifier prevents replay.
 :::
 
+:::{grid-item-card} Process-Level Execution Mediation
+:link: process-level-mediation
+:link-type: doc
+
+GenesisGuard local enforcement sidecar: validates BoundaryDecision and IBCT
+before spawning subprocesses. Issues signed MediatedExecutionReceipts.
+Covers advisory mode and mandatory mediation mode with explicit 5-point
+enforcement checklist. Non-LLM, deterministic, no network access.
+:::
+
+:::{grid-item-card} Ephemeral Identity Purge Protocol
+:link: ephemeral-identity-purge
+:link-type: doc
+
+Signed records of the purge of expired EphemeralExecutionIdentities.
+NullificationReceipts commit to a digest of each record without keeping
+sensitive fields. They are the operator's signed statement, not proof that the
+data is gone. A signed Merkle registry lets auditors check inclusion.
+:::
+
+::::
+
+## Consensus and risk
+
+Distributed consensus, peer risk signals, cascade-resilient voting,
+adversarial seed isolation and trust path performance. See
+{doc}`trust-consensus-risk`.
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
 :::{grid-item-card} Distributed Consensus
 :link: distributed-consensus
 :link-type: doc
@@ -254,8 +317,8 @@ that expires in ~120 s. Opt-in gate — normal authorization is unaffected.
 
 Locally-computed EWMA over ExecutionEvidence outcomes, time-decayed between
 updates. Anomaly detection when a delta exceeds 3σ of the last 10 updates.
-RiskSignalGate is opt-in. Not a reputation system — each sovereign's signals
-are independent and never shared.
+RiskSignalGate is opt-in. Not a reputation system — each sovereign computes
+its own signals and never shares them.
 :::
 
 :::{grid-item-card} Cascade-Resilient Consensus
@@ -263,9 +326,9 @@ are independent and never shared.
 :link-type: doc
 
 Extends K-of-N voting with Context Divergence Score and Temporal Clustering
-Score. Assembly is blocked when CascadeScore exceeds threshold, preventing
-correlated validators from satisfying a threshold they appear to meet
-independently.
+Score. Assembly is blocked when CascadeScore exceeds threshold. This is a
+statistical check that raises the cost of coordinated votes, not a proof that
+validators acted on their own.
 :::
 
 :::{grid-item-card} Adversarial Seed Isolation
@@ -275,7 +338,51 @@ independently.
 Pattern-based detection of credit-farming attacks on PeerRiskSignals. Three
 scores — Credit Farming (CFS), Volatility Discontinuity (VDS), and Streak
 Fragility (SFS) — identify adversarial histories that evaded per-update anomaly
-detection. SeedIsolationGate is opt-in. Each sovereign's assessment is independent.
+detection. SeedIsolationGate is opt-in. Each sovereign computes its own
+assessment.
+:::
+
+:::{grid-item-card} Trust Path Performance and Atlas Pruning
+:link: trust-path-performance
+:link-type: doc
+
+TrustPathCache (signed, TTL-bound) accelerates repeat path lookups to O(1).
+GraphPruningPolicy removes expired, revoked, and empty-scope edges. Every
+pruning run produces a signed PrunedAtlasExport with per-edge audit entries
+and staleness guard (refuses to prune graphs older than policy max).
+:::
+
+::::
+
+## Security and verification
+
+Tamarin models, logic attestation, context-injection defense, communication
+privacy and overlay discovery. See {doc}`trust-security`.
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Formal Verification + Interop Bridges
+:link: formal-verification
+:link-type: doc
+
+Tamarin models of the v0.26–v0.30 protocol pipeline (five lemmas) and of the
+peer risk signal, proved in CI. The models are not proofs about the current
+code. GM records can also be converted to SPIFFE, W3C VC and JOSE/JWT formats;
+the bridges are lossy and not covered by the models.
+:::
+
+:::{grid-item-card} Formal PeerRiskSignal Verification
+:link: formal-risk-signal-verification
+:link-type: doc
+
+A Tamarin Prover model of the PeerRiskSignal state machine, checked against
+`trust/risk_signal.py`: seven lemmas, all verified. They cover bounded signal
+values, anomalies raised only on local outliers with enough history,
+synchronous detection, and no single-source cascade. The earlier claim that
+every sudden drop is eventually detected was removed in v0.61.1 because the
+code does not do that. Executable property tests run in the standard pytest
+suite.
 :::
 
 :::{grid-item-card} Verifiable Logic Attestation
@@ -296,24 +403,15 @@ ContextIntegrityRecord declares permitted append segments before execution.
 ContextInjectionGate rejects undeclared, oversized, or tampered context at runtime.
 :::
 
-:::{grid-item-card} Ephemeral Identity Purge Protocol
-:link: ephemeral-identity-purge
-:link-type: doc
-
-Verifiable deletion of expired EphemeralExecutionIdentities. NullificationReceipts
-commit to identity existence and destruction without retaining sensitive fields.
-A signed Merkle registry enables auditable proof of inclusion without resurrecting
-deleted records.
-:::
-
 :::{grid-item-card} Communication Privacy Layer
 :link: communication-privacy
 :link-type: doc
 
-Defends against SALA mesh-layer fingerprinting: normalizes message length
+Defends against SALA fingerprinting: normalizes message length
 (block-padding), dispatch timestamps (bucket rounding), and strips custom
-headers before forwarding. MetadataEnvelopes are signed; a PrivacyAuditRecord
-documents exactly what was changed.
+headers. You apply the profile to each message before sending; the mesh
+transport does not apply it for you. A PrivacyAuditRecord documents what
+was changed.
 :::
 
 :::{grid-item-card} Sovereign Overlay Discovery
@@ -326,47 +424,15 @@ identity. Sequence numbers enable supersession detection; hop-count limits
 prevent unbounded gossip propagation.
 :::
 
-:::{grid-item-card} Process-Level Execution Mediation
-:link: process-level-mediation
-:link-type: doc
-
-GenesisGuard local enforcement sidecar: validates BoundaryDecision and IBCT
-before spawning subprocesses. Issues signed MediatedExecutionReceipts.
-Covers advisory mode and mandatory mediation mode with explicit 5-point
-enforcement checklist. Non-LLM, deterministic, no network access.
-:::
-
-:::{grid-item-card} Trust Path Performance and Atlas Pruning
-:link: trust-path-performance
-:link-type: doc
-
-TrustPathCache (signed, TTL-bound) accelerates repeat path lookups to O(1).
-GraphPruningPolicy removes expired, revoked, and empty-scope edges. Every
-pruning run produces a signed PrunedAtlasExport with per-edge audit entries
-and staleness guard (refuses to prune graphs older than policy max).
-:::
-
-:::{grid-item-card} Data Usage Attestation Layer
-:link: data-usage-attestation
-:link-type: doc
-
-Signed pre- and post-execution attestation for data access. DataLicensePolicy
-defines source allowlists and volume caps. DataAccessIntent and DataAccessRecord
-bind the agent's declared intent to actual access. DataUsageGate integrates with
-BoundaryEngine. Payment and settlement are explicitly out of scope.
-:::
-
-:::{grid-item-card} Formal PeerRiskSignal Verification
-:link: formal-risk-signal-verification
-:link-type: doc
-
-Three Tamarin Prover lemmas over the PeerRiskSignal state machine: (1)
-signal_bounded — every emitted signal is one of the abstract lattice values
-`low`/`mid`/`high`; (2) anomaly_detection_responsive — SuddenDrop cannot
-permanently suppress detection; (3) no_single_source_cascade — cascade
-amplification requires independent per-sovereign observations.
-**Only (1) currently proves**; see the page for current status. Executable
-property tests included for standard pytest runs.
-:::
-
 ::::
+
+## Rust trust core
+
+:::{card} Rust Trust Core Walkthrough
+:link: rust-trust-core-walkthrough
+:link-type: doc
+
+Mint and verify a join certificate with the Rust CLI, run the gateway
+against a local policy, verify a certificate over HTTP, and preflight a
+candidate authority — no Python runtime required.
+:::

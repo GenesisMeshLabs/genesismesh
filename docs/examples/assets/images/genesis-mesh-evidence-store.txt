@@ -1,0 +1,63 @@
+==> Start the NA with EVIDENCE_STORE=on and register the controller
+$ genesis-mesh na start --env-file na.env
+  /health: evidence_store=on
+$ POST /admin/evidence/executor-keys {"key_id": "ctrl-1", ...}
+!ok 201: executor key ctrl-1 registered
+==> Authorize, act, submit evidence
+$ POST /admin/boundary/evaluate {"requested_capability": "secret.manage"}
+!ok 201: authorized=True
+$ POST /evidence/execution  (create, secret_version 7)
+!ok 201: store_sequence=3 resource_sequence=1
+$ POST /admin/boundary/evaluate {"requested_capability": "secret.manage"}
+!ok 201: authorized=True
+$ POST /evidence/execution  (rotate, secret_version 8)
+!ok 201: store_sequence=6 resource_sequence=2
+==> Revoke the vendor
+$ POST /admin/attestations/<vendor>/revoke
+$ POST /admin/boundary/evaluate
+!no 201: authorized=False (attestation_revoked)
+$ POST /evidence/execution  (rotate under the DENY)
+!no 422 evidence_decision_denied
+==> The secret's history, from the NA alone
+$ GET /admin/evidence/resources/kv:vendor-acme/api-key
+  store #1  decision       decision c244d695
+  store #2  justification  decision c244d695
+  store #3  execution      create  resource #1
+  store #4  decision       decision a669d203
+  store #5  justification  decision a669d203
+  store #6  execution      rotate  resource #2
+!ok verified=True: 6 entries, 2 decisions, 2 executions, 0 failures
+==> Export and verify offline
+$ GET /admin/evidence/export > export.jsonl
+  8 gm.evidence.event lines
+$ genesis-mesh evidence verify-export --file export.jsonl --na-public-key home/keys/na.pub --executor-keys executor-keys.json
+  Entries    : 8
+  Decisions  : 3
+  Executions : 2
+!ok   Result     : VERIFIED
+==> Edit one record in the export
+$ genesis-mesh evidence verify-export --file edited.jsonl ...   (secret_version 8 -> 80)
+  Entries    : 8
+  Decisions  : 3
+  Executions : 2
+!no   Result     : FAILED
+!no     - #6: payload_digest_mismatch
+!no     - #6: invalid_signature execution
+!dim exit 1
+==> Copy the anchors out, then drop the newest entries
+$ genesis-mesh evidence anchors fetch --na http://127.0.0.1:18454 --na-public-key home/keys/na.pub --out anchors --anchor-now --operator-key home/keys/operator.key --operator-key-id operator-local
+  2 new anchor(s); latest #2 covers store sequence 8 (2026-10-22T01:10:20.493657+00:00)
+!dim short.jsonl: the first 5 of 8 entries
+$ genesis-mesh evidence verify-export --file short.jsonl ...
+  Entries    : 5
+  Decisions  : 2
+  Executions : 1
+!ok   Result     : VERIFIED
+$ genesis-mesh evidence verify-export --file short.jsonl ... --known-anchors anchors
+  Entries    : 5
+  Decisions  : 2
+  Executions : 1
+!no   Anchors    : 1 matched of 2; anchored through #2; 3 entries after the last anchor
+!no   Result     : FAILED
+!no     - #5: export_ends_before_anchor 1 anchor(s) after the last entry
+!dim exit 1

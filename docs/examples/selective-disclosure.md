@@ -5,6 +5,8 @@
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/selective-disclosure-demo.py --no-gif`.
+
 ## What problem does this solve?
 
 Every trust interaction in GenesisMesh up to v0.34 requires the requesting party

@@ -25,6 +25,8 @@ v0.47 introduces a signed attestation layer for data access:
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/data-usage-attestation-demo.py --no-gif`.
+
 ## Step 1 — Create a license policy
 
 The data licensor (e.g., the operator or data owner) defines which sources the
@@ -122,7 +124,7 @@ post-execution attestations.
 
 ```python
 from genesis_mesh.trust.data_usage import DataUsageGate, create_data_access_intent
-from genesis_mesh.trust.boundary import BoundaryEngine
+from genesis_mesh.trust.context import BoundaryEngine
 
 intent = create_data_access_intent(
     agent_sovereign_id="agent-a",
@@ -133,13 +135,11 @@ intent = create_data_access_intent(
     estimated_volume_bytes=50_000_000,
 )
 
-engine = BoundaryEngine(
-    decision=boundary_decision,
-    gates=[DataUsageGate(intent, policy, [agent_pub_b64])],
-)
-result = engine.evaluate(context_record)
+engine = BoundaryEngine("operator-1")
+engine.add_gate(DataUsageGate(intent, policy, [agent_pub_b64]))
+decision = engine.evaluate(context_record, agreement, signing_key, issued_by="operator-1")
 ```
 
 The gate returns `GateResult(passed=True, detail="compliant")` or
-`GateResult(passed=False, detail="<violation_reason>")`.  The engine fails
-closed — any gate failure produces a `block` verdict.
+`GateResult(passed=False, detail="<violation_reason>")`. The engine fails
+closed. Any failed gate gives `authorized=False`; `denial_reason` names the gate.

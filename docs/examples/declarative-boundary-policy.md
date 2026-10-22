@@ -38,6 +38,20 @@ identity + capability + context + signed policy + gates
       signed BoundaryDecision (+ PolicyBinding)  +  signed JustificationProof
 ```
 
+```{image} assets/images/genesis-mesh-boundary-policy.gif
+:alt: Declarative boundary policy run against a local Network Authority
+:class: screenshot
+```
+
+The recording is a real run against a temporary local NA started with
+`BOUNDARY_POLICY_ENFORCEMENT=required`. It evaluates under a membership
+attestation rather than an agreement. Run it yourself (rendering the GIF
+needs `pip install pillow`; `--no-gif` writes only the transcript):
+
+```bash
+python docs/examples/assets/scripts/boundary-policy-demo.py
+```
+
 ## What a policy-bound decision proves
 
 Anyone holding the NA public key and the signed policy versions can check,
@@ -146,6 +160,13 @@ supplies any of those fields is refused with `unexpected_field`.
 An empty `selector` makes a global policy. `observe` mode records a failure
 without denying, which lets you introduce a rule before it enforces.
 
+Since 1.4.0 a policy can also state what a denied change leads to
+(`remediation`), require a review of every allowed change
+(`review_required`), and mark an emergency capability (`emergency`). The NA
+accepts these fields only with `EVIDENCE_REMEDIATION=on`; otherwise it answers
+`400 policy_remediation_disabled`. See {doc}`../operations/remediation-and-reviews`
+and {doc}`../operations/emergency-changes`.
+
 ### 2. Validate, publish, activate
 
 ```text
@@ -160,6 +181,12 @@ validation right before the policy goes live. Publishing version 2 and
 activating it deactivates version 1 in the same transaction. Activating
 version 1 again is the rollback, and its audit event records
 `previous_version` and `rollback: true`.
+
+With the evidence store on (`EVIDENCE_STORE=on`), each activation is also
+recorded in the store, and judgements of past changes use that record
+(1.3.0). With grants on (`EVIDENCE_GRANTS=on`), activating a policy revokes
+every usable grant it may now deny, with reason `policy_activated` (1.6.0;
+see {doc}`pre-issued-grants`).
 
 ### 3. Evaluate
 
@@ -276,7 +303,10 @@ registry.register(MaxLengthGate())
 registry.freeze()                           # the NA refuses an unfrozen registry
 ```
 
-Pass the registry to `NetworkAuthorityService(gate_registry=registry)`.
+Pass the registry to `NetworkAuthorityService(gate_registry=registry)` (or
+`create_app(gate_registry=registry)`). The image, `genesis-mesh na start` and
+the shipped WSGI app always use the built-in registry, so a custom gate type
+needs your own WSGI entry point that builds the NA with the frozen registry.
 Nothing else changes: resolution, routes, signing, proofs and audit handle the
 new gate type as they handle the built-in ones. A policy that references a
 gate type the running NA does not have (for example after a downgrade) fails
@@ -304,23 +334,33 @@ genesis-mesh trust boundary-policy gate-types
 - `BoundaryEngine.evaluate()` and `evaluate_with_proof()` are unchanged.
 - `BoundaryEngine.add_gate()` gates still run, in their usual position, in
   `evaluate_with_policies()` too.
-- `/admin/boundary/decide` is unchanged by default. Start the NA with
-  `--boundary-policy-enforcement required` (or
-  `BOUNDARY_POLICY_ENFORCEMENT=required`) to refuse that route with HTTP 409
-  `boundary_policy_required`. Only then does every decision go through
-  policy, and only then can an operator claim that policies are enforced.
+- `/admin/boundary/decide` is unchanged by default
+  (`BOUNDARY_POLICY_ENFORCEMENT=optional`). Set
+  `BOUNDARY_POLICY_ENFORCEMENT=required` in the NA's settings to refuse that
+  route with HTTP 409 `boundary_policy_required`: in the container
+  environment, or in the file given to `genesis-mesh na start --env-file`
+  (`genesis-mesh init --env-file` writes `required`). Only then does every
+  decision go through policy, and only then can an operator claim that
+  policies are enforced.
+- `genesis-mesh na start --config` always runs with `optional`.
+  `genesis-mesh-na --boundary-policy-enforcement required` only checks a
+  configuration; it does not start the NA.
 
-## Limits of this release
+## Limits
+
+As of 1.7.0:
 
 - A policy-bound decision proves which signed policy versions and gate outcomes
-  produced it. It does not independently prove the NA's activation history;
-  that rests on the NA audit store.
+  produced it. It does not prove the NA's activation history on its own. That
+  history is in the NA audit log and, with `EVIDENCE_STORE=on`, in the
+  evidence store's registry records.
 - Selectors that match on request parameters are only as strong as the facts
   the caller supplies: omitting the parameter means the selector does not
   match. Put mandatory rules in a policy selected by capability or identity,
   and use `required_parameter.v1` there.
-- The TypeScript, Go and .NET SDKs do not yet verify policy-bound decisions
-  offline; that is planned with the cross-language interoperability release.
+- The TypeScript, Go, .NET and Rust SDKs verify a policy-bound decision
+  offline against the expected signed policies (`expectedPolicies`,
+  `ExpectedPolicies`, `expected_policies`).
 
 ## Test command
 

@@ -1,9 +1,13 @@
 # Formal Verification + Interop Bridges
 
-```{image} assets/images/genesis-mesh-formal-verification.gif
-:alt: Formal verification and credential bridge demo
+```{image} assets/images/genesis-mesh-tamarin-proofs.gif
+:alt: Tamarin proofs of both models
 :class: screenshot
 ```
+
+A recorded run of both Tamarin proofs with tamarin-prover 1.12.0 and Maude 3.5.1.
+The transcript is in `docs/examples/assets/images/genesis-mesh-tamarin-proofs.txt`.
+To run the proofs yourself, see *Running the proofs* below.
 
 ## Formal Verification (Tamarin Prover)
 
@@ -24,8 +28,11 @@ each change to the models, their tests or the modelled risk-signal code:
 
 | Model | Theory | Lemmas | Status | Describes |
 |---|---|---|---|---|
-| `ops/tamarin/gm_protocol.spthy` | `GenesisMesh` | 5 | **5/5 verified** (0.25s) | Protocol pipeline as of v0.26–v0.30 |
-| `ops/tamarin/risk_signal/peer_risk_signal.spthy` | `PeerRiskSignal` | 7 | **7/7 verified** (3.6s), wellformed | `update_risk_signal` as shipped (revised v0.61.1) |
+| `ops/tamarin/gm_protocol.spthy` | `GenesisMesh` | 5 | **5/5 verified**, wellformed | Protocol pipeline as of v0.26–v0.30 |
+| `ops/tamarin/risk_signal/peer_risk_signal.spthy` | `PeerRiskSignal` | 7 | **7/7 verified**, wellformed | `update_risk_signal` as shipped (revised v0.61.1) |
+
+Proof time depends on the machine. The core model takes about a second.
+The risk-signal model took about 47 seconds in the recorded run above.
 
 Tamarin proves properties of the *models*, not of the Python code. The
 risk-signal model was rewritten in v0.61.1 against the current implementation
@@ -150,7 +157,14 @@ verify.  This was a defect in the lemma, not in the protocol.
 ## Interop Bridges
 
 GenesisMesh records can be converted to common external formats for integration
-with heterogeneous ecosystems.
+with heterogeneous ecosystems. The bridges are not part of the Tamarin models.
+
+```{image} assets/images/genesis-mesh-formal-verification.gif
+:alt: Interop bridge demo
+:class: screenshot
+```
+
+Run it yourself: `python docs/examples/assets/scripts/formal-verification-demo.py --no-gif`.
 
 ### SPIFFE Bridge (`trust interop to-spiffe`)
 
@@ -214,7 +228,8 @@ The JWT can be verified by any JOSE library that supports `alg: EdDSA` with
 ### Bridge invariants
 
 - Bridges are **lossy by design**: not all GM fields map to external formats.
-- All output carries `_gm_bridge_source` so consumers know provenance.
+- SVID and VC output carry `_gm_bridge_source`; the JWT carries the
+  `gm:bridge_source` claim. Both tell consumers where the record came from.
 - Reverse mappings (`svid_to_agreement_fields`, `vc_to_trust_evidence_fields`)
   return best-effort dicts, never re-signed GM records.
 - JWT verification requires the original Ed25519 public key.

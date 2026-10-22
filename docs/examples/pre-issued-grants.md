@@ -14,10 +14,24 @@ quarantined, rather than losing it.
 See {doc}`../operations/grants` for the rules in full and the limits of
 offline trust.
 
+```{image} assets/images/genesis-mesh-pre-issued-grants.gif
+:alt: Pre-issued grants run against a local Network Authority
+:class: screenshot
+```
+
+The recording is a real run of the walkthrough below against a temporary
+local NA, so its credential has no earlier records: the two uses take
+positions 1 and 2, not 7 and 8. Run it yourself (rendering the GIF needs
+`pip install pillow`; `--no-gif` writes only the transcript):
+
+```bash
+python docs/examples/assets/scripts/pre-issued-grants-demo.py
+```
+
 ## Walkthrough: a device rotates a secret offline
 
-The NA runs with `EVIDENCE_STORE=on`, `EVIDENCE_OUT_OF_BAND=on` and
-`EVIDENCE_GRANTS=on`.
+Grants are off by default. The NA runs with `EVIDENCE_STORE=on`,
+`EVIDENCE_OUT_OF_BAND=on` and `EVIDENCE_GRANTS=on`.
 
 ### 1. The policy and the device's key
 
@@ -104,7 +118,9 @@ first = use(1, None, 30, "v8", at_0915)
 second = use(2, first, 30, "v9", at_1010)
 ```
 
-The SDKs keep each use in their outbox until the NA admits it.
+The TypeScript and Rust SDKs, and the edge agent, keep each use in an outbox
+until the NA admits it. The Go and .NET SDKs only verify grants; they do not
+hold or use them.
 
 ### 4. Reconnecting
 
@@ -143,7 +159,9 @@ admitted uses. `GET /admin/grants/<grant_id>/uses` lists the chain, each use
 The cloud provider's activity log shows the two rotations. The observer's
 reports name `v8` and `v9`, so the NA matches each to its use and records a
 judgement `governed_by: grant`: the grant authorised the change before it
-was made, and it is not judged again.
+was made. The facts the observer reports still count: a report with a
+lifetime of 400 days, or without the `lifetime_days` the policy reads, is
+judged `deny` although it matched the use.
 
 ```text
 GET /admin/evidence/changes/kv:site-7/api-key
@@ -166,8 +184,8 @@ GET /sovereign-revocation-feed
 ```
 
 Once the device reads the feed it stops using the grant. If the network
-fails before it can ask for a new one and a rotation is urgent, its SDK falls
-back to break-glass: the rotation is recorded with its justification and
+fails before it can ask for a new one and a rotation is urgent, the
+TypeScript or Rust SDK (or the edge agent) falls back to break-glass: the rotation is recorded with its justification and
 judged afterwards.
 
 Had the device been lost, retiring its key would have revoked its grants and

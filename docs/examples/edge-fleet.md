@@ -113,6 +113,17 @@ flowchart LR
    view) shows each site's status, the age of its trust snapshot and its
    pending uploads.
 
+```{image} assets/images/genesis-mesh-edge-agent.gif
+:alt: The edge agent enrolling, deciding online, recording break-glass offline and draining its uploads
+:class: screenshot
+```
+
+The recording is a real run of one device against a temporary local NA:
+enrolment, a decision while the NA answers, break-glass while it is stopped,
+and the uploads draining when it is back. It does not show a grant. The
+script is `docs/examples/assets/scripts/edge-agent-demo.py`; it runs on Linux
+with the agent built from the Rust SDK repository.
+
 **Decommissioning a site.** Records the device has not uploaded yet are
 quarantined once its key is retired, so, unless it is compromised, wait until
 its pending uploads reach 0, stop the agent (`systemctl stop

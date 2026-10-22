@@ -1,0 +1,24 @@
+==> Set up a governed local NA (port 18455)
+$ genesis-mesh init --config local/genesis-mesh.toml --home local/.genesis-mesh --network-name MY-PROJECT-DEV --na-endpoint http://127.0.0.1:18455 --na-port 18455 --env-file local/na.env
+Note: genesis block contains a placeholder policy hash. Replace PolicyManifestRef.hash with the SHA-256 of your policy document before production use.
+Warning: the root private key was written to local\.genesis-mesh\keys\root.key, next to the NA key (local\.genesis-mesh\keys\na.key). Whoever holds both can replace the NA's key history. For anything but local use, move the root key offline and delete it from this host (see the root key ceremony in the operations docs); NA_DEPLOYMENT=managed refuses to start while it is there.
+Initialized Genesis Mesh config: local\genesis-mesh.toml
+Genesis block: local\.genesis-mesh\genesis.signed.json
+Operator key: local\.genesis-mesh\keys\operator.key
+NA settings: local\na.env (start with: genesis-mesh na start --env-file local\na.env)
+$ genesis-mesh keygen operator --output local/.genesis-mesh/keys/controller --key-id controller --tier standard --env-file local/na.env
+Generating operator keypair...
+!ok OK Operator key controller (standard tier) generated:
+  Private key: local\.genesis-mesh\keys\controller.key (signs admin requests; keep it out of version control)
+  Public key:  local\.genesis-mesh\keys\controller.pub
+Public key (base64): J9RGv9av5grhfk9vnqG/vTbsq34/EtNum0CQltvTAdU=
+Registered in local\na.env; restart the Network Authority to load it.
+==> Start the NA
+$ genesis-mesh na start --env-file local/na.env &
+Settings: local\na.env
+  Boundary policy enforcement: required
+  Evidence store: on
+  Operator keys: controller (standard), operator-local (privileged)
+  Rate limits per minute and address: admin 300, failed admin authentications 30 (per operator key), verify 60, evidence 120, read 120
+$ curl http://127.0.0.1:18455/healthz
+!ok {"status":"ok"}

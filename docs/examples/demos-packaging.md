@@ -178,7 +178,7 @@ docker image inspect genesis-mesh:demo \
 Expected metadata:
 
 ```text
-User=10001:10001 Entrypoint=["/usr/bin/tini","--","/usr/local/bin/start.sh"] ExposedPorts={"8443/tcp":{}}
+User=10001:10001 Entrypoint=["/sbin/tini","--","/usr/local/bin/start.sh"] ExposedPorts={"8443/tcp":{}}
 ```
 
 Print the version of the package inside the image:
