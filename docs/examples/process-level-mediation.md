@@ -24,6 +24,8 @@ mediation occurred.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/process-level-mediation-demo.py --no-gif`.
+
 ## Critical: Advisory Mode vs. Mandatory Mediation Mode
 
 > **Read this before deploying GenesisGuard.**

@@ -1,5 +1,13 @@
 # Audit and Retention
 
+*Beta routes for archives (v1.5.0); retention and its checkpoint are stable.*
+
+Everything on this page needs the evidence store (`EVIDENCE_STORE=on`, off
+by default). Without it the archive and retention routes answer
+`404 evidence_store_disabled`. Records of changes outside the controlled path
+appear only with `EVIDENCE_OUT_OF_BAND=on`, and remediations and reviews only
+with `EVIDENCE_REMEDIATION=on`.
+
 The evidence store is append-only: decisions, execution evidence, records of
 changes made outside the controlled path, judgements, remediations and
 reviews stay until retention removes a prefix of the store behind a signed
@@ -41,12 +49,14 @@ archive` (a privileged key) does the whole cycle:
 2. writes it to `--to <dir>/<pack_id>/`, creating every file and never
    replacing one, and makes the files read-only;
 3. reads every file back from that directory, checks it against the
-   manifest the NA signed and verifies the pack read back as an auditor
-   would (`audit verify`, with the NA's anchors and executor keys, from the
-   root key `--anchor` or the pack's genesis block's); a file that cannot be
-   written, reads back different, or a pack that does not verify stops the
-   command: **nothing is recorded or pruned** (`--force` records a pack that
-   does not verify, and says so);
+   manifest the NA signed and verifies the pack read back (`audit verify`,
+   with the NA's own anchors and executor keys). Pass `--anchor` with the
+   root public key you hold; without it the command trusts the root key
+   inside the pack. This checks that the copy is intact. It does not replace
+   an auditor's verification with the anchors the auditor holds. A file that
+   cannot be written, reads back different, or a pack that does not verify
+   stops the command: **nothing is recorded or pruned** (`--force` records a
+   pack that does not verify, and says so);
 4. records the archive (`POST /admin/evidence/archives`): the NA checks the
    manifest is one it built, byte for byte (`409 archive_pack_unknown`
    otherwise: it records the digest of every pack it builds), that its own
@@ -55,11 +65,13 @@ archive` (a privileged key) does the whole cycle:
    archives without a gap, then appends a signed `ArchiveRecord` (entry kind
    `archive`);
 5. prunes through the archive (`POST /admin/evidence/retention/apply` with
-   `through_sequence`), unless `--no-prune`.
+   `through_sequence`), unless `--no-prune`. `--older-than-days N` prunes
+   only entries older than N days; the archive still covers the whole range.
 
 ```bash
 genesis-mesh audit archive --na https://na.example.org \
     --to /mnt/audit-archive \
+    --anchor root.pub \
     --operator-key ops.key --operator-key-id ops
 ```
 

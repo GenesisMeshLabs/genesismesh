@@ -5,160 +5,83 @@ are specific to this project's protocol design; where a term overlaps with a
 general industry term (e.g., "attestation", "CRL"), the definition here
 describes how Genesis Mesh uses it specifically.
 
-## Terms
+Terms are grouped by area:
 
-### Attestation
+- [Sovereigns and identity](#sovereigns-and-identity)
+- [Recognition across sovereigns](#recognition-across-sovereigns)
+- [Decisions and trust records](#decisions-and-trust-records)
+- [Evidence store and governed changes](#evidence-store-and-governed-changes)
+- [Offline authority and edge devices](#offline-authority-and-edge-devices)
+- [Keys and operators](#keys-and-operators)
+- [Signing and requests](#signing-and-requests)
 
-A signed claim that a node or agent holds a particular membership role within a
-sovereign. Attestations are issued by the Network Authority admin and carried as
-`MembershipAttestation` objects. Each attestation records the subject sovereign
-ID, one or more role strings, a validity period expressed as `valid_from` and
-`valid_until` timestamps, the issuer's key ID, and an Ed25519 signature over the
-canonical JSON encoding of the claim body. Attestations are the primary mechanism
-for communicating verified identity roles across sovereign boundaries without
-requiring an online exchange at verification time.
+## Sovereigns and identity
 
-### BoundaryDecision
+### Sovereign
 
-A signed record of whether a capability invocation or data-access request was
-allowed, blocked, escalated, or warned by the Network Authority's policy engine.
-A `BoundaryDecision` carries a verdict string (one of `allow`, `block`,
-`escalate`, or `warn`), a human-readable reason, a reference to the capability
-and principals involved, and an Ed25519 signature produced by the NA's admin key.
-Boundary decisions are the runtime artifact of the Gate protocol: every
-capability invocation that passes through the `BoundaryEngine` generates one,
-providing an auditable record of every authorization outcome.
-
-### CanonicalJSON
-
-A deterministic JSON encoding used as the input to Ed25519 signing operations
-throughout Genesis Mesh. Keys are sorted alphabetically at every nesting level;
-the output contains no whitespace between tokens; no characters are HTML-escaped.
-The encoding is byte-for-byte consistent across Python
-(`json.dumps(sort_keys=True, separators=(",",":"))`) and all SDK implementations
-(TypeScript, Go, .NET). Because signatures are computed over canonical JSON,
-both the signer and verifier must produce the same byte sequence from the same
-logical document; any deviation — including key ordering differences or
-unnecessary whitespace — causes signature verification to fail.
-
-### CRL (Certificate Revocation List)
-
-A signed list of revoked join-certificate IDs published by the Network Authority.
-The CRL is produced as a signed JSON document containing the issuing sovereign
-ID, publication timestamp, and an array of certificate IDs that have been
-invalidated before their natural expiry. Mesh nodes fetch and cache the CRL on a
-configurable schedule; any certificate whose ID appears in the list is rejected
-for peer sessions, heartbeats, and admin actions regardless of its stated
-validity period. The CRL itself is signed with the NA's admin key so that
-recipients can verify its authenticity without an active connection to the NA.
-
-### Consensus Proof
-
-A K-of-N multi-party authorization artifact used to prove distributed agreement
-on a trust decision. N validators independently cast signed `ConsensusVote`
-objects on a `JustificationProof`; once at least K votes are assembled and
-individually verified, a `ConsensusProof` is issued that records the full set of
-votes, the justification, and the final verdict. Consensus proofs are used in
-situations where a single authority's signature is insufficient — for example,
-high-stakes capability grants or cross-sovereign policy changes that require
-agreement from multiple independent validator sovereigns.
-
-### Connectome
-
-A visual and queryable graph of trust relationships — specifically, recognition
-edges — between sovereigns. The Connectome is displayed by the
-`genesis-mesh trust connectome` CLI command and the Connectome page in the
-operator UI. Each node in the graph represents a sovereign; each directed edge
-represents a recognition relationship where one sovereign has registered another
-as a trusted issuer. The Connectome is a pure observability artifact: it has no
-runtime enforcement role and is derived from the set of active recognition
-treaties stored by the NA.
+A Network Authority instance, run by its own operator, with its own genesis block,
+operator keys, enrollment authority, policy, and revocation list. Each sovereign
+is a self-contained trust domain: it decides who may join, what roles they hold,
+what capabilities they may invoke, and when their membership is revoked.
+Sovereigns can recognize each other through recognition treaties to enable
+cross-sovereign portable trust, but each sovereign retains full control over its
+own membership and policy regardless of which other sovereigns it has recognized.
 
 ### Genesis Block
 
-The root-of-trust document for a sovereign. The genesis block is signed by the
-root operator key at the time the sovereign is founded and contains the sovereign
-ID, genesis timestamp, initial policy, and the root public key. It functions as
-the anchor for all subsequent trust operations: the NA's signing keys, enrollment
-parameters, and policy documents are all traceable back to the genesis block.
-The genesis block cannot be replaced or modified without re-founding the
-sovereign under a new identity, making it an immutable foundation for the trust
-chain.
-
-### IBCT (Invocation-Bound Capability Token)
-
-A short-lived bearer token issued from an active `AgreementRecord` that
-authorizes a specific capability for a specific `bearer_sovereign_id`. IBCTs are
-subject to a maximum-invocation count and a validity window, both of which are
-enforced at verification time. Verification is purely cryptographic: the NA does
-not need to be contacted at invocation time, because the token carries all
-necessary fields and is signed by the issuing NA's admin key. Once the invocation
-count or validity period is exhausted, the token is automatically invalid and
-cannot be renewed without issuing a new IBCT from the underlying agreement.
-
-### Join Certificate
-
-A short-lived, NA-signed certificate issued to a node after successful
-enrollment. The join certificate contains the node ID, node public key, assigned
-roles, `valid_from` and `valid_until` timestamps, and the NA's Ed25519 signature.
-Nodes present their join certificate to authenticate peer sessions and heartbeats
-to other mesh nodes. Join certificates can be revoked before their expiry by
-adding their ID to the CRL; after revocation, any peer that has fetched the
-current CRL will reject sessions from the revoked node.
+The root-of-trust document for a sovereign (`GenesisBlock`), signed by the root
+key when the sovereign is founded. Its fields are `network_name`,
+`network_version`, `root_public_key`, `network_authority` (the first NA key and
+its validity), `allowed_crypto_suites`, `allowed_transports`,
+`policy_manifest` (a reference with a hash), `bootstrap_anchors` and
+`signatures`. The NA key it names can be replaced later by a root-signed key
+succession (since 1.5.0); the genesis block itself does not change.
 
 ### Network Authority (NA)
 
-The online control plane for a sovereign. The Network Authority is implemented as
-a Flask HTTP service and handles the full lifecycle of trust operations within a
-sovereign: invite-token generation, node enrollment and join-certificate issuance,
-policy publication, CRL distribution, and all admin trust operations including
+The online control plane for a sovereign, implemented as a Flask HTTP service.
+It handles invite-token generation, node enrollment and join-certificate
+issuance, policy publication, CRL distribution, and the trust operations:
 agreements, attestations, boundary decisions, trust evidence, consensus,
-data-usage records, and selective disclosure. The NA exposes two surfaces: an
-`/admin/*` route group authenticated by `X-Admin-*` headers and signed requests,
-and a set of public `/verify/*` routes that require no authentication and can be
-called by any party with a network path to the NA.
+data-usage records, selective disclosure, and (each off or inert until
+configured) the evidence store, grants and edge nodes. It exposes `/admin/*`
+routes authenticated by `X-Admin-*` headers, and public routes that need no
+authentication: reads (`/genesis`, `/crl`, `/sovereign.json`, ...) and
+verifiers (`/attestations/verify`, `/trust-evidence/verify`, ...).
 
-### Noise XX
+### Join Certificate
 
-The handshake pattern used for peer-to-peer encrypted sessions between mesh nodes.
-Noise XX provides mutual authentication (both peers present their static keys),
-forward secrecy (session keys are ephemeral), and a fully encrypted channel for
-subsequent message exchange. Crucially, Noise XX sessions are established using
-the join certificates issued during enrollment, which means the NA does not need
-to be online or consulted during the handshake: once a node is enrolled, it can
-establish authenticated peer sessions independently of the control plane.
+A short-lived, NA-signed certificate (`JoinCertificate`) issued to a node after
+successful enrollment. Its fields are `cert_id`, `node_public_key`,
+`network_name`, `roles`, `issued_at`, `expires_at`, `issued_by` and
+`signatures`. Nodes present their join certificate to authenticate peer
+sessions and heartbeats. Join certificates can be revoked before expiry by
+adding them to the CRL; after revocation, any peer that has fetched the current
+CRL will reject sessions from the revoked node.
 
-### Nonce
+### Attestation
 
-A UUID v4 value included in every admin request to prevent replay attacks. The
-NA records nonces from accepted requests and rejects any request that reuses a
-nonce it has seen within the freshness window. Combined with the `X-Admin-Timestamp`
-header, the nonce ensures that a captured admin request cannot be replayed even
-if an attacker intercepts it in transit. Nonces are single-use: the same UUID
-cannot appear in two accepted requests within the window, regardless of which
-route or operation the requests target.
+A signed claim that a subject (a person, agent or service) is a member of a
+sovereign with given roles, carried as a `MembershipAttestation`. Its fields
+are `attestation_id`, `issuer_sovereign_id`, `subject_id`,
+`subject_public_key` (optional), `roles`, `status`, `issued_at`, `valid_from`,
+`expires_at`, `issued_by` (the signing key ID), `claims` and `signatures`. It
+is issued by the Network Authority: an operator asks for it, and the NA signs
+it. Attestations carry roles across sovereign boundaries without an online
+exchange at verification time, and are revoked through the sovereign
+revocation feed.
 
-### Portable Trust
+### CRL (Certificate Revocation List)
 
-The project's core design goal: a membership attestation or trust decision issued
-by Sovereign A must be verifiable by Sovereign B without Sovereign A being online,
-provided that B has recognized A and holds A's public keys and current CRL.
-Portable trust is achieved through the combination of Ed25519 signatures over
-canonical JSON (making attestations self-contained and verifiable offline),
-recognition treaties (giving B a cryptographically authenticated copy of A's
-public keys), and CRL distribution (giving B a signed list of what A has
-revoked). The protocol is specifically designed so that no online round-trip to
-the issuing sovereign is required at verification time.
+A signed list of revoked join certificates published by the Network Authority
+(`CertificateRevocationList`). Its fields are `crl_id`, `sequence`, `issued_at`,
+`next_update`, `issuer` (the signing key ID), `revoked_certificates` (each with
+a reason) and `signatures`. Nodes reject a listed certificate for peer
+sessions, and the NA refuses its heartbeats and renewals. The CRL is signed
+with the NA's signing key, so recipients can check it without a connection to
+the NA.
 
-### Recognition Edge
-
-A directed relationship where one sovereign's admin has registered another
-sovereign as a recognized issuer. Once a recognition edge exists from B to A,
-B's NA will accept attestations signed by A's admin keys, subject to B's local
-policy constraints on roles and capabilities. Recognition edges are unidirectional
-by default; mutual recognition requires both sovereigns to register each other.
-The full set of recognition edges across all known sovereigns forms the
-Connectome graph and defines the reachability of portable trust claims.
+## Recognition across sovereigns
 
 ### Recognition Treaty
 
@@ -172,48 +95,256 @@ each sovereign. Claims are labels (for example the proof that motivated the
 treaty); they are not matched against attestations. A treaty can be included in
 a trust bundle for offline verification.
 
-### Sovereign
+### Recognition Edge
 
-An independently operated Network Authority instance with its own genesis block,
-operator keys, enrollment authority, policy, and revocation list. Each sovereign
-is a self-contained trust domain: it decides who may join, what roles they hold,
-what capabilities they may invoke, and when their membership is revoked.
-Sovereigns can recognize each other through recognition treaties to enable
-cross-sovereign portable trust, but each sovereign retains full control over its
-own membership and policy regardless of which other sovereigns it has recognized.
+A directed relationship where one sovereign has registered another as a
+recognized issuer. Once a recognition edge exists from B to A, B's NA accepts
+attestations signed by A's Network Authority, subject to B's local policy on
+roles and capabilities. Recognition edges are directed; mutual recognition
+requires both sovereigns to register each other. The set of recognition edges
+across known sovereigns forms the Connectome graph.
+
+### Connectome
+
+A visual and queryable graph of trust relationships (recognition edges) between
+sovereigns, served by the NA at `/connectome` (page) and `/connectome.json`,
+with trust paths at `/connectome/trust-path`. Each node in the graph is a
+sovereign; each directed edge is a recognition. The Connectome is an
+observability view: it has no enforcement role and is derived from the active
+recognition treaties stored by the NA.
+
+### Portable Trust
+
+The project's core design goal: a membership attestation or trust decision issued
+by Sovereign A must be verifiable by Sovereign B without Sovereign A being online,
+provided that B has recognized A and holds A's public keys and current
+revocation state. Portable trust rests on Ed25519 signatures over canonical
+JSON, recognition treaties (which give B A's public keys), and signed revocation
+lists. No online round-trip to the issuing sovereign is needed at verification
+time.
 
 ### Trust Bundle
 
-A package of trust material — recognition treaties, attestations, CRL, and
-policy — that can be exported from one sovereign and imported by another to
-bootstrap a recognition relationship without an online exchange between the two
-NAs. Trust bundles are signed by the exporting sovereign's admin key so that the
-importing sovereign can verify the bundle's authenticity before incorporating it.
-They are the primary mechanism for establishing recognition in air-gapped or
-intermittently connected environments where the two NAs cannot reach each other
-directly.
+A JSON package of a sovereign's public trust material (genesis, keys, treaties,
+revocation feed) for another sovereign to review. The bundle itself is not
+signed, and validating it checks no signature: a bundle written entirely by
+one party passes validation. `trust-bundle import` brings it into local review
+evidence without granting trust. Recognition is a separate act: issuing a
+treaty after checking the keys out of band.
+
+## Decisions and trust records
+
+### BoundaryDecision
+
+A signed record of whether a capability invocation or data-access request was
+authorized. A `BoundaryDecision` carries `authorized` (true when every gate
+passed), `denial_reason`, the ordered `gate_results`, `decision_made_at` and
+`decision_valid_until`, references to the context record and agreement, and,
+for policy-aware decisions, the policy versions and attestation it was decided
+under (`policy_binding`, `attestation_binding`). It is signed with the NA's
+signing key. Decisions are the runtime artifact of the Gate protocol; with the
+evidence store on, the NA also keeps each one.
 
 ### Trust Evidence
 
-A signed artifact (`TrustEvidence`) recording that a specific `TrustDecision`
-was made for a specific interaction. Trust evidence is produced by the NA's admin
-surface and carries the decision details, the principals involved, a timestamp,
-and an Ed25519 signature. It functions as an auditable trail of authorization
-decisions that can be independently verified by any party that holds the issuing
-NA's public key. Trust evidence does not expire and is not subject to CRL
-invalidation: its validity is determined solely by whether the signature was
-valid at the time of issuance.
+A signed record (`TrustEvidence`) of a trust verdict (`allow`, `warn`, `block`
+or `escalate`) for a source and target sovereign, with its reason, the
+requested roles, the recognition-graph digest it was evaluated against, and
+the time. It is signed with the NA's signing key and can be checked by anyone
+who holds the issuing NA's public key, or at `/trust-evidence/verify`. Trust
+evidence does not expire and is not subject to CRL invalidation; after a key
+succession it is checked with the NA key that was valid when it was issued.
+
+### IBCT (Invocation-Bound Capability Token)
+
+A short-lived bearer token (`InvocationToken`) derived from an
+`AgreementRecord` or delegation that authorizes specific capabilities for a
+specific `bearer_sovereign_id`. It has a validity window and an optional
+budget (`max_invocations`). It is signed by the issuing sovereign, so a
+verifier checks it offline; the budget is checked by counting the bearer-signed
+use records the verifier is given. Once the budget or validity is exhausted, a
+new token must be issued from the underlying agreement.
+
+### Consensus Proof
+
+A K-of-N multi-party authorization artifact used to prove distributed agreement
+on a trust decision. N validators cast signed `ConsensusVote` objects on a
+`JustificationProof`; once at least K votes are assembled and individually
+verified, a `ConsensusProof` is issued that records the votes, the
+justification, and the final verdict. Consensus proofs are for decisions where
+a single authority's signature is not enough, for example high-stakes
+capability grants or cross-sovereign policy changes that need agreement from
+several validator sovereigns.
 
 ### VerifyResult
 
-The return type from all public `verify` endpoints exposed by the Network
-Authority. A `VerifyResult` contains two fields: `valid` (a boolean indicating
-whether the artifact being verified is cryptographically valid and within its
-validity period) and `reason` (a human-readable string explaining the outcome,
-whether success or failure). Verification through these endpoints is stateless
-from the caller's perspective and does not require an active NA session; the NA
-performs the signature check and returns the result. Any party with a network
-path to the NA's public routes can call verify endpoints without credentials.
+The Go and .NET SDKs' result type for verify calls. The NA's verify routes
+answer either `accepted` (agreements, boundary decisions, trust evidence) or
+`valid` (disclosure, data usage), with a `reason` code and fields of their
+own; the SDK type sets both `Valid` and `Accepted` from whichever the route
+sent. The TypeScript SDK returns each route's own shape.
+
+## Evidence store and governed changes
+
+These features are off by default; each needs its setting. See
+{doc}`governed-changes`.
+
+### Evidence Store
+
+The NA's append-only log of decisions, execution evidence and (since 1.3) the
+records of changes made outside the controlled path. Entries form one hash
+chain: each carries the digest of the one before it, so an edited or reordered
+entry breaks the chain. Off until `EVIDENCE_STORE=on`. See
+{doc}`../examples/evidence-store`.
+
+### Store Anchor
+
+An NA-signed statement of the evidence store's head at one moment
+(`StoreAnchor`: `store_sequence`, `entry_digest`, `anchored_at`, and its own
+chain). One anchor covers every earlier entry. Anchors copied out to storage
+the NA's operator cannot change make a rewritten store detectable. See
+{doc}`../operations/evidence-anchors`.
+
+### Executor Key
+
+An Ed25519 key a `privileged` operator registers with the NA for a controller
+or device, optionally limited to a resource prefix. It signs execution
+evidence, break-glass records, remediation records and grant uses. An edge
+agent's executor key is registered at `/join`. With the role `observer`, a
+registered key signs observations only.
+
+### Observation
+
+A signed record (`ObservationRecord`) of a change an observer saw at its
+source, such as a cloud audit log entry or a reconciliation finding. The NA
+judges it once, as of when the change happened. Its `actor` is reported by the
+source and is not authenticated. Needs `EVIDENCE_OUT_OF_BAND=on`. See
+{doc}`../operations/out-of-band-changes`.
+
+### Break-Glass
+
+A change a controller makes while the NA cannot be asked (network error,
+timeout, `5xx`, `429`), recorded as a `BreakGlassRecord` signed by its executor
+key with a justification, and judged by the NA afterwards. A DENY is never
+broken through. Available in the TypeScript and Rust SDKs and the edge agent.
+See {doc}`../operations/emergency-changes`.
+
+### Remediation
+
+What a controller did about a change the NA judged denied: a
+`RemediationRecord` signed by its executor key, either `cancelled` (rotate
+forward, then disable) or `alerted`. The NA states what is due and by when; it
+never changes a resource itself. Needs `EVIDENCE_REMEDIATION=on`. See
+{doc}`../operations/remediation-and-reviews`.
+
+### Review
+
+A second person's verdict on a judged change or a decision (`uphold`, `deny`
+or `waive_until`), kept as an NA-signed `ReviewRecord` that embeds the
+decider's signed admin request. The decider's named holder must differ from
+the requester's and the actor's. Needs `EVIDENCE_REMEDIATION=on`.
+
+### Audit Pack
+
+One period of the evidence store between two anchors, with the records it
+cites, the NA's key history and a report, listed in an NA-signed manifest. A
+`read` key can build one; `genesis-mesh audit verify` checks it from the root
+key and the anchors the auditor holds. See {doc}`../operations/audit-packs`.
+
+### Archive
+
+An NA-signed `ArchiveRecord` stating that an audit pack was written to
+immutable storage and read back. With `NA_RETENTION_REQUIRE_ARCHIVE` on (the
+default), retention removes nothing an archive does not cover. See
+{doc}`../operations/audit-and-retention`.
+
+## Offline authority and edge devices
+
+### Capability Grant
+
+An authorisation the NA signs in advance (`CapabilityGrant`) for one bearer
+executor key: capabilities, a basis (attestation or agreement), a validity of
+at most 24 hours, a budget and a closed parameter envelope. The NA checks at
+issuance that every active policy allows every request the envelope permits.
+Needs `EVIDENCE_GRANTS=on`; the routes are beta (1.6.0). See
+{doc}`../operations/grants`.
+
+### Time Token
+
+A time the NA signs for a grant's holder (`TimeToken`), bound to the head of
+the holder's use chain. A use is never dated more than 300 seconds before its
+token, and only a limited number of uses may follow it, which bounds how far a
+disconnected holder can backdate.
+
+### Edge Agent
+
+`genesis-mesh-edge` (beta, 1.7.0): a static Linux binary, released with the
+Rust SDK, that acts for one device. It asks the NA for node-scoped decisions
+while it can reach it, acts under grants or records break-glass while it
+cannot, and uploads its records in order when it reconnects. See
+{doc}`../operations/edge-agent`.
+
+### Edge Invite
+
+An invite that names a device's sovereign ID and the resource prefix its
+executor key may act on (`genesis-mesh admin invite --node-sovereign-id ...
+--executor-resource-prefix ...`). It needs a `privileged` key and is valid for
+one hour by default. Redeeming it at `/join` registers the device's executor
+key.
+
+## Keys and operators
+
+### Key Succession
+
+A record (`KeySuccessionRecord`) that names the NA's next signing key, signed
+by the offline root key and the new key, and countersigned by the outgoing NA
+key (since 1.5.0). It keeps the sovereign's identity and old signatures. It
+does not cover a compromised NA key. See {doc}`../operations/key-succession`.
+
+### Key History
+
+The genesis key and every key succession, served at `GET /na/key-history`. A
+verifier that holds the root public key rebuilds it and checks each NA
+signature with the key valid at the record's own time.
+
+### Operator Tier
+
+The level of an operator key: `read`, `standard` or `privileged`, set for
+every key in `OPERATOR_KEY_TIERS_JSON`. Each tier includes the ones below it. A
+request beyond the key's tier gets `403 insufficient_operator_tier`.
+
+### Operator Key Holder
+
+The person or team that holds an operator key, recorded in the evidence store
+(`OPERATOR_KEY_HOLDERS_JSON`, read at the first start with
+`EVIDENCE_OUT_OF_BAND=on`). Later changes need a second named holder. Reviews
+use holders to keep one person from approving their own change.
+
+## Signing and requests
+
+### CanonicalJSON
+
+The deterministic JSON encoding every signature in Genesis Mesh is computed
+over: keys sorted, no whitespace, non-ASCII escaped, numbers and timestamps in
+one form, signature fields left out. The full rules are in
+{doc}`../reference/canonical-form`. Every SDK, Rust included, runs the
+`canonical` conformance vectors, so signer and verifier produce the same bytes.
+
+### Noise XX
+
+The handshake pattern used for peer-to-peer encrypted sessions between mesh nodes.
+Noise XX provides mutual authentication (both peers present their static keys),
+forward secrecy (session keys are ephemeral), and a fully encrypted channel for
+subsequent message exchange. Noise XX sessions are established using the join
+certificates issued during enrollment, so the NA does not need to be online
+during the handshake.
+
+### Nonce
+
+A UUID v4 value included in every admin request to prevent replay. A nonce is
+single-use for its operator key within the freshness window, on every route.
+Combined with the `X-Admin-Timestamp` header, it ensures that a captured admin
+request cannot be replayed.
 
 ### X-Admin-* Headers
 
@@ -222,8 +353,8 @@ The four HTTP headers that authenticate admin requests to the Network Authority'
 produce the signature. `X-Admin-Signature` carries the Ed25519 signature over the
 canonical JSON of the request: method, path, query parameters, the target
 Network Authority's public key, the body, key ID, nonce and timestamp
-(signature version 2, v1.0.2; see the Network Authority API reference). `X-Admin-Timestamp` is an ISO 8601 UTC timestamp that must fall within
-the NA's freshness window. `X-Admin-Nonce` is a UUID v4 value that must not have
-been seen in any previous accepted request. All four headers are required on every
-admin route; the absence of any one of them causes the NA to return a 401
-response.
+(signature version 2, v1.0.2; see the Network Authority API reference).
+`X-Admin-Timestamp` is an ISO 8601 UTC timestamp that must fall within the NA's
+freshness window. `X-Admin-Nonce` is a UUID v4 value that must not have been
+used before with that key. All four headers are required on every admin route;
+the absence of any one of them causes the NA to return a 401 response.

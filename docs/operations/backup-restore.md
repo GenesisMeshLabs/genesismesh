@@ -8,12 +8,16 @@ events in SQLite or PostgreSQL. Treat that database as production state.
 
 Back up the SQLite file configured by `DB_PATH`. For local CLI deployments this
 is usually `.genesis-mesh/na.db`; in the container image it is
-`/data/genesis_mesh_na.db` on the volume mounted at `/data`.
+`/data/genesis_mesh_na.db` on the volume mounted at `/data`. With PostgreSQL,
+see [PostgreSQL](#postgresql) below.
 
 Also keep offline backups of:
 
 - the signed genesis block
-- the Network Authority private key, in a secret manager or offline key backup
+- every NA private key the key history names (the genesis key and each key a
+  succession named), in a secret manager or offline key backup. The root
+  private key is kept offline on its own ({doc}`key-succession`), never in
+  the NA's backups
 - operator public key configuration
 - deployment configuration that sets `DB_PATH`, `GENESIS_FILE`, and
   `NA_PRIVATE_KEY_FILE`
@@ -54,12 +58,13 @@ docker exec na rm /data/backup-YYYYMMDDHHMMSS.db
 ```
 
 To restore, stop the container and run the restore from a one-off container
-on the same volume (the backup directory must be readable by user 10001):
+on the same volume, from the image digest the NA runs (`$DIGEST`; the
+backup directory must be readable by user 10001):
 
 ```bash
 docker stop na
 docker run --rm -v na-data:/data -v "$PWD/backups:/backups:ro" \
-  --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.1.0 \
+  --entrypoint genesis-mesh "ghcr.io/genesismeshlabs/genesis-mesh@$DIGEST" \
   managed restore --db-path /data/genesis_mesh_na.db \
   --backup /backups/backup-YYYYMMDDHHMMSS.db \
   --pre-restore-backup /data/before-restore.db --yes
@@ -91,14 +96,39 @@ in group 0.
    taken with the SQLite backup API, so it includes writes still in the WAL.
    The backup is opened read-only and may sit on read-only media.
 
-3. Start the Network Authority.
-4. Check readiness:
+3. Verify the restored database before serving it:
+
+   ```bash
+   genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db \
+     --genesis /config/genesis.signed.json
+   ```
+
+4. Check what the backup does not hold. Everything recorded after the
+   backup is gone:
+   - **Revocations.** Certificate, attestation and grant revocations made
+     after the backup are gone, so that trust material is usable again.
+     Re-issue each one.
+   - **Revocation feed sequence.** The feed's sequence goes back with the
+     restore. Partners that imported a later feed refuse the next one
+     (`409 stale_sequence`) until the sequence passes theirs. Tell them.
+   - **Key succession.** If a key succession was recorded after the backup,
+     the restored key history does not hold it. An NA started with the new
+     key refuses to start, and the old succession record cannot be submitted
+     again, because its `effective_at` is in the past
+     (`succession_times_invalid`). Do not restore a backup older than the
+     latest succession without planning this ({doc}`key-succession`).
+   - **Anchors.** If evidence store anchors were copied out of this NA
+     (v1.2.0), restoring a backup older than the newest copy is an
+     evidence-loss event for their holders: follow *After a restore* in
+     {doc}`evidence-anchors`.
+5. Start the Network Authority.
+6. Check readiness:
 
    ```bash
    curl http://localhost:8443/readyz
    ```
 
-5. Confirm persisted state:
+7. Confirm persisted state:
 
    ```bash
    curl http://localhost:8443/nodes
@@ -106,20 +136,10 @@ in group 0.
    curl http://localhost:8443/policy
    ```
 
-6. Confirm Connectome state when the sovereign uses cross-sovereign trust:
+8. Confirm Connectome state when the sovereign uses cross-sovereign trust:
 
    ```bash
    curl http://localhost:8443/connectome.json
-   ```
-
-7. If evidence store anchors were copied out of this NA (v1.2.0), restoring a
-   backup older than the newest copy is an evidence-loss event for their
-   holders: follow *After a restore* in {doc}`evidence-anchors`.
-8. Verify the restored database before serving it:
-
-   ```bash
-   genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db \
-     --genesis /config/genesis.signed.json
    ```
 
 ## PostgreSQL
@@ -146,10 +166,25 @@ treaty, revocation, policy, decision and evidence record.
 
 ## Restore Drill Checklist
 
+![Restore drill: a backup, a revocation after it, restore and verify-db, the revocation gone, and revoked again](../examples/assets/images/genesis-mesh-restore-drill.gif)
+
+The GIF is a real run of `docs/examples/assets/scripts/restore-drill-demo.py`
+against a throwaway SQLite NA. The certificate revoked after the backup is
+valid again after the restore: the CRL is back at sequence 0. Revoking it
+again issues a CRL with sequence 1 once more, the same number as the CRL that
+was lost. Nodes announce and compare CRLs by sequence, so a node that already
+holds the lost CRL may not take a new one with the same number. Re-issue the
+lost revocations, and check the CRL sequence your nodes report. The
+transcript is
+`docs/examples/assets/images/genesis-mesh-restore-drill.txt`.
+
 - [ ] Create a backup from a non-production NA database.
 - [ ] Mutate non-production state after the backup.
 - [ ] Stop the test NA process.
 - [ ] Restore the backup with `genesis-mesh managed restore --yes`.
+- [ ] Run `genesis-mesh na verify-db --db-path <db> --genesis <genesis>`.
+- [ ] Confirm the change made after the backup is gone (for example a
+      revocation), and re-apply it.
 - [ ] Start the test NA process.
 - [ ] Confirm `/healthz` returns `{"status":"ok"}`.
 - [ ] Confirm `/readyz` returns `{"status":"ready"}`.
@@ -163,5 +198,6 @@ treaty, revocation, policy, decision and evidence record.
 - Test restore regularly, not only backup creation.
 - Keep backups encrypted and access controlled. The database contains node
   public keys, certificate state, audit events, and nonce history.
-- A restored database should use the same signed genesis block and NA private
-  key that signed the existing certificates and CRLs.
+- Start the restored database with the same signed genesis block and the NA
+  key that was in effect at the backup's time. If a succession was recorded
+  after the backup, see step 4 of [Restore](#restore).

@@ -6,10 +6,10 @@ must prove identity before exchanging tasks or data.
 ```{mermaid}
 flowchart TB
     na["Network Authority"]
-    supervisor["Supervisor Agent<br/>role:supervisor"]
-    finance["Finance Agent<br/>role:finance"]
-    crm["CRM Agent<br/>role:crm"]
-    support["Support Agent<br/>role:support"]
+    supervisor["Supervisor Agent<br/>role:service:supervisor"]
+    finance["Finance Agent<br/>role:service:finance"]
+    crm["CRM Agent<br/>role:service:crm"]
+    support["Support Agent<br/>role:service:support"]
 
     na -->|invite + cert| supervisor
     na -->|invite + cert| finance
@@ -36,12 +36,14 @@ The Network Authority issues short-lived join certificates:
 
 | Agent | Role | Validity |
 |---|---|---|
-| Supervisor | `role:supervisor` | Operator-defined |
-| Finance | `role:finance` | Operator-defined |
-| CRM | `role:crm` | Operator-defined |
-| Support | `role:support` | Operator-defined |
+| Supervisor | `role:service:supervisor` | Operator-defined |
+| Finance | `role:service:finance` | Operator-defined |
+| CRM | `role:service:crm` | Operator-defined |
+| Support | `role:service:support` | Operator-defined |
 
-Roles come from invite tokens, not client-supplied claims.
+Roles come from invite tokens, not client-supplied claims. The NA accepts only
+the role prefixes `anchor`, `bridge`, `client`, `operator` and
+`service:<name>`, so each agent gets a service role.
 
 ## Routes Established
 
@@ -94,7 +96,8 @@ the deterministic mock demos continue to run on Python 3.14.
 
 The recorder discovers the agent by `llm:chat` capability, sends the researcher
 request without a pasted destination key or peer endpoint, and never writes the
-API key to the rendered assets.
+API key to the rendered assets. `llm:chat` is the discovery tag; `llm.chat` is
+the capability the planner invokes.
 
 ## Distributed Capability Orchestration
 

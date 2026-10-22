@@ -44,8 +44,17 @@ NA key succession, audit packs and the completeness check) and the `grants`
 suite (1.6.0: grant records, envelopes, the use rules and stores holding
 grants; its issuance vectors are the NA's, which an SDK may skip). The Rust
 SDK also runs the `node` suite (1.7.0: node request signatures, the edge
-join's executor co-signature, join certificates and CRLs). The
-interoperability workflow checks that every copy matches the reference's.
+join's executor co-signature, join certificates and CRLs).
+
+The Go and .NET SDKs also run part of the `audit` suite (key histories, the
+NA key valid at a record's time, and decisions across a succession) and part
+of the `grants` suite (the canonical form and signature of grant records).
+They skip the packs, exports, anchors, completeness, envelopes, use rules and
+issuance vectors, which cover features they do not implement. Neither runs the
+`out_of_band` or `remediation` suite. Each SDK's tests fail when a new vector
+kind is neither run nor listed as skipped.
+
+The interoperability workflow checks that every copy matches the reference's.
 
 ## Audit packs and the NA key history
 
@@ -68,8 +77,11 @@ The signed forms of `CapabilityGrant`, `GrantExecutionEvidence`,
 stable from 1.6.0: grants and their uses sit in audit packs for years. The
 grant routes (`/admin/grants`, `/grants/time-tokens`,
 `/evidence/grant-executions`) and `TimeTokenRequest` are beta, as is the
-rule every SDK acting under a grant follows (fall back to break-glass when the
-grant has ended, is spent or revoked and the NA cannot be reached). See
+rule the TypeScript and Rust SDKs and the edge agent follow under a grant
+(fall back to break-glass when the grant has ended, is spent or revoked and
+the NA cannot be reached). What counts as "cannot be reached" differs: the
+SDKs also treat a `429` or `5xx` from the NA as no answer, while the edge
+agent treats an NA that answers, even with an error, as reached. See
 {doc}`operations/grants`.
 
 ## Edge agent

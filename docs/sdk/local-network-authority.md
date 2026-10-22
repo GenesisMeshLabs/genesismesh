@@ -4,7 +4,8 @@ A controller built on an SDK calls a Network Authority (NA) for decisions,
 attestations and evidence. To develop and test one, run the NA locally from
 the `genesis-mesh` package, configured as it will be in production: policies
 required, the evidence store on, and separate keys for setup and for the
-controller. This page sets that up with three commands (v1.1.0).
+controller. This page sets that up with three commands (available from
+1.1.0).
 
 ## Requirements
 
@@ -22,8 +23,11 @@ Install the NA in a virtual environment and activate it:
 ```bash
 python -m venv local/venv
 source local/venv/bin/activate          # Windows: local\venv\Scripts\Activate.ps1
-pip install "genesis-mesh>=1.1"
+pip install "genesis-mesh==1.7.*"
 ```
+
+Install the NA of the same version as your SDK. The SDK guides use routes
+added up to 1.6.0, and an older NA answers `404` for them.
 
 Create the network, its settings and the controller's key:
 
@@ -51,7 +55,9 @@ genesis-mesh na start --env-file local/na.env
 
 It prints the settings it runs with and listens on `http://127.0.0.1:9443`
 (`PORT` in the settings file, from `--na-port`);
-`curl http://127.0.0.1:9443/healthz` returns `{"status":"ok"}`.
+`curl http://127.0.0.1:9443/healthz` returns `{"status":"ok"}`. Without
+`--na-port`, `init` sets port 8443; the SDK pages' examples use 9443, as
+here.
 
 `na start --env-file` serves the same app as the production entry point and
 the container image, with the settings in `local/na.env`. Without
@@ -64,12 +70,13 @@ settings, which cannot require policies.
 |---|---|---|
 | `operator-local` (`keys/operator.key`, from `init`) | privileged | Setup: publishing and activating policies, issuing and revoking attestations, registering executor keys |
 | `controller` (`keys/controller.key`, from `keygen operator`) | standard | What the controller does at run time: `/admin/boundary/evaluate`, policy and evidence reads |
+| An auditor's key (from `keygen operator --tier read`, optional) | read | Evidence store reads, anchors and audit packs (1.5.0) |
 | The controller's executor key | (not an operator key) | Signing execution evidence; registered with the privileged key |
 
 The controller key cannot publish policies, issue attestations or register
 keys: the NA answers `403 insufficient_operator_tier`. Give your controller
 the standard key and keep the privileged one for setup, in development as in
-production.
+production. Each SDK reference page gives the tier each method needs.
 
 In the SDK, each key is a key ID and the private key from its file, for
 example in TypeScript:
@@ -147,5 +154,10 @@ address: a batch that rotates 1,000 secrets makes 1,000 admin calls.
 
 - {doc}`typescript/governance`: policies, attestations and governed actions
   with the TypeScript SDK.
+- {doc}`go/auth` and {doc}`dotnet/auth`: the Go and .NET SDKs have no method
+  for `/admin/boundary/evaluate`; call it with a raw admin call, as shown
+  there. Their `Boundary.Decide` is refused by this NA (409
+  `boundary_policy_required`).
+- {doc}`rust/sdk`: the Rust SDK (beta), with governed actions.
 - {doc}`../operations/container-images`: the same NA in production, from the
   signed container image.

@@ -1,5 +1,14 @@
 # Plan v0.65.0 — Mesh Demo Experience
 
+> **Correction (2026-10-22).** This plan calls the Azure reference "keyless"
+> and says its CRL and reverse treaty are signed by an "offline maintenance
+> process". Only the web process is keyless. The maintenance job runs every
+> hour on the same VM, as its own user (`gm-demo-maint`), and that user owns
+> the demo identities' root and NA keys
+> (`infrastructure/scripts/deploy-public-dashboard.sh`). The keys are online
+> on the public host, separated from the web process by user and file
+> permissions only. The plan is kept as written below.
+
 ## Context
 
 v0.64 put the gateway online at mesh.genesismesh.org in front of a live NA

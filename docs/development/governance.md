@@ -1,6 +1,6 @@
 # Governance
 
-**Status:** Phase 2 baseline
+**Status:** Phase 2 baseline; the deliverables below are published (2026-10-22)
 **Purpose:** answer stewardship and control questions before they become adoption blockers.
 
 ## Why governance now
@@ -106,12 +106,37 @@ The protocol should make exit legible rather than pretending exit cannot happen.
 
 ## Phase 2 governance deliverables
 
-- Role definitions for maintainer, operator, managing partner, observer.
-- RFC process document.
-- Operator exit and fork note.
-- Connectorzzz managing-partner boundary note.
-- Decision log for accepted RFCs.
-- Security review requirement for trust-state changes.
+All of them are published (2026-10-22):
+
+- Role definitions for maintainer, operator, managing partner, observer:
+  this page, "Baseline roles".
+- RFC process document: {doc}`rfc-program`.
+- Operator exit and fork note: {doc}`../operators/exit-and-fork`.
+- Managing-partner boundary note: {doc}`../operators/managing-partner-boundary`.
+- Decision log for accepted RFCs: {doc}`rfc-decisions`.
+- Security review requirement for trust-state changes: {doc}`security-policy`
+  and the dated review {doc}`security-review-v1`.
+
+## How code changes are decided
+
+Durable engineering decisions (the release model, SDK tiers, review rules
+and the like) are recorded in {doc}`decisions/index` and accepted by the
+Maintainer. An accepted decision is not always in effect yet; the index says
+which are.
+
+Pull requests get an automated review pass and need no human approval. They
+merge through the merge queue once every required check passes. Changes to
+the public contract, conformance vectors, migrations, signing code,
+workflows, `SECURITY.md` or a `release/*` branch wait for the Maintainer
+({doc}`decisions/0006-review`).
+
+```{toctree}
+:hidden:
+
+rfc-program
+rfc-decisions
+decisions/index
+```
 
 ## Governance principle
 

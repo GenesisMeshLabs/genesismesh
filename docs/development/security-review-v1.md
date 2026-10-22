@@ -36,6 +36,27 @@ production use beyond a pilot.
 | SR-10 | Availability | Low | `/heartbeat` and `/renew` are not rate limited; each verifies a node signature and certificate. | **Accepted** for the profile (mesh nodes are out of it); put the NA behind a proxy or WAF with connection limits. |
 | SR-11 | Dependencies | Info | The gateway depends on `rustls-pemfile`, flagged unmaintained (RUSTSEC-2025-0134); no vulnerability. | **Accepted**: the gateway is beta and outside the v1 contract. |
 
+The table records the review as of 2026-10-02 and is not rewritten.
+
+```{note}
+**Correction (2026-10-22): changes since this review.**
+
+- **SR-06.** Since 1.5.0 a planned rotation of the NA key keeps the
+  sovereign's identity. A key succession is signed by the root key, the new
+  key and the outgoing NA key, and verifiers accept a record signed by the key
+  valid at the record's own time ({doc}`../operations/key-succession`). A lost
+  or compromised NA key cannot sign its own succession, so it still means a
+  new identity. The root key cannot be succeeded. SR-06 is closed for planned
+  rotation and remains an accepted risk for compromise.
+- **SR-09.** Since v1.0.2 a feed import uses the keys pinned by this NA's own
+  active treaties for the issuer. Keys an operator supplies must be among them
+  (`caller_keys_not_accepted`); supplied keys alone are accepted only for an
+  issuer with no such treaty.
+- **SR-10.** Since 1.7.0, edge agents (beta) also call `/heartbeat` and
+  `/renew`, so these routes are no longer used only by the out-of-profile mesh
+  nodes. They are still not rate limited.
+```
+
 ## Areas reviewed
 
 ### Threat model
@@ -43,8 +64,9 @@ production use beyond a pilot.
 `SECURITY.md` was checked against the profile. Its in-scope defenses hold and
 are tested. It was updated where the code had moved on: proxy trust is now
 configurable (SR-04); `/join` is rate limited; and the out-of-scope entry for
-NA key compromise no longer suggests a rotation procedure that does not
-exist (SR-06).
+NA key compromise no longer suggests a rotation procedure that did not exist
+at the time (SR-06; key succession for planned rotation came in 1.5.0, see the
+note above).
 
 ### Dependency reports
 
@@ -102,7 +124,8 @@ Node certificate revocation goes through the signed, monotonic CRL.
 - Failover: two-instance failover under load is tested in CI (v0.60).
 - Rollback: forward-only migrations, refusal of newer schemas, restore
   procedure (SR-05).
-- NA key compromise: new identity (SR-06).
+- NA key compromise: new identity (SR-06). Planned rotation: key succession
+  since 1.5.0.
 
 ## RFC-001 to RFC-004
 

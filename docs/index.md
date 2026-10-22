@@ -280,7 +280,6 @@ rfcs/index
 
 development/contributing
 development/architecture
-development/module-structure
 development/testing
 development/interoperability
 development/security-policy
@@ -294,13 +293,10 @@ development/security-review-v1
 development/history
 development/phases/index
 development/versioning
-development/strategy
-development/roadmap
-development/milestones
+development/direction
 development/rfc-program
 development/rfc-decisions
 development/decisions/index
-development/atlas
 development/governance
 ```
 

@@ -21,6 +21,8 @@ with honest behavior, even when each individual update was within the anomaly th
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/adversarial-seed-isolation-demo.py --no-gif`.
+
 ## What a SeedIsolationReport proves
 
 - **Credit Farming Score (CFS)**: whether the counterparty's early history is
@@ -34,8 +36,8 @@ with honest behavior, even when each individual update was within the anomaly th
 Combined: `seed_probability = 0.4 × CFS + 0.3 × VDS + 0.3 × SFS`
 
 Isolation requires `seed_probability > threshold` (default 0.5). No single score
-can cause isolation with default weights — all three must contribute, which prevents
-false positives from normal behavioral variation.
+can cause isolation with default weights. Any two strong scores can: CFS and VDS
+give up to 0.7, CFS and SFS up to 0.7, and VDS and SFS up to 0.6.
 
 ## Scenario
 
@@ -107,9 +109,9 @@ gate = SeedIsolationGate(
 )
 engine.add_gate(gate)
 
-decision = engine.evaluate(context_record, agreed_terms)
-# If isolated: decision.verdict == "deny"
-# GateResult.gate_name == "seed_isolation"
+decision = engine.evaluate(context_record, agreement, signing_key, issued_by="operator")
+# If isolated: decision.authorized is False and decision.denial_reason names the gate
+# The failing GateResult in decision.gate_results has gate_name == "seed_isolation"
 ```
 
 The gate passes (does not block) when history is below the minimum length (20 updates)
@@ -125,7 +127,7 @@ The gate passes (does not block) when history is below the minimum length (20 up
 | VDS > 0.2 | abrupt variance change at midpoint | behavioral mode switch |
 | SFS > 0.4 | long success streak before any failure | statistically implausible for a benign node |
 
-All three firing together (`seed_probability > 0.5`) is the isolation signal.
+The isolation signal is `seed_probability > 0.5`. Any two high scores can reach it.
 
 ---
 

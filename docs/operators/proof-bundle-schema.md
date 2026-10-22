@@ -54,21 +54,28 @@ signed objects and public endpoints that produced the proof.
     "from": "USG",
     "to": "USG-NB",
     "trusted": true,
-    "reason": "active_treaty_path"
+    "reason": "active_treaty_path",
+    "hop_count": 1,
+    "path": [
+      {"from": "USG", "to": "USG-NB", "status": "active", "treaty_id": "<uuid>"}
+    ]
   },
   "connectome_summary": {
     "sovereign_count": 2,
     "recognition_edge_count": 1,
     "active_edge_count": 1,
+    "revoked_edge_count": 0,
     "imported_revocation_count": 1,
     "revoked_trust_material_count": 1
   }
 }
 ```
 
-## Required For v0.14 Adoption Evidence
+`trust_path` is the whole answer of `/connectome/trust-path`.
 
-For v0.14, the bundle must show:
+## Required For Adoption Evidence
+
+For adoption evidence, the bundle must show:
 
 - `operators.adoption_proof = true`
 - `operators.issuer.operator_type = external`
@@ -81,6 +88,23 @@ For v0.14, the bundle must show:
 - `connectome_summary.imported_revocation_count >= 1`
 
 The CLI enforces the issuer operator controls when `--adoption-proof` is used.
+
+## Check A Bundle
+
+```bash
+genesis-mesh proof inspect --proof-bundle ./proof-bundle.json
+genesis-mesh proof inspect --proof-bundle ./proof-bundle.json --connectome ./connectome.json
+```
+
+`proof inspect` checks the proof type; the attestation, treaty and feed IDs;
+the acceptor and issuer names; pre-revocation `accepted`; post-revocation
+`attestation_locally_revoked`; a trusted trust path from the acceptor to the
+issuer of at least one hop; and the Connectome counts (at least two
+sovereigns, one active edge, one imported revocation and one revoked item).
+With `--connectome` it also matches those counts, the treaty's edge and the
+revoked attestation against a saved `/connectome.json`. It does not check the
+`operators` section: `--adoption-proof` checks that when `proof remote`
+writes the bundle. Exit code 0 when the bundle is valid, 1 otherwise.
 
 ## Redaction Rules
 

@@ -16,6 +16,8 @@ expired).  The decision is ephemeral — valid for seconds or minutes, not month
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/relationship-context-demo.py --no-gif`.
+
 ## The invariant
 
 ```

@@ -3,22 +3,68 @@
 Part A demonstrates the core Genesis Mesh architecture running end to end:
 identity, trust, transport, routing, and resilience.
 
-Each demo is self-contained and can run against the live deployment at
-<https://na.genesismesh.org> or a local NA started via Part C.
+Not every demo runs the same way:
+
+- Demos 1-3 run against any Network Authority, such as the live deployment at
+  <https://na.genesismesh.org> or a local NA started via Part C. Demo 3 also
+  needs a second enrolled node.
+- Demos 4-5 need two router nodes you control, reached over SSH.
+- Demos 6-8 start a temporary local NA.
+- Demos 9-13 run in-process and need no NA. Demo 12 is the exception: by
+  default it replays a recorded transcript. With `--live` and an operator key
+  it runs against two Network Authorities and changes their state.
+
+The demo scripts render a GIF and a PNG. Rendering needs `pip install pillow`;
+use `--no-gif` or `--no-assets` (the flag differs per script) to skip it.
+
+## Mesh transport demos (this page)
+
+| # | Demo | What it shows |
+|---|---|---|
+| 1 | {ref}`Enrollment <demo-enrollment>` | Single-use invite, proof of possession, NA-signed join certificate |
+| 2 | {ref}`Revocation <demo-revocation>` | Signed CRL, 403 on heartbeat and renewal, runtime rejection |
+| 3 | {ref}`Message delivery <demo-message-delivery>` | Noise XX session and encrypted DATA frame between two nodes |
+| 4 | {ref}`Multi-hop routing <demo-multi-hop>` | Distance-vector routes and forwarding through a router |
+| 5 | {ref}`Route failure recovery <demo-failover>` | Route withdrawal and delivery over a backup router |
+
+## Agent and trust demos
+
+Demo 7 is described on this page. The others have their own walkthrough
+pages, which show the diagram, the recording and the expected output.
+
+| # | Demo | Script | Walkthrough |
+|---|---|---|---|
+| 6 | Multi-agent workflow | `multi-agent-workflow-demo.py` | {doc}`multi-agent-workflow` |
+| 7 | Agent discovery + LLM (v0.7) | `llm-agent-demo.py` | {ref}`below <demo-llm-discovery>` |
+| 8 | Capability orchestration (v0.8) | `capability-orchestration-demo.py` | {doc}`capability-orchestration` |
+| 9 | Recognition treaties (v0.10) | `recognition-treaty-demo.py` | {doc}`recognition-treaties` |
+| 10 | Cross-sovereign revocation (v0.11) | `cross-sovereign-revocation-demo.py` | {doc}`cross-sovereign-revocation` |
+| 11 | Connectome (v0.12) | `connectome-demo.py` | {doc}`connectome` |
+| 12 | Independent sovereigns | `independent-sovereigns-demo.py` | {doc}`independent-sovereigns` |
+| 13 | Supply-chain trust gate | `supply-chain-trust-gate-demo.py` | {doc}`supply-chain-trust-gate` |
+
+The scripts live in `docs/examples/assets/scripts/`. Demos 7 and 8 need
+LiteLLM, which needs Python 3.12 or 3.13.
 
 ---
 
-# Part A - Capability Demos
-
-Part A demonstrates the core Genesis Mesh architecture running end to end:
-identity, trust, transport, routing, and resilience.
-
+(demo-enrollment)=
 ## 1. Enrollment Demo
 
 This demo proves the trust-on-first-use enrollment flow: an operator creates a
 single-use invite token, a node presents it with proof of possession of its own
 key, and the Network Authority returns a signed join certificate. The token
 cannot be reused.
+
+```{image} assets/images/genesis-mesh-enrollment.gif
+:alt: Enrollment demo - init, local Network Authority, invite, join, revoke
+:class: screenshot
+```
+
+This recording was made on 2026-05-29 with
+`docs/examples/assets/scripts/enrollment-demo.sh`, which starts a temporary
+local NA. At that time an unauthenticated `GET /nodes` still returned the
+per-node roster. Since v1.0.2 it returns only `{"count": N}`.
 
 ```{mermaid}
 sequenceDiagram
@@ -38,7 +84,7 @@ sequenceDiagram
     NA-->>N: 200
 
     N->>NA: GET /nodes
-    NA-->>N: count=1, node listed as healthy
+    NA-->>N: count=1
 ```
 
 ### Run against the live deployment
@@ -63,17 +109,13 @@ Certificate: 689499ad-2cb7-4c8f-bb87-ffbf30ffd2b0
 Config: ~/.genesis-mesh/config.toml
 
 {
-  "count": 1,
-  "nodes": {
-    "689499ad-...": {
-      "node_public_key": "FPqZUoiDnat0S3sy...",
-      "roles": ["role:anchor"],
-      "status": "healthy",
-      "last_heartbeat": "2026-05-30T00:28:25..."
-    }
-  }
+  "count": 1
 }
 ```
+
+Without an operator signature, `/nodes` returns only the active count. The
+per-node roster needs a request signed with an operator key (a `read` key is
+enough); see {doc}`../reference/network-authority-api`.
 
 ### What this proves
 
@@ -88,11 +130,18 @@ Config: ~/.genesis-mesh/config.toml
 
 ```bash
 genesis-mesh join --na https://... --token "$INVITE"
-# Error: 403 invite token already consumed
+# Error: 403 Invalid, expired, or used invite token (invalid_invite_token)
+```
+
+To run the same flow against a temporary local NA on `127.0.0.1:8443`:
+
+```bash
+bash docs/examples/assets/scripts/enrollment-demo.sh
 ```
 
 ---
 
+(demo-revocation)=
 ## 2. Revocation Demo
 
 Revocation is one of the core Genesis Mesh control-plane promises. This
@@ -123,7 +172,7 @@ sequenceDiagram
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-revocation.gif
-:alt: Revocation flow â€" CRL published, node removed, 403 enforcement
+:alt: Revocation flow — CRL published, node removed, 403 enforcement
 :class: screenshot
 ```
 
@@ -210,14 +259,21 @@ python -m pytest `
   -q
 ```
 
-Observed result:
+All tests pass. As of 1.7.0 this selection holds 6 tests.
 
-```text
-5 passed
+To run the revocation flow against a temporary local NA on `127.0.0.1:8443`:
+
+```bash
+bash docs/examples/assets/scripts/revocation-demo.sh
 ```
+
+The revocation recording above was made on 2026-05-29. It shows the old
+`/nodes` roster; since v1.0.2 an unauthenticated `/nodes` returns the count
+only.
 
 ---
 
+(demo-message-delivery)=
 ## 3. Message Delivery Demo
 
 This demo proves the mesh transport layer: two enrolled nodes authenticate to
@@ -229,9 +285,9 @@ sequenceDiagram
     participant A as Local Node
     participant B as Remote Node (Azure VM)
 
-    A->>B: Noise XX message 1 â€" ephemeral key
-    B-->>A: Noise XX message 2 â€" ephemeral + static + cert
-    A->>B: Noise XX message 3 â€" static + cert
+    A->>B: Noise XX message 1 — ephemeral key
+    B-->>A: Noise XX message 2 — ephemeral + static + cert
+    A->>B: Noise XX message 3 — static + cert
     note over A,B: Session keys derived, identity verified
     A->>B: DATA frame (encrypted): 'hello from local'
     note over B: DATA message delivered
@@ -269,6 +325,15 @@ Sent: 'hello from local'
   via: ws://4.223.130.190:7443
 ```
 
+The scripted version sends the message and reads the receiving node's
+journal over SSH. Set `PEER_HOST` and `PEER_KEY` first; the other variables
+are listed at the top of the script:
+
+```bash
+PEER_HOST=<peer-host> PEER_KEY=<peer-node-key> \
+  bash docs/examples/assets/scripts/p2p-send-demo.sh
+```
+
 ### Receiving node logs
 
 ```bash
@@ -297,6 +362,7 @@ Removed neighbor iwNqAdixbqKP..., invalidated 1 routes
 
 ---
 
+(demo-multi-hop)=
 ## 4. Multi-Hop Routing Demo
 
 This demo proves the routing layer: a sender connects to one peer only, but
@@ -312,8 +378,8 @@ sequenceDiagram
     A->>B: Noise XX peer session
     C->>B: Noise XX peer session
     note over A,C: A and C never connect directly
-    B->>A: Route announce â€" C reachable via B (metric=2)
-    B->>C: Route announce â€" A reachable via B (metric=2)
+    B->>A: Route announce — C reachable via B (metric=2)
+    B->>C: Route announce — A reachable via B (metric=2)
     A->>B: DATA frame addressed to C
     B->>C: DATA forwarded (next_hop=C, ttl=9)
     note over C: DATA message delivered
@@ -333,15 +399,19 @@ other.
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-multi-hop.gif
-:alt: A â†' B â†' C multi-hop routing demo
+:alt: A → B → C multi-hop routing demo
 :class: screenshot
 ```
 
 ### Run
 
 ```bash
-bash docs/examples/assets/scripts/multi-hop-demo.sh
+VM_HOST=<router-vm> bash docs/examples/assets/scripts/multi-hop-demo.sh
 ```
+
+The script needs a router VM you control, running Node B, and SSH access to
+it. `VM_HOST`, `VM_USER`, `SSH_KEY`, `NA`, `GM_REPO` and `OPERATOR_CONFIG` are
+described at the top of the script.
 
 The script enrolls two fresh identities (A and C), starts both peer runtimes
 with `--peer ws://<vm>:7443`, waits for B to propagate routes via
@@ -350,7 +420,7 @@ confirmation from C's logs.
 
 ### Captured proof from the live Azure deployment
 
-On Node A â€" distance-vector route to C learned via B:
+On Node A — distance-vector route to C learned via B:
 
 ```text
 Updated route to SyS04TMQ7tR5qKzT97RADCtHN/p4Be95QiwHeHXGv3M= via Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8= (metric=2, seq=1)
@@ -358,23 +428,24 @@ Updated 1 routes from Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=
 Sent: 'hello from A via B to C'
 ```
 
-On Node B (Azure VM) â€" DATA forwarded to next hop:
+On Node B (Azure VM) — DATA forwarded to next hop:
 
 ```text
 DATA forwarded | dest=SyS04TMQ7tR5qKzT | next_hop=SyS04TMQ7tR5qKzT | ttl=9
 ```
 
-On Node C â€" message delivered, sender identified by A's key prefix:
+On Node C — message delivered, sender identified by A's key prefix:
 
 ```text
 DATA message delivered | from=vqSz9BASkw9dj5tz | content='hello from A via B to C'
 ```
 
-The `metric=2` route on A means C is two hops away via B â€" exactly the
+The `metric=2` route on A means C is two hops away via B — exactly the
 distance-vector signature for indirect reachability.
 
 ---
 
+(demo-failover)=
 ## 5. Route Failure Recovery Demo
 
 This demo proves automatic failover: a sender has two redundant paths to the
@@ -392,9 +463,9 @@ sequenceDiagram
     A->>D: peer session
     C->>B: peer session
     C->>D: peer session
-    note over A,C: A learns two routes to C â€" via B and via D
+    note over A,C: A learns two routes to C — via B and via D
 
-    A->>B: Send 1 â€" DATA to C
+    A->>B: Send 1 — DATA to C
     B->>C: Forward
     note over C: 'hello via B (primary)' delivered
 
@@ -402,7 +473,7 @@ sequenceDiagram
     B-->>A: connection closed
     note over A: Removed neighbor B, invalidated routes via B
 
-    A->>D: Send 2 â€" DATA to C
+    A->>D: Send 2 — DATA to C
     D->>C: Forward
     note over C: 'hello via D (backup)' delivered
 ```
@@ -423,15 +494,19 @@ the other.
 ### Live recording
 
 ```{image} assets/images/genesis-mesh-failover.gif
-:alt: Route failure recovery â€" primary router B killed, traffic re-routed through D
+:alt: Route failure recovery — primary router B killed, traffic re-routed through D
 :class: screenshot
 ```
 
 ### Run
 
 ```bash
-bash docs/examples/assets/scripts/failover-demo.sh
+VM_HOST=<router-vm> bash docs/examples/assets/scripts/failover-demo.sh
 ```
+
+The script needs a router VM you control, running Nodes B and D as systemd
+services, and SSH access to it. The variables and the one-time setup for
+Node D are described at the top of the script.
 
 The script enrolls A and C, connects both to B and D, sends through B,
 SSHes to the VM and stops `genesis-mesh-node`, then sends through D and
@@ -439,13 +514,13 @@ shows delivery on C.
 
 ### Captured proof from the live Azure deployment
 
-Initial state â€" Node A learns C is reachable via B:
+Initial state — Node A learns C is reachable via B:
 
 ```text
 Updated route to XtWVKWy30xIyASzRXSxtiFEbUqG8QnEaeOdqZfpcoAk= via xop1h3bm1SXMo8xZp/Umwp2l4bxUSgFF6aZvYXSezdo= (metric=2, seq=6)
 ```
 
-Send 1 through B (primary) â€" delivered:
+Send 1 through B (primary) — delivered:
 
 ```text
 Sent: 'hello via B (primary)'
@@ -459,14 +534,14 @@ B is stopped on the VM. Node A detects the disconnect and withdraws B's routes:
 Removed neighbor Qcnkr82Fj9qacbUjScYcsOMxSAdTZRL3S3R/52hJ8i8=, invalidated 1 routes
 ```
 
-Send 2 through D (backup) â€" delivered without retry or reconfiguration:
+Send 2 through D (backup) — delivered without retry or reconfiguration:
 
 ```text
 Sent: 'hello via D (backup)'
 DATA message delivered | from=7y2r604wQlI6NtaE | content='hello via D (backup)'
 ```
 
-On Node D (Azure VM) â€" DATA forwarded to C:
+On Node D (Azure VM) — DATA forwarded to C:
 
 ```text
 DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
@@ -477,84 +552,21 @@ DATA forwarded | dest=XtWVKWy30xIyASzR | next_hop=XtWVKWy30xIyASzR | ttl=9
 - Neighbor failure detection via WebSocket disconnect
 - Automatic route withdrawal when a neighbor goes offline
 - Multi-path routing tolerates router loss without retransmit
-- No operator intervention required between path Aâ†'Bâ†'C and path Aâ†'Dâ†'C
+- No operator intervention required between path A→B→C and path A→D→C
 
 ---
 
-## 6. Multi-Agent Workflow Demo
-
-This demo proves that Genesis Mesh can carry a cooperative agent workflow, not
-only direct request/response messages.
-
-```{image} assets/images/genesis-mesh-multi-agent-workflow.gif
-:alt: Multi-agent workflow demo showing routed request and provenance
-:class: screenshot
-```
-
-```{mermaid}
-flowchart LR
-    researcher["Researcher Agent"]
-    router["Router Agent"]
-    kb_security["Knowledge Agent A<br/>security"]
-    kb_transport["Knowledge Agent B<br/>transport"]
-
-    researcher -->|AgentRequest| router
-    router -->|revocation/crl| kb_security
-    router -->|noise/routing| kb_transport
-    kb_security -->|AgentResponse + provenance| router
-    kb_transport -->|AgentResponse + provenance| router
-    router -->|answer + provenance| researcher
-```
-
-The runnable example lives in `examples/agent-network/` and is documented here:
-
-- [](multi-agent-workflow.md)
-
-The verified path is:
-
-```text
-Researcher -> Router -> kb-security -> Router -> Researcher
-```
-
-Observed proof from the local multi-process smoke test:
-
-```text
-Q: how does revocation work?
-A: Revocation starts with an operator-signed admin action. The Network Authority publishes a signed CRL, and heartbeat, renewal, peer handshake, and routing checks reject the revoked identity.
-  from:    kb-security
-  source:  knowledge-security.json
-  provenance:
-    - router-1: routed (researcher-1 -> kb-security)
-    - kb-security: answered (knowledge-security.json)
-    - router-1: returned (kb-security -> researcher-1)
-```
-
-The GIF is generated by the reproducible recorder:
-
-```powershell
-python docs\examples\assets\scripts\multi-agent-workflow-demo.py
-```
-
-### What this proves
-
-- One agent can route work to another agent.
-- The requester keeps the same `request_id` across multiple hops.
-- Each agent has its own mesh identity and join certificate.
-- Responses can be traced back to the agent that produced them.
-- Revocation remains a mesh-level safety boundary for the workflow.
-
----
-
+(demo-llm-discovery)=
 ## 7. Agent Discovery + LLM Demo (v0.7)
 
 This demo proves the discovery layer added in v0.7: agents announce their
 capabilities to the Network Authority, peers find each other by capability
-tag, and the LLM-backed responder agent answers a research question â€" all
+tag, and the LLM-backed responder agent answers a research question — all
 without anyone pasting a 44-character node public key.
 
 ```{mermaid}
 flowchart LR
-    agent["LLM agent<br/>(LiteLLM â†' OpenAI / Anthropic / Ollama / ...)"]
+    agent["LLM agent<br/>(LiteLLM → OpenAI / Ollama / ...)"]
     na["Network Authority<br/>/agents registry"]
     researcher["Researcher"]
     llm["LLM provider"]
@@ -588,6 +600,9 @@ The recording was generated with the checked-in recorder:
 python docs\examples\assets\scripts\llm-agent-demo.py --real-llm
 ```
 
+Without `--real-llm` the recorder uses a deterministic local mock. Add
+`--no-gif` to skip rendering.
+
 The recorder loads `LLM_*` values from `.env`, starts a temporary Network
 Authority, enrolls `llm-1`, discovers it by the `llm:chat` capability, sends a
 researcher request over Noise XX without a pasted node key or peer endpoint,
@@ -600,9 +615,9 @@ output.
 pip install -r examples/agent-network/requirements.txt   # adds LiteLLM on Python 3.12/3.13
 ```
 
-The LLM provider dependency is optional. Fixed LiteLLM releases currently cap
-support below Python 3.14, so run the real LLM recording with Python 3.12 or
-3.13 until LiteLLM publishes compatible 3.14 builds.
+The recorder needs LiteLLM, also for its default mock run. LiteLLM is capped
+below Python 3.14, so use Python 3.12 or 3.13 until LiteLLM publishes
+compatible 3.14 builds.
 
 Set the LLM provider in your environment (see
 [`examples/agent-network/README.md`](https://github.com/GenesisMeshLabs/genesismesh/blob/main/examples/agent-network/README.md)
@@ -641,7 +656,8 @@ genesis-mesh discover --capability llm:chat \
   --na https://na.genesismesh.org
 ```
 
-Captured output from the v0.7 live-deployment gate run:
+Captured from the v0.7 release gate, which queried `llm:v0.7-gate`
+(the agent advertises both `llm:chat` and `llm:v0.7-gate`):
 
 ```text
 1 agent(s) matching capability=llm:v0.7-gate:
@@ -654,7 +670,7 @@ Captured output from the v0.7 live-deployment gate run:
   metadata     : {'model': 'openai/gpt-4o-mini'}
 ```
 
-### Ask through discovery â€" no key, no peer URI pasted
+### Ask through discovery — no key, no peer URI pasted
 
 ```bash
 RES_INVITE=$(genesis-mesh admin invite --role client \
@@ -672,7 +688,7 @@ Captured response from the live deployment + Azure OpenAI gpt-4o-mini:
 
 ```text
 Q: In one paragraph, why does a permissioned mesh network benefit from a capability-based discovery layer rather than hardcoded peer addresses?
-A: A permissioned mesh network benefits from a capability-based discovery layer because it enhances flexibility and security by allowing dynamic peer interactions without relying on hardcoded addresses. This approach enables nodes to discover and connect with authorized peers based on capabilities and roles, rather than fixed identifiers, making it easier to adapt to network changes or scale. â€¦
+A: A permissioned mesh network benefits from a capability-based discovery layer because it enhances flexibility and security by allowing dynamic peer interactions without relying on hardcoded addresses. This approach enables nodes to discover and connect with authorized peers based on capabilities and roles, rather than fixed identifiers, making it easier to adapt to network changes or scale. …
   from:    llm-live-1
   source:  llm:openai/gpt-4o-mini
   request: 021826fd-12ec-4d98-932f-6d0f401edc81
@@ -685,7 +701,7 @@ A: A permissioned mesh network benefits from a capability-based discovery layer 
 - An agent can announce its capabilities to the NA without operator action.
 - Peers can find agents by capability without prior knowledge of their keys.
 - The same mesh identity + Noise XX session that v0.5/v0.6 demos used still
-  carries the actual request/response â€" discovery only changes how peers
+  carries the actual request/response — discovery only changes how peers
   rendezvous.
 - The LLM provider is swappable through an env var; no provider-specific
   code touches the mesh layer.
@@ -693,439 +709,6 @@ A: A permissioned mesh network benefits from a capability-based discovery layer 
 ### Provider swap matrix
 
 See the [agent-network example README](https://github.com/GenesisMeshLabs/genesismesh/blob/main/examples/agent-network/README.md#llm-backed-responder-agent)
-for the full LiteLLM provider matrix (OpenAI, Azure OpenAI v1, Anthropic,
+for the full LiteLLM provider matrix (OpenAI, Azure OpenAI v1,
 Ollama, Mistral, Groq, Together, vLLM, LM Studio, and OpenAI-compatible
 servers).
-
----
-
-## 8. Distributed Capability Orchestration Demo (v0.8)
-
-This demo proves the next step after agent discovery: a researcher asks for an
-outcome, a planner discovers trusted capability providers, invokes them over
-the mesh, and returns an answer with complete provenance.
-
-```{image} assets/images/genesis-mesh-capability-orchestration.png
-:alt: Static walkthrough of Genesis Mesh capability orchestration
-:class: screenshot
-```
-
-Animated execution:
-
-```{image} assets/images/genesis-mesh-capability-orchestration.gif
-:alt: Capability orchestration demo showing planner discovery and provenance
-:class: screenshot
-```
-
-```{mermaid}
-flowchart LR
-    researcher["Researcher"]
-    planner["Planner<br/>planner.answer"]
-    repo_a["Repo provider A<br/>repo.summary"]
-    repo_b["Repo provider B<br/>repo.summary"]
-    llm["LLM provider<br/>llm.chat"]
-
-    researcher -->|discover planner.answer| planner
-    planner -->|discover + select repo.summary| repo_a
-    planner -. alternate .-> repo_b
-    planner -->|discover llm.chat| llm
-    repo_a -->|summary + provenance| planner
-    llm -->|synthesis + provenance| planner
-    planner -->|answer + full provenance| researcher
-```
-
-The recorder runs a temporary Network Authority, two `repo.summary` providers,
-one `llm.chat` provider, one `planner.answer` provider, and a researcher. The
-researcher does not configure any node keys, peer endpoints, provider
-identities, or provider hosts.
-
-The requester knows only the desired capability. All provider discovery and
-selection occur dynamically at runtime.
-
-When more than one provider advertises a capability, the planner uses a
-deterministic provider selection rule. In this demo, `repo-agent-a` is selected
-because provider identities are sorted before invocation. Capability is the
-requested behavior; provider is the selected trusted identity that executes it.
-
-Run:
-
-```powershell
-python docs\examples\assets\scripts\capability-orchestration-demo.py
-```
-
-Observed proof from the local smoke test:
-
-```text
-==> Researcher asks for planner.answer
-    no node keys configured
-    no peer endpoints configured
-    no provider identities configured
-    no provider hosts configured
-
-Q: Summarize Genesis Mesh and explain why discovery matters.
-A: Genesis Mesh is a sovereign trust, identity, and communication fabric for permissioned agent and node networks...
-
-  capability: planner.answer
-  provider:   planner-1
-  provenance:
-    - planner-1: discovered repo.summary (selected provider repo-agent-a)
-    - repo-agent-a: executed repo.summary (repo-summary.json)
-    - planner-1: discovered llm.chat (selected provider llm-1)
-    - llm-1: executed llm.chat (llm:openai/gpt-4o-mini)
-    - planner-1: combined planner.answer (repo.summary + llm.chat)
-```
-
-Full walkthrough:
-
-- [](capability-orchestration.md)
-
----
-
-## 9. Recognition Treaty Demo (v0.10)
-
-This demo proves direct sovereign-to-sovereign recognition. Sovereign B issues a
-membership attestation, Sovereign A signs a scoped treaty recognizing Sovereign
-B, and Sovereign A accepts the attestation through that treaty. When Sovereign A
-revokes the treaty, the same attestation is rejected.
-
-```{mermaid}
-sequenceDiagram
-    participant B as Sovereign B
-    participant A as Sovereign A
-    participant G as Recognition Graph
-
-    B->>B: Issue MembershipAttestation
-    A->>A: Sign RecognitionTreaty for Sovereign B
-    B-->>A: Present attestation
-    A-->>B: accepted through treaty
-    A->>A: Revoke treaty
-    B-->>A: Present same attestation
-    A-->>B: rejected: treaty_locally_revoked
-    A->>G: Export recognition graph
-```
-
-### Live recording
-
-```{image} assets/images/genesis-mesh-recognition-treaty.gif
-:alt: Recognition treaty flow - signed recognition, revocation, and graph export
-:class: screenshot
-```
-
-Static screenshot:
-
-```{image} assets/images/genesis-mesh-recognition-treaty.png
-:alt: Static screenshot of the Genesis Mesh recognition treaty demo
-:class: screenshot
-```
-
-Run:
-
-```powershell
-python docs\examples\assets\scripts\recognition-treaty-demo.py
-```
-
-Observed proof from the local smoke test:
-
-```text
-==> Sovereign A issued recognition treaty for Sovereign B
-    scope:  role:service:maintainer
-
-==> Sovereign A accepted B's attestation through the treaty
-    accepted: True
-    reason:   accepted
-
-==> Sovereign A revoked the recognition treaty
-    reason: trust_boundary_removed
-
-==> Sovereign A rejected the same attestation after treaty revocation
-    accepted: False
-    reason:   treaty_locally_revoked
-
-==> Sovereign A exported minimal recognition graph
-    sovereigns:              2
-    recognition_edges:       1
-    revoked_trust_material:  1
-```
-
-Full walkthrough:
-
-- [](recognition-treaties.md)
-
----
-
-## 10. Cross-Sovereign Revocation Demo (v0.11)
-
-This demo proves revocation propagation across a recognition boundary.
-Sovereign A accepts a membership attestation from Sovereign B through an active
-treaty. Sovereign B later revokes that specific attestation and publishes a
-signed revocation feed. Sovereign A imports the feed and rejects the same
-attestation without revoking the treaty itself.
-
-```{mermaid}
-sequenceDiagram
-    participant B as Sovereign B
-    participant A as Sovereign A
-    participant F as Signed Revocation Feed
-    participant G as Recognition Graph
-
-    B->>B: Issue MembershipAttestation
-    A->>A: Activate RecognitionTreaty for B
-    B-->>A: Present attestation
-    A-->>B: accepted through treaty
-    B->>F: Publish revocation feed
-    A->>A: Verify and import feed
-    B-->>A: Present same attestation
-    A-->>B: rejected: attestation_locally_revoked
-    A->>G: Export propagated revoked trust material
-```
-
-### Live recording
-
-```{image} assets/images/genesis-mesh-cross-sovereign-revocation.gif
-:alt: Cross-sovereign revocation propagation demo
-:class: screenshot
-```
-
-Static screenshot:
-
-```{image} assets/images/genesis-mesh-cross-sovereign-revocation.png
-:alt: Static screenshot of the Genesis Mesh cross-sovereign revocation demo
-:class: screenshot
-```
-
-Run:
-
-```powershell
-python docs\examples\assets\scripts\cross-sovereign-revocation-demo.py
-```
-
-Observed proof from the local smoke test:
-
-```text
-==> Sovereign A accepted B's attestation before feed import
-    accepted: True
-    reason:   accepted
-
-==> Sovereign B published signed revocation feed
-    feed sequence: 1
-    revoked IDs:   1
-
-==> Sovereign A imported B's revocation feed
-    accepted: True
-    sequence: 1
-
-==> Sovereign A rejected the same attestation after feed import
-    accepted: False
-    reason:   attestation_locally_revoked
-
-==> Recognition graph includes propagated revoked attestation
-    propagated revocations: 1
-    recognition_edges:      1
-```
-
-Full walkthrough:
-
-- [](cross-sovereign-revocation.md)
-
----
-
-## 11. Connectome Demo (v0.12)
-
-This demo turns recognition graph data into an operator Connectome view. It
-shows direct recognition edges, active trust paths, revoked trust material, and
-which accepting sovereigns are affected by imported revocation feeds.
-
-```{mermaid}
-sequenceDiagram
-    participant B as Sovereign B
-    participant A as Sovereign A
-    participant C as Connectome
-
-    A->>A: Active treaty recognizes Sovereign B
-    B->>B: Revoke membership attestation
-    B-->>A: Signed revocation feed
-    A->>A: Import feed and update graph state
-    A->>C: GET /connectome.json
-    C-->>A: summary, edges, blast radius
-    A->>C: GET /connectome/trust-path?from=A&to=B
-    C-->>A: trusted=true, active_treaty_path
-```
-
-### Live recording
-
-```{image} assets/images/genesis-mesh-connectome.gif
-:alt: Connectome operator view showing recognition edges and revocation impact
-:class: screenshot
-```
-
-Static screenshot:
-
-```{image} assets/images/genesis-mesh-connectome.png
-:alt: Static screenshot of the Genesis Mesh Connectome demo
-:class: screenshot
-```
-
-Run:
-
-```powershell
-python docs\examples\assets\scripts\connectome-demo.py
-```
-
-Observed proof from the local smoke test:
-
-```text
-==> Connectome summary
-    sovereigns:              2
-    recognition edges:       1
-    active edges:            1
-    imported revocations:    1
-
-==> Direct trust path
-    from:    sovereign-a
-    to:      sovereign-b
-    trusted: True
-    reason:  active_treaty_path
-
-==> Revocation blast radius
-    issuer:              sovereign-b
-    affected acceptors:  sovereign-a
-```
-
-Full walkthrough:
-
-- [](connectome.md)
-
----
-
-## 12. Independent Sovereigns Demo
-
-This demo proves the trust-roadmap flow across two different cloud VMs. Azure
-runs Sovereign A as `USG`; DigitalOcean runs Sovereign B as `USG-NB`. NB issues
-a membership attestation, Azure recognizes NB through a signed treaty, Azure
-accepts the attestation, NB revokes it through a signed feed, and Azure rejects
-the same attestation after importing that feed.
-
-```{mermaid}
-sequenceDiagram
-    participant NB as USG-NB (DigitalOcean)
-    participant AZ as USG (Azure)
-    participant C as Azure Connectome
-
-    NB->>NB: Issue MembershipAttestation
-    AZ->>AZ: Issue RecognitionTreaty for USG-NB
-    NB-->>AZ: Present attestation
-    AZ-->>NB: accepted through treaty
-    NB->>NB: Revoke attestation
-    NB-->>AZ: Signed revocation feed
-    AZ->>AZ: Import feed
-    NB-->>AZ: Present same attestation
-    AZ-->>NB: rejected: attestation_locally_revoked
-    AZ->>C: Export trust path and blast radius
-```
-
-### Live recording
-
-```{image} assets/images/genesis-mesh-independent-sovereigns.gif
-:alt: Independent sovereigns proof across Azure and DigitalOcean
-:class: screenshot
-```
-
-Static screenshot:
-
-```{image} assets/images/genesis-mesh-independent-sovereigns.png
-:alt: Static screenshot of the Genesis Mesh independent sovereigns demo
-:class: screenshot
-```
-
-Run the non-mutating asset renderer:
-
-```powershell
-python docs\examples\assets\scripts\independent-sovereigns-demo.py
-```
-
-Observed proof from the clean Azure + DigitalOcean run:
-
-```text
-==> Azure accepted NB attestation before revocation
-    accepted: True
-    reason:   accepted
-
-==> Azure imported NB revocation feed
-    accepted: True
-    sequence: 1
-
-==> Azure rejected the same attestation after feed import
-    accepted: False
-    reason:   attestation_locally_revoked
-
-==> Azure Connectome summary
-    sovereigns:           2
-    recognition edges:    1
-    active edges:         1
-    imported revocations: 1
-```
-
-Full walkthrough:
-
-- [](independent-sovereigns.md)
-
----
-
-## 13. Supply-Chain Trust Gate Demo
-
-This demo applies cross-sovereign trust to a release gate. Project A issues a
-portable maintainer attestation for Alice. Project B recognizes Project A for a
-narrow release-maintainer role. CI accepts Alice before revocation and rejects
-the same attestation after importing Project A's signed revocation feed.
-
-```{mermaid}
-sequenceDiagram
-    participant A as Project A Sovereign
-    participant B as Project B Sovereign
-    participant CI as CI / Release Gate
-
-    A->>A: Issue maintainer attestation
-    B->>B: Sign recognition treaty
-    CI->>CI: Verify attestation + treaty
-    CI-->>B: allow release action
-    A->>A: Revoke attestation
-    A-->>CI: Signed revocation feed
-    CI->>CI: Verify same attestation + feed
-    CI-->>B: deny release action
-```
-
-```{image} assets/images/genesis-mesh-supply-chain-trust-gate.gif
-:alt: Supply-chain trust gate proof showing allow before revocation and deny after revocation
-:class: screenshot
-```
-
-Static screenshot:
-
-```{image} assets/images/genesis-mesh-supply-chain-trust-gate.png
-:alt: Static screenshot of the Genesis Mesh supply-chain trust gate demo
-:class: screenshot
-```
-
-Run the asset and artifact generator:
-
-```powershell
-python docs\examples\assets\scripts\supply-chain-trust-gate-demo.py
-```
-
-Expected proof:
-
-```text
-==> CI verifies Alice before revocation
-    accepted:     True
-    reason:       accepted
-    exit code:    0
-
-==> CI verifies the same attestation after feed import
-    accepted:     False
-    reason:       attestation_locally_revoked
-    exit code:    10
-```
-
-Full walkthrough:
-
-- [](supply-chain-trust-gate.md)

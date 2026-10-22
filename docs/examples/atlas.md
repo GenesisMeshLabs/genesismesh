@@ -37,6 +37,8 @@ flowchart LR
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/atlas-demo.py --no-gif`.
+
 ## What This Proves
 
 - Any party with the recognition graph export and a set of TrustEvidence files

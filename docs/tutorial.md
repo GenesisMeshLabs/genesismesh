@@ -1,25 +1,50 @@
 # Tutorial: Build and Verify Trust Evidence
 
-This tutorial walks you through using a Genesis Mesh SDK to build a signed
-trust evidence record and verify it using the public verify endpoint. The same
-five steps apply to all three SDKs — choose your language below.
+This tutorial uses a Genesis Mesh SDK to have the Network Authority (NA) sign
+a trust evidence record, and then checks that record on the public verify
+route. The steps show the TypeScript, Go and .NET SDKs; choose your language
+in each step.
 
-**What you will build:** a `TrustEvidence` object that proves an authorization
-decision was made between two sovereigns, and a verification check that any
-third party can run without a signing key.
+**What you will build:** a `TrustEvidence` record, the NA's signed statement
+of a decision between two sovereigns, and a check of it that anyone can run
+without a signing key. The NA signs the decision you submit; it does not
+evaluate it. To have the NA decide, use boundary policies
+({doc}`sdk/typescript/governance`).
+
+The trust evidence routes (`/admin/trust-evidence` and
+`/trust-evidence/verify`) are beta in the {doc}`reference/public-contract`.
+
+![The tutorial run against a governed local NA: TypeScript, Go and C#](examples/assets/images/genesis-mesh-sdk-tutorial.gif)
 
 ## Prerequisites
 
-- A running Network Authority — see [](operators/quickstart.md) for setup steps
-- An admin key pair registered with the NA (`keyId` + base64-encoded seed)
-- Language runtime:
+- A Network Authority running on your machine, set up as in
+  {doc}`sdk/local-network-authority`: policies required, the evidence store
+  on, and a standard-tier `controller` key. That page uses
+  `http://127.0.0.1:9443`.
+- The controller key in environment variables. From the directory that
+  holds `local/`:
+
+  ```bash
+  export GM_ADMIN_KEY_ID=controller
+  export GM_ADMIN_KEY_B64=$(grep -v '^#' local/.genesis-mesh/keys/controller.key)
+  ```
+
+  The key file holds comment lines and the base64 Ed25519 seed. A standard
+  key is enough for this tutorial; keep the privileged `operator-local` key
+  for setup.
+- To use another address, set `GM_NA_URL`, for example
+  `export GM_NA_URL=http://127.0.0.1:8443` for an NA that `genesis-mesh init`
+  set up with its default port.
+- A language runtime:
 
 ::::{tab-set}
 :::{tab-item} TypeScript
-Node.js >= 22
+Node.js 22.18 or later, which runs a `.ts` file directly. On Node.js 22.0 to
+22.17, run it with `node --experimental-strip-types`.
 :::
 :::{tab-item} Go
-Go >= 1.22
+Go 1.22 or later
 :::
 :::{tab-item} C#
 .NET 8 SDK
@@ -28,19 +53,27 @@ Go >= 1.22
 
 ## Step 1: Install the SDK
 
+Make a project for the tutorial and add the SDK to it.
+
 ::::{tab-set}
 :::{tab-item} TypeScript
 ```bash
+mkdir tutorial-ts && cd tutorial-ts
+npm init -y
+npm pkg set type=module
 npm install genesis-mesh-sdk
 ```
 :::
 :::{tab-item} Go
 ```bash
-go get github.com/GenesisMeshLabs/sdk-go@latest
+mkdir tutorial-go && cd tutorial-go
+go mod init tutorial
+go get github.com/GenesisMeshLabs/sdk-go/genesismesh@latest
 ```
 :::
 :::{tab-item} C#
 ```bash
+dotnet new console --framework net8.0 -o tutorial-cs && cd tutorial-cs
 dotnet add package genesismesh-sdk-dotnet
 ```
 :::
@@ -48,46 +81,71 @@ dotnet add package genesismesh-sdk-dotnet
 
 ## Step 2: Create an admin client
 
-Admin operations require a signing key. Pass the base64-encoded Ed25519
-private key and the key ID registered with the NA. Keep the key in an
-environment variable — never hard-code it in source.
+Admin routes need a signing key: the base64 Ed25519 seed and the key ID the
+NA knows it by. Read both from the environment; never put a key in source.
 
 ::::{tab-set}
 :::{tab-item} TypeScript
+In `tutorial.ts`:
+
 ```typescript
-import { GenesisMeshClient } from "genesis-mesh-sdk";
+import { BadRequestError, GenesisMeshClient } from "genesis-mesh-sdk";
+import type { TrustDecision } from "genesis-mesh-sdk";
+
+const baseUrl = process.env.GM_NA_URL ?? "http://127.0.0.1:9443";
 
 const client = new GenesisMeshClient({
-  baseUrl:          "http://localhost:8000",
+  baseUrl,
   signingKeyBase64: process.env.GM_ADMIN_KEY_B64,
-  keyId:            process.env.GM_ADMIN_KEY_ID,
+  keyId: process.env.GM_ADMIN_KEY_ID,
 });
 ```
 :::
 :::{tab-item} Go
+In `main.go`. The code of steps 3 to 5 goes on inside `main`:
+
 ```go
+package main
+
 import (
-    "github.com/GenesisMeshLabs/sdk-go/genesismesh"
-    "os"
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/GenesisMeshLabs/sdk-go/genesismesh"
 )
 
-client, err := genesismesh.NewClient(genesismesh.ClientOptions{
-    BaseURL:    "http://localhost:8000",
-    SigningKey: os.Getenv("GM_ADMIN_KEY_B64"),
-    KeyID:      os.Getenv("GM_ADMIN_KEY_ID"),
-})
-if err != nil {
-    log.Fatal(err)
-}
+func main() {
+	ctx := context.Background()
+
+	baseURL := os.Getenv("GM_NA_URL")
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:9443"
+	}
+
+	client, err := genesismesh.NewClient(genesismesh.ClientOptions{
+		BaseURL:    baseURL,
+		SigningKey: os.Getenv("GM_ADMIN_KEY_B64"),
+		KeyID:      os.Getenv("GM_ADMIN_KEY_ID"),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 ```
 :::
 :::{tab-item} C#
+In `Program.cs`:
+
 ```csharp
 using GenesisMesh;
 
-var client = new GenesisMeshClient(new ClientOptions
+var baseUrl = Environment.GetEnvironmentVariable("GM_NA_URL") ?? "http://127.0.0.1:9443";
+
+using var client = new GenesisMeshClient(new ClientOptions
 {
-    BaseUrl    = "http://localhost:8000",
+    BaseUrl    = baseUrl,
     SigningKey = Environment.GetEnvironmentVariable("GM_ADMIN_KEY_B64"),
     KeyId      = Environment.GetEnvironmentVariable("GM_ADMIN_KEY_ID"),
 });
@@ -95,62 +153,55 @@ var client = new GenesisMeshClient(new ClientOptions
 :::
 ::::
 
-## Step 3: Build trust evidence for a trust decision
+The client reads the NA's public key from `/sovereign.json` the first time it
+signs: admin signatures (version 2) name it as their audience.
 
-A `TrustDecision` describes an authorization outcome between two sovereigns.
-Pass one to the `Evidence.Build` method to produce a signed `TrustEvidence`
-record. `verdict` must be one of `"allow"`, `"block"`, `"escalate"`, `"warn"`.
+## Step 3: Build trust evidence for a decision
+
+A trust decision names a source and a target sovereign and a `verdict`, which
+must be `allow`, `block`, `escalate` or `warn`. `source_sovereign_id` and
+`target_sovereign_id` are required; the reason, roles, signals and trust path
+are optional. The NA signs the decision with its own key and returns the
+`TrustEvidence` record.
 
 ::::{tab-set}
 :::{tab-item} TypeScript
 ```typescript
-import { TrustDecision } from "genesis-mesh-sdk";
-
 const decision: TrustDecision = {
   source_sovereign_id: "ALPHA-NA",
   target_sovereign_id: "BETA-NA",
   verdict: "allow",
-  reason:  "Recognition treaty active, attestation valid",
+  reason: "Recognition treaty active, attestation valid",
 };
 
-const evidence = await client.evidence.build(decision);
+const evidence = await client.evidence.build({ decision });
 
-console.log(evidence.evidence_id); // e.g. "ev-3f8a21c0"
+console.log(evidence.evidence_id); // a UUID
 console.log(evidence.verdict);     // "allow"
 console.log(evidence.issued_at);   // ISO 8601 timestamp
 ```
 :::
 :::{tab-item} Go
 ```go
-import (
-    "context"
-    "fmt"
-    "github.com/GenesisMeshLabs/sdk-go/genesismesh"
-)
+	decision := genesismesh.TrustDecision{
+		SourceSovereignID: "ALPHA-NA",
+		TargetSovereignID: "BETA-NA",
+		Verdict:           "allow",
+		Reason:            "Recognition treaty active, attestation valid",
+	}
 
-ctx := context.Background()
+	evidence, err := client.Evidence.Build(ctx, decision)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-decision := genesismesh.TrustDecision{
-    SourceSovereignId: "ALPHA-NA",
-    TargetSovereignId: "BETA-NA",
-    Verdict:           "allow",
-    Reason:            "Recognition treaty active, attestation valid",
-}
-
-evidence, err := client.Evidence.Build(ctx, decision)
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Println(evidence.EvidenceId) // e.g. "ev-3f8a21c0"
-fmt.Println(evidence.Verdict)    // "allow"
-fmt.Println(evidence.IssuedAt)   // ISO 8601 timestamp
+	fmt.Println(evidence.EvidenceID) // a UUID
+	fmt.Println(evidence.Verdict)    // "allow"
+	fmt.Println(evidence.IssuedAt)   // ISO 8601 timestamp
 ```
 :::
 :::{tab-item} C#
 ```csharp
-using GenesisMesh;
-
 var decision = new TrustDecision
 {
     SourceSovereignId = "ALPHA-NA",
@@ -161,57 +212,59 @@ var decision = new TrustDecision
 
 var evidence = await client.Evidence.Build(decision);
 
-Console.WriteLine(evidence.EvidenceId); // e.g. "ev-3f8a21c0"
+Console.WriteLine(evidence.EvidenceId); // a UUID
 Console.WriteLine(evidence.Verdict);    // "allow"
 Console.WriteLine(evidence.IssuedAt);   // ISO 8601 timestamp
 ```
 :::
 ::::
 
-The returned `TrustEvidence` object is self-contained: it includes the full
-decision body, the issuer key ID, a timestamp, and the Ed25519 signature. You
-can serialize it and pass it to any party that needs to verify the decision.
+The record carries the decision's fields (source, target, verdict, reason,
+roles, signals, hop count), the digest of the NA's recognition graph, the
+issuer, `issued_at`, `issued_by` (the NA's key ID) and the NA's Ed25519
+signature. Pass it to anyone who needs to check it.
 
 ## Step 4: Verify the evidence
 
-Verification uses the public endpoint and requires no signing key. Create a
-second client without credentials — or reuse the same one:
+The verify route is public: it needs no signing key. Use a second client
+without a key, or the same one.
 
 ::::{tab-set}
 :::{tab-item} TypeScript
 ```typescript
-const publicClient = new GenesisMeshClient({
-  baseUrl: "http://localhost:8000",
-});
+const publicClient = new GenesisMeshClient({ baseUrl });
 
 const result = await publicClient.evidence.verify({ evidence });
 
-console.log(result.valid);  // true
-console.log(result.reason); // "Signature valid"
+console.log(result.accepted); // true
+console.log(result.reason);   // "accepted"
 ```
 :::
 :::{tab-item} Go
 ```go
-publicClient, _ := genesismesh.NewClient(genesismesh.ClientOptions{
-    BaseURL: "http://localhost:8000",
-})
+	publicClient, err := genesismesh.NewClient(genesismesh.ClientOptions{
+		BaseURL: baseURL,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-result, err := publicClient.Evidence.Verify(ctx, map[string]interface{}{
-    "evidence": evidence,
-})
-if err != nil {
-    log.Fatal(err)
-}
+	result, err := publicClient.Evidence.Verify(ctx, map[string]interface{}{
+		"evidence": evidence,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-fmt.Println(result.Valid)  // true
-fmt.Println(result.Reason) // "Signature valid"
+	fmt.Println(result.Accepted) // true
+	fmt.Println(result.Reason)   // "accepted"
 ```
 :::
 :::{tab-item} C#
 ```csharp
-var publicClient = new GenesisMeshClient(new ClientOptions
+using var publicClient = new GenesisMeshClient(new ClientOptions
 {
-    BaseUrl = "http://localhost:8000",
+    BaseUrl = baseUrl,
 });
 
 var result = await publicClient.Evidence.Verify(new Dictionary<string, object?>
@@ -219,35 +272,42 @@ var result = await publicClient.Evidence.Verify(new Dictionary<string, object?>
     ["evidence"] = evidence,
 });
 
-Console.WriteLine(result.Valid);  // True
-Console.WriteLine(result.Reason); // "Signature valid"
+Console.WriteLine(result.Accepted); // True
+Console.WriteLine(result.Reason);   // "accepted"
 ```
 :::
 ::::
 
-`VerifyResult` always returns both fields. If `Valid` is `false`, `Reason`
-explains why — for example, `"Unknown key ID"` or `"Signature mismatch"`.
+The NA answers `accepted`, `reason`, `evidence_id`, `issuer_sovereign_id` and
+`verdict`. When the record is not accepted, `reason` says why:
+`missing_signature`, `invalid_signature` or `graph_digest_mismatch` (the last
+only when you pass `expected_graph_digest`). Without `issuer_public_keys`, the
+NA checks the signature against its own key that was valid at the record's
+`issued_at`, from its key history, so a record signed before a key succession
+still verifies. The Go and .NET `VerifyResult` also sets `Valid` to the same
+value as `Accepted`.
 
 ## Step 5: Handle errors
 
-A `verdict` outside the allowed set returns a 422 Validation error:
+The NA refuses a `verdict` outside the allowed set with HTTP 400 and the code
+`invalid_verdict`. The SDKs raise their 400 error type for it.
 
 ::::{tab-set}
 :::{tab-item} TypeScript
 ```typescript
-import { ValidationError } from "genesis-mesh-sdk";
-
 try {
   await client.evidence.build({
-    source_sovereign_id: "ALPHA-NA",
-    target_sovereign_id: "BETA-NA",
-    verdict: "trusted",   // not in the allowed set
-    reason:  "testing",
+    decision: {
+      source_sovereign_id: "ALPHA-NA",
+      target_sovereign_id: "BETA-NA",
+      verdict: "trusted", // not in the allowed set
+      reason: "testing",
+    },
   });
 } catch (err) {
-  if (err instanceof ValidationError) {
-    console.error(err.code, err.message);
-    // "VALIDATION_ERROR  verdict must be one of: allow, block, escalate, warn"
+  if (err instanceof BadRequestError) {
+    console.error(err.status, err.code, err.message);
+    // 400 invalid_verdict verdict must be one of: allow, block, escalate, warn
   } else {
     throw err;
   }
@@ -256,19 +316,20 @@ try {
 :::
 :::{tab-item} Go
 ```go
-import "errors"
+	_, err = client.Evidence.Build(ctx, genesismesh.TrustDecision{
+		SourceSovereignID: "ALPHA-NA",
+		TargetSovereignID: "BETA-NA",
+		Verdict:           "trusted", // not in the allowed set
+		Reason:            "testing",
+	})
 
-_, err = client.Evidence.Build(ctx, genesismesh.TrustDecision{
-    SourceSovereignId: "ALPHA-NA",
-    TargetSovereignId: "BETA-NA",
-    Verdict:           "trusted", // not in the allowed set
-    Reason:            "testing",
-})
-
-var ve *genesismesh.ValidationError
-if errors.As(err, &ve) {
-    fmt.Println(ve.Code, ve.Message)
-    // VALIDATION_ERROR  verdict must be one of: allow, block, escalate, warn
+	var bre *genesismesh.BadRequestError
+	if errors.As(err, &bre) {
+		fmt.Println(bre.Status, bre.Code, bre.Message)
+		// 400 invalid_verdict verdict must be one of: allow, block, escalate, warn
+	} else if err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 :::
@@ -284,19 +345,52 @@ try
         Reason            = "testing",
     });
 }
-catch (ValidationException ex)
+catch (BadRequestException ex)
 {
-    Console.WriteLine($"{ex.Code}: {ex.Message}");
-    // VALIDATION_ERROR: verdict must be one of: allow, block, escalate, warn
+    Console.WriteLine($"{ex.Status} {ex.Code} {ex.Detail}");
+    // 400 invalid_verdict verdict must be one of: allow, block, escalate, warn
 }
 ```
 :::
 ::::
 
+The other input errors of this route are also 400: `missing_decision` and
+`invalid_decision` (a missing source or target sovereign ID). A key the NA
+does not accept is `401 admin_auth_failed`.
+
+## Run it
+
+With the NA running and the variables from the prerequisites set:
+
+::::{tab-set}
+:::{tab-item} TypeScript
+```bash
+node tutorial.ts
+```
+:::
+:::{tab-item} Go
+```bash
+go run .
+```
+:::
+:::{tab-item} C#
+```bash
+dotnet run
+```
+:::
+::::
+
+Each prints the evidence ID, `allow`, the time it was issued, `true`,
+`accepted`, and then the `invalid_verdict` refusal. The recording at the top
+of this page is a run of these three programs against a local NA on port
+18455. The programs and the script that records them are in
+`docs/examples/assets/scripts/sdk-tutorial/`.
+
 ## What's next
 
-- [](sdk/typescript/sub-clients) — TypeScript sub-client reference
-- [](sdk/go/sub-clients) — Go sub-client reference
-- [](sdk/dotnet/sub-clients) — C# sub-client reference
-- [](operators/quickstart.md) — set up a sovereign from scratch
-- [](concepts/glossary.md) — definitions for every protocol term used above
+- {doc}`sdk/typescript/sub-clients`, {doc}`sdk/go/sub-clients` and
+  {doc}`sdk/dotnet/sub-clients`: every method of each SDK
+- {doc}`sdk/typescript/governance`: have the NA decide under a boundary
+  policy, then act on its decision
+- {doc}`operators/quickstart`: set up a sovereign from scratch
+- {doc}`concepts/glossary`: the protocol terms used above

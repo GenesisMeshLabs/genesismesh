@@ -15,16 +15,17 @@ recognize, and revoke trust across organizational boundaries. It gives AI
 agents, edge systems, and distributed infrastructure a portable trust fabric:
 cryptographic identity, signed attestations, delegated authority, cross-sovereign
 recognition, revocation propagation, and auditable trust state — without a
-central authority.
+shared root of trust between sovereigns.
 
 ## Status
 
-Genesis Mesh 1.0 is ready for an independently operated pilot. The surfaces
+Genesis Mesh 1.x is the current release line (1.7.0 today). The surfaces
 listed as stable in the [public contract](https://docs.genesismesh.org/reference/public-contract.html)
 follow [`DEPRECATION_POLICY.md`](DEPRECATION_POLICY.md) for the whole 1.x line,
-and upgrades from 0.59 onward are rehearsed in CI. Independent federation in
-production is not yet proven: a second independently implemented sovereign and
-an operator outside Genesis Core are pending and expected from the pilot.
+and upgrades from 0.59 onward are rehearsed in CI. The Rust SDK, the edge agent
+and the gateway are beta. Federation between separately operated sovereigns is
+not yet proven in production: a second, separately implemented sovereign and an
+operator outside Genesis Core are still pending.
 
 ## Installation
 
@@ -39,6 +40,28 @@ The Network Authority and the gateway also ship as signed container images,
 `ghcr.io/genesismeshlabs/genesis-mesh-gateway`, for `linux/amd64` and
 `linux/arm64`. Verify them before deploying: see
 [Container Images](https://docs.genesismesh.org/operations/container-images.html).
+
+## Components
+
+Each component has its own repository and releases at the same version as the
+Network Authority. The [stability page](https://docs.genesismesh.org/stability.html)
+says what each one promises.
+
+- **SDKs:** TypeScript (`genesis-mesh-sdk` on npm), Go
+  (`github.com/GenesisMeshLabs/sdk-go`), .NET (`genesismesh-sdk-dotnet` on
+  NuGet) and Rust (`genesis-mesh-sdk`, a Git dependency; beta). See
+  [SDK Clients](https://docs.genesismesh.org/sdk/index.html).
+- **`genesis-mesh-verify`:** a standalone verifier for evidence exports, audit
+  packs and key histories, released with the Rust SDK. See
+  [The Rust Verifier](https://docs.genesismesh.org/operations/independent-verification.html).
+- **`genesis-mesh-edge` (beta):** the edge agent, which acts for one device;
+  static binaries with the Rust SDK release and the image
+  `ghcr.io/genesismeshlabs/genesis-mesh-edge`. See
+  [Edge agent](https://docs.genesismesh.org/operations/edge-agent.html).
+- **Gateway (beta):** `genesis-mesh-gateway`, a Rust service that checks
+  signed join certificates against its policy, follows the authorities'
+  revocation lists and forwards scoped calls to them. See
+  [Rust Gateway](https://docs.genesismesh.org/concepts/rust-gateway.html).
 
 ## Quick start
 
@@ -63,12 +86,12 @@ Or run the full local smoke test in one command:
 genesis-mesh dev up
 ```
 
-## Trust API (v0.52.0+)
+## HTTP API
 
-The Network Authority exposes all stable protocol operations over HTTP — agreement
-negotiation, boundary decisions, trust evidence, selective disclosure, consensus
-proofs, and data-usage intents. SDK clients use these endpoints rather than
-reimplementing the cryptography.
+The Network Authority's HTTP API covers every protocol operation. The
+[public contract](https://docs.genesismesh.org/reference/public-contract.html)
+marks each route stable or beta. The SDKs call the API, and can also verify
+signed records offline, without asking the NA.
 
 Full HTTP reference: [docs/api/trust-http.md](docs/api/trust-http.md)
 

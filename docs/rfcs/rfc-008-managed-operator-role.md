@@ -12,7 +12,8 @@ sovereignty. This RFC defines the *managing partner* (or managed operator) role:
 what a managing partner may do on behalf of an operator, what must remain under
 the operator's exclusive control, and how a managing partner coordinates public
 endpoints, runbooks, and trust material without becoming the protocol's owner.
-The pattern is represented in the project by Connectorzzz.
+Connectorzzz is the intended example of this role. No proof bundle or
+operator record yet shows it operating.
 
 ## Motivation
 
@@ -61,6 +62,7 @@ many operators.
 | --- | --- | --- |
 | Hold root key | yes | **never** |
 | Hold operator signing keys | yes | **never** |
+| Hold the NA signing key | yes (recommended) | only with the operator's written approval (managed NA key), never by default |
 | Issue/revoke treaties (RFC-002) | yes | no |
 | Publish revocation feed (RFC-004) | yes | no |
 | Manage public endpoints / DNS | optional | yes (on request) |
@@ -68,6 +70,12 @@ many operators.
 | Assemble trust bundles (RFC-003) | yes | yes (assist) |
 | Client-facing packaging & coordination | optional | yes |
 | Fork / exit / switch partner | yes | cannot block |
+
+In the managed NA key model ({doc}`/operators/managing-partner-boundary`,
+{doc}`/operations/managed-sovereign`), the partner's infrastructure holds the
+NA key, which signs treaties and revocation feeds. The operator's own admin
+keys still approve every treaty and revocation, and the partner holds neither
+the root key nor those admin keys.
 
 ## Security considerations
 
@@ -85,9 +93,10 @@ many operators.
 ## Operational considerations
 
 - The managing-partner pattern is how the ecosystem scales onboarding without
-  centralizing trust: Connectorzzz provides onboarding, coordination, endpoint
-  management, and continuity support; operators keep identity, recognition,
-  revocation, and trust-path authority.
+  centralizing trust. In this pattern, which Connectorzzz is intended to
+  follow, a partner provides onboarding, coordination, endpoint management,
+  and continuity support; operators keep identity, recognition, revocation,
+  and trust-path authority.
 - Governance roles, change authority, and the RFC process that frames this role
   are described in {doc}`/development/governance`.
 

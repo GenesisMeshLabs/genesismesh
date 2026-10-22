@@ -1,0 +1,38 @@
+==> A local NA with the edge settings on
+$ grep EVIDENCE na.env
+EVIDENCE_STORE=on
+EVIDENCE_OUT_OF_BAND=on
+EVIDENCE_GRANTS=on
+$ genesis-mesh na start --env-file na.env &
+==> 1. The device's keys, an invite bound to its node key, enrolment
+$ genesis-mesh-edge --config edge.toml init
+Zga3XxJ3U92qhoKz2UpguGi6JEIXp+bDc3iO/ZiLNSw=
+$ genesis-mesh admin invite --config genesis-mesh.toml --role client --node-sovereign-id site7-17 --executor-resource-prefix edge:site7-17/ --recipient-key Zga3XxJ3U92qhoKz2UpguGi6JEIXp+bDc3iO/ZiLNSw= > invite-token
+$ genesis-mesh-edge --config edge.toml enroll --invite-token-file invite-token
+{"event":"enrolled","fields":{"cert_id":"794b169c-2d20-4477-b01b-cb9c6f68debd","executor_key_id":"edge-3a849c5b5a7b1e635c77bb68e62012dd","node_sovereign_id":"site7-17"},"level":"info","ts":"2026-10-22T01:00:37.165Z"}
+$ genesis-mesh-edge --config edge.toml status
+node site7-17 (edge-3a849c5b5a7b1e635c77bb68e62012dd), certificate 794b169c-2d20-4477-b01b-cb9c6f68debd until 2026-10-29T01:00:37.106001Z
+snapshot synced at 2026-10-22T01:00:37.189603Z; 0 uploads pending, 0 dead letters
+!dim # set up, not shown: an attestation to site7-17 for secret.rotate, a policy (lifetime_days <= 90)
+==> 2. The agent runs; an application asks on its socket, the NA decides
+$ genesis-mesh-edge --config edge.toml run &
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock -X POST http://localhost/v1/authorize -d '{"capability": "secret.rotate", "request_parameters": {"lifetime_days": 30}, "resource_id": "edge:site7-17/kv/db", "resource_action": "rotate"}' | tee answer.json | python -c "import json,sys; a=json.load(sys.stdin); print('allowed', a['allowed'], 'authority', a.get('authority'), 'code', a.get('code'))"
+!ok allowed True authority decision code None
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock -X POST http://localhost/v1/authorizations/$(python -c "import json; print(json.load(open('answer.json'))['authorization_id'])")/outcome -d '{"outcome": "success"}'
+{"authorization_id":"04a2175e-53bd-4c62-b457-bfb57b2ad473","dropped":[],"queued":false,"record_id":"43f9700c-5d13-4a21-a33f-6d0bbc419dc2","record_kind":"execution"}
+==> 3. The NA is stopped: break-glass, only with a justification
+$ kill $NA_PID
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock -X POST http://localhost/v1/authorize -d '{"capability": "secret.rotate", "request_parameters": {"lifetime_days": 30}, "resource_id": "edge:site7-17/kv/db", "resource_action": "rotate"}' | tee answer.json | python -c "import json,sys; a=json.load(sys.stdin); print('allowed', a['allowed'], 'authority', a.get('authority'), 'code', a.get('code'))"
+!no allowed False authority None code justification_required
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock -X POST http://localhost/v1/authorize -d '{"capability": "secret.rotate", "request_parameters": {"lifetime_days": 30}, "resource_id": "edge:site7-17/kv/db", "resource_action": "rotate", "justification": "INC-4471: key leaked in a log, rotate now"}' | tee answer.json | python -c "import json,sys; a=json.load(sys.stdin); print('allowed', a['allowed'], 'authority', a.get('authority'), 'code', a.get('code'))"
+!ok allowed True authority break_glass code no_grant
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock -X POST http://localhost/v1/authorizations/$(python -c "import json; print(json.load(open('answer.json'))['authorization_id'])")/outcome -d '{"outcome": "success"}'
+{"authorization_id":"44999429-2e56-4030-8901-86cea016f284","dropped":[],"queued":true,"record_id":"8c03723b-6f74-408e-a659-129245732013","record_kind":"break_glass"}
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock http://localhost/v1/status | python -c "import json,sys; s=json.load(sys.stdin); print('connected', s['connected'], 'na_state', s['na_state'], 'pending_uploads', s['pending_uploads'])"
+connected False na_state unreachable pending_uploads 1
+==> 4. The NA is back: the uploads drain
+$ genesis-mesh na start --env-file na.env &
+$ curl -s --unix-socket /tmp/gm-edge-1wc_py7m/agent.sock http://localhost/v1/status | python -c "import json,sys; s=json.load(sys.stdin); print('connected', s['connected'], 'na_state', s['na_state'], 'pending_uploads', s['pending_uploads'])"
+!ok connected True na_state answering pending_uploads 0
+$ genesis-mesh admin edge-nodes --config genesis-mesh.toml | python -c "import json,sys; [print(n['node_sovereign_id'], n['status'], n['executor_key_id'], 'pending_uploads', n['agent']['pending_uploads'], 'break_glass', n['break_glass']['records']) for n in json.load(sys.stdin)['edge_nodes']]"
+!ok site7-17 online edge-3a849c5b5a7b1e635c77bb68e62012dd pending_uploads 0 break_glass 1

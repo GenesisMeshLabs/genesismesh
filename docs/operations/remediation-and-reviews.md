@@ -1,7 +1,11 @@
 # Remediation and Reviews
 
 Since 1.3.0 the Network Authority (NA) judges every change made outside the
-controlled path, as of when it happened (see {doc}`out-of-band-changes`).
+controlled path that is reported to it, as of when it happened (see
+{doc}`out-of-band-changes`). Remediation and reviews are off by default: they
+need `EVIDENCE_REMEDIATION=on`, with `EVIDENCE_OUT_OF_BAND=on` and
+`EVIDENCE_STORE=on` (see [Turning it on](#turning-it-on)). The remediation
+helpers that controllers use exist only in the TypeScript and Rust SDKs.
 Since 1.4.0 a judged DENY leads somewhere: the NA states what is to be done
 and by when, the controller does it and records it, and its author is told.
 A second person can review a judgement, or a decision made under a policy

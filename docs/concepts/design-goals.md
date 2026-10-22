@@ -1,8 +1,8 @@
 # Design Goals
 
-Genesis Mesh is intentionally scoped. It is designed to be a sovereign trust
-fabric for permissioned node and agent networks, not a universal networking
-layer.
+Genesis Mesh is intentionally scoped. It is a protocol for sovereign
+communities to establish, delegate, recognize, and revoke trust across
+organizational boundaries, not a universal networking layer.
 
 ## Goals
 
@@ -24,17 +24,29 @@ Membership is not permanent. Certificates expire, can be renewed under policy,
 and can be revoked through signed CRLs. Nodes and the Network Authority reject
 revoked or invalid identities.
 
+### Recognition Across Sovereigns
+
+Each sovereign keeps its own root of trust. Sovereigns recognize each other
+through signed, scoped, directed recognition treaties, and verify each other's
+attestations offline. There is no authority above the sovereigns.
+
+### Verifiable Decisions and Changes
+
+Authorization decisions are signed and name the policy they were made under.
+With the evidence store on (off by default), what was done under them is
+recorded and can be checked offline by an auditor.
+
 ### Decentralized Routing
 
 The Network Authority controls admission and trust state, but it is not the
 data path for every message. Authenticated nodes can establish peer sessions,
-exchange routes, and forward messages.
+exchange routes, and forward messages over the peer mesh.
 
 ### Offline Trust Bootstrap
 
-The Root Sovereign signs the genesis block offline. Nodes use that signed
-genesis document to know which Network Authority and policies belong to the
-network.
+The Root Sovereign signs the genesis block offline. Nodes and verifiers use
+that signed genesis document, and the key successions the root key signs, to
+know which Network Authority key and policies belong to the network.
 
 ### Agent-Friendly Architecture
 

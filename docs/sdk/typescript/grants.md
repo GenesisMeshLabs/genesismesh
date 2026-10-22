@@ -108,7 +108,7 @@ checks each request offline, in this order:
 | The resource is within the bearer key's `resourcePrefix` (a use without a resource is not) | `grant_use_out_of_scope` |
 | The capability is one of the grant's | `grant_capability_mismatch` |
 | The request parameters are inside the closed envelope | `grant_envelope_mismatch` |
-| The budget, counting the holder's own uses | `grant_budget_exhausted` (fallback) |
+| The budget, counting the holder's own uses but those the NA quarantined | `grant_budget_exhausted` (fallback) |
 | The validity | `grant_expired` past its end (fallback); `grant_use_outside_validity` before its start |
 | The revocation feed it holds, and what the NA last answered | `grant_revoked` (fallback), or the NA's code |
 | At most `max_uses_per_time_token` uses after the use its time token names | `grant_time_token_exhausted` (fallback), after asking the NA for a fresh token when it answers |
@@ -127,10 +127,19 @@ time, so two uses never take one place in the chain.
 Every use the holder signs takes the next place in its chain. A use the NA
 refuses for good is kept by the NA as a quarantine entry and becomes the
 chain's head, so it stays a dead letter in the record outbox and the uses
-after it are still uploaded, each judged on its own (the budget counts
-admitted uses only). The holder never signs a use the NA would refuse without
-storing it: secret material is checked first. A chain gap and a use dated
-ahead of the NA's clock (`grant_use_in_future`) are retried.
+after it are still uploaded, each judged on its own. The NA's budget counts
+admitted uses only. Offline the holder cannot know which uses the NA will
+admit, so it counts every use it signed; once the NA has answered a use as
+quarantined (its dead letter in the record outbox names the quarantine entry,
+`last_error.quarantine_id`), that use no longer counts against the budget,
+though it keeps its place in the chain. A use quarantined as a conflict or a
+chain mismatch did not continue the chain and still counts, and so does one
+quarantined as `grant_budget_exhausted`: the NA counted more admitted uses
+than the holder knew of, and not counting it would keep the holder signing
+uses the NA refuses. The holder never
+signs a use the NA would refuse without storing it: secret material is
+checked first. A chain gap and a use dated ahead of the NA's clock
+(`grant_use_in_future`) are retried.
 
 Persist `holder.state` (the `persist` option is called after every change)
 together with the record outbox, and resume with `new GrantHolder({ ...,

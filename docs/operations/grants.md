@@ -1,5 +1,8 @@
 # Pre-Issued Grants
 
+*Beta routes (v1.6.0); the signed records are stable. Off by default
+(`EVIDENCE_GRANTS=on`).*
+
 A grant is an authorisation the Network Authority (NA) signs in advance, so a
 device or controller can make a change while it cannot reach the NA. Where
 break-glass ({doc}`emergency-changes`) records a change made without a
@@ -10,7 +13,12 @@ how they are issued, used, uploaded and revoked, and what offline trust
 cannot promise. The worked example is {doc}`../examples/pre-issued-grants`;
 the routes are in {doc}`../api/trust-http` (*Pre-issued grants*).
 
-Grants are off until `EVIDENCE_GRANTS=on` (it needs `EVIDENCE_OUT_OF_BAND=on`).
+Grants are off until `EVIDENCE_GRANTS=on`. That needs
+`EVIDENCE_OUT_OF_BAND=on`, which needs `EVIDENCE_STORE=on`; all three are off
+by default. Holding grants and time tokens, acting within a grant and
+recording its uses live in the TypeScript and Rust SDKs and in the edge agent
+({doc}`edge-agent`). The Go and .NET SDKs only check that a grant they are
+shown carries the NA's signature.
 Turn it on once every verifier that reads your exports, packs and revocation
 feed runs 1.6: a 1.5 verifier refuses the new entry kinds and the feed's
 `revoked_grant_ids`. Turning it off again is covered in
@@ -22,7 +30,7 @@ feed runs 1.6: a 1.5 verifier refuses the new entry kinds and the feed's
 | --- | --- | --- |
 | A known, bounded kind of change a device must be able to make while it is disconnected (rotate its own credential, scale within limits) | a **grant** | the change is authorised before it is made, within an envelope the policies were checked against; it is governed (`governed_by: grant`), not judged after the fact |
 | An urgent change nobody planned for, while the NA does not answer | **break-glass** | nothing authorised it; it is recorded with a justification and judged afterwards |
-| A grant has ended, is spent or revoked, and the NA does not answer | **break-glass** | the SDK falls back to it: an urgent change is recorded and judged, never blocked |
+| A grant has ended, is spent or revoked, and the NA does not answer | **break-glass** | the TypeScript or Rust SDK, or the edge agent, falls back to it: an urgent change is recorded and judged, never blocked |
 | The NA answers | a **decision** | ask for one; a grant is for when the NA cannot be reached |
 
 A grant never overrides a DENY: an envelope a policy could deny is not
@@ -135,8 +143,8 @@ The holder keeps the grant and the time token the NA returned with it.
    token, the request parameters, the resource and what was done (metadata
    only, as for execution evidence). It checks the metadata for secret
    material **before** signing: the NA never stores a use that carries any,
-   so a holder never chains a use on one. The SDKs keep the use in their
-   outbox.
+   so a holder never chains a use on one. The TypeScript and Rust SDKs, and
+   the edge agent, keep the use in their outbox.
 3. **When it can reach the NA** it asks for a fresh time token
    (`POST /grants/time-tokens`, a request its bearer key signs naming the
    head of its use chain) and uploads its uses in order
@@ -179,9 +187,11 @@ claim:
   bound to the head of its use chain when it asked. A use is never dated
   more than 300 seconds before its token, and at most
   `max_uses_per_time_token` uses follow the use the token names. This rule
-  needs only the use and its token, so the NA, the export verifier and every
-  SDK apply it alike, and several tokens taken at one head allow no more
-  uses than one;
+  needs only the use and its token, so the NA, the export verifiers
+  (`genesis-mesh evidence verify-export`, `genesis-mesh-verify`) and the
+  TypeScript and Rust SDKs apply it alike, and several tokens taken at one
+  head allow no more uses than one. The Go and .NET SDKs do not apply it:
+  they only check a grant's NA signature;
 - a token is never older than its grant;
 - a use is never dated before the previous admitted use, nor with an older
   token than it;
@@ -244,6 +254,11 @@ its `BreakGlassRecord` is kept in the outbox, and the NA judges it after the
 fact when it is reachable again. An urgent change is recorded and judged,
 never blocked. A DENY is never broken through: an NA that answers decides.
 
+The edge agent is stricter. It breaks the glass only when the NA cannot be
+asked at all: no connection, a timeout, or a gateway's own error page. A
+`429` or other `5xx` from the NA allows only a covering grant
+({doc}`edge-agent`, *How the agent decides*).
+
 ## Revocation
 
 A grant is revoked from a time; a use made before it stands, one made at or
@@ -270,7 +285,9 @@ Holders learn of revocations from the **revocation feed**
 (`GET /sovereign-revocation-feed`): with grants on, it lists in
 `revoked_grant_ids` the revoked grants not yet past their end. Its `sequence`
 counts every grant revocation as well as every revoked attestation, with
-grants on or off, so it never goes back. A holder refuses a revoked grant once
+grants on or off, so it never goes back in normal operation. A database
+restore to an older backup does take it back; see *Database Restore* in
+{doc}`incident-response`. A holder refuses a revoked grant once
 its copy of the feed is fresh.
 
 **A compromised device**: retire its executor key. Every use the key signs is

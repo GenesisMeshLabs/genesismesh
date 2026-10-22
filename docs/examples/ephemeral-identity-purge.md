@@ -12,20 +12,23 @@ identities per day, causing three problems:
 3. **Unverifiable destruction** — saying "we deleted expired identities" is an
    assertion, not a proof
 
-v0.42 introduces a verifiable purge protocol: a `NullificationReceipt` proves
-identity X was active, expired, and had its full record destroyed — without
-retaining the sensitive fields. A `NullificationRegistryRoot` accumulates receipts
+v0.42 adds a purge protocol. A `NullificationReceipt` records that identity X
+expired and was put through the purge, and commits to a digest of the record,
+without keeping the sensitive fields. It is the purging operator's signed
+statement; it does not prove the data is gone. A `NullificationRegistryRoot` accumulates receipts
 in a signed Merkle tree auditors can query without resurrecting deleted content.
 
 > **Scope**: This is a cryptographic commitment scheme, not zero-knowledge proof
 > of deletion. The receipt proves the identity existed and was processed by the
-> purge protocol. Actual deletion is an operational guarantee; the protocol makes
-> cheating on that guarantee auditable.
+> purge protocol. Actual deletion is an operational guarantee. The receipt puts
+> the operator's claim on record, so an auditor can hold the operator to it.
 
 ```{image} assets/images/genesis-mesh-ephemeral-identity-purge.gif
 :alt: Ephemeral identity purge demo
 :class: screenshot
 ```
+
+Run it yourself: `python docs/examples/assets/scripts/ephemeral-identity-purge-demo.py --no-gif`.
 
 ## What a NullificationReceipt proves
 
@@ -159,4 +162,5 @@ disclosure proofs, without sorting. Receipt order is preserved for audit traceab
 
 - {doc}`/reference/cli` — `genesis-mesh trust purge` reference
 - {doc}`justification-proofs` — the JustificationProof layer that links gate traces to decisions
-- {doc}`invocation-bound-tokens` — the IBCT layer whose use chains feed ephemeral identity issuance
+- {doc}`distributed-consensus` — where ephemeral identities are issued from a ConsensusProof
+- {doc}`invocation-bound-tokens` — a related token layer

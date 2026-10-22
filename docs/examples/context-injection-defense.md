@@ -27,6 +27,8 @@ the final context contains any undeclared, oversized, or tampered segment.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/context-injection-defense-demo.py --no-gif`.
+
 ## Prerequisites
 
 - Agent Ed25519 signing key (`agent.key`)
@@ -108,10 +110,10 @@ gate = ContextInjectionGate(
 )
 engine.add_gate(gate)
 
-decision = engine.evaluate(context_record, agreed_terms)
-# If injection detected: decision.verdict == "deny"
-# GateResult.gate_name == "context_injection"
-# GateResult.detail   == reason code
+decision = engine.evaluate(context_record, agreement, signing_key, issued_by="operator")
+# If injection detected: decision.authorized is False and decision.denial_reason names the gate
+# The failing GateResult has gate_name == "context_injection"
+# and detail == the reason code
 ```
 
 ---

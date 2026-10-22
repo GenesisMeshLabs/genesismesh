@@ -9,6 +9,8 @@ confirms the proof was current when the decision was made.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/freshness-proofs-demo.py --no-gif`.
+
 ## Scenario
 
 **bank-a** operates a revocation feed.  Before authorizing a capability
@@ -48,58 +50,61 @@ The proof is valid for 5 minutes.
 
 ## Step 2 — Evaluate with the BoundaryEngine (require_freshness_proof=True)
 
-Pass the proof to the engine alongside the ContextRecord:
+The CLI `trust context evaluate` cannot take a freshness proof or require one.
+Use the Python API: create the engine with `require_freshness_proof=True` and
+pass the proof and the feed node's public key to `evaluate()`.
 
-```bash
-genesis-mesh trust context evaluate \
-    --context context.json \
-    --agreement agreement.json \
-    --operator-sovereign bank-a \
-    --signing-key keys/bank-a.key --key-id bank-a-2026 \
-    --freshness-proof freshness-proof.json \
-    --freshness-issuer-key <feed-node-public-key-b64> \
-    --output decision.json
+```python
+from pathlib import Path
+
+from genesis_mesh.crypto import load_private_key
+from genesis_mesh.models import AgreementRecord, ContextRecord
+from genesis_mesh.models.freshness import FreshnessProof
+from genesis_mesh.trust.context import BoundaryEngine
+
+agreement = AgreementRecord.model_validate_json(Path("agreement.json").read_text())
+context = ContextRecord.model_validate_json(Path("context.json").read_text())
+proof = FreshnessProof.model_validate_json(Path("freshness-proof.json").read_text())
+bank_a_key = load_private_key("keys/bank-a.key")
+
+engine = BoundaryEngine("bank-a", require_freshness_proof=True)
+decision = engine.evaluate(
+    context, agreement, bank_a_key,
+    issued_by="bank-a",
+    freshness_proof=proof,
+    freshness_proof_issuer_keys=[feed_node_pub_b64],
+)
+print("authorized:", decision.authorized, decision.denial_reason)
+for g in decision.gate_results:
+    print(f"  {'PASS' if g.passed else 'FAIL'} {g.gate_name}: {g.detail}")
 ```
 
 ```
-Decision   : 3b7e9f12-...
-Authorized : true
-Gate results:
-  [PASS] capability_check: capability 'transactions.read' is in agreed scope
-  [PASS] validity_window: request within window
-  [PASS] freshness_check: freshness seq 42 >= commitment 42
-  [PASS] freshness_proof: proof valid, seq=42 >= commitment=42
-Output     : decision.json
+authorized: True None
+  PASS capability_check: capability 'transactions.read' is in agreed scope
+  PASS validity_window: request at 2026-10-22T00:24:30+00:00 is within [...]
+  PASS freshness_check: freshness seq 42 >= commitment 42
+  PASS freshness_proof: freshness proof valid: seq=42 >= commitment=42, valid_until=2026-10-22T00:29:30+00:00
 ```
 
-Exit code `0` — all gates passed including the freshness_proof gate.
+All gates passed, including the `freshness_proof` gate.
 The `BoundaryDecision.freshness_proof` field is populated.
 
 ---
 
 ## Step 3 — Evaluate without a proof (requirement not met)
 
-```bash
-genesis-mesh trust context evaluate \
-    --context context.json \
-    --agreement agreement.json \
-    --operator-sovereign bank-a \
-    --signing-key keys/bank-a.key --key-id bank-a-2026 \
-    --output decision-denied.json
-```
+Call the same engine with `freshness_proof=None`:
 
 ```
-Decision   : 8c9d0e1f-...
-Authorized : false
-Gate results:
-  [PASS] capability_check: capability 'transactions.read' is in agreed scope
-  [PASS] validity_window: request within window
-  [PASS] freshness_check: freshness seq 42 >= commitment 42
-  [FAIL] freshness_proof: freshness_proof required but not provided
-Output     : decision-denied.json
+authorized: False insufficient freshness
+  PASS capability_check: capability 'transactions.read' is in agreed scope
+  PASS validity_window: request at 2026-10-22T00:24:30+00:00 is within [...]
+  PASS freshness_check: freshness seq 42 >= commitment 42
+  FAIL freshness_proof: freshness_proof required but not provided
 ```
 
-Exit code `1`.
+The decision is still signed, with `authorized=False`.
 
 ---
 
@@ -124,22 +129,24 @@ Valid until : 2026-06-22T14:05:00+00:00
 ## Step 5 — Detect a stale proof
 
 If execution records are produced after the proof expired, chain verification
-flags the staleness:
+can flag the staleness. The stale-proof check needs the decision itself. In
+Python, pass `decision=` to `verify_evidence_chain()`:
 
-```bash
-genesis-mesh trust execution verify \
-    --decision-id 3b7e9f12-... \
-    --evidence evidence-1.json \
-    --key bank-a:<bank-a-pub-b64>
+```python
+from genesis_mesh.trust.execution import verify_evidence_chain
+
+result = verify_evidence_chain(
+    chain,
+    executor_public_keys_by_sovereign={"bank-a": [bank_a_pub_b64]},
+    decision=decision,
+)
+# If a record's executed_at > decision.freshness_proof.proof_valid_until:
+# result.verified is False, result.reason == "stale_freshness_proof",
+# result.failed_at_sequence names the first late record
 ```
 
-If `evidence-1.json.executed_at > decision.freshness_proof.proof_valid_until`:
-
-```
-[FAIL] stale_freshness_proof
-Chain     : 1 record(s)
-Failed at : sequence 1
-```
+The CLI `trust execution verify` takes only `--decision-id`, not the decision,
+so it does not run this check.
 
 ---
 
@@ -150,9 +157,10 @@ Failed at : sequence 1
 | Feed was at sequence N at time T | `attested_at` + `feed_digest` in proof |
 | Proof is authentic | Ed25519 signature by feed-serving node |
 | Proof was current at decision time | `proof_valid_until >= decision_made_at` |
-| Execution occurred while proof was valid | `executed_at <= proof_valid_until` |
+| Execution occurred while proof was valid | `executed_at <= proof_valid_until`, checked only when the decision is passed to `verify_evidence_chain()` |
 
 The `freshness_commitment` in `AgreementTerms` sets the floor: any
 BoundaryDecision issued under that agreement must prove the feed was at or
-beyond that sequence.  Any execution occurring after the proof window is
-flagged as `stale_freshness_proof` during chain verification.
+beyond that sequence. When the verifier passes the decision to
+`verify_evidence_chain()`, any execution after the proof window is flagged as
+`stale_freshness_proof`.

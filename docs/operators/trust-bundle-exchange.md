@@ -11,14 +11,23 @@ They contain only material already available from public Network Authority
 surfaces such as `/sovereign.json`, `/genesis`, `/connectome.json`,
 `/recognition-policy`, and `/sovereign-revocation-feed`.
 
+## See It Run
+
+```{image} ../examples/assets/images/genesis-mesh-operator-onboarding-exchange.gif
+:alt: A recorded run of trust bundle export, inspect, validate and import, then federation bootstrap
+:class: screenshot
+```
+
+Recorded from the example scripts; the steps and output are in {doc}`../examples/operator-onboarding-exchange`.
+
 ## Export A Bundle
 
 Run this from any machine that can reach the sovereign being shared:
 
 ```bash
 genesis-mesh trust-bundle export \
-  --na http://164.92.250.135:8443 \
-  --output ./usg-nb-trust-bundle.json
+  --na https://issuer.example.org \
+  --output ./issuer-trust-bundle.json
 ```
 
 The command fetches the public material, validates identity consistency, writes
@@ -30,7 +39,7 @@ The receiving operator can inspect the bundle without contacting the issuer:
 
 ```bash
 genesis-mesh trust-bundle inspect \
-  --bundle ./usg-nb-trust-bundle.json
+  --bundle ./issuer-trust-bundle.json
 ```
 
 The inspection output shows the sovereign ID, source endpoint, network version,
@@ -44,13 +53,22 @@ Network Authority endpoint:
 
 ```bash
 genesis-mesh trust-bundle validate \
-  --bundle ./usg-nb-trust-bundle.json \
-  --na http://164.92.250.135:8443
+  --bundle ./issuer-trust-bundle.json \
+  --na https://issuer.example.org
 ```
 
 Live validation catches stale or inconsistent material such as a changed Network
 Authority public key, a mismatched sovereign ID, or a bundle that points at a
 different endpoint than the one being reviewed.
+
+Validation checks structure, consistency between the bundle's parts,
+redaction and, with `--na`, that the live endpoint names the same sovereign
+and NA key. **It verifies no signature.** A bundle one party wrote end to end
+passes, and whoever controls the endpoint controls both sides of the live
+comparison. Check that the genesis block's `root_public_key` equals a root key
+you obtained out of band before you rely on the bundle.
+`federation bootstrap` takes the key it pins from the live endpoint, not from
+the bundle.
 
 ## Import For Review
 
@@ -60,9 +78,9 @@ handoff:
 
 ```bash
 genesis-mesh trust-bundle import \
-  --bundle ./usg-nb-trust-bundle.json \
-  --na http://164.92.250.135:8443 \
-  --output ./usg-nb-trust-bundle-receipt.json
+  --bundle ./issuer-trust-bundle.json \
+  --na https://issuer.example.org \
+  --output ./issuer-trust-bundle-receipt.json
 ```
 
 The receipt records `trust_granted: false`. To create trust, the accepting
@@ -74,13 +92,13 @@ A valid issuer bundle can seed the federation bootstrap review:
 
 ```bash
 genesis-mesh federation bootstrap \
-  --acceptor https://na.genesismesh.org \
-  --issuer-bundle ./usg-nb-trust-bundle.json \
+  --acceptor https://acceptor.example.org \
+  --issuer-bundle ./issuer-trust-bundle.json \
   --operator-key .genesis-mesh/keys/operator.key \
   --operator-key-id operator-local \
   --role service:maintainer \
-  --claim proof=azure-recognizes-digitalocean \
-  --evidence ./azure-recognizes-digitalocean-bootstrap.json \
+  --claim proof=federation-bootstrap \
+  --evidence ./federation-bootstrap-evidence.json \
   --yes
 ```
 
@@ -104,7 +122,7 @@ The current bundle is plain JSON:
   "genesis": {},
   "recognition_policy": {"status": "not_configured"},
   "revocation_feed": {"status": "ok", "payload": {}},
-  "connectome": {"summary": {}, "recognition_edges": []},
+  "connectome": {"summary": {}, "recognition_edges": [], "active_treaties": [], "revoked_trust_material": []},
   "endpoint_checks": {"healthz": "ok", "readyz": "ready"}
 }
 ```
@@ -118,6 +136,13 @@ Allowed material:
 - Connectome summary, active treaty references, and recognition edges;
 - endpoint liveness/readiness check summaries.
 
+The bundle does not carry the NA's key history, and live validation compares
+only the genesis NA key, not the key that signs now. If the sovereign has
+succeeded its NA key, `sovereign_metadata.signing_key` differs from
+`genesis.network_authority.public_key`: fetch `/na/key-history` from the live
+endpoint, check it against the root key, and name the key that signs now in
+the treaty you issue.
+
 Forbidden material:
 
 - private keys;
@@ -127,6 +152,5 @@ Forbidden material:
 - database paths;
 - service credentials.
 
-If the bundle becomes a signed protocol artifact with independent validation
-semantics, it should be promoted out of the v0.17.x readiness patch line and
-planned as a minor protocol release.
+Bundles are unsigned review material (RFC-003). A signed bundle format would be
+a new protocol version.

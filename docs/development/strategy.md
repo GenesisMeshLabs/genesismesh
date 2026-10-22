@@ -59,20 +59,24 @@ That recognition graph is the long-term moat.
 
 ### Layer 1: Genesis Mesh Core
 
-The protocol layer that exists today.
+The protocol layer that exists today (v1.7.0).
 
 Responsibilities:
 
-- Ed25519 node identity
-- signed genesis blocks
-- Network Authority enrollment
-- signed join certificates
-- Noise XX peer sessions
-- CRL enforcement
-- peer discovery
-- routing
-- capability discovery and execution
-- audit logging
+- Ed25519 identity and signed genesis blocks
+- Network Authority enrollment and signed join certificates
+- recognition treaties, attestations and revocation feeds (CRLs)
+- boundary policy and signed decisions
+- the evidence store, signed anchors and audit packs
+- out-of-band records (break-glass), remediation and reviews
+- pre-issued grants
+- key succession for the Network Authority's key
+- the edge agent (beta)
+
+The evidence store, out-of-band records, remediation and grants are off by
+default; a Network Authority operator switches each one on. The mesh node
+runtime (Noise XX peer sessions, peer discovery, routing) still exists but
+is dormant ({doc}`decisions/0007-dormant-packages`).
 
 Layer 1 enables trust. It should not decide who deserves trust.
 
@@ -344,7 +348,11 @@ Genesis Mesh is not:
 These may be built on top of the protocol later. They should not be confused
 with the protocol itself.
 
-## Current State (v0.56.0 Release Train)
+## State at v0.56.0 (historical)
+
+For the current release and program, see {doc}`roadmap`. This section
+describes the project as it was at the v0.56.0 release train and is kept as
+a record.
 
 Three complete trust cycles and three client SDKs have shipped. The Python
 reference implementation and official SDKs now share the v0.56.0 development
@@ -370,22 +378,29 @@ usage attestation, formal Tamarin verification of the PeerRiskSignal state machi
 restructure that splits the full project history into 10 per-phase pages.
 
 **Phase K–M (v0.53–v0.55) — SDK Generation.** TypeScript SDK (v0.53.0),
-Go SDK (v0.54.0), and .NET SDK (v0.55.0) shipped as independent, decoupled
-packages. All three implement the complete stable HTTP surface with typed
-clients, Ed25519 admin auth, and canonical JSON — proving Genesis Mesh is a
-cross-language protocol, not a Python library.
+Go SDK (v0.54.0), and .NET SDK (v0.55.0) shipped, each with typed clients,
+Ed25519 admin auth, and canonical JSON.
 
-The layer rule is enforced: `models/` holds entities, `trust/` holds protocol
-logic, `cli/` holds Click parsing, `workflows/` holds multi-step orchestration.
+Correction (2026-10-22): this section first said the three SDKs were
+"independent, decoupled packages" that "implement the complete stable HTTP
+surface". They release in the lockstep train ({doc}`versioning`). Today only
+the TypeScript SDK wraps every stable route; Go and .NET are a verifier plus
+a thin client ({doc}`decisions/0002-sdk-tiers`).
+
+The layer rules are in {doc}`architecture`; `test_architecture.py` enforces
+them, with the violations of 2026-10-16 allowlisted so they can only shrink.
 No commercial vertical material lives in the public repo.
 
-The test suite passes in full. Twelve Tamarin lemmas are machine-checked in CI:
-five for the v0.26–v0.30 pipeline model and seven for the peer risk signal
-(see `docs/examples/formal-verification.md`).
+Twelve Tamarin lemmas are proved in CI: five on an abstract model of the
+v0.26–v0.30 agreement pipeline (the model does not follow later code, so a
+change to the agreement, boundary or evidence code does not rerun it) and
+seven on the peer risk signal state machine, rerun when
+`trust/risk_signal.py` changes (see `docs/examples/formal-verification.md`).
 
-### Pre-1.0 Gate
+### The 1.0 gate (met, v1.0.0)
 
-Use `1.0.0` only when:
+These were the conditions for `1.0.0` (the go/no-go gate in
+`ops/plan-v1.0.0.md`). v1.0.0 was tagged on 2026-10-04 with them met:
 
 - core trust models are stable with documented migration guarantees
 - the public contract, compatibility rules and SDK support levels are defined
@@ -404,9 +419,9 @@ revoke and explain trust without Genesis Core brokering or approving the
 relationship?
 
 A second, independently implemented sovereign completing a treaty-backed
-exchange, and the first external operator proof, are **expected outcomes of
-the first pilot**, not conditions for 1.0.0 (decision of 2026-10-02 in
-`ops/plan-v1.0.0.md`). Until that evidence exists, nothing claims it.
+exchange, and the first external operator proof, were not conditions for
+1.0.0 (decision of 2026-10-02 in `ops/plan-v1.0.0.md`). Both are still
+pending (2026-10-22). Until that evidence exists, nothing claims it.
 
 ## Final Statement
 

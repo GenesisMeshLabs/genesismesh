@@ -1,9 +1,11 @@
 # Comparison With Existing Solutions
 
 Genesis Mesh overlaps with several infrastructure categories, but it is not a
-drop-in replacement for any one of them. Its focus is controlled participation:
-who may join, how identity is proven, what policy applies, how peers route to
-each other, and how trust is revoked.
+drop-in replacement for any one of them. Its focus is trust across
+organizational boundaries: who may join, how identity is proven, how one
+sovereign recognizes another's members, what policy applies, and how trust is
+revoked. Its peer mesh, which also lets nodes route to each other, is one part
+of it.
 
 Use this page to understand where Genesis Mesh fits beside common private
 networking, service-discovery, and service-mesh tools.
@@ -45,8 +47,8 @@ In short:
 - Need workload mTLS and traffic policy inside Kubernetes? Use a Kubernetes
   service mesh.
 - Need managed global execution? Use a managed edge platform.
-- Need sovereign identity, trust, enrollment, authorization, routing, and
-  revocation? Use Genesis Mesh.
+- Need sovereign identity, enrollment, authorization and revocation, or
+  recognition of another organization's members? Use Genesis Mesh.
 
 ## Positioning Summary
 
@@ -75,6 +77,10 @@ connectivity:
   Network Authority.
 - You need the organization to own the root of trust instead of depending only
   on a third-party control plane.
+- You need other organizations to recognize your members, and you theirs,
+  through signed and revocable recognition rather than a shared control plane.
+- You need signed decisions and a verifiable record of governed changes (the
+  evidence store, off by default).
 
 ## When Another Tool Is Better
 
@@ -100,11 +106,12 @@ Genesis Mesh is not:
 - A service discovery registry.
 - A managed edge execution platform.
 
-Genesis Mesh is a trust fabric for permissioned node and agent networks.
+Genesis Mesh is a protocol for establishing, recognizing and revoking trust
+across organizational boundaries, with a peer mesh for node networks.
 
 ## Practical Interpretation
 
-Genesis Mesh is closest to a sovereign zero-trust control plane combined with
-decentralized peer routing. It should be evaluated as a trust fabric for
-permissioned node and agent networks, not as a general-purpose replacement for
-VPNs, service meshes, or service discovery systems.
+Genesis Mesh is closest to a sovereign trust and authorization layer that
+several organizations can recognize each other through, with optional peer
+routing. It should be evaluated as that, not as a general-purpose replacement
+for VPNs, service meshes, or service discovery systems.

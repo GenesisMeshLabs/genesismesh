@@ -1,6 +1,8 @@
 # The Edge Agent
 
-*Beta (v1.7.0).*
+*Beta (v1.7.0). Needs `EVIDENCE_STORE=on` and `EVIDENCE_OUT_OF_BAND=on` on
+the NA, both off by default; grants on the device also need
+`EVIDENCE_GRANTS=on`.*
 
 The edge agent, `genesis-mesh-edge`, acts for one device that changes the
 resources it holds (rotates a credential, restarts a service, scales within
@@ -13,9 +15,13 @@ records, in order, when the device reconnects.
 
 The agent is a static Linux binary released with the Rust SDK, and an image,
 `ghcr.io/genesismeshlabs/genesis-mesh-edge`. Its own reference (configuration
-keys, local API, state directory, exit codes, systemd unit) is `docs/edge.md`
-in the `sdk-rust` repository; this page is the operator's side. The routes it
+keys, local API, state directory, exit codes, systemd unit) is
+[docs/edge.md](https://github.com/GenesisMeshLabs/sdk-rust/blob/main/docs/edge.md)
+in the Rust SDK; this page is the operator's side. The routes it
 calls are in {doc}`../api/trust-http` (*Edge nodes*).
+
+{doc}`edge-agent-walkthrough` shows enrolment, a decision, break-glass and
+the upload in a recorded run.
 
 ## How it fits
 
@@ -33,9 +39,11 @@ a justification, and the NA judges it after the fact.
 
 ## Before you start
 
-- The NA runs 1.7 with `EVIDENCE_STORE=on` and `EVIDENCE_OUT_OF_BAND=on`.
-  For grants, also `EVIDENCE_GRANTS=on`; without it the agent works with
-  decisions and break-glass only.
+- The NA runs 1.7 with `EVIDENCE_STORE=on` and `EVIDENCE_OUT_OF_BAND=on`
+  (both off by default). Without them the NA refuses to create an edge
+  invite (`409 edge_requires_evidence_store`). For grants, also
+  `EVIDENCE_GRANTS=on`; without it the agent works with decisions and
+  break-glass only.
 - The device reaches the NA over HTTPS. `enroll` refuses plain HTTP to
   anything but a loopback address; `allow_insecure_http` lets `run` talk to a
   test NA over plain HTTP, never `enroll`.
@@ -101,8 +109,9 @@ example configuration `edge.toml.example`, both in the release, or run the
 image. Put the invite token in `/etc/genesis-mesh-edge/invite-token`
 (readable by root only): the unit hands it to the agent as a systemd
 credential, and `enroll` run by hand reads the same file when no other source
-names a token. The unit starts without the file too (an empty credential
-replaces it), so you may delete it once the device has enrolled. Then:
+names a token. The unit starts without the file too (a credential with the
+value `none` replaces it, which the agent reads as no token), so you may
+delete it once the device has enrolled. Then:
 
 ```bash
 genesis-mesh-edge enroll
@@ -114,6 +123,19 @@ created (or generates them), calls `/join` (the executor key co-signs it) and
 verifies the certificate and the registered executor key. The token is never
 written to the state directory or logged. A 1.6 NA does not register executor
 keys at `/join`: `enroll` exits with code 4.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | OK |
+| 1 | Runtime failure |
+| 2 | Configuration error |
+| 3 | Not enrolled |
+| 4 | Enrolment refused for good |
+| 5 | The NA could not be reached during `enroll`, or answered `429` or `5xx`: try again later |
+| 6 | Insecure key or state permissions |
+
+The systemd unit does not restart the agent after exit codes 2, 3, 4 and 6:
+they need an operator.
 
 A refused `/join` keeps the invite usable, except when the NA fails after it
 consumed the invite (the write that registers the key and records the node,
@@ -138,7 +160,7 @@ The agent sorts every attempt to ask the NA into one of three classes:
 | The NA... | Means | The agent may then |
 | --- | --- | --- |
 | **answered**: a decision, or an error response with the NA's JSON error body and a `4xx` status other than `429` | The NA refused or decided | Nothing more: a DENY is `na_denied`, an error `na_refused` with the NA's code. No grant, no break-glass |
-| is **throttled or failing**: an error response with the NA's JSON error body and status `429` or `5xx` | The NA is there but cannot decide now | Use a grant that covers the request (the operator bounded it in advance); otherwise `na_refused` with the NA's code. **Never** break-glass |
+| is **throttled or failing**: a `429` or `5xx` response that is not a gateway's own page (see the next row), with or without the NA's JSON error body | The NA is there but cannot decide now | Use a grant that covers the request (the operator bounded it in advance); otherwise `na_refused` with the NA's code. **Never** break-glass |
 | is **unreachable**: no connection, DNS or TLS failure, no response in time, or a `502`, `503`, `504` or `520`–`527` response without the NA's JSON error body (a proxy's own page) | The NA cannot be asked | Use a covering grant, otherwise break-glass with a justification |
 
 `/v1/status` reports which class the agent last saw (`na_state`:
@@ -275,8 +297,11 @@ To re-enrol a device, on the device:
    `/etc/genesis-mesh-edge/invite-token`, run `genesis-mesh-edge enroll` and
    start the service. Issue grants to the new executor key.
 
-`enroll --reset` does steps 1 and 2 in one go, after it checked that a token
-is available. The agent refuses to start (exit 2) when its enrolment names
+`enroll --reset` deletes the state and enrols at once, with new keys, after
+it checked that a token is available. Use it only with an invite that is not
+bound to a node key: the new key is made in the same run, so an invite bound
+to a node key (`--recipient-key`) cannot name it. For a bound invite, run
+`reset`, `init` and `enroll` as above. The agent refuses to start (exit 2) when its enrolment names
 another NA than its configuration does, or when its state was written by a
 newer release: `reset`, then enrol again.
 
@@ -300,8 +325,11 @@ public mesh view does not show edge nodes.
 
 ## Configuration on the NA
 
-There is no switch: the edge routes are inert until an operator creates an
-edge invite. Three rate limits apply (see {doc}`../reference/configuration`):
+Edge nodes have no switch of their own. They need `EVIDENCE_STORE=on` and
+`EVIDENCE_OUT_OF_BAND=on`: creating an edge invite without them is refused
+(`409 edge_requires_evidence_store`). Grants on the device also need
+`EVIDENCE_GRANTS=on`. With those on, the edge routes are inert until an
+operator creates an edge invite. Three rate limits apply (see {doc}`../reference/configuration`):
 
 | Setting | Default | Counts |
 | --- | --- | --- |
@@ -325,10 +353,11 @@ is paced by the executor limit and retries.
   trusts the public web roots it is built with.
 - An authorization left open when the agent stops is marked lost, and one
   whose outcome is not reported in time is recorded as a failure.
-- The two-hour offline test in CI proves the agent keeps working, uploads its
+- The two-hour offline test, run in CI weekly and on every release pull
+  request, on x86-64 only, shows that the agent keeps working, uploads its
   records in order and keeps its memory bounded over two hours with the NA
   refusing connections, and a shorter run covers an NA that accepts
   connections and never answers. With the default limits nothing expires
   within two hours (certificates, the snapshot age, the grants it uses), so
-  it does not prove behaviour at those limits; the shorter tests with small
-  limits do.
+  it does not show behaviour at those limits; the shorter tests with small
+  limits cover them.

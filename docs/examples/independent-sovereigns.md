@@ -46,7 +46,10 @@ sequenceDiagram
 - Azure's Connectome explains the trust path and imported revocation blast
   radius from the persisted graph state.
 
-## Live Recording
+## Captured run (replayed)
+
+This recording replays a transcript captured on 2026-06-02 (v0.12.1). The demo
+script `independent-sovereigns-demo.py` renders it from a fixed list of lines; `--live` runs the proof against the two Network Authorities and changes their state.
 
 ```{image} assets/images/genesis-mesh-independent-sovereigns.gif
 :alt: Independent sovereigns proof across Azure and DigitalOcean

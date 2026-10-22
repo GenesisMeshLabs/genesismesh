@@ -1,0 +1,58 @@
+==> 1. Initialize a named sovereign and write its NA settings file
+$ genesis-mesh init --home sovereign --config sovereign/genesis-mesh.toml --network-name EXAMPLE-NB --na-endpoint http://127.0.0.1:18452 --na-port 18452 --env-file sovereign/na.env
+Note: genesis block contains a placeholder policy hash. Replace PolicyManifestRef.hash with the SHA-256 of your policy document before production use.
+Warning: the root private key was written to sovereign\keys\root.key, next to the NA key (sovereign\keys\na.key). Whoever holds both can replace the NA's key history. For anything but local use, move the root key offline and delete it from this host (see the root key ceremony in the operations docs); NA_DEPLOYMENT=managed refuses to start while it is there.
+Initialized Genesis Mesh config: sovereign\genesis-mesh.toml
+Genesis block: sovereign\genesis.signed.json
+Operator key: sovereign\keys\operator.key
+NA settings: sovereign\na.env (start with: genesis-mesh na start --env-file sovereign\na.env)
+$ grep -v '^#' sovereign/na.env | grep -v OPERATOR_PUBLIC_KEYS_JSON
+GENESIS_FILE=genesis.signed.json
+NA_PRIVATE_KEY_FILE=keys/na.key
+NA_KEY_ID=na-local
+DB_PATH=na.db
+PORT=18452
+OPERATOR_KEY_TIERS_JSON={"operator-local":"privileged"}
+BOUNDARY_POLICY_ENFORCEMENT=required
+EVIDENCE_STORE=on
+NA_PROXY_HOPS=0
+==> 2. Check the host: init wrote the root key next to the NA key
+$ genesis-mesh na doctor --env-file sovereign/na.env
+!no FAIL  root_key_absent: the root private key is in C:\gm-demo\gm-quickstart-9ioo5fh3\host\sovereign\keys\root.key: move the root key offline (root key ceremony)
+WARN  deployment: NA_DEPLOYMENT is local: the NA does not refuse to start with the root key on its host; set NA_DEPLOYMENT=managed in production
+!ok OK    na_key: NA key 1 of 1 signs now (the genesis key's valid_to is not enforced)
+!ok OK    retention_archive: retention removes only what an archive covers
+!no Result: FAILED
+==> 3. Move the root key off the host (here: outside the NA's directories), then check again
+$ mv sovereign/keys/root.key ../offline-media/ && ls ../offline-media
+root.key
+$ genesis-mesh na doctor --env-file sovereign/na.env
+!ok OK    root_key_absent: the root private key is not where the NA's files live
+WARN  deployment: NA_DEPLOYMENT is local: the NA does not refuse to start with the root key on its host; set NA_DEPLOYMENT=managed in production
+!ok OK    na_key: NA key 1 of 1 signs now (the genesis key's valid_to is not enforced)
+!ok OK    retention_archive: retention removes only what an archive covers
+!ok Result: OK
+==> 4. Start the NA from the settings file and read its public metadata
+$ genesis-mesh na start --env-file sovereign/na.env &
+$ curl -s http://127.0.0.1:18452/healthz
+{"status":"ok"}
+$ curl -s -o readyz.json -w '/readyz HTTP %{http_code}\n' http://127.0.0.1:18452/readyz
+!ok /readyz HTTP 200
+$ genesis-mesh sovereign inspect --na http://127.0.0.1:18452
+Sovereign: EXAMPLE-NB
+  network_version: v0.1
+  endpoint:        http://127.0.0.1:18452
+  na_public_key:   c+dRf2Nvr6j+ouQVD0U/u/4O0GMC5Uj3...
+  valid_to:        2027-01-20T04:15:07.053605+00:00
+  public surfaces:
+    api_reference: http://127.0.0.1:18452/api-reference
+    atlas: http://127.0.0.1:18452/atlas.json
+    cli_reference: http://127.0.0.1:18452/cli-reference
+    connectome: http://127.0.0.1:18452/connectome.json
+    genesis: http://127.0.0.1:18452/genesis
+    key_history: http://127.0.0.1:18452/na/key-history
+    recognition_graph: http://127.0.0.1:18452/recognition-graph
+    recognition_treaties: http://127.0.0.1:18452/recognition-treaties
+    sovereign_revocation_feed: http://127.0.0.1:18452/sovereign-revocation-feed
+    surfaces: http://127.0.0.1:18452/surfaces
+    swagger: http://127.0.0.1:18452/swagger.json

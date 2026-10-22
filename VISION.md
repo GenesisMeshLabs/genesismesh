@@ -27,7 +27,8 @@ question is:
 
 Genesis Mesh answers it with cryptographic identity, signed
 attestations, delegated authority, community-to-community recognition,
-revocation propagation, and auditable trust state.
+signed revocation feeds that recognizing sovereigns import, and auditable
+trust state.
 
 ---
 
@@ -53,21 +54,18 @@ cannot.
 
 ## What we are doing now
 
-Genesis Mesh is pre-1.0. The next architectural target is the moment
-the protocol becomes a network instead of a project: an independent,
-future external operator running their own sovereign with their own
-keys and forming a real recognition relationship.
+Genesis Mesh is in its 1.x series (1.0.0 onward). Within 1.x the
+stable public surface does not break; see
+[`DEPRECATION_POLICY.md`](DEPRECATION_POLICY.md). The next target is
+unchanged: the moment the protocol becomes a network instead of a
+project, when an external operator runs their own sovereign with their
+own keys and forms a real recognition relationship. That has not
+happened yet.
 
-Current release sequence:
-
-- `v0.13.0` Operator-ready workflows (shipped)
-- `v0.14.0` External operator readiness packet (shipped)
-- `v0.15.0` Supply-chain trust gate (in flight)
-- `v0.16.0` Managed sovereign enterprise readiness (in flight)
-- `v0.17.0` External operator multi-cloud operation proof (the actual network moment)
-
-Per-release plans live in [`ops/plan-v0.*.md`](ops/). Each plan
-documents what shipped, why, and what was deliberately deferred.
+What shipped in each release is in [`CHANGELOG.md`](CHANGELOG.md). What
+comes next is in [`docs/development/roadmap.md`](docs/development/roadmap.md).
+Per-release plans live in [`ops/`](ops/) (`plan-v<version>.md`). Each
+plan documents what shipped, why, and what was deliberately deferred.
 
 ---
 
@@ -95,7 +93,15 @@ and requires a clear protocol reason.
   works.** Web-of-trust overlays must be computed on top of an
   explicit treaty graph, with policy controls and depth limits.
   Unbounded transitive trust is itself a supply-chain risk.
-- **No enterprise IdP bridge unless a named pilot requires it.**
+
+  *Note (2026-10-22):* the reference trust-decision engine
+  (`genesis_mesh/trust/decision.py`) already accepts multi-hop paths
+  over the explicit treaty graph. When roles are requested, it checks
+  them at every hop. RFC-002 now states the rules for such paths
+  ([`docs/rfcs/rfc-002-recognition-treaties.md`](docs/rfcs/rfc-002-recognition-treaties.md),
+  *Multi-hop recognition in trust decisions*); a depth limit in the
+  reference implementation is still open.
+- **No enterprise IdP bridge unless a named adopter requires it.**
   Build it when a real adopter needs OIDC or SAML, not before.
 - **No Connectome as a central product.** The Connectome is a view
   over signed protocol data, not a source of truth. Multiple
@@ -130,7 +136,7 @@ Genesis Mesh itself.
 - Working in the codebase: [`AGENTS.md`](AGENTS.md).
 - Architectural depth: [`docs/development/strategy.md`](docs/development/strategy.md).
 - Release plan and milestones: [`docs/development/roadmap.md`](docs/development/roadmap.md) and
-  [`ops/plan-v0.*.md`](ops/).
+  the per-release plans in [`ops/`](ops/).
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - Security policy: [`SECURITY.md`](SECURITY.md).
 

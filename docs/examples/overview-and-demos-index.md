@@ -24,8 +24,8 @@ capacity-baseline
 :link-type: doc
 
 Top-level demo index covering capability demonstrations, capacity
-baselines, and packaging/operations smoke tests across the project's
-release history.
+baselines, packaging/operations smoke tests, and the demo for each trust
+feature.
 :::
 
 :::{grid-item-card} Capacity Baseline

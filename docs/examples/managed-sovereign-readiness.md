@@ -80,8 +80,12 @@ Result: managed sovereign backup, audit export, restore, and endpoint drill pass
 - This is not active-active high availability.
 - This is not a multi-tenant managed control plane.
 - This does not include billing, SSO, or enterprise IdP integration.
-- This does not replace a real customer pilot or external operator adoption
-  proof.
+- This does not replace proof of adoption by an outside operator.
+- The `managed` commands work on SQLite only (`--db-path`). A PostgreSQL NA
+  is backed up with `pg_dump`.
+- After a restore, run `genesis-mesh na verify-db`. With the evidence store
+  on, restoring a backup older than anchors already copied out of the NA is an
+  evidence-loss event; see {doc}`../operations/backup-restore`.
 
 ## Related Runbooks
 

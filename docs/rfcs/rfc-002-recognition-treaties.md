@@ -2,7 +2,7 @@
 
 Status: Accepted
 Created: 2026-06-08
-Updated: 2026-10-02
+Updated: 2026-10-22
 Authors: Genesis Mesh contributors
 Requires: RFC-001
 
@@ -133,7 +133,12 @@ decision reports `treaty_<reason>` when the treaty fails and
 
 - The issuer's keys, not the subject's, decide whether a treaty is authentic.
   An accepting implementation **MUST** verify treaty signatures against issuer
-  public keys it already trusts via RFC-001.
+  public keys it already trusts via RFC-001. The reference NA signs treaties
+  with its NA key. Since 1.5.0 that key can be succeeded, so the issuer's key
+  for a treaty is the NA key valid at the treaty's `issued_at`, read from the
+  issuer's key history (`GET /na/key-history`, {doc}`/operations/key-succession`).
+  When a subject sovereign succeeds its NA key, an issuer that pinned the old
+  key in `subject_public_keys` replaces the treaty with the new key.
 - Treaty scope is a containment boundary, and it fails closed. An empty
   `allowed_roles` grants nothing: every role from the subject is rejected. Scope
   is therefore safe to omit — omission narrows trust rather than widening it, so
@@ -143,7 +148,8 @@ decision reports `treaty_<reason>` when the treaty fails and
   whether a specific attestation exists or what it claims.
 - Suspension (`status: suspended`) is reversible; revocation is terminal for the
   `treaty_id`. Implementations **SHOULD NOT** silently reactivate a revoked
-  treaty id.
+  treaty id. The reference implementation has no operation that suspends or
+  reactivates a treaty; it revokes, renews and replaces them.
 
 ## Operational considerations
 
@@ -161,11 +167,35 @@ decision reports `treaty_<reason>` when the treaty fails and
 - `metadata` and `scope.claims` are local and non-normative; consumers **MUST
   NOT** make trust decisions from them.
 
+## Multi-hop recognition in trust decisions
+
+*Added 2026-10-22, recording how the protocol evolved since acceptance.*
+
+Membership admission and treaty-backed attestation verification use
+**direct** treaties only: a sovereign admits a member because it signed a
+treaty recognizing that member's issuer.
+
+Trust decisions may also follow **multi-hop** paths. A trust-decision engine
+**MAY** answer whether sovereign A trusts sovereign C through a path A → B → C
+when every edge of that path is an active treaty that its own issuer signed.
+Such a path:
+
+1. **MUST** consist only of active, signed treaties (RFC-006 requirement 3);
+   no hop may rest on an unsigned or inferred edge.
+2. **MUST** allow every requested role at every hop: when a decision asks for
+   roles, each hop's treaty scope must permit them.
+3. **SHOULD** be bounded in length by local policy. A sovereign that accepts
+   longer chains accepts trust it did not sign directly.
+4. **MUST** be recorded in the decision's trust evidence (path and hop count),
+   so an auditor can see which treaties carried it.
+
+The reference implementation (`genesis_mesh/trust/decision.py`) follows rules
+1, 2 and 4. It takes the shortest active path, and agreement offers and
+delegations request no roles, so any active path gives `allow` unless another
+signal applies. It does not yet bound the path length (rule 3); a configurable
+depth limit is an open item.
+
 ## Open questions
 
-- Should multi-hop (transitive) recognition be expressed as treaty chains
-  evaluated at admission time, or remain a Connectome explanation only? The
-  reference implementation currently evaluates direct treaties for admission and
-  computes multi-hop paths only for explanation (RFC-006).
 - Should treaty scope grow to express capability scopes (RFC-005) in addition to
   roles?

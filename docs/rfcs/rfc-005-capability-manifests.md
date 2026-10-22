@@ -68,7 +68,7 @@ The reference implementation defines `AgentDescriptor` and `AgentEndpoint` in
   "registered_at": "<iso8601>",
   "expires_at": "<iso8601>",
   "metadata": {"model": "example-model"},
-  "signatures": [{"key_id": "...", "signature": "..."}]
+  "signatures": [{"key_id": "<node key id>", "sig": "<base64 Ed25519 signature>"}]
 }
 ```
 
@@ -120,5 +120,14 @@ of what is reachable now.
 
 - Should capabilities be scope-bound to treaties (RFC-002), so an issuer can
   recognize a subject *for specific capabilities only*?
+
+  ```{note}
+  **Implementation note (2026-10-22).** Capabilities are already bound in
+  three places: a membership attestation's `claims.capabilities`, read by
+  attestation-backed boundary evaluation (v0.58.1); agreement terms
+  (`AgreementTerms.capabilities`); and pre-issued grants
+  (`CapabilityGrant.capabilities`, `genesis_mesh/models/grants.py`, 1.6.0,
+  only with `EVIDENCE_GRANTS=on`). Treaty scope is still roles only.
+  ```
 - Should the registry support more than one descriptor per node, or is the
   one-role-per-node constraint a long-term simplification?

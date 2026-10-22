@@ -23,16 +23,30 @@ A security change should:
 
 ## Areas Requiring Careful Review
 
-Pay extra attention to changes that touch:
+Pay extra attention to changes that touch (paths are under `genesis_mesh/`):
 
 - private key handling
 - signature verification
 - canonical JSON signing payloads
 - invite-token enrollment
 - certificate renewal and revocation
-- peer handshake authentication
+- the root key and key succession (`trust/key_succession.py`,
+  `na_service/services/key_history.py`)
+- evidence store chains, anchors and retention (`trust/evidence_store.py`)
+- grants and their budgets (`trust/grants.py`), and out-of-band records
+  such as break-glass (`trust/out_of_band.py`)
+- edge invites and node-signed requests (`crypto/node_auth.py`,
+  `na_service/routes/edge.py`)
+- strict JSON input and the canonical field registry (`strict_json.py`,
+  `models/canonical_registry.py`)
+- database migrations
 - replay protection
 - deployment secret handling
+- peer handshake authentication (the dormant mesh node runtime)
+
+Changes to the public contract, conformance vectors, migrations, signing
+code, workflows or `SECURITY.md` wait for the Maintainer
+({doc}`decisions/0006-review`).
 
 ## Reporting
 

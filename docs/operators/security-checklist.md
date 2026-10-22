@@ -10,8 +10,17 @@ that the operator, not Genesis Core, controls their trust domain.
 - [ ] The operator generated their own genesis block.
 - [ ] The operator generated their own Network Authority key.
 - [ ] The operator generated their own operator key.
-- [ ] The operator private key is controlled by the external operator in future multi-cloud operation proofs.
-- [ ] The Network Authority private key is controlled by the external operator in future multi-cloud operation proofs.
+- [ ] The operator private keys are generated and held by the operator.
+- [ ] The Network Authority private key is held by the operator: a key file
+      only the NA user can read, or the operator's own key store
+      (`NA_KEY_PROVIDER=env` or `azure-keyvault`).
+- [ ] The root private key was generated offline and is kept offline, in two
+      places, not on the NA host or in its backups
+      ({doc}`../operations/key-succession`). It is the only key that can
+      replace the NA key while keeping the sovereign's identity.
+- [ ] `NA_DEPLOYMENT=managed` is set (off by default: `local`), so the NA
+      refuses to start if it finds the root key near its files.
+- [ ] `genesis-mesh na doctor --env-file <settings>` reports `OK`.
 - [ ] The operator can rotate or remove Genesis Core assistance without
       losing control of the sovereign.
 
@@ -29,6 +38,8 @@ that the operator, not Genesis Core, controls their trust domain.
 
 - [ ] `/healthz` returns `{"status":"ok"}`.
 - [ ] `/readyz` returns a ready status.
+- [ ] You know `/readyz` shows the database path or PostgreSQL host to anyone
+      who can reach it, and accept that or filter it at the proxy.
 - [ ] `/sovereign.json` exposes the correct network name and public NA key.
 - [ ] `/sovereign.json` does not expose private keys.
 - [ ] `/sovereign.json` does not expose local filesystem paths.
@@ -38,11 +49,31 @@ that the operator, not Genesis Core, controls their trust domain.
 ## Admin Write Access
 
 - [ ] Operator public keys are configured on the Network Authority.
+- [ ] Every operator key has a tier in `OPERATOR_KEY_TIERS_JSON`. Only the keys
+      that issue and revoke are `privileged`; monitoring keys are `read`.
 - [ ] Admin requests require operator signature headers.
 - [ ] A missing admin signature is rejected.
 - [ ] The operator can issue a membership attestation.
 - [ ] The operator can revoke that same attestation.
 - [ ] The operator can produce a revocation feed after revocation.
+
+## Settings
+
+These depend on the deployment. The opt-in ones are off by default, so a
+deployment that does not set them runs without them.
+
+- [ ] `NA_PROXY_HOPS` matches the number of reverse proxies in front of the NA
+      (default `0`: reached directly).
+- [ ] `NA_PUBLIC_URL` is set to the address other sovereigns use (unset by
+      default: the NA then advertises the host each request names).
+- [ ] `NA_RETENTION_REQUIRE_ARCHIVE` is on (the default).
+- [ ] Opt-in, decided and recorded: `EVIDENCE_STORE=on` for hash-chained,
+      anchored evidence; `BOUNDARY_POLICY_ENFORCEMENT=required`;
+      `NA_DEPLOYMENT=managed`. All are off by default.
+- [ ] With the evidence store on, anchors are fetched to a machine the NA's
+      host cannot write to (`genesis-mesh evidence anchors fetch`).
+- [ ] On SQLite, rate limits count per worker process; use PostgreSQL with
+      `RATE_LIMIT_STORE=database` for shared limits.
 
 ## Recognition Proof
 
@@ -76,7 +107,7 @@ Safe to share:
 
 ## External Operator Quality Gate
 
-Before marking v0.14 complete, confirm:
+Before counting a sovereign as external adoption evidence, confirm:
 
 - [ ] The operator has a reason to run a sovereign beyond helping Genesis Core.
 - [ ] The operator would be willing to keep it running after the proof.
