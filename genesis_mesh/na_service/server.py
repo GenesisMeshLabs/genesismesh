@@ -605,6 +605,27 @@ class NetworkAuthorityService:
             stored["attestation"].model_dump(mode="json") == attestation.model_dump(mode="json")
         )
 
+    def revoke_attestation_lineage(self, attestation_id: str, reason: str) -> list[str]:
+        """Revoke an attestation, every copy re-issued from or to it, and the grants on each (1.8.0).
+
+        Returns the IDs revoked, none if the attestation is unknown.
+        """
+        revoked = self.db.revoke_membership_attestation_lineage(attestation_id, reason)
+        for revoked_id in revoked:
+            self.grant_service.on_attestation_revoked(revoked_id)
+        return revoked
+
+    def revoke_treaty_lineage(self, treaty_id: str, reason: str) -> list[str]:
+        """Revoke a treaty and every copy re-issued from or to it (1.8.0).
+
+        Returns the IDs revoked, none if the treaty is unknown. Grants under
+        agreements whose parties are no longer trusted are revoked with it.
+        """
+        revoked = self.db.revoke_recognition_treaty_lineage(treaty_id, reason)
+        if revoked:
+            self.grant_service.on_treaty_revoked(treaty_id)
+        return revoked
+
     def _get_or_create_active_crl(self) -> CertificateRevocationList:
         """Return a fresh active CRL, creating or republishing it if needed.
 

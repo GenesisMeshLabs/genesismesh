@@ -448,7 +448,7 @@ def test_a_1_6_store_upgrades_to_019_with_its_invites(clock, tmp_path, monkeypat
                 (token, '["role:client"]', 168, now.isoformat(), (now + timedelta(hours=24)).isoformat(), None))
         old.db.close()
     upgraded = _restart(old, db_path)
-    assert upgraded.db.schema_version() == 19
+    assert upgraded.db.schema_version() == db_module.expected_schema_version()
     client = _client(upgraded)
     agent = EdgeAgent(client)
     assert agent.join(token, executor=False).status_code == 201
