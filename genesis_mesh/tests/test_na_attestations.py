@@ -250,3 +250,29 @@ def test_operators_get_the_attestation_list(client):
     bad = client.get("/attestations", headers={**admin_headers(client, {}), "X-Admin-Signature": "AAAA"})
     assert bad.status_code == 401
 
+
+
+def test_attestation_verify_refuses_one_in_its_own_name_it_never_issued(na_service, client):
+    """1.7.1: an attestation in the NA's name that it does not hold is refused.
+
+    Whoever holds a key the NA once signed with (after a succession, the
+    outgoing key) could sign a new attestation in its name; the policy's keys
+    alone accepted it.
+    """
+    from genesis_mesh.models import MembershipAttestation
+
+    issued = _issue_attestation(client).get_json()
+    policy = json.loads(_policy_for_test_issuer(na_service).model_dump_json())
+
+    forged = MembershipAttestation.model_validate(issued).model_copy(
+        update={"attestation_id": "att-never-issued", "subject_id": "mallory", "signatures": []})
+    forged.signatures.append(na_service.signer.sign_model(forged))
+    resp = client.post("/attestations/verify", json={
+        "attestation": json.loads(forged.model_dump_json()), "recognition_policy": policy})
+    assert resp.status_code == 200
+    assert resp.get_json()["accepted"] is False
+    assert resp.get_json()["reason"] == "not_held"
+
+    # The attestation it issued still verifies.
+    held = client.post("/attestations/verify", json={"attestation": issued, "recognition_policy": policy})
+    assert held.get_json()["accepted"] is True

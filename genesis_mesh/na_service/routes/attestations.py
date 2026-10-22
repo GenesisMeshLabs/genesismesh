@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 
 from ...models import MembershipAttestation, RecognitionPolicy, SovereignRevocationFeed
 from ...trust import verify_membership_attestation
+from ...trust.attestation import AttestationVerificationResult
 from ..errors import (
     BadRequestError,
     NotFoundError,
@@ -53,6 +54,22 @@ def _policy_with_db_revocation(
     revoked = set(policy.revoked_attestation_ids)
     revoked.add(attestation.attestation_id)
     return policy.model_copy(update={"revoked_attestation_ids": sorted(revoked)})
+
+
+def _held_if_own(service: "NetworkAuthorityService", attestation: MembershipAttestation) -> bool:
+    """An attestation in this NA's own name verifies only as the NA stored it (1.7.1).
+
+    The NA keeps every attestation it issues. One in its name that it does not
+    hold, exactly as signed, was not issued here: for example one signed with
+    a key the NA has since succeeded, by whoever kept that key. Attestations of
+    other sovereigns are not affected.
+    """
+    if attestation.issuer_sovereign_id != service.genesis_block.network_name:
+        return True
+    stored = service.db.get_membership_attestation(attestation.attestation_id)
+    return stored is not None and (
+        stored["attestation"].model_dump(mode="json") == attestation.model_dump(mode="json")
+    )
 
 
 def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprint:
@@ -312,6 +329,13 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
 
         policy = _policy_with_db_revocation(service, attestation, policy)
         result = verify_membership_attestation(attestation, policy)
+        if result.accepted and not _held_if_own(service, attestation):
+            result = AttestationVerificationResult(
+                accepted=False,
+                reason="not_held",
+                issuer_sovereign_id=attestation.issuer_sovereign_id,
+                attestation_id=attestation.attestation_id,
+            )
         service.db.add_audit_event("membership_attestation_verified", {
             "attestation_id": attestation.attestation_id,
             "issuer_sovereign_id": attestation.issuer_sovereign_id,
