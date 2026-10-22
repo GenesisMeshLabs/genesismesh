@@ -46,7 +46,7 @@ from __future__ import annotations
 import math
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -319,6 +319,13 @@ class CapabilityGrant(_SignedRecord):
             raise ValueError("valid_from must be earlier than valid_until")
         if self.valid_until - self.valid_from > GRANT_MAX_VALIDITY:
             raise ValueError("a grant is valid for at most 24 hours")
+        # 1.8.0: a grant starts no earlier than it was issued and at most 24 hours later (each within the
+        # clock skew), as the NA issues them. Without the tie, a grant signed by a key could start at any
+        # date, long after the key itself stopped signing.
+        issued = self.issued_at if self.issued_at.tzinfo else self.issued_at.replace(tzinfo=timezone.utc)
+        valid_from = self.valid_from if self.valid_from.tzinfo else self.valid_from.replace(tzinfo=timezone.utc)
+        if not issued - GRANT_CLOCK_SKEW <= valid_from <= issued + GRANT_MAX_VALIDITY + GRANT_CLOCK_SKEW:
+            raise ValueError("valid_from must lie between issued_at and 24 hours after it")
         return self
 
     @property

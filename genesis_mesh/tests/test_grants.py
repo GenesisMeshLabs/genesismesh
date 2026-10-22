@@ -1383,3 +1383,40 @@ def test_an_audit_pack_checks_the_agreement_a_grant_rests_on(tmp_path, clock):
     last = _anchor(client)
     later = _pack(client, from_sequence=last["store_sequence"] - 1)
     assert "trust/agreements.jsonl" not in later
+
+
+# ---------------------------------------------------------------------------
+# 1.8.0: a grant's valid_from is tied to its issued_at
+# ---------------------------------------------------------------------------
+
+
+def _grant_fields(issued_at: datetime, valid_from: datetime) -> dict[str, Any]:
+    from genesis_mesh.models.boundary_policy import AppliedPolicy, policy_set_digest
+
+    applied = [AppliedPolicy(policy_id="p", version=1, policy_digest="d" * 64, signed_by="na")]
+    return dict(
+        bearer_key_id="executor-b", bearer_public_key="b" * 43 + "=", bearer_sovereign_id="device-1",
+        capabilities=["secret.rotate"], basis_kind="attestation", basis_id=str(uuid.uuid4()), basis_digest="e" * 64,
+        requester_sovereign_id="vendor", provider_sovereign_id="TEST", valid_from=valid_from,
+        valid_until=valid_from + timedelta(hours=1), max_uses=1, max_uses_per_time_token=1,
+        policy_binding={"policies": [a.model_dump() for a in applied], "policy_set_digest": policy_set_digest(applied)},
+        issued_at=issued_at, issuer_sovereign_id="TEST", issued_by="na")
+
+
+@pytest.mark.parametrize(("offset", "valid"), [
+    (timedelta(0), True),
+    (timedelta(hours=23), True),                       # a scheduled grant, as the NA issues them
+    (timedelta(hours=24, minutes=4), True),            # within the clock skew
+    (-timedelta(minutes=4), True),
+    (timedelta(hours=24, minutes=6), False),           # starts too long after it was issued
+    (timedelta(days=400), False),                      # "any future date", the 1.7.x gap
+    (-timedelta(minutes=6), False),                    # starts before it was issued
+])
+def test_a_grant_starts_within_24_hours_of_its_issue(offset, valid):
+    issued = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    fields = _grant_fields(issued, issued + offset)
+    if valid:
+        CapabilityGrant(**fields)
+    else:
+        with pytest.raises(ValueError, match="valid_from must lie between issued_at"):
+            CapabilityGrant(**fields)
