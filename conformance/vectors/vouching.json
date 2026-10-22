@@ -1,0 +1,2905 @@
+{
+  "suite": "vouching",
+  "version": "1.8.0",
+  "vectors": [
+    {
+      "id": "grant-old-key-within-grace",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant the old key signed before the succession, judged inside the grace: it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000860",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "valid_until": "2026-01-03T00:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-02T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "FQYWj5ImpUyTW8eDvRhoDzZgSs56KWqSg0AmFNN36dBVH1eWSu4I+6NYOqejzxIFDS8O0s8u8Mb6psAyXn4bDA=="
+          }
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "grant-old-key-after-horizon",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "The same CapabilityGrant judged after the horizon: it verifies at its own time, not now",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000860",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "valid_until": "2026-01-03T00:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-02T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "FQYWj5ImpUyTW8eDvRhoDzZgSs56KWqSg0AmFNN36dBVH1eWSu4I+6NYOqejzxIFDS8O0s8u8Mb6psAyXn4bDA=="
+          }
+        },
+        "now": "2026-01-12T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "grant-old-key-backdated",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant the old key's holder dates just inside its window, judged after the horizon",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000861",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-10T23:59:59Z",
+          "valid_until": "2026-01-11T23:59:59Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-10T23:59:59Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "9vm5jNes/TeljG2Ozv8cGHx0haqIbyJT8HoNnWel3tGS/EAso60Z0attT0SglxSC1J7JTDVDUR4UED1M1mP6Dw=="
+          }
+        },
+        "now": "2026-02-11T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "grant-old-key-after-handover",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant the old key signed after the hand-over: the key was not valid at its time",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000862",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-11T00:05:01Z",
+          "valid_until": "2026-01-12T00:05:01Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-11T00:05:01Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "eFqmmdAtXdxYIsu9GyOmZNChQjtoZuHjj/DdoCSbXDuGOzWKjU1sSTj8hI9AhmddZAP0YNzWSgUO+oodFjBHBw=="
+          }
+        },
+        "now": "2026-01-12T00:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "na_key_not_valid_at_time",
+        "now": "na_key_not_valid_at_time"
+      }
+    },
+    {
+      "id": "grant-new-key",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant the new key signed after the succession: no end, so it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000863",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-11T01:00:00Z",
+          "valid_until": "2026-01-12T01:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-2"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-11T01:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-2",
+          "signature": {
+            "key_id": "na-2",
+            "sig": "I3LLK7ip+M776mcNnmdv2f6nCQy8OX1FSB1CTUB5ivA1eKZU9GQghkqaDqtbCeSb9GfYA8HP+tbQi0k/aL1SDg=="
+          }
+        },
+        "now": "2026-11-08T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "grant-grace-zero",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant of the old key with the grace set to 0, judged just after the hand-over",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000860",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "valid_until": "2026-01-03T00:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-02T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "FQYWj5ImpUyTW8eDvRhoDzZgSs56KWqSg0AmFNN36dBVH1eWSu4I+6NYOqejzxIFDS8O0s8u8Mb6psAyXn4bDA=="
+          }
+        },
+        "now": "2026-01-11T00:05:00Z",
+        "grace_seconds": 0
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "grant-tampered",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A CapabilityGrant changed after signing",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000860",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "valid_until": "2026-01-03T00:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-02T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-tampered",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "FQYWj5ImpUyTW8eDvRhoDzZgSs56KWqSg0AmFNN36dBVH1eWSu4I+6NYOqejzxIFDS8O0s8u8Mb6psAyXn4bDA=="
+          }
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": "invalid_signature",
+        "now": "invalid_signature"
+      }
+    },
+    {
+      "id": "attestation-old-key-within-grace",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation the old key signed before the succession, judged inside the grace: it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000810",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "YHGx+KPyt3snB1mh07ooHaEt5bB51mX9KHPAYGtB2gNK2L6wNLo56K/nKN23wSXxXC79cMlu2HjVfOj1aHb3DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "attestation-old-key-after-horizon",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "The same MembershipAttestation judged after the horizon: it verifies at its own time, not now",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000810",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "YHGx+KPyt3snB1mh07ooHaEt5bB51mX9KHPAYGtB2gNK2L6wNLo56K/nKN23wSXxXC79cMlu2HjVfOj1aHb3DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "attestation-old-key-backdated",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation the old key's holder dates just inside its window, judged after the horizon",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000811",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-10T23:59:59Z",
+          "valid_from": "2026-01-10T23:59:59Z",
+          "expires_at": "2027-01-10T23:59:59Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "SZ6cbOkZTjyip9n89Bf2Q3kTgLr1Y634+HkPJG/SWA/NE5NrQwLDwR701Aexw09Fiu64Mk+Y2x3YZN7Sp+0vBw=="
+            }
+          ]
+        },
+        "now": "2026-02-11T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "attestation-old-key-after-handover",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation the old key signed after the hand-over: the key was not valid at its time",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000812",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-11T00:05:01Z",
+          "valid_from": "2026-01-11T00:05:01Z",
+          "expires_at": "2027-01-11T00:05:01Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "PIXnWzKwN6Bx9jgFpVBAJd8Alwjhdnlpm9PJG2X8znd2AnZuK9ZqC3jf+Iv+xOpYKcpr3kTksdP9MQ9xhqsnBQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "na_key_not_valid_at_time",
+        "now": "na_key_not_valid_at_time"
+      }
+    },
+    {
+      "id": "attestation-new-key",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation the new key signed after the succession: no end, so it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000813",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-11T01:00:00Z",
+          "valid_from": "2026-01-11T01:00:00Z",
+          "expires_at": "2027-01-11T01:00:00Z",
+          "issued_by": "na-2",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-2",
+              "sig": "9viiqXvLhSKGAf8gfsHwFdmSMGxK2v4kLe/ybQokUglU1PL4U3tZqbUdO2VMY0OZ3oI9SbDjj2H/u208Crj8AA=="
+            }
+          ]
+        },
+        "now": "2026-11-08T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "attestation-grace-zero",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation of the old key with the grace set to 0, judged just after the hand-over",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000810",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "YHGx+KPyt3snB1mh07ooHaEt5bB51mX9KHPAYGtB2gNK2L6wNLo56K/nKN23wSXxXC79cMlu2HjVfOj1aHb3DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-11T00:05:00Z",
+        "grace_seconds": 0
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "attestation-tampered",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A MembershipAttestation changed after signing",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000810",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-tampered",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "YHGx+KPyt3snB1mh07ooHaEt5bB51mX9KHPAYGtB2gNK2L6wNLo56K/nKN23wSXxXC79cMlu2HjVfOj1aHb3DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": "invalid_signature",
+        "now": "invalid_signature"
+      }
+    },
+    {
+      "id": "treaty-old-key-within-grace",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty the old key signed before the succession, judged inside the grace: it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000840",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "zBRA+TJNuKgIsvN4CPe4bzLKvzwi+RtPpiffnSuPGO52DzXVg3CsTXoykUhc0FeWjDz9dRGoz+L/TE8BRg0gDQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "treaty-old-key-after-horizon",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "The same RecognitionTreaty judged after the horizon: it verifies at its own time, not now",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000840",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "zBRA+TJNuKgIsvN4CPe4bzLKvzwi+RtPpiffnSuPGO52DzXVg3CsTXoykUhc0FeWjDz9dRGoz+L/TE8BRg0gDQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "treaty-old-key-backdated",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty the old key's holder dates just inside its window, judged after the horizon",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000841",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-10T23:59:59Z",
+          "valid_from": "2026-01-10T23:59:59Z",
+          "expires_at": "2027-01-10T23:59:59Z",
+          "issued_by": "na-1",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "tPLEkv60SzJSy0HNN8LqjesiAbDMefufgKMIz3rfzagQDTc0fPSRoocRhzE1OvKZq0qYgLLvM50Jad+LDzyzCw=="
+            }
+          ]
+        },
+        "now": "2026-02-11T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "treaty-old-key-after-handover",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty the old key signed after the hand-over: the key was not valid at its time",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000842",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-11T00:05:01Z",
+          "valid_from": "2026-01-11T00:05:01Z",
+          "expires_at": "2027-01-11T00:05:01Z",
+          "issued_by": "na-1",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "CdQxFkj8Ls/ErsNuu9PDDh1xlGRTWhZvPa6W4L/Vun6FdFHqxGg7MaWoHlqRE4nqzxPNH4a6t/PWQAFhkVElBg=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "na_key_not_valid_at_time",
+        "now": "na_key_not_valid_at_time"
+      }
+    },
+    {
+      "id": "treaty-new-key",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty the new key signed after the succession: no end, so it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000843",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-11T01:00:00Z",
+          "valid_from": "2026-01-11T01:00:00Z",
+          "expires_at": "2027-01-11T01:00:00Z",
+          "issued_by": "na-2",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-2",
+              "sig": "7Nr+7koIvso6vjQy7ngCbT10cBGejJZMnWcMBIVLybW6Jz08jIshzFYhcZX2QI5jCe0rl2uAqbqNOVuYSlgDAA=="
+            }
+          ]
+        },
+        "now": "2026-11-08T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "treaty-grace-zero",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty of the old key with the grace set to 0, judged just after the hand-over",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000840",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "zBRA+TJNuKgIsvN4CPe4bzLKvzwi+RtPpiffnSuPGO52DzXVg3CsTXoykUhc0FeWjDz9dRGoz+L/TE8BRg0gDQ=="
+            }
+          ]
+        },
+        "now": "2026-01-11T00:05:00Z",
+        "grace_seconds": 0
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "treaty-tampered",
+      "kind": "record_vouching",
+      "model": "RecognitionTreaty",
+      "description": "A RecognitionTreaty changed after signing",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "treaty_id": "00000000-0000-4000-8000-000000000840",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_sovereign_id": "sovereign-d",
+          "subject_public_keys": [
+            "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
+          ],
+          "scope": {
+            "allowed_roles": [],
+            "accepted_statuses": [
+              "active"
+            ],
+            "claims": {}
+          },
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-tampered",
+          "metadata": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "zBRA+TJNuKgIsvN4CPe4bzLKvzwi+RtPpiffnSuPGO52DzXVg3CsTXoykUhc0FeWjDz9dRGoz+L/TE8BRg0gDQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": "invalid_signature",
+        "now": "invalid_signature"
+      }
+    },
+    {
+      "id": "feed-old-key-within-grace",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed the old key signed before the succession, judged inside the grace: it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000870",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000030,
+          "issued_at": "2026-01-02T00:00:00Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-1",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "gTEXhlNoDcct4u1SqsjmJjopbUmFM4aIrZX2gttqwUtrPln42ep9GXTt4fQogmcKC94UYDFSFb0bRgI49evIAw=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "feed-old-key-after-horizon",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "The same SovereignRevocationFeed judged after the horizon: it verifies at its own time, not now",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000870",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000030,
+          "issued_at": "2026-01-02T00:00:00Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-1",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "gTEXhlNoDcct4u1SqsjmJjopbUmFM4aIrZX2gttqwUtrPln42ep9GXTt4fQogmcKC94UYDFSFb0bRgI49evIAw=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "feed-old-key-backdated",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed the old key's holder dates just inside its window, judged after the horizon",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000871",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000031,
+          "issued_at": "2026-01-10T23:59:59Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-1",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "+e+iSNKCduGgbPiILf8ikgFRB996YhaLVRxP+M2v6ugg7kDoFE37YpAxB/e0/snQQvRWJIQT7eaCnNq5+BtkDA=="
+            }
+          ]
+        },
+        "now": "2026-02-11T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "feed-old-key-after-handover",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed the old key signed after the hand-over: the key was not valid at its time",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000872",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000032,
+          "issued_at": "2026-01-11T00:05:01Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-1",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "lp+3qebuA8eobII7wZVs/Qi5ujOBhe0d2kM1W2ZFDxsvyjCEVhDdM8W5vCPgqDEFEYcEkyHG2XM8orR4G4XnDA=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "na_key_not_valid_at_time",
+        "now": "na_key_not_valid_at_time"
+      }
+    },
+    {
+      "id": "feed-new-key",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed the new key signed after the succession: no end, so it vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000873",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000033,
+          "issued_at": "2026-01-11T01:00:00Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-2",
+          "signatures": [
+            {
+              "key_id": "na-2",
+              "sig": "3cRMcd4q0voogQFJ0TM9GG1DDUdKyGaMTXP2TJCR4voa8Ka62ggvBteHsGCKHKKZxOLOx6YvZLGK1ARItw3vCA=="
+            }
+          ]
+        },
+        "now": "2026-11-08T00:05:00Z"
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": null
+      }
+    },
+    {
+      "id": "feed-grace-zero",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed of the old key with the grace set to 0, judged just after the hand-over",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000870",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000030,
+          "issued_at": "2026-01-02T00:00:00Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-1",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "gTEXhlNoDcct4u1SqsjmJjopbUmFM4aIrZX2gttqwUtrPln42ep9GXTt4fQogmcKC94UYDFSFb0bRgI49evIAw=="
+            }
+          ]
+        },
+        "now": "2026-01-11T00:05:00Z",
+        "grace_seconds": 0
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "feed-tampered",
+      "kind": "record_vouching",
+      "model": "SovereignRevocationFeed",
+      "description": "A SovereignRevocationFeed changed after signing",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "feed_id": "00000000-0000-4000-8000-000000000870",
+          "issuer_sovereign_id": "sovereign-c",
+          "sequence": 1000030,
+          "issued_at": "2026-01-02T00:00:00Z",
+          "revoked_attestation_ids": [],
+          "revocation_reasons": {},
+          "issued_by": "na-tampered",
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "gTEXhlNoDcct4u1SqsjmJjopbUmFM4aIrZX2gttqwUtrPln42ep9GXTt4fQogmcKC94UYDFSFb0bRgI49evIAw=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:04:59Z"
+      },
+      "expected": {
+        "at_record_time": "invalid_signature",
+        "now": "invalid_signature"
+      }
+    },
+    {
+      "id": "grace-hint-above-default",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A grace above the default is clamped to 24 hours: past the horizon the record no longer vouches",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000899",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "x1PtElGy6sUFV7M+V2LwAuqHDK6idIcOn5dbRKCWwhWYyCx6HIUKgv+Ehm5dvCeglfa1YfEalk0auhePzat+DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-12T00:05:00Z",
+        "grace_seconds": 864000
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    },
+    {
+      "id": "grace-hint-shorter",
+      "kind": "record_vouching",
+      "model": "MembershipAttestation",
+      "description": "A shorter grace moves the horizon earlier",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "attestation_id": "00000000-0000-4000-8000-000000000899",
+          "issuer_sovereign_id": "sovereign-c",
+          "subject_id": "vendor-acme",
+          "subject_public_key": null,
+          "roles": [
+            "role:client"
+          ],
+          "status": "active",
+          "issued_at": "2026-01-02T00:00:00Z",
+          "valid_from": "2026-01-02T00:00:00Z",
+          "expires_at": "2027-01-02T00:00:00Z",
+          "issued_by": "na-1",
+          "claims": {},
+          "signatures": [
+            {
+              "key_id": "na-1",
+              "sig": "x1PtElGy6sUFV7M+V2LwAuqHDK6idIcOn5dbRKCWwhWYyCx6HIUKgv+Ehm5dvCeglfa1YfEalk0auhePzat+DQ=="
+            }
+          ]
+        },
+        "now": "2026-01-11T01:05:00Z",
+        "grace_seconds": 3600
+      },
+      "expected": {
+        "at_record_time": null,
+        "now": "outlives_key"
+      }
+    }
+  ]
+}

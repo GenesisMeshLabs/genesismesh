@@ -711,6 +711,25 @@ def run_audit(vectors: list[dict]) -> list[str]:
     return failures
 
 
+def run_vouching(vectors: list[dict]) -> list[str]:
+    """1.8.0: the vouching horizon (``vouching_vectors.evaluate``)."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    try:
+        from vouching_vectors import evaluate
+    finally:
+        sys.path.pop(0)
+
+    failures: list[str] = []
+    for v in vectors:
+        try:
+            got = evaluate(v)
+            if got != v["expected"]:
+                failures.append(f"{v['id']}: got {json.dumps(got)}, want {json.dumps(v['expected'])}")
+        except Exception as exc:  # noqa: BLE001 -- a vector that raises fails, by name
+            failures.append(f"{v['id']}: {type(exc).__name__}: {exc}")
+    return failures
+
+
 def run_grants(vectors: list[dict]) -> list[str]:
     """v1.6.0: pre-issued grants (``grants_vectors.evaluate``)."""
     sys.path.insert(0, str(Path(__file__).parent))
@@ -802,6 +821,7 @@ SUITE_RUNNERS: dict[str, Any] = {
     "out_of_band": run_out_of_band,
     "remediation": run_remediation,
     "audit": run_audit,
+    "vouching": run_vouching,
     "grants": run_grants,
     "node": run_node,
 }
