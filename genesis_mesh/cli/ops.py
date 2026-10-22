@@ -67,7 +67,7 @@ from .support import (
 
 from .audit_ops import audit
 from .evidence_store_ops import evidence
-from .key_ops import doctor, succession
+from .key_ops import doctor, reissue, succession
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ def na() -> None:
 na.add_command(migrate_db)
 na.add_command(verify_db)
 na.add_command(succession)
+na.add_command(reissue)
 na.add_command(doctor)
 
 

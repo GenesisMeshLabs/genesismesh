@@ -6,6 +6,8 @@ Public:
 Operators (operator-signed headers):
   POST /admin/na/succession  record a succession the root key signed (privileged); the NA
                              countersigns it with the outgoing key
+  POST /admin/na/reissue     re-issue, under the key that signs now, every record of a
+                             succeeded key that outlives its horizon (privileged; 1.8.0)
 """
 
 from __future__ import annotations
@@ -45,5 +47,21 @@ def create_key_history_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
         operator = request.headers.get("X-Admin-Key-Id", "unknown")
         return jsonify(service.key_history.succeed(data, operator)), 201
+
+    @bp.route("/admin/na/reissue", methods=["POST"])
+    def reissue():
+        """Re-issue every record of a succeeded key that outlives its horizon, now (1.8.0).
+
+        The NA does this on its own once the new key signs; this runs it at
+        once, without the batch limit. ``503`` while this instance's key may
+        not sign.
+        """
+        if not service.rate_limiter.allow(_rate_key("admin"), service.rate_limits.admin, 60):
+            raise RateLimitError()
+        data = request_json_object()
+        ok, err = service._verify_admin_request(data, required_tier="privileged")
+        if not ok:
+            raise UnauthorizedError(err or "Unauthorized", code="admin_auth_failed")
+        return jsonify(service.reissue_service.run(all_due=True)), 200
 
     return bp

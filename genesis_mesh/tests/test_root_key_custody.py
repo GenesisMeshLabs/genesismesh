@@ -63,6 +63,7 @@ def test_na_doctor_reports_the_root_key_and_the_na_key(initialized):
     assert checks["root_key_absent"]["status"] == "fail" and "root.key" in checks["root_key_absent"]["detail"]
     assert checks["na_key"]["status"] == "ok" and "not enforced" in checks["na_key"]["detail"]
     assert checks["retention_archive"]["status"] == "ok"
+    assert checks["reissue"]["status"] == "ok"  # 1.8.0: one key, nothing to re-issue
     (initialized / "home" / "keys" / "root.key").unlink()
     clean = CliRunner().invoke(cli, ["na", "doctor", "--env-file", str(env)])
     assert clean.exit_code == 0, clean.output
