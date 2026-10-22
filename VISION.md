@@ -97,9 +97,10 @@ and requires a clear protocol reason.
   *Note (2026-10-22):* the reference trust-decision engine
   (`genesis_mesh/trust/decision.py`) already accepts multi-hop paths
   over the explicit treaty graph. When roles are requested, it checks
-  them at every hop. It has no depth limit yet. This is recorded as an
-  open issue; see the implementation note in RFC-006
-  ([`docs/rfcs/rfc-006-connectome-model.md`](docs/rfcs/rfc-006-connectome-model.md)).
+  them at every hop. RFC-002 now states the rules for such paths
+  ([`docs/rfcs/rfc-002-recognition-treaties.md`](docs/rfcs/rfc-002-recognition-treaties.md),
+  *Multi-hop recognition in trust decisions*); a depth limit in the
+  reference implementation is still open.
 - **No enterprise IdP bridge unless a named adopter requires it.**
   Build it when a real adopter needs OIDC or SAML, not before.
 - **No Connectome as a central product.** The Connectome is a view

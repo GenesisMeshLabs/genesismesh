@@ -58,6 +58,10 @@ explains; it does not decide.
 7. The export **MUST** be deterministic enough to compare across fetches; the
    reference implementation sorts sovereigns, edges, and revoked material by
    stable keys.
+8. A trust-decision engine **MAY** evaluate trust paths over the same signed
+   treaties the export describes (RFC-002, *Multi-hop recognition in trust
+   decisions*). It reads the signed treaties, not a viewer's rendering, and
+   requirement 5 still holds: admission never rests on the view.
 
 ## Data model
 
@@ -114,22 +118,8 @@ Trust-path explanation (`explain_trust_path`) returns one of:
 
 These reason codes are explanations of state, not admission decisions.
 
-```{note}
-**Implementation note (2026-10-22).** The Connectome view grants nothing, and
-membership admission does not read it. The reference NA's trust-decision
-engine does use the same graph and path search: `evaluate_trust_decision`
-(`genesis_mesh/trust/decision.py`) turns the path from `explain_trust_path`
-(`genesis_mesh/trust/connectome.py`) into an `allow`, `warn`, `escalate` or
-`block` verdict. Agreement offers and responses
-(`genesis_mesh/trust/agreement.py`) and delegations
-(`genesis_mesh/trust/delegation.py`) embed that verdict as signed trust
-evidence, and an agreement is refused on `block`. A multi-hop active path
-counts, with no depth limit; when roles are requested, every hop's treaty
-scope must allow them. The test `test_multi_hop_allow`
-(`genesis_mesh/tests/test_trust_decision.py`) asserts `allow` for a 2-hop
-path. This differs from requirement 5 and the open question below; the
-difference is recorded as an open issue.
-```
+Trust-decision engines may use these paths for decisions (requirement 8 and
+RFC-002); the reason codes above stay explanations.
 
 ## Security considerations
 
@@ -162,7 +152,8 @@ difference is recorded as an open issue.
 
 ## Open questions
 
-- Should multi-hop trust paths be admissible (transitive recognition), or remain
-  explanation-only? RFC-002 currently admits on direct treaties only.
+- Resolved 2026-10-22: multi-hop paths are not used for admission, and
+  trust-decision engines may use them (requirement 8, RFC-002). A depth
+  limit in the reference implementation is still open.
 - Should the export include capability overlays (RFC-005) as a first-class
   section, or remain a separate secondary view?
