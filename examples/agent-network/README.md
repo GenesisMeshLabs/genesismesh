@@ -39,7 +39,7 @@ What the mesh layer guarantees, with no additional code:
 | The application doesn't depend on any third-party trust broker | Genesis block + NA |
 
 That last point matters most. Most "agent network" demos rely on someone
-(OpenAI, Anthropic, a vendor cloud) being the implicit identity provider.
+(an LLM provider or a vendor cloud) being the implicit identity provider.
 This example uses your own NA.
 
 ## What you need before running
@@ -390,7 +390,6 @@ change.
 | OpenAI | `openai/gpt-4o-mini` | unset | Default OpenAI endpoint |
 | Azure OpenAI (v1 endpoint) | `openai/<deployment>` | `https://<resource>.services.ai.azure.com/openai/v1` | OpenAI-compatible; use `openai/` prefix, not `azure/` |
 | Azure OpenAI (legacy) | `azure/<deployment>` | `https://<resource>.openai.azure.com` | Older API shape |
-| Anthropic | `anthropic/claude-sonnet-4-6` | unset | Different request shape, LiteLLM handles it |
 | Ollama (local, no key) | `ollama/llama3.1` | `http://localhost:11434` | Unset `LLM_API_KEY` |
 | Mistral | `mistral/mistral-small-latest` | unset | |
 | Groq | `groq/llama-3.1-70b-versatile` | unset | Very fast inference |

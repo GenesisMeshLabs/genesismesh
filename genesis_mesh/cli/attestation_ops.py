@@ -36,7 +36,7 @@ def attest() -> None:
 @click.option("--agent-sovereign", "agent_sov", required=True,
               help="Agent sovereign ID signing this attestation.")
 @click.option("--model-id", "model_id", required=True,
-              help='Model identifier (e.g. "claude-sonnet-4-6").')
+              help='Model identifier (e.g. "example-model-v2").')
 @click.option("--model-version", "model_version", required=True,
               help='Model version tag (e.g. "20251001").')
 @click.option("--system-prompt-file", "prompt_file", required=True,

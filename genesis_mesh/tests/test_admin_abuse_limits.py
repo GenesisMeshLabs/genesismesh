@@ -147,3 +147,22 @@ def test_failed_admin_attempts_do_not_reach_the_public_dashboard():
     rendered = json.dumps(model)
     assert "admin_auth_failed" not in rendered
     assert "x" * 200 not in rendered
+
+
+@pytest.mark.parametrize("path", ["/heartbeat", "/renew"])
+def test_heartbeat_and_renew_share_the_per_address_node_limit(path):
+    """1.7.1: /heartbeat and /renew had no rate limit; edge agents call them."""
+    service = make_na_service()
+    service.rate_limits = RateLimits(node_address=3)
+    client = service.app.test_client()
+    for _ in range(3):
+        assert client.post(path, json={}).status_code == 400
+    assert client.post(path, json={}).status_code == 429
+
+
+def test_the_api_reference_names_the_privileged_tier_of_counter():
+    """1.7.1: counter has needed a privileged key since 1.1.1; /api-reference said any operator key."""
+    from genesis_mesh.na_service.operator_console.surfaces import HTTP_SURFACES
+
+    (counter,) = [s for s in HTTP_SURFACES if s.target == "/admin/agreements/counter"]
+    assert "privileged" in counter.auth_hint
