@@ -12,8 +12,9 @@
     unchanged.
   - `trust.key_succession.na_record_refusal` applies the horizon to
     attestations, treaties, revocation feeds and grants, with the reason
-    `outlives_key`.
-  - The `vouching` conformance suite (30 vectors) pins it; only the core runs
+    `outlives_key`. A signed record that its model refuses, such as a grant
+    that starts more than 24 hours after its issue, is `record_malformed`.
+  - The `vouching` conformance suite (32 vectors) pins it; only the core runs
     it until the SDKs adopt the horizon.
   - The NA's routes and nodes apply it in later changes of this release
     (`ops/plan-v1.8.0.md`).
