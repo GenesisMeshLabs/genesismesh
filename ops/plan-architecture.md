@@ -93,7 +93,7 @@ small PR per repo.
    capability matrix in the core docs; no more ports of the governed lifecycle
    without a named user.
 4. **Repo hygiene from one template**: CODEOWNERS by area (validated in CI),
-   PR template, CONTRIBUTING, `docs/architecture.md` with "where a change
+   PR template, CONTRIBUTING, `docs/development/architecture.md` with "where a change
    goes" recipes, `docs/adr/` for durable decisions (replacing "Decision N"
    in long plans), per-feature plan files, fragments for upgrade/history/phase
    docs (as `changelog.d`), one source for shared scripts, one source for SDK

@@ -383,6 +383,9 @@ def test_the_cli_signs_offline_and_submits_a_succession(net, tmp_path, monkeypat
     assert submitted.exit_code == 0, submitted.output
     signed_record = json.loads((tmp_path / "signed.json").read_text(encoding="utf-8"))
     assert len(signed_record["signatures"]) == 3
+    # 1.7.1: the genesis key has no key ID in the genesis block; the record names the one
+    # the NA signs under, not a made-up "na-key-1".
+    assert signed_record["previous_key_id"] == "na-1"
     view = client.get("/na/key-history").get_json()
     assert [k["key_sequence"] for k in view["keys"]] == [1, 2]
 

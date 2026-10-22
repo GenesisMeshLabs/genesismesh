@@ -15,7 +15,6 @@ Required env vars:
   LLM_MODEL          Provider-prefixed model name, e.g.
                      - ``openai/gpt-4o-mini``           (OpenAI)
                      - ``azure/gpt-4o-mini``            (Azure OpenAI v1 endpoint)
-                     - ``anthropic/claude-sonnet-4-6``  (Anthropic)
                      - ``ollama/llama3.1``              (local Ollama, no key)
                      - ``mistral/mistral-small-latest`` (Mistral)
                      - ``groq/llama-3.1-70b-versatile`` (Groq)
@@ -78,7 +77,7 @@ def _llm_config_from_env() -> dict:
     if not model:
         raise SystemExit(
             "LLM_MODEL is not set. Example values: 'openai/gpt-4o-mini', "
-            "'azure/gpt-4o-mini', 'anthropic/claude-sonnet-4-6', 'ollama/llama3.1'."
+            "'azure/gpt-4o-mini', 'mistral/mistral-small-latest', 'ollama/llama3.1'."
         )
     config: dict = {
         "model": model,

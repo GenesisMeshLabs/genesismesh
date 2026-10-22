@@ -157,6 +157,10 @@ def create_enrollment_blueprint(service) -> Blueprint:
     def heartbeat():
         """Receive a signed heartbeat from an enrolled node."""
         try:
+            # 1.7.1: edge agents call this; it shares the per-address node budget.
+            if not service.rate_limiter.allow(f"node_addr:{request.remote_addr or 'unknown'}",
+                                              service.rate_limits.node_address, 60):
+                raise RateLimitError()
             data = request_json_object()
             cert_id = data.get("cert_id")
             node_public_key = data.get("node_public_key")
@@ -241,6 +245,10 @@ def create_enrollment_blueprint(service) -> Blueprint:
     def renew_certificate():
         """Renew a node certificate while preserving server-side roles."""
         try:
+            # 1.7.1: edge agents call this; it shares the per-address node budget.
+            if not service.rate_limiter.allow(f"node_addr:{request.remote_addr or 'unknown'}",
+                                              service.rate_limits.node_address, 60):
+                raise RateLimitError()
             data = request_json_object()
             cert_id = data.get("cert_id")
             node_public_key = data.get("node_public_key")

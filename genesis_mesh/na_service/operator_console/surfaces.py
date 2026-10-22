@@ -126,7 +126,7 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     # Trust API operator routes: the NA signs as one party of an agreement,
     # decision, disclosure, vote or data-usage record.
     Surface("POST", "/admin/agreements/offer", "Agreement offer", "Build and sign a CapabilityOffer as this sovereign.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
-    Surface("POST", "/admin/agreements/counter", "Agreement counter", "Build and sign a CapabilityCounter narrowing an offer.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
+    Surface("POST", "/admin/agreements/counter", "Agreement counter", "Build and sign a CapabilityCounter narrowing an offer.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
     Surface("POST", "/admin/agreements/accept", "Agreement accept", "Accept an offer or counter-offer into a signed AgreementRecord.", "operator", "operator_signed", "Operator signature (privileged tier)", rate_limit=_ADMIN_RATE),
     Surface("POST", "/admin/boundary/decide", "Boundary decide", "Evaluate a ContextRecord under an AgreementRecord with the built-in gates and sign a BoundaryDecision. Refused when BOUNDARY_POLICY_ENFORCEMENT=required; /admin/boundary/evaluate also applies boundary policies.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),
     Surface("POST", "/admin/trust-evidence", "Issue trust evidence", "Sign a TrustEvidence record from a TrustDecision.", "operator", "operator_signed", "Operator signature", rate_limit=_ADMIN_RATE),

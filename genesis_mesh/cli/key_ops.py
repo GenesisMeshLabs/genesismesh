@@ -46,6 +46,14 @@ def history(na_endpoint: str, out_path: Path) -> None:
     click.echo(f"Key history of {body.get('sovereign_id')}: {len(keys)} key(s); saved to {out_path}")
 
 
+def _listed_key_id(view: dict, public_key: str) -> str | None:
+    """The key ID the saved view lists for a key: for the genesis key, the running NA's own (1.7.1)."""
+    for key in view.get("keys") or []:
+        if isinstance(key, dict) and key.get("public_key") == public_key and isinstance(key.get("key_id"), str):
+            return key["key_id"]
+    return None
+
+
 def _parse_time(value: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -107,7 +115,8 @@ def sign(history_path: Path, root_key_path: str, root_key_id: str, new_public_ke
     effective = _parse_time(effective_at) if effective_at else now + timedelta(seconds=effective_in or 0)
     record = KeySuccessionRecord(
         sovereign_id=history.sovereign_id, key_sequence=current.key_sequence + 1,
-        previous_key_id=current.key_id or f"na-key-{current.key_sequence}", previous_public_key=current.public_key,
+        previous_key_id=current.key_id or _listed_key_id(data, current.public_key) or f"na-key-{current.key_sequence}",
+        previous_public_key=current.public_key,
         previous_succession_digest=history.successions[-1].digest() if history.successions else None,
         new_key_id=new_key_id, new_public_key=new_key, effective_at=effective.replace(microsecond=0),
         new_valid_to=(effective + timedelta(days=valid_days)).replace(microsecond=0),
