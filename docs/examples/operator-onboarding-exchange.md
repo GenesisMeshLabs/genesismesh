@@ -56,7 +56,10 @@ party passes every check by construction.
 
 See [RFC-003](../rfcs/rfc-003-trust-bundles.md) for the normative rules.
 
-## Live Recording
+## Captured run (replayed)
+
+This recording replays a transcript captured on 2026-06-05 (v0.17.3). The demo
+script `operator-onboarding-exchange-demo.py` renders it from a fixed list of lines; `--live` runs the exchange against real Network Authorities instead.
 
 ```{image} assets/images/genesis-mesh-operator-onboarding-exchange.gif
 :alt: Federation bootstrap and trust bundle exchange workflow

@@ -6,9 +6,10 @@ Mesh is not a replacement for those systems.
 
 The shortest distinction is:
 
-> Sigstore and SLSA sign provenance inside one trust domain. Genesis Mesh
-> carries portable trust across independent sovereigns and revokes it so a
-> compromised maintainer is rejected everywhere that recognizes the issuer.
+> Sigstore and SLSA record and sign what was built and by whom. Genesis Mesh
+> carries a maintainer's standing across sovereigns that recognize each other,
+> and a revocation reaches each of them when it imports the issuer's signed
+> feed.
 
 ## What Sigstore And SLSA Are Good At
 
@@ -36,5 +37,5 @@ A release path can use both:
    trusted by a recognized sovereign.
 3. Revocation feed import blocks the same maintainer if trust is withdrawn.
 
-The v0.15 supply-chain gate is deliberately narrow. It proves the portable trust
+The supply-chain gate (since v0.15) is deliberately narrow. It proves the portable trust
 decision, not the entire software supply-chain stack.

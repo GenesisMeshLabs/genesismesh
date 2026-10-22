@@ -1,0 +1,30 @@
+==> Prove the core protocol model (tamarin-prover 1.12.0, Maude 3.5.1)
+$ tamarin-prover --prove ops/tamarin/gm_protocol.spthy
+!dim [Theory GenesisMesh] Theory loaded
+!dim [Theory GenesisMesh] Theory closed
+!dim /* All wellformedness checks were successful. */
+!pause
+summary of summaries:
+analyzed: ops/tamarin/gm_protocol.spthy
+  processing time: 1.04s
+!ok   authorization_requires_agreement (all-traces): verified (6 steps)
+!ok   execution_requires_authorization (all-traces): verified (4 steps)
+!ok   agreement_has_two_signers (all-traces): verified (3 steps)
+!ok   delegation_requires_agreement (all-traces): verified (3 steps)
+!ok   execution_traceability (all-traces): verified (2 steps)
+==> Prove the peer risk-signal model
+$ tamarin-prover --prove ops/tamarin/risk_signal/peer_risk_signal.spthy
+!dim [Theory PeerRiskSignal] Theory loaded
+!dim [Theory PeerRiskSignal] Theory closed
+!dim /* All wellformedness checks were successful. */
+!pause
+summary of summaries:
+analyzed: ops/tamarin/risk_signal/peer_risk_signal.spthy
+  processing time: 46.72s
+!ok   signal_bounded (all-traces): verified (125 steps)
+!ok   anomaly_requires_local_outlier (all-traces): verified (2 steps)
+!ok   anomaly_requires_history (all-traces): verified (23 steps)
+!ok   detection_is_synchronous (all-traces): verified (3 steps)
+!ok   no_single_source_cascade (all-traces): verified (2 steps)
+!ok   anomaly_reachable (exists-trace): verified (8 steps)
+!ok   cold_outlier_reachable_without_anomaly (exists-trace): verified (5 steps)

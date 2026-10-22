@@ -134,7 +134,9 @@ The latest checked-in baseline report is:
 
 - [assets/reports/capacity-baseline.json](assets/reports/capacity-baseline.json)
 
-Observed on Windows with Python 3.14.3:
+Measured on 2026-06-01 for the Genesis Mesh 0.6.0 release (Windows, Python 3.14.3; the
+report's `timestamp`). The three tables on this page have not been re-run
+since, except for the small sweep below:
 
 | Knowledge agents | Requests | Successful | Provenance valid | p50 latency | p95 latency | RSS sample |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -152,6 +154,20 @@ Interpretation:
 - The first visible capacity pressure in this baseline is process memory, not
   routing correctness or provenance integrity.
 
+Re-run on 2026-10-22 with Genesis Mesh 1.7.0, same command, on a Windows
+development host that was running other work at the same time (Python
+3.14.3, no `psutil`, so no RSS sample). The report was not checked in:
+
+| Knowledge agents | Requests | Successful | Provenance valid | p50 latency | p95 latency |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 4 | 4 | 4 | 1644.09 ms | 1797.04 ms |
+| 4 | 8 | 8 | 8 | 1954.34 ms | 2336.82 ms |
+
+Every request succeeded with valid provenance, but the latency was more than
+twice the June figures, and p95 was above one second. Treat the June numbers
+as that host's result on 0.6.0, not as current latency. Re-run the benchmark on
+your own hardware before planning capacity.
+
 ## Capacity Baseline: 50-Agent Routed Workflow
 
 The 50-agent stress report is:
@@ -162,7 +178,8 @@ Genesis Mesh was tested with 50 knowledge agents on a single host. The router
 processed 50 routed requests with 50 successful responses and 50 valid
 provenance chains.
 
-Results:
+Results, measured on 2026-06-01 for the Genesis Mesh 0.6.0 release (Windows, Python
+3.14.3); not re-run since:
 
 | Knowledge agents | Requests | Successful | Provenance valid | p50 latency | p95 latency | RSS sample |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -201,7 +218,8 @@ Genesis Mesh was tested with 50 knowledge agents, one router, and 10 distinct
 researcher identities on a single host. The router processed 1000 routed
 requests with 1000 successful responses and 1000 valid provenance chains.
 
-Results:
+Results, measured on 2026-06-01 for the Genesis Mesh 0.6.0 release (Windows, Python
+3.14.3); not re-run since:
 
 | Knowledge agents | Researchers | Requests | Successful | Provenance valid | p50 latency | p95 latency | Throughput | RSS sample |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|

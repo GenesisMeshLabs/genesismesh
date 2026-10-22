@@ -42,7 +42,7 @@ def run_demo() -> list[str]:
 
     kp_agent = generate_keypair()
 
-    MODEL_ID = "claude-sonnet-4-6"
+    MODEL_ID = "example-model-v2"
     MODEL_VERSION = "20251001"
     SYSTEM_PROMPT = "You are a financial data analyst. Only read transactions. Never write."
     TOOL_IDS = ["transactions.read", "balances.read"]

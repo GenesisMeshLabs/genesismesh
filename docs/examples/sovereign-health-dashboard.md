@@ -33,9 +33,12 @@ sequenceDiagram
 - Operators can jump from the page to raw JSON and CLI/API references.
 - The dashboard remains read-only and does not mutate trust.
 
-## Live Recording
+## Captured run (replayed)
 
-Live Network Authority screenshot:
+The recording below replays a transcript captured on 2026-06-05 (v0.17.5). The demo
+script `sovereign-health-dashboard-demo.py` renders it from a fixed list of lines; it makes no request to a Network Authority.
+
+Screenshot of the deployed dashboard, taken for the same release:
 
 ```{image} assets/images/genesis-mesh-na-sovereign-health-dashboard.png
 :alt: Live Network Authority sovereign health and trust dashboard
@@ -44,7 +47,7 @@ Live Network Authority screenshot:
 
 The screenshot above shows the deployed dashboard with treaty warnings,
 revocation-feed freshness, and human-readable trust-change summaries. The
-generated recording below remains the repeatable local demo asset.
+recording below is rendered from the captured transcript.
 
 ```{image} assets/images/genesis-mesh-sovereign-health-dashboard.gif
 :alt: Sovereign health and trust dashboard workflow

@@ -29,11 +29,11 @@ after revocation feed import.
 
 ## Why Run One
 
-- Preserve control of maintainer trust without giving Genesis Core the keys.
+- Preserve control of maintainer trust without giving the Genesis Mesh project, or anyone else, your keys.
 - Let downstream projects recognize your release authority without recreating
   your local access model.
-- Revoke a compromised maintainer once and let recognizing projects reject the
-  same portable attestation.
+- Revoke a compromised maintainer once; each recognizing project rejects the
+  attestation once it imports your signed revocation feed.
 - Produce an auditable trust path for release decisions.
 
 ## Why This Is A Good First Wedge

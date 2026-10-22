@@ -5,6 +5,8 @@
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/distributed-consensus-demo.py --no-gif`.
+
 ## What problem does this solve?
 
 `BoundaryDecision` is signed by a single operator. For the vast majority of
@@ -66,10 +68,14 @@ verify_ephemeral_identity() → valid / reason
 
 ### Step 1 — Produce a JustificationProof
 
+Produce the proof in Python with `engine.evaluate_with_proof(...)` (see
+{doc}`justification-proofs`), or sign a saved decision and gate trace with
+the CLI:
+
 ```bash
-genesis-mesh trust context evaluate-with-proof \
-    --agreement agreement.json \
-    --context context.json \
+genesis-mesh trust justify sign \
+    --decision decision.json \
+    --trace trace.json \
     --signing-key keys/operator.key \
     --output proof.json
 ```
@@ -156,9 +162,9 @@ Output:
 ```python
 from genesis_mesh.trust.consensus import cast_validator_vote
 
-v1_vote = cast_validator_vote(justification_proof, "validator-1", approve=True, v1_sk)
-v2_vote = cast_validator_vote(justification_proof, "validator-2", approve=True, v2_sk)
-v3_vote = cast_validator_vote(justification_proof, "validator-3", approve=False, v3_sk,
+v1_vote = cast_validator_vote(justification_proof, "validator-1", True, v1_sk)
+v2_vote = cast_validator_vote(justification_proof, "validator-2", True, v2_sk)
+v3_vote = cast_validator_vote(justification_proof, "validator-3", False, v3_sk,
                               reason="unusual counterparty")
 ```
 
@@ -230,10 +236,15 @@ cost, no changes to the default path.
 | `missing_signature` | No assembler signature on the proof |
 | `invalid_assembler_signature` | Assembler sig fails against provided keys |
 | `proof_id_mismatch` | `cp.proof_id ≠ justification_proof.proof_id` |
-| `invalid_vote_signature` | A vote's signature fails its validator's public key |
+| `invalid_vote_signature` | A counted vote is unsigned, or its signature fails its validator's public key |
+| `unknown_validator_key` | A counted vote's validator has no supplied public key |
 | `vote_not_in_validator_set` | An approving vote's sovereign_id is not in the named set |
-| `threshold_not_met` | Approvals from the named set < `required_threshold` |
+| `threshold_not_met` | Distinct approving validators from the named set < `required_threshold` |
+| `missing_context_digest` | A named approving vote has no `context_digest` (v0.38) |
+| `cascade_detected` | The re-run cascade assessment flags correlated votes (v0.38); see {doc}`cascade-resilient-consensus` |
 | `expired` | Current time past `expires_at` |
+
+The checks run in the order of this table. The first failing check names the reason.
 
 ### EphemeralExecutionIdentity
 

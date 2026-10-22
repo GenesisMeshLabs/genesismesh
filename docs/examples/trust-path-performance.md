@@ -25,6 +25,8 @@ v0.46 introduces:
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/trust-path-performance-demo.py --no-gif`.
+
 ## Step 1 — Pre-compute a trust path cache
 
 ```bash

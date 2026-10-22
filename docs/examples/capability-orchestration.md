@@ -86,6 +86,11 @@ sequenceDiagram
 
 ## Run Locally
 
+Prerequisites: Python 3.12 or 3.13 and
+`pip install -r examples/agent-network/requirements.txt`. The script needs
+LiteLLM, also for the default mock run, and LiteLLM does not yet support
+Python 3.14. Rendering the GIF and PNG also needs `pip install pillow`.
+
 From the repository root:
 
 ```powershell

@@ -31,6 +31,8 @@ BoundaryDecision ←── signed over ──→ JustificationProof
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/justification-proofs-demo.py --no-gif`.
+
 ## Research basis
 
 **arXiv:2605.15228 — Verifiable Agentic Infrastructure (2026)**: introduces the
@@ -54,6 +56,7 @@ produced. This is exactly the `GateTrace` structure.
 genesis-mesh trust context evaluate \
     --agreement agreement.json \
     --context ctx.json \
+    --operator bank-a \
     --signing-key keys/operator.key \
     --output decision.json
 

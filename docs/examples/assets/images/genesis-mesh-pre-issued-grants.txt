@@ -1,0 +1,53 @@
+==> 1. The policy and the device's key
+$ genesis-mesh na start --env-file na.env
+!dim   EVIDENCE_STORE=on  EVIDENCE_OUT_OF_BAND=on  EVIDENCE_GRANTS=on
+$ POST /admin/boundary-policies  (secret-lifetime: lifetime_days <= 90), then activate
+!ok 200: secret-lifetime v1 active
+$ POST /admin/evidence/executor-keys {"key_id": "site-7-device", ...}
+!ok 201: device key registered
+==> 2. The grant: four hours, three uses, lifetimes 1 to 60 days
+$ POST /admin/grants  (lifetime_days 1..60, max_uses 3, max_uses_per_time_token 2)
+!ok 201: grant 39ef4dd4..., bound to secret-lifetime v1 (max-lifetime=pass)
+$ POST /admin/grants  (lifetime_days 1..400)
+!no 422 grant_gate_may_deny
+==> 3. Offline: two rotations, signed by the device
+  use 1: rotate kv:site-7/api-key lifetime_days=30 version_id=v8
+  use 2: rotate kv:site-7/api-key lifetime_days=30 version_id=v9
+==> 4. Reconnecting
+$ POST /grants/time-tokens  {"use_sequence": 2, "use_head_digest": "<second.digest()>"}
+!ok 201: fresh time token, use_sequence 2
+$ POST /evidence/grant-executions  (use 1)
+!ok 201: resource_sequence 1
+$ POST /evidence/grant-executions  (use 2)
+!ok 201: resource_sequence 2
+$ POST /evidence/grant-executions  (use 3, lifetime_days=400)
+!no 422 grant_envelope_mismatch, kept as quarantine 7b0576ab...
+$ GET /admin/grants/<grant_id>/uses
+!no use 3  quarantined  grant_envelope_mismatch
+  use 2  admitted
+  use 1  admitted
+==> 5. The observer agrees
+$ POST /evidence/observations  (rotate v8)
+!ok 201: governed_by=grant verdict=allow
+$ POST /evidence/observations  (rotate v9)
+!ok 201: governed_by=grant verdict=allow
+==> 6. A stricter policy revokes the grant
+$ POST /admin/boundary-policies  (tighter: lifetime_days <= 30), then activate
+!ok 200: tighter v1 active
+$ GET /admin/grants/<grant_id>
+!no status=revoked reason=policy_activated
+$ GET /sovereign-revocation-feed
+  sequence=1 revoked_grant_ids=['39ef4dd4...']
+==> 7. The audit
+$ genesis-mesh evidence anchors fetch ... --out anchors --anchor-now
+  2 new anchor(s); latest #2 covers store sequence 15 (2026-10-22T01:10:42.073736+00:00)
+$ genesis-mesh audit pack --na http://127.0.0.1:18454 --out pack --from-sequence 1 ...
+  Pack 292e1d5d-2a0a-4f5f-9968-e4676260def2: entries 1 to 15, ending at anchor 2; written to pack.
+  The NA's own checks: verified. Verify it yourself with 'genesis-mesh audit verify pack --anchor <root key> --known-anchors <your anchors>'.
+$ genesis-mesh audit verify pack --anchor home/keys/root.pub --known-anchors anchors
+  Range      : entries 1 to 15 (15 entries)
+  Records    : grant_executions 2, grant_revocations 1, grants 1, judgements 2, observations 2, quarantined 1
+  NA keys    : 1 in the key history
+  Period     : 2026-10-22T01:10:39.278461Z to 2026-10-22T01:10:42.073736Z
+!ok   Result     : VERIFIED
+!dim exit 0

@@ -172,7 +172,9 @@ resolution and configured gates then run exactly as in
 with any gate type, and select attestation-backed requests with
 `"parent_kinds": ["attestation"]`.
 
-## Limits of this release
+## Limits
+
+As of 1.7.0:
 
 - The NA evaluates only attestations it issued and stored, verified against
   its own key. Attestations issued by other sovereigns are verified with
@@ -180,8 +182,9 @@ with any gate type, and select attestation-backed requests with
 - `required` boundary-policy enforcement keeps its v0.58 meaning: the
   policy-free `/admin/boundary/decide` route is refused. The attestation basis
   exists only on the policy-aware route.
-- The TypeScript, Go, .NET and Rust SDKs do not yet send `attestation_id` or
-  verify attestation bindings.
+- The TypeScript and Rust SDKs evaluate under an `attestation_id` and verify
+  the attestation binding. The Go and .NET SDKs verify the binding offline
+  (`ExpectedAttestation`); they do not call the evaluate route.
 
 ## Test command
 

@@ -1,0 +1,63 @@
+==> Gate types this NA can run
+$ genesis-mesh trust boundary-policy gate-types
+  allowlist.v1             path, values
+  attestation_claim.v1     path, claim
+  boolean_required.v1      path, expected?
+  denylist.v1              path, values
+!dim   ... 5 more lines
+==> Validate the policy offline
+$ genesis-mesh trust boundary-policy validate --file transfer-limits.json
+  Policy  : transfer-limits
+  Gates   : 3
+!ok   Valid   : yes
+$ genesis-mesh trust boundary-policy validate --file transfer-limits-bad.json
+  Policy  : transfer-limits
+  Gates   : 3
+!no   Valid   : no
+    - unknown_gate_type [amount-cap]: gate_type 'max_value.v9' is not installed
+!dim exit 1
+==> Start the NA with BOUNDARY_POLICY_ENFORCEMENT=required
+$ genesis-mesh na start --env-file na.env
+  /health: boundary_policy_enforcement=required boundary_policies=healthy
+==> Publish and activate version 1
+$ POST /admin/boundary-policies  (transfer-limits.json)
+!ok 201: version 1, signed by na-local, inactive
+$ POST /admin/boundary-policies/transfer-limits/activate {"version": 1}
+!ok 200: active=True previous_version=None
+==> Evaluate a transfer of 2500
+$ POST /admin/boundary/evaluate  {"amount": 2500, "mfa_verified": true}
+!no 201: authorized=False
+!no denial_reason: policy gate 'transfer-limits/amount-cap' failed
+==> Explain the decision and verify the signed policy
+$ genesis-mesh trust boundary-policy explain --decision evaluate-response.json
+  Decision   : c24b3fe6-252e-464c-b3b9-3d52b3ef2132
+!no   Authorized : False
+  Reason     : policy gate 'transfer-limits/amount-cap' failed
+  Attestation: 5d025e3e-97b9-4344-ae6d-166c70e57b1d
+    subject  : vendor-acme
+    issuer   : USG
+    digest   : 0fab7db364a2b58f…
+    revocation seq checked: 0
+  Resolution : resolved
+  Policy set : d38c30936b9ad56472eeb7674965689fd4ae8fb8a90a981044cafc5a7dbc15bb
+  Policy     : transfer-limits v1  digest=188d406f538f2fb2…
+!no     FAIL transfer-limits/amount-cap  max_value.v1  mode=enforce  outcome=fail
+!ok     PASS transfer-limits/mfa  boolean_required.v1  mode=enforce  outcome=pass
+!no     FAIL transfer-limits/business-hours  time_window.v1  mode=observe  outcome=fail
+$ genesis-mesh trust boundary-policy verify --file transfer-limits.signed.json --public-key home/keys/na.pub
+  Policy  : transfer-limits v1
+  Digest  : 188d406f538f2fb26c6ec169fdd7f070440ca8e522b07b74d79f9a89f7d1e3db
+!ok   Result  : VALID (valid)
+==> The policy-free legacy route is refused
+$ POST /admin/boundary/decide
+!no 409 boundary_policy_required
+==> Version 2, then roll back to version 1
+$ POST /admin/boundary-policies  (amount cap 5000)
+!ok 201: version 2
+$ POST /admin/boundary-policies/transfer-limits/activate {"version": 2}
+!ok 200: version 2 active, previous_version=1
+$ POST /admin/boundary-policies/transfer-limits/activate {"version": 1}
+!ok 200: version 1 active, previous_version=2
+$ GET /admin/boundary-policies/transfer-limits/history
+  version 2  active=False  digest=ca42b4c727dc6ae0...
+  version 1  active=True  digest=188d406f538f2fb2...

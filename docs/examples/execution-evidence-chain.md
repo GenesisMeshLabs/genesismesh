@@ -9,6 +9,8 @@ integrity.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/execution-evidence-chain-demo.py --no-gif`.
+
 ## Scenario
 
 **org-a** and **bank-a** have an active `AgreementRecord` for
@@ -129,13 +131,14 @@ genesis-mesh trust execution verify \
 ```
 
 ```
-[FAIL] digest_mismatch
+[FAIL] sequence_gap
 Chain     : 3 record(s)
 Failed at : sequence 3
 ```
 
-Exit code `1`. The verifier detected that record 3's `prev_evidence_digest`
-does not match the SHA-256 of record 1 (it expected record 2 as the prior).
+Exit code `1`. Record 3 arrives where sequence 2 is expected, so the
+sequence check fails first. A record whose sequence is right but whose link
+is wrong gives `digest_mismatch`.
 
 ---
 
@@ -166,10 +169,14 @@ genesis-mesh trust execution verify \
 
 | Property | Mechanism |
 |---|---|
-| No record was silently dropped | `sequence_no` starts at 1, increments by 1 |
+| No record was dropped from the start or middle | `sequence_no` starts at 1, increments by 1 |
 | No record was reordered or inserted | `prev_evidence_digest` = SHA-256 of prior canonical JSON |
 | No record was tampered | Ed25519 signature over canonical JSON (including `prev_evidence_digest`) |
 | No record was signed by an unknown party | Verifier supplies known public keys per sovereign |
+
+The verifier has no expected chain length. Dropping the latest records is
+not detected: a chain of records 1-2 out of 1-2-3 verifies. Compare the chain
+length with a count you hold separately, such as the provider's own counter.
 
 The BoundaryDecision acts as the authorization anchor; every `ExecutionEvidence`
 record is independently signed by the executor but cryptographically bound to

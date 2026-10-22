@@ -31,7 +31,27 @@ as permission for the next one.
 See {doc}`../operations/out-of-band-changes` for the settings, the state
 table and the rules in full.
 
+```{image} assets/images/genesis-mesh-out-of-band-changes.gif
+:alt: Changes outside the controlled path, run against a local Network Authority
+:class: screenshot
+```
+
+The recording is a real run against a temporary local NA: a governed
+rotation matched to its observation, a console rotation judged and denied, a
+break-glass record judged on arrival, then the denied rotation remediated.
+Run it yourself (rendering the GIF needs `pip install pillow`; `--no-gif`
+writes only the transcript):
+
+```bash
+python docs/examples/assets/scripts/out-of-band-changes-demo.py
+```
+
 ## Walkthrough: one secret, three kinds of change
+
+These records are off by default. The NA runs with `EVIDENCE_STORE=on` and
+`EVIDENCE_OUT_OF_BAND=on`; otherwise the observation, break-glass and changes
+routes answer `404 out_of_band_disabled`. Steps 6 to 9 also need
+`EVIDENCE_REMEDIATION=on`.
 
 ### 1. Register an observer
 
@@ -112,8 +132,9 @@ judgement would carry `flagged_for_review: true`.
 ### 4. A break-glass rotation
 
 The key leaks while the NA is down. The controller's caller passes a
-justification, and the SDK runs the action and keeps a signed break-glass
-record in its outbox:
+justification, and the TypeScript SDK runs the action and keeps a signed
+break-glass record in its outbox. The Rust SDK and the edge agent work the
+same way; the Go and .NET SDKs have no break-glass or outbox:
 
 ```typescript
 const result = await governedAction(gm, recorder, {
@@ -289,5 +310,5 @@ genesis-mesh evidence verify-export --file export.jsonl --na-public-key <na-key>
   but it is not proof of who acted.
 - It does not roll a credential back, and the NA never changes a resource
   itself: the controller performs the remediation the NA states.
-- It does not let a device act without the NA: pre-issued grants come in
-  Stage 5.
+- A device that must act while the NA is unreachable does so under a
+  pre-issued grant (1.6.0, {doc}`pre-issued-grants`) or as break-glass.

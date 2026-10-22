@@ -7,10 +7,10 @@ are known, authorized, routeable, and revocable.
 ```{mermaid}
 flowchart LR
     na["Network Authority"]
-    scheduler["Scheduler<br/>role:scheduler"]
-    worker_a["Worker A<br/>role:worker"]
-    worker_b["Worker B<br/>role:worker"]
-    worker_c["Worker C<br/>role:worker"]
+    scheduler["Scheduler<br/>role:service:scheduler"]
+    worker_a["Worker A<br/>role:service:worker"]
+    worker_b["Worker B<br/>role:service:worker"]
+    worker_c["Worker C<br/>role:service:worker"]
 
     na -->|cert| scheduler
     na -->|cert| worker_a
@@ -25,7 +25,9 @@ flowchart LR
 
 ## Deployment Steps
 
-1. Create roles for schedulers and workers in policy.
+1. Use service roles for schedulers and workers (`role:service:scheduler`,
+   `role:service:worker`). The NA accepts only the role prefixes `anchor`,
+   `bridge`, `client`, `operator` and `service:<name>`.
 2. Issue scheduler invites separately from worker invites.
 3. Enroll each node and start the persistent runtime.
 4. Allow workers to accept tasks only from authorized scheduler identities.
@@ -35,10 +37,10 @@ flowchart LR
 
 | Node | Role |
 |---|---|
-| Scheduler | `role:scheduler` |
-| Worker A | `role:worker` |
-| Worker B | `role:worker` |
-| Worker C | `role:worker` |
+| Scheduler | `role:service:scheduler` |
+| Worker A | `role:service:worker` |
+| Worker B | `role:service:worker` |
+| Worker C | `role:service:worker` |
 
 ## Routes Established
 

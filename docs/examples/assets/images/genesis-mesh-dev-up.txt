@@ -1,0 +1,42 @@
+$ genesis-mesh dev up
+=== Genesis Mesh End-to-End Test ===
+!pause
+Step 1: Generating keys...
+  Root Sovereign key generated
+  Network Authority key generated
+  Operator key generated
+!pause
+Step 2: Creating genesis block...
+!pause
+Step 3: Signing genesis block with Root Sovereign...
+!ok   Genesis block signed
+!pause
+Step 4: Starting Network Authority service...
+  Network Authority running at http://127.0.0.1:57744
+!pause
+Step 5: Creating mesh nodes...
+  Creating anchor node...
+    Anchor node created
+  Requesting anchor invite and join certificate...
+!ok     Join certificate received: 6ed155d3-24fa-4035-a49e-199b4704d02a
+  Fetching policy manifest...
+!ok     Policy manifest received: policy-TEST-v0.1
+  Creating client node...
+    Client node created
+  Requesting client invite and join certificate...
+!ok     Join certificate received: cf37bab2-8a64-42cf-8a9c-b3f7613180a8
+!pause
+Step 6: Verifying node status...
+  Anchor Node Status:
+    Network: TEST
+    Roles: ['role:anchor']
+!ok     Certificate Valid: True
+    Expires: 2026-10-29T00:36:26.008031+00:00
+  Client Node Status:
+    Network: TEST
+    Roles: ['role:client']
+!ok     Certificate Valid: True
+    Expires: 2026-10-23T00:36:26.037558+00:00
+!pause
+!ok === Test Complete! ===
+!ok All smoke-test components completed.

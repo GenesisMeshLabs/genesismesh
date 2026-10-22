@@ -1,8 +1,21 @@
 #!/bin/bash
-# Genesis Mesh multi-hop routing demo: Node A → Node B (Azure VM) → Node C
+# Genesis Mesh multi-hop routing demo: Node A → Node B (router VM) → Node C
 #
 # A and C connect only to B. A message from A to C must be forwarded by B.
 # This proves distance-vector routing and DATA frame forwarding.
+#
+# Prerequisites:
+#   - Node B enrolled and running on a VM you control, as the systemd unit
+#     genesis-mesh-node with --persistent --listen-port 7443
+#   - An operator config that can create invites on the Network Authority
+#
+# Variables (set before running):
+#   VM_HOST          address of the router VM that runs Node B (required)
+#   VM_USER          SSH user on the VM (default azureuser)
+#   SSH_KEY          SSH private key for the VM (default ~/.ssh/id_rsa_azure)
+#   NA               Network Authority URL (default https://na.genesismesh.org)
+#   GM_REPO          repository root (default: git rev-parse --show-toplevel)
+#   OPERATOR_CONFIG  operator CLI config (default $GM_REPO/genesis-mesh.toml)
 #
 # Record with:
 #   asciinema rec multi-hop.cast --command "bash docs/examples/assets/scripts/multi-hop-demo.sh"
@@ -11,10 +24,13 @@
 
 set -e
 
-NA="https://na.genesismesh.org"
-B_PEER="ws://4.223.130.190:7443"
-OPERATOR_CONFIG="/mnt/c/Source/genesismesh/genesis-mesh.toml"
+VM_HOST="${VM_HOST:?set VM_HOST to the router VM address}"
+VM_USER="${VM_USER:-azureuser}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa_azure}"
+NA="${NA:-https://na.genesismesh.org}"
+REPO="${GM_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+OPERATOR_CONFIG="${OPERATOR_CONFIG:-$REPO/genesis-mesh.toml}"
+B_PEER="ws://$VM_HOST:7443"
 
 SENDER_CONFIG="$HOME/.gm-demo-sender/config.toml"
 RECEIVER_CONFIG="$HOME/.gm-demo-receiver/config.toml"
@@ -34,7 +50,7 @@ clear
 echo "Multi-hop routing demo"
 echo ""
 echo "  Node A (sender)   — this machine, new identity"
-echo "  Node B (router)   — Azure VM 4.223.130.190, already running"
+echo "  Node B (router)   — VM $VM_HOST, already running"
 echo "  Node C (receiver) — this machine, separate identity"
 echo ""
 echo "  A ── Noise XX ──> B ── Noise XX ──> C"
@@ -45,7 +61,7 @@ sleep 3
 # ── Enroll Node A ────────────────────────────────────────────────────────────
 
 echo "==> Enrolling Node A (sender)"
-INVITE_A=$(cd /mnt/c/Source/genesismesh && genesis-mesh admin invite \
+INVITE_A=$(cd "$REPO" && genesis-mesh admin invite \
   --role anchor --na "$NA" --config "$OPERATOR_CONFIG")
 mkdir -p "$HOME/.gm-demo-sender"
 genesis-mesh join --na "$NA" --token "$INVITE_A" --config "$SENDER_CONFIG"
@@ -55,7 +71,7 @@ sleep 1
 
 echo ""
 echo "==> Enrolling Node C (receiver)"
-INVITE_C=$(cd /mnt/c/Source/genesismesh && genesis-mesh admin invite \
+INVITE_C=$(cd "$REPO" && genesis-mesh admin invite \
   --role anchor --na "$NA" --config "$OPERATOR_CONFIG")
 mkdir -p "$HOME/.gm-demo-receiver"
 genesis-mesh join --na "$NA" --token "$INVITE_C" --config "$RECEIVER_CONFIG"
@@ -121,11 +137,11 @@ grep -i "DATA\|delivered\|content" /tmp/gm-node-c.log | tail -3
 sleep 1
 
 echo ""
-echo "==> Node B forwarded (Azure VM logs):"
+echo "==> Node B forwarded (router VM logs):"
 ssh -i "$SSH_KEY" \
     -o StrictHostKeyChecking=no \
     -o IdentitiesOnly=yes \
-    "azureuser@4.223.130.190" \
+    "$VM_USER@$VM_HOST" \
     "sudo journalctl -u genesis-mesh-node --since '30 seconds ago' --no-pager 2>/dev/null \
      | grep -E 'forward|route|DATA|Forwarding' | tail -5"
 sleep 3

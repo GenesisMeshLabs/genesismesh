@@ -9,9 +9,9 @@ flowchart TB
     genesis["Signed Genesis Block"]
     na["Network Authority"]
     hq["HQ Node<br/>role:anchor"]
-    branch_a["Branch A<br/>role:branch"]
-    branch_b["Branch B<br/>role:branch"]
-    branch_c["Branch C<br/>role:branch"]
+    branch_a["Branch A<br/>role:service:branch"]
+    branch_b["Branch B<br/>role:service:branch"]
+    branch_c["Branch C<br/>role:service:branch"]
 
     root -->|signs| genesis
     genesis -->|authorizes| na
@@ -41,9 +41,9 @@ Certificates bind each branch identity to its role and validity window:
 | Node | Role |
 |---|---|
 | HQ | `role:anchor` |
-| Branch A | `role:branch` |
-| Branch B | `role:branch` |
-| Branch C | `role:branch` |
+| Branch A | `role:service:branch` |
+| Branch B | `role:service:branch` |
+| Branch C | `role:service:branch` |
 
 ## Routes Established
 
@@ -57,6 +57,7 @@ If Branch C's key is compromised:
 
 1. Revoke the certificate with reason `key_compromise`.
 2. Publish a new CRL.
-3. Block future enrollment with the same node public key.
+3. The NA refuses enrollment with that node key from now on; a
+   `key_compromise` revocation does this.
 4. Generate a new node key, issue a new invite, and enroll Branch C again only
    after incident review.
