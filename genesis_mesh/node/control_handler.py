@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -32,6 +33,7 @@ class ControlMessageHandler:
         on_shutdown: Optional[Callable] = None,
         audit_logger: Optional[Any] = None,
         health_monitor: Optional[Any] = None,
+        key_valid_at: Optional[Callable[[str, datetime], bool]] = None,
     ):
         """Create a control message dispatcher.
 
@@ -46,6 +48,9 @@ class ControlMessageHandler:
             on_shutdown: Optional callback for shutdown requests.
             audit_logger: Optional security audit logger.
             health_monitor: Optional node health monitor.
+            key_valid_at: Whether a public key may still sign at a time
+                (1.7.1). The node passes its NA key history, so an NA key
+                that has been succeeded cannot issue a current command.
         """
         self.node_id = node_id
         self.rbac_enforcer = rbac_enforcer
@@ -58,6 +63,7 @@ class ControlMessageHandler:
         self.on_shutdown = on_shutdown
         self.audit_logger = audit_logger
         self.health_monitor = health_monitor
+        self.key_valid_at = key_valid_at
 
         self._handlers: dict[str, Callable] = {}
         self._processed_messages: dict[str, float] = {}
@@ -99,6 +105,8 @@ class ControlMessageHandler:
         public_key = self.get_public_key(message.issuer)
         if not public_key:
             return False, f"Unknown issuer: {message.issuer}"
+        if self.key_valid_at is not None and not self.key_valid_at(public_key, datetime.now(timezone.utc)):
+            return False, f"Issuer key is no longer valid: {message.issuer}"
 
         is_valid, error = self.rbac_enforcer.validate_control_message(
             message,

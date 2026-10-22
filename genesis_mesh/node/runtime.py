@@ -115,6 +115,7 @@ class MeshNodeRuntime:
             self.node_id,
             self._get_public_key,
             self.connection_pool.broadcast,
+            key_valid_at=self._na_key_valid_at,
         )
         self.peer_identity = RuntimePeerIdentity(
             self.node,
@@ -162,6 +163,7 @@ class MeshNodeRuntime:
             RBACEnforcer(),
             self._get_public_key,
             audit_logger=self.audit_logger,
+            key_valid_at=self._na_key_valid_at,
         )
         self.dispatcher = RuntimeMessageDispatcher(self)
 
@@ -486,6 +488,16 @@ class MeshNodeRuntime:
         if key_id == self.node_id:
             return self.node.node_keypair.public_key_b64
         return None
+
+    def _na_key_valid_at(self, public_key: str, at: datetime) -> bool:
+        """Whether ``public_key`` may sign a record dated ``at`` (1.7.1).
+
+        A key of the NA's key history is valid only inside its own window, so
+        a succeeded key cannot sign CRLs or control commands dated after its
+        hand-over. Other keys are not NA keys and are not limited here.
+        """
+        key = self.node.key_history.key_for(public_key)
+        return True if key is None else key.accepts(at)
 
     async def _heartbeat_loop(self) -> None:
         """Send a periodic HTTP heartbeat to the NA so active-node count stays current."""

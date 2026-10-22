@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Callable, Dict
 import time
 
@@ -11,6 +12,15 @@ from ..crypto import verify_model_signature
 
 
 logger = logging.getLogger(__name__)
+
+# An NA signs each CRL for 24 hours; a gossiped CRL claiming more is refused.
+CRL_MAX_VALIDITY = timedelta(hours=48)
+# How far a CRL's issue time may run ahead of this node's clock.
+CRL_CLOCK_SKEW = timedelta(minutes=5)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 class CRLGossip:
@@ -27,7 +37,8 @@ class CRLGossip:
         self,
         node_id: str,
         get_public_key: Callable[[str], Optional[str]],
-        broadcast_func: Callable
+        broadcast_func: Callable,
+        key_valid_at: Optional[Callable[[str, datetime], bool]] = None,
     ):
         """
         Initialize CRL gossip.
@@ -36,10 +47,15 @@ class CRLGossip:
             node_id: Local node ID
             get_public_key: Function to get public key by key ID
             broadcast_func: Function to broadcast messages
+            key_valid_at: Whether a public key may sign a record dated at a
+                time (1.7.1). The node passes its NA key history, so a key
+                that has been succeeded cannot sign a CRL dated after its
+                hand-over.
         """
         self.node_id = node_id
         self.get_public_key = get_public_key
         self.broadcast_func = broadcast_func
+        self.key_valid_at = key_valid_at
 
         self.current_crl: Optional[CertificateRevocationList] = None
         self._crl_cache: Dict[int, CertificateRevocationList] = {}  # sequence -> CRL
@@ -229,10 +245,18 @@ class CRLGossip:
                 logger.error("Invalid CRL signature")
                 return False
 
-            # Check if newer than current
-            if self.current_crl and crl.sequence <= self.current_crl.sequence:
-                logger.debug(f"Received CRL is not newer (seq {crl.sequence})")
+            refusal = self._timing_refusal(crl, issuer_pubkey)
+            if refusal:
+                logger.error(refusal)
                 return False
+
+            # Check if newer than current. An expired current CRL does not hold
+            # its place (1.7.1): a CRL with a forged high sequence would
+            # otherwise block every later CRL for good.
+            if self.current_crl and crl.sequence <= self.current_crl.sequence:
+                if _utc(self.current_crl.next_update) > datetime.now(timezone.utc)                         or _utc(crl.issued_at) <= _utc(self.current_crl.issued_at):
+                    logger.debug(f"Received CRL is not newer (seq {crl.sequence})")
+                    return False
 
             # Accept CRL
             self.current_crl = crl
@@ -251,6 +275,25 @@ class CRLGossip:
         except Exception as e:
             logger.error(f"Error processing CRL data: {e}")
             return False
+
+    def _timing_refusal(self, crl: CertificateRevocationList, issuer_pubkey: str) -> Optional[str]:
+        """Why a gossiped CRL is refused on its times, or None (1.7.1).
+
+        The issuer key must be valid at the CRL's issue time, the CRL must not
+        be dated in the future or already expired, and it may not claim a
+        validity longer than an NA issues.
+        """
+        now = datetime.now(timezone.utc)
+        issued_at, next_update = _utc(crl.issued_at), _utc(crl.next_update)
+        if self.key_valid_at is not None and not self.key_valid_at(issuer_pubkey, issued_at):
+            return f"CRL issuer key {crl.issuer} was not valid at the CRL's issue time"
+        if issued_at > now + CRL_CLOCK_SKEW:
+            return "CRL is dated in the future"
+        if next_update <= now:
+            return "CRL has expired"
+        if next_update - issued_at > CRL_MAX_VALIDITY:
+            return "CRL claims a longer validity than an NA issues"
+        return None
 
     def is_certificate_revoked(self, cert_id: str) -> bool:
         """
