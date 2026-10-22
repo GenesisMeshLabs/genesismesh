@@ -1,9 +1,20 @@
 # Sanitized public reference dashboard
 
-The public deployment uses `examples/public_dashboard`, an isolated read-only
-overlay over Genesis Mesh v0.56.0 protocol models. It has its own fresh database
-and `gm-demo-public-na` genesis. Old signed records are archived offline, not
-renamed. The new dataset contains ten neutral demo identities and nine treaties;
+The public deployment at na.genesismesh.org uses `examples/public_dashboard`,
+an isolated read-only overlay over the protocol models of the deployed Genesis
+Mesh release (`software.version` in `/dashboard.json`). It has its own fresh
+database and `gm-demo-public-na` genesis. Old signed records are archived on
+the same VM, root only and never served, not renamed.
+
+**Where the keys are.** Every signing key of the demo set, including the ten
+root keys, is on this VM, in `/var/lib/genesis-mesh-public/keys`, owned by the
+maintenance user `gm-demo-maint`. The hourly maintenance job runs on the same
+host and signs with the demo NA keys. Only the web and publisher processes
+run without keys. The archive of the retired Network Authority, with its key
+files, is also on this VM (`/var/backups/genesis-mesh-offline`, root only).
+This is a demonstration shape. A real sovereign keeps its root key offline
+({doc}`key-succession`) and can make that a start condition with
+`NA_DEPLOYMENT=managed`. The new dataset contains ten neutral demo identities and nine treaties;
 no revoked legacy identity is migrated.
 
 The web process never loads private keys and opens SQLite with `mode=ro`. It
@@ -79,8 +90,8 @@ uses the network protocol version as the product version.
 Deploy with the **Deploy Release to Azure VM** workflow (`ref` = a release tag
 on `main`). It runs `infrastructure/scripts/deploy-public-dashboard.sh` on the VM
 at that exact commit. The script is safe to repeat: an existing
-`/var/lib/genesis-mesh-public` dataset is kept, each run writes a new offline
-backup, and a failed step restarts the previous public service. It also keeps
+`/var/lib/genesis-mesh-public` dataset is kept, each run writes a new root-only
+backup under `/var/backups/genesis-mesh-offline` on the VM, and a failed step restarts the previous public service. It also keeps
 the retired Network Authority, router and canary units stopped and disabled.
 The public app reports the deployed commit as `software.build` in
 `/dashboard.json`.
@@ -89,7 +100,11 @@ The public app reports the deployed commit as `software.build` in
 
 The systemd timer imports all required feeds hourly. A local publisher serves
 signed files over loopback HTTP. Keys belong to the maintenance user and are
-inaccessible to the web and publisher users. The daily canary issues a demo
+inaccessible to the web and publisher users. They are still on this
+internet-facing host and are used there every hour (see *Where the keys are*
+above). A failed run starts `genesis-mesh-public-alert.service`, which logs
+a line starting with `PUBLIC_FEED_IMPORT_FAILED` to the journal (tag
+`genesis-mesh-public`). The daily canary issues a demo
 attestation, fetches it over HTTP, verifies acceptance, publishes a revocation,
 imports it, and verifies rejection. The sequence increases only for that changed
 revocation content; hourly heartbeats preserve it.
@@ -120,8 +135,8 @@ independent trust anchor. Valid signatures do not imply independent operators.
 ## Deployment and rollback
 
 `infrastructure/scripts/deploy-public-dashboard.sh` prepares a separate checkout
-and service, validates it, takes a SQLite online backup and offline configuration
-archive, then switches only the target Nginx virtual host. The old authority and
+and service, validates it, takes a SQLite online backup and a configuration
+archive (root only, on the VM), then switches only the target Nginx virtual host. The old authority and
 its old scheduled canary are stopped. Existing unrelated virtual hosts remain
 unchanged. Backups are root-only and never served by HTTP.
 

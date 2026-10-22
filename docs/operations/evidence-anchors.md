@@ -1,5 +1,7 @@
 # Evidence Anchors
 
+*Beta routes (v1.2.0); the signed anchor format is stable.*
+
 The evidence store is one hash chain: each entry carries the digest of the
 entry before it, so an edited or reordered entry breaks the chain. A chain is
 not a signature, though. Whoever can write the database can remove an entry
@@ -7,6 +9,12 @@ and recompute every later link, and the export still verifies. Since 1.2.0
 the Network Authority signs the head of its store: a **store anchor** names a
 `store_sequence` and that entry's digest. Because each entry links to the one
 before it, one anchor covers every earlier entry.
+
+Anchors need the evidence store (`EVIDENCE_STORE=on`, off by default).
+Without it the NA records no entries and signs no anchors, the anchor routes
+answer `404 evidence_store_disabled`, and `NA_ANCHOR_INTERVAL_SECONDS` does
+nothing. The store holds only what is reported to the NA; anchors cannot
+cover a change that was never recorded.
 
 ## Who anchors protect against
 
@@ -26,7 +34,7 @@ The window matters: **a record can be removed without detection until the
 first anchor that covers it has been copied out.** Copy anchors on a schedule
 you choose, asking the NA to anchor its current head each time (below); that
 schedule is the window. A change made and then deleted inside the window is
-caught only by an independent log of changes (the completeness check of
+caught only by a log of changes kept outside Genesis Mesh (the completeness check of
 {doc}`audit-verification`, since 1.5.0). The time to rely on is when a copy reached your storage, not
 the `anchored_at` the NA wrote.
 
@@ -84,6 +92,18 @@ with an error (v1.3.1), so a scheduled copy alerts without losing the anchors
 it could copy.
 
 ## Keeping copies
+
+![Evidence anchors: anchors copied out, an anchored entry deleted from the database, the NA refusing to anchor, and the export failing against the anchors held](../examples/assets/images/genesis-mesh-evidence-anchors.gif)
+
+The GIF is a real run of `docs/examples/assets/scripts/evidence-anchors-demo.py`
+against a throwaway NA with the evidence store on. It copies anchors out
+twice, deletes anchored entry 10 straight from the SQLite database, and
+shows what follows: the NA refuses to anchor again
+(`409 evidence_anchor_refused`, and `evidence anchors fetch --anchor-now`
+exits 1), and `genesis-mesh evidence verify-export --known-anchors` fails
+with `anchor_entry_missing`, `store_sequence_gap` and
+`resource_chain_break`. The transcript is
+`docs/examples/assets/images/genesis-mesh-evidence-anchors.txt`.
 
 `genesis-mesh evidence anchors fetch` copies anchors into a directory. Each
 run reads every anchor the NA serves and compares it with the copy held: if

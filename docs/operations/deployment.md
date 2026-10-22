@@ -21,30 +21,22 @@ flowchart TB
     container --> gunicorn
 ```
 
-## Live Deployment
+## Public Instances
 
-A public Network Authority runs on Azure (Sweden Central):
+The project runs two public instances. Neither is a template for production:
+both are demonstrations.
 
-**[https://na.genesismesh.org](https://na.genesismesh.org)**
-
-### Architecture
-
-- Azure VM (Terraform provisioned, `Standard_B2ts_v2`, Sweden Central)
-- Nginx with TLS termination (Let's Encrypt)
-- Gunicorn (4 workers, sync worker class)
-- Genesis Mesh Network Authority (systemd-managed `genesis-mesh-na.service`)
-- SQLite persistence on a durable disk
-- Public endpoint: [https://na.genesismesh.org](https://na.genesismesh.org)
-
-Two enrolled nodes from separate IP addresses with active heartbeats.
-
-![Network Authority operator console](../examples/assets/images/na-operator-console.png)
-
-![/nodes endpoint returning the operator-authenticated node roster](../examples/assets/images/na-nodes.png)
-
-The roster shown above requires operator authentication. Without admin headers
-`/nodes` returns the active count only — see
-[the public read surface](../reference/network-authority-api.md#the-public-read-surface).
+- **[https://na.genesismesh.org](https://na.genesismesh.org)** is the
+  sanitized public reference: a read-only dashboard over ten demo
+  authorities, on an Azure VM (Sweden Central, Terraform provisioned,
+  `Standard_B2ts_v2`) with Nginx, TLS from Let's Encrypt and Gunicorn
+  (2 workers). It serves no Network Authority API. The Network Authority that
+  first ran on this VM is retired. The demo authorities' signing keys sit on
+  the same VM; see {doc}`public-reference-dashboard`.
+- **[https://mesh.genesismesh.org](https://mesh.genesismesh.org)** is a
+  gateway console in front of its own Network Authority, on one small VM with
+  Docker Compose (`infrastructure/mesh-demo/`). The NA is not published; only
+  the gateway reaches it.
 
 ---
 
@@ -134,13 +126,18 @@ terraform init \
   -backend-config="storage_account_name=tfstategenesismesh" \
   -backend-config="container_name=tfstate" \
   -backend-config="key=genesis-mesh-na.tfstate"
-terraform apply
+terraform plan -out tfplan \
+  -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)" \
+  -var="admin_cidr=YOUR_IP/32"
+terraform apply tfplan
 ```
 
-This module provisioned the live VM behind
-`https://na.genesismesh.org`. Terraform runs locally with an
-operator's Azure credentials; there is no CI workflow for infrastructure
-changes.
+`admin_cidr` defaults to `*`, which opens SSH to the internet: always set it.
+Apply the saved plan, so the variables you planned with are the ones applied.
+
+This module provisioned the VM behind `https://na.genesismesh.org`.
+Terraform runs locally with an operator's Azure credentials; there is no CI
+workflow for infrastructure changes.
 
 See: [Terraform deployment guide](terraform-deployment.md)
 
@@ -153,7 +150,9 @@ The VM serves the sanitized public reference instance
 (`examples/public_dashboard`, see
 [public reference dashboard](public-reference-dashboard.md)). The original
 Network Authority, router and canary services on the VM are retired: they stay
-stopped and disabled, and their state is archived offline.
+stopped and disabled. Their state, including the retired NA's key files, is
+archived on the same VM under `/var/backups/genesis-mesh-offline` (root only,
+never served). It is not moved off the host.
 
 Run **Deploy Release to Azure VM** manually from the Actions tab, selecting
 `main` as the workflow branch and a release tag (or another ref on `main`) as
@@ -164,7 +163,8 @@ run this workflow.
 The workflow resolves the ref to an exact commit and refuses anything not on
 `main`. It authenticates with Azure through GitHub OIDC and uses Azure VM Run
 Command to run `infrastructure/scripts/deploy-public-dashboard.sh` from that
-commit as root. The script backs up state offline, checks out the commit,
+commit as root. The script backs up state to a root-only archive on the VM,
+checks out the commit,
 updates the public instance's virtual environment and systemd units, restarts
 the public services (restoring the previous ones if a step fails), verifies
 the signed evidence, and keeps the retired services stopped and disabled. The
@@ -199,18 +199,16 @@ Audience: api://AzureADTokenExchange
 
 This repository currently uses the default, non-immutable OIDC subject format.
 An environment-scoped job uses the environment subject instead of the branch
-subject. Keep the existing `repo:GenesisMeshLabs/genesismesh:ref:refs/heads/main`
-credential for the separate Terraform workflow. Do not move that workflow into
-`azure-production`: this environment tracks release deployments to the VM.
+subject. No other workflow uses Azure. Remove any leftover branch-subject
+credential (`repo:GenesisMeshLabs/genesismesh:ref:refs/heads/main`) that served
+the old Terraform workflow.
 
 The environment's previous failed entries remain historical records. A new
 release deployment updates its current status only when the workflow runs;
 changing the configuration alone does not deploy code or prove VM health.
 
-This workflow updates `/opt/genesis-mesh` and the configured NA/router services.
-It does not deploy the separate sanitized public dashboard checkout at
-`/opt/genesis-mesh-public`. Review the selected services before running it on a
-VM where the original authority has been retired.
+The workflow deploys only the public reference at `/opt/genesis-mesh-public`.
+It never starts the retired Network Authority or router units.
 
 This workflow is intentionally Azure-specific because the next proof levels may
 use a second VM on another cloud or a physical host. Add separate release-CD
@@ -225,8 +223,16 @@ Before promoting any of the deployment shapes above to production:
 - required secret files are mounted
 - startup fails closed when required secret files are missing
 - `/healthz` and `/readyz` work behind the selected ingress
-- SQLite data is persisted on durable storage
-- backups are tested
+- the database (a SQLite volume or PostgreSQL) is on durable storage
+- backups are tested, with a restore drill ({doc}`backup-restore`)
+- `NA_PROXY_HOPS` matches the number of proxies in front of the NA (default
+  `0`). Behind one proxy, set `1`; otherwise every client shares the proxy's
+  address for rate limits
+- `NA_PUBLIC_URL` is set to the public origin when the NA runs behind a proxy
+- the root private key is not on the host: check with
+  `genesis-mesh na doctor --env-file <settings>`, and set
+  `NA_DEPLOYMENT=managed` (default `local`) to make it a start condition
+  ({doc}`key-succession`)
 - operator public keys are reviewed and rotated through policy
 - logs do not expose private key material
 

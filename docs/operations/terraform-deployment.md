@@ -4,8 +4,10 @@ The repository ships a self-contained Terraform module at
 [`deploy/azure/`](https://github.com/GenesisMeshLabs/genesismesh/tree/main/deploy/azure)
 that provisions a complete Network Authority environment on Azure.
 
-This is the same module used by the public deployment at
-[https://na.genesismesh.org](https://na.genesismesh.org).
+The VM behind the public reference at
+[https://na.genesismesh.org](https://na.genesismesh.org) was provisioned with
+this module. That VM no longer runs a Network Authority; see
+{doc}`public-reference-dashboard`.
 
 ## Architecture
 
@@ -60,15 +62,15 @@ flowchart TB
 
 ## One-time Setup
 
-### Service principal
+### Credentials
 
-```bash
-az ad sp create-for-rbac --name genesis-mesh-deploy \
-  --role Contributor \
-  --scopes /subscriptions/<SUBSCRIPTION_ID>
-```
+Terraform runs locally with your own `az login`. No service principal with a
+client secret is needed.
 
-Save `clientId`, `clientSecret`, `subscriptionId`, `tenantId`.
+For release deployment from GitHub Actions, create the application and the
+federated credential described in
+[deployment](deployment.md#release-cd-to-the-azure-vm), scoped to the VM's
+resource group. That workflow uses OpenID Connect and holds no secret.
 
 ### Terraform remote state
 
@@ -99,11 +101,22 @@ terraform init \
   -backend-config="container_name=tfstate" \
   -backend-config="key=genesis-mesh-na.tfstate"
 
-terraform plan \
+terraform plan -out tfplan \
   -var="ssh_public_key=$(cat ~/.ssh/id_rsa.pub)" \
   -var="admin_cidr=YOUR_IP/32"
 
-terraform apply -auto-approve
+# Read the plan. Then apply exactly that plan:
+terraform apply tfplan
+```
+
+```{warning}
+`admin_cidr` defaults to `*`, which opens SSH (port 22) to the whole
+internet. Always set it to your own address range.
+
+Apply the saved plan file, as above. A bare `terraform apply` does not reuse
+the `-var` flags you gave to `terraform plan`. It asks for `ssh_public_key`
+again, and if you leave out `admin_cidr` there, the default `*` applies.
+Do not add `-auto-approve`: it applies changes you have not read.
 ```
 
 Do not commit `terraform.tfvars` or `.terraform/` — they contain credentials
@@ -116,8 +129,9 @@ steps:
 
 1. Install the Genesis Mesh package and Gunicorn on the VM.
 2. Mount the signed genesis block and NA private key.
-3. Register `genesis-mesh-na.service` with systemd (see the live deployment
-   walkthrough in [deployment.md](deployment.md)).
+3. Register `genesis-mesh-na.service` with systemd: run
+   `infrastructure/scripts/bootstrap-ubuntu-vm.sh`, or follow
+   {doc}`vm-bootstrap`.
 4. Terminate TLS with Nginx + Certbot on a real domain.
 
 ## Multi-cloud Module

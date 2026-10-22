@@ -1,14 +1,15 @@
 # Container Images
 
-Every Genesis Mesh release publishes two signed container images to the
+Every Genesis Mesh release publishes three signed container images to the
 GitHub Container Registry, built by GitHub Actions from the release tag:
 
 | Image | Contents | Contract level |
 | --- | --- | --- |
 | `ghcr.io/genesismeshlabs/genesis-mesh` | The Network Authority (under Gunicorn) and the mesh node, from the `genesis-mesh` package | stable |
 | `ghcr.io/genesismeshlabs/genesis-mesh-gateway` | The trust gateway and its operator tool, `genesis-mesh-operator` | beta, like the gateway |
+| `ghcr.io/genesismeshlabs/genesis-mesh-edge` | The edge agent, `genesis-mesh-edge`, from the Rust SDK ({doc}`edge-agent`) | beta, like the agent |
 
-Both are multi-platform images for `linux/amd64` and `linux/arm64`. Each
+All three are multi-platform images for `linux/amd64` and `linux/arm64`. Each
 carries an SBOM and a provenance attestation and is signed keylessly with
 Sigstore by the release workflow of its repository. What stays compatible
 within 1.x is set out in `DEPRECATION_POLICY.md` (*Container images*).
@@ -17,8 +18,8 @@ within 1.x is set out in `DEPRECATION_POLICY.md` (*Container images*).
 
 | Tag | Meaning |
 | --- | --- |
-| `X.Y.Z`, for example `1.1.0` | One release. Published once and never moved or replaced; a fix ships as a new patch version. |
-| `X.Y`, for example `1.1` | The newest patch of that line. |
+| `X.Y.Z`, for example `1.7.0` | One release. Published once and never moved or replaced; a fix ships as a new patch version. |
+| `X.Y`, for example `1.7` | The newest patch of that line. |
 | `latest` | The newest release. |
 
 Deploy by digest, or by `X.Y.Z`. The GitHub release notes list each image's
@@ -31,10 +32,11 @@ Resolve the tag to a digest, verify the signature on that digest, then
 deploy that digest, so the image you run is the image you verified:
 
 ```bash
+VERSION=1.7.0   # set this to the release you deploy
 IMAGE=ghcr.io/genesismeshlabs/genesis-mesh
-DIGEST="$(docker buildx imagetools inspect "$IMAGE:1.1.0" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+DIGEST="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest.Digest}}' | tr -d '"')"
 cosign verify "$IMAGE@$DIGEST" \
-  --certificate-identity https://github.com/GenesisMeshLabs/genesismesh/.github/workflows/publish-image.yml@refs/tags/v1.1.0 \
+  --certificate-identity "https://github.com/GenesisMeshLabs/genesismesh/.github/workflows/publish-image.yml@refs/tags/v$VERSION" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
@@ -42,7 +44,15 @@ The gateway image is signed by the gateway's distribution workflow:
 
 ```bash
 cosign verify "ghcr.io/genesismeshlabs/genesis-mesh-gateway@$GATEWAY_DIGEST" \
-  --certificate-identity https://github.com/GenesisMeshLabs/gateway/.github/workflows/distribution.yml@refs/tags/v1.1.0 \
+  --certificate-identity "https://github.com/GenesisMeshLabs/gateway/.github/workflows/distribution.yml@refs/tags/v$VERSION" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The edge agent image is signed by the Rust SDK's edge workflow:
+
+```bash
+cosign verify "ghcr.io/genesismeshlabs/genesis-mesh-edge@$EDGE_DIGEST" \
+  --certificate-identity "https://github.com/GenesisMeshLabs/sdk-rust/.github/workflows/edge.yml@refs/tags/v$VERSION" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
@@ -74,8 +84,8 @@ registries without internet access; see the gateway's
 | User | 10001. |
 | State | `/data`, the working directory, owned by user 10001 and group 0 (mode 2770). Files the Network Authority creates there are group-writable, so platforms that run images under an arbitrary user ID in group 0 can use a fresh volume or one this image wrote. The SQLite database defaults to `/data/genesis_mesh_na.db`, and relative `GENESIS_FILE` and `NA_PRIVATE_KEY_FILE` paths resolve there. |
 | Port | 8443, plain HTTP. Terminate TLS in a reverse proxy or load balancer and set `NA_PROXY_HOPS` to match. |
-| Health check | `GET /readyz` on `$PORT`: the database is writable at the expected schema and the signing key is loaded. |
-| Fails closed | Refuses to start without a genesis block or a signing key, with a key that does not match the genesis block, or with a SQLite database it cannot write. |
+| Health check | `GET /readyz` on `$PORT`: the database is writable at the expected schema, the signing key is loaded, and it is the NA key in effect (see {doc}`key-succession`). |
+| Fails closed | Refuses to start without a genesis block or a signing key, with a key that is neither the genesis key nor a key of its succession history, or with a SQLite database it cannot write. `/readyz` stays `503` while the loaded key is not the one in effect. |
 | Configuration | The variables in [Configuration](../reference/configuration.md). |
 
 The image declares no `VOLUME`. Mount one at `/data` or use PostgreSQL
@@ -248,7 +258,9 @@ the published images on both architectures. It checks:
   refresh;
 - two sovereigns, each with its own keys and operators, federating through
   recognition treaties, and refusing a forged treaty;
-- the Compose file above.
+- the Compose file above;
+- the edge agent enrolling against the Network Authority (with
+  `--edge-image`).
 
 Each release also scans both architectures of each image before tagging.
 Both gates block any critical or high-severity finding, with or without a

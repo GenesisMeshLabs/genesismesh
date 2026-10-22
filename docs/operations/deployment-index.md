@@ -38,8 +38,8 @@ each.
 :link: container-images
 :link-type: doc
 
-The signed Network Authority and gateway images: tags, verifying signatures,
-the runtime contract, key providers, Compose and upgrades (v1.1).
+The signed Network Authority, gateway and edge agent images: tags, verifying
+signatures, the runtime contract, key providers, Compose and upgrades.
 :::
 
 :::{grid-item-card} High Availability
@@ -58,12 +58,20 @@ balancer: configuration, key provider, failover, migration, backup and DR
 Provider-neutral Ubuntu VM bootstrap for a single-host Network Authority.
 :::
 
+:::{grid-item-card} Public Reference Dashboard
+:link: public-reference-dashboard
+:link-type: doc
+
+The read-only public instance at na.genesismesh.org: how it is deployed and
+where its demo keys are.
+:::
+
 :::{grid-item-card} Infrastructure
 :link: infrastructure
 :link-type: doc
 
-General infrastructure expectations (networking, certificates, persistence)
-that apply across providers.
+The layout of the `infrastructure/` and `deploy/` directories, the Azure
+Container Apps scripts and Terraform checks.
 :::
 
 :::{grid-item-card} Terraform Deployment on Azure

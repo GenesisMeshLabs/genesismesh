@@ -14,6 +14,12 @@ private key, nothing from the NA but the pack. What it trusts comes from you:
 - **the packs you verified before** (`--prior`, repeatable): the entries a
   pack cites from before its range must equal the ones those packs hold.
 
+A pack exists only when the NA runs the evidence store (`EVIDENCE_STORE=on`,
+off by default; see {doc}`audit-packs`). The same checks are in a second
+verifier, `genesis-mesh-verify`, a Rust port of this one
+({doc}`independent-verification`). {doc}`audit-verification-walkthrough`
+runs both on one pack, with a changed file and a change the store lacks.
+
 ```bash
 genesis-mesh audit verify pack-2026-q2 \
     --anchor root.pub \
