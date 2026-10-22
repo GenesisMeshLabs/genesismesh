@@ -95,7 +95,7 @@ rejects a bundle without them or without `connectome`.
 `sovereign_metadata` is the document the subject's NA serves at
 `GET /sovereign.json`. It carries the RFC-001 floor fields (`sovereign_id`,
 `network_name`, `root_public_key`) but not the RFC-001 data model's shape; see
-RFC-001, *What the reference NA publishes*.
+RFC-001, *Data model*.
 
 ## Verification rules
 

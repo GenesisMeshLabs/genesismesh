@@ -167,30 +167,35 @@ decision reports `treaty_<reason>` when the treaty fails and
 - `metadata` and `scope.claims` are local and non-normative; consumers **MUST
   NOT** make trust decisions from them.
 
+## Multi-hop recognition in trust decisions
+
+*Added 2026-10-22, recording how the protocol evolved since acceptance.*
+
+Membership admission and treaty-backed attestation verification use
+**direct** treaties only: a sovereign admits a member because it signed a
+treaty recognizing that member's issuer.
+
+Trust decisions may also follow **multi-hop** paths. A trust-decision engine
+**MAY** answer whether sovereign A trusts sovereign C through a path A → B → C
+when every edge of that path is an active treaty that its own issuer signed.
+Such a path:
+
+1. **MUST** consist only of active, signed treaties (RFC-006 requirement 3);
+   no hop may rest on an unsigned or inferred edge.
+2. **MUST** allow every requested role at every hop: when a decision asks for
+   roles, each hop's treaty scope must permit them.
+3. **SHOULD** be bounded in length by local policy. A sovereign that accepts
+   longer chains accepts trust it did not sign directly.
+4. **MUST** be recorded in the decision's trust evidence (path and hop count),
+   so an auditor can see which treaties carried it.
+
+The reference implementation (`genesis_mesh/trust/decision.py`) follows rules
+1, 2 and 4. It takes the shortest active path, and agreement offers and
+delegations request no roles, so any active path gives `allow` unless another
+signal applies. It does not yet bound the path length (rule 3); a configurable
+depth limit is an open item.
+
 ## Open questions
-
-- Should multi-hop (transitive) recognition be expressed as treaty chains
-  evaluated at admission time, or remain a Connectome explanation only? The
-  reference implementation currently evaluates direct treaties for admission and
-  computes multi-hop paths only for explanation (RFC-006).
-
-  ```{note}
-  **Implementation note (2026-10-22).** The last sentence above is true of
-  membership admission only. Treaty-backed attestation verification
-  (`genesis_mesh/trust/treaty.py`) uses direct treaties. Trust decisions do
-  use multi-hop paths. `evaluate_trust_decision`
-  (`genesis_mesh/trust/decision.py`) takes the shortest active path that
-  `explain_trust_path` (`genesis_mesh/trust/connectome.py`) finds by
-  breadth-first search over the NA's recognition graph. There is no depth
-  limit. When roles are requested, every hop's treaty scope must allow them.
-  Agreement offers and responses (`genesis_mesh/trust/agreement.py`) and
-  delegations (`genesis_mesh/trust/delegation.py`) request no roles, so any
-  active path gives `allow` unless another signal applies, and an agreement is
-  refused only on `block`. The test `test_multi_hop_allow`
-  (`genesis_mesh/tests/test_trust_decision.py`) asserts `allow` for a 2-hop
-  path. This differs from the design above; the difference is recorded as an
-  open issue.
-  ```
 
 - Should treaty scope grow to express capability scopes (RFC-005) in addition to
   roles?

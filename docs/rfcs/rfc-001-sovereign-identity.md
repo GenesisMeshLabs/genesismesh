@@ -37,8 +37,8 @@ material.
 - **Operator key** — a key authorized to sign administrative actions against the
   NA.
 - **Node key** — a per-node Ed25519 identity bound to a signed join certificate.
-- **Sovereign identity document** — the public `SovereignIdentity` object
-  defined below.
+- **Sovereign identity document** — the public document a sovereign's
+  Network Authority serves at `GET /sovereign.json`, defined below.
 
 ## Normative requirements
 
@@ -49,96 +49,78 @@ material.
 3. The `root_public_key` **MUST** be the base64-encoded public half of the key
    that anchors the trust domain. The corresponding private key **MUST NOT**
    appear in any published document.
-4. A sovereign identity document **MAY** carry a `network_authority_public_key`
-   used to verify NA-signed control material. If absent, consumers **MUST NOT**
-   assume an NA-signed channel is available.
-5. A sovereign identity document **MAY** carry public `endpoints`. Endpoints are
-   reachability hints, not trust anchors; a consumer **MUST NOT** grant trust on
-   the basis of an endpoint value alone.
-6. The `metadata` field is local, descriptive, and non-normative. Consumers
-   **MUST NOT** make trust decisions from `metadata`.
-7. An implementation **MUST** produce a deterministic canonical JSON encoding of
-   the identity document for hashing and signing (see Verification rules).
+4. A sovereign identity document **MUST** carry `network_authority`, the
+   genesis NA key (`public_key` and its validity). Since 1.5.0 the NA key can be
+   succeeded: the key valid at a given time comes from the NA's key history
+   (`GET /na/key-history`), which starts at the genesis block and is verified
+   from `root_public_key`. A document **MAY** also carry `signing_key`, the key
+   that signs now.
+5. A sovereign identity document **MAY** carry a public `endpoint`. It is a
+   reachability hint, not a trust anchor; a consumer **MUST NOT** grant trust
+   on the basis of an endpoint value alone.
+6. Fields other than those named in requirements 2 and 4 are descriptive.
+   Consumers **MUST NOT** make trust decisions from them.
+7. The identity document is **not signed**. A consumer **MUST** check
+   `sovereign_id`, `network_name`, `root_public_key` and
+   `network_authority.public_key` against the genesis block (`GET /genesis`),
+   which the root key signs, before relying on them.
 8. Key roles **MUST** be kept distinct: the root key, NA key, operator keys, and
    node keys are different keys with different authority. An implementation
    **MUST NOT** collapse them into a single key in published material.
 
-```{note}
-**Implementation note (2026-10-22).** Since 1.5.0 the NA key can be
-replaced by a key succession. A single NA public key therefore does not
-verify every NA-signed record. The NA key valid at a given time comes from
-the NA's key history (`GET /na/key-history`), which starts at the genesis
-block and is verified from `root_public_key`. See requirement 4 and
-{doc}`/operations/key-succession`.
-```
-
 ## Data model
 
-The data model below is the normative shape of the identity document. The
-reference implementation has a model with this shape, `SovereignIdentity` in
-`genesis_mesh/models/sovereign.py`, but does not produce or read it on the
-wire. What the reference NA publishes is described under *What the reference
-NA publishes* below.
+*Updated 2026-10-22 to the document the protocol publishes. The first draft
+described a different shape (`endpoints` as a list, a flat
+`network_authority_public_key`, a `metadata` field, and a signed canonical
+form); no implementation sent it. The Python model `SovereignIdentity` in
+`genesis_mesh/models/sovereign.py` still has that first shape and is not the
+wire format.*
 
 ```json
 {
   "sovereign_id": "USG",
   "network_name": "USG",
   "root_public_key": "<base64 ed25519 public key>",
-  "network_authority_public_key": "<base64 ed25519 public key or null>",
-  "endpoints": ["https://na.example.org"],
-  "metadata": {"operator_label": "Genesis Core"}
+  "network_version": "v1",
+  "endpoint": "https://na.example.org",
+  "network_authority": {
+    "public_key": "<base64 ed25519 public key>",
+    "valid_from": "2026-01-01T00:00:00+00:00",
+    "valid_to": "2027-01-01T00:00:00+00:00",
+    "valid_to_enforced": false
+  },
+  "signing_key": {"key_sequence": 1, "public_key": "<base64>", "signs_until": null},
+  "policy_manifest": {"hash": "sha256:...", "url": null},
+  "bootstrap_anchor_count": 1,
+  "supported_surfaces": {"genesis": "https://na.example.org/genesis"}
 }
 ```
 
 Field summary:
 
-| Field | Required | Meaning |
+| Field | Meaning | Required |
 | --- | --- | --- |
-| `sovereign_id` | yes | Stable trust-domain identifier |
-| `network_name` | yes | Human-facing mesh network name |
-| `root_public_key` | yes | Base64 root public key (trust anchor) |
-| `network_authority_public_key` | no | Base64 NA public key, if published |
-| `endpoints` | no | Public reachability hints |
-| `metadata` | no | Local, non-normative descriptive data |
+| `sovereign_id` | The genesis block's network name | yes |
+| `network_name` | The genesis block's network name (the same value) | yes |
+| `root_public_key` | The genesis block's root public key | yes |
+| `network_version` | The genesis block's network version | no |
+| `endpoint` | The NA's public base URL, one string | no |
+| `network_authority` | The genesis NA key: `public_key`, `valid_from`, `valid_to` and `valid_to_enforced` (always `false` since 1.5.0) | yes |
+| `signing_key` | The key that signs now (1.5.0): `key_sequence`, `public_key`, `signs_until` | no |
+| `policy_manifest` | The genesis block's policy manifest | no |
+| `bootstrap_anchor_count` | Number of bootstrap anchors in the genesis block | no |
+| `supported_surfaces` | URLs of the NA's public surfaces (genesis, key history, treaties, revocation feed, Connectome, Atlas and others) | no |
 
-### What the reference NA publishes
-
-```{note}
-**Implementation note (2026-10-22).** The reference Network Authority
-publishes its identity at `GET /sovereign.json`
-(`genesis_mesh/na_service/routes/public.py`). That document does not have
-the shape of the data model above, and the NA never emits a
-`SovereignIdentity` object. The difference is recorded as an open issue.
-```
-
-`GET /sovereign.json` returns these fields:
-
-| Field | Meaning | RFC-001 field |
-| --- | --- | --- |
-| `sovereign_id` | The genesis block's network name | `sovereign_id` (floor) |
-| `network_name` | The genesis block's network name (the same value) | `network_name` (floor) |
-| `root_public_key` | The genesis block's root public key | `root_public_key` (floor) |
-| `network_version` | The genesis block's network version | none |
-| `endpoint` | The NA's public base URL, one string | `endpoints` (a list in the model) |
-| `network_authority` | The genesis NA key: `public_key`, `valid_from`, `valid_to` and `valid_to_enforced` (always `false` since 1.5.0) | `network_authority_public_key` |
-| `signing_key` | The key that signs now (1.5.0): `key_sequence`, `public_key`, `signs_until` | none |
-| `policy_manifest` | The genesis block's policy manifest | none |
-| `bootstrap_anchor_count` | Number of bootstrap anchors in the genesis block | none |
-| `supported_surfaces` | URLs of the NA's public surfaces (genesis, key history, treaties, revocation feed, Connectome, Atlas and others) | none |
-
-There is no `metadata` field. The document is **not signed**. A consumer
-checks the floor fields and the NA key against the genesis block
-(`GET /genesis`), which the root key signs, and checks later NA keys against
-the key history. The trust bundle's `sovereign_metadata` (RFC-003) is this
-document.
+The reference implementation serves this document from
+`genesis_mesh/na_service/routes/public.py`. The trust bundle's
+`sovereign_metadata` (RFC-003) is this document.
 
 ## Verification rules
 
-1. Canonical JSON **MUST** be produced as defined in *Canonical JSON and
-   signatures* below. The reference implementation uses
-   `json.dumps(data, sort_keys=True, separators=(",", ":"))` in
-   `SovereignIdentity.to_canonical_json`.
+1. The identity document is unsigned and has no canonical form of its own.
+   Its trust comes from the genesis block (requirement 7); the canonical JSON
+   rules below apply to the genesis block and the other signed records.
 2. A consumer that has obtained a sovereign identity out of band **MUST** treat
    `root_public_key` as the anchor against which genesis and NA material is
    chained. How a consumer first learns a sovereign identity (trust bundle,
@@ -214,7 +196,7 @@ the reference implementation. The shared `interop` conformance vectors
 - The root private key is the highest-value secret in a sovereign. It **MUST**
   remain offline-capable and **MUST NOT** be exported in any document described
   by these RFCs.
-- Because `endpoints` and `metadata` are mutable hints, an attacker who can
+- Because `endpoint` and the descriptive fields are mutable hints, an attacker who can
   forge them cannot, on their own, forge trust: trust still requires signatures
   chained to `root_public_key` or to keys it authorizes.
 - A stable `sovereign_id` paired with a changed `root_public_key` is a
@@ -225,7 +207,7 @@ the reference implementation. The shared `interop` conformance vectors
 
 - Operators publish the identity document at a stable public path so trust
   bundles and treaties can reference it. The reference Network Authority
-  publishes `GET /sovereign.json` (see *What the reference NA publishes*).
+  publishes `GET /sovereign.json` (see *Data model*).
 - Endpoint changes are routine and **SHOULD NOT** require re-issuing trust;
   endpoints are deliberately outside the signed trust anchor.
 
@@ -243,25 +225,14 @@ the reference implementation. The shared `interop` conformance vectors
 
 ## Open questions
 
-- Should sovereign identity documents be self-signed by the root key, or is
-  out-of-band distribution plus genesis chaining sufficient? The reference
-  implementation currently relies on genesis chaining.
-- Should key rotation be expressed as a signed succession record inside the
-  identity document, or remain an operator-reviewed event? This is deferred to a
-  future RFC.
-
-```{note}
-**Implementation note (2026-10-22).** Since 1.5.0 the NA key can be replaced
-by a key succession record (`KeySuccessionRecord`,
-`genesis_mesh/models/key_succession.py`). The root key, the new NA key and the
-outgoing NA key sign it. The NA publishes the genesis key and its successions
-as its key history at `GET /na/key-history`, outside the identity document. A
-verifier checks an NA signature with the NA key that was valid at the
-record's own time. The sovereign keeps its `sovereign_id` and root key.
-
-Limits: a lost, compromised or expired NA key cannot sign its own succession,
-so it still means a new genesis block and a new identity. The root key has no
-succession. See {doc}`/operations/key-succession`. This answers the question
-for planned NA key replacement only; the identity document itself is
-unchanged.
-```
+- Resolved 2026-10-22: the identity document is not self-signed; it is
+  trusted through genesis chaining (requirement 7).
+- Resolved 2026-10-22 for the NA key: since 1.5.0 a signed key succession
+  record (`KeySuccessionRecord`), signed by the root key, the new NA key and
+  the outgoing NA key, replaces the NA key while the sovereign keeps its
+  `sovereign_id` and root key. The NA publishes the genesis key and its
+  successions at `GET /na/key-history`, outside the identity document, and a
+  verifier checks an NA signature with the key valid at the record's own time.
+  A lost or expired NA key cannot sign its own succession, and still means a
+  new genesis block and a new identity; see {doc}`/operations/key-succession`.
+- Open: the root key has no succession. Replacing it means a new identity.

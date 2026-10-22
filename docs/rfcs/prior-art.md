@@ -44,7 +44,8 @@ The individual primitives are prior art. The synthesis is the contribution:
    a graph derived from signed material, while explicitly *not* becoming a
    source of truth (RFC-006). The reference NA's trust decisions read the same
    graph and accept multi-hop paths, but only through treaties each sovereign
-   signed; no hub is required. See the implementation note in RFC-006.
+   signed; no hub is required. See RFC-002, *Multi-hop recognition in trust
+   decisions*.
 
 ## Lineage by RFC
 

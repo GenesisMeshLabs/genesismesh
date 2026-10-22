@@ -167,19 +167,25 @@ the RFC texts carry matching notes.
    every form when absent and written only with `EVIDENCE_GRANTS=on`. A
    verifier before 1.6 refuses it as `unknown_field`.
 
-Two differences between RFC text and the implementation are open and wait for
-the Maintainer:
+### 2026-10-22: RFC-001 and RFC-002/RFC-006 updated to the implemented protocol
 
-- **The published identity document (RFC-001).** The NA publishes its
-  identity at `GET /sovereign.json`, whose shape differs from the RFC-001
-  data model (`SovereignIdentity`): for example `endpoint` instead of
-  `endpoints`, and `network_authority.public_key` instead of
-  `network_authority_public_key`. `SovereignIdentity` is not produced on the
-  wire. Either the document or the RFC needs to change; RFC-001 carries an
-  implementation note.
-- **Multi-hop trust paths (RFC-002, RFC-006).** RFC-002 says admission uses
-  direct treaties and RFC-006 says multi-hop paths explain and do not decide.
-  The trust-decision engine (`genesis_mesh/trust/decision.py`) accepts a
-  multi-hop path, with a role check at every hop and no depth limit, for
-  agreements, delegation and trust evidence. Either the code or the RFCs
-  need to change; both RFCs carry an implementation note.
+The Maintainer decided that the RFCs follow the protocol as it evolved, rather
+than changing the code:
+
+1. **RFC-001: the identity document is `GET /sovereign.json`.** The data model
+   now describes the document the NA publishes: `endpoint` (one string), the
+   `network_authority` object, `signing_key` and the other descriptive fields.
+   It is not signed; consumers check its floor fields against the root-signed
+   genesis block (requirement 7). The Python model `SovereignIdentity` keeps
+   the first draft's shape and is not the wire format. RFC-001's open
+   questions on self-signing and on NA key rotation are answered; root key
+   rotation stays open.
+2. **RFC-002 and RFC-006: multi-hop paths in trust decisions.** Membership
+   admission still uses direct treaties only, and the Connectome view still
+   grants nothing (RFC-006 requirement 5). Trust-decision engines **MAY**
+   follow multi-hop paths made only of active signed treaties, with every
+   requested role allowed at every hop, recorded in the decision's trust
+   evidence, and **SHOULD** bound their length (RFC-002, *Multi-hop
+   recognition in trust decisions*; RFC-006 requirement 8). The reference
+   implementation does not yet bound the length; a configurable depth limit
+   is an open item.
