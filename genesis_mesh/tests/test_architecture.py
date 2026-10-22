@@ -1,4 +1,4 @@
-"""The layer rules of AGENTS.md, enforced with a ratchet (docs/architecture.md).
+"""The layer rules of AGENTS.md, enforced with a ratchet (docs/development/architecture.md).
 
 Every import between ``genesis_mesh`` modules is read from the source (module
 and function level; imports under ``if TYPE_CHECKING:`` are type-only and not
@@ -10,7 +10,7 @@ the end of this file. A test fails when
 * an allowlisted import no longer exists (remove it from the allowlist).
 
 So the allowlists only shrink. Do not add to them: move the code instead
-(docs/architecture.md says where a change goes).
+(docs/development/architecture.md says where a change goes).
 """
 
 from __future__ import annotations
@@ -32,7 +32,8 @@ LAYERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("models", ("genesis_mesh.models",)),
     ("crypto", ("genesis_mesh.crypto",)),
     ("trust", ("genesis_mesh.trust",)),
-    # Node runtime and the packages only it uses; dormant (decision 0007).
+    # The node runtime and the packages around it. The node runtime is dormant
+    # (decision 0007); audit, guard, interop and observability are live.
     ("peripheral", tuple(f"genesis_mesh.{name}" for name in (
         "audit", "gossip", "guard", "interop", "monitoring", "node", "observability", "routing", "transport",
     ))),
@@ -150,7 +151,7 @@ def _ratchet(found: set[tuple[str, str]], allowed: frozenset[tuple[str, str]], r
     gone = sorted(allowed - found)
     message = []
     if new:
-        message.append(f"{rule}: new violations (move the code; docs/architecture.md says where):")
+        message.append(f"{rule}: new violations (move the code; docs/development/architecture.md says where):")
         message += [f"  {a} -> {b}  ({_where(a, b)})" for a, b in new]
     if gone:
         message.append(f"{rule}: fixed, so remove these lines from the allowlist in {Path(__file__).name}:")
@@ -162,7 +163,7 @@ def test_every_module_has_a_layer():
     unplaced = sorted(module for module in _modules() if layer_of(module) is None)
     assert not unplaced, (
         f"modules outside the layer table: {unplaced}; add them to LAYERS in "
-        f"{Path(__file__).name} and to the table in docs/architecture.md"
+        f"{Path(__file__).name} and to the table in docs/development/architecture.md"
     )
 
 

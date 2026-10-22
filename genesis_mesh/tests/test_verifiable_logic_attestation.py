@@ -44,7 +44,7 @@ _FUTURE = _NOW + timedelta(days=365)
 def _now() -> datetime:
     """The time now, for checks that read the clock: _NOW is minutes old by the end of a slow run."""
     return datetime.now(timezone.utc).replace(microsecond=0)
-_MODEL_ID = "claude-sonnet-4-6"
+_MODEL_ID = "example-model-v2"
 _VERSION = "20251001"
 _PROMPT = "You are a helpful assistant."
 _TOOLS = ["tool_read", "tool_write"]
@@ -173,8 +173,8 @@ def test_create_attestation_without_token_id() -> None:
 
 def test_create_attestation_model_fields() -> None:
     sk = _sk()
-    attestation = _make_attestation(sk, model_id="claude-haiku-4-5", agent_sov="agent-b")
-    assert attestation.model_id == "claude-haiku-4-5"
+    attestation = _make_attestation(sk, model_id="example-model-v3", agent_sov="agent-b")
+    assert attestation.model_id == "example-model-v3"
     assert attestation.agent_sovereign_id == "agent-b"
     assert attestation.model_version_tag == _VERSION
 
