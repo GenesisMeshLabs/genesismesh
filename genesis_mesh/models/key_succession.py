@@ -60,6 +60,13 @@ SUCCESSION_MIN_LEAD = timedelta(seconds=60)
 #: lifetime: the holder of a succeeded key cannot mint a long-lived decision dated in its window.
 MAX_DECISION_LIFETIME = timedelta(seconds=300)
 
+#: How long after a key's end (its succession, or its enforced ``valid_to``) and the hand-over a
+#: record that key signed still vouches for the present (1.8.0, the vouching horizon). Judged at its
+#: own time a record is unaffected; judged now it vouches only until ``end + SUCCESSION_HANDOVER +
+#: grace``. 24 hours, the longest a CRL or a grant is valid, so records the NA re-issues in time
+#: never lapse. A verifier or an NA may shorten it, never lengthen it.
+SUCCESSION_VOUCHING_GRACE = timedelta(hours=24)
+
 #: v1.5.0 review fixes: the time an NA-signed record is placed at in the key history (the key that
 #: may sign it is the key valid then). In the evidence store every entry is placed at its envelope's
 #: ``recorded_at`` (a key succession, an archive, every kind); read alone, outside the store (a pack's
@@ -82,6 +89,19 @@ NA_RECORD_TIME_FIELDS: dict[str, str] = {
     "ReviewRecord": "decided_at",
     "StoreAnchor": "anchored_at",
     "TimeToken": "issued_at",
+}
+
+#: The kinds the vouching horizon applies to when judged now (1.8.0), by the field that dates them:
+#: records that carry standing of their own. Evidence of a past act (decisions, judgements,
+#: reviews, registry records, anchors, archives, time tokens) is judged at its own time only.
+#: Boundary policies are left out: re-issuing one would revoke the grants bound to it, so the NA's
+#: routes check that they hold the policy instead. Join certificates, CRLs and policy manifests,
+#: which nodes check, follow in the node runtime.
+NA_VOUCHING_TIME_FIELDS: dict[str, str] = {
+    "CapabilityGrant": "issued_at",
+    "MembershipAttestation": "issued_at",
+    "RecognitionTreaty": "issued_at",
+    "SovereignRevocationFeed": "issued_at",
 }
 
 #: Optional fields a succession record omits from its signed form when absent.
@@ -175,6 +195,13 @@ class NAKey:
             return False
         return True
 
+    @property
+    def end(self) -> datetime | None:
+        """When the key stops signing: the earlier of its succession and an enforced ``valid_to``
+        (1.8.0). None while the key has no end."""
+        ends = [t for t in (self.succeeded_at, self.valid_to if self.valid_to_enforced else None) if t is not None]
+        return min(ends) if ends else None
+
     def signs_at(self, at: datetime) -> bool:
         """True when the NA may sign with this key at ``at`` (no hand-over)."""
         at = _utc_aware(at)
@@ -210,6 +237,30 @@ class NAKeyHistory:
     root_public_key: str | None
     keys: tuple[NAKey, ...]
     successions: tuple[KeySuccessionRecord, ...] = ()
+    #: The vouching horizon's grace (1.8.0): never more than ``SUCCESSION_VOUCHING_GRACE``.
+    vouching_grace: timedelta = SUCCESSION_VOUCHING_GRACE
+
+    def __post_init__(self) -> None:
+        if self.vouching_grace < timedelta(0) or self.vouching_grace > SUCCESSION_VOUCHING_GRACE:
+            raise ValueError("vouching_grace must be between 0 and SUCCESSION_VOUCHING_GRACE")
+
+    def with_vouching_grace(self, grace: timedelta | float | None) -> "NAKeyHistory":
+        """This history with a shorter grace (seconds or a timedelta); a longer one is clamped to
+        ``SUCCESSION_VOUCHING_GRACE`` and None keeps the current one (1.8.0)."""
+        if grace is None:
+            return self
+        if not isinstance(grace, timedelta):
+            grace = timedelta(seconds=float(grace))
+        grace = min(max(grace, timedelta(0)), SUCCESSION_VOUCHING_GRACE, self.vouching_grace)
+        return NAKeyHistory(self.sovereign_id, self.root_public_key, self.keys, self.successions, grace)
+
+    def vouches_until(self, public_key: str) -> datetime | None:
+        """Until when a record signed by ``public_key`` vouches for the present (1.8.0): its end, the
+        hand-over and the grace. None for a key with no end, or not in this history."""
+        key = self.key_for(public_key)
+        if key is None or key.end is None:
+            return None
+        return key.end + SUCCESSION_HANDOVER + self.vouching_grace
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.all_keys())
@@ -268,12 +319,25 @@ def decision_outlives_key(keys: "Sequence[str] | NAKeyHistory", public_key: str,
     if not isinstance(keys, NAKeyHistory):
         return False
     key = keys.key_for(public_key)
-    if key is None:
+    if key is None or key.end is None:
         return False
-    ends = [t for t in (key.succeeded_at, key.valid_to if key.valid_to_enforced else None) if t is not None]
-    if not ends:
+    return _utc_aware(valid_until) > key.end + SUCCESSION_HANDOVER + MAX_DECISION_LIFETIME
+
+
+def record_outlives_key(keys: "Sequence[str] | NAKeyHistory", public_key: str, now: datetime) -> bool:
+    """True when a record signed by ``public_key`` no longer vouches for the present at ``now``
+    (1.8.0): its key ended more than the hand-over and the grace ago. The dynamic twin of
+    ``decision_outlives_key``; a plain list of keys has no ends."""
+    if not isinstance(keys, NAKeyHistory):
         return False
-    return _utc_aware(valid_until) > min(ends) + SUCCESSION_HANDOVER + MAX_DECISION_LIFETIME
+    until = keys.vouches_until(public_key)
+    return until is not None and _utc_aware(now) >= until
+
+
+def na_keys_vouching_at(keys: "Sequence[str] | NAKeyHistory", at: datetime | None, now: datetime) -> list[str]:
+    """The NA keys a record dated ``at`` may be signed with and that still vouch at ``now``
+    (1.8.0): ``na_keys_at`` without the keys whose horizon has passed."""
+    return [k for k in na_keys_at(keys, at) if not record_outlives_key(keys, k, now)]
 
 
 def na_keys_at(keys: "Sequence[str] | NAKeyHistory", at: datetime | None) -> list[str]:

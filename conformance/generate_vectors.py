@@ -3101,6 +3101,22 @@ def gen_remediation() -> None:
     _write("remediation", {"suite": "remediation", "version": "1.4.0", "vectors": vectors})
 
 
+def gen_vouching() -> None:
+    """1.8.0: records of a succeeded NA key judged now, the vouching horizon (``vouching_vectors.py``).
+
+    ``record_vouching``: an NA-signed attestation, treaty, revocation feed or
+    grant, judged at its own time and judged now, against the ``audit``
+    world's key history: inside the grace, past the horizon, backdated into
+    the old key's window, signed after the hand-over, by the new key, with a
+    shorter or a clamped grace, and tampered. Deterministic, so regeneration
+    is byte-stable. Only the core runs it until the SDKs adopt the horizon.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from vouching_vectors import vouching_vectors
+
+    _write("vouching", {"suite": "vouching", "version": "1.8.0", "vectors": vouching_vectors()})
+
+
 def gen_audit() -> None:
     """v1.5.0: NA key succession, audit packs and the completeness check (``audit_vectors.py``).
 
@@ -3358,6 +3374,7 @@ GENERATORS = {
     "out_of_band": gen_out_of_band,
     "remediation": gen_remediation,
     "audit": gen_audit,
+    "vouching": gen_vouching,
     "grants": gen_grants,
     "node": gen_node,
 }

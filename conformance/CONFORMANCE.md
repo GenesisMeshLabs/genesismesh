@@ -33,6 +33,7 @@ conformance/
 | consensus | `consensus.json` | 1 | 3-validator ConsensusProof assemble + verify |
 | data_usage | `data_usage.json` | 1 | DataAccessIntent policy verify |
 | node | `node.json` | 11 | Node request signatures (heartbeat, the edge `/join` executor co-signature, the `/node/*` routes with `purpose` and `audience`), a tampered body, join certificates and CRLs signed by the NA (v1.7.0; the Rust SDK runs it) |
+| vouching | `vouching.json` | 30 | Records of a succeeded NA key judged now, the vouching horizon (1.8.0): attestations, treaties, revocation feeds and grants inside the grace, past the horizon, backdated into the old key's window, after the hand-over, by the new key, with a shorter or clamped grace, and tampered. The core runs it; the SDKs adopt it with the horizon |
 
 ## Vector format
 
