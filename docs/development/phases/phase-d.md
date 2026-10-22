@@ -8,7 +8,8 @@
 Two sovereigns were deployed on genuinely separate infrastructure: one on
 Azure (`na.genesismesh.connectorzzz.com`), one on DigitalOcean — separate
 VM, separate IP, separate keypair, separate database, separate policy.
-They spoke the same protocol with no shared secrets or configuration.
+They spoke the same protocol with no shared secrets or configuration. Both
+were run by the maintainer; an outside operator's run is still pending.
 
 The proof motion ran in full:
 

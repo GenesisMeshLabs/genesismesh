@@ -1,6 +1,6 @@
 # Genesis Mesh RFC Program
 
-**Status:** Phase 2 seed program
+**Status:** published (2026-10-22): RFC-001 to RFC-004 Accepted, RFC-005 to RFC-008 Draft
 **Purpose:** turn implemented protocol knowledge into reviewable, implementable standards documents.
 
 ## Why RFCs now
@@ -26,11 +26,14 @@ Every RFC should be:
 
 ## Initial RFC sequence
 
-The first batch of drafts is published under {doc}`/rfcs/index`. Each draft below
-links to its document and maps to shipped behavior in the reference
-implementation.
+The eight RFCs are published under {doc}`/rfcs/index`. RFC-001 to RFC-004
+are accepted and normative for v1 interoperability ({doc}`rfc-decisions`);
+RFC-005 to RFC-008 are Draft. Each section below links to its document and
+maps to shipped behavior in the reference implementation.
 
 ### RFC-001 — Sovereign Identity
+
+{doc}`RFC-001 </rfcs/rfc-001-sovereign-identity>` (Accepted).
 
 Defines a sovereign identity document, its cryptographic material, public
 metadata, control boundaries, and verification expectations.
@@ -45,6 +48,8 @@ Questions answered:
 
 ### RFC-002 — Recognition Treaties
 
+{doc}`RFC-002 </rfcs/rfc-002-recognition-treaties>` (Accepted).
+
 Defines signed recognition relationships between sovereigns.
 
 Questions answered:
@@ -57,6 +62,8 @@ Questions answered:
 
 ### RFC-003 — Trust Bundles
 
+{doc}`RFC-003 </rfcs/rfc-003-trust-bundles>` (Accepted).
+
 Defines portable review material used before trust is granted.
 
 Questions answered:
@@ -68,6 +75,8 @@ Questions answered:
 
 ### RFC-004 — Revocation Feeds
 
+{doc}`RFC-004 </rfcs/rfc-004-revocation-feeds>` (Accepted).
+
 Defines signed revocation state and propagation expectations.
 
 Questions answered:
@@ -78,6 +87,8 @@ Questions answered:
 - How does imported revocation affect treaty-backed verification?
 
 ### RFC-005 — Capability Manifests
+
+{doc}`RFC-005 </rfcs/rfc-005-capability-manifests>` (Draft).
 
 Defines how a sovereign or node advertises capabilities for routing and
 application-layer orchestration.
@@ -91,6 +102,8 @@ Questions answered:
 
 ### RFC-006 — Connectome Model
 
+{doc}`RFC-006 </rfcs/rfc-006-connectome-model>` (Draft).
+
 Defines the graph model used to make recognition and trust-path state visible.
 
 Questions answered:
@@ -103,6 +116,8 @@ Questions answered:
 
 ### RFC-007 — Operator Continuity
 
+{doc}`RFC-007 </rfcs/rfc-007-operator-continuity>` (Draft).
+
 Defines ongoing obligations for operators after initial proof.
 
 Questions answered:
@@ -113,6 +128,8 @@ Questions answered:
 - What does an intentional offline state look like?
 
 ### RFC-008 — Managed Operator Role
+
+{doc}`RFC-008 </rfcs/rfc-008-managed-operator-role>` (Draft).
 
 Defines the managing-partner pattern represented by Connectorzzz.
 

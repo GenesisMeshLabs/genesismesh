@@ -2,6 +2,8 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
+**Implemented:** not yet (2026-10-22). No contract bundle or compatibility table exists; the lockstep train in {doc}`../versioning` still applies. The bundle and the release model are Phase C of the plan, which is parked.
+
 ## Context
 
 The six repositories released as one train: one version everywhere, SDK

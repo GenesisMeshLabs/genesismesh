@@ -29,17 +29,22 @@ The individual primitives are prior art. The synthesis is the contribution:
 1. **Sovereignty as a first-class property.** Existing federation models assume a
    metadata aggregator, a bridge CA, or a federation operator as a coordinating
    center. Genesis Mesh removes the permanent center: recognition and revocation
-   are operator-to-operator, and any coordinating party is explicitly barred from
-   holding control material (RFC-008).
+   are operator-to-operator. RFC-008 (Draft) bars a coordinating party from
+   holding the root key and operator keys; it may hold the NA signing key only
+   with the operator's written approval.
 2. **Portable recognition as signed artifacts.** Trust between domains is a
    signed, scoped, revocable object on the network (RFC-002), not private
    configuration inside one provider.
-3. **Revocation that crosses the trust boundary.** Withdrawal propagates between
-   independent domains with replay protection (RFC-004), rather than stopping at
-   one organization's CRL/OCSP endpoint.
-4. **Explanation without authority.** The Connectome explains every trust
-   decision as a graph derived from signed material, while explicitly *not*
-   becoming a source of truth (RFC-006).
+3. **Revocation that crosses the trust boundary.** An issuer publishes a
+   signed, sequenced feed; an accepting sovereign imports it and rejects stale
+   or replayed feeds (RFC-004). Withdrawal reaches a partner when that partner
+   imports the feed, rather than stopping at one organization's CRL/OCSP
+   endpoint.
+4. **Explanation without authority.** The Connectome explains trust state as
+   a graph derived from signed material, while explicitly *not* becoming a
+   source of truth (RFC-006). The reference NA's trust decisions read the same
+   graph and accept multi-hop paths, but only through treaties each sovereign
+   signed; no hub is required. See the implementation note in RFC-006.
 
 ## Lineage by RFC
 
@@ -63,14 +68,17 @@ The closest prior art is enterprise identity federation (SAML/OIDC) and PKI
 trust topologies. The defining differences:
 
 - **No metadata aggregator or bridge as a required center.** Recognition is
-  bilateral and signed; multi-hop is explanation, not a central hub.
+  bilateral and signed. Multi-hop paths count in trust decisions only through
+  treaties each sovereign signed; no hub is required.
 - **The accepting domain owns the decision.** A treaty is enforced by the
   issuer's keys on the accepting side, not granted by a federation operator.
-- **Revocation is portable.** A signed, sequenced feed propagates withdrawal
-  across domains; consumers reject stale or replayed feeds.
+- **Revocation is portable.** An issuer publishes a signed, sequenced feed;
+  an accepting sovereign imports it and rejects stale or replayed feeds.
+  Withdrawal reaches a partner when that partner imports the feed.
 - **Coordination is allowed; control is not.** A managing partner may help with
   endpoints, runbooks, and onboarding, but may never hold the root or operator
-  keys (RFC-008).
+  keys. It may hold the NA signing key only with the operator's written
+  approval (RFC-008, Draft).
 
 ## What would make this an adoption claim instead
 
@@ -81,6 +89,6 @@ which would require real evidence to make:
 - "Identity provider Y interoperates with Genesis Mesh."
 - "Partner Z runs a recognized sovereign."
 
-Each of those is provable only by the future external-operator proof workflow, not by a
-lineage table. When that evidence exists, it belongs in the operator
+Each of those is provable only by an external operator completing the proof
+workflow ({doc}`/operators/external-operator-proof`), not by a lineage table. When that evidence exists, it belongs in the operator
 documentation and proof bundles — not here.

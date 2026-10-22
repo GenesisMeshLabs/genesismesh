@@ -2,7 +2,7 @@
 
 Status: Accepted
 Created: 2026-06-08
-Updated: 2026-10-02
+Updated: 2026-10-22
 Authors: Genesis Mesh contributors
 Requires: none
 
@@ -63,10 +63,22 @@ material.
    node keys are different keys with different authority. An implementation
    **MUST NOT** collapse them into a single key in published material.
 
+```{note}
+**Implementation note (2026-10-22).** Since 1.5.0 the NA key can be
+replaced by a key succession. A single NA public key therefore does not
+verify every NA-signed record. The NA key valid at a given time comes from
+the NA's key history (`GET /na/key-history`), which starts at the genesis
+block and is verified from `root_public_key`. See requirement 4 and
+{doc}`/operations/key-succession`.
+```
+
 ## Data model
 
-The reference implementation defines the document in
-`genesis_mesh/models/sovereign.py` as `SovereignIdentity`:
+The data model below is the normative shape of the identity document. The
+reference implementation has a model with this shape, `SovereignIdentity` in
+`genesis_mesh/models/sovereign.py`, but does not produce or read it on the
+wire. What the reference NA publishes is described under *What the reference
+NA publishes* below.
 
 ```json
 {
@@ -89,6 +101,37 @@ Field summary:
 | `network_authority_public_key` | no | Base64 NA public key, if published |
 | `endpoints` | no | Public reachability hints |
 | `metadata` | no | Local, non-normative descriptive data |
+
+### What the reference NA publishes
+
+```{note}
+**Implementation note (2026-10-22).** The reference Network Authority
+publishes its identity at `GET /sovereign.json`
+(`genesis_mesh/na_service/routes/public.py`). That document does not have
+the shape of the data model above, and the NA never emits a
+`SovereignIdentity` object. The difference is recorded as an open issue.
+```
+
+`GET /sovereign.json` returns these fields:
+
+| Field | Meaning | RFC-001 field |
+| --- | --- | --- |
+| `sovereign_id` | The genesis block's network name | `sovereign_id` (floor) |
+| `network_name` | The genesis block's network name (the same value) | `network_name` (floor) |
+| `root_public_key` | The genesis block's root public key | `root_public_key` (floor) |
+| `network_version` | The genesis block's network version | none |
+| `endpoint` | The NA's public base URL, one string | `endpoints` (a list in the model) |
+| `network_authority` | The genesis NA key: `public_key`, `valid_from`, `valid_to` and `valid_to_enforced` (always `false` since 1.5.0) | `network_authority_public_key` |
+| `signing_key` | The key that signs now (1.5.0): `key_sequence`, `public_key`, `signs_until` | none |
+| `policy_manifest` | The genesis block's policy manifest | none |
+| `bootstrap_anchor_count` | Number of bootstrap anchors in the genesis block | none |
+| `supported_surfaces` | URLs of the NA's public surfaces (genesis, key history, treaties, revocation feed, Connectome, Atlas and others) | none |
+
+There is no `metadata` field. The document is **not signed**. A consumer
+checks the floor fields and the NA key against the genesis block
+(`GET /genesis`), which the root key signs, and checks later NA keys against
+the key history. The trust bundle's `sovereign_metadata` (RFC-003) is this
+document.
 
 ## Verification rules
 
@@ -139,8 +182,8 @@ the reference implementation. The shared `interop` conformance vectors
    signature verifies over a timestamp in another form
    (`non_canonical_form`).
 3. **Signed bytes.** An object is signed over the canonical form of the
-   object without its signature field (`signatures` for identity, treaty and
-   feed documents). Absent optional fields are serialized with their defaults
+   object without its signature field (`signatures` for treaty, attestation
+   and feed documents; the identity document is not signed). Absent optional fields are serialized with their defaults
    as the reference model emits them (`[]`, `{}`, `null`), so a signer
    **MUST** include them, except the fields the reference page *Canonical
    Form of Signed Records* lists under *Optional fields*.
@@ -156,6 +199,13 @@ the reference implementation. The shared `interop` conformance vectors
    `Infinity`, a byte order mark, text that is not UTF-8 or arrays and
    objects nested more than 64 deep (`invalid_json`). The `canonical`
    conformance vectors test these rules.
+6. **Unknown fields** (since 1.2.0). A verifier **MUST** refuse a signed
+   record that carries a signed field it does not know: `unknown_field` when
+   the signature covers the field, `invalid_signature` when it does not. A
+   new optional field is omitted from the canonical form when absent, so
+   records without it verify on older verifiers. The signed fields of each
+   record are listed in `conformance/vectors/field_registry.json` and on the
+   reference page {doc}`/reference/canonical-form` (*Unknown fields*).
 
 ## Security considerations
 
@@ -174,8 +224,8 @@ the reference implementation. The shared `interop` conformance vectors
 ## Operational considerations
 
 - Operators publish the identity document at a stable public path so trust
-  bundles and treaties can reference it. The reference implementation exposes
-  sovereign metadata through the Network Authority service.
+  bundles and treaties can reference it. The reference Network Authority
+  publishes `GET /sovereign.json` (see *What the reference NA publishes*).
 - Endpoint changes are routine and **SHOULD NOT** require re-issuing trust;
   endpoints are deliberately outside the signed trust anchor.
 
@@ -183,7 +233,10 @@ the reference implementation. The shared `interop` conformance vectors
 
 - Additional optional fields **MAY** be added to the identity document over
   time. Consumers **MUST** ignore unknown fields rather than reject the
-  document, except where a future RFC marks a field as required.
+  document, except where a future RFC marks a field as required. This rule
+  applies only to the identity document, which is not signed. Signed records
+  follow the opposite rule: a verifier refuses a signed field it does not
+  know (*Canonical JSON and signatures*, item 6).
 - The set of required fields in this RFC is the interoperability floor. An
   independent implementation that produces and consumes these fields can
   interoperate at the identity layer.
@@ -196,3 +249,19 @@ the reference implementation. The shared `interop` conformance vectors
 - Should key rotation be expressed as a signed succession record inside the
   identity document, or remain an operator-reviewed event? This is deferred to a
   future RFC.
+
+```{note}
+**Implementation note (2026-10-22).** Since 1.5.0 the NA key can be replaced
+by a key succession record (`KeySuccessionRecord`,
+`genesis_mesh/models/key_succession.py`). The root key, the new NA key and the
+outgoing NA key sign it. The NA publishes the genesis key and its successions
+as its key history at `GET /na/key-history`, outside the identity document. A
+verifier checks an NA signature with the NA key that was valid at the
+record's own time. The sovereign keeps its `sovereign_id` and root key.
+
+Limits: a lost, compromised or expired NA key cannot sign its own succession,
+so it still means a new genesis block and a new identity. The root key has no
+succession. See {doc}`/operations/key-succession`. This answers the question
+for planned NA key replacement only; the identity document itself is
+unchanged.
+```

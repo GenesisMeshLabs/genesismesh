@@ -5,6 +5,9 @@
 **Strategic shift:** from maintainer-operated multi-cloud proof to external
 operators, independent implementations, and ecosystem-facing surfaces.
 
+This plan was written at v0.20.0. Its status at v1.7.0 is in the section
+"Status (2026-10-22, v1.7.0)" at the end of the page.
+
 ## Summary
 
 Genesis Mesh Phase 1 proved the protocol foundation. It established sovereign
@@ -69,7 +72,8 @@ independent implementation risk, and application-layer relevance.
 
 ### Externalization status
 
-- Maintainer-operated sovereigns run across multiple clouds.
+- Maintainer-operated sovereigns ran across multiple clouds (the v0.18.0
+  run, `examples/reference-sovereign-operators/`).
 - Recognition relationships between sovereigns.
 - Public operator proof artifacts.
 - Continuity expectations for active sovereign deployments.
@@ -212,6 +216,19 @@ Phase 2 succeeds when Genesis Mesh has evidence for all of the following:
   infrastructure account, policy, endpoint, and continuity responsibilities.
 - A native application or operator workflow demonstrates why the trust fabric
   matters beyond protocol readers.
+
+## Status (2026-10-22, v1.7.0)
+
+Against the success criteria above:
+
+| Criterion | Status |
+| --- | --- |
+| Six draft RFCs | Met. Eight RFCs are published; RFC-001 to RFC-004 were accepted on 2026-10-03 ({doc}`rfc-decisions`), RFC-005 to RFC-008 are Draft. |
+| Atlas | Partly met. The operator console's `/atlas` view and `genesis-mesh atlas build` show one Network Authority's recognition graph ({doc}`../examples/atlas`). Atlas does not ingest several sovereigns. |
+| Governance documentation | Met: {doc}`governance`, {doc}`rfc-program`, {doc}`rfc-decisions`, {doc}`../operators/exit-and-fork`, {doc}`../operators/managing-partner-boundary`. |
+| Second implementation | Not met. The SDKs are clients of a Network Authority, not sovereigns. |
+| External operator | Not met. |
+| Native application or operator workflow | Not met. |
 
 ## Strategic anchor
 

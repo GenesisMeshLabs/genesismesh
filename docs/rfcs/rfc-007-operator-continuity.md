@@ -56,6 +56,20 @@ is evidence, not assumption.
    it is built from the same public, redacted artifacts as the rest of these
    RFCs.
 
+```{note}
+**Implementation note (2026-10-22).** Since 1.5.0 continuity includes the NA
+key's lifetime. A key named by a key succession signs nothing at or after its
+`new_valid_to` (`503 na_key_expired`). An expired, lost or compromised NA key
+cannot sign its own succession, so the sovereign then needs a new genesis
+block. Succeed the NA key well before its `new_valid_to`, and keep the root
+key offline with named holders, because every succession needs it.
+`genesis-mesh na doctor` reports whether the NA key signs now and for how
+long. See {doc}`/operations/key-succession`.
+
+The reference implementation has no intentional-offline declaration
+(requirement 7) yet.
+```
+
 ## Recommended cadence
 
 The reference operator guidance (`docs/operators/`) recommends recurring checks.
@@ -69,6 +83,7 @@ are reference:
 | Revocation proof | publish feed, confirm downstream rejection (RFC-004) | periodic |
 | Trust-bundle refresh | reviewers see current material (RFC-003) | periodic |
 | Backup verification | sovereign restorable without identity change | periodic |
+| Key succession (1.5.0) | NA key succeeded well before its `new_valid_to`; root key held offline by named people | periodic (`genesis-mesh na doctor`) |
 | Connectome review | recognition edges and blast radius as expected (RFC-006) | periodic |
 
 ## Security considerations

@@ -2,7 +2,7 @@
 
 Status: Accepted
 Created: 2026-06-08
-Updated: 2026-10-02
+Updated: 2026-10-22
 Authors: Genesis Mesh contributors
 Requires: RFC-001
 
@@ -133,7 +133,12 @@ decision reports `treaty_<reason>` when the treaty fails and
 
 - The issuer's keys, not the subject's, decide whether a treaty is authentic.
   An accepting implementation **MUST** verify treaty signatures against issuer
-  public keys it already trusts via RFC-001.
+  public keys it already trusts via RFC-001. The reference NA signs treaties
+  with its NA key. Since 1.5.0 that key can be succeeded, so the issuer's key
+  for a treaty is the NA key valid at the treaty's `issued_at`, read from the
+  issuer's key history (`GET /na/key-history`, {doc}`/operations/key-succession`).
+  When a subject sovereign succeeds its NA key, an issuer that pinned the old
+  key in `subject_public_keys` replaces the treaty with the new key.
 - Treaty scope is a containment boundary, and it fails closed. An empty
   `allowed_roles` grants nothing: every role from the subject is rejected. Scope
   is therefore safe to omit — omission narrows trust rather than widening it, so
@@ -143,7 +148,8 @@ decision reports `treaty_<reason>` when the treaty fails and
   whether a specific attestation exists or what it claims.
 - Suspension (`status: suspended`) is reversible; revocation is terminal for the
   `treaty_id`. Implementations **SHOULD NOT** silently reactivate a revoked
-  treaty id.
+  treaty id. The reference implementation has no operation that suspends or
+  reactivates a treaty; it revokes, renews and replaces them.
 
 ## Operational considerations
 
@@ -167,5 +173,24 @@ decision reports `treaty_<reason>` when the treaty fails and
   evaluated at admission time, or remain a Connectome explanation only? The
   reference implementation currently evaluates direct treaties for admission and
   computes multi-hop paths only for explanation (RFC-006).
+
+  ```{note}
+  **Implementation note (2026-10-22).** The last sentence above is true of
+  membership admission only. Treaty-backed attestation verification
+  (`genesis_mesh/trust/treaty.py`) uses direct treaties. Trust decisions do
+  use multi-hop paths. `evaluate_trust_decision`
+  (`genesis_mesh/trust/decision.py`) takes the shortest active path that
+  `explain_trust_path` (`genesis_mesh/trust/connectome.py`) finds by
+  breadth-first search over the NA's recognition graph. There is no depth
+  limit. When roles are requested, every hop's treaty scope must allow them.
+  Agreement offers and responses (`genesis_mesh/trust/agreement.py`) and
+  delegations (`genesis_mesh/trust/delegation.py`) request no roles, so any
+  active path gives `allow` unless another signal applies, and an agreement is
+  refused only on `block`. The test `test_multi_hop_allow`
+  (`genesis_mesh/tests/test_trust_decision.py`) asserts `allow` for a 2-hop
+  path. This differs from the design above; the difference is recorded as an
+  open issue.
+  ```
+
 - Should treaty scope grow to express capability scopes (RFC-005) in addition to
   roles?

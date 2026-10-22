@@ -1,8 +1,8 @@
 # Cross-language interoperability scenario
 
 This document states what the interoperability scenario proves, and how. It is
-the interoperability certificate for Genesis Mesh v0.61: every claim below is
-checked on each push by `.github/workflows/interop.yml`.
+the interoperability certificate for Genesis Mesh, first written for v0.61:
+every claim below is checked on each push by `.github/workflows/interop.yml`.
 
 ## What is proven
 
@@ -10,9 +10,14 @@ checked on each push by `.github/workflows/interop.yml`.
 > C# verifiers; boundary decisions signed by the Python Network Authority are
 > verified, with their policy and attestation bindings, by the same three; a
 > data access intent signed by the TypeScript SDK is accepted by the Network
-> Authority and by the C# SDK; and all four implementations reach the same
-> verdict, with the same reason code, on every artifact in the scenario,
-> including the tampered and denied ones.
+> Authority and by the C# SDK; and every implementation that judges an
+> artifact reaches the same verdict, with the same reason code, including on
+> the tampered and denied ones.
+
+Not every implementation judges every artifact. Go does not judge the two
+TypeScript intents, and Python's verdict on them is the Network Authority's
+when they are submitted. `assert_results.py` requires at least two judges per
+artifact. The README's *Who judges what* table lists them.
 
 The scenario uses the real implementations, a real Network Authority over HTTP
 and records signed at run time with keys generated for the run. Nothing is
@@ -21,7 +26,7 @@ replayed from fixed vectors; the shared conformance vectors
 are checked first.
 
 The scenario fails if any implementation disagrees with another on any
-decision, not only when a positive path fails. A verifier that accepted
+decision it judges, not only when a positive path fails. A verifier that accepted
 everything would fail on the tampered agreement; one that rejected everything
 would fail on the genuine one.
 
@@ -80,10 +85,12 @@ Expected verdicts, identical in every implementation that judges the artifact:
 
 ## Running it locally
 
-Requirements: the core installed in a virtual environment (`.venv` is used
-when present), Go 1.22+, Node.js 22+, .NET 8, and checkouts of `sdk-go`,
-`sdk-typescript` and `sdk-dotnet` next to this repository (or set
-`GM_SDK_GO_DIR`, `GM_SDK_TS_DIR`, `GM_SDK_DOTNET_DIR`).
+Requirements: bash, the core installed in a virtual environment
+(`.venv/bin/python` is used when present, otherwise `python3`; on Windows run
+from Git Bash and set `PYTHON`), Go 1.22+, Node.js 22+, .NET 8, and checkouts
+of `sdk-go`, `sdk-typescript` and `sdk-dotnet` next to this repository (or set
+`GM_SDK_GO_DIR`, `GM_SDK_TS_DIR`, `GM_SDK_DOTNET_DIR`). `--published
+<version>` runs the legs from released packages instead (see the README).
 
 ```bash
 interop/run_all.sh
@@ -103,6 +110,10 @@ ALL LEGS PASSED
 
 - The NA runs on SQLite in a single process; the HA and PostgreSQL paths are
   covered by the core's PostgreSQL CI job and the v0.60 HA tests, not here.
-- The Rust SDK and the gateway are not legs of this scenario.
+- The Rust SDK, `genesis-mesh-verify` and the gateway are not legs of this
+  scenario.
+- The run covers agreements, boundary decisions, a data license policy and
+  data access intents. Treaties, revocation feeds, trust evidence, grants and
+  audit packs have their own conformance vector suites, not this run.
 - Offline verification checks signatures, expiry and bindings. It does not
   check revocation, which needs the issuer's live revocation state.
