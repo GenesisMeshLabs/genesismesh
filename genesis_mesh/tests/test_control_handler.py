@@ -397,3 +397,22 @@ async def test_untargeted_then_retargetable():
     msg_broadcast = _make_control_message(handler, message_id="multi-1", target=None)
     ok2, _ = await handler.handle_control_message(msg_broadcast)
     assert ok2 is True
+
+
+# ── Issuer key validity (1.7.1) ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_command_from_an_issuer_key_no_longer_valid_is_refused():
+    """A succeeded NA key cannot issue a current command, however it is dated."""
+    keypair = generate_keypair()
+    handler = ControlMessageHandler(
+        node_id="node-1",
+        rbac_enforcer=RBACEnforcer(),
+        get_public_key=lambda key_id: keypair.public_key_b64,
+        key_valid_at=lambda public_key, at: False,
+    )
+    handler._keypair = keypair
+    accepted, reason = await handler.handle_control_message(_make_control_message(handler))
+    assert accepted is False
+    assert "no longer valid" in reason
