@@ -19,6 +19,9 @@ AttestationReason = Literal[
     "role_not_allowed",
     "missing_signature",
     "invalid_signature",
+    # 1.7.1: an attestation in the verifying NA's own name that it never
+    # issued, such as one signed with a key it has succeeded.
+    "not_held",
 ]
 
 
