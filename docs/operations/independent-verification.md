@@ -1,25 +1,54 @@
-# Independent Verification
+# The Rust Verifier
 
 `genesis-mesh audit verify` is part of the Python package that also runs the
 Network Authority. An audit that trusts it trusts the same code base it
 audits. `genesis-mesh-verify` is a second verifier: a static binary built
-from the Rust SDK's `verify` module, separate code that implements the same
+from the Rust SDK's `verify` module. It is a hand port of the Python
+reference to Rust, by the same project, and implements the same
 specification ({doc}`../reference/audit-pack-format`,
 {doc}`../reference/evidence-event-schema`,
 {doc}`../reference/canonical-form`).
 
-"Independent" means separate code by the same project, not a separate
-vendor: the two verifiers were written apart and are held to the same
-corpus, so a bug in one shows up as a disagreement, not as a silent pass.
+## What a second verifier protects against
+
+It is a port, not a clean-room reimplementation and not the work of a
+separate vendor. It is checked against a corpus that the Python reference
+produces, with the reference's verdicts and reason codes.
+
+- A bug in only one of the two verifiers shows up as a disagreement on that
+  corpus, or on a pack you verify with both.
+- A mistake the port copied from the reference, or a wrong verdict in the
+  corpus, does not show up: both verifiers then agree.
+
+So the second verifier protects against a broken or tampered Python install
+on the auditor's machine, and against bugs in one implementation. It does
+not protect against a wrong reading of the specification. The specification
+pages stay normative.
 
 ## What it checks
 
-`genesis-mesh-verify pack <dir> --anchor <root key> --known-anchors <anchors>`
-runs every check `audit verify` runs, from the same inputs, with the same
-reason codes, and reports where its result differs from the pack's own
-`checks.json`. `genesis-mesh-verify record <kind> <file>` verifies one record
-of any kind. `--json` prints machine-readable output. It never needs a
-private key and never opens a network connection.
+| Command | What it verifies |
+| --- | --- |
+| `genesis-mesh-verify pack <dir> --anchor <root key> --known-anchors <anchors>` | An audit pack. It runs every check `audit verify` runs, from the same inputs, with the same reason codes, and reports where its result differs from the pack's own `checks.json`. `--changes <file>` adds the completeness check against a log kept outside Genesis Mesh |
+| `genesis-mesh-verify export <file>` | An evidence export, as `genesis-mesh evidence verify-export` does |
+| `genesis-mesh-verify record <kind> <file>` | One signed record of any kind |
+| `genesis-mesh-verify key-history <file> --root-key <key>` | An NA key history, from the root key you hold |
+
+`--json` prints machine-readable output. The verifier never needs a private
+key and never opens a network connection.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Verified |
+| 1 | Not verified: each failure names its reason code |
+| 2 | Usage error |
+| 3 | An input could not be read |
+
+Anything but 0 means the input is not verified. The full reference, with
+every option, is
+[docs/verifier.md](https://github.com/GenesisMeshLabs/sdk-rust/blob/main/docs/verifier.md)
+in the Rust SDK. A worked run with both verifiers is in
+{doc}`audit-verification-walkthrough`.
 
 ## The corpus
 

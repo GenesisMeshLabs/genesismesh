@@ -129,6 +129,9 @@ probe. It returns 200 only when:
 - the database is reachable and writable (a primary, not a read replica);
 - the schema is at the version this release expects;
 - the signing key is loaded;
+- the loaded key is the NA key in effect: not a successor before its
+  `effective_at`, and not succeeded or expired (`na_key.state` is
+  `signing`; see {doc}`key-succession`);
 - in HA mode, the shared rate limiter is in use.
 
 Otherwise it returns 503 with the reason in `error.details`:
@@ -138,8 +141,9 @@ Otherwise it returns 503 with the reason in `error.details`:
   "status": "ready",
   "instance": "na-a-7f3c:1a2b3c4d",
   "ha_mode": "on",
-  "database": {"backend": "postgres", "writable": true, "schema_version": 13, "expected_schema_version": 13},
+  "database": {"backend": "postgres", "writable": true, "schema_version": 19, "expected_schema_version": 19},
   "signing_key": {"key_id": "na-prod", "provider": "azure-keyvault", "fingerprint": "5c1e…"},
+  "na_key": {"key_sequence": 1, "state": "signing"},
   "rate_limiter": "database",
   "db_path": "postgresql://genesis:***@db.example/genesis_mesh"
 }
@@ -180,8 +184,8 @@ using it.
 1. Stop the NA, or stop writes to it.
 2. Back up the SQLite file:
    `genesis-mesh managed backup --db-path na.db --output na-before-ha.db`.
-3. Start the v0.60 NA once on the SQLite file, so its schema is current, then
-   stop it again.
+3. Start the release you will run in HA once on the SQLite file, so its
+   schema is current, then stop it again.
 4. Create the PostgreSQL database (C collation, as above).
 5. Migrate and verify:
 
@@ -236,9 +240,10 @@ genesis-mesh na verify-db --db-path /var/lib/genesis-mesh/na.db
 ```
 
 It checks that every boundary policy matches its stored digest, that CRL
-sequences have no gaps with only the highest one active, and that the
-evidence store is one unbroken hash chain. With `--genesis`, it also checks
-every signature in the evidence store.
+sequences have no gaps with only the highest one active, that the evidence
+store is one unbroken hash chain, and that the store matches its anchors.
+With `--genesis`, it also checks every signature in the evidence store and
+verifies the NA key history from the root key.
 
 ## Security notes
 

@@ -1,0 +1,49 @@
+==> Start the NA with the out-of-band and remediation records on
+$ genesis-mesh na start --env-file na.env
+!dim   EVIDENCE_STORE=on  EVIDENCE_OUT_OF_BAND=on  EVIDENCE_REMEDIATION=on
+$ POST /admin/boundary-policies  (lifetime_days <= 90; "remediation": cancel, 3600 s)
+!ok 201: secret-lifetime v1, activated
+==> Register the controller and the observer
+$ POST /admin/evidence/executor-keys {"key_id": "ctrl-1", ...}
+!ok 201: controller key
+$ POST /admin/evidence/executor-keys {"key_id": "activity-log-observer", "role": "observer", "resource_prefix": "kv:vendor-acme/", ...}
+!ok 201: observer key
+==> 1. A governed rotation, seen by the observer
+$ POST /admin/boundary/evaluate {"lifetime_days": 30}
+!ok 201: authorized=True
+$ POST /evidence/execution  (rotate, version_id v7)
+!ok 201: execution
+$ POST /evidence/observations  (rotate v7, seen in the activity log)
+!ok 201: governed_by=prior_decision verdict=allow
+==> 2. A rotation in the cloud console, lifetime 400 days
+$ POST /evidence/observations  (rotate v8, no execution record names it)
+!no 201: governed_by=after_the_fact verdict=deny (policy gate 'secret-lifetime/max-lifetime' failed)
+  remediation: state=remediation_due mode=cancel steps=rotate_forward_then_disable
+==> 3. A break-glass rotation while the NA was unreachable
+$ POST /evidence/break-glass  (submitted from the outbox when the NA is back)
+!ok 201: governed_by=after_the_fact verdict=allow
+==> The secret's changes
+$ GET /admin/evidence/changes/kv:vendor-acme/api-key
+  execution    rotate  governed_by=prior_decision  state=recorded
+  observation  rotate  governed_by=prior_decision  state=matched
+  observation  rotate  governed_by=after_the_fact  state=remediation_due
+  break_glass  rotate  governed_by=after_the_fact  state=judged_allowed
+==> 4. Remediate the denied console rotation
+$ GET /admin/evidence/remediations?state=remediation_due
+  observation by principal-7f3a: cancel, rotate_forward_then_disable, due 2026-10-22T02:10:32
+$ POST /admin/evidence/remediations/<judgement>/notified
+!ok 200: actor notified
+$ POST /evidence/execution  (rotate forward under a governed decision, version_id v9)
+!ok 201: execution evidence for v9
+!dim the controller then disables v8 in the vault; the NA never changes the secret itself
+$ POST /evidence/remediations  (cancelled: rotate_forward_then_disable)
+!ok 201: state=remediated
+==> Verify the export offline
+$ genesis-mesh evidence verify-export --file export.jsonl --na-public-key home/keys/na.pub --executor-keys executor-keys.json
+  Entries    : 18
+  Decisions  : 2
+  Executions : 2
+  Observations: 2
+  Break-glass: 1
+  Judgements : 3
+!ok   Result     : VERIFIED

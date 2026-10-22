@@ -2,8 +2,9 @@
 
 `governedAction` composes evaluation, offline verification, a caller-supplied
 callback and signed execution evidence. It does not implement cloud operations.
-The NA needs evidence storage enabled, active policies, a privileged operator
-for setup and a registered executor key. To run one locally, see
+The NA needs the evidence store enabled (`EVIDENCE_STORE=on`, off by
+default), active policies, a privileged operator for setup and a registered
+executor key. To run one locally, see
 {doc}`../local-network-authority`. Give the client an evidence outbox so no
 signed record is lost when the NA is unreachable after an action.
 

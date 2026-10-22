@@ -29,10 +29,14 @@ PeerRiskSignal state machine. v0.61.1 rewrote that model against the shipped
 
 ---
 
-```{image} assets/images/genesis-mesh-formal-risk-signal-verification.gif
-:alt: Formal risk signal verification demo
+```{image} assets/images/genesis-mesh-tamarin-proofs.gif
+:alt: Tamarin proofs of both models, including the risk-signal model
 :class: screenshot
 ```
+
+A recorded run of `tamarin-prover --prove` on both models. The second step proves
+the seven risk-signal lemmas. The transcript is in
+`docs/examples/assets/images/genesis-mesh-tamarin-proofs.txt`.
 
 ## What the model captures
 
@@ -109,6 +113,18 @@ conditions at the Python level without requiring the prover:
   independent signals; anomaly at one does not propagate to the other.
 
 These tests run in the standard pytest suite.
+
+### Runtime checks demo
+
+This demo runs the signature, gate and decay checks in Python. It does not
+run Tamarin.
+
+```{image} assets/images/genesis-mesh-formal-risk-signal-verification.gif
+:alt: Runtime risk-signal checks (not the Tamarin proof)
+:class: screenshot
+```
+
+Run it yourself: `python docs/examples/assets/scripts/formal-risk-signal-verification-demo.py --no-gif`.
 
 ---
 

@@ -22,6 +22,8 @@ context that a `LogicAttestationGate` validates before a capability executes.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/verifiable-logic-attestation-demo.py --no-gif`.
+
 ## What a ModelAttestation proves
 
 - **model_id** + **model_version_tag**: the exact model in use
@@ -48,7 +50,7 @@ context that a `LogicAttestationGate` validates before a capability executes.
 ```bash
 genesis-mesh trust attest policy \
     --operator-sovereign operator-x \
-    --allow-model claude-sonnet-4-6 \
+    --allow-model example-model-v2 \
     --allow-prompt-hash <sha256-of-authorized-prompt> \
     --valid-until 2027-01-01T00:00:00Z \
     --signing-key keys/operator.key \
@@ -61,7 +63,7 @@ restrict only model (and allow any prompt/tools):
 ```bash
 genesis-mesh trust attest policy \
     --operator-sovereign operator-x \
-    --allow-model claude-sonnet-4-6 \
+    --allow-model example-model-v2 \
     --valid-until 2027-01-01T00:00:00Z \
     --signing-key keys/operator.key \
     --output policy.json
@@ -77,7 +79,7 @@ context and signs it:
 ```bash
 genesis-mesh trust attest create \
     --agent-sovereign agent-a \
-    --model-id claude-sonnet-4-6 \
+    --model-id example-model-v2 \
     --model-version 20251001 \
     --system-prompt-file prompts/system.txt \
     --tool-id tool_read \
@@ -91,7 +93,7 @@ Example output:
 ```text
 [OK] ModelAttestation 3b7e9f12-...
      Agent   : agent-a
-     Model   : claude-sonnet-4-6 (20251001)
+     Model   : example-model-v2 (20251001)
      Prompt  : a8f3c2e1d4b7a6f0...
      Tools   : 2 declared
      Expires : 2026-10-01T10:05:00+00:00
@@ -116,7 +118,7 @@ Expected output (valid):
 [OK] valid
   Attestation : 3b7e9f12-...
   Agent       : agent-a
-  Model       : claude-sonnet-4-6
+  Model       : example-model-v2
 ```
 
 Exit code 0. If any check fails, exit code 1:
@@ -144,10 +146,10 @@ gate = LogicAttestationGate(
 )
 engine.add_gate(gate)
 
-decision = engine.evaluate(context_record, agreed_terms)
-# If attestation fails: decision.verdict == "deny"
-# GateResult.gate_name == "logic_attestation"
-# GateResult.detail   == reason code (e.g. "model_not_permitted")
+decision = engine.evaluate(context_record, agreement, signing_key, issued_by="operator")
+# If attestation fails: decision.authorized is False and decision.denial_reason names the gate
+# The failing GateResult has gate_name == "logic_attestation"
+# and detail == the reason code (e.g. "model_not_permitted")
 ```
 
 ---
@@ -200,7 +202,7 @@ link between the capability authorization and the execution context declaration:
 ```bash
 genesis-mesh trust attest create \
     --agent-sovereign agent-a \
-    --model-id claude-sonnet-4-6 \
+    --model-id example-model-v2 \
     --model-version 20251001 \
     --system-prompt-file prompts/system.txt \
     --token-id <ibct-token-id> \

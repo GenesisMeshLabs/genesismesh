@@ -5,6 +5,8 @@
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/invocation-bound-tokens-demo.py --no-gif`.
+
 ## What problem do IBCTs solve?
 
 A `BoundaryDecision` answers "was this agent authorised?" at the time the
@@ -17,10 +19,11 @@ compact, Ed25519-signed JSON record that fuses:
 
 - **Sovereign identity** — bearer and issuer are named and bound
 - **Attenuated capabilities** — always a subset of the source agreement or delegation
-- **Invocation budget** — optional cap on how many times the token may be used
+- **Invocation budget** — optional cap on how many times the token may be used.
+  The verifier counts only the use records it is given (see below).
 - **Policy constraints** — time windows, peer-sovereign restrictions
-- **Use chain** — each invocation produces a signed `InvocationUseRecord` linked
-  by `prev_use_digest`, forming a tamper-evident ledger
+- **Use chain** — each invocation can produce a signed `InvocationUseRecord`
+  linked by `prev_use_digest`. This release has no verifier for the chain.
 
 Any verifier holding the issuer's Ed25519 public key can validate the token
 **offline in sub-millisecond time** — no GM stack call required.
@@ -130,6 +133,12 @@ genesis-mesh trust token verify \
 
 When all three records are provided and `max_invocations=3`, the verifier
 returns `budget_exhausted`.
+
+The budget check counts only the use records the verifier is given. It does
+not check their signatures or links, and a bearer can withhold records. Enforce
+the budget where uses are counted, as GenesisGuard does (see
+{doc}`process-level-mediation`), or use a {doc}`pre-issued-grants` grant,
+whose use chain the Network Authority checks.
 
 ---
 
@@ -258,11 +267,13 @@ assert use2.prev_use_digest == use.digest()
 
 ---
 
-## Use-chain tamper-evidence
+## Use-chain links
 
-Each `InvocationUseRecord` carries `prev_use_digest = SHA-256(prior.canonical_json)`.
-Deleting, inserting, or reordering records breaks the chain — the same guarantee
-as `ExecutionEvidence` (v0.29).
+Each `InvocationUseRecord` carries `prev_use_digest = SHA-256(prior.canonical_json)`,
+so a party that holds all the records can check their order. This release has
+no verifier for the chain: `verify_invocation_token()` only counts the records,
+and no function walks the links. Unlike `ExecutionEvidence` (v0.29), the chain
+is not checked for you.
 
 ```text
 use-1  prev_use_digest=None
@@ -270,4 +281,5 @@ use-2  prev_use_digest=SHA-256(use-1)
 use-3  prev_use_digest=SHA-256(use-2)
 ```
 
-Tampering with `use-2` changes `use-2.digest()`, which invalidates `use-3.prev_use_digest`.
+Changing `use-2` changes `use-2.digest()`, so `use-3.prev_use_digest` no longer
+matches. You must compare the digests yourself to see this.

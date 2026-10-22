@@ -96,6 +96,12 @@ docker run -d --name "na-$S" --network sovereigns \
   "$IMAGE"
 ```
 
+`init` also writes the root key (`home/keys/root.key`) next to the NA key.
+It signs key successions only. Move it offline after this example and never
+mount it into an NA: whoever holds both keys can replace the NA's key
+history, and an NA with `NA_DEPLOYMENT=managed` refuses to start while it
+finds the root key next to its files.
+
 Each sovereign has its own genesis block, root, NA and operator keys,
 database and key IDs (`alpha-na`, `alpha-ops`, `beta-na`, `beta-ops`). Wait
 until `docker inspect -f '{{.State.Health.Status}}' na-$S` reports `healthy`.

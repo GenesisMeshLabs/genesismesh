@@ -18,7 +18,7 @@ Authority stays the Python reference and the only issuer of decisions.
 | 1 | v1.2.0 | Durable SDK evidence outbox; strict, forward-compatible verifiers and the canonicalization corpus; signed store anchors copied to storage the auditor controls | Released |
 | 2 | v1.3.0 | Observations, after-the-fact judgements, break-glass when the Network Authority is unreachable, quarantined records | Released |
 | 3 | v1.4.0 | Remediation (cancel by rotating forward), notification, one review record with second-person approval | Released |
-| 4 | v1.5.0 | Audit packs, key succession, archive before prune, the independent verifier `genesis-mesh-verify` | Released |
+| 4 | v1.5.0 | Audit packs, key succession, archive before prune, the offline verifier `genesis-mesh-verify` | Released |
 | 5 | v1.6.0 | Pre-issued grants in the core and the SDKs | Released |
 | 6 | v1.7.0 | The Rust edge agent | Released |
 
@@ -26,6 +26,13 @@ Each stage is a release of the whole train and ships when its gate is green.
 Stages 5 and 6 were confirmed as the stage before them shipped; the
 program is complete with v1.7.0. The plans are in
 `ops/plan-v1.2.0.md` onwards.
+
+Every new record kind is off by default: the evidence store and its anchors
+need `EVIDENCE_STORE=on`, observations and break-glass need
+`EVIDENCE_OUT_OF_BAND=on`, remediation needs `EVIDENCE_REMEDIATION=on`, and
+grants need `EVIDENCE_GRANTS=on`. The outbox, break-glass, observations,
+remediation helpers and grant holders exist only in the TypeScript and Rust
+SDKs and in the edge agent.
 
 ## What Changed
 
@@ -72,6 +79,62 @@ admin authentications count per key, so one operator's failures behind a
 shared address no longer lock out the others. The gateway forwards the
 authority's `Retry-After` and its request ID.
 
+**Observations, judgements and break-glass** (v1.3.0, `EVIDENCE_OUT_OF_BAND=on`):
+an observer signs a change it sees at the source, such as an activity log
+entry, as an observation. A controller that cannot reach the Network Authority
+can run an action on a stated justification and sign a break-glass record,
+never after a DENY. The Network Authority judges each record once, as of when
+the change happened, under the policy versions its signed registry says were
+active then. A judgement is never an approval. An authentic record refused
+after its action happened is kept as a quarantine entry. The `out_of_band`
+conformance suite carries the records ({doc}`../../operations/out-of-band-changes`).
+
+**Review fixes** (v1.3.1): retention, anchoring and the Network Authority's own
+verify refuse an incomplete store; judging replays only registry records the
+Network Authority signed; `NA_PROXY_HOPS` defaults to `0`; and every
+implementation verifies exports by the same rules.
+
+**Remediation, reviews and notification** (v1.4.0, `EVIDENCE_REMEDIATION=on`):
+a policy says what a denial leads to, per gate: cancel or alert only, after a
+grace window. A controller cancels a credential by rotating forward to a new
+version under a governed decision, then disabling the denied one. The Network
+Authority keeps a due queue of open remediations. One signed record covers
+reviews and waivers, decided by a privileged key of a holder other than the
+requester and the observed actor. An urgent change runs under an emergency
+capability with its own policy and a maximum lifetime
+({doc}`../../operations/remediation-and-reviews`).
+
+**Key succession, audit packs and the offline verifier** (v1.5.0): the NA key
+can be succeeded by a record signed by the offline root key, the new key and
+the outgoing key, and verifiers accept a record signed by the key valid at the
+record's own time. A lost or compromised NA key cannot sign its own succession
+and still means a new identity ({doc}`../../operations/key-succession`). A
+read-tier key produces an audit pack for a range between two anchors, and a
+security team verifies it offline from the root key and anchors it holds
+({doc}`../../operations/audit-packs`). `genesis-mesh audit archive` writes and
+verifies a pack before retention prunes. `genesis-mesh-verify` is a
+hand-ported second implementation of the Python reference's verification: a
+Rust port, shipped as static binaries, checked against a corpus the reference
+generates.
+
+**Pre-issued grants** (v1.6.0, `EVIDENCE_GRANTS=on`, beta): the Network
+Authority signs, in advance, a capability grant for one registered executor
+key, for at most 24 hours, within a budget and a parameter envelope every
+applied policy allows. A holder acts within the grant while it cannot reach
+the Network Authority, using NA-signed time tokens, and uploads its uses on
+reconnect. The Network Authority admits each use that keeps to the grant and
+quarantines the rest. Revoked grants are listed in the signed revocation feed
+({doc}`../../operations/grants`).
+
+**The edge agent** (v1.7.0, beta): `genesis-mesh-edge`, a static Rust agent
+released with the Rust SDK, enrols with an edge invite and generates its node
+and executor keys on the device. Local services ask it whether an action may
+run. It asks the Network Authority for a node-scoped decision, acts within its
+grants when the Network Authority cannot be reached, and only then breaks the
+glass. Every record waits in a durable outbox. Revoking the node retires its
+executor key and revokes its grants in one step
+({doc}`../../operations/edge-agent`).
+
 ## Value Added
 
 - Evidence of a governed action survives the Network Authority being
@@ -81,12 +144,24 @@ authority's `Retry-After` and its request ID.
 - One record gets one verdict in every implementation.
 - Removing evidence from an anchored range is detectable by anyone holding a
   copy of the anchors, including against the Network Authority's operator.
+- A change made outside a governed action, or under break-glass, is on the
+  record and judged as of its time (`EVIDENCE_OUT_OF_BAND=on`).
+- A change judged DENY is cancelled by rotating forward, or waived by a second
+  person, on the record (`EVIDENCE_REMEDIATION=on`).
+- The NA key can be succeeded under the offline root key. A compromised key
+  still means a new identity.
+- An auditor verifies an audit pack offline, with `genesis-mesh-verify` or the
+  Python reference.
+- A device acts within NA-signed grants while the NA is unreachable
+  (`EVIDENCE_GRANTS=on`).
+- `genesis-mesh-edge` (beta) runs governed actions on a device with keys it
+  generated itself, and one revocation ends its authority.
 
-## What Becomes Possible
+## What Became Possible
 
-With records kept and anchored, Stage 2 can let a change proceed when the
-Network Authority is unreachable and judge it afterwards, and Stage 4 can
-hand an auditor a pack to verify independently.
+Every governed change leaves a signed record, whether or not the Network
+Authority could be reached. A security team can verify those records years
+later, offline, from the root key and anchors it holds.
 
 ## Key Releases
 
@@ -95,6 +170,6 @@ hand an auditor a pack to verify independently.
 | v1.2.0 | Stage 1, Nothing Lost, Anchored: evidence outbox, strict verifiers and the field registry, the canonicalization corpus, signed store anchors |
 | v1.3.0 | Stage 2, Observations, Judgements and Break-Glass: changes made outside governed actions recorded and judged once as of their time, break-glass records, quarantine, the store's signed registry |
 | v1.4.0 | Stage 3, Remediation, Reviews and Notification: a change judged DENY cancelled by rotating forward after a grace window, one review record for reviews and waivers decided by a second holder, emergency capabilities, the due queue and notices |
-| v1.5.0 | Stage 4, Audit Packs and Independent Verification: NA key succession with an offline root key, audit packs verified offline from held anchors, completeness against outside logs, archive before prune, read-tier evidence access, the independent verifier `genesis-mesh-verify` |
+| v1.5.0 | Stage 4, Audit Packs and Independent Verification (release name): NA key succession with an offline root key, audit packs verified offline from held anchors, completeness against outside logs, archive before prune, read-tier evidence access, the offline verifier `genesis-mesh-verify` (a hand-ported second implementation) |
 | v1.6.0 | Stage 5, Pre-Issued Grants: capability grants issued only for envelopes every applied policy allows, NA-signed time tokens, grant uses admitted or quarantined on one resource chain, revocation from a time listed in the revocation feed, grant holders in the TypeScript and Rust SDKs that fall back to break-glass |
 | v1.7.0 | Stage 6, The Edge Agent: `genesis-mesh-edge` (beta) enrols with an edge invite and registers its executor key at join, asks node-scoped decisions only under attestations issued to it, acts within its grants and breaks the glass only when the Network Authority cannot be reached, and keeps every record in a durable outbox; revoking a node retires its key and grants in one step |

@@ -82,7 +82,8 @@ deployment profile.
 - **RFC-001.** The canonical form and signature rules match the reference
   and are tested by the `interop` vectors. Open: there is no NA key rotation
   that keeps the sovereign's identity (SR-06), which remains an open question
-  of this RFC and an accepted residual risk for v1.
+  of this RFC and an accepted residual risk for v1. *(Superseded for planned
+  rotation by key succession in 1.5.0; see the 2026-10-22 entry.)*
 - **RFC-002.** Signature checks, issuer and subject binding, validity window,
   status and fail-closed empty scope match the code. Treaty issuance and
   revocation require the privileged operator tier.
@@ -112,12 +113,15 @@ recorded here before any change to these RFCs.
 **Accepted residual risks**, from the security review ({doc}`security-review-v1`):
 
 - SR-06: no NA key rotation that keeps the sovereign's identity (an open
-  question of RFC-001).
+  question of RFC-001). *(Superseded for planned rotation by key succession
+  in 1.5.0; see the 2026-10-22 entry.)*
 - SR-07: imported revocation feeds have no enforced maximum age; operators
   schedule imports to their tolerance (RFC-004).
 - SR-08: trust bundles are self-attested and unsigned; the mitigation stays
   procedural (RFC-003).
 - SR-09: the importing operator chooses the feed issuer's keys (RFC-004).
+  *(Narrowed in v1.0.2: keys pinned by this NA's own treaties win; see the
+  2026-10-22 entry.)*
 
 **Decision.** The maintainer accepts RFC-001 Sovereign Identity, RFC-002
 Recognition Treaties, RFC-003 Trust Bundles and RFC-004 Revocation Feeds. They
@@ -125,3 +129,63 @@ are normative for v1 interoperability: a change to their signed fields,
 canonical form, verification rules or reason codes follows
 `DEPRECATION_POLICY.md` and a new dated entry in this log. RFC-005 to RFC-008
 remain Draft and are not part of the v1 interoperability claim.
+
+## 2026-10-22 — Changes since acceptance, recorded after the fact
+
+The 2026-10-03 decision requires a dated entry here for any change to the
+signed fields, canonical form, verification rules or reason codes of RFC-001
+to RFC-004. Four such changes shipped without one. This entry records them.
+It is a record of what the releases changed, not a new acceptance decision;
+the RFC texts carry matching notes.
+
+1. **Feed import keys (RFC-004, v1.0.2, 2026-10-05).** When this NA has an
+   active, in-window treaty for a feed's issuer, the feed is verified against
+   the subject keys that treaty pins. Keys an operator supplies on import must
+   be among them (`caller_keys_not_accepted`); supplied keys alone are
+   accepted only for an issuer with no such treaty
+   (`genesis_mesh/na_service/routes/treaties.py`). This narrows SR-09.
+2. **Canonical rules and unknown fields (RFC-001, v1.2.0, 2026-10-10).**
+   RFC-001's *Canonical JSON and signatures* gained timestamp offsets, a
+   64-bit integer range and the *Accepted input* rule (`duplicate_key`,
+   `integer_out_of_range`, `lone_surrogate` and others), and a verifier now
+   refuses a record signed over a non-canonical form (`non_canonical_form`).
+   Every verifier also refuses a signed field it does not know
+   (`unknown_field`). The `field_registry` and `canonical` conformance suites
+   carry the cases ({doc}`../reference/canonical-form`).
+3. **Key succession (RFC-001, v1.5.0, 2026-10-14).** A planned rotation of
+   the NA key now keeps the sovereign's identity. A `KeySuccessionRecord` is
+   signed by the root key, the new NA key and the outgoing NA key and is
+   served at `GET /na/key-history`. A verifier that holds the root key checks
+   an NA signature with the key valid at the record's own time; treaties and
+   attestations are placed at their `issued_at`. SR-06 is closed for planned
+   rotation. A lost or compromised NA key cannot sign its own succession and
+   still means a new identity, and the root key cannot be succeeded
+   ({doc}`../operations/key-succession`). RFC-001's open question on rotation
+   is answered by the implementation and that guide, not yet by RFC text.
+4. **Revoked grants in the feed (RFC-004, v1.6.0, 2026-10-14).** A
+   `SovereignRevocationFeed` may carry `revoked_grant_ids`. It is omitted from
+   every form when absent and written only with `EVIDENCE_GRANTS=on`. A
+   verifier before 1.6 refuses it as `unknown_field`.
+
+### 2026-10-22: RFC-001 and RFC-002/RFC-006 updated to the implemented protocol
+
+The Maintainer decided that the RFCs follow the protocol as it evolved, rather
+than changing the code:
+
+1. **RFC-001: the identity document is `GET /sovereign.json`.** The data model
+   now describes the document the NA publishes: `endpoint` (one string), the
+   `network_authority` object, `signing_key` and the other descriptive fields.
+   It is not signed; consumers check its floor fields against the root-signed
+   genesis block (requirement 7). The Python model `SovereignIdentity` keeps
+   the first draft's shape and is not the wire format. RFC-001's open
+   questions on self-signing and on NA key rotation are answered; root key
+   rotation stays open.
+2. **RFC-002 and RFC-006: multi-hop paths in trust decisions.** Membership
+   admission still uses direct treaties only, and the Connectome view still
+   grants nothing (RFC-006 requirement 5). Trust-decision engines **MAY**
+   follow multi-hop paths made only of active signed treaties, with every
+   requested role allowed at every hop, recorded in the decision's trust
+   evidence, and **SHOULD** bound their length (RFC-002, *Multi-hop
+   recognition in trust decisions*; RFC-006 requirement 8). The reference
+   implementation does not yet bound the length; a configurable depth limit
+   is an open item.

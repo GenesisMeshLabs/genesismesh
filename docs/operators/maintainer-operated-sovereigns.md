@@ -80,7 +80,7 @@ Use this cadence unless an operator publishes a stricter one:
 | --- | --- |
 | Health and readiness check | daily for hosted sovereigns |
 | Connectome check | weekly |
-| Treaty expiry review | weekly, renew when less than 30 days remain |
+| Treaty expiry review | weekly, renew when less than 30 days remain (read `expires_at`: `treaty list` flags only the last 72 hours) |
 | Trust-bundle refresh | after every meaningful trust-state change, and at least monthly for active sovereigns |
 | Attestation and revocation proof | quarterly |
 
@@ -116,8 +116,13 @@ Treaty renewal should happen before a relationship enters its final 30 days:
 
 ```bash
 genesis-mesh treaty list --na "$NA_ENDPOINT"
-genesis-mesh treaty renew --na "$NA_ENDPOINT" "$TREATY_ID"
+genesis-mesh treaty renew --na "$NA_ENDPOINT" "$TREATY_ID" --validity-hours 2160
 ```
+
+`--validity-hours` defaults to 24 hours: always pass the window you want, or a
+treaty with 30 days left is replaced by one that ends tomorrow. `treaty list`
+marks a treaty `expiring_soon` only in its last 72 hours, so review the expiry
+dates yourself for the 30-day rule.
 
 ## Quarterly Proof Cycle
 

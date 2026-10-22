@@ -7,6 +7,15 @@ direct-recognition treaty, and then explicitly decide whether to issue it.
 This workflow uses existing protocol surfaces. It does not create automatic
 trust, transitive trust, or a global registry.
 
+## See It Run
+
+```{image} ../examples/assets/images/genesis-mesh-operator-onboarding-exchange.gif
+:alt: A recorded run of trust bundle exchange followed by federation bootstrap
+:class: screenshot
+```
+
+Recorded from the example scripts; the steps and output are in {doc}`../examples/operator-onboarding-exchange`.
+
 ## Roles
 
 | Role | Meaning |

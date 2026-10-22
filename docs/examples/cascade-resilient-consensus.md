@@ -1,12 +1,13 @@
 # Cascade-Resilient Consensus
 
-> **Version**: v0.38.0
-> **Requires**: Distributed Consensus Authorization (v0.36)
+> Introduced in v0.38.0. Builds on distributed consensus authorization (v0.36).
 
 ```{image} assets/images/genesis-mesh-cascade-resilient-consensus.gif
 :alt: Cascade-resilient consensus demo
 :class: screenshot
 ```
+
+Run it yourself: `python docs/examples/assets/scripts/cascade-resilient-consensus-demo.py --no-gif`.
 
 ## The Problem
 
@@ -215,6 +216,6 @@ produces different-looking context digests while coordinating out-of-band can
 still technically pass.  The defense is probabilistic (raises cost of undetected
 coordination), not absolute.
 
-For stronger guarantees, combine with `SeedIsolationGate` (v0.39) which tracks
-behavioral consistency over time and flags sudden shifts in previously stable
-voting patterns.
+You can also add `SeedIsolationGate` (v0.39), which flags counterparties whose
+risk-signal history looks farmed. It does not look at votes, so it does not
+detect coordinated validators.

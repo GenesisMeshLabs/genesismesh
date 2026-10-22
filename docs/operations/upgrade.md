@@ -15,12 +15,16 @@ policy, policy-bound decisions and a resource's execution chain, is upgraded
 and every record is verified again. The same database is restored from backup
 and verified, and migrated to PostgreSQL and verified.
 
+Read every *Upgrading to* section from your version up to the target, oldest
+first. Each row below names the first one.
+
 | From | Status |
 | --- | --- |
 | 1.6.x | Supported and rehearsed in CI, with grants on and an edge node enrolled after the upgrade. Read *Upgrading to 1.7* below first |
 | 1.5.x | Supported and rehearsed in CI, with the out-of-band and remediation records on, and grants on after the upgrade. Read *Upgrading to 1.6* below first |
 | 1.4.x | Supported and rehearsed in CI, with the out-of-band and remediation records on. Read *Upgrading to 1.5* below first |
 | 1.3.x | Supported and rehearsed in CI, from 1.3.1 with the out-of-band records on. Read *Upgrading to 1.4* below first |
+| 1.2.x | Supported and rehearsed in CI. Read *Upgrading to 1.3* below first |
 | 1.1.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* below first |
 | 1.0.x | Supported and rehearsed in CI. Read *Upgrading to 1.1.1* and *Upgrading to 1.1* below first, and *Upgrading to 1.0.2* when coming from 1.0.0 or 1.0.1 |
 | 0.65.x, 0.64.x, 0.63.x, 0.62.x, 0.61.x, 0.60.x, 0.59.x | Supported and rehearsed in CI |
@@ -49,8 +53,9 @@ built wheel before every release.
    the old version report not ready on `/readyz` once the schema has moved,
    so the load balancer drains them until they are upgraded.
 4. **Verify.** `genesis-mesh na verify-db` checks schema version, boundary
-   policy digests, CRL continuity and the evidence chain. `/readyz` must
-   report the expected schema version.
+   policy digests, CRL continuity, the evidence chain, the evidence anchors
+   and, with `--genesis`, the NA key history from the root key. `/readyz`
+   must report the expected schema version.
 
 ## Upgrading to 1.7
 

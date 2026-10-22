@@ -40,11 +40,16 @@ supply-chain profile:
 }
 ```
 
-The attestation role must include:
+The demo's attestation carries the role the verifier requires by default:
 
 ```text
 role:supply-chain:release-maintainer
 ```
+
+The demo signs its artifacts directly. A Network Authority issues only the
+role prefixes it accepts (`anchor`, `bridge`, `client`, `operator` and
+`service:<name>`), so with a real NA issue `role:service:release-maintainer`
+and run the gate with `--role role:service:release-maintainer`.
 
 The accepting project signs a recognition treaty that allows that role from the
 issuing project sovereign.
@@ -106,8 +111,11 @@ keys, full request bodies, or signed payload bodies.
 
 The sample workflow lives at
 `docs/examples/assets/github-actions/supply-chain-trust-gate.yml`. It installs
-Genesis Mesh, verifies the checked-in attestation and treaty, and writes a
-redacted proof bundle suitable for CI artifacts.
+Genesis Mesh 1.7.0 from PyPI, verifies the checked-in attestation and treaty,
+and writes a redacted proof bundle suitable for CI artifacts. Update the pin
+when you adopt a newer release. It passes no revocation feed; add
+`--revocation-feed` with the issuer's current feed for the check to see a
+revocation.
 
 ## What This Proves
 
@@ -115,8 +123,9 @@ redacted proof bundle suitable for CI artifacts.
 - A second project can recognize the issuing sovereign through a signed treaty.
 - The gate returns stable CI exit codes: `0` for allow, `10` for deny, `2` for
   verifier errors.
-- A signed revocation feed blocks the same maintainer without local
-  re-enrollment.
+- Given the issuer's current signed revocation feed (`--revocation-feed`,
+  with `--min-feed-sequence` to refuse an older one), the gate denies the same
+  maintainer without local re-enrollment. Without the feed it allows them.
 - The audit output explains the issuer, treaty, role, revocation reason, and
   trust path.
 

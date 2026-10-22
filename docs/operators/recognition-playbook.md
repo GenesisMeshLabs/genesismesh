@@ -6,6 +6,22 @@ recognition between two independently administered sovereigns.
 Use it when Sovereign A wants to recognize Sovereign B for a scoped role and
 prove that Sovereign B can later revoke its own trust material.
 
+## See It Run
+
+```{image} ../examples/assets/images/genesis-mesh-cross-sovereign-revocation.gif
+:alt: A recorded run of an attestation accepted through a treaty, revoked by its issuer, and rejected after the feed import
+:class: screenshot
+```
+
+Recorded from the example scripts; the steps and output are in {doc}`../examples/cross-sovereign-revocation`.
+
+```{image} ../examples/assets/images/genesis-mesh-independent-sovereigns.gif
+:alt: A recorded run of the recognition and revocation proof across two Network Authorities on different hosts
+:class: screenshot
+```
+
+Recorded from the example scripts; the steps and output are in {doc}`../examples/independent-sovereigns`.
+
 ## Roles
 
 | Role | Meaning |
@@ -28,8 +44,12 @@ curl -fsS https://issuer.example.org/sovereign.json
 The acceptor checks:
 
 - `network_name`
-- `network_authority.public_key`
-- `network_authority.valid_to`
+- `network_authority.public_key` (the genesis NA key: the sovereign's
+  identity)
+- `signing_key` (the key that signs now, and until when;
+  `network_authority.valid_to` is shown but not enforced since 1.5.0)
+- `supported_surfaces.key_history` (`/na/key-history`: the genesis key and
+  every succession)
 - `supported_surfaces.sovereign_revocation_feed`
 - `supported_surfaces.connectome`
 
@@ -111,12 +131,16 @@ After the run, document:
 - Any firewall, DNS, systemd, or permission issue.
 - Any manual copy/paste that should become tooling.
 
-Do not hide friction. v0.14 is valuable because it reveals whether the workflow
-works for someone who did not build it.
+Do not hide friction. An external run is valuable because it shows whether the
+workflow works for someone who did not build it.
 
 ## 6. Clean Proof State
 
-If this was a rehearsal, clean only proof artifacts after taking a backup:
+If this was a rehearsal on a sovereign that holds only proof state, clear it
+after taking a backup. `proof cleanup` deletes **every** treaty, attestation,
+revocation feed and imported revocation in the SQLite database, not only the
+proof's, so never run it on a sovereign with real relationships. It does not
+support PostgreSQL.
 
 ```bash
 sudo systemctl stop genesis-mesh-na
@@ -127,5 +151,5 @@ genesis-mesh proof cleanup \
 sudo systemctl start genesis-mesh-na
 ```
 
-Do not delete genesis, NA keys, operator keys, policies, node certificates, or
-non-proof operational data.
+The command keeps genesis, keys, policies, node certificates and the audit log.
+Do not delete those by hand either.

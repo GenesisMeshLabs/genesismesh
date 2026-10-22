@@ -115,7 +115,8 @@ Do not share:
 Safe to share:
 
 - `/healthz` output;
-- `/readyz` output;
+- the `status` of `/readyz` (the full response names the database path or
+  host: redact `db_path` before sharing);
 - `/genesis` output;
 - `/sovereign.json` output;
 - `/sovereign-revocation-feed` output;
@@ -146,7 +147,8 @@ Check that:
 - the genesis material is present;
 - the public sovereign metadata matches the genesis identity;
 - the public Network Authority key is visible;
-- no private keys or local paths appear in public metadata;
+- no private keys or local paths appear in public metadata (`/readyz` is the
+  exception: its `db_path` names the database file or host);
 - the revocation feed exists, even if empty;
 - the Connectome is visible or clearly empty.
 

@@ -12,11 +12,24 @@ infrastructure/
   variables.tf          Terraform inputs
   outputs.tf            Terraform outputs
   universal_boot.sh     Cloud-init and remote bootstrap script
-  azure/
-    deploy_to_azure.ps1 Azure Container Apps deployment script
-    deploy_to_azure.sh  Azure Container Apps deployment script
+  canary/               Configuration of the retired trust-cycle canary sovereigns
+  mesh-demo/            The mesh.genesismesh.org stack (gateway, NA, demo job)
+  pilot-vm/             A single-VM test deployment of the deployment profile: HA, PostgreSQL, drills
+  public-reference/     External treaties of the public reference dashboard
   scripts/
-    verify_flow.ps1     Local cryptographic CLI smoke flow
+    bootstrap-ubuntu-vm.sh      Provider-neutral NA and router bootstrap
+    deploy-public-dashboard.sh  Deploys the public reference (run by the release workflow)
+    publish-package.sh          Builds and publishes the package (TestPyPI or PyPI)
+    setup-github-secrets.sh     Pushes GitHub Actions secrets and variables from .env
+    verify_flow.ps1             Local cryptographic CLI smoke flow
+  systemd/              Unit files for the NA, routers and canaries
+
+deploy/
+  azure/                Terraform module for one Azure VM, and the Container Apps scripts
+    deploy_to_azure.ps1
+    deploy_to_azure.sh
+  compose/              Compose files, including the HA stack (compose/ha/)
+  kubernetes/           Single-replica manifests
 ```
 
 ## Root Files Kept Intentionally
@@ -59,7 +72,7 @@ published image at this checkout's `VERSION` to Azure Container Apps (set
 Registry instead:
 
 ```powershell
-.\infrastructure\azure\deploy_to_azure.ps1
+.\deploy\azure\deploy_to_azure.ps1
 ```
 
 ```bash
@@ -72,8 +85,8 @@ are required and become Container Apps secrets, handed to the image as
 `GENESIS_JSON` and `NA_PRIVATE_KEY_SEED` (`start.sh` moves both out of the
 server processes' environment). `NA_KEY_ID` (default `na-local`),
 `OPERATOR_PUBLIC_KEYS_JSON` and `OPERATOR_KEY_TIERS_JSON` configure the
-Network Authority; every operator key needs a tier (`standard` or
-`privileged`). Without `DATABASE_URL` (PostgreSQL, also passed as a secret)
+Network Authority; every operator key needs a tier (`read`,
+`standard` or `privileged`). Without `DATABASE_URL` (PostgreSQL, also passed as a secret)
 the state is SQLite inside the container, which a new revision starts
 without. With `INVITE_TOKEN`, the scripts also deploy a mesh node enrolled
 with it. Run them from a release checkout, since the image tag comes from

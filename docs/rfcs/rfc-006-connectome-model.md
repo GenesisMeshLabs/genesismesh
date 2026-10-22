@@ -58,6 +58,10 @@ explains; it does not decide.
 7. The export **MUST** be deterministic enough to compare across fetches; the
    reference implementation sorts sovereigns, edges, and revoked material by
    stable keys.
+8. A trust-decision engine **MAY** evaluate trust paths over the same signed
+   treaties the export describes (RFC-002, *Multi-hop recognition in trust
+   decisions*). It reads the signed treaties, not a viewer's rendering, and
+   requirement 5 still holds: admission never rests on the view.
 
 ## Data model
 
@@ -114,6 +118,9 @@ Trust-path explanation (`explain_trust_path`) returns one of:
 
 These reason codes are explanations of state, not admission decisions.
 
+Trust-decision engines may use these paths for decisions (requirement 8 and
+RFC-002); the reason codes above stay explanations.
+
 ## Security considerations
 
 - The Connectome is read-only and derived from already-signed material. It adds
@@ -131,8 +138,9 @@ These reason codes are explanations of state, not admission decisions.
   exists.
 - A trust bundle (RFC-003) carries a Connectome summary so a reviewer sees graph
   context for the subject sovereign.
-- Atlas, the public explorer described in {doc}`/development/atlas`, is intended
-  to consume this export rather than introduce a second source of truth.
+- Atlas, the public explorer described in {doc}`/development/atlas`, reads
+  this export (`GET /atlas` and `GET /atlas.json`) rather than introducing a
+  second source of truth.
 
 ## Compatibility notes
 
@@ -144,7 +152,8 @@ These reason codes are explanations of state, not admission decisions.
 
 ## Open questions
 
-- Should multi-hop trust paths be admissible (transitive recognition), or remain
-  explanation-only? RFC-002 currently admits on direct treaties only.
+- Resolved 2026-10-22: multi-hop paths are not used for admission, and
+  trust-decision engines may use them (requirement 8, RFC-002). A depth
+  limit in the reference implementation is still open.
 - Should the export include capability overlays (RFC-005) as a first-class
   section, or remain a separate secondary view?

@@ -1,11 +1,19 @@
 #!/bin/bash
 # Genesis Mesh enrollment demo
+#
+# Starts a temporary local Network Authority on 127.0.0.1:8443, enrolls one
+# node with a single-use invite, then revokes it and shows the 403.
+#
+# Variables (all optional):
+#   GM_REPO   repository root (default: git rev-parse --show-toplevel, else the
+#             current directory); used to find a virtualenv to activate
+#
 # Record with: asciinema rec enrollment.cast --command "bash docs/examples/assets/scripts/enrollment-demo.sh"
 # Convert with: agg enrollment.cast docs/examples/assets/images/genesis-mesh-enrollment.gif
 
 set -e
 
-REPO=$(pwd)
+REPO="${GM_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 # Activate venv -- try Linux home venv, then project-local venv
 if [ -f "$HOME/gm-venv/bin/activate" ]; then
@@ -41,6 +49,7 @@ echo "==> joining network"
 genesis-mesh join --na http://127.0.0.1:8443 --token $INVITE
 sleep 1
 
+# Without an operator signature, /nodes returns the active count only (v1.0.2).
 echo ""
 echo "--- active nodes before revoke ---"
 curl -s http://127.0.0.1:8443/nodes | python3 -m json.tool
@@ -48,7 +57,7 @@ sleep 1
 
 echo ""
 echo "==> revoking certificate"
-CERT=$(python3 "$REPO/docs/examples/assets/scripts/get-cert-id.py")
+CERT=$(python3 -c 'import json; print(json.load(open(".genesis-mesh/node.cert.json"))["cert_id"])')
 echo "Certificate: $CERT"
 genesis-mesh admin revoke $CERT --reason key_compromise
 sleep 1

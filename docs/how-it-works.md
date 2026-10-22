@@ -28,8 +28,8 @@ genesis-mesh na start
 ## 3. Attestations say who belongs
 
 An attestation is a signed statement from a sovereign about one of its members
-or their roles. Anyone with the sovereign's public key can verify it offline,
-without asking the sovereign. Its public trust material, keys included, is
+or their roles. Anyone with the sovereign's public keys (its key history, from
+`/na/key-history`) can verify it offline, without asking the sovereign. Its public trust material, keys included, is
 one command away:
 
 ```bash
@@ -49,9 +49,10 @@ genesis-mesh treaty list --na https://na.genesismesh.org
 ## 5. Revocation travels as signed evidence
 
 When a sovereign revokes a member, key or treaty, it publishes a signed
-revocation feed. Recognizing sovereigns import the feed, so the revocation
-takes effect across borders, and every decision leaves evidence that can be
-verified later.
+revocation feed. A recognizing sovereign's operator imports the feed
+(`genesis-mesh treaty import-feed`), and the revocation then applies there too.
+With the evidence store on (`EVIDENCE_STORE=on`; it is off by default), each
+decision is also recorded as evidence that can be verified later.
 
 ```bash
 curl https://na.genesismesh.org/sovereign-revocation-feed

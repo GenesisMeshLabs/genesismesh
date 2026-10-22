@@ -1,0 +1,56 @@
+$ PYTHON=.venv/Scripts/python.exe GM_PUBLISHED_CORE=source interop/run_all.sh --published 1.7.0
+==> Network Authority
+interop NA listening on http://127.0.0.1:55735
+==> Leg 1: Python (agreement, boundary decisions, license policy)
+[PYTHON] agreement: {'accepted': True, 'reason': 'accepted'}
+[PYTHON] agreement_tampered: {'accepted': False, 'reason': 'invalid_offerer_signature'}
+[PYTHON] boundary_decision: {'accepted': True, 'reason': 'authorized', 'authorized': True}
+[PYTHON] boundary_decision_denied: {'accepted': True, 'reason': 'unauthorized_policy_gate_failure', 'authorized': False}
+[PYTHON] boundary_decision_attestation: {'accepted': True, 'reason': 'authorized', 'authorized': True}
+[PYTHON] boundary_decision_tampered: {'accepted': False, 'reason': 'invalid_signature', 'authorized': True}
+[PYTHON] data_policy: {'valid': True}
+[PYTHON] fixtures written: OK
+==> Leg 2: Go verifier (github.com/GenesisMeshLabs/sdk-go@v1.7.0)
+[GO VERIFIER] agreement: map[accepted:true reason:accepted]
+[GO VERIFIER] agreement_tampered: map[accepted:false reason:invalid_offerer_signature]
+[GO VERIFIER] boundary_decision: map[accepted:true authorized:true reason:authorized]
+[GO VERIFIER] boundary_decision_denied: map[accepted:true authorized:false reason:unauthorized_policy_gate_failure]
+[GO VERIFIER] boundary_decision_attestation: map[accepted:true authorized:true reason:authorized]
+[GO VERIFIER] boundary_decision_tampered: map[accepted:false authorized:true reason:invalid_signature]
+[GO VERIFIER] data_policy: map[valid:true]
+[GO VERIFIER] agreement: OK  boundary: OK
+==> Leg 3: TypeScript SDK (genesis-mesh-sdk@1.7.0 from npm)
+[TS SDK] ts_intent: {"valid":true,"violation_reason":null,"violations":[]}
+[TS SDK] ts_intent_na: {"valid":true,"violation_reason":null,"violations":[]}
+[TS SDK] ts_intent_denied: {"valid":false,"violation_reason":"source_not_licensed","violations":["source_not_licensed","prohibited_classification","access_type_not_permitted","volume_cap_exceeded"]}
+[TS SDK] ts_intent_denied_na: {"valid":false,"violation_reason":"source_not_licensed","violations":["source_not_licensed","prohibited_classification","access_type_not_permitted","volume_cap_exceeded"]}
+[TS SDK] agreement: {"accepted":true,"reason":"accepted"}
+[TS SDK] agreement_tampered: {"accepted":false,"reason":"invalid_offerer_signature"}
+[TS SDK] boundary_decision: {"accepted":true,"reason":"authorized","authorized":true}
+[TS SDK] boundary_decision_denied: {"accepted":true,"reason":"unauthorized_policy_gate_failure","authorized":false}
+[TS SDK] boundary_decision_attestation: {"accepted":true,"reason":"authorized","authorized":true}
+[TS SDK] boundary_decision_tampered: {"accepted":false,"reason":"invalid_signature","authorized":true}
+[TS SDK] data_policy: {"valid":true}
+[TS SDK] intent: submitted  compliant: true
+==> Leg 4: C# SDK (genesismesh-sdk-dotnet 1.7.0 from NuGet)
+[CSHARP SDK] ts_intent: {"valid":true,"violation_reason":null,"violations":[]}
+[CSHARP SDK] ts_intent_denied: {"valid":false,"violation_reason":"source_not_licensed","violations":["source_not_licensed","prohibited_classification","access_type_not_permitted","volume_cap_exceeded"]}
+[CSHARP SDK] agreement: {"accepted":true,"reason":"accepted"}
+[CSHARP SDK] agreement_tampered: {"accepted":false,"reason":"invalid_offerer_signature"}
+[CSHARP SDK] boundary_decision: {"accepted":true,"reason":"authorized","authorized":true}
+[CSHARP SDK] boundary_decision_denied: {"accepted":true,"reason":"unauthorized_policy_gate_failure","authorized":false}
+[CSHARP SDK] boundary_decision_attestation: {"accepted":true,"reason":"authorized","authorized":true}
+[CSHARP SDK] boundary_decision_tampered: {"accepted":false,"reason":"invalid_signature","authorized":true}
+[CSHARP SDK] data_policy: {"valid":true}
+[CSHARP SDK] intent: verified  compliant: true
+==> All implementations agree
+!ok [ASSERT] agreement: agree (csharp, go, python, typescript)
+!ok [ASSERT] agreement_tampered: agree (csharp, go, python, typescript)
+!ok [ASSERT] boundary_decision: agree (csharp, go, python, typescript)
+!ok [ASSERT] boundary_decision_denied: agree (csharp, go, python, typescript)
+!ok [ASSERT] boundary_decision_attestation: agree (csharp, go, python, typescript)
+!ok [ASSERT] boundary_decision_tampered: agree (csharp, go, python, typescript)
+!ok [ASSERT] data_policy: agree (csharp, go, python, typescript)
+!ok [ASSERT] ts_intent: agree (csharp, python, typescript)
+!ok [ASSERT] ts_intent_denied: agree (csharp, python, typescript)
+!ok ALL LEGS PASSED

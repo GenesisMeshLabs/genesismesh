@@ -38,24 +38,26 @@ Healthz, readyz, metrics, and external uptime checks.
 :link: audit-export
 :link-type: doc
 
-Exporting trust-decision events for downstream review or SIEM ingest.
+Exporting the NA's audit events (not signed) for downstream review or SIEM
+ingest.
 :::
 
 :::{grid-item-card} Governed Changes and Audit
 :link: governed-changes-and-audit
 :link-type: doc
 
-Evidence anchors, changes outside the controlled path, remediation and
-reviews, emergency changes, audit packs, archive before prune, verification
-and NA key succession.
+Changes outside the controlled path, remediation and reviews, emergency
+changes, grants and the edge agent, evidence anchors, audit packs, archive
+before prune, verification and NA key succession. Each is off by default.
 :::
 
 :::{grid-item-card} Incident Response Runbooks
 :link: incident-response
 :link-type: doc
 
-Step-by-step playbooks for operator key compromise, NA key compromise, bad
-treaty, bad feed, database restore, and revocation blast-radius review.
+Step-by-step playbooks for operator key compromise, NA key compromise,
+governed-change incidents, bad treaty, bad feed, database restore, and
+revocation blast-radius review.
 :::
 
 :::{grid-item-card} Backup and Restore
@@ -70,8 +72,8 @@ restored Connectome state.
 :link: revocation
 :link-type: doc
 
-Revocation procedures for credentials and trust material, including
-propagation considerations.
+Revoking certificates and edge nodes, where the other kinds of trust
+material are revoked, and how long a revocation takes to reach partners.
 :::
 
 :::{grid-item-card} Managed Sovereign Operations
@@ -80,6 +82,21 @@ propagation considerations.
 
 Operational guidance for running a Network Authority on behalf of a
 customer or design partner while keeping the trust boundary explicit.
+:::
+
+:::{grid-item-card} Upgrade and Rollback
+:link: upgrade
+:link-type: doc
+
+Supported upgrade paths, per-version notes, and what a rollback can do.
+:::
+
+:::{grid-item-card} Pilot Deployment Profile
+:link: pilot-deployment-profile
+:link-type: doc
+
+The supported shape for running a sovereign with an outside operator,
+rehearsed in CI.
 :::
 
 ::::

@@ -1,7 +1,11 @@
-"""Demo: Formal Verification / Interop Bridges (SPIFFE, W3C VC, JWT).
+"""Demo: Interop Bridges (SPIFFE, W3C VC, JWT).
+
+This demo runs the credential bridges described on the formal-verification
+page. It does not run the Tamarin proofs; see that page for how to run them.
 
 Run from repository root:
     python docs/examples/assets/scripts/formal-verification-demo.py
+    python docs/examples/assets/scripts/formal-verification-demo.py --no-gif
 """
 
 from __future__ import annotations
@@ -47,7 +51,6 @@ def run_demo() -> list[str]:
     svid = agreement_to_svid(agreement)
     step(f"    spiffe_id   : {svid.get('spiffe_id', 'n/a')}")
     step(f"    subject     : {svid.get('subject', 'n/a')}")
-    step(f"    san         : {svid.get('san', 'n/a')}")
     fields = [k for k in svid.keys()]
     step(f"    SVID fields : {fields}")
     step()
@@ -80,10 +83,11 @@ def run_demo() -> list[str]:
     step("==> Step 5: Verify JWT and extract claims")
     claims = jwt_to_decision_claims(jwt_token, kp_op.public_key_b64)
     if claims:
-        step(f"    sub         : {claims.get('sub', 'n/a')}")
-        step(f"    authorized  : {claims.get('authorized', 'n/a')}")
-        step(f"    capability  : {claims.get('capability', 'n/a')}")
-        step(f"    verified    : True")
+        step(f"    sub              : {claims.get('sub', 'n/a')}")
+        step(f"    gm:authorized    : {claims['gm:authorized']}")
+        step(f"    gm:agreement_id  : {claims['gm:agreement_id']}")
+        step(f"    gm:bridge_source : {claims['gm:bridge_source']}")
+        step(f"    verified         : True")
     step()
 
     step("==> Step 6: JWT with wrong key fails")

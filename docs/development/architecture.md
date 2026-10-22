@@ -33,9 +33,9 @@ For the protocol's concepts, see {doc}`../concepts/architecture`.
 
 | Package | Holds |
 | --- | --- |
-| `cli/` | The `genesis-mesh` Click commands, one domain per `*_ops.py` |
+| `cli/` | The `genesis-mesh` Click commands, one domain per `*_ops.py`; `ops.py` still holds `na`, `admin`, `join`, `send` and `status` itself and registers the other groups |
 | `observability/`, `audit/`, `guard/`, `interop/` | Logging and redaction, the node's audit log, process-level mediation, JOSE/SPIFFE/VC bridges |
-| `node/`, `transport/`, `routing/`, `gossip/`, `monitoring/` | The mesh node runtime. **Dormant and internal** ({doc}`decisions/0007-dormant-packages`): not in the public contract; new work does not build on them without a decision |
+| `node/`, `transport/`, `routing/`, `gossip/`, `monitoring/` | The mesh node runtime. **Dormant** ({doc}`decisions/0007-dormant-packages`): no new features, and new work does not build on them without a decision. They are not listed in the public contract, but they still back stable surfaces: the `genesis-mesh join` and `dev up` commands and the image's `SERVICE_ROLE=node`. A change that breaks those is a breaking change. They still change for fixes: 1.5.0 changed `node/` for key succession. Internals: {doc}`module-structure` |
 
 Outside the package: `conformance/` (vector generators, the runner, the
 vectors the SDKs copy), `contract/public-surface.json` (the classified public
@@ -46,8 +46,8 @@ release).
 ## Layers
 
 Lowest first. A module may import its own layer and every layer listed
-before it, except routes. Imports under `if TYPE_CHECKING:` are type-only
-and not counted.
+before it, except routes, which have their own list. Imports under
+`if TYPE_CHECKING:` are type-only and not counted.
 
 | Layer | Modules | May import |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ and not counted.
 | workflows | `workflows/` | peripheral and every layer before it |
 | na_service | the rest of `na_service/` | workflows and every layer before it |
 | services | `na_service/services/` | na_service and every layer before it |
-| routes | `na_service/routes/` | **only** services, na_service, models, foundation |
+| routes | `na_service/routes/` | **only** routes, services, na_service, models, foundation |
 | composition | `na_service/server.py`, `app_factory.py`, `wsgi.py`, `__main__.py`, `na_service/__init__.py` | routes and every layer before it |
 | cli | `cli/` | every layer |
 
@@ -227,3 +227,14 @@ or a failing vector). A vector file with no runner is not run: register it.
 
 Fails when missed: `test_public_contract.py::test_every_error_code_is_listed`.
 A code built at run time escapes the scan: write it as a literal.
+
+## Node runtime internals
+
+The dormant mesh node runtime's internals (control plane, runtime dispatch,
+transport connections) are on their own page.
+
+```{toctree}
+:maxdepth: 1
+
+module-structure
+```

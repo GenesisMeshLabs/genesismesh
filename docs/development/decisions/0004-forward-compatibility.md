@@ -2,6 +2,8 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
+**Implemented:** not yet (2026-10-22). Verifiers still refuse an unknown record kind; no `unverified_kind` outcome exists.
+
 ## Context
 
 A verifier that meets a record kind it does not know refuses the whole

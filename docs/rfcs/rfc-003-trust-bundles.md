@@ -2,7 +2,7 @@
 
 Status: Accepted
 Created: 2026-06-08
-Updated: 2026-10-02
+Updated: 2026-10-22
 Authors: Genesis Mesh contributors
 Requires: RFC-001, RFC-002, RFC-004
 
@@ -58,7 +58,7 @@ control material.
 ## Data model
 
 The reference implementation builds the bundle in
-`genesis_mesh/cli/trust_bundle.py` (`export_trust_bundle`):
+`genesis_mesh/workflows/trust_bundle.py` (`export_trust_bundle`):
 
 ```json
 {
@@ -68,7 +68,7 @@ The reference implementation builds the bundle in
   "source_endpoint": "https://na.example.org",
   "sovereign_id": "USG-NB",
   "network_version": "<version>",
-  "sovereign_metadata": { "...": "RFC-001 identity material" },
+  "sovereign_metadata": { "...": "the subject's GET /sovereign.json document" },
   "genesis": { "...": "public genesis document" },
   "recognition_policy": { "status": "ok", "payload": { "...": "subject recognition policy" } },
   "revocation_feed": { "status": "ok", "payload": { "...": "RFC-004 feed" } },
@@ -91,6 +91,10 @@ in `payload`), `skipped` (not requested), `not_configured` (the endpoint
 returned 404) or `unavailable` (with a `reason`). Each **MUST** be present as an
 envelope even when no document is included, and the reference validator
 rejects a bundle without them or without `connectome`.
+
+`sovereign_metadata` is the document the subject's NA serves at
+`GET /sovereign.json`, which is the RFC-001 identity document; see RFC-001,
+*Data model*.
 
 ## Verification rules
 
@@ -124,10 +128,15 @@ rejects a bundle without them or without `connectome`.
 
 ### The bundle is self-attested
 
-A bundle carries no signature of its own, and its validation consults nothing
-outside itself. Every check compares one part of the bundle to another, so an
+A bundle carries no signature of its own, and by default its validation
+consults nothing outside itself. Every check compares one part of the bundle to another, so an
 attacker who authors the whole bundle passes all of them — they wrote both
 sides. A bundle therefore proves **nothing about who assembled it**.
+
+The reference validator has one optional outside check. With `--na
+<endpoint>`, `genesis-mesh trust-bundle validate` and `import` compare the
+bundle's `sovereign_id`, NA public key and `source_endpoint` with the live
+endpoint. This checks that the bundle is current, not that it is authentic.
 
 The practical consequences:
 

@@ -12,6 +12,10 @@ suite, an error code), each with the test that fails if a file is missed.
 
 ## 1. Development setup
 
+Use Python 3.12 or later; CI runs 3.14. To run the suite on PostgreSQL
+locally (`scripts/test_postgres.py`), you also need the PostgreSQL 17 server
+binaries (`initdb`, `pg_ctl`).
+
 ```bash
 git clone https://github.com/GenesisMeshLabs/genesismesh.git
 cd genesismesh
@@ -21,14 +25,20 @@ pip install -e ".[dev,docs,postgres]"
 pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
-The pre-commit hooks run style checks on every commit and the full test suite
-plus a dependency CVE scan on every push.
+On every commit the hooks run the file checks, the release-version check,
+the large-file check, ruff, mypy, compileall and the docs build. On every push
+they run these checks (except the whitespace fixers) plus the dependency CVE
+scan (pip-audit), the `genesis-mesh dev up` smoke test and the test suite
+(`.pre-commit-config.yaml`).
 
 ## 2. Running tests
 
 ```bash
-# Full suite (excludes Tamarin — requires tamarin-prover binary)
+# Full suite (the Tamarin proof tests skip unless tamarin-prover is installed)
 pytest genesis_mesh/tests -q
+
+# The unit run as CI does it
+python -m pytest genesis_mesh/tests -q -W error::DeprecationWarning -m "not integration"
 
 # Unit tests only, no integration
 pytest genesis_mesh/tests -q -m "not integration"
@@ -47,13 +57,27 @@ is reviewed. Tests that need PostgreSQL or nginx skip without them; CI sets
 `GM_E2E_REQUIRED=1` where it provides them, and there a missing service fails
 the test instead of skipping it.
 
+### Lint and type check
+
+```bash
+python -m ruff check genesis_mesh scripts conformance
+python -m mypy genesis_mesh --ignore-missing-imports
+python -m pip_audit -r requirements.txt -r requirements-dev.txt
+```
+
+`pre-commit run --all-files` runs the commit hooks on the whole tree, and
+`pre-commit run --all-files --hook-stage pre-push` runs the push hooks.
+See [docs/development/testing.md](docs/development/testing.md) for the list
+of CI jobs and how to run each one locally.
+
 ## 3. Docs build
 
 ```bash
-python -m sphinx -W -b html docs docs/_build/html
+python -m sphinx -b html -W docs docs/pages
 ```
 
 The `-W` flag turns warnings into errors. The build must be warning-free.
+Preview it with `python -m http.server 8000 --directory docs/pages`.
 
 ## 4. Branch naming
 
@@ -64,8 +88,14 @@ The `-W` flag turns warnings into errors. The build must be warning-free.
 | `docs/` | Documentation-only change |
 | `ops/` | Release, planning, or tooling change |
 | `chore/` | Maintenance (deps, CI, hooks) |
+| `release/<version>` | Only the release PR; it folds `changelog.d/<version>/` into `CHANGELOG.md` |
 
 Branch off `main`. Do not commit directly to `main`.
+
+A change that spans repositories uses the same branch name in each. CI tests
+a core branch against the gateway and SDK branches of that name when they
+exist, and against their `main` otherwise. Merge the SDK and gateway side
+first: in the merge queue the core is tested against their `main`.
 
 ## 5. Commit style
 
@@ -121,21 +151,10 @@ The plan file must exist before any implementation is written.
 
 ## 8. Release process
 
-The project ships releases using the `ship` agent skill, located at
-`.agents/skills/ship/SKILL.md`. It drives the full cycle automatically: plan
-detection, vision enforcement, implementation, gate suite, documentation,
-commit, tag, push, and GitHub release.
-
-To use it, open this repository in a coding agent that supports skills and run
-`/ship` (or ask the agent to use the ship skill). The skill
-reads the next unimplemented plan from `ops/plan-v*.md`, implements it, runs
-all gates, writes required documentation (worked example, CLI reference,
-history narrative, phase doc, examples index), and creates the release.
-
-For manual releases, see `ops/release-checklist.md` for the step-by-step
-procedure.
-
-Releases are tagged on `main`. Version numbers follow
+A release is prepared on a `release/<version>` branch. Its PR folds the
+version's changelog and upgrade fragments into `CHANGELOG.md` and
+`docs/operations/upgrade.md`. After it merges, the release is tagged on
+`main`. The step-by-step procedure is `ops/release-checklist.md`. Version numbers follow
 [Semantic Versioning](https://semver.org/). The public surface is classified in
 `contract/public-surface.json`: a stable surface does not break within 1.x,
 and deprecations follow `DEPRECATION_POLICY.md` (see `docs/stability.md`).

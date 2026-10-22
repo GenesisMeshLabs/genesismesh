@@ -1,0 +1,44 @@
+==> A local NA with the evidence store on
+$ grep EVIDENCE na.env
+EVIDENCE_STORE=on
+EVIDENCE_OUT_OF_BAND=on
+$ genesis-mesh na start --env-file na.env &
+!dim # ops-demo-client.py: a controller, a decision and signed execution evidence per action
+$ ops-demo-client record --count 2
+kv:billing/api-key create seq 1  decision 3d72b151 authorized=True  evidence 68ea4b1f
+kv:billing/api-key rotate seq 2  decision 45d89673 authorized=True  evidence cab7146b
+==> Copy the anchors out (twice, into one directory)
+$ genesis-mesh evidence anchors fetch --na http://127.0.0.1:18451 --na-public-key .genesis-mesh/keys/na.pub --out anchors --anchor-now --config genesis-mesh.toml
+2 new anchor(s); latest #2 covers store sequence 10 (2026-10-22T00:39:21.009630+00:00)
+$ ops-demo-client record --count 1
+kv:billing/api-key rotate seq 3  decision f6098413 authorized=True  evidence 44488c76
+$ genesis-mesh evidence anchors fetch --na http://127.0.0.1:18451 --na-public-key .genesis-mesh/keys/na.pub --out anchors --anchor-now --config genesis-mesh.toml
+1 new anchor(s); latest #3 covers store sequence 13 (2026-10-22T00:39:29.277644+00:00)
+$ ls anchors
+anchor-0000000001.json
+anchor-0000000002.json
+anchor-0000000003.json
+==> Delete anchored entry #10 straight from the database
+$ python -c "import sqlite3; db=sqlite3.connect('.genesis-mesh/na.db'); db.execute('DROP TRIGGER evidence_entries_retention_only_delete'); print(db.execute('DELETE FROM evidence_entries WHERE store_sequence = 10').rowcount, 'deleted'); db.commit()"
+1 deleted
+==> The NA refuses to anchor the store again
+$ genesis-mesh evidence anchors fetch --na http://127.0.0.1:18451 --na-public-key .genesis-mesh/keys/na.pub --out anchors --anchor-now --config genesis-mesh.toml; echo exit=$?
+!no Warning: the NA refused to anchor its head: The evidence store cannot be anchored: 1 of entries 1 to 13 are missing
+0 new anchor(s); latest #3 covers store sequence 13 (2026-10-22T00:39:29.277644+00:00)
+!no Error: The NA refused to anchor its head, so recent entries are not covered: The evidence store cannot be anchored: 1 of entries 1 to 13 are missing. The anchors it serves were checked and copied (see the Evidence Anchors operations page).
+!no exit=1
+$ ops-demo-client admin --status POST /admin/evidence/anchors
+!no HTTP 409
+!no {"error":{"code":"evidence_anchor_refused","details":{},"message":"The evidence store cannot be anchored: 1 of entries 1 to 13 are missing","request_id":"50598e80-d37c-46be-b4e6-2c244fa2a990"}}
+==> The export no longer matches the anchors held
+$ ops-demo-client admin GET /admin/evidence/export > export.jsonl && ops-demo-client admin GET /admin/evidence/executor-keys > executor-keys.json
+$ genesis-mesh evidence verify-export --file export.jsonl --na-public-key .genesis-mesh/keys/na.pub --executor-keys executor-keys.json --known-anchors anchors; echo exit=$?
+Entries    : 12
+Decisions  : 3
+Executions : 2
+Anchors    : 2 matched of 3; anchored through #13; 0 entries after the last anchor
+!no Result     : FAILED
+!no   - #11: store_sequence_gap
+!no   - #13: resource_chain_break kv:billing/api-key
+!no   - #10: anchor_entry_missing anchor 2
+!no exit=1

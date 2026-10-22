@@ -2,7 +2,7 @@
 
 Status: Accepted
 Created: 2026-06-08
-Updated: 2026-10-02
+Updated: 2026-10-22
 Authors: Genesis Mesh contributors
 Requires: RFC-001
 
@@ -20,9 +20,10 @@ the two revocation layers are not confused.
 
 RFC-002 makes recognition portable. Revocation must be equally portable: when an
 issuing sovereign revokes a member, recognizing sovereigns must be able to learn
-that and stop honoring the member's attestations. A signed, sequenced feed makes
-withdrawal propagate across recognition boundaries without a central authority
-and without leaking private payloads.
+that and stop honoring the member's attestations. A signed, sequenced feed lets
+withdrawal cross recognition boundaries without a central authority and without
+leaking private payloads. Withdrawal reaches a recognizing sovereign when that
+sovereign imports the feed.
 
 ## Terminology
 
@@ -75,6 +76,7 @@ The reference implementation defines `SovereignRevocationFeed` in
   "revoked_attestation_ids": ["<attestation id>"],
   "revocation_reasons": {"<attestation id>": "compromise"},
   "issued_by": "<issuer signing key id>",
+  "revoked_grant_ids": ["<grant id>"],
   "signatures": [{"key_id": "<issuer key id>", "sig": "<base64 Ed25519 signature>"}]
 }
 ```
@@ -82,6 +84,14 @@ The reference implementation defines `SovereignRevocationFeed` in
 A feed is signed over the canonical form (RFC-001, *Canonical JSON and
 signatures*) of every field above except `signatures`, with
 `revoked_attestation_ids` normalized as in requirement 5.
+
+`revoked_grant_ids` (since 1.6.0, optional) lists the pre-issued grants the
+issuer revoked that are not yet past their end. It is omitted from every form,
+including the signed canonical form, when absent. The reference NA writes it
+only with `EVIDENCE_GRANTS=on` (off by default). A verifier older than 1.6.0
+refuses a feed that carries it (`unknown_field`, RFC-001 *Canonical JSON and
+signatures*, item 6). The change is recorded in
+{doc}`/development/rfc-decisions`.
 
 ## Verification rules
 
@@ -106,10 +116,12 @@ matching attestation with `attestation_locally_revoked`.
   **MUST** persist the highest accepted sequence per issuer.
 - Only the issuing sovereign may shrink its own trust. A consumer **MUST NOT**
   accept revocations for an issuer from any key other than that issuer's.
-  Which keys are the issuer's is the importing operator's trust decision: the
-  reference implementation uses the subject keys of the active treaty for
-  that issuer, or keys the operator supplies explicitly on import (a
-  privileged operation).
+  Which keys are the issuer's is the importing operator's trust decision.
+  Since 1.0.2 the reference implementation verifies a feed against the subject
+  keys of its own active, in-window treaties for that issuer. Keys supplied on
+  import (a privileged operation) must be among them, or the import is refused
+  (`caller_keys_not_accepted`). Supplied keys alone are accepted only for an
+  issuer this sovereign has no such treaty with.
 - Feeds carry ids and optional coarse reasons, not attestation payloads. This
   keeps revocation auditable without disclosing who or what was revoked beyond
   the identifier the parties already share.
@@ -143,3 +155,12 @@ matching attestation with `attestation_locally_revoked`.
   monotonic append-only model the long-term contract?
 - Should there be a normative freshness expectation (maximum feed age) that
   consumers enforce, distinct from sequence monotonicity?
+
+  ```{note}
+  **Implementation note (2026-10-22).** A decision can already require a
+  signed freshness proof (`require_freshness_proof`, opt-in;
+  `genesis_mesh/trust/freshness.py`). Imported feeds still have no enforced
+  maximum age. Nothing fetches feeds automatically: a feed takes effect when
+  the accepting operator imports it (`genesis-mesh treaty import-feed`). This
+  is the accepted residual risk SR-07 in {doc}`/development/security-review-v1`.
+  ```

@@ -1,97 +1,33 @@
 # Rust
 
-> **Added in v0.56.0 – v0.57.2** · Crate: `genesis-mesh-gateway` (library name `genesis_mesh`) · Source: [`GenesisMeshLabs/gateway`](https://github.com/GenesisMeshLabs/gateway)
+Genesis Mesh has two Rust components. They come from two repositories and are
+separate crates. Both are **beta** at version 1.7.0, and both are Git
+dependencies: neither is published on crates.io.
 
-This page covers the gateway crate: the portable trust primitives as an
-embeddable crate, plus a production HTTP gateway and CLI binaries built on top
-of it. Rust ≥ 1.88 required. For a Network Authority client like the
-TypeScript, Go and .NET SDKs, use the Rust SDK ({doc}`sdk`).
+| Component | Crate | Repository | Level | What it is |
+|---|---|---|---|---|
+| Rust SDK | `genesis-mesh-sdk` | [`GenesisMeshLabs/sdk-rust`](https://github.com/GenesisMeshLabs/sdk-rust) | beta | A client for the Network Authority (NA) HTTP API, like the TypeScript, Go and .NET SDKs, with offline verification. The same repository releases the verifier `genesis-mesh-verify` and the edge agent `genesis-mesh-edge` (beta). |
+| Gateway crate | `genesis-mesh-gateway` (library `genesis_mesh`) | [`GenesisMeshLabs/gateway`](https://github.com/GenesisMeshLabs/gateway) | beta | The portable trust primitives (join certificates, revocation lists, canonical JSON), the `genesis-mesh` and `genesis-mesh-operator` CLIs, and the trust-verification gateway service. It is not an NA client. |
 
-For the gateway's HTTP service, deployment, security, and Network Authority
-proxy surface, see {doc}`/concepts/rust-gateway`. This page covers the crate
-as a Rust dependency and its command-line tools.
+To call an NA from Rust, use the Rust SDK. Use the gateway crate to verify
+join certificates in your own process, or to run the gateway service
+({doc}`/concepts/rust-gateway`).
 
----
+```{toctree}
+:maxdepth: 1
+:caption: Rust SDK
 
-## Add the crate
-
-```toml
-[dependencies]
-genesis-mesh = { package = "genesis-mesh-gateway", version = "0.57" }
-```
-
-The published crate name is `genesis-mesh-gateway`; the library import path
-stays `genesis_mesh` so existing code and doctests keep working.
-
----
-
-## Core example
-
-```rust
-use chrono::{Duration, Utc};
-use genesis_mesh::crypto::KeyPair;
-use genesis_mesh::models::{JoinCertificate, Signed};
-use genesis_mesh::trust::{verify_join_certificate, Policy, TrustAnchors};
-
-let authority = KeyPair::generate()?;
-let node = KeyPair::generate()?;
-
-let mut cert = JoinCertificate {
-    cert_id: "cert-001".into(),
-    node_public_key: node.public_key_b64(),
-    network_name: "mesh-alpha".into(),
-    roles: vec!["role:anchor".into()],
-    issued_at: Utc::now(),
-    expires_at: Utc::now() + Duration::days(7),
-    issued_by: "na-001".into(),
-    signatures: vec![],
-};
-cert.sign(&authority, "na-001")?;
-
-let mut anchors = TrustAnchors::new();
-anchors.insert("na-001".into(), authority.public_key_b64());
-
-let decision = verify_join_certificate(&cert, &Policy::new(&anchors))?;
-assert!(decision.trusted);
-# Ok::<(), genesis_mesh::Error>(())
-```
-
-This is byte-for-byte interoperable with the Python reference implementation:
-canonical JSON, Ed25519 signatures, and certificate/CRL schemas are verified
-against vectors generated from the Python implementation in
-`tests/interop.rs` and `tests/reference/gen_vectors.py`.
-
----
-
-## Binaries
-
-The crate ships three binaries:
-
-| Binary | Purpose |
-| --- | --- |
-| `genesis-mesh` | Local CLI: generate keys, issue and verify certificates, print canonical JSON. No network access. |
-| `genesis-mesh-operator` | Read-only federation preflight against a candidate authority's HTTPS origin. No signing key required. |
-| `genesis-mesh-gateway` | The production HTTP trust-verification gateway and API console. |
-
-See {doc}`usage` for CLI commands and {doc}`/concepts/rust-gateway` for the
-gateway's HTTP surface.
-
----
-
-## Build and test
-
-```sh
-cargo fmt --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
-cargo build --locked --release --bin genesis-mesh-gateway
+sdk
+governance
+grants
+verification
 ```
 
 ```{toctree}
 :maxdepth: 1
-:hidden:
+:caption: Gateway crate
 
-sdk
+gateway
 usage
 auth
 ```

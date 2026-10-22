@@ -8,14 +8,25 @@ applies when, and how to set them up. Remediation and reviews are described
 in {doc}`remediation-and-reviews`; break-glass records and judging in
 {doc}`out-of-band-changes`.
 
+Everything on this page is off by default. The emergency capability needs
+`EVIDENCE_REMEDIATION=on`; break-glass needs `EVIDENCE_OUT_OF_BAND=on`; both
+need `EVIDENCE_STORE=on` (see [Settings](#settings)). Break-glass records are
+made by the TypeScript and Rust SDKs and by the edge agent; the Go and .NET
+SDKs do not make them.
+
 ## Which path applies
 
 | Situation | Path | What happens |
 | --- | --- | --- |
 | The NA answers with an ordinary DENY | the **emergency capability** (since 1.4.0) | the controller requests the emergency capability with a justification; the NA decides it under the emergency policy before the change |
-| The NA cannot be reached, times out or answers `5xx` or `429` | **break-glass** (since 1.3.0) naming the emergency capability | the controller acts, keeps a signed break-glass record and submits it later; the NA judges it under the emergency policy |
+| The NA cannot be reached, times out or answers `5xx` or `429` (TypeScript and Rust SDKs; the edge agent is stricter, see below) | **break-glass** (since 1.3.0) naming the emergency capability | the controller acts, keeps a signed break-glass record and submits it later; the NA judges it under the emergency policy |
 | An observer reports a change as an emergency | neither | not enough on its own: the change is judged under the ordinary capability and flagged |
-| A device that cannot reach the NA holds a grant for the change (since 1.6.0) | a **grant** ({doc}`grants`) | authorised in advance within the grant's envelope, uploaded later; governed by the grant, not judged. Once the grant has ended, is spent or revoked, the SDK falls back to break-glass |
+| A device that cannot reach the NA holds a grant for the change (since 1.6.0) | a **grant** ({doc}`grants`) | authorised in advance within the grant's envelope, uploaded later; governed by the grant, not judged. Once the grant has ended, is spent or revoked, the TypeScript or Rust SDK falls back to break-glass |
+
+The edge agent is stricter than the SDKs. It breaks the glass only when the
+NA cannot be asked at all: no connection, a timeout, or a gateway's own error
+page. A `429` or other `5xx` from the NA allows only a covering grant, never
+break-glass (see {doc}`edge-agent`, *How the agent decides*).
 
 None of them is blocked, and each is judged: an emergency decision is a
 decision made before the change, a break-glass record is judged after it,

@@ -1,0 +1,52 @@
+==> A local NA with the evidence store on, its anchors copied out
+$ genesis-mesh na start --env-file na.env &
+$ ops-demo-client record --count 2
+kv:billing/api-key create seq 1  decision 3d611746 authorized=True  evidence 0906906a
+kv:billing/api-key rotate seq 2  decision 591c6cb4 authorized=True  evidence 1f23c7e1
+$ genesis-mesh evidence anchors fetch --na http://127.0.0.1:18451 --na-public-key .genesis-mesh/keys/na.pub --out anchors --anchor-now --config genesis-mesh.toml
+2 new anchor(s); latest #2 covers store sequence 10 (2026-10-22T00:42:08.405535+00:00)
+==> 1. Write the audit pack
+$ genesis-mesh audit pack --na http://127.0.0.1:18451 --out pack --config genesis-mesh.toml
+Pack 20385289-575a-4345-9434-adab648ac60c: entries 1 to 10, ending at anchor 2; written to pack.
+==> 2. Verify it offline: the root key and the anchors you hold
+$ genesis-mesh audit verify pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors
+Range      : entries 1 to 10 (10 entries)
+Records    : decisions 2, executions 2
+NA keys    : 1 in the key history
+Period     : 2026-10-22T00:42:04.055402Z to 2026-10-22T00:42:08.405535Z
+!ok Result     : VERIFIED
+==> 3. Against a change log kept outside Genesis Mesh
+$ cat changes.csv
+source,source_event_id,resource_id,action,changed_at,actor
+cloud-activity-log,evt-1001,kv:billing/api-key,rotate,2026-10-22T00:42:05.843167Z,principal-7f3a
+cloud-activity-log,evt-1002,kv:billing/db-password,update,2026-10-22T00:42:05.802291Z,principal-2c11
+$ genesis-mesh audit verify pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors --changes changes.csv; echo exit=$?
+Range      : entries 1 to 10 (10 entries)
+Changes    : 2: 1 matched, 1 without a record, 0 outside the period, 1 records without a change
+!no Result     : FAILED
+!no   - changes #None: change_unmatched cloud-activity-log evt-1002 kv:billing/db-password update 2026-10-22T00:42:05.802291Z
+!no exit=1
+==> 4. The Rust verifier, a port of the reference: the same verdicts
+$ genesis-mesh-verify pack pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors; echo exit=$?
+Range      : entries 1 to 10 (10 entries)
+!ok Result     : VERIFIED
+!ok exit=0
+$ genesis-mesh-verify pack pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors --changes changes.csv; echo exit=$?
+Range      : entries 1 to 10 (10 entries)
+Changes    : 2: 1 matched, 1 without a record, 0 outside the period, 1 records without a change
+!no Result     : FAILED
+!no   - changes #None: change_unmatched cloud-activity-log evt-1002 kv:billing/db-password update 2026-10-22T00:42:05.802291Z
+!no exit=1
+==> 5. One byte of entries.jsonl changed
+$ chmod u+w pack/entries.jsonl && python -c "p='pack/entries.jsonl'; b=open(p,'rb').read(); i=b.index(b'\"create\"')+1; open(p,'wb').write(b[:i]+b'C'+b[i+1:]); print('byte', i, 'c -> C')"
+byte 11610 c -> C
+$ genesis-mesh audit verify pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors; echo exit=$?
+Range      : entries None to None (None entries)
+!no Result     : FAILED
+!no   - entries.jsonl #None: manifest_digest_mismatch
+!no exit=1
+$ genesis-mesh-verify pack pack --anchor .genesis-mesh/keys/root.pub --known-anchors anchors; echo exit=$?
+Range      : entries None to None (None entries)
+!no Result     : FAILED
+!no   - entries.jsonl #None: manifest_digest_mismatch
+!no exit=1

@@ -13,7 +13,7 @@ this page is the operational checklist.
 | Hold the root key | yes | **never** |
 | Hold operator (admin) keys that approve trust changes | yes | **never** |
 | Hold the NA signing key | yes (recommended) | only with the operator's written approval ("managed NA key" model), never as the default |
-| Issue, revoke, suspend or replace treaties | yes | no |
+| Issue, renew, replace or revoke treaties | yes | no |
 | Issue and revoke membership attestations | yes | no |
 | Publish the revocation feed | yes | no |
 | Publish and activate boundary policies | yes | no |
@@ -27,29 +27,53 @@ this page is the operational checklist.
 
 - **Admin actions need an operator key.** Every trust-changing route
   (treaties, attestations, revocations, policies, feed imports) requires a
-  signed admin request from a configured operator key. Keys have tiers;
-  issuing and revoking need a privileged key.
+  signed admin request from a configured operator key.
+- **Tiers.** Each operator key has a tier: `read`, `standard` or
+  `privileged`. Give a partner key the `read` or `standard` tier. Treaties,
+  attestations, feed imports, revocations, policies and key successions need
+  `privileged`.
+- **The root key stays off the host.** With `NA_DEPLOYMENT=managed` (off by
+  default: `local`) the NA refuses to start when it finds the root private
+  key where its files live, or when archives are not required before
+  retention. `genesis-mesh na doctor --env-file na.env` checks the same. Set
+  it on any host a partner runs. The search is bounded, so a start that
+  passes does not prove the key is absent; keeping it offline is still a
+  procedure.
+- **Holder changes need two people.** Changing the person recorded as an
+  operator key's holder needs approval from a second holder.
 - **Operator keys can be revoked at runtime**
   (`genesis-mesh admin revoke-operator-key`); a revoked key is refused before
   its signature is checked. An operator can remove a partner's access without
   the partner's cooperation.
-- **Every admin action is audited** with the key id that signed it
-  (`genesis-mesh managed audit-export`), so the operator can see what the
-  partner did.
+- **Admin actions are audited.** Policy activations, certificate and
+  operator-key revocations, evidence-store records, grants, reviews and
+  successions record the operator key ID. Treaty, attestation and feed-import
+  events do not yet. Export the log with `genesis-mesh managed audit-export`
+  (SQLite only). The audit log is rows in the NA database, so whoever runs the
+  database can change it. For a record the partner cannot change without
+  detection, turn on the evidence store (`EVIDENCE_STORE=on`, off by default)
+  and keep its anchors yourself ({doc}`../operations/evidence-anchors`).
 - **No built-in authority.** The software has no Genesis Core or partner key
   baked in (`genesis_mesh/tests/test_operator_independence.py`).
 
 ## What the software cannot enforce
 
 - If a partner runs the NA process and its database, it can technically read
-  the database and the process memory. The **split-operation** custody model
+  the database and the process memory. It can also change or delete what the
+  database holds, the audit log included; the software cannot stop that. With
+  the evidence store on (`EVIDENCE_STORE=on`, off by default) the evidence
+  records are hash-chained and anchored. If you fetch the anchors yourself
+  (`genesis-mesh evidence anchors fetch`) and keep them off the partner's
+  systems, a change to an anchored record is detectable, though not
+  prevented. The **split-operation** custody model
   (the partner runs the service; the operator holds the operator keys and
   approves every treaty and revocation) keeps trust decisions with the
   operator, but the operator must still trust the partner's operation of the
   host. A deployment where the operator also runs the host removes that.
 - If a partner holds the NA signing key, it can sign anything the NA can sign.
   See {doc}`exit-and-fork` for why that key must then be treated as exposed
-  when the relationship ends.
+  when the relationship ends, and how a key succession replaces it while you
+  hold the root key.
 
 ## Pilot checklist
 
@@ -60,6 +84,9 @@ this page is the operational checklist.
 - [ ] The NA signing key is in a key store the operator owns (for example the
       operator's own Azure Key Vault with managed identity), or the operator
       approved the managed-key model in writing.
-- [ ] The operator has a current database backup and evidence export it can
-      restore without the partner.
+- [ ] The root key is offline, and `NA_DEPLOYMENT=managed` is set on the NA
+      host the partner runs.
+- [ ] The operator has a current database backup, and, with the evidence
+      store on, its own copy of the anchors and a recent audit pack, all
+      restorable without the partner.
 - [ ] The operator has rehearsed {doc}`exit-and-fork`.

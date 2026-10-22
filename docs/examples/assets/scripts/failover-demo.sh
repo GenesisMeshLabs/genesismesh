@@ -8,11 +8,21 @@
 # B is killed mid-demo. A's routing table withdraws B's routes.
 # The next send to C routes through D automatically.
 #
-# Prerequisites on Azure VM:
+# Variables (set before running):
+#   VM_HOST          address of the router VM that runs Nodes B and D (required)
+#   VM_USER          SSH user on the VM (default azureuser)
+#   SSH_KEY          SSH private key for the VM (default ~/.ssh/id_rsa_azure)
+#   NA               Network Authority URL (default https://na.genesismesh.org)
+#   GM_REPO          repository root (default: git rev-parse --show-toplevel)
+#   OPERATOR_CONFIG  operator CLI config (default $GM_REPO/genesis-mesh.toml)
+#
+# The script stops Node B on the VM over SSH and starts it again on exit.
+#
+# Prerequisites on the router VM:
 #   1. Node B running as genesis-mesh-node.service (port 7443) — existing
 #   2. Node D enrolled and running as genesis-mesh-node-d.service (port 7444)
 #      Setup commands:
-#        INVITE=$(genesis-mesh admin invite --role anchor --na https://na.genesismesh.org --config /mnt/c/Source/genesismesh/genesis-mesh.toml)
+#        INVITE=$(genesis-mesh admin invite --role anchor --na https://na.genesismesh.org --config "$OPERATOR_CONFIG")
 #        genesis-mesh join --na https://na.genesismesh.org --token "$INVITE" --config ~/.genesis-mesh-node-d/config.toml
 #        sudo tee /etc/systemd/system/genesis-mesh-node-d.service <<EOF
 #        [Unit]
@@ -36,13 +46,16 @@
 
 set -e
 
-NA="https://na.genesismesh.org"
-B_PEER="ws://4.223.130.190:7443"
-D_PEER="ws://4.223.130.190:7444"
-OPERATOR_CONFIG="/mnt/c/Source/genesismesh/genesis-mesh.toml"
+VM_HOST="${VM_HOST:?set VM_HOST to the router VM address}"
+VM_USER="${VM_USER:-azureuser}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa_azure}"
+NA="${NA:-https://na.genesismesh.org}"
+REPO="${GM_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+OPERATOR_CONFIG="${OPERATOR_CONFIG:-$REPO/genesis-mesh.toml}"
+B_PEER="ws://$VM_HOST:7443"
+D_PEER="ws://$VM_HOST:7444"
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
-VM="azureuser@4.223.130.190"
+VM="$VM_USER@$VM_HOST"
 
 SENDER_CONFIG="$HOME/.gm-failover-sender/config.toml"
 RECEIVER_CONFIG="$HOME/.gm-failover-receiver/config.toml"
@@ -64,8 +77,8 @@ clear
 echo "Route failure recovery demo"
 echo ""
 echo "  Node A (sender)   — this machine"
-echo "  Node B (router)   — Azure VM port 7443  [primary]"
-echo "  Node D (router)   — Azure VM port 7444  [backup]"
+echo "  Node B (router)   — VM $VM_HOST port 7443  [primary]"
+echo "  Node D (router)   — VM $VM_HOST port 7444  [backup]"
 echo "  Node C (receiver) — this machine, separate identity"
 echo ""
 echo "  Primary:  A --> B --> C"
@@ -77,12 +90,12 @@ sleep 3
 
 echo "==> Enrolling Node A and Node C"
 
-INVITE_A=$(cd /mnt/c/Source/genesismesh && genesis-mesh admin invite \
+INVITE_A=$(cd "$REPO" && genesis-mesh admin invite \
   --role anchor --na "$NA" --config "$OPERATOR_CONFIG")
 mkdir -p "$HOME/.gm-failover-sender"
 genesis-mesh join --na "$NA" --token "$INVITE_A" --config "$SENDER_CONFIG" 2>&1 | grep -E "Joined|Certificate"
 
-INVITE_C=$(cd /mnt/c/Source/genesismesh && genesis-mesh admin invite \
+INVITE_C=$(cd "$REPO" && genesis-mesh admin invite \
   --role anchor --na "$NA" --config "$OPERATOR_CONFIG")
 mkdir -p "$HOME/.gm-failover-receiver"
 genesis-mesh join --na "$NA" --token "$INVITE_C" --config "$RECEIVER_CONFIG" 2>&1 | grep -E "Joined|Certificate"
@@ -144,7 +157,7 @@ sleep 2
 # ── Kill Node B ───────────────────────────────────────────────────────────────
 
 echo ""
-echo "==> Killing Node B (stopping genesis-mesh-node on Azure VM)"
+echo "==> Killing Node B (stopping genesis-mesh-node on the router VM)"
 ssh $SSH_OPTS "$VM" "sudo systemctl stop genesis-mesh-node"
 sleep 4
 
@@ -172,7 +185,7 @@ sleep 2
 # ── Show B forwarded via D ────────────────────────────────────────────────────
 
 echo ""
-echo "==> Node D forwarded (Azure VM logs):"
+echo "==> Node D forwarded (router VM logs):"
 ssh $SSH_OPTS "$VM" \
   "sudo journalctl -u genesis-mesh-node-d --since '30 seconds ago' --no-pager 2>/dev/null \
    | grep -E 'DATA forwarded|forwarded' | tail -3"

@@ -1,5 +1,8 @@
 # Key Succession and the Root Key
 
+*Beta routes (v1.5.0): `POST /admin/na/succession` and `GET /na/key-history`.
+The succession record's signed form is stable.*
+
 The genesis block names the Network Authority's first public key and the
 root key that signed it. Since 1.5.0 the NA key can be replaced without
 losing the sovereign's identity or any old signature: a **key succession**
@@ -9,11 +12,16 @@ successions are the NA's **key history** (`GET /na/key-history`); verifiers
 that hold the root key accept an NA signature by the key that was valid at
 the record's own time.
 
+Use a succession for a **planned rotation**: the NA key reaches the end of
+its validity, or your policy says to replace it. A succession does not undo
+the exposure of a key. A compromised NA key still means a new sovereign
+identity; see *Network Authority Key Compromise* in {doc}`incident-response`.
+
 ## Validity windows
 
 | Key | Valid |
 |---|---|
-| The genesis key | From the start until the first succession takes effect. Its `valid_to` (90 days after `init` in deployments before 1.5.0) is shown, not enforced |
+| The genesis key | From the start until the first succession takes effect. Its `valid_to` (by default 90 days after `init`, `genesis create` or `fleet generate`) is shown, not enforced |
 | A key a succession names | From the succession's `effective_at` until the next succession takes effect, and never at or after its own `new_valid_to` (enforced) |
 
 A succeeded key is still accepted for records dated up to 300 seconds after
@@ -73,7 +81,8 @@ now.
    nothing until then (`503 na_key_not_yet_effective`) and `/readyz` reports
    them not ready (`na_key.state: pending`), so a load balancer keeps sending
    traffic to the instances with the outgoing key. At `effective_at` the
-   outgoing key stops signing (those instances report not ready) and the new
+   outgoing key stops signing (those instances report not ready,
+   `na_key.state: stopped`) and the new
    ones become ready. Instances learn of a succession another instance
    recorded within 30 seconds.
 
@@ -115,9 +124,35 @@ joins, fetches its policy and fetches the CRL, adopts it only when it verifies
 from the root key its genesis block names and continues the history it holds,
 caches it between runs (`key_history_cache`), and checks join certificates,
 peer certificates, policy manifests and CRLs with the NA key valid at each
-one's `issued_at`. A lost or compromised NA key cannot sign its own
+one's `issued_at`.
+
+A lost NA key, or one past its `new_valid_to`, cannot sign its own
 succession: treat that as the loss of the network's NA (see
-{doc}`incident-response`).
+{doc}`incident-response`). An exposed key that you still hold can sign its
+own succession, but that does not contain the exposure. Verifiers that follow
+the key history keep accepting the old key on records dated before the
+hand-over, so whoever holds a copy can still sign records dated in that
+window. A compromised key therefore also means a new identity.
+
+## What does not follow the key history
+
+Recognition treaties at other sovereigns name your NA public keys
+(`subject_public_keys`), and they verify your attestations and revocation
+feeds only against those keys. After a succession your NA signs new
+attestations and feeds with the new key, which those treaties do not name, so
+counterparts reject them (`invalid_signature`) until they hold a treaty that
+names the new key. Before `effective_at`, tell each counterpart the new
+public key (it is in `GET /na/key-history`, and `/sovereign.json` shows it as
+`signing_key` once it signs). The counterpart then issues a treaty that names
+the new key, or both keys through the hand-over, with
+`POST /admin/recognition-treaties`, and revokes the old one.
+`genesis-mesh treaty renew`, `treaty replace` and `federation bootstrap`
+reuse the keys of the old treaty or the genesis key, so they do not do this.
+
+## Walkthrough
+
+{doc}`key-succession-walkthrough` runs the ceremony on a local NA, with a
+recorded terminal session.
 
 ## The root key ceremony
 

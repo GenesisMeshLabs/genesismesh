@@ -188,6 +188,25 @@ Stop `genesis-mesh na start` and any persistent node runtime before running
 Network Authority process is running. The command also removes local `.node*/`
 directories created by smoke tests.
 
+## Next: production settings
+
+`genesis-mesh na start` without `--env-file` runs a demo NA: one operator key,
+boundary policies not required, and the evidence store off. To run the NA as
+it runs in production, write its settings file and start from it:
+
+```bash
+genesis-mesh init --env-file na.env      # policies required, evidence store on
+genesis-mesh na start --env-file na.env
+genesis-mesh na doctor --env-file na.env # check this host against the settings
+```
+
+`init` refuses to overwrite an existing setup: run it in a new directory, or
+add `--force` to replace the demo keys and genesis block.
+
+{doc}`sdk/local-network-authority` walks through the same setup for SDK
+development, with a separate standard-tier key for the controller.
+{doc}`operations/deployment-index` covers deployment.
+
 ## Config Files
 
 By default, commands look for config in this order:

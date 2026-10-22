@@ -1,9 +1,18 @@
 # Audit Packs
 
+*Beta routes (v1.5.0); the pack format is stable.*
+
 An audit pack is one period of the evidence store, packed for an audit: a
 report a reader starts from, and a bundle a security team verifies on its
 own, years later, from the root key and the anchors it holds. The format is
 {doc}`../reference/audit-pack-format`.
+
+Audit packs need the evidence store (`EVIDENCE_STORE=on`, off by default).
+Without it `POST /admin/evidence/audit-pack` answers
+`404 evidence_store_disabled`. A pack holds only the entry kinds your NA
+records: out-of-band records appear only with `EVIDENCE_OUT_OF_BAND=on`,
+remediations and reviews only with `EVIDENCE_REMEDIATION=on`, and grant
+records only with `EVIDENCE_GRANTS=on`.
 
 ## What a pack holds
 
@@ -70,5 +79,6 @@ Archived packs (see {doc}`audit-and-retention`) go to immutable storage.
 ## Next
 
 Verify the pack with the anchors you hold: {doc}`audit-verification`. A
-second verifier, built from separate code, is described in
-{doc}`independent-verification`.
+second verifier, a Rust port of the reference verifier, is described in
+{doc}`independent-verification`. {doc}`audit-verification-walkthrough` runs
+both on one pack.

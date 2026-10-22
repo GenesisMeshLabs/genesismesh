@@ -7,8 +7,8 @@ Execution evidence existed (a signed hash chain per decision, see
 acted chose to keep it, so an audit of a vendor or a secret depended on the
 controller's own storage.
 
-v0.59 makes the Network Authority the durable record. With the evidence store
-on, the NA stores every decision it signs (with its context and justification
+v0.59 makes the Network Authority the durable record. The evidence store is
+off by default (`EVIDENCE_STORE=off`). With the store on, the NA stores every decision it signs (with its context and justification
 proof) and accepts signed execution evidence from controllers after they act,
 for example creating, rotating or revoking a secret. It links each record to
 its decision and keeps **one chain per secret across decisions**
@@ -31,18 +31,41 @@ executor keys, and the NA only validates, links and keeps them.
   capability the decision covered.
 - For each secret, the records form one gap-free chain: a missing, duplicated,
   reordered or changed record is detected.
-- The store as a whole is one hash chain, so removing or editing an entry is
-  detectable even by someone with direct database access. The only permitted
+- The store as a whole is one hash chain, so an edited or reordered entry
+  breaks the chain. Someone who can write the database can still remove
+  entries and recompute the later links, and the export still verifies.
+  Signed store anchors, copied to storage the operator cannot change, detect
+  that (see {doc}`../operations/evidence-anchors`). The only permitted
   removal is a retention run, which leaves a signed checkpoint the remaining
   history verifies from.
+
+```{image} assets/images/genesis-mesh-evidence-store.gif
+:alt: Evidence store run against a local Network Authority
+:class: screenshot
+```
+
+The recording is a real run against a temporary local NA. Its last step
+removes the three newest entries from an export: the shortened export still
+verifies on its own, and fails against the anchors copied out before. Run it
+yourself (rendering the GIF needs `pip install pillow`; `--no-gif` writes only
+the transcript):
+
+```bash
+python docs/examples/assets/scripts/evidence-store-demo.py
+```
 
 ## Walkthrough: a vendor's API key
 
 ### 1. Turn the store on and register the controller
 
+Set `EVIDENCE_STORE=on` in the NA's settings: the container environment, or
+the file given to `genesis-mesh na start --env-file`. `genesis-mesh init
+--env-file` writes a settings file with the store on:
+
 ```bash
-EVIDENCE_STORE=on gunicorn "genesis_mesh.na_service.wsgi:app"
-# or: genesis-mesh na start --evidence-store on
+genesis-mesh init --env-file na.env
+genesis-mesh na start --env-file na.env
+# or, for a local NA from the CLI config: genesis-mesh na start --evidence-store on
 ```
 
 A privileged operator registers the secrets controller's executor key. An
@@ -126,9 +149,18 @@ executor keys can verify an export offline:
 ```bash
 genesis-mesh evidence verify-export \
     --file export.jsonl \
-    --na-public-key <base64> \
-    --executor-keys executor-keys.json   # from GET /admin/evidence/executor-keys
+    --na-public-key <base64 or key file> \
+    --executor-keys executor-keys.json \
+    --known-anchors anchors/
 ```
+
+`executor-keys.json` is the answer of `GET /admin/evidence/executor-keys`.
+Copy the anchors out with `genesis-mesh evidence anchors fetch` on a
+schedule, from a machine and storage the NA's operators cannot change; see
+{doc}`../operations/evidence-anchors`. Without `--known-anchors` the export
+proves its integrity, not that nothing was removed. For an NA whose key has
+changed, verify with `--key-history` and `--root-key` instead of
+`--na-public-key`.
 
 ### 6. Retention
 
@@ -139,6 +171,12 @@ operator applies retention:
 POST /admin/evidence/retention/apply
 { "older_than_days": 365 }
 ```
+
+Since 1.5.0 retention removes only entries an archive record covers
+(`NA_RETENTION_REQUIRE_ARCHIVE`, on by default). Archive first with
+`genesis-mesh audit archive`. Otherwise the run removes nothing and its
+answer says `held_back: {"reason": "not_archived"}`. `through_sequence`
+stops the cut at a store position.
 
 Only a prefix of the store is removed. The latest record of every secret,
 every decision still inside its window, and anything that would split a
@@ -158,9 +196,11 @@ run absorbs.
 ## CLI usage
 
 ```bash
-genesis-mesh na start --evidence-store on
+genesis-mesh na start --env-file na.env        # EVIDENCE_STORE=on in the file
+genesis-mesh evidence anchors fetch --na <url> --na-public-key na.pub \
+    --out anchors/ --anchor-now --operator-key auditor.key --operator-key-id auditor
 genesis-mesh evidence verify-export --file export.jsonl \
-    --na-public-key <base64> --executor-keys executor-keys.json
+    --na-public-key na.pub --executor-keys executor-keys.json --known-anchors anchors/
 ```
 
 ## Integration with BoundaryEngine
@@ -172,16 +212,29 @@ in the same request. If the store cannot record a decision, the request fails
 with `503 evidence_store_unavailable` instead of returning a decision the store
 does not hold.
 
-## Limits of this release
+## Limits
+
+As of 1.7.0:
 
 - The metadata guard refuses common secret field names, PEM blocks, JWTs and
   long opaque strings. It is a guard, not a guarantee: controllers must send
   identifiers, versions and timestamps, never values.
 - Decisions made before the store was enabled, or by another NA, cannot be
   referenced by evidence.
-- The store runs on SQLite. The SQL database option for multi-instance
-  deployments is planned for v0.60, and the store's invariants are already
-  enforced by database constraints for it.
+- The store runs on SQLite or, with `DATABASE_URL`, on PostgreSQL for several
+  NA instances. Database triggers refuse updates and any delete that a
+  retention checkpoint does not cover.
+- Whoever can write the database can remove the newest entries and recompute
+  the chain. Only anchors copied out of the NA before that detect it, and only
+  for the entries they cover.
+
+## See also
+
+- {doc}`out-of-band-changes`: observations, break-glass records, judgements,
+  remediations and reviews in the same store (1.3.0, 1.4.0).
+- {doc}`pre-issued-grants`: grants and their uses in the same store (1.6.0).
+- {doc}`../operations/evidence-anchors`: copying the store anchors out.
+- {doc}`../operations/audit-packs`: one range of the store, verified offline.
 
 ## Test command
 

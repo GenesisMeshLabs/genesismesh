@@ -29,6 +29,8 @@ sequenceDiagram
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/relationship-agreement-demo.py --no-gif`.
+
 ## What This Proves
 
 - Neither party can produce the `AgreementRecord` alone — it requires two

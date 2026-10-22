@@ -34,7 +34,10 @@ sequenceDiagram
 - Connectome stays consistent: expired, revoked, and replaced treaties do not
   count as active trust.
 
-## Live Recording
+## Captured run (replayed)
+
+This recording replays a transcript captured on 2026-06-05 (v0.17.4). The demo
+script `treaty-lifecycle-management-demo.py` renders it from a fixed list of lines.
 
 ```{image} assets/images/genesis-mesh-treaty-lifecycle-management.gif
 :alt: Treaty lifecycle management workflow

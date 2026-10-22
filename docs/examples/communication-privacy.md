@@ -2,17 +2,18 @@
 
 LLM-powered deanonymization (SALA — Stylometry-Assisted LLM Analysis) is now
 routine: stylometric features integrated with LLM reasoning can identify
-individuals from a handful of messages. At the Genesis Mesh network layer,
-every agent communication carries implicit fingerprints that SALA can exploit
-even when message content is encrypted:
+individuals from a handful of messages. Agent messages carry implicit
+fingerprints that SALA can exploit even when message content is encrypted:
 
 - **Message length distributions** — characteristic of specific agents
 - **Timing correlation** — agents that consistently respond within N milliseconds
 - **Header metadata** — custom fields, routing identifiers, encoding preferences
 - **Structural patterns** — JSON key ordering, nesting depth, array conventions
 
-v0.43 introduces a `CommunicationPrivacyProfile` that normalizes message
-structure, timing, and metadata before forwarding.
+v0.43 adds a `CommunicationPrivacyProfile` and functions that normalize a
+message's headers, timestamp and length before you send it. The mesh
+transport does not apply the profile for you: call `apply_privacy_profile()`
+(or `genesis-mesh trust privacy apply`) on each message yourself.
 
 > **Scope**: Structural and metadata normalization only. Content-level
 > stylometric rewriting (e.g. paraphrasing outputs with a different writing
@@ -23,6 +24,8 @@ structure, timing, and metadata before forwarding.
 :class: screenshot
 ```
 
+Run it yourself: `python docs/examples/assets/scripts/communication-privacy-demo.py --no-gif`.
+
 ## What the privacy profile normalizes
 
 | Attack vector | Defense |
@@ -30,7 +33,7 @@ structure, timing, and metadata before forwarding.
 | Custom header metadata | Strip all headers not in `allowed_header_keys` or GM-required set |
 | Exact dispatch timestamp | Round to nearest `timestamp_bucket_seconds` boundary |
 | Payload length fingerprint | Pad (never truncate) to nearest `message_length_block_bytes` multiple |
-| Routing metadata | `strip_routing_metadata=True` removes all routing identifiers |
+| Routing metadata | Routing headers such as `x-routing-path` are stripped like any other header not in `allowed_header_keys`. The profile's `strip_routing_metadata` field is reserved; this release does not read it. |
 
 ---
 
@@ -190,10 +193,10 @@ preserves the original payload intact within the padded output.
 
 ---
 
-## GM-required headers (always retained)
+## Reserved GM headers (always retained)
 
-The following headers are required for Genesis Mesh protocol operation and
-are never stripped regardless of profile settings:
+The profile always keeps these three header names, whatever its settings.
+No other part of Genesis Mesh sets or reads them today:
 
 - `gm-version`
 - `gm-sovereign`

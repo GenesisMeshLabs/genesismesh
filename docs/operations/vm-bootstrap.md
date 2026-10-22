@@ -1,18 +1,21 @@
 # Network Authority VM Bootstrap
 
-End-to-end commands to bring up the live Network Authority on a fresh Ubuntu
-22.04 VM. The Terraform module at `deploy/azure/` provisions the VM
+End-to-end commands to bring up a single-host Network Authority on a fresh
+Ubuntu 22.04 VM. The Terraform module at `deploy/azure/` provisions the VM
 itself; everything below runs on the VM after it boots.
 
-This runbook reflects the actual commands that built the live deployment at
-[https://na.genesismesh.org](https://na.genesismesh.org).
+This runbook records the manual setup that built the first
+na.genesismesh.org deployment. That Network Authority is retired; the host now
+serves the read-only public reference (see {doc}`public-reference-dashboard`).
+The steps still work for your own VM. The commands below use `na.example.org`:
+replace the domain, user and keys with yours.
 
 ## Provider-neutral bootstrap script
 
 Use the Azure release deployment workflow when updating the existing Azure VM.
 Use the provider-neutral bootstrap script when you already have a fresh Ubuntu
 VM or VPS from another provider, such as DigitalOcean, Hetzner, Vultr, a local
-hypervisor, or a second cloud used for independent-sovereign testing.
+hypervisor, or a second cloud used to test a second, separately keyed sovereign.
 
 The script lives at:
 
@@ -56,7 +59,7 @@ sudo chown -R "$USER":"$USER" /etc/genesis /etc/genesis-mesh /var/lib/genesis-me
 genesis-mesh init \
   --home /tmp/genesis-mesh-nb \
   --network-name USG-NB \
-  --na-endpoint http://164.92.250.135:8443 \
+  --na-endpoint https://na.example.org \
   --genesis-file /etc/genesis/genesis.signed.json \
   --na-private-key-file /etc/genesis-mesh/keys/na.key \
   --operator-private-key-file /etc/genesis-mesh/keys/operator.key \
@@ -69,6 +72,15 @@ genesis-mesh init \
 chmod 0644 /etc/genesis/genesis.signed.json
 chmod 0600 /etc/genesis-mesh/keys/na.key /etc/genesis-mesh/keys/operator.key
 ```
+
+`init` also writes the root private key to
+`/tmp/genesis-mesh-nb/keys/root.key`. The root key signs NA key successions.
+Move it now to offline storage you control (see the root key ceremony in
+{doc}`key-succession`) and delete it from the VM. Without it you cannot
+replace the NA key later. Then check the host:
+`genesis-mesh na doctor --env-file <the NA's settings file>`. Better still,
+generate the root key offline and bring only the signed genesis block to the
+VM.
 
 After the service starts, verify the public sovereign metadata:
 
@@ -84,7 +96,7 @@ first, then run:
 sudo GENESIS_ROLE=router \
   GENESIS_REF=main \
   GENESIS_USER=ubuntu \
-  NA_ENDPOINT=https://na.genesismesh.org \
+  NA_ENDPOINT=https://na.example.org \
   ROUTER_B_CONFIG=/home/ubuntu/.genesis-mesh-demo-node/config.toml \
   ROUTER_B_PORT=7443 \
   bash infrastructure/scripts/bootstrap-ubuntu-vm.sh
@@ -92,14 +104,15 @@ sudo GENESIS_ROLE=router \
 
 For a combined NA plus router demo host, set `GENESIS_ROLE=all`.
 
-The rest of this page documents the manual live Azure setup for the current
-`na.genesismesh.org` deployment.
+The rest of this page records the manual Azure setup of the first
+na.genesismesh.org deployment, with `na.example.org` in place of its domain.
+That Network Authority is retired.
 
 ## Prerequisites
 
 - Ubuntu 22.04 VM provisioned (Terraform: `deploy/azure/`)
 - Public IP reachable on ports 22, 80, 443, 7443, 7444
-- DNS `na.genesismesh.org` → VM public IP (Cloudflare or equivalent)
+- DNS `na.example.org` → VM public IP (Cloudflare or equivalent)
 - Locally generated artifacts to upload:
   - `genesis.signed.json` (from `genesis-mesh init`)
   - `na.key` (NA private key, from `genesis-mesh init`)
@@ -201,7 +214,7 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 sudo tee /etc/nginx/sites-available/genesis-mesh-na > /dev/null <<'EOF'
 server {
     listen 80;
-    server_name na.genesismesh.org;
+    server_name na.example.org;
 
     location / {
         proxy_pass http://127.0.0.1:8443;
@@ -221,15 +234,15 @@ sudo nginx -t && sudo systemctl reload nginx
 
 # Provision Let's Encrypt cert (after DNS has propagated)
 sudo certbot --nginx \
-  -d na.genesismesh.org \
+  -d na.example.org \
   --non-interactive --agree-tos \
-  -m contact@genesismesh.org
+  -m admin@example.org
 ```
 
 Verify externally:
 
 ```bash
-curl https://na.genesismesh.org/healthz
+curl https://na.example.org/healthz
 ```
 
 ## 7. Router nodes (B on 7443, D on 7444)
@@ -239,9 +252,9 @@ Both routers run as separate systemd units against the same NA.
 ```bash
 # Get an invite token from your local machine first
 INVITE_B=$(genesis-mesh admin invite --role anchor \
-  --na https://na.genesismesh.org)
+  --na https://na.example.org)
 INVITE_D=$(genesis-mesh admin invite --role anchor \
-  --na https://na.genesismesh.org)
+  --na https://na.example.org)
 ```
 
 On the VM, enrol each router once so each has its own config + cert:
@@ -251,13 +264,13 @@ source /opt/genesis-mesh/.venv/bin/activate
 
 # Node B
 genesis-mesh join \
-  --na https://na.genesismesh.org \
+  --na https://na.example.org \
   --token "$INVITE_B" \
   --config ~/.genesis-mesh-demo-node/config.toml
 
 # Node D
 genesis-mesh join \
-  --na https://na.genesismesh.org \
+  --na https://na.example.org \
   --token "$INVITE_D" \
   --config ~/.genesis-mesh-node-d/config.toml
 ```
@@ -295,7 +308,7 @@ Cron entry that probes `/readyz` and pings Healthchecks.io on success:
 sudo tee /etc/cron.d/genesis-mesh-readyz > /dev/null <<'EOF'
 # Probe NA /readyz every 5 minutes; ping Healthchecks.io only on success.
 # If /readyz fails or times out, the second curl never fires and HC alerts.
-*/5 * * * * azureuser /usr/bin/curl -fsS --max-time 10 https://na.genesismesh.org/readyz > /dev/null && /usr/bin/curl -fsS --retry 3 --max-time 10 https://hc-ping.com/<YOUR_HC_UUID> > /dev/null
+*/5 * * * * azureuser /usr/bin/curl -fsS --max-time 10 https://na.example.org/readyz > /dev/null && /usr/bin/curl -fsS --retry 3 --max-time 10 https://hc-ping.com/<YOUR_HC_UUID> > /dev/null
 EOF
 ```
 
@@ -313,9 +326,9 @@ sleep 6
 sudo systemctl status genesis-mesh-na | head -5    # → active (running)
 
 # Public endpoint
-curl -fsS https://na.genesismesh.org/healthz
-curl -fsS https://na.genesismesh.org/readyz
-curl -fsS https://na.genesismesh.org/nodes | python3 -m json.tool
+curl -fsS https://na.example.org/healthz
+curl -fsS https://na.example.org/readyz
+curl -fsS https://na.example.org/nodes | python3 -m json.tool
 ```
 
 ## Where things live
@@ -333,4 +346,4 @@ curl -fsS https://na.genesismesh.org/nodes | python3 -m json.tool
 | `/etc/systemd/system/genesis-mesh-node*.service` | Router service units |
 | `/etc/cron.d/genesis-mesh-readyz` | Healthchecks probe cron |
 | `/etc/nginx/sites-available/genesis-mesh-na` | Reverse proxy config |
-| `/etc/letsencrypt/live/na.genesismesh.org/` | TLS certificate |
+| `/etc/letsencrypt/live/na.example.org/` | TLS certificate |

@@ -4,7 +4,11 @@ A governed change has a decision before it and execution evidence after it.
 Some changes still happen another way: someone changes a secret in the cloud
 console, or a controller acts while the Network Authority (NA) cannot be
 reached. Since 1.3.0 the evidence store records those changes too, and the NA
-judges each one once, as of the time it happened. This page is for the
+judges each one once, as of the time it happened. This is off by default: it
+needs `EVIDENCE_OUT_OF_BAND=on` and `EVIDENCE_STORE=on` (see
+[Turning it on](#turning-it-on)). The NA records only the changes reported to
+it, by observers and controllers; a change nobody reports is not recorded.
+This page is for the
 operator who sets that up and reads the results. For a walk-through with
 code, see {doc}`../examples/out-of-band-changes`.
 
@@ -93,7 +97,8 @@ that compares the store with the provider's state
    `POST /evidence/observations` (or up to 100 at a time to
    `POST /evidence/observations/batch`, which admits them in order of their
    change times; each counts against `NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE`
-   as it would alone). Use the SDKs' `ObservationRecorder`, with an outbox, so a
+   as it would alone). Use the `ObservationRecorder` of the TypeScript or Rust
+   SDK, with an outbox, so a
    change seen while the NA is unreachable is kept until it is admitted.
 3. Name the change's version when the source reports one (`version_id`):
    that is how a change made through a governed action is told apart from one
@@ -204,7 +209,9 @@ When a governed action cannot be evaluated because the NA cannot be reached
 the action anyway when the caller passes a justification
 (`breakGlass: { justification }`), sign a `BreakGlassRecord` into the outbox
 and submit it when the NA is back. The NA judges it as the failed evaluation
-would have gone. A DENY is never broken through: the SDK breaks the glass
+would have gone. The edge agent is stricter: it breaks the glass only when
+the NA cannot be asked at all, never on a `429` or `5xx` from the NA itself
+({doc}`edge-agent`). A DENY is never broken through: the SDK breaks the glass
 only when there was no decision at all, never on `429 admin_auth_throttled`
 (failed operator signatures) or `503 evidence_store_unavailable` (an
 evaluation the NA could not store), and only for an attestation-based

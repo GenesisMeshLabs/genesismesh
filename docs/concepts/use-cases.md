@@ -1,8 +1,27 @@
 # Use Cases
 
-Genesis Mesh is useful when a system needs more than peer connectivity. It is
-for deployments where the operator needs to control membership, trust,
-authorization, routing, and revocation as one operational surface.
+Genesis Mesh is useful when trust has to cross organizational boundaries, or
+when a system needs more than peer connectivity. It is for deployments where
+each operator controls its own membership, trust, authorization, and
+revocation, and other organizations can check that trust without asking.
+
+## Recognition Between Organizations
+
+Two organizations, or a consortium of them, each run their own sovereign. Each
+issues signed attestations to its members (people, agents, services). The
+others recognize it through signed, scoped recognition treaties, verify its
+attestations offline, and import its signed revocation feed. No shared control
+plane is needed, and each side can withdraw recognition on its own. See
+{doc}`../examples/recognition-treaties` and {doc}`../operators/federation`.
+
+## Governed Changes and Audit
+
+Controllers that change sensitive resources (rotate a secret, change a
+vendor's access) ask the Network Authority for a signed decision first and
+record what they did as signed execution evidence. With the evidence store on
+(off by default), the NA keeps these records in a hash chain, judges changes
+made outside the controlled path, and hands auditors packs they check offline.
+See {doc}`governed-changes`.
 
 ## AI Agent Networks
 
@@ -33,9 +52,10 @@ that service?" but also "is this identity still trusted and authorized?"
 
 Edge systems often need local peer communication, intermittent central
 connectivity, and strong operator control. Genesis Mesh separates the online
-Network Authority from peer-to-peer runtime communication: the authority issues
-trust material, while nodes use that material to establish encrypted sessions
-and route messages.
+Network Authority from what devices do with its trust material: nodes can
+establish encrypted peer sessions and route messages, and from 1.7.0 the edge
+agent (beta) acts under pre-issued grants while a device is offline and
+uploads its records when it reconnects (see {doc}`../operations/edge-agent`).
 
 Example fits include:
 
@@ -84,4 +104,5 @@ Choose a simpler tool when your problem is narrower:
   the goal.
 
 Genesis Mesh is the right direction when the hard part is controlled
-participation: identity, trust, routing, authorization, and removal.
+participation, within one organization or across several: identity, trust,
+recognition, authorization, and removal.
