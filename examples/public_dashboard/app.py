@@ -1,6 +1,7 @@
 """Read-only public HTTP app. No signing keys, admin APIs or writable DB handles."""
 
 from datetime import datetime, timezone
+from html import escape, unescape
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
@@ -25,6 +26,33 @@ from genesis_mesh.trust import build_connectome_view
 from .store import read_snapshot
 from .view import NOTICE, dashboard, graph, render
 
+# Link previews name the card on the canonical host: crawlers need an absolute
+# URL, and building it from the request's Host header would let a client pick it.
+CARD_URL = "https://na.genesismesh.org/social-card.png"
+CARD_DESCRIPTION = (
+    "Read-only public reference authority for Genesis Mesh. It publishes signed treaties, "
+    "revocation feeds and evidence that can be verified offline."
+)
+
+
+def link_preview(html: str) -> str:
+    """Add Open Graph and Twitter card tags to a page, titled like the page itself."""
+    found = re.search(r"<title>(.*?)</title>", html, re.S)
+    title = escape(unescape(found.group(1)).strip()) if found else "Genesis Mesh public reference"
+    tags = (
+        '<meta property="og:type" content="website">'
+        '<meta property="og:site_name" content="Genesis Mesh">'
+        f'<meta property="og:title" content="{title}">'
+        f'<meta property="og:description" content="{CARD_DESCRIPTION}">'
+        f'<meta property="og:image" content="{CARD_URL}">'
+        '<meta property="og:image:width" content="1200">'
+        '<meta property="og:image:height" content="630">'
+        '<meta property="og:image:alt" content="Genesis Mesh NA public reference trust dashboard">'
+        '<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:image" content="{CARD_URL}">'
+    )
+    return html.replace("</head>", tags + "</head>", 1)
+
 
 def public_chrome(html: str) -> str:
     """Mark a shared operator-console page as this public instance.
@@ -41,6 +69,7 @@ def public_chrome(html: str) -> str:
 def create_app(directory: Path, build: str = "unknown") -> Flask:
     app = Flask(__name__, static_folder=None)
     root_key = (directory / "root.pub").read_text(encoding="utf-8").strip()
+    card = Path(__file__).with_name("social-card.png").read_bytes()
     read_snapshot(directory / "public.db", root_key)
     software = {"version": version("genesis-mesh"), "build": build if re.fullmatch(r"[a-f0-9]{7,40}", build) else "unknown"}
     cache = {"mtime": None, "snapshot": None}
@@ -63,7 +92,7 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
             budgets[ip] = (start, count + 1)
             if count >= 120:
                 abort(429)
-        if request.endpoint in {"asset", "favicon", "healthz"}:
+        if request.endpoint in {"asset", "favicon", "healthz", "social_card"}:
             return None
         mtime = (directory / "public.db").stat().st_mtime_ns
         with lock:
@@ -72,6 +101,12 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
                 cache["mtime"] = mtime
             g.snapshot = cache["snapshot"]
         return None
+
+    @app.after_request
+    def previews(response):
+        if response.status_code == 200 and response.mimetype == "text/html":
+            response.set_data(link_preview(response.get_data(as_text=True)))
+        return response
 
     @app.after_request
     def headers(response):
@@ -202,6 +237,10 @@ def create_app(directory: Path, build: str = "unknown") -> Flask:
             abort(404)
         resource = files("genesis_mesh.na_service.operator_console").joinpath("static", name)
         return Response(resource.read_bytes(), mimetype=types[name])
+
+    @app.get("/social-card.png")
+    def social_card():
+        return Response(card, mimetype="image/png")
 
     @app.get("/favicon.svg")
     @app.get("/favicon.ico")

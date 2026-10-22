@@ -113,6 +113,28 @@ def test_console_reference_pages_keep_the_shared_operator_surfaces(demo):
     assert '<a class="path" href="/surfaces">' in api
 
 
+def test_every_page_carries_a_link_preview_of_the_served_card(demo):
+    root, _ = demo
+    client = create_app(root, "abcdef1").test_client()
+    card = client.get("/social-card.png")
+    assert card.status_code == 200
+    assert card.mimetype == "image/png"
+    png = card.get_data()
+    # The PNG signature, then the IHDR width and height: the Open Graph 1200x630.
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert (int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")) == (1200, 630)
+    for path in ["/", "/dashboard", "/surfaces", "/api-reference", "/cli-reference", "/atlas", "/connectome"]:
+        head = client.get(path).get_data(as_text=True).split("</head>")[0]
+        title = re.search(r"<title>(.*?)</title>", head).group(1)
+        assert f'<meta property="og:title" content="{title}">' in head, path
+        assert '<meta property="og:image" content="https://na.genesismesh.org/social-card.png">' in head, path
+        assert '<meta name="twitter:card" content="summary_large_image">' in head, path
+        assert head.count('property="og:image"') == 1, path
+    # JSON is not a page, and the image URL never follows the request's Host header.
+    assert "og:image" not in client.get("/dashboard.json").get_data(as_text=True)
+    assert "attacker.example" not in client.get("/", headers={"Host": "attacker.example"}).get_data(as_text=True)
+
+
 @pytest.mark.parametrize("hours,expected", [(23.999, "fresh"), (24, "warning"), (72, "warning"), (72.001, "stale")])
 def test_exact_feed_age_boundaries(hours, expected):
     now = datetime.now(timezone.utc)
