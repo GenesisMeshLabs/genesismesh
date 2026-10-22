@@ -28,7 +28,7 @@ from genesis_mesh.models.context import BoundaryDecision
 from genesis_mesh.trust.execution import record_execution
 
 CAPABILITY = "secret.manage"
-SECRET = "kv:vendor-acme/api-key"
+RESOURCE = "kv:vendor-acme/api-key"
 
 
 def _edit(value, field: str, new: str) -> bool:
@@ -68,7 +68,7 @@ def run(na: LocalNA, s: Session) -> None:
         s.ok(f"{status}: authorized={decision.authorized}")
         evidence = record_execution(
             decision, "secrets-controller", CAPABILITY, "success", key, issued_by="ctrl-1",
-            execution_parameters={"secret_version": version}, resource_id=SECRET,
+            execution_parameters={"secret_version": version}, resource_id=RESOURCE,
             resource_action=action, prior_resource_record=previous,
         )
         status, body = na.public("POST", "/evidence/execution", {"evidence": evidence.model_dump(mode="json")})
@@ -86,7 +86,7 @@ def run(na: LocalNA, s: Session) -> None:
     s.no(f"{status}: authorized={denied.authorized} ({denied.denial_reason})")
     late = record_execution(
         denied, "secrets-controller", CAPABILITY, "success", key, issued_by="ctrl-1",
-        execution_parameters={"secret_version": "9"}, resource_id=SECRET, resource_action="rotate",
+        execution_parameters={"secret_version": "9"}, resource_id=RESOURCE, resource_action="rotate",
         prior_resource_record=previous,
     )
     status, body = na.public("POST", "/evidence/execution", {"evidence": late.model_dump(mode="json")})
@@ -94,8 +94,8 @@ def run(na: LocalNA, s: Session) -> None:
     s.no(f"{status} {error_code(body)}")
 
     s.step("The secret's history, from the NA alone")
-    status, history = na.admin("GET", f"/admin/evidence/resources/{SECRET}")
-    s.cmd(f"GET /admin/evidence/resources/{SECRET}")
+    status, history = na.admin("GET", f"/admin/evidence/resources/{RESOURCE}")
+    s.cmd(f"GET /admin/evidence/resources/{RESOURCE}")
     for item in history["entries"]:
         entry = item["entry"]
         line = f"  store #{entry['store_sequence']}  {entry['entry_kind']:<13}"

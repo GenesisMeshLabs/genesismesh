@@ -33,7 +33,7 @@ from genesis_mesh.models.remediation import RemediationRecord
 from genesis_mesh.trust.execution import record_execution
 
 CAPABILITY = "secret.manage"
-SECRET = "kv:vendor-acme/api-key"
+RESOURCE = "kv:vendor-acme/api-key"
 SETTINGS = {"EVIDENCE_STORE": "on", "EVIDENCE_OUT_OF_BAND": "on", "EVIDENCE_REMEDIATION": "on"}
 
 
@@ -57,7 +57,7 @@ class Signer:
 
 def observe(observer: Signer, version: str, lifetime: int, changed_at: datetime) -> ObservationRecord:
     return observer.sign(ObservationRecord(
-        observer_sovereign_id=observer.sovereign, resource_id=SECRET, action="rotate", capability=CAPABILITY,
+        observer_sovereign_id=observer.sovereign, resource_id=RESOURCE, action="rotate", capability=CAPABILITY,
         changed_at=changed_at, observed_at=datetime.now(timezone.utc), actor="principal-7f3a",
         source="cloud-activity-log", source_event_id=f"event-{uuid.uuid4().hex[:8]}", version_id=version,
         metadata={"operation": "SetSecret", "lifetime_days": lifetime},
@@ -111,7 +111,7 @@ def run(na: LocalNA, s: Session) -> None:
         decision = BoundaryDecision.model_validate(body["decision"])
         evidence = record_execution(
             decision, controller.sovereign, CAPABILITY, "success", controller.key, issued_by=controller.key_id,
-            execution_parameters={"version_id": version}, resource_id=SECRET, resource_action="rotate",
+            execution_parameters={"version_id": version}, resource_id=RESOURCE, resource_action="rotate",
             prior_resource_record=prior)
         status, body = na.public("POST", "/evidence/execution", {"evidence": evidence.model_dump(mode="json")})
         return decision, evidence, status, body
@@ -140,7 +140,7 @@ def run(na: LocalNA, s: Session) -> None:
 
     s.step("3. A break-glass rotation while the NA was unreachable")
     record = controller.sign(BreakGlassRecord(
-        executor_sovereign_id=controller.sovereign, resource_id=SECRET, resource_action="rotate",
+        executor_sovereign_id=controller.sovereign, resource_id=RESOURCE, resource_action="rotate",
         capability=CAPABILITY, attestation_id=attestation_id, request_parameters={"lifetime_days": 30},
         justification="Key leaked in a public repository; NA unreachable",
         evaluation_request_digest="0" * 64, evaluation_failure="network_error",
@@ -152,8 +152,8 @@ def run(na: LocalNA, s: Session) -> None:
     judgement_line(s, status, body)
 
     s.step("The secret's changes")
-    _, changes = na.admin("GET", f"/admin/evidence/changes/{SECRET}")
-    s.cmd(f"GET /admin/evidence/changes/{SECRET}")
+    _, changes = na.admin("GET", f"/admin/evidence/changes/{RESOURCE}")
+    s.cmd(f"GET /admin/evidence/changes/{RESOURCE}")
     for change in changes["changes"]:
         s.text(f"  {change['kind']:<12} {change.get('action', ''):<7} "
                f"governed_by={str(change.get('governed_by')):<15} state={change['state']}")
@@ -174,7 +174,7 @@ def run(na: LocalNA, s: Session) -> None:
     s.dim("the controller then disables v8 in the vault; the NA never changes the secret itself")
     done = controller.sign(RemediationRecord(
         executor_sovereign_id=controller.sovereign, subject_kind="judgement", subject_id=denied["judgement_id"],
-        change_kind="observation", change_id=console.observation_id, resource_id=SECRET, outcome="cancelled",
+        change_kind="observation", change_id=console.observation_id, resource_id=RESOURCE, outcome="cancelled",
         steps="rotate_forward_then_disable", rotation_evidence_id=v9.evidence_id, version_id="v9",
         disabled_version_id="v8", remediated_at=datetime.now(timezone.utc),
     ))

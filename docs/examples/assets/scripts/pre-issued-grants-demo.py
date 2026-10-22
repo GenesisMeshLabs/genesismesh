@@ -31,7 +31,7 @@ from genesis_mesh.models.grants import CapabilityGrant, GrantExecutionEvidence, 
 from genesis_mesh.models.out_of_band import ObservationRecord
 
 CAPABILITY = "secret.manage"
-SECRET = "kv:site-7/api-key"
+RESOURCE = "kv:site-7/api-key"
 SETTINGS = {"EVIDENCE_STORE": "on", "EVIDENCE_OUT_OF_BAND": "on", "EVIDENCE_GRANTS": "on"}
 
 
@@ -67,7 +67,7 @@ class Device:
         record = GrantExecutionEvidence(
             grant_id=self.grant.grant_id, grant_digest=self.grant.digest(), use_sequence=len(self.uses) + 1,
             prev_use_digest=self.uses[-1].digest() if self.uses else None, executor_sovereign_id="site-7",
-            capability=CAPABILITY, request_parameters={"lifetime_days": lifetime}, resource_id=SECRET,
+            capability=CAPABILITY, request_parameters={"lifetime_days": lifetime}, resource_id=RESOURCE,
             resource_action="rotate", executed_at=datetime.now(timezone.utc), time_token=self.token,
             outcome="success", execution_parameters={"version_id": version},
         )
@@ -119,7 +119,7 @@ def run(na: LocalNA, s: Session) -> None:
     first = device.use(30, "v8")
     second = device.use(30, "v9")
     for use in (first, second):
-        s.text(f"  use {use.use_sequence}: rotate {SECRET} lifetime_days=30 "
+        s.text(f"  use {use.use_sequence}: rotate {RESOURCE} lifetime_days=30 "
                f"version_id={use.execution_parameters['version_id']}")
 
     s.step("4. Reconnecting")
@@ -151,7 +151,7 @@ def run(na: LocalNA, s: Session) -> None:
     for use in (first, second):
         version = use.execution_parameters["version_id"]
         seen = ObservationRecord(
-            observer_sovereign_id="cloud-observer", resource_id=SECRET, action="rotate", capability=CAPABILITY,
+            observer_sovereign_id="cloud-observer", resource_id=RESOURCE, action="rotate", capability=CAPABILITY,
             changed_at=use.executed_at, observed_at=datetime.now(timezone.utc), actor="site-7",
             source="cloud-activity-log", source_event_id=f"event-{version}", version_id=version,
             metadata={"lifetime_days": 30})
