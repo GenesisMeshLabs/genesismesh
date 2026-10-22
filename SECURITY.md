@@ -257,9 +257,11 @@ them externally.
 
 ### Network-layer attacks
 
-- **Denial of service.** Admin, verification and `/join` routes are rate
-  limited per client address, but `/heartbeat`, `/renew` and peer
-  connections are not, and no per-IP limit stops a distributed flood. With
+- **Denial of service.** Admin, verification, `/join`, `/heartbeat`,
+  `/renew` and the `/node/*` routes are rate limited per client address
+  (since 1.7.1, `/heartbeat` and `/renew` share the `node_address` budget
+  with `/node/*`). Peer connections are not, and no per-IP limit stops a
+  distributed flood. With
   the `memory` rate-limit store (the default on SQLite) each Gunicorn worker
   counts on its own, so a client can make up to `WEB_CONCURRENCY` (default 4)
   times each limit; set `RATE_LIMIT_STORE=database` to count across workers
