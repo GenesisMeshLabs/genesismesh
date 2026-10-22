@@ -849,7 +849,14 @@ enough. Sign the request with the operator headers and it returns
 `issuer_sovereign_id`, `subject_id` and `status` (`active`, `suspended` or
 `revoked`). Each item, like the single-attestation
 response, is `{"attestation": {...}, "status": ..., "revoked_at": ...,
-"revocation_reason": ...}`.
+"revocation_reason": ..., "reissued_from": ..., "superseded_by": ...}`.
+
+Since 1.8.0 an attestation can be re-issued under a new ID, for example after
+a key succession. `reissued_from` names the copy it replaces and
+`superseded_by` the copy that replaced it; both are `null` for a record that
+was never re-issued. The list and the count show only the newest copy. The
+superseded copy keeps its status, and `GET /attestations/<attestation_id>`
+still returns it under its own ID.
 
 An unsigned request gets `{"count": N}`, optionally counted by `status`; a
 subject or issuer filter without a signature is refused with
@@ -868,10 +875,12 @@ The list takes the optional filters `issuer_sovereign_id`,
 `subject_sovereign_id` and `status` and returns
 `{"count": N, "recognition_treaties": [...]}`; each item is
 `{"treaty": {...}, "status": ..., "revoked_at": ..., "revocation_reason": ...,
-"lifecycle": {...}}`, `lifecycle` giving the treaty's state, expiry risk and any
-replacement treaty.
+"lifecycle": {...}, "reissued_from": ..., "superseded_by": ...}`, `lifecycle`
+giving the treaty's state, expiry risk and any replacement treaty.
 The `status` filter takes `active`, `suspended` or `revoked`. An unknown ID
-returns `404 treaty_not_found`.
+returns `404 treaty_not_found`. Re-issued treaties (1.8.0) work as for
+attestations: the list shows only the newest copy, and
+`reissued_from` and `superseded_by` link the copies.
 
 ### `GET /recognition-policy`
 

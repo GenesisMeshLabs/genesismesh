@@ -723,6 +723,8 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     real = db_module.migration_files
     new_columns = ("record_id", "subject_id", "matched_evidence_id", "observation_sequence", "dedupe_key",
                    "version_id")
+    lineage_tables = ("membership_attestations", "recognition_treaties")
+    lineage_columns = ("lineage_id", "reissued_from", "superseded_by")
     # A 1.2 NA: migrations up to 014 and no out-of-band records. The patches stay inside this
     # block: undoing the test's monkeypatch would also undo the PostgreSQL redirect.
     with monkeypatch.context() as patch:
@@ -732,6 +734,9 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     old.db.conn.execute("ALTER TABLE evidence_executor_keys ADD COLUMN resource_prefix TEXT")
     for column in new_columns:
         old.db.conn.execute(f"ALTER TABLE evidence_entries ADD COLUMN {column} TEXT")
+    for table in lineage_tables:  # read by 1.8 code only
+        for column in lineage_columns:
+            old.db.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
     old.db.conn.commit()
     client = _client(old)
     controller = Controller(client)
@@ -747,6 +752,9 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
         old.db.conn.execute(f"ALTER TABLE evidence_entries DROP COLUMN {column}")
     old.db.conn.execute("ALTER TABLE evidence_executor_keys DROP COLUMN key_role")
     old.db.conn.execute("ALTER TABLE evidence_executor_keys DROP COLUMN resource_prefix")
+    for table in lineage_tables:
+        for column in lineage_columns:
+            old.db.conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
     old.db.conn.commit()
     old.db.close()
 

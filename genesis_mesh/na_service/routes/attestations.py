@@ -37,6 +37,9 @@ def _row_payload(row: dict) -> dict:
         "status": row["status"],
         "revoked_at": row["revoked_at"],
         "revocation_reason": row["revocation_reason"],
+        # 1.8.0: the copy this one re-issues, and the copy that re-issued it.
+        "reissued_from": row["reissued_from"],
+        "superseded_by": row["superseded_by"],
     }
 
 
@@ -141,16 +144,18 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         reason = data.get("reason", "unspecified")
-        if not service.db.revoke_membership_attestation(attestation_id, reason):
+        # v1.6.0: the grants resting on the attestation are revoked with it.
+        # 1.8.0: so is every copy in its re-issue lineage.
+        revoked = service.revoke_attestation_lineage(attestation_id, reason)
+        if not revoked:
             raise NotFoundError("Attestation not found", code="attestation_not_found")
 
         service.db.add_audit_event("membership_attestation_revoked", {
             "attestation_id": attestation_id,
             "reason": reason,
+            "lineage_ids": revoked,
         })
-        # v1.6.0: the grants resting on the attestation are revoked with it.
-        service.grant_service.on_attestation_revoked(attestation_id)
-        return jsonify({"attestation_id": attestation_id, "status": "revoked"}), 200
+        return jsonify({"attestation_id": attestation_id, "status": "revoked", "lineage_ids": revoked}), 200
 
     @bp.route("/admin/recognition-policy", methods=["POST"])
     def save_recognition_policy():
@@ -253,9 +258,12 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
                 "This Network Authority publishes only its own revocation feed",
                 code="feed_issuer_mismatch",
             )
+        # 1.8.0: every revoked copy, superseded ones included, since each
+        # ID may still be in a holder's hands.
         revoked_rows = service.db.list_membership_attestations(
             issuer_sovereign_id=issuer_sovereign_id,
             status="revoked",
+            include_superseded=True,
         )
         revoked_ids = [
             row["attestation"].attestation_id

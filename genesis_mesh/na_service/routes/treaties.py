@@ -52,6 +52,9 @@ def _row_payload(row: dict) -> dict:
         "revoked_at": row["revoked_at"],
         "revocation_reason": row["revocation_reason"],
         "lifecycle": treaty_lifecycle(row),
+        # 1.8.0: the copy this one re-issues, and the copy that re-issued it.
+        "reissued_from": row["reissued_from"],
+        "superseded_by": row["superseded_by"],
     }
 
 
@@ -220,7 +223,10 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
             raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
 
         reason = data.get("reason", "unspecified")
-        if not service.db.revoke_recognition_treaty(treaty_id, reason):
+        # v1.6.0 review fixes: grants under agreements whose parties are no longer trusted are revoked.
+        # 1.8.0: every copy in the treaty's re-issue lineage is revoked with it.
+        revoked = service.revoke_treaty_lineage(treaty_id, reason)
+        if not revoked:
             raise NotFoundError(
                 "Recognition treaty not found",
                 code="treaty_not_found",
@@ -229,10 +235,9 @@ def create_treaty_blueprint(service: "NetworkAuthorityService") -> Blueprint:
         service.db.add_audit_event("recognition_treaty_revoked", {
             "treaty_id": treaty_id,
             "reason": reason,
+            "lineage_ids": revoked,
         })
-        # v1.6.0 review fixes: grants under agreements whose parties are no longer trusted are revoked.
-        service.grant_service.on_treaty_revoked(treaty_id)
-        return jsonify({"treaty_id": treaty_id, "status": "revoked"}), 200
+        return jsonify({"treaty_id": treaty_id, "status": "revoked", "lineage_ids": revoked}), 200
 
     @bp.route("/recognition-treaties/<treaty_id>", methods=["GET"])
     def get_treaty(treaty_id: str):
