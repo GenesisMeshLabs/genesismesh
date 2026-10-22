@@ -1,7 +1,7 @@
 # Protocol
 
 How Genesis Mesh works internally: its architecture, trust and security models,
-certificate lifecycle, and routing layer.
+governed changes and evidence, certificate lifecycle, and routing layer.
 
 ```{toctree}
 :hidden:
@@ -9,6 +9,7 @@ certificate lifecycle, and routing layer.
 architecture
 trust-model
 security-model
+governed-changes
 certificate-lifecycle
 routing
 ```

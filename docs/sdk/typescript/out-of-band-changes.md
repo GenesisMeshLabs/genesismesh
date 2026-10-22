@@ -1,4 +1,4 @@
-# Changes Outside the Controlled Path (1.3.0)
+# Changes outside the controlled path
 
 From Genesis Mesh 1.3.0 the Network Authority (NA) records changes that did
 not go through `governedAction`, and judges each one once, as of the time it
@@ -34,7 +34,8 @@ await gm.evidenceStore.flushRecords(); // at startup and on a timer
 pending, and a refusal no retry can overcome (`RECORD_PERMANENT_REFUSALS`)
 keeps it as a dead letter. A record the NA admits outside its time bounds is
 kept by the NA as a quarantine entry and is listed in the run's
-`quarantined`.
+`quarantined`. When the NA keeps a record it refuses for good as a quarantine
+entry, the dead letter's `last_error.quarantine_id` names it (1.7.0).
 
 `flushRecords` submits pending break-glass records first, then (1.6.0) grant
 uses, then observations up to 100 at a time, then (1.4.0) remediation

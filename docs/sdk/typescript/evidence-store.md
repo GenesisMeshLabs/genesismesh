@@ -1,7 +1,8 @@
 # Evidence store and policy clients
 
 `gm.evidenceStore` wraps the execution evidence store. `gm.evidence` remains the
-separate trust-evidence client.
+separate trust-evidence client. The NA must run with `EVIDENCE_STORE=on` (off
+by default); until then the store routes answer `404 evidence_store_disabled`.
 
 | Operation | SDK method |
 |---|---|
@@ -13,8 +14,8 @@ separate trust-evidence client.
 | Raw NDJSON, parsed page or paged export | `exportText(params)`, `export(params)`, `exportAll(sinceSequence, pageSize)` |
 | Executor keys | `registerExecutorKey(params)`, `listExecutorKeys()`, `retireExecutorKey(id)` |
 | Retention (1.5.0: `throughSequence`, held back where no archive covers) | `applyRetention(olderThanDays, { throughSequence })`, `latestCheckpoint()` |
-| Store anchors | `anchors(params)`, `allAnchors()`, `anchor()` |
-| Audit packs and archives (1.5.0) | `auditPack(params)`, `archives()`, `recordArchive(manifest, location)` |
+| Store anchors (beta routes) | `anchors(params)`, `allAnchors()`, `anchor()` |
+| Audit packs and archives (1.5.0, beta routes) | `auditPack(params)`, `archives()`, `recordArchive(manifest, location)` |
 
 All evidence-store reads use signed admin GETs. Submission uses the evidence's
 executor signature and does not send operator headers. The executor sovereign
@@ -33,7 +34,7 @@ not judged yet, and with out-of-band records on the registry's health
 (`policy_history_started`, `registry_healthy`, `registry_problems`). From
 1.5.0 every store read accepts a read-tier key, so an auditor's key can ask
 for anchors and audit packs; see
-[Key succession, audit packs and independent verification](audit-packs.md).
+[Key succession, audit packs and offline verification](audit-packs.md).
 
 Search uses `after_sequence` and returns `next_after_sequence`. Export uses
 `since_sequence`; `exportAll` follows the last returned store sequence. Page sizes
@@ -56,8 +57,9 @@ unexpected policy set.
 
 `gm.boundary.evaluate` takes exactly one basis, `agreement` or `attestation_id`,
 and returns `{ decision, justification_proof }`. A policy denial is a signed
-response, not an HTTP exception. The legacy `boundary.decide` route is not the
-policy-aware route and is refused when the NA requires policy enforcement.
+response, not an HTTP exception. The legacy `boundary.decide` route (beta) is
+not the policy-aware route; an NA that requires policy enforcement refuses it
+with `409 boundary_policy_required`.
 
 ## Transport and errors
 
@@ -68,9 +70,16 @@ propagate without fallback or key caching.
 
 Retries are disabled by default. Configure `retry: { attempts: 2, baseDelayMs: 200 }`
 for bounded exponential backoff on network failures and HTTP 429, 502, 503 or 504.
-GETs, public verification and evidence submission are eligible. State-creating
-admin POSTs, including evaluation, issuance and policy publication, are not
-retried. Admin retry attempts receive fresh signatures and nonces.
+Eligible: every GET; the submission of execution evidence, observations,
+break-glass and remediation records and grant uses; time token requests; the
+admin POSTs the NA answers the same way when replayed (`judgeObservation`,
+`judgeBreakGlass`, `anchor()` and `recordArchive()`); and the verification
+routes of boundary decisions, attestations and policies. In 1.7.0 the
+agreement, trust-evidence, consensus, disclosure (`prove` and `verify`) and
+data-usage verification routes are not retried; from 1.7.1 (unreleased) they
+are. Other admin POSTs, including evaluation, issuance, policy publication and
+audit packs, are not retried. Admin retry attempts receive fresh signatures
+and nonces.
 
 HTTP 403, 409 and 503 map to `ForbiddenError`, `ConflictError` and
 `ServiceUnavailableError`. Errors expose `code`, `status`, `details` and

@@ -40,18 +40,28 @@ Nodes can renew certificates before expiry. The Network Authority verifies:
 
 Renewal creates a new certificate while preserving the node identity and role
 set. If a node asks for a longer renewal than allowed, the Network Authority
-caps the renewed certificate to the stored maximum validity.
+caps the renewed certificate to the stored maximum validity. The predecessor
+stays usable for `RENEWAL_GRACE_SECONDS` (default 900), then the NA revokes it
+and lists it in the CRL.
 
 ## Revocation
 
-Operators revoke certificates through `/admin/revoke`. Revocation creates a new
-signed CRL version and marks the certificate revoked in persistent state.
+Operators revoke certificates through `/admin/revoke`, which needs a
+`privileged` operator key. Revocation creates a new signed CRL version and
+marks the certificate revoked in persistent state.
 
 Revocation reasons matter:
 
 - `key_compromise` blocks future joins using the same node public key.
 - `cessation_of_operation`, `superseded`, and `unspecified` revoke the current
   certificate without permanently blocking that public key from re-enrollment.
+
+Edge nodes (beta, 1.7.0): revoking one of an edge node's certificates revokes
+the node. Every certificate it holds goes into one CRL, its executor key is
+retired, and the grants that key bears are revoked. From then on its
+heartbeats and renewals are refused (`403 edge_node_retired`). The
+attestations issued to its sovereign ID are not revoked; revoke them
+separately. See {doc}`../operations/edge-agent`.
 
 ## Expiry
 
@@ -60,3 +70,10 @@ Authority for heartbeat and renewal. Nodes should renew before expiry and should
 treat renewal failures as operationally significant. Once a certificate expires,
 the node needs a new invite and enrollment flow unless the operator provides a
 different re-enrollment policy.
+
+## Key Succession
+
+When the NA's key is succeeded (1.5.0), certificates it issued before keep
+verifying: nodes follow the NA's key history and check each certificate and
+CRL with the NA key that was valid at its `issued_at`. See
+{doc}`../operations/key-succession`.

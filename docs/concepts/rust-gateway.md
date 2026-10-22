@@ -1,6 +1,6 @@
 # Rust Trust Gateway
 
-Genesis Mesh has a companion Rust implementation at
+Genesis Mesh has a companion Rust service at
 [GenesisMeshLabs/gateway](https://github.com/GenesisMeshLabs/gateway). It is a
 concurrent trust-verification gateway and API console built on the same portable
 trust data model as the Python implementation.
@@ -13,17 +13,20 @@ locally, and exposes narrowly scoped services to relying applications.
 
 ## Version status
 
-The gateway reached v0.56.0 with production trust policy and portable
-Linux/Windows distributions. The current Rust release is v0.57.2. The
+The gateway ships with each Genesis Mesh release, at the same version (1.7.0
+today). It is beta: see the {doc}`../reference/public-contract`. The
 interoperability contract is protected by canonical-JSON and signature
 fixtures shared with the Python implementation.
 
-The gateway crate requires Rust 1.88 or newer and is published as
-`genesis-mesh-gateway`. It contains three binaries:
+The gateway crate, `genesis-mesh-gateway`, requires Rust 1.88 or newer. It is
+not on crates.io; it ships as a container image and release binaries (see
+[Distribution and operations](#distribution-and-operations)). It contains
+three binaries:
 
 - `genesis-mesh-gateway`: the HTTP trust gateway and embedded console.
 - `genesis-mesh`: local signing and interoperability CLI.
-- `genesis-mesh-operator`: operator and authority-management utilities.
+- `genesis-mesh-operator`: read-only preflight of a peer authority, which
+  writes a policy fragment for the gateway. It holds no signing key.
 
 ## Trust verification
 
@@ -43,10 +46,22 @@ trust inputs. A successful HTTP response does not itself grant trust: callers
 must inspect `trusted` and its reason list, then bind the certificate identity
 to their own authenticated session and authorization decision.
 
-The gateway also provides `/health`, `/ready`, `/metrics`, `/api`,
-`/openapi.json`, and an embedded endpoint explorer. Readiness becomes
-unavailable when configured revocation state is stale or durable state is
-unhealthy.
+The gateway also serves:
+
+| Route | Access |
+| --- | --- |
+| `/` | The embedded console and endpoint explorer |
+| `/api`, `/openapi.json` | Public service metadata and the OpenAPI document |
+| `/health`, `/ready` | Liveness and trust readiness |
+| `/v1/services` | The public operation catalog with request examples |
+| `/v1/networks` | The networks the calling client may use |
+| `/v1/demo` | Public demo access (read and verify only), when configured |
+| `/v1/mesh` | The read-only live mesh view, when published (below) |
+| `/metrics` | A bearer token with the metrics permission |
+
+`/ready` answers `503` when a configured network's CRL has expired, when the
+durable state store has failed a write, or when the shared quota backend is
+unreachable.
 
 ## Authority service proxy
 
@@ -56,55 +71,76 @@ The gateway exposes a reviewed, allowlisted proxy for the Network Authority:
 GET|POST|DELETE /v1/networks/{network}/services/{operation}
 ```
 
-The catalog currently contains 80 scoped authority operations across these
-areas:
+The catalog lists about 110 authority operations, in service groups; the
+gateway's
+[service catalog](https://github.com/GenesisMeshLabs/gateway/blob/main/docs/services.md)
+lists each one. A client is given networks and service groups, so the group an
+operation sits in decides who can reach it:
 
-| Area | Capabilities |
+| Area (group) | Workflows |
 | --- | --- |
-| Agreement | Offer, counter, accept, and verify |
-| Attestations | Issue, list, inspect, verify, revoke, and recognition policy |
-| Boundary | Decide and verify |
-| Boundary policy | Validate, publish, list, activate, deactivate, history, verify, and policy-aware evaluation |
-| Evidence store | Execution submission, search, status, verification, resource heads and histories, vendor histories, JSON Lines export, executor keys, and retention |
-| Disclosure | Commitment, membership proof, nullifier, and verification |
-| Consensus | Vote, assemble proof, and verify against validator keys |
-| Data usage | License policies, usage intents, and verification |
-| Evidence | Build and verify signed trust evidence |
-| Enrollment | Invite, join, heartbeat, renew, and certificate revocation |
-| Discovery | Signed agent registration, lookup, listing, and deregistration |
-| Treaties | Issue, inspect, verify, revoke, import feeds, and trust paths |
-| Network | Genesis, policy, CRL, health, dashboard, atlas, and node roster |
-| Administration | Policy versions, rollback, and operator-key revocation |
+| Agreement (`agreement`) | Offer, counter, accept and verify |
+| Attestations (`attestations`) | Issue, list, inspect, verify, revoke, the sovereign revocation feed and recognition policy |
+| Boundary (`boundary`) | Decide and verify |
+| Boundary policy (`boundary_policy`) | Validate, publish, list, activate, deactivate, history and verify policies; policy-aware evaluation |
+| Evidence store (`evidence_store`) | Submit executor-signed evidence, search, status, verify, resource heads and histories, vendor histories, JSON Lines export, executor keys, retention and store anchors (list, anchor now); remediation records, the due queue, notices and reviews (1.4.0); archives and retention through an archived position (1.5.0); pre-issued grants, a grant's use chain, time tokens, grant uses and revocation (1.6.0) |
+| Changes outside the controlled path (`out_of_band`) | Observations (one or a batch) and break-glass records, judging them, a resource's changes with how each was governed, operator key holders and holder changes (1.3.0) |
+| Disclosure (`disclosure`) | Commitment, membership proof, nullifier and verification |
+| Consensus (`consensus`) | Vote, assemble proof and verify against explicit validator keys |
+| Data usage (`data_usage`) | License policies, usage intents and verification |
+| Evidence (`evidence`) | Build and verify signed trust evidence |
+| Enrollment (`enrollment`) | Join, heartbeat and renew |
+| Discovery (`discovery`) | Signed agent registration, lookup, listing and deregistration |
+| Treaties (`treaties`) | Issue, inspect, verify, revoke, import revocation feeds, the recognition graph and trust paths |
+| Network (`network`) | Genesis, policy, CRL, health, readiness, sovereign metadata, dashboard, atlas, node roster, the NA key history (1.5.0) and edge nodes (1.7.0) |
+| Administration (`administration`) | Invites, certificate revocation, policy publication, versions and rollback, operator-key revocation and NA key succession (1.5.0) |
 
-Clients receive explicit network and service-group permissions. Administrative
-operations additionally require the four `X-Admin-*` headers signed by an
-operator key. Browser signing is available in the console; private seeds stay
-in the browser session and are never sent to the gateway.
+The audit pack route is not forwarded: build packs against the authority with
+`genesis-mesh audit pack` (see {doc}`../operations/audit-packs`).
+
+Forwarding an operator operation needs the client's administrative permission
+and the four `X-Admin-*` headers signed by an operator key; the authority then
+checks the key's tier. Browser signing is available in the console; private
+seeds stay in the browser session and are never sent to the gateway.
 
 The proxy forwards only catalogued methods, paths, parameters, and JSON bodies.
 Resource identifiers may span path segments (`kv:vault/secret`) and carry
 non-ASCII text; each segment is encoded once, and dot segments, `%`, `\` and
 control characters are refused. The evidence export is forwarded as JSON Lines
-(`application/x-ndjson`) within an 8 MiB limit; every other response must be
-JSON within 2 MiB. Since v0.64.0 the gateway's CI fails when its catalog no
-longer matches the core's routes.
+(`application/x-ndjson`) within 8 MiB. Issuing, listing and reading grants, a
+resource's changes, the remediation due queue and one subject's remediation
+state may answer up to 8 MiB of JSON. Every other response must be JSON within
+2 MiB. The gateway's CI regenerates the catalog from the core and fails when
+they differ.
 It does not forward gateway bearer tokens, cookies, client URLs, or arbitrary
 headers to an authority. This boundary prevents a gateway credential from
 becoming an authority credential.
 
 ## Federation and live mesh
 
-Native federation preflight and independent authority operations were added in
-v0.56.3. A network can pin additional CRL issuers, each with its own anchors,
+Native federation preflight was added in v0.56.3. A network can pin additional CRL issuers, each with its own anchors,
 sequence floor, freshness policy, and optional refresh URL. Issuers are
-verified independently; the gateway does not merge signed CRLs or treat
+verified separately; the gateway does not merge signed CRLs or treat
 membership feeds as join revocation lists.
+
+The gateway checks certificates and CRLs with the authority keys pinned in its
+policy (`anchors`). It does not follow an authority's key history, and today
+it cannot follow a succession by re-pinning either: after a succession the
+authority's CRL still names the old key ID as its `issuer` while the new key
+signs it, so the gateway refuses that CRL whatever keys are pinned. From the
+succession's `effective_at` the gateway refuses certificates signed by the new
+key, and once the old key's last CRL expires the network, and with it
+`/ready`, goes not ready. Plan a succession with the gateway's key-succession
+runbook (`docs/key-succession.md` in the gateway repository) and
+{doc}`../operations/key-succession`.
 
 The console can optionally publish a read-only live mesh view at `/v1/mesh`.
 Publication is disabled by default and is enabled per network with
 `public_mesh: true`. The view contains only explicitly published signed
 memberships, active recognition treaties, and approved trust domains. It does
-not expose private gateway policy or credentials.
+not expose private gateway policy, credentials or edge nodes. To show a
+network's members, the gateway can hold a `read`-tier operator key for that
+authority (`mesh_reader`).
 
 ## Durable production controls
 
@@ -123,7 +159,11 @@ The gateway includes configurable adapters for:
 
 These controls are opt-in deployment adapters. Their presence does not claim
 certification, accreditation, compliance, or linearizable revocation across
-replicas. The gateway never accepts or stores authority private signing keys.
+replicas.
+
+The gateway holds no Network Authority signing key. With `mesh_reader`, it
+holds one `read`-tier operator key per published network, which can read the
+attestation list and node roster and nothing else.
 
 ## Distribution and operations
 
@@ -154,7 +194,9 @@ From the gateway repository:
 ```bash
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo test --locked --all-targets
+cargo test --locked --doc
+node --test tools/test_ui_*.mjs
 cargo build --locked --release --bin genesis-mesh-gateway
 ```
 

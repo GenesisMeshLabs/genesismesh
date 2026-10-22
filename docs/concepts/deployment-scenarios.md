@@ -2,7 +2,9 @@
 
 Genesis Mesh is easiest to understand when mapped to real operating models.
 These examples are not separate products; they are common shapes for the same
-trust, identity, routing, authorization, and revocation model.
+trust, identity, authorization, and revocation model. Some use the peer mesh
+between nodes; the cross-sovereign scenario needs only the Network Authorities
+and verifiers.
 
 ## AI Agent Network
 
@@ -58,6 +60,13 @@ locations but the organization still needs central admission, revocation, and
 policy control. The Network Authority manages trust state; edge nodes use that
 state to communicate directly.
 
+From 1.7.0 the edge agent `genesis-mesh-edge` (beta) runs on each device. It
+asks the Network Authority for decisions while it can reach it, acts under
+pre-issued grants or records break-glass while it cannot, and uploads its
+records in order when it reconnects. Revoking one of its certificates revokes
+the whole node: its certificates, its executor key and its grants. See
+{doc}`../operations/edge-agent`.
+
 ## Sovereign Organization
 
 ```{mermaid}
@@ -87,6 +96,38 @@ must own its root of trust. Genesis Mesh keeps membership, policy, certificate
 validity, and revocation under the operator's control instead of relying only
 on a third-party network control plane.
 
+## Cross-Sovereign Recognition
+
+```{mermaid}
+flowchart LR
+    subgraph sa["Sovereign A"]
+        na_a["Network Authority A"]
+        agent["Agent or service"]
+    end
+    subgraph sb["Sovereign B"]
+        na_b["Network Authority B"]
+        treaty["Recognition treaty<br/>accepts A's attestations"]
+        app["Relying application"]
+    end
+
+    na_a -->|signs attestation| agent
+    na_b -->|signs| treaty
+    agent -->|presents attestation| app
+    app -->|verifies against| treaty
+    na_a -.->|signed revocation feed| na_b
+```
+
+Use this shape when organizations each run their own sovereign and need to
+recognize each other's members without merging into one network. Sovereign A
+issues a membership attestation to its agent. Sovereign B signs a recognition
+treaty that accepts A's attestations within a scope (roles, statuses,
+validity). B's verifiers then check A's attestation through the treaty without
+asking A, and import A's signed revocation feed to learn what A has revoked.
+Recognition is directed: mutual recognition takes two treaties. Each side keeps
+its own root key, policy and revocation. See
+{doc}`../examples/recognition-treaties`, {doc}`../operators/recognition-playbook`
+and {doc}`../examples/cross-sovereign-revocation`.
+
 ## Distributed Compute Cluster
 
 ```{mermaid}
@@ -97,10 +138,10 @@ flowchart LR
     worker_b["Worker B"]
     worker_c["Worker C"]
 
-    na -->|role:scheduler cert| scheduler
-    na -->|role:worker cert| worker_a
-    na -->|role:worker cert| worker_b
-    na -->|role:worker cert| worker_c
+    na -->|role:service:scheduler cert| scheduler
+    na -->|role:service:worker cert| worker_a
+    na -->|role:service:worker cert| worker_b
+    na -->|role:service:worker cert| worker_c
 
     scheduler -->|authorized work message| worker_a
     scheduler -->|authorized work message| worker_b

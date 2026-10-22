@@ -18,8 +18,8 @@ genesis-mesh-node --help   # Node runtime (legacy entry point)
 
 ## Container Images
 
-The Network Authority and the trust gateway are also published as signed
-container images for `linux/amd64` and `linux/arm64`:
+The Network Authority and the trust gateway (beta) are also published as
+signed container images for `linux/amd64` and `linux/arm64`:
 
 ```bash
 docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.7.0
@@ -34,10 +34,15 @@ the `genesis-mesh` CLI:
 docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.7.0 --version
 ```
 
+The edge agent (beta) ships as `ghcr.io/genesismeshlabs/genesis-mesh-edge:1.7.0`
+and as static Linux binaries with the Rust SDK release; see
+[Edge agent](operations/edge-agent.md).
+
 ## Development Install (Contributors)
 
-For working on the code or building docs locally, clone the repository and
-install in editable mode with the dev and docs extras:
+For working on the code or building docs locally, clone the repository,
+install it in editable mode with the dev extra, and install the docs
+requirements from `docs/requirements.txt`:
 
 ### Windows PowerShell
 
@@ -47,7 +52,8 @@ cd genesismesh
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev,docs]"
+python -m pip install -e ".[dev]"
+python -m pip install -r docs/requirements.txt
 ```
 
 ### Linux, macOS, or WSL
@@ -58,7 +64,8 @@ cd genesismesh
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev,docs]"
+python -m pip install -e ".[dev]"
+python -m pip install -r docs/requirements.txt
 ```
 
 ## Verify the Install
@@ -69,15 +76,25 @@ For a quick sanity check after `pip install genesis-mesh`:
 genesis-mesh --help
 ```
 
-For a development install, the full local pre-flight suite:
+For a development install, the main local checks:
 
 ```powershell
 python -m pytest genesis_mesh/tests -v
 genesis-mesh --help
+python -m ruff check genesis_mesh scripts conformance
 python -m mypy genesis_mesh --ignore-missing-imports
 python -m pip_audit
+python scripts/test_postgres.py
 python -m sphinx -b html -W docs docs/pages
 ```
+
+`scripts/test_postgres.py` runs the test suite on a throwaway local PostgreSQL,
+as CI does; it needs the PostgreSQL server binaries (`initdb`, `pg_ctl`) and
+`pip install -e ".[postgres]"`. The
+`docs` extra in `pyproject.toml` does not include `sphinx-design`, which the
+docs need, so install `docs/requirements.txt` before building them. The CI
+workflow (`.github/workflows/ci.yml`) is the full list of checks, including
+the coverage floor and the integration tests.
 
 If `python -m pip install -e .` reports that scripts were installed outside
 `PATH`, add the reported scripts directory to your shell profile. On the current

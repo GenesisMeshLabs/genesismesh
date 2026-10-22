@@ -19,11 +19,16 @@ const gm = new GenesisMeshClient({
 
 Requests go to one instance at a time.
 
-- **Idempotent requests** (every GET, public verification and evidence
-  submission) move to the next instance on a transport failure or
-  502/503/504, then use `retry` with backoff.
-- **Non-idempotent requests** (evaluate, issue, publish, revoke) move to the
-  next instance only when the connection could not be made (refused,
+- **Idempotent requests** (every GET; the submission of evidence,
+  observations, break-glass and remediation records and grant uses; time
+  token requests; the judgements, `anchor` and `recordArchive`, which a replay
+  cannot repeat; and the verification routes of boundary decisions,
+  attestations and policies) move to the next instance on a transport failure
+  or 502/503/504, then use `retry` with backoff. From 1.7.1 (unreleased) every
+  other verification route, and `disclosure.prove`, is idempotent too.
+- **Non-idempotent requests** (evaluate, issue, publish, revoke, audit packs,
+  and in 1.7.0 the agreement, trust-evidence, consensus, disclosure and
+  data-usage verification routes) move to the next instance only when the connection could not be made (refused,
   unresolvable, unreachable), because the request never reached the NA. After
   any other failure they are **not replayed**: a request that may have run
   must not run twice. The error reaches the caller, and the next request
@@ -39,7 +44,8 @@ request was sent.
 const r = await gm.health.readiness();
 // { ready, status, instance, ha_mode, rate_limiter,
 //   database: { backend, writable, schema_version, expected_schema_version, error? },
-//   signing_key: { key_id, provider, fingerprint } }
+//   signing_key: { key_id, provider, fingerprint },
+//   na_key?: { state, key_sequence?, signs_from? } }
 
 for (const e of await gm.health.endpoints()) {
   console.log(e.base_url, e.reachable, e.ready, e.readiness?.signing_key.fingerprint);
@@ -47,7 +53,9 @@ for (const e of await gm.health.endpoints()) {
 ```
 
 `readiness()` returns a not-ready NA as `ready: false` with the failing checks
-instead of throwing. `endpoints()` probes every configured instance directly.
+instead of throwing. From 1.5.0 an instance whose NA key is `pending` (a new
+key before its succession takes effect) or `stopped` (succeeded or expired)
+is not ready; only `signing` is. `endpoints()` probes every configured instance directly.
 It is meant for monitoring and for spotting an instance with a different key:
 every instance of one NA reports the same fingerprint. `liveness()` and
 `health()` wrap `/healthz` and `/health`.
@@ -63,6 +71,7 @@ that loses a race gets `409` and changed nothing, so it can be retried:
 | `boundary_policy_version_conflict` | concurrent publishes of one policy kept taking the next version |
 | `crl_publish_contention` | concurrent revocations kept taking the next CRL sequence |
 | `retention_in_progress` | evidence retention is already running on another instance |
+| `grant_issuance_conflict` | what a grant rests on changed while the NA checked it (1.6.0) |
 
 ```typescript
 try {

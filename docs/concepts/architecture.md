@@ -3,10 +3,11 @@
 Genesis Mesh separates admission, identity, transport, routing, authorization,
 and operations into explicit subsystems.
 
-The architecture is designed for sovereign agent and edge networks. The Network
-Authority controls admission and trust state; nodes use that trust state to
-communicate directly, route messages, and reject identities that no longer
-belong in the network.
+Each sovereign runs its own Network Authority. The Network Authority controls
+admission and trust state and signs the records other parties verify: nodes,
+SDKs, edge agents and other sovereigns. Nodes can also use that trust state to
+communicate directly over the peer mesh, route messages, and reject identities
+that no longer belong in the network.
 
 ## Components
 
@@ -16,8 +17,9 @@ Root Sovereign
 Genesis Block
   references
 Network Authority
-  issues certificates, policies, CRLs
-Mesh Nodes
+  issues certificates, policies, CRLs, attestations, treaties, decisions
+  records governed changes (evidence store, off by default)
+Mesh Nodes, SDK clients, edge agents, other sovereigns
   authenticate peers, enforce trust state, discover routes, exchange messages
 ```
 
@@ -31,7 +33,7 @@ flowchart TB
 
     subgraph control["Control Plane"]
         na["Network Authority"]
-        db["SQLite state"]
+        db["SQLite or PostgreSQL state"]
         operator["Operator key"]
         operator -->|admin signature| na
         na <--> db
@@ -59,7 +61,8 @@ flowchart TB
 
 The Root Sovereign is the offline authority. Its public key is embedded in the
 genesis block. Its private key should be used only for controlled ceremonies such
-as signing a genesis block or rotating Network Authority keys.
+as signing a genesis block or a key succession that replaces the Network Authority key
+(see {doc}`../operations/key-succession`).
 
 ### Genesis Block
 
@@ -75,14 +78,15 @@ The Network Authority handles online control-plane work:
 - join certificate issuance
 - heartbeat and renewal validation
 - signed CRL publication
-- signed policy publication
+- signed policy publication and policy-aware decisions
+- attestations, recognition treaties and revocation feeds
+- the evidence store, grants and edge nodes (each off or inert until
+  configured; see {doc}`governed-changes`)
 - operator-authenticated administrative actions
 
-Internally, the Network Authority is split by domain: `server.py` owns the
-application factory and shared service orchestration, `auth.py` owns operator
-and node request verification, `rate_limit.py` owns in-process throttling, and
-`routes/` contains Flask blueprints for enrollment, admin, public, CRL, and
-health endpoints.
+The Network Authority is a Flask app built by `app_factory.py`. Routes call
+services, and services call the database. The package map and its layer rules
+are in {doc}`../development/architecture`.
 
 ### Mesh Node
 
@@ -95,7 +99,9 @@ gateway, a distributed compute worker, or an autonomous software agent. Genesis
 Mesh does not prescribe the application running on top. It gives that
 application an authenticated and revocation-aware peer substrate.
 
-The node package keeps these concerns separated: `node.py` is the Network
+The mesh node runtime is tested and maintained for fixes but gets no new
+features ({doc}`../development/decisions/0007-dormant-packages`). The node
+package keeps these concerns separated: `node.py` is the Network
 Authority client, `runtime.py` is the peer-to-peer lifecycle and wiring
 orchestrator, `peer_identity.py` validates peer certificates and signed peer
 announcements, `dispatcher.py` routes inbound mesh messages to subsystems,
@@ -117,15 +123,18 @@ announcements, `dispatcher.py` routes inbound mesh messages to subsystems,
 
 ## Storage
 
-The Network Authority uses SQLite for durable operational state:
+The Network Authority stores its state in SQLite (one instance) or PostgreSQL
+(one or more instances; see {doc}`../operations/high-availability`). It keeps:
 
-- invite tokens
-- issued certificates
+- invite tokens, issued certificates and edge nodes
 - nonce replay protection
-- CRL versions
-- policy versions
-- audit-event mirror
+- CRL, policy and boundary policy versions
+- attestations, recognition treaties and imported revocation feeds
+- the NA key history
+- the audit-event mirror
+- with the evidence store on: the store entries, store anchors, executor and
+  observer keys, grants and remediation state
 
-SQLite is suitable for the current single-authority deployment model. Larger
-deployments should define backup, migration, and replication procedures before
-production use.
+`genesis-mesh na migrate-db` copies a SQLite database into PostgreSQL. Back up the
+database and copy store anchors out before production use (see
+{doc}`../operations/backup-restore` and {doc}`../operations/evidence-anchors`).
