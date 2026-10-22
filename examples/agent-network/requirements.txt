@@ -6,7 +6,7 @@
 #   pip install -r examples/agent-network/requirements.txt
 #
 # LiteLLM provides a single async API surface across OpenAI, Azure OpenAI,
-# Anthropic, Bedrock, Vertex, Ollama, Together, Groq, Mistral, vLLM, and
+# Bedrock, Vertex, Ollama, Together, Groq, Mistral, vLLM, and
 # many others. Adding a new provider means changing the LLM_MODEL env var,
 # not editing code.
 litellm>=1.83.10; python_version < "3.14"

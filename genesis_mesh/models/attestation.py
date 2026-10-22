@@ -54,7 +54,7 @@ class ModelAttestation(BaseModel):
 
     attestation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_sovereign_id: str
-    model_id: str = Field(..., description='e.g. "claude-sonnet-4-6"')
+    model_id: str = Field(..., description='e.g. "example-model-v2"')
     model_version_tag: str = Field(..., description='e.g. "20251001" or SHA prefix')
     system_prompt_hash: str = Field(..., description="SHA-256 of exact system prompt bytes (UTF-8)")
     tool_manifest_hash: str = Field(..., description="SHA-256 of sorted tool_ids canonical JSON")
