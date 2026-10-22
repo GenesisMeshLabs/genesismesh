@@ -1,7 +1,22 @@
 # Genesis Mesh Atlas
 
-**Status:** Phase 2 product concept
+**Status:** product direction; part of it exists (2026-10-22, v1.7.0)
 **Purpose:** public explorer for sovereigns, operators, trust material, digital twins, and recognition relationships.
+
+## What exists today
+
+- The operator console's `/atlas` view: one Network Authority's live
+  recognition graph.
+- `genesis-mesh atlas build`: a static snapshot (`atlas.html` and
+  `atlas.json`) built from one recognition graph export (`--graph`), with an
+  optional overlay of TrustEvidence records, whose signatures it checks when
+  given the issuers' public keys. `atlas cache`, `lookup`
+  and `prune` work on trust paths over the same graph.
+
+See {doc}`../examples/atlas` for both. Not built yet: ingestion of several
+sovereigns' published material, live or stale labels per source, and the
+activity feed. The rest of this page is the direction, not a description of
+shipped behavior.
 
 ## Positioning
 

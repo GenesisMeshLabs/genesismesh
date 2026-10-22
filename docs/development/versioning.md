@@ -14,22 +14,33 @@ The following components publish the same version:
 - `genesismesh-sdk-dotnet`, the .NET SDK
 - `genesis-mesh-sdk`, the Rust SDK (`GenesisMeshLabs/sdk-rust`)
 - `genesis-mesh-gateway`, the Rust trust gateway (`GenesisMeshLabs/gateway`)
-- official independent protocol verifiers
+- the offline verifier `genesis-mesh-verify` and, from 1.7.0, the edge agent
+  `genesis-mesh-edge` (both released with the Rust SDK)
 
 Every coordinated release tags each component repository with the same
 `vX.Y.Z` value. A component with no functional changes still receives the
-coordinated version after its compatibility tests pass. From 1.1.0, the
-release also publishes the container images
+coordinated version after its compatibility tests pass. Decision
+{doc}`decisions/0001-release-model` replaces this lockstep with a pinned
+contract bundle; it is not implemented yet, so the rules on this page apply.
+
+From 1.1.0, the release also publishes the container images
 `ghcr.io/genesismeshlabs/genesis-mesh` and
 `ghcr.io/genesismeshlabs/genesis-mesh-gateway` with the same `X.Y.Z` tag.
-From 1.5.0 the Rust SDK's release also carries the independent verifier
+From 1.5.0 the Rust SDK's release also carries the offline verifier
 `genesis-mesh-verify` (static Linux binaries for x86-64 and arm64, with
-`SHA256SUMS` and Sigstore bundles), versioned with the Rust SDK; the
+`SHA256SUMS` and Sigstore bundles), versioned with the Rust SDK. It is a
+hand-ported second implementation of the Python reference's verification: a
+Rust port checked against a corpus the reference generates. The
 published-artifacts check verifies its signatures and runs it on the frozen
-1.5.0 audit pack with the network off.
+1.5.0 audit pack with the network off. From 1.7.0 the Rust SDK's release also
+carries the edge agent `genesis-mesh-edge` (beta): static Linux binaries for
+x86_64 and aarch64 listed in `SHA256SUMS-edge`, and the image
+`ghcr.io/genesismeshlabs/genesis-mesh-edge`, tagged `X.Y.Z` only while it is
+beta.
 
 The authoritative development version is stored in `VERSION` in each
-repository. Package manifests must match it. Publishing workflows reject a tag
+repository; the gateway has no `VERSION` file and keeps it in `Cargo.toml`.
+Package manifests must match it. Publishing workflows reject a tag
 that does not match the repository's declared version.
 
 ## The core leads the train
@@ -59,7 +70,8 @@ Work for the next version often starts before the current release merges. Two
 pull requests that edit the top of a changelog conflict: the release PR dates
 the version heading, the feature PR adds the next version's section right
 above it. So pull requests never edit `CHANGELOG.md` (the core and the four
-SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
+SDKs, since 1.3.0; the gateway has no changelog: its release notes are in
+the pull request and the GitHub release):
 
 1. A change adds its entry as a fragment, `changelog.d/<version>/<name>.md`,
    written as the changelog entry under `### Added`, `### Changed`, `### Fixed`,
@@ -77,7 +89,8 @@ SDKs, since 1.3.0; the gateway keeps a hand-edited `CHANGELOG.md`):
    python scripts/changelog.py release 1.3.0 --heading "## v1.3.0 - Observations, Judgements and Break-Glass"
    ```
 
-   SDKs use their own heading form (`## [1.3.0] - 2026-10-11`).
+   The TypeScript, Go and .NET SDKs use the heading form
+   `## [1.3.0] - 2026-10-11`; the Rust SDK uses `## 1.3.0 - 2026-10-11`.
 3. CI (`Changelog fragments`) checks every fragment, refuses one for a version
    already released or outside `changelog.d/<version>/` (the release would
    never fold it), and refuses any change to `CHANGELOG.md` (added, removed or
@@ -132,7 +145,12 @@ release is not the current Genesis Mesh product version.
 
 ## Release integrity
 
-Published tags are immutable. Historical tags are not rewritten to repair
+Published tags are immutable. In each of the six repositories a ruleset
+("release tags are immutable", on `refs/tags/v*`) refuses moving or deleting
+a release tag. The one recorded exception: the Rust SDK's `v1.7.0`
+tag was re-pointed to a workflow fix after the edge release job failed
+before it signed or published anything, with the Maintainer's approval and
+the rule disabled for that push. Historical tags are not rewritten to repair
 metadata. Corrections ship in the next coordinated release.
 
 Before a release is published:

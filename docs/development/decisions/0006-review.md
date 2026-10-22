@@ -2,6 +2,8 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
+**Implemented:** yes. The `main` ruleset requests the automatic review on every push, requires no approving review and merges through the merge queue; `CODEOWNERS` routes the listed paths to the Maintainer.
+
 ## Context
 
 Nearly every pull request so far merged without a second reviewer, and

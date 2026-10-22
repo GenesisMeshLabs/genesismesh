@@ -41,7 +41,8 @@ not a second source of truth.
 ## What Became Possible
 
 The trust machinery existed in code. Phase D proved it worked between
-genuinely independent infrastructure on different cloud providers.
+separate infrastructure on different cloud providers, both run by the
+maintainer.
 
 ## Key Releases
 

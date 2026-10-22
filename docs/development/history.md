@@ -13,14 +13,6 @@ The canonical sources behind this document are the per-release plans under
 
 ## 1. The Problem
 
-The September 2026 public reference deployment hardening separates a keyless,
-read-only dashboard from local signing and maintenance. Fresh neutral identities
-replace the public legacy dataset while original signed records remain in an
-offline archive. Signed snapshots bind current relationships, heartbeat imports
-and canary evidence; the dashboard distinguishes service readiness from trust
-posture. See {doc}`../operations/public-reference-dashboard` for verification
-and the boundaries of the single-node reference demonstration.
-
 Machines can connect. They cannot prove trust.
 
 Every AI agent, autonomous system, and distributed worker that talks
@@ -54,7 +46,8 @@ copied; relationships cannot.
 ## 2. The Journey, in Phases
 
 Eleven phases, each answering one open question. Phases K, L and M were the
-TypeScript, Go and .NET SDK releases, told in the narrative below.
+TypeScript, Go and .NET SDK releases, told in the release narrative below.
+{doc}`phases/index` groups the phase pages.
 
 | Phase | Versions | Theme | Detail |
 |-------|----------|-------|--------|
@@ -67,7 +60,7 @@ TypeScript, Go and .NET SDK releases, told in the narrative below.
 | G | v0.22.0 – v0.25.0 | Application Layer | {doc}`phases/phase-g` |
 | H | v0.26.0 – v0.31.0 | Governed Relationships | {doc}`phases/phase-h` |
 | I | v0.32.0 – v0.37.0 | Runtime Trust Layer | {doc}`phases/phase-i` |
-| J | v0.38.0 – v1.1.0 | Third Trust Cycle + Maturity | {doc}`phases/phase-j` |
+| J | v0.38.0 – v1.1.1 | Third Trust Cycle and 1.0 | {doc}`phases/phase-j` |
 | N | v1.2.0 – v1.7.0 | Governed Changes and Edge Trust | {doc}`phases/phase-n` |
 
 The arc: Phase A proved authenticated routing is possible. Phases B–D
@@ -75,14 +68,16 @@ proved it carries real workloads and crosses real cloud boundaries.
 Phases E–G made it operable, multi-cloud, and legible to non-protocol
 readers. Phase H built the complete trust architecture cycle — dual-signed
 agreements, delegation chains, gated authorization, tamper-evident
-execution, bounded freshness, and machine-checked lemmas. Phase I made
+execution, bounded freshness, and Tamarin lemmas over a model of the
+design. Phase I made
 those relationships usable at runtime — bearer tokens, human oversight,
 selective disclosure, consensus authorization, and peer risk signals.
 Phase J hardened the full pipeline against adversarial behavior and
 modelled key properties in Tamarin, then carried it to a stable 1.0
 contract. Phase N makes every change leave a signed record that survives
 the Network Authority being unreachable and that an auditor can verify
-years later without trusting whoever runs it.
+years later without trusting whoever runs it, once the evidence settings are
+on (they are off by default; see section 4).
 
 ---
 
@@ -128,11 +123,20 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.7.0:
+As of v1.7.0 (2026-10-15). Several guarantees below depend on settings that
+are off by default: the evidence store needs `EVIDENCE_STORE=on`,
+out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
+`EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
+break-glass, observations, remediation helpers and grant holders exist only in
+the TypeScript and Rust SDKs and in the edge agent.
 
-- A working permissioned mesh runs in production on Azure, with
-  cryptographic identity, signed join certificates, Noise XX peer
-  sessions, CRL enforcement, peer discovery, and routing.
+### Protocol and runtime
+
+- The mesh runtime provides cryptographic identity, signed join certificates,
+  Noise XX peer sessions, CRL enforcement, peer discovery and routing. A mesh
+  ran in production on Azure until the legacy stack was retired. The runtime
+  gets no new features, but it still backs `genesis-mesh join`,
+  `genesis-mesh dev up` and the container image's `SERVICE_ROLE=node`.
 - A cooperative multi-agent workflow runs on top of it with measured
   capacity baselines.
 - Capability discovery and trust-aware orchestration with revocation
@@ -144,11 +148,21 @@ As of v1.7.0:
 - The Connectome surfaces the recognition graph with trust-path
   explanations and revocation blast-radius summaries, as one view
   over signed protocol data.
+
+### Deployments and operations
+
 - Maintainer-operated sovereigns have run across Azure, DigitalOcean,
   Cloudflare, and Akamai/Linode with separate identities, keys, endpoints,
   policies, and public trust material; the current public deployments are the
   read-only reference on Azure (`na.genesismesh.org`) and the live NA and
   gateway on DigitalOcean (`mesh.genesismesh.org`).
+- The public reference on Azure (hardened in September 2026) serves a
+  keyless, read-only dashboard. Signing and maintenance run as a separate user
+  on the same VM, which holds the demo identities' keys. Original signed
+  records are kept in an archive, and signed snapshots bind current
+  relationships, heartbeat imports and canary evidence. See
+  {doc}`../operations/public-reference-dashboard` for verification and the
+  limits of this single-node demonstration.
 - Separate sovereign deployments have successfully recognized each other and
   propagated revocation across real network boundaries.
 - A reproducible operator packet exists, including a quickstart, a
@@ -159,29 +173,41 @@ As of v1.7.0:
   database behind a load balancer. Losing an instance loses no decision,
   revocation or evidence, and every exactly-once operation is enforced by the
   database.
+
+### Verification across languages
+
 - Records produced by the Python Network Authority are verified offline by
   the Go, TypeScript and C# SDKs, and a TypeScript-signed data access intent
-  by C#. A live four-language scenario in CI fails if any two
-  implementations disagree on any protocol decision.
+  by C#. In a live scenario in CI, every artifact is judged by at least two
+  of Python, Go, TypeScript and C#, and the run fails if any verdict differs
+  from the expected one. The Rust SDK, `genesis-mesh-verify` and the gateway
+  are not legs of that run; they are held to the reference by the
+  conformance suites and the verification corpus ({doc}`interoperability`).
 - Every implementation reads JSON alike, admits a signed record only in its
   canonical form, and refuses a signed field or an entry kind it does not
   know by name, in one check order, so one record gets one verdict
   everywhere (the `field_registry` and `canonical` conformance suites).
+
+### Project and process
+
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
 - Every shipped release has a written plan in `ops/` and a verified
   release gate.
 - All three trust architecture cycles are shipped: governed relationships
   (v0.26–v0.31), runtime trust layer (v0.32–v0.37), and adversarial
-  hardening with formal verification (v0.38–v0.48).
-- Twelve lemmas are machine-checked in Tamarin Prover on every relevant
-  change: five for the v0.26–v0.30 pipeline model and seven for the peer
-  risk signal as implemented. The pipeline model predates the current
-  release; see the formal verification notes for scope.
+  hardening (v0.38–v0.48).
+- Twelve Tamarin lemmas are proved in CI on every push to `main`, and on
+  pull requests that change the models or the risk-signal code. Seven cover
+  the peer risk signal as implemented (two are reachability checks). Five
+  cover an abstract model of the v0.26–v0.30 pipeline design, which is not
+  checked against the current code; see
+  {doc}`../examples/formal-verification`.
 - 2,618 tests pass. The layer rule and public boundary rule are enforced
-  in code and documented in AGENT.md.
-- 25 animated terminal GIF demos cover every protocol feature across all
-  three phases, with shared rendering and bootstrap infrastructure.
+  in code and documented in `AGENTS.md`.
+- Animated terminal GIF demos, recorded from real runs, cover the protocol
+  features up to v0.48, the operator flows and the cross-language run; later
+  features have written walkthroughs.
 - Structured issue templates, a PR template, CODEOWNERS, a full
   contributor guide, and a release checklist make the project legible
   to contributors who did not write it.
@@ -190,7 +216,7 @@ As of v1.7.0:
   commands, the public Python API, 67 signed artifacts and every API error
   code; tests fail when code and contract disagree. `DEPRECATION_POLICY.md`
   covers the wire protocol, signed artifact evolution and persisted state.
-- Upgrades from every supported release, 0.59.1 to 1.6.0, are rehearsed in
+- Upgrades from every supported release since 0.59.1 are rehearsed in
   CI on real databases, including backup restore and migration to PostgreSQL; a release
   refuses to run on a newer schema.
 - A security review against the v1 deployment profile is published, with its
@@ -199,12 +225,15 @@ As of v1.7.0:
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
 - A protocol conformance suite exists in `conformance/`: 18 suites and 1037
-  deterministic vectors, run by a reference runner; every official SDK runs
-  the shared suites, and CI checks that their copies match.
-- All SDK-required stable protocol operations are exposed over HTTP via
-  6 new NA route blueprints (agreement, boundary, evidence, disclosure,
-  consensus, data usage), with a full HTTP reference at
-  `docs/api/trust-http.md`.
+  deterministic vectors, run by the reference runner. Each SDK runs the
+  suites for what it verifies, and CI checks its copies match;
+  {doc}`interoperability` lists which SDK runs which suite.
+
+### Governed actions and evidence
+
+- All SDK-required stable protocol operations are exposed over HTTP
+  (agreement, boundary, evidence, disclosure, consensus and data-usage routes
+  since v0.52), with a full HTTP reference at {doc}`../api/trust-http`.
 - Boundary authorization rules are signed, versioned configuration:
   a `BoundaryPolicy` configures gate types from a frozen, code-defined
   `GateRegistry`, and every policy-aware `BoundaryDecision` signs a
@@ -218,8 +247,8 @@ As of v1.7.0:
   feed denies every later request, with
   {doc}`../examples/attestation-backed-evaluation`.
 - The Network Authority can be the durable audit record: with the evidence
-  store on, it keeps every decision it signs and the signed execution evidence
-  controllers submit, in an append-only hash chain with one verifiable history
+  store on (`EVIDENCE_STORE=on`), it keeps every decision it signs and the
+  signed execution evidence controllers submit, in an append-only hash chain with one verifiable history
   per secret, with {doc}`../examples/evidence-store`.
 - The Network Authority signs its store's head, and an export verified
   against anchors copied to storage the auditor controls fails if an anchored
@@ -234,7 +263,30 @@ As of v1.7.0:
   recorded in the evidence store and judged once, as of when it happened,
   under the policies the store's signed registry says were active then; a
   judgement is never an approval, and an authentic record refused after its
-  action happened is kept, with {doc}`../operations/out-of-band-changes`.
+  action happened is kept (`EVIDENCE_OUT_OF_BAND=on`), with
+  {doc}`../operations/out-of-band-changes`.
+- A change judged DENY is cancelled by rotating forward, or waived by a second
+  person, on the record (`EVIDENCE_REMEDIATION=on`); an urgent change runs
+  under an emergency capability, with
+  {doc}`../operations/remediation-and-reviews`.
+- The NA key can be succeeded under an offline root key, and verifiers accept
+  a record signed by the key valid at its own time. A lost or compromised NA
+  key cannot sign its own succession, so it still means a new identity, with
+  {doc}`../operations/key-succession`.
+- An operator with a read-tier key produces an audit pack for a range between
+  two anchors, and an auditor verifies it offline from the root key and
+  anchors it holds, with `genesis-mesh-verify` (a hand-ported second
+  implementation of the reference's verification) or the Python reference.
+  Retention prunes only after an archived pack is verified, with
+  {doc}`../operations/audit-packs`.
+- A holder acts within NA-signed grants while the NA is unreachable
+  (`EVIDENCE_GRANTS=on`, beta), with {doc}`../operations/grants`.
+- `genesis-mesh-edge` (beta) runs governed actions on a device with keys it
+  generated, asks for node-scoped decisions, and loses its authority in one
+  revocation, with {doc}`../operations/edge-agent`.
+
+### Contract and releases
+
 - The public contract is stable for the 1.x line, security support covers
   the latest minor line, and all six components of the release train ship the same version.
 - An operator's admin signature covers the whole request: method, path, query
@@ -253,15 +305,26 @@ As of v1.7.0:
   (all failures from one address capped at four times that), with
   {doc}`../sdk/local-network-authority`.
 
-As of v1.0.0, the following are *not* yet true:
+### Not yet true
+
+As of v1.7.0, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
 - No operator outside Genesis Core has yet run a sovereign with its own keys,
-  infrastructure, policy and revocation decision. Both are expected from the
-  pilot.
+  infrastructure, policy and revocation decision.
 
-### Phase K — v0.53.0: TypeScript SDK (June 2026)
+---
+
+## 5. Release Narrative
+
+Releases before v0.53 are told on the phase pages ({doc}`phases/index`);
+v0.38 to v0.52 are in {doc}`phases/phase-j`. The narrative below starts with
+the SDK phases.
+
+### Phases K, L and M: SDKs (v0.53–v0.55)
+
+#### Phase K — v0.53.0: TypeScript SDK (June 2026)
 
 **Question this phase answered:** Can a TypeScript developer verify trust and
 check boundary authorization against a Genesis Mesh Network Authority using
@@ -269,8 +332,8 @@ strongly-typed async functions, with no Python knowledge required?
 
 **What changed:**
 
-A standalone TypeScript SDK was created at `sdk-typescript/` (decoupled from the
-Python repo, at `C:\Source\GenesisMeshLabs\sdk-typescript\`). The SDK is the first
+A standalone TypeScript SDK was created in its own repository,
+`GenesisMeshLabs/sdk-typescript`. The SDK is the first
 external-language client for the Genesis Mesh Trust API.
 
 - **`GenesisMeshClient`** facade with 7 sub-clients covering the complete
@@ -315,7 +378,48 @@ As of v0.53.0, the following are *not* yet true:
 
 ---
 
-### Phase L — v0.54.0: Go SDK (June 2026)
+#### v0.53.1 — Security Hardening + Dual-Platform Support
+
+**What shipped:**
+
+- **Security hardening suite** (F-01 through F-22): security fixes covering command
+  allowlist enforcement, signature verification on all paths, token binding
+  to decisions, certificate revocation and renewal, consensus integrity,
+  permission scoping, OS-level sandboxing, audit log chain signing, and
+  fail-closed semantics on unrecognized policies. All fixes verified against
+  120+ test scenarios and clean under Go race detector on Linux.
+
+- **Windows platform compatibility**: Git Bash text encoding (UTF-8 codec
+  instead of cp1252 locale), subprocess variable handling via stdin to
+  prevent shell-eating of `$variable` references, POSIX chmod/mode handling
+  (Windows uses ACLs), and platform-aware test assertions. All 1,303 tests
+  pass; 4 POSIX-only tests correctly skip on Windows instead of failing.
+
+- **Internal consistency fixes**: Clock hermiticity (`now=` parameter in
+  verification functions for deterministic testing), version sourcing from
+  `pyproject.toml` via `importlib.metadata`, documentation cleanup
+  (removed filesystem paths, fixed mojibake).
+
+**What became possible:**
+
+- Twenty-two security fixes (F-01 to F-22) and Windows support. The suite
+  runs on Linux CI and on Windows developer machines. The fixes are checked
+  by tests; nothing ties them to the Tamarin models.
+- SDKs (TypeScript, Go, .NET) can run their test suites on developer
+  machines running Windows without platform-specific failures.
+
+---
+
+As of v0.53.1, the following are *not* yet true:
+
+- No external operator has yet run a sovereign with their own
+  infrastructure account, keys, policy, endpoint, and continuity
+  responsibilities.
+- Atlas (the public sovereign explorer) has not yet been built.
+
+---
+
+#### Phase L — v0.54.0: Go SDK (June 2026)
 
 **Question this phase answered:** Can a Go developer issue trust decisions,
 build membership attestations, and verify boundary authorization against a
@@ -364,7 +468,7 @@ As of v0.54.0, the following are *not* yet true:
 
 ---
 
-### Phase M — v0.55.0: .NET SDK (June 2026)
+#### Phase M — v0.55.0: .NET SDK (June 2026)
 
 **Question this phase answered:** Can a .NET 8 / C# developer use Genesis
 Mesh trust primitives from an idiomatic async/await API published to NuGet,
@@ -399,52 +503,12 @@ GitHub Actions Trusted Publishing.
   with any Genesis Mesh NA.
 - All three major non-Python ecosystems (TypeScript/Node, Go, .NET) now have
   typed, well-tested SDK clients.
-- Proves that the Genesis Mesh Trust API is a genuine cross-language protocol,
-  not a Python-only library.
+- Shows that the Trust API can be called from three more languages. Offline
+  verification in those languages came in v0.61.
 
-### v0.53.1 — Formal Verification Security Hardening + Dual-Platform Support
+### Phase J: governed actions to 1.x (v0.56–v1.1.1)
 
-**What shipped:**
-
-- **Formal verification hardening suite** (F-01 through F-22): Complete
-  security fixes from the formal verification process covering command
-  allowlist enforcement, signature verification on all paths, token binding
-  to decisions, certificate revocation and renewal, consensus integrity,
-  permission scoping, OS-level sandboxing, audit log chain signing, and
-  fail-closed semantics on unrecognized policies. All fixes verified against
-  120+ test scenarios and clean under Go race detector on Linux.
-
-- **Windows platform compatibility**: Git Bash text encoding (UTF-8 codec
-  instead of cp1252 locale), subprocess variable handling via stdin to
-  prevent shell-eating of `$variable` references, POSIX chmod/mode handling
-  (Windows uses ACLs), and platform-aware test assertions. All 1,303 tests
-  pass; 4 POSIX-only tests correctly skip on Windows instead of failing.
-
-- **Internal consistency fixes**: Clock hermiticity (`now=` parameter in
-  verification functions for deterministic testing), version sourcing from
-  `pyproject.toml` via `importlib.metadata`, documentation cleanup
-  (removed filesystem paths, fixed mojibake).
-
-**What became possible:**
-
-- Genesis Mesh hardened against all formally verified adversarial scenarios
-  is now deployable and testable on both Linux CI and Windows dev machines
-  without test breakage.
-- SDKs (TypeScript, Go, .NET) can run their test suites on developer
-  machines running Windows without platform-specific failures.
-
----
-
-As of v0.53.1, the following are *not* yet true:
-
-- No external operator has yet run a sovereign with their own
-  infrastructure account, keys, policy, endpoint, and continuity
-  responsibilities.
-- Atlas (the public sovereign explorer) has not yet been built.
-
----
-
-### v0.56.0 to v0.57.2 - Rust Gateway Release Train
+#### v0.56.0 to v0.57.2 - Rust Gateway Release Train
 
 The companion Rust repository, `GenesisMeshLabs/gateway`, now provides a
 production-oriented trust-verification gateway while preserving the Python
@@ -480,7 +544,7 @@ integration surface and links to the Rust repository's operational guides.
 
 ---
 
-### v0.58.0 — Declarative Boundary Policy and Gate Framework
+#### v0.58.0 — Declarative Boundary Policy and Gate Framework
 
 *Planned as v0.57.0. The core skipped 0.57 because the Rust gateway had
 already released v0.57.x on its own; from v0.58.0 every component, including
@@ -544,7 +608,7 @@ the engine, resolver, routes, signing, proofs or audit handling. 136 new tests
 fail-closed path, restart persistence and offline verification. This sets the
 decision format that the cross-language verifiers in v0.61 must check.
 
-### v0.58.1 — Attestation-Backed Boundary Evaluation
+#### v0.58.1 — Attestation-Backed Boundary Evaluation
 
 **Question this release answered:** Can a request be authorized on the basis
 of a sovereign's membership attestation, so that withdrawing the membership
@@ -591,7 +655,7 @@ feed revocation, expiry, tampering, basis validation, `required` enforcement,
 offline verification and the CLI.
 
 
-### v0.59.0 — Evidence Store in the Network Authority
+#### v0.59.0 — Evidence Store in the Network Authority
 
 **Question this release answered:** Can the full history of a vendor or a
 secret, from decision to execution, be shown and verified from the Network
@@ -626,7 +690,7 @@ rejection code, chain gaps and forks, append-only enforcement, tamper
 detection, retention, export verification and the full vendor-to-secret
 history across an NA restart.
 
-### v0.59.1 — TypeScript SDK for Governed Secret Lifecycles
+#### v0.59.1 — TypeScript SDK for Governed Secret Lifecycles
 
 **Question this release answered:** Can a lifecycle controller written in
 TypeScript run the whole governed secret flow without hand-written HTTP or
@@ -648,7 +712,7 @@ NA. No core behaviour changed.
 **What became possible:** the pilot controllers can be written in TypeScript,
 and an auditor can verify the NA's export offline in either language.
 
-### v0.60.0 — Optional High Availability for the Network Authority
+#### v0.60.0 — Optional High Availability for the Network Authority
 
 **Question this release answered:** Can the Network Authority survive losing
 an instance, with no data loss or duplicates?
@@ -685,9 +749,9 @@ exactly-once operation, and an integration test kills one of two instances
 behind nginx mid-load. Every acknowledged decision, evidence record and
 revocation survives exactly once.
 
-### v0.61.0 — Cross-Language Interoperability Proof
+#### v0.61.0 — Cross-Language Interoperability Proof
 
-**Question this release answered:** Do independent implementations agree on
+**Question this release answered:** Do the four implementations agree on
 records they did not produce, at run time?
 
 **Why the previous state was insufficient:** v0.56 showed that a second
@@ -704,20 +768,25 @@ live by one implementation with another.
   SDK also creates and signs data access intents.
 - A shared `interop` conformance suite (25 vectors) covers those artifacts and
   canonical JSON edge cases: non-ASCII text, astral characters, DEL, big
-  integers and Python float formatting. Every SDK runs it.
+  integers and Python float formatting. The Go, TypeScript and .NET SDKs run
+  it.
 - `interop/` runs a live scenario: a local NA, an agreement negotiated by two
   sovereigns, policy-bound decisions under the agreement and under an
-  attestation, a license policy, and TypeScript-signed intents. Python, Go,
-  TypeScript and C# each judge every artifact, tampered ones included, and
-  the run fails on any disagreement. `.github/workflows/interop.yml` runs it
-  on every push.
+  attestation, a license policy, and TypeScript-signed intents. Every
+  artifact is judged by at least two of Python, Go, TypeScript and C#: the
+  agreements, decisions and license policy by all four, the TypeScript
+  intents by Python (the NA), TypeScript and C#. Tampered copies are
+  included, and every verdict must match the expected one. The Rust SDK,
+  `genesis-mesh-verify` and the gateway are not legs; the conformance suites
+  check them instead. `.github/workflows/interop.yml` runs it on every pull
+  request, in the merge queue and on every push to `main`.
 
-**What became possible:** a verifier in any of the four languages can be
-trusted to reach the same decision as the reference. The new vectors also
+**What became possible:** the four languages reach the reference's decision
+on every artifact in the scenario and the shared vectors. The new vectors also
 showed that the Go and .NET canonical JSON diverged from Python for non-ASCII text and
 floats; both are fixed.
 
-### v0.61.1 — Contract and Evidence Corrections
+#### v0.61.1 — Contract and Evidence Corrections
 
 **Question this release answered:** Do the SDK types, the formal models and
 the RFCs say what the implementation does?
@@ -730,14 +799,16 @@ the RFCs say what the implementation does?
   escape hatches and now covers counteroffers and retention checkpoints.
 - The PeerRiskSignal Tamarin model was rewritten against
   `update_risk_signal`. The old liveness lemma was false for the
-  implementation itself and was removed; all seven new lemmas are proved, and
-  a CI workflow proves both models on every relevant change.
+  implementation itself and was removed; all seven new lemmas are proved, two
+  of them reachability checks. A CI workflow proves both models on every push
+  to `main` and on pull requests that change the models or
+  `trust/risk_signal.py`; the pipeline model is not checked against the code.
 - RFC-001 to RFC-004 were reviewed against the code and entered Review. Signed
   bytes are now fully specified, the signature field name and trust-bundle
   format are corrected, and the bundle validator enforces the sections the
   RFC requires. Decisions are logged in {doc}`rfc-decisions`.
 
-### v0.62.0 — v1 Public Contract and Security Review
+#### v0.62.0 — v1 Public Contract and Security Review
 
 **Question this release answered:** Can an operator depend on a defined,
 tested contract, upgrade without losing trust state, and know what was
@@ -775,6 +846,8 @@ on PyPI lacked the database migrations, so a Network Authority installed with
   standard key could make, unbounded request bodies, fixed proxy trust,
   running on a newer schema) and records the residual risks, chief among them
   that the NA key cannot yet be rotated while keeping the sovereign identity.
+  (Since v1.5.0, key succession covers planned rotation. A compromised key
+  still means a new identity.)
 - Two tests that pinned a date and compared it with the real clock were
   fixed; the suite now passes with the clock moved up to five years ahead.
 
@@ -783,7 +856,7 @@ the tests enforce, with a tested upgrade path and a documented security
 posture. What 1.0.0 still needs is the maintainer's RFC acceptance and the
 release rehearsal on fixed commits.
 
-### v0.63.0 — Pilot Readiness
+#### v0.63.0 — Pilot Readiness
 
 **Question this release answered:** Can an operator run the supported pilot
 shape, and recover it, exactly as documented?
@@ -815,7 +888,7 @@ membership attestations a pilot depends on.
 on every change; naming the pilot's incident owner and the 1.0.0 release
 rehearsal remain.
 
-### v0.63.1 — Configurable Rate Limits and Resource Heads
+#### v0.63.1 — Configurable Rate Limits and Resource Heads
 
 The first run of the pilot profile on a real VM, with clients behind a
 TLS-inspecting proxy, showed every admin request (including the
@@ -832,7 +905,7 @@ stale and further actions failed. A resource-head lookup now answers in one
 indexed query, histories report `truncated`, and the SDK uses the lookup. The
 VM stack and drills are in `infrastructure/pilot-vm/`.
 
-### v0.64.0 — Rust Parity: Governed Actions in the Rust SDK and Gateway
+#### v0.64.0 — Rust Parity: Governed Actions in the Rust SDK and Gateway
 
 Boundary policies, the evidence store, high availability and resource heads
 had reached the core and the TypeScript SDK, but the Rust SDK stopped at the
@@ -856,7 +929,7 @@ agree and verify on the NA and offline.
 relying services can run governed actions through the gateway without direct
 access to the Network Authority.
 
-### v0.64.1 — CRL Refresh
+#### v0.64.1 — CRL Refresh
 
 Hosting the gateway in front of a live NA at mesh.genesismesh.org showed that
 an NA signs each CRL for 24 hours but republished it only when a revocation
@@ -865,7 +938,7 @@ revocation, and every node and gateway reading it stopped treating the list as
 fresh. The NA now re-signs the same revocations under the next sequence number
 when less than 12 hours remain.
 
-### v0.65.0 — Mesh Demo Experience
+#### v0.65.0 — Mesh Demo Experience
 
 mesh.genesismesh.org put the gateway in front of a live NA, but a visitor
 without a token saw a list of operations and nothing else, and the read-only
@@ -882,9 +955,9 @@ the VM keeps real signed activity flowing. The browser's verification matches
 the Python reference on the shared vectors.
 
 **What became possible:** anyone can see portable trust work end to end,
-across two independently signed sovereigns, without an account.
+across two separately signed sovereigns, without an account.
 
-### v1.0.0 — Stable Sovereign Trust for Independent Operators
+#### v1.0.0 — Stable Sovereign Trust for Independent Operators
 
 The 0.x line had built the protocol, the HA Network Authority, four-language
 verification, a machine-checked public contract and a rehearsed pilot
@@ -902,7 +975,7 @@ gateway, interoperability, documentation and pilot-readiness gate.
 **What became possible:** an independent operator can run a pilot on a
 contract that will not break under it during 1.x.
 
-### v1.0.1 — Gateway Console Fixes
+#### v1.0.1 — Gateway Console Fixes
 
 Reviewing mesh.genesismesh.org on a phone after 1.0.0 showed the live mesh
 graph cut off on the right with no way to scroll, initials where the logo
@@ -910,7 +983,7 @@ belongs, and the public reference still linked under its legacy name. The
 gateway console now keeps the graph inside the viewport and scrolls it, shows
 the Genesis Mesh logo and links `na.genesismesh.org`. No protocol changes.
 
-### v1.0.2 — Fixes from External Testing
+#### v1.0.2 — Fixes from External Testing
 
 External testing of 1.0.1 led to a round of fixes. Admin signatures now cover
 the whole request (method, path, query and the target Network Authority's
@@ -926,7 +999,7 @@ reference, each with a test.
 **What became possible:** each admin request is signed for one action on one
 Network Authority, and every SDK returns what the Network Authority answered.
 
-### v1.1.0 — Signed Container Images and a Local Governed Network Authority
+#### v1.1.0 — Signed Container Images and a Local Governed Network Authority
 
 Operators had to build the Network Authority image from the Dockerfile. 1.1.0
 publishes two images on GHCR for `linux/amd64` and `linux/arm64`: the Network
@@ -964,7 +1037,7 @@ interoperability, upgrade and documentation gate.
 developer on any SDK runs the Network Authority their controller will meet in
 production, with three commands.
 
-### v1.1.1 — Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
+#### v1.1.1 — Security Fixes: Agreement Trust, Bound Parties, Strict Evidence
 
 A review of the plans for 1.2 and later, reading the released code they build
 on, found that three routes took the caller's agreement on trust. Boundary
@@ -992,7 +1065,9 @@ interoperability, upgrade and documentation gate.
 **What became possible:** an NA-signed decision under an agreement means two
 recognised parties signed it, and the store holds exactly what was signed.
 
-### v1.2.0 — Nothing Lost, Anchored
+### Phase N: Governed Changes and Edge Trust (v1.2–v1.7)
+
+#### v1.2.0 — Nothing Lost, Anchored
 
 The first stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). Three gaps stood between the evidence store and an
@@ -1032,7 +1107,7 @@ Authority being unreachable, one record gets one verdict in every
 implementation, and removing anchored evidence is detectable by whoever holds
 the anchors.
 
-### v1.3.0 — Observations, Judgements and Break-Glass
+#### v1.3.0 — Observations, Judgements and Break-Glass
 
 The second stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). The evidence store recorded only changes made
@@ -1059,7 +1134,8 @@ registry lists them, and the `out_of_band` conformance suite carries them.
 The records stay off until `EVIDENCE_OUT_OF_BAND=on`, so a store remains
 readable by 1.2 verifiers until they are upgraded.
 
-Two critic and skeptic review rounds, over 1.2 and 1.3, closed gaps before
+Two automated review passes (a critic and a skeptic), over 1.2 and 1.3,
+closed gaps before
 the release: matching needs the same capability, a change known only within
 a window is judged at every policy change inside it, the registry is
 reconciled from the audit log, holder changes need two named holders, the
@@ -1076,10 +1152,10 @@ not, is on the record with a verdict as of its time, and an outage of the
 Network Authority no longer forces a choice between acting and keeping
 evidence.
 
-### v1.3.1 — Review Fixes
+#### v1.3.1 — Review Fixes
 
-A patch release. After 1.3.0 shipped, a critic and a skeptic reviewed what
-1.2 and 1.3 had shipped in all six repositories and ran a probe for nearly
+A patch release. After 1.3.0 shipped, automated critic and skeptic review
+passes went over what 1.2 and 1.3 had shipped in all six repositories and ran a probe for nearly
 every finding; the sandbox applications ran the new features end to end.
 Nothing was critical, but several defects let an operator's own records be
 turned against them.
@@ -1113,7 +1189,7 @@ interoperability, upgrade and documentation gate.
 against someone with write access to the database, and every implementation
 gives one verdict for one export.
 
-### v1.4.0 — Remediation, Reviews and Notification
+#### v1.4.0 — Remediation, Reviews and Notification
 
 The third stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). After 1.3 every change to a governed resource was on
@@ -1138,7 +1214,8 @@ maximum lifetime, or through break-glass naming it when the Network Authority
 is unreachable. Everything stays off until `EVIDENCE_REMEDIATION=on`, so a
 store remains readable by 1.3 verifiers until they are upgraded.
 
-A critic and a skeptic reviewed the stage before its pull requests; their
+Automated critic and skeptic review passes went over the stage before its
+pull requests; their
 probes found a review that could hold a remediation forever, self-approval
 of an emergency decision and a crash on any lost race, among others, and each
 became a regression test. The TypeScript and Rust SDKs record remediations,
@@ -1153,7 +1230,7 @@ interoperability, upgrade and documentation gate.
 waived on the record, by someone other than the person who made it, without
 breaking what reads it.
 
-### v1.5.0 — Audit Packs and Independent Verification
+#### v1.5.0 — Audit Packs and Independent Verification
 
 The fourth stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). After 1.4 every governed change was on the record,
@@ -1173,13 +1250,15 @@ itself, judging each record as of its time, checking cited records against
 packs it verified before, re-rendering the report, and checking completeness
 against the changes in any outside log. `genesis-mesh audit archive` writes a
 pack to immutable storage, reads it back and verifies it before anything is
-pruned, and retention refuses otherwise by default. The independent verifier
-`genesis-mesh-verify`, built from the Rust SDK's verification code, ships as
-signed, reproducible static binaries that need no key and no network, and
-agrees with the Python reference on a corpus of every kind and rejection.
+pruned, and retention refuses otherwise by default. The separate verifier
+`genesis-mesh-verify`, a Rust port of the Python reference's verification
+built from the Rust SDK's code, ships as signed, reproducible static binaries
+that need no key and no network. It is a hand-ported second implementation,
+checked against a corpus the reference produces, covering every kind and
+rejection.
 
-A critic and a skeptic reviewed the stage before its pull requests and the
-SDK ports reviewed it again; among 35 findings, a frozen fixture missing
+Automated critic and skeptic review passes went over the stage before its
+pull requests, and again over the SDK ports; among 35 findings, a frozen fixture missing
 files in git, packs that failed after a prune, cited records never checked
 against the store, a succeeded key minting long-lived decisions, backdated
 records keeping an old key alive and keys registered later verifying earlier
@@ -1192,7 +1271,7 @@ interoperability, upgrade and documentation gate.
 separately, can verify what the evidence store holds for a period, that
 nothing was removed from it, and that the outside world's changes are in it.
 
-### v1.6.0 — Pre-Issued Grants
+#### v1.6.0 — Pre-Issued Grants
 
 The fifth stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). After 1.5 a change made while the Network Authority
@@ -1215,8 +1294,8 @@ break-glass once a grant is spent, ended or revoked; audit packs, the
 completeness check and `genesis-mesh-verify` read grants, uses and
 revocations; grants are off until `EVIDENCE_GRANTS=on`.
 
-A critic and a skeptic reviewed the stage before its pull requests, and the
-SDK ports reviewed it again; their findings became decisions 17 to 27 of the
+Automated critic and skeptic review passes went over the stage before its
+pull requests, and again over the SDK ports; their findings became decisions 17 to 27 of the
 plan and tests, among them a per-token use limit that holds without state,
 a quarantined use keeping its place in the holder's chain, the bearer key's
 resource scope, issuance re-checked inside the write that stores the grant,
@@ -1231,7 +1310,7 @@ interoperability, upgrade and documentation gate.
 Authority still acts only as policy allowed beforehand, and every action it
 takes is on the record, judged against the grant, once it reconnects.
 
-### v1.7.0 — The Edge Agent
+#### v1.7.0 — The Edge Agent
 
 The sixth and last stage of the Governed Changes and Edge Trust program
 ({doc}`phases/phase-n`). After 1.6 a device could hold grants, but only
@@ -1253,7 +1332,8 @@ certificates, retires its executor key and revokes its grants in one step,
 and the console lists edge nodes with what their agents last reported. The
 Rust SDK's verification code no longer carries a network dependency.
 
-A critic and a skeptic reviewed the stage twice before its pull requests;
+Automated critic and skeptic review passes went over the stage twice before
+its pull requests;
 among their findings, a local process turning an NA rate limit into
 break-glass, a proxy's error page read as an answer, a renewal racing a
 revocation, overlapping resource prefixes and colliding sovereign IDs, a
@@ -1274,12 +1354,12 @@ records years later without trusting whoever runs the Network Authority.
 
 ---
 
-## 5. Where to Read More
+## 6. Where to Read More
 
 - Per-phase detail: {doc}`phases/phase-a` through {doc}`phases/phase-n`
 - Coordinated product version policy: {doc}`versioning`
 - Architecture and design philosophy: {doc}`strategy`
-- Per-release plans: `ops/plan-v0.*.md`
+- Per-release plans: `ops/plan-v*.md`
 - Phase 2 externalization plan: {doc}`externalization`
 - Project vision and the "what we will not build" list: `VISION.md`
 - Repository conventions for working in the codebase: `AGENTS.md`

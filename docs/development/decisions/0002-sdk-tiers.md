@@ -2,6 +2,8 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
+**Implemented:** not yet (2026-10-22). The docs have no capability matrix, and the Go and .NET SDKs are still at 1.7.0 in the lockstep train.
+
 ## Context
 
 The Go and .NET SDKs cover 23 of the core's routes and verify a subset of

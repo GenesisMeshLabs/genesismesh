@@ -5,10 +5,11 @@
 
 ## What Changed
 
-Two independently-keyed Network Authorities recognized each other through
-a signed treaty and propagated a revocation across that boundary,
-demonstrating that the cross-sovereign mechanics work with genuinely
-independent operators.
+Two separately keyed Network Authorities recognized each other through a
+signed treaty and propagated a revocation across that boundary. This
+demonstrated the cross-sovereign mechanics between two authorities, both run
+by the maintainer. (Corrected 2026-10-22: an earlier version said "genuinely
+independent operators".)
 
 A fleet CLI gave operators managing many Network Authorities a dedicated
 command surface: `fleet bootstrap`, `fleet status`, `fleet federate`,
@@ -41,8 +42,8 @@ it surfaces what the signed protocol state already says.
 
 With a legible application layer and portable trust evidence, the full
 trust architecture could be built. Phase H constructed the complete
-pipeline from relationship agreement through execution evidence with
-machine-checked security properties.
+pipeline from relationship agreement through execution evidence, with its
+security properties stated as Tamarin lemmas over an abstract model.
 
 ## Key Releases
 

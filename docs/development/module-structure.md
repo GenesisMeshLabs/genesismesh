@@ -1,12 +1,18 @@
-# Module Structure
+# Node Runtime Internals (dormant)
 
 The package map, the layer rules and "where a change goes" for the Network
 Authority, the protocol core and the CLI are in {doc}`architecture`. This
 page keeps the internals of the mesh node runtime.
 
-`node/`, `transport/`, `routing/` and `gossip/` are **dormant and internal**
-({doc}`decisions/0007-dormant-packages`): they are not in the public
-contract, and new work does not build on them without a decision.
+`node/`, `transport/`, `routing/`, `gossip/` and `monitoring/` are
+**dormant** ({doc}`decisions/0007-dormant-packages`): they get no new
+features, and new work does not build on them without a decision. They are
+not listed in the public contract, but they still back stable surfaces: the
+`genesis-mesh join` and `dev up` commands and the container image's
+`SERVICE_ROLE=node` (which runs `python -m genesis_mesh.node`). A change that
+breaks those is a breaking change. They still change for fixes: 1.5.0
+changed `node/` so that nodes read and check the NA's key history (key
+succession).
 
 ## Node Control Plane
 
@@ -95,21 +101,18 @@ Guidelines:
 
 ## Node CLI and Client
 
-The primary operational CLI is `genesis-mesh`. Persona-oriented commands live
-under `genesis_mesh/cli/ops.py`; config discovery and TOML persistence live in
-`genesis_mesh/cli/config.py`. The older node-specific command module remains in
-`genesis_mesh/cli/node_cmd.py` for compatibility.
+Where a `genesis-mesh` command goes is in {doc}`architecture` ("A CLI
+command"). The node-side pieces are these. The older node-specific command
+module is `genesis_mesh/cli/node_cmd.py`, behind the `genesis-mesh-node`
+entry point.
 
 The `genesis_mesh/node/node.py` module contains the `MeshNode` NA-client class.
 Legacy synchronous heartbeat mode lives in `node/persistent_runner.py`.
-`python -m genesis_mesh.node` remains a compatibility entry point that delegates
-to the CLI module.
+`python -m genesis_mesh.node` (what the image runs for `SERVICE_ROLE=node`)
+delegates to `cli/node_cmd.py`.
 
 Guidelines:
 
-- Keep high-level operator, node operator, and developer commands in
-  `cli/ops.py`.
-- Keep config discovery and persistence in `cli/config.py`.
 - Keep legacy node argument parsing and console output in `cli/node_cmd.py`.
 - Keep join, heartbeat, renewal, and policy-fetch behavior in `MeshNode`.
 - Keep synchronous persistent heartbeat-loop behavior in

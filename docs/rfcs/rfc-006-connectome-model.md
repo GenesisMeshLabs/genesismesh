@@ -114,6 +114,23 @@ Trust-path explanation (`explain_trust_path`) returns one of:
 
 These reason codes are explanations of state, not admission decisions.
 
+```{note}
+**Implementation note (2026-10-22).** The Connectome view grants nothing, and
+membership admission does not read it. The reference NA's trust-decision
+engine does use the same graph and path search: `evaluate_trust_decision`
+(`genesis_mesh/trust/decision.py`) turns the path from `explain_trust_path`
+(`genesis_mesh/trust/connectome.py`) into an `allow`, `warn`, `escalate` or
+`block` verdict. Agreement offers and responses
+(`genesis_mesh/trust/agreement.py`) and delegations
+(`genesis_mesh/trust/delegation.py`) embed that verdict as signed trust
+evidence, and an agreement is refused on `block`. A multi-hop active path
+counts, with no depth limit; when roles are requested, every hop's treaty
+scope must allow them. The test `test_multi_hop_allow`
+(`genesis_mesh/tests/test_trust_decision.py`) asserts `allow` for a 2-hop
+path. This differs from requirement 5 and the open question below; the
+difference is recorded as an open issue.
+```
+
 ## Security considerations
 
 - The Connectome is read-only and derived from already-signed material. It adds
@@ -131,8 +148,9 @@ These reason codes are explanations of state, not admission decisions.
   exists.
 - A trust bundle (RFC-003) carries a Connectome summary so a reviewer sees graph
   context for the subject sovereign.
-- Atlas, the public explorer described in {doc}`/development/atlas`, is intended
-  to consume this export rather than introduce a second source of truth.
+- Atlas, the public explorer described in {doc}`/development/atlas`, reads
+  this export (`GET /atlas` and `GET /atlas.json`) rather than introducing a
+  second source of truth.
 
 ## Compatibility notes
 

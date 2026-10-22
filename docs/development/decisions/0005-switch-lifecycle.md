@@ -2,6 +2,8 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
+**Implemented:** not yet (2026-10-22). No format level exists, and `upgrade.yml` still rehearses an upgrade from every release since 0.59.1.
+
 ## Context
 
 Each stage added an `EVIDENCE_*` switch that, under the deprecation

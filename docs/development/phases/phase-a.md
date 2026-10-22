@@ -24,7 +24,8 @@ SECURITY.md and a threat model established the public security posture.
 
 ## Value Added
 
-- A permissioned mesh runs in production on Azure.
+- A permissioned mesh ran in production on Azure. (That stack is retired; the
+  Azure VM now serves the read-only public reference.)
 - Nodes hold cryptographic identity and speak Noise XX to each other.
 - The Network Authority issues and revokes join certificates.
 - The project is installable from PyPI and has a documented security posture.
