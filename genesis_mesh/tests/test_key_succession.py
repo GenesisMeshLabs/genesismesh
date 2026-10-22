@@ -485,7 +485,7 @@ def test_verify_export_reads_the_key_history_from_the_root_key(net, tmp_path):
     assert wrong_root.exit_code != 0 and "genesis_root_mismatch" in wrong_root.output
 
 
-def test_a_crl_signed_after_a_succession_names_the_new_key_as_its_issuer(net, monkeypatch):
+def test_a_crl_signed_after_a_succession_names_the_new_key_as_its_issuer(net):
     """Review fix (1.7.1): the next CRL copied the previous CRL's ``issuer``.
 
     After a succession the CRL is signed by the new key, but its ``issuer``
@@ -500,8 +500,8 @@ def test_a_crl_signed_after_a_succession_names_the_new_key_as_its_issuer(net, mo
     assert before.issuer == "na-1" and before.signatures[0].key_id == "na-1"
 
     _record, restarted, _client_ = _succeeded(net, service, _client(service))
-    # Make the active CRL due for refresh, so the new key signs the next one.
-    monkeypatch.setattr(server_module, "CRL_REFRESH_MARGIN", timedelta(days=2))
+    # The old key's CRL is far from its refresh, but the new key re-signs it at once.
+    assert before.next_update - datetime.now(timezone.utc) > server_module.CRL_REFRESH_MARGIN
     after = restarted._get_or_create_active_crl()
 
     assert after.sequence == before.sequence + 1

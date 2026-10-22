@@ -608,7 +608,9 @@ class NetworkAuthorityService:
             if current is None:
                 return CertificateRevocationList.create_empty(issuer=self.key_id, sequence=0)
             now = datetime.now(timezone.utc)
-            if current.next_update - now > CRL_REFRESH_MARGIN:
+            # Re-sign at once when another key signed the active CRL (1.7.1):
+            # after a succession, verifiers find the key by ``issuer``.
+            if current.next_update - now > CRL_REFRESH_MARGIN and current.issuer == self.signer.key_id:
                 return None
             return CertificateRevocationList(
                 crl_id=str(uuid.uuid4()),
