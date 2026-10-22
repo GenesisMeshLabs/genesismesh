@@ -389,9 +389,13 @@ Revoke an attestation this NA issued. The CLI equivalent is
 **Request** `{ "reason": "left_the_organisation" }` (optional; the default is
 `unspecified`).
 
-**Response** `200` `{ "attestation_id": "...", "status": "revoked" }`. The
-attestation is listed in `GET /sovereign-revocation-feed` from then on. With
-grants on, the grants resting on the attestation are revoked with it (v1.6.0).
+**Response** `200`
+`{ "attestation_id": "...", "status": "revoked", "lineage_ids": ["..."] }`.
+The attestation is listed in `GET /sovereign-revocation-feed` from then on.
+With grants on, the grants resting on the attestation are revoked with it
+(v1.6.0). Since 1.8.0 every copy of a re-issued attestation is revoked
+together, whichever ID the request names; `lineage_ids` lists them, oldest
+first, and the feed lists each one.
 
 **Errors** — `401 admin_auth_failed`, `403 insufficient_operator_tier`,
 `404 attestation_not_found`.
@@ -478,9 +482,11 @@ Revoke a treaty. The CLI equivalent is `genesis-mesh treaty revoke`.
 **Request** `{ "reason": "relationship_ended" }` (optional; the default is
 `unspecified`).
 
-**Response** `200` `{ "treaty_id": "...", "status": "revoked" }`. With grants
-on, the grants under agreements whose parties this NA no longer trusts are
-revoked (v1.6.0).
+**Response** `200`
+`{ "treaty_id": "...", "status": "revoked", "lineage_ids": ["..."] }`. With
+grants on, the grants under agreements whose parties this NA no longer trusts
+are revoked (v1.6.0). Since 1.8.0 every copy of a re-issued treaty is revoked
+together; `lineage_ids` lists them, oldest first.
 
 **Errors** — `401 admin_auth_failed`, `403 insufficient_operator_tier`,
 `404 treaty_not_found`.
