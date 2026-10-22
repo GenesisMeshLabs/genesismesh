@@ -558,6 +558,10 @@ class NetworkAuthorityService:
             if crl is None:
                 return None
             if not crl.signatures:
+                # The next CRL is built from the active one, whose issuer may be a key
+                # this NA no longer signs with (1.7.1): name the key that signs it.
+                if crl.issuer != self.signer.key_id:
+                    crl = crl.model_copy(update={"issuer": self.signer.key_id, "signatures": []})
                 crl.signatures.append(self.signer.sign_model(crl))
             try:
                 self.db.save_crl(crl, active=True)
@@ -604,7 +608,9 @@ class NetworkAuthorityService:
             if current is None:
                 return CertificateRevocationList.create_empty(issuer=self.key_id, sequence=0)
             now = datetime.now(timezone.utc)
-            if current.next_update - now > CRL_REFRESH_MARGIN:
+            # Re-sign at once when another key signed the active CRL (1.7.1):
+            # after a succession, verifiers find the key by ``issuer``.
+            if current.next_update - now > CRL_REFRESH_MARGIN and current.issuer == self.signer.key_id:
                 return None
             return CertificateRevocationList(
                 crl_id=str(uuid.uuid4()),
