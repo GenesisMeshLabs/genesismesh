@@ -15,7 +15,7 @@ from ..crypto import (
     public_key_from_b64,
     verify_model_signature,
 )
-from ..models import GenesisBlock, JoinCertificate, PolicyManifest
+from ..models import GenesisBlock, JoinCertificate, MembershipAttestation, PolicyManifest
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from ..trust.context import GateRegistry
@@ -585,6 +585,21 @@ class NetworkAuthorityService:
             len(crl.revoked_certificates),
         )
         return crl
+
+    def attestation_held_if_own(self, attestation: MembershipAttestation) -> bool:
+        """An attestation in this NA's own name verifies only as the NA stored it (1.7.1).
+
+        The NA keeps every attestation it issues. One in its name that it does
+        not hold, exactly as signed, was not issued here: for example one
+        signed with a key the NA has since succeeded, by whoever kept that key.
+        Attestations of other sovereigns are not affected.
+        """
+        if attestation.issuer_sovereign_id != self.genesis_block.network_name:
+            return True
+        stored = self.db.get_membership_attestation(attestation.attestation_id)
+        return stored is not None and (
+            stored["attestation"].model_dump(mode="json") == attestation.model_dump(mode="json")
+        )
 
     def _get_or_create_active_crl(self) -> CertificateRevocationList:
         """Return a fresh active CRL, creating or republishing it if needed.
