@@ -141,7 +141,7 @@ Otherwise it returns 503 with the reason in `error.details`:
   "status": "ready",
   "instance": "na-a-7f3c:1a2b3c4d",
   "ha_mode": "on",
-  "database": {"backend": "postgres", "writable": true, "schema_version": 19, "expected_schema_version": 19},
+  "database": {"backend": "postgres", "writable": true, "schema_version": 20, "expected_schema_version": 20},
   "signing_key": {"key_id": "na-prod", "provider": "azure-keyvault", "fingerprint": "5c1e…"},
   "na_key": {"key_sequence": 1, "state": "signing"},
   "rate_limiter": "database",
