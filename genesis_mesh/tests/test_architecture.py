@@ -317,7 +317,7 @@ trust.treaty                          trust.attestation
 """))
 
 ROUTE_DB_ALLOWLIST: dict[str, int] = {
-    "admin.py": 15,
+    "admin.py": 14,
     "agreement.py": 9,
     "attestations.py": 13,
     "boundary.py": 4,
@@ -329,6 +329,6 @@ ROUTE_DB_ALLOWLIST: dict[str, int] = {
     "enrollment.py": 16,
     "evidence.py": 3,
     "health.py": 5,
-    "public.py": 4,
+    "public.py": 2,
     "treaties.py": 19,
 }

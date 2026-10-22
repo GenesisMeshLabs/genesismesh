@@ -144,10 +144,15 @@ Otherwise it returns 503 with the reason in `error.details`:
   "database": {"backend": "postgres", "writable": true, "schema_version": 20, "expected_schema_version": 20},
   "signing_key": {"key_id": "na-prod", "provider": "azure-keyvault", "fingerprint": "5c1e…"},
   "na_key": {"key_sequence": 1, "state": "signing"},
+  "reissue": {"reissue_pending": false, "due": {"attestations": 0, "treaties": 0, "policy_manifest": false}},
   "rate_limiter": "database",
   "db_path": "postgresql://genesis:***@db.example/genesis_mesh"
 }
 ```
+
+`reissue` (1.8.0) says whether a key succession left records to re-issue
+under the key that signs now. It does not affect readiness: each probe lets
+the instance re-issue the next batch.
 
 Configure the load balancer to:
 

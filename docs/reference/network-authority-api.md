@@ -338,11 +338,31 @@ restarts with the new key; an instance started with the new key before then
 answers `503 na_key_not_yet_effective` and is not ready; a succeeded-to key
 past its validity answers `503 na_key_expired`.
 
+### `POST /admin/na/reissue`
+
+*Beta (v1.8.0).* Privileged. Runs the re-issue job at once. The job re-issues,
+under the key that signs now, the attestations and treaties in this
+sovereign's name that a succeeded key signed and that expire after that key's
+vouching horizon. Each copy has a new ID and joins the record's lineage. The
+job also signs the active policy manifest again. The NA runs the same job on
+its own, in batches, once the new key signs: at start, from the readiness
+probe and from `GET /policy`. This route runs it without the batch limit.
+`200` with `reissued` (`attestations`, `treaties` and `policy_manifest`, the
+ID signed again or `null`), `not_current` (records revoked or re-issued by
+another instance meanwhile), `reissue_pending` and `due` (what is still left).
+`503 na_key_succeeded` (or `na_key_not_yet_effective`, `na_key_expired`)
+while this instance's key may not sign. A run that re-issues anything is
+audited as `na_records_reissued`. `GET /readyz` reports the same
+`reissue_pending` and `due` under `checks.reissue`, without affecting
+readiness. The CLI equivalent is `genesis-mesh na reissue`.
+
 ### `GET /policy`
 
 Returns the active policy manifest, stored in the NA's database (SQLite or
 PostgreSQL). If no policy has been published, the service creates, stores and
-returns a default signed policy.
+returns a default signed policy. Since 1.8.0 a manifest that a succeeded key
+signed is signed again, under the same `policy_id`, by the key that signs
+now; so is a version that `POST /admin/policy/rollback` activates.
 
 ### `GET /crl`
 
@@ -637,7 +657,7 @@ tier each needs. The live `/api-reference` page lists every route.
 | Evidence store | Every read (search, status, verify, resource and vendor histories, resource heads, export, executor keys) (v1.5.0); `GET` and `POST /admin/evidence/anchors` (v1.2.0); `POST /admin/evidence/audit-pack` and the archive list (v1.5.0) | — | Register and retire executor keys; `POST /admin/evidence/archives`; `POST /admin/evidence/retention/apply` |
 | Out-of-band, remediation and reviews | A resource's changes (v1.3.0); the remediation queue, states and reviews (v1.4.0) | Judge observations and break-glass records; mark a remediation notified; open a review | `POST /admin/evidence/reviews/{id}/decide` |
 | Grants (beta) | `GET /admin/grants`, `/admin/grants/{id}`, `/admin/grants/{id}/uses` (v1.6.0) | — | `POST /admin/grants`, `POST /admin/grants/{id}/revoke` |
-| Key succession (beta) | — | — | `POST /admin/na/succession` |
+| Key succession (beta) | — | — | `POST /admin/na/succession`; `POST /admin/na/reissue` (v1.8.0) |
 
 A key that authenticates but lacks the tier receives **`403
 insufficient_operator_tier`** — deliberately distinct from the `401` an unknown

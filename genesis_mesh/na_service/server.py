@@ -44,6 +44,7 @@ from .services import (
     GrantLimits,
     GrantService,
     OutOfBandService,
+    ReissueService,
     RemediationService,
 )
 from .services.evidence_store import EVIDENCE_STORE_MODES
@@ -356,6 +357,8 @@ class NetworkAuthorityService:
         self.grant_service = GrantService(self)
         # v1.7.0: edge nodes (the edge agent).
         self.edge_service = EdgeService(self)
+        # v1.8.0: records of a succeeded NA key, re-issued under the key that signs now.
+        self.reissue_service = ReissueService(self)
         # v1.5.0: audit packs and archives.
         self.audit_pack_service = AuditPackService(self)
         # v1.1.1: agreements presented by callers must be signed by parties
@@ -405,6 +408,8 @@ class NetworkAuthorityService:
         self.grant_service.ensure_grants()
         # v1.7.0: executor keys of revoked edge nodes whose retirement an earlier revocation missed.
         self.edge_service.ensure_retired()
+        # v1.8.0: what a key succession left to re-issue (once the new key signs; never fails start).
+        self.reissue_service.maybe_reissue()
         logger.info(
             "Network Authority service initialized for network: %s",
             genesis_block.network_name,
@@ -693,6 +698,10 @@ class NetworkAuthorityService:
         checks["na_key"] = signing_state
         if signing_state["state"] != "signing":
             ready = False
+        # v1.8.0: records a key succession left to re-issue. Informational: the instance serves
+        # meanwhile, and the probe is one of the job's triggers.
+        self.reissue_service.maybe_reissue()
+        checks["reissue"] = self.reissue_service.summary()
         checks["rate_limiter"] = self.rate_limiter.store
         if not self.genesis_block:
             ready = False

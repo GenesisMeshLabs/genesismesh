@@ -354,6 +354,13 @@
       "methods": [
         "POST"
       ],
+      "path": "/admin/na/reissue",
+      "level": "beta"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
       "path": "/admin/na/succession",
       "level": "beta"
     },
@@ -1020,6 +1027,10 @@
     {
       "command": "na migrate-db",
       "level": "stable"
+    },
+    {
+      "command": "na reissue",
+      "level": "beta"
     },
     {
       "command": "na start",

@@ -178,10 +178,8 @@ def create_public_blueprint(service) -> Blueprint:
     @bp.route("/policy", methods=["GET"])
     def get_policy():
         """Return the active signed policy manifest."""
-        policy = service.db.get_active_policy()
-        if policy is None:
-            policy = service._get_default_policy()
-            service.db.save_policy(policy, active=True)
+        # v1.8.0: signed by the key that signs now; a manifest a succeeded key signed is signed again.
+        policy = service.reissue_service.active_policy()
         return jsonify(policy.model_dump(mode="json"))
 
     return bp

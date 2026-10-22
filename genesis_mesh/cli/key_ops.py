@@ -5,8 +5,11 @@
 with the root key, offline: it needs the saved history and the root private
 key file, and never contacts the NA. ``na succession submit`` sends the
 signed record with a privileged operator key; the NA countersigns it with its
-outgoing key and records it. ``na doctor`` checks an NA host against its
-settings file: the root key absent, the NA key valid, archives required.
+outgoing key and records it. ``na reissue`` asks the NA to re-issue, under
+the key that signs now, the records of a succeeded key that would outlive its
+vouching horizon (1.8.0; the NA also does this on its own). ``na doctor``
+checks an NA host against its settings file: the root key absent, the NA key
+valid, nothing left to re-issue, archives required.
 """
 
 from __future__ import annotations
@@ -208,6 +211,37 @@ def submit(na_endpoint: str, file_path: Path, out_path: Path | None, config_path
                f"{signed['effective_at']}. Restart the NA with the new key then; the old key signs nothing after it.")
 
 
+@click.command("reissue")
+@click.option("--na", "na_endpoint", required=True, help="Network Authority URL.")
+@click.option("--config", "config_path", default=None, help="Config for operator signing.")
+@click.option("--operator-key", default=None, help="Operator private key (privileged tier).")
+@click.option("--operator-key-id", default="operator-local", help="Operator key ID.")
+def reissue(na_endpoint: str, config_path: str | None, operator_key: str | None, operator_key_id: str) -> None:
+    """Re-issue the records of a succeeded NA key now (1.8.0).
+
+    After a succession takes effect, the NA re-issues under the new key the
+    attestations and treaties the old key signed that are still valid past
+    the old key's vouching horizon, and signs the active policy manifest
+    again. It does this on its own, in batches; this command runs it at once
+    and reports what is still due.
+    """
+    base = na_endpoint.rstrip("/")
+    path = "/admin/na/reissue"
+    body: dict[str, Any] = {}
+    key_id, key_path = _admin_signer_from_inputs(config_path, operator_key, operator_key_id)
+    headers = _signed_admin_headers(key_id, key_path, body, method="POST", base_url=base, path=path)
+    result = _request_json(requests.Session(), "POST", f"{base}{path}", json=body, headers=headers,
+                           expected_status=200, label="Re-issue")
+    done, due = result["reissued"], result["due"]
+    manifest = f"; policy manifest {done['policy_manifest']} signed again" if done.get("policy_manifest") else ""
+    click.echo(f"Re-issued {done['attestations']} attestations and {done['treaties']} treaties{manifest}.")
+    if result.get("reissue_pending"):
+        click.echo(f"Still due: {due['attestations']} attestations, {due['treaties']} treaties"
+                   + (", the policy manifest" if due["policy_manifest"] else "") + ". Run it again.")
+    else:
+        click.echo("Nothing left to re-issue.")
+
+
 @click.command("doctor")
 @click.option("--env-file", "env_file", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path),
               help="The NA's settings file (the variables the NA container reads).")
@@ -219,12 +253,14 @@ def doctor(env_file: Path, fmt: str) -> None:
     directories of the genesis block, the NA key, the database and this
     settings file, their parent and three levels below, and the settings'
     variables), or when the NA key cannot sign now. Warns when the
-    key stops signing within 30 days, and when retention may prune what was
-    not archived (NA_RETENTION_REQUIRE_ARCHIVE=off).
+    key stops signing within 30 days, when records of a succeeded key are
+    not yet re-issued (1.8.0), and when retention may prune what was not
+    archived (NA_RETENTION_REQUIRE_ARCHIVE=off).
     """
     from ..models import GenesisBlock
     from ..na_service.db import NADatabase
     from ..na_service.key_provider import KeyProviderError, load_signer, root_key_findings
+    from ..na_service.services.reissue import due_records
     from ..na_service.settings import load_settings
     from .env_file import EnvFileError, read_env_file
 
@@ -261,10 +297,16 @@ def doctor(env_file: Path, fmt: str) -> None:
     db = NADatabase(settings.db_path, database_url=settings.database_url)
     try:
         rows = db.na_key_history_rows() if "na_key_history" in db.table_names() else []
+        successions = [json.loads(r["succession_json"]) for r in rows[1:]]
+        result = verify_key_history(genesis.model_dump(mode="json"), successions)
+        due = None
+        if result.verified and result.history is not None:
+            key = result.history.key_for(signer.public_key_b64)
+            now = datetime.now(timezone.utc)
+            if key is not None and key.signs_at(now):
+                due = due_records(db, result.history, genesis.network_name, key, now)
     finally:
         db.close()
-    successions = [json.loads(r["succession_json"]) for r in rows[1:]]
-    result = verify_key_history(genesis.model_dump(mode="json"), successions)
     if not result.verified or result.history is None:
         check("na_key", "fail", f"the key history does not verify: {result.failures}")
     else:
@@ -283,6 +325,14 @@ def doctor(env_file: Path, fmt: str) -> None:
             else:
                 note = "" if key.valid_to_enforced else " (the genesis key's valid_to is not enforced)"
                 check("na_key", "ok", f"NA key {key.key_sequence} of {len(result.history.keys)} signs now{note}")
+    if due is not None and due.pending:
+        summary = due.summary()["due"]
+        check("reissue", "warn", f"records of a succeeded key not yet re-issued: {summary['attestations']} "
+                                 f"attestations, {summary['treaties']} treaties"
+                                 + (", the policy manifest" if summary["policy_manifest"] else "")
+                                 + ": start the NA with the current key, or run 'genesis-mesh na reissue'")
+    elif due is not None:
+        check("reissue", "ok", "nothing a key succession left is due for re-issue")
     if settings.retention_require_archive:
         check("retention_archive", "ok", "retention removes only what an archive covers")
     else:
