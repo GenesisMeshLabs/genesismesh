@@ -1,4 +1,4 @@
-# Key succession, audit packs and independent verification
+# Key succession, audit packs and offline verification
 
 From Genesis Mesh 1.5.0 the Network Authority (NA) can replace its signing
 key without breaking anything it signed before, and a security team can check
@@ -8,6 +8,12 @@ page covers the SDK side. The operator's side is described in
 {doc}`../../operations/governed-changes-and-audit`,
 {doc}`../../operations/key-succession` and {doc}`../../operations/audit-packs`;
 the pack layout is {doc}`../../reference/audit-pack-format`.
+The key history, succession, anchor, archive and audit pack routes are beta;
+the records' signed forms and the pack format are stable from 1.5.0. Anchors,
+archives and audit packs need the evidence store (`EVIDENCE_STORE=on`, off
+by default). The verifier is part of this SDK and follows the Python
+reference; it proves a pack against keys and anchors you hold, without asking
+the NA.
 
 ## The key history
 

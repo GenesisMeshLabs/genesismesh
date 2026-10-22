@@ -31,7 +31,8 @@ decisions (with their policy and attestation bindings), data license policies
 and data access intents offline: canonical JSON and Ed25519 only, no call to
 the NA, with the reason codes of the Python reference. All three pass the
 shared `interop` conformance vectors, and the cross-language scenario in
-`interop/` runs them against a live NA on every push (see
+`interop/` runs them against a live NA on every pull request, in the merge
+queue and on every push to `main` (see
 {doc}`../development/interoperability`).
 
 | SDK | Package | Version | Repo |

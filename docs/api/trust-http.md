@@ -1,9 +1,20 @@
 # Trust API — HTTP Reference
 
-> **Added in v0.52.0**
+These routes cover agreements, membership attestations and treaties, boundary
+decisions and policies, the evidence store, grants, edge nodes, and the
+signed-record operations (trust evidence, selective disclosure, consensus and
+data usage). They are served by the Network Authority (NA). Node enrolment,
+heartbeats, certificate revocation, the NA key history, the public network
+data and the health probes are in {doc}`../reference/network-authority-api`.
 
-These routes expose every SDK-required stable protocol operation over HTTP.
-They are served by the Network Authority (NA).
+Routes marked *Beta* may change in a minor release; the others on this page
+are stable. {doc}`../reference/public-contract` lists the level of every
+route.
+
+Four features are off by default, and their routes answer `404` until an
+operator turns them on: the evidence store (`EVIDENCE_STORE`), out-of-band
+records (`EVIDENCE_OUT_OF_BAND`), remediation (`EVIDENCE_REMEDIATION`) and
+grants (`EVIDENCE_GRANTS`). Each section names the switch it needs.
 
 ```{tip}
 Try the read and verify operations without running anything: the gateway at
@@ -11,28 +22,179 @@ Try the read and verify operations without running anything: the gateway at
 that can read and verify, but not change, its two sovereigns.
 ```
 
-**Base URL** — the NA process, e.g. `https://na.example.com`.
-
-**Auth** — admin routes require operator-signed headers (same scheme as
-`/admin/recognition-treaties`). Verification routes are unauthenticated.
-
-**Rate limits** — admin routes: 300 requests per 60 seconds per IP by default,
-and 30 failed admin authentications per operator key and address, after which
-that key's failing requests there get `429 admin_auth_throttled` (v1.1.0, per
-key since v1.2.0; a correctly signed request is still served since v1.3.1; see
-{doc}`../reference/configuration`).
-Unauthenticated verify/prove routes: 60 requests per 60 seconds per IP.
-`GET /data-usage/policy`: 120 requests per 60 seconds per IP.
-
-**Error sanitization** — internal exception details are never included in API
-error responses; they are written to the server log. Clients receive a
-human-readable message and a stable `code` string only.
+The page has six parts: the conventions every route shares, then the routes
+in five groups (agreements, attestations and treaties; boundary decisions and
+policies; evidence; grants and edge nodes; signed records).
 
 ---
 
-## Agreement negotiation
+## Conventions
 
-### `POST /admin/agreements/offer`
+### Base URL and request bodies
+
+**Base URL** — the NA process, e.g. `https://na.example.com`.
+
+Send request bodies as JSON objects with `Content-Type: application/json`.
+Without that header the body is ignored, and a route that needs a body
+answers `400 invalid_json`. The NA parses JSON strictly (v1.2.0):
+a body with a duplicate key, a lone surrogate, an integer beyond 64 bits or
+other input that implementations could read differently gets
+`400 invalid_json` with `details.reason`, and a JSON body that is not an
+object gets `400 invalid_json_object`. Bodies larger than
+`NA_MAX_REQUEST_BYTES` (2 MiB by default) get `413 request_entity_too_large`
+before they are parsed.
+
+### Authentication and operator tiers
+
+Routes authenticate their caller in one of three ways:
+
+- **Admin routes** (`/admin/...`) need four operator headers:
+  `X-Admin-Key-Id`, `X-Admin-Timestamp`, `X-Admin-Nonce` and
+  `X-Admin-Signature`. The signature is Ed25519 over the signature version 2
+  payload: the method, path, query, audience, body, key ID, timestamp and
+  nonce. The audience is this NA's genesis public key
+  (`network_authority.public_key` in `/sovereign.json`), which stays the same
+  after a key succession. The timestamp must be within 300 seconds of the NA's
+  clock, and each nonce is used once per key. The exact format is in
+  *Admin Endpoints* in {doc}`../reference/network-authority-api`.
+- **Records and requests signed by another key**: execution evidence,
+  observations, break-glass and remediation records are signed by a
+  registered executor or observer key; grant holders sign with the grant's
+  bearer key; edge nodes sign with their node key. Each section names the key.
+- **Unauthenticated routes**: the verify and prove routes and
+  `GET /data-usage/policy`.
+
+You rarely build the admin headers by hand. The SDK clients sign every admin
+request with the operator key you configure (see {doc}`../sdk/index`), and the
+`genesis-mesh` commands that call admin routes (for example
+`attestation issue`, `treaty revoke` and `admin invite`) sign with the operator
+key you give them. A signature you make yourself must follow the version 2
+payload exactly; `genesis_mesh.crypto.admin_auth` implements it in Python and
+`conformance/vectors/admin_auth.json` holds reference vectors. The curl
+examples on this page show where the four headers go; their values come from
+one of these.
+
+Every operator key has a tier: `read` < `standard` < `privileged`. Each tier
+may do everything the tiers below it may.
+
+| Tier | On this page |
+|---|---|
+| `read` | Reads of the evidence store, its changes, remediations, reviews, grants and edge nodes; store anchors and audit packs. Nothing that changes trust or policy. |
+| `standard` | Day-to-day work: offers, boundary decisions and evaluation, policy validation and reads, the signed-record operations, judgements, review requests. |
+| `privileged` | Anything that grants or withdraws trust or changes policy: accepting agreements and signing counters, attestations, treaties and the recognition policy, publishing and activating boundary policies, data-usage policies, executor keys, retention, archives, holder changes, deciding reviews, issuing and revoking grants. |
+
+Each route below names its tier. "Operator signature" with no tier named means
+the standard tier. A key that authenticates but is below the route's tier gets
+`403 insufficient_operator_tier` (its nonce stays spent); missing headers, an
+unknown or revoked key, a stale timestamp, a replayed nonce or a bad signature
+get `401 admin_auth_failed`. The full tier rules are in *Operator tiers* in
+{doc}`../reference/network-authority-api`.
+
+### Default verification keys
+
+Every verify route takes optional public keys. Left out, they default to the
+NA keys that were valid at the record's own signed time, taken from the NA key
+history (1.5.0, `GET /na/key-history`). So records signed before a key
+succession still verify.
+
+| Route | Optional keys | Record time used |
+|---|---|---|
+| `POST /agreements/verify` | `offerer_public_keys`, `responder_public_keys` | `agreed_terms.valid_from`, and the key must still be accepted now (see the route) |
+| `POST /boundary/verify` | `operator_public_keys` | `decision_made_at` |
+| `POST /boundary-policies/verify` | `issuer_public_keys` | `issued_at` |
+| `POST /trust-evidence/verify` | `issuer_public_keys` | `issued_at` |
+| `POST /disclosure/verify` | `issuer_public_keys` | `committed_at` |
+| `POST /consensus/verify` | `assembler_public_keys` (the validators' keys are required) | `reached_at` |
+| `POST /data-usage/verify` | `agent_public_keys` | `declared_at` |
+
+A record without a readable time is checked against the key this instance
+signs with now. `POST /attestations/verify` works differently: it checks an
+attestation against the issuers of a recognition policy, not against the NA
+key history.
+
+### Rate limits
+
+Every limit counts per minute per client address unless the table says
+otherwise. A request over a limit gets `429 rate_limit_exceeded` with
+`Retry-After: 60`. With several NA instances, set `RATE_LIMIT_STORE=database`
+so the limits count across instances. The settings are in
+{doc}`../reference/configuration` (*Request Limits*).
+
+| Bucket | Default | Setting | Routes |
+|---|---|---|---|
+| Admin requests | 300 | `NA_RATE_LIMIT_ADMIN_PER_MINUTE` | Every `/admin/...` route |
+| Failed admin authentications | 30, per operator key and address | `NA_RATE_LIMIT_ADMIN_AUTH_FAILURES_PER_MINUTE` | Failures on admin routes. Over the limit, that key's failing requests get `429 admin_auth_throttled`; a correctly signed request is still served. Failures naming no active key count against the address, and all failures from one address are capped at four times the limit |
+| Verify and prove | 60 | `NA_RATE_LIMIT_VERIFY_PER_MINUTE` | The unauthenticated `POST` verify and prove routes |
+| Public reads | 120 | `NA_RATE_LIMIT_READ_PER_MINUTE` | `GET /data-usage/policy`, `GET /na/key-history` |
+| Evidence submissions | 120 | `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE` | `POST /evidence/execution`, `/evidence/remediations`, `/grants/time-tokens`, `/evidence/grant-executions` |
+| Observations | 120 | `NA_RATE_LIMIT_OBSERVATIONS_PER_MINUTE` | `POST /evidence/observations` (each item of a batch counts), `/evidence/break-glass` |
+| Executor key | 120, per executor key | `NA_RATE_LIMIT_EXECUTOR_PER_MINUTE` | Break-glass records, observations and grant uses, counted once the record's signature verifies |
+| Audit packs | 12 per hour | `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` | `POST /admin/evidence/audit-pack`, on top of the admin limit |
+| Edge nodes, per address | 600 | `NA_RATE_LIMIT_NODE_ADDRESS_PER_MINUTE` | The `/node/*` routes, counted before authentication |
+| Edge nodes, per node key | 120 | `NA_RATE_LIMIT_NODE_PER_MINUTE` | The `/node/*` routes, counted after authentication |
+
+### Error format
+
+Every error response uses this envelope:
+
+```json
+{
+  "error": {
+    "code": "missing_offer_fields",
+    "message": "responder_sovereign_id and capabilities[] are required",
+    "details": {},
+    "request_id": "<uuid>"
+  }
+}
+```
+
+The `code` is stable. The `message` and `details` are for people and may
+change. The `request_id` matches the server log and the `X-Request-ID`
+response header; a client may send its own `X-Request-ID`. Internal exception
+details are never sent to the client; they are written to the server log.
+
+| HTTP status | Meaning |
+|---|---|
+| 400 | Missing or malformed input, including `invalid_json` and `invalid_json_object` (see *Base URL and request bodies*) |
+| 401 | The caller did not authenticate: `admin_auth_failed` on admin routes, `node_auth_failed` on the edge routes |
+| 403 | The caller authenticated but may not do this: `insufficient_operator_tier`; on the edge routes, the `certificate_*`, `edge_node_*` and `node_*` codes |
+| 404 | Not found, or a feature that is off: `evidence_store_disabled`, `out_of_band_disabled`, `remediation_disabled`, `grants_disabled` |
+| 409 | Conflicts with stored state, or lost a concurrent race (retryable, see below) |
+| 413 | `request_entity_too_large`: the body is over `NA_MAX_REQUEST_BYTES` |
+| 422 | Input is well formed but refused, by the trust library or a store check; `request_validation_failed` when a field has the wrong type |
+| 429 | `rate_limit_exceeded`, or `admin_auth_throttled`; every 429 carries `Retry-After: 60` |
+| 500 | `internal_server_error`: an unexpected error, logged with the `request_id` |
+| 503 | `service_not_ready` (`/readyz`); `evidence_store_unavailable` (a record could not be stored: retry); `grant_store_integrity_failed`; and on every route that signs, `na_key_succeeded`, `na_key_expired` or `na_key_not_yet_effective`: this instance's NA key may no longer, or may not yet, sign after a key succession. Send the request to an instance that holds the current key. |
+
+Codes derived from a plain HTTP status (`not_found`, `method_not_allowed`,
+`request_entity_too_large`) are stable too.
+
+### Concurrency conflicts
+
+With several NA instances, a request that loses a race the database decides
+gets `409`, and the client may retry it:
+
+| Code | Meaning |
+|---|---|
+| `boundary_policy_activation_conflict` | another version of the policy was activated at the same moment |
+| `boundary_policy_version_conflict` | concurrent publishes of one policy kept taking the next version |
+| `crl_publish_contention` | concurrent revocations kept taking the next CRL sequence |
+| `retention_in_progress` | evidence retention is already running on another instance |
+
+### Health and readiness
+
+`GET /healthz` (liveness) and `GET /readyz` (readiness) are described in
+*Health* in {doc}`../reference/network-authority-api`. Route traffic only to
+instances whose `/readyz` answers `200`: an instance whose NA key no longer
+signs after a key succession answers `503 service_not_ready`.
+
+---
+
+## Agreements, attestations and treaties
+
+### Agreement negotiation
+
+#### `POST /admin/agreements/offer`
 
 Build and sign a `CapabilityOffer` as the NA sovereign.
 
@@ -54,22 +216,27 @@ Build and sign a `CapabilityOffer` as the NA sovereign.
 **Response** `201` — `CapabilityOffer` JSON with `signatures`.
 
 **Errors** — `400 missing_offer_fields`, `400 invalid_timestamps`,
+`400 invalid_timestamp_order` (`valid_from` not before `valid_until`),
 `401 admin_auth_failed`, `422 offer_rejected`.
 
 ```sh
 curl -X POST $NA/admin/agreements/offer \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Key-Id: ..." -H "X-Admin-Signature: ..." \
+  -H "X-Admin-Key-Id: ..." -H "X-Admin-Timestamp: ..." \
+  -H "X-Admin-Nonce: ..." -H "X-Admin-Signature: ..." \
   -d '{"responder_sovereign_id":"b","capabilities":["read"],"valid_from":"...","valid_until":"...","expires_at":"..."}'
 ```
 
+The signature covers this exact body; sign it with an SDK or the CLI (see
+*Authentication and operator tiers*).
+
 ---
 
-### `POST /admin/agreements/counter`
+#### `POST /admin/agreements/counter`
 
 Build and sign a `CapabilityCounter` in response to an existing offer.
 
-**Auth** — operator signature, privileged tier since v1.1.1: the offerer can
+**Auth** — operator signature, privileged tier (since v1.1.1): the offerer can
 accept the counter on its own, so the NA's signature on a counter is its
 consent to the agreement. A standard-tier key gets
 `403 insufficient_operator_tier`.
@@ -89,18 +256,21 @@ consent to the agreement. A standard-tier key gets
 **Response** `201` — `CapabilityCounter` JSON with `signatures`.
 
 **Errors** — `400 missing_counter_fields`, `400 invalid_offer`,
-`401 admin_auth_failed`, `422 counter_rejected`.
+`400 invalid_timestamps`, `400 invalid_timestamp_order`,
+`401 admin_auth_failed`, `403 insufficient_operator_tier`,
+`422 counter_rejected`.
 
 ---
 
-### `POST /admin/agreements/accept`
+#### `POST /admin/agreements/accept`
 
 Accept an offer or counter-offer, producing a signed `AgreementRecord`.
 
-**Auth** — operator signature (privileged tier since v0.62.0: the agreement
-grants capabilities that boundary decisions then authorize). A standard-tier
-key gets `403 insufficient_operator_tier`. Offers still accept a standard key;
-counters need a privileged key since v1.1.1.
+**Auth** — operator signature, privileged tier (since v0.62.0): the agreement
+grants capabilities that boundary decisions then authorize. A standard-tier
+key gets `403 insufficient_operator_tier`. Of the three negotiation routes,
+`/admin/agreements/offer` takes a standard key; `/counter` (since v1.1.1) and
+`/accept` need a privileged key.
 
 **Request (accept offer)**
 
@@ -120,11 +290,11 @@ counters need a privileged key since v1.1.1.
 **Response** `201` — `AgreementRecord` JSON with `signatures`.
 
 **Errors** — `400 missing_accept_fields`, `401 admin_auth_failed`,
-`422 accept_rejected`.
+`403 insufficient_operator_tier`, `422 accept_rejected`.
 
 ---
 
-### `POST /agreements/verify`
+#### `POST /agreements/verify`
 
 Verify a signed `AgreementRecord`. Unauthenticated.
 
@@ -138,6 +308,14 @@ Verify a signed `AgreementRecord`. Unauthenticated.
 }
 ```
 
+Both key lists are optional. Left out, each defaults to the NA keys valid at
+the agreement's `agreed_terms.valid_from` that are still accepted now (key
+history, 1.5.0): after a key succession and its 300-second hand-over, an
+agreement the earlier key signed no longer verifies by default, so pass the
+keys you hold to check it. Without `offerer_public_keys` the agreement must
+also match this NA's current recognition graph (reason
+`graph_digest_mismatch`).
+
 **Response** `200`
 
 ```json
@@ -148,9 +326,207 @@ Verify a signed `AgreementRecord`. Unauthenticated.
 
 ---
 
-## Boundary decisions
+### Membership attestations and treaties
 
-### Agreements and their parties (v1.1.1)
+An attestation says a subject (a person, agent or service) is a member of
+this sovereign with some roles. A treaty says this sovereign recognises
+another sovereign's keys for some roles. The recognition policy lists the
+issuers this NA accepts when it verifies an attestation. The reads
+(`GET /attestations`, `GET /recognition-treaties`, `GET /recognition-policy`),
+treaty verification, `POST /attestations/verify-with-treaty` and the
+revocation feed are in *Sovereign Trust Revocation* in
+{doc}`../reference/network-authority-api`.
+
+A role starts with `role:anchor`, `role:bridge`, `role:client`,
+`role:operator` or `role:service:`; any other is refused with
+`400 invalid_role`.
+
+#### `POST /admin/attestations`
+
+Issue a signed `MembershipAttestation`, with this sovereign as its issuer.
+The CLI equivalent is `genesis-mesh attestation issue`.
+
+**Auth** — operator signature, privileged tier.
+
+**Request**
+
+```json
+{
+  "subject_id": "agent-7",
+  "roles": ["role:client"],
+  "subject_public_key": "<optional base64-ed25519>",
+  "claims": {"capabilities": ["app.invoke"], "apps": ["billing"]},
+  "validity_hours": 168
+}
+```
+
+`subject_id` and a non-empty `roles` list are required. `validity_hours`
+defaults to 168. `claims` is an optional object; attestation-backed
+evaluation reads its `capabilities` and `apps` keys (see
+`POST /admin/boundary/evaluate`). `issuer_sovereign_id` may be sent only as
+this sovereign's ID.
+
+**Response** `201` — `MembershipAttestation` JSON with `signatures`:
+`attestation_id`, `issuer_sovereign_id`, `subject_id`, `subject_public_key`,
+`roles`, `status` (`active`), `issued_at`, `valid_from` (the issue time),
+`expires_at`, `issued_by` and `claims`.
+
+**Errors** — `400 missing_attestation_subject`, `400 invalid_role`,
+`400 invalid_validity_hours`, `400 attestation_issuer_mismatch`,
+`401 admin_auth_failed`, `403 insufficient_operator_tier`,
+`422 request_validation_failed` (a field of the wrong type, such as `claims`
+that is not an object).
+
+---
+
+#### `POST /admin/attestations/<attestation_id>/revoke`
+
+Revoke an attestation this NA issued. The CLI equivalent is
+`genesis-mesh attestation revoke`.
+
+**Auth** — operator signature, privileged tier.
+
+**Request** `{ "reason": "left_the_organisation" }` (optional; the default is
+`unspecified`).
+
+**Response** `200` `{ "attestation_id": "...", "status": "revoked" }`. The
+attestation is listed in `GET /sovereign-revocation-feed` from then on. With
+grants on, the grants resting on the attestation are revoked with it (v1.6.0).
+
+**Errors** — `401 admin_auth_failed`, `403 insufficient_operator_tier`,
+`404 attestation_not_found`.
+
+---
+
+#### `POST /attestations/verify`
+
+Verify a `MembershipAttestation` against a recognition policy.
+Unauthenticated.
+
+**Request**
+
+```json
+{
+  "attestation": { "<MembershipAttestation>": "..." },
+  "recognition_policy": { "<RecognitionPolicy>": "..." }
+}
+```
+
+`recognition_policy` is optional; without it the NA uses its active policy
+(`POST /admin/recognition-policy`). The issuer's keys come from the policy.
+An attestation this NA revoked is refused as `locally_revoked`, whatever the
+policy says.
+
+**Response** `200`
+
+```json
+{ "accepted": true, "reason": "accepted", "issuer_sovereign_id": "...", "attestation_id": "..." }
+```
+
+`reason` is `accepted` or the first check that failed, in this order:
+`unknown_issuer`, `locally_revoked`, `bad_status`, `outside_validity_window`,
+`role_not_allowed`, `missing_signature`, `invalid_signature`.
+
+**Errors** — `400 missing_recognition_policy` (none sent and none active),
+`422 invalid_attestation_or_policy`.
+
+---
+
+#### `POST /admin/recognition-treaties`
+
+Issue a signed `RecognitionTreaty` that recognises another sovereign's keys.
+Boundary decisions trust an agreement with another sovereign only through
+such a treaty (see *Agreements and their parties*).
+
+**Auth** — operator signature, privileged tier.
+
+**Request**
+
+```json
+{
+  "subject_sovereign_id": "sovereign-b",
+  "subject_public_keys": ["<base64-ed25519>"],
+  "scope": {"allowed_roles": ["role:client"]},
+  "validity_hours": 168,
+  "metadata": {}
+}
+```
+
+`subject_sovereign_id` and a non-empty `subject_public_keys` list are
+required. `scope` holds `allowed_roles` (empty grants no role),
+`accepted_statuses` (default `["active"]`) and `claims`. `validity_hours`
+defaults to 168. `issuer_sovereign_id` is optional and defaults to this
+sovereign; leave it out.
+
+**Response** `201` — `RecognitionTreaty` JSON with `signatures`: `treaty_id`,
+`issuer_sovereign_id`, `subject_sovereign_id`, `subject_public_keys`,
+`scope`, `status` (`active`), `issued_at`, `valid_from` (the issue time),
+`expires_at`, `issued_by` and `metadata`.
+
+**Errors** — `400 missing_treaty_subject`, `400 empty_subject_public_keys`,
+`400 invalid_role`, `400 invalid_validity_hours`, `401 admin_auth_failed`,
+`403 insufficient_operator_tier`, `422 invalid_treaty_scope`.
+
+---
+
+#### `POST /admin/recognition-treaties/<treaty_id>/revoke`
+
+Revoke a treaty. The CLI equivalent is `genesis-mesh treaty revoke`.
+
+**Auth** — operator signature, privileged tier.
+
+**Request** `{ "reason": "relationship_ended" }` (optional; the default is
+`unspecified`).
+
+**Response** `200` `{ "treaty_id": "...", "status": "revoked" }`. With grants
+on, the grants under agreements whose parties this NA no longer trusts are
+revoked (v1.6.0).
+
+**Errors** — `401 admin_auth_failed`, `403 insufficient_operator_tier`,
+`404 treaty_not_found`.
+
+---
+
+#### `POST /admin/recognition-policy`
+
+Store a recognition policy and make it the active one, used by
+`POST /attestations/verify` when a request carries no policy.
+
+**Auth** — operator signature, privileged tier.
+
+**Request**
+
+```json
+{
+  "policy_id": "recognition-sovereign-a",
+  "recognition_policy": {
+    "local_sovereign_id": "sovereign-a",
+    "recognized_issuers": [
+      {"sovereign_id": "sovereign-a", "public_keys": ["<base64-ed25519>"], "allowed_roles": ["role:client"]}
+    ]
+  }
+}
+```
+
+`policy_id` is optional and defaults to `recognition-<local_sovereign_id>`;
+sending an existing ID replaces that policy. Each issuer needs `sovereign_id`
+and at least one public key; `allowed_roles` (empty admits nothing) and
+`accepted_statuses` (default `["active"]`) are optional. The policy is not
+signed.
+
+**Response** `200`
+`{ "policy_id": "...", "local_sovereign_id": "...", "active": true }`
+
+**Errors** — `401 admin_auth_failed`, `403 insufficient_operator_tier`,
+`422 invalid_recognition_policy`.
+
+---
+
+## Boundary decisions and policies
+
+### Boundary decisions
+
+#### Agreements and their parties (v1.1.1)
 
 `/admin/boundary/decide`, `/admin/boundary/evaluate` and
 `/admin/disclosure/commit` accept an agreement only if two different parties
@@ -171,9 +547,9 @@ its offerer. `context.requester_sovereign_id` and
 `context.provider_sovereign_id` may repeat them; any other value is refused
 with `400 context_party_mismatch`.
 
-### `POST /admin/boundary/decide`
+#### `POST /admin/boundary/decide`
 
-Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
+*Beta.* Evaluate a `ContextRecord` against an `AgreementRecord` and sign a
 `BoundaryDecision`.
 
 **Auth** — operator signature required.
@@ -206,13 +582,14 @@ decisions.
 ```sh
 curl -X POST $NA/admin/boundary/decide \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Key-Id: ..." -H "X-Admin-Signature: ..." \
+  -H "X-Admin-Key-Id: ..." -H "X-Admin-Timestamp: ..." \
+  -H "X-Admin-Nonce: ..." -H "X-Admin-Signature: ..." \
   -d '{"agreement":{...},"requested_capability":"read"}'
 ```
 
 ---
 
-### `POST /boundary/verify`
+#### `POST /boundary/verify`
 
 Verify a signed `BoundaryDecision`. Unauthenticated.
 
@@ -225,6 +602,9 @@ Verify a signed `BoundaryDecision`. Unauthenticated.
 }
 ```
 
+`operator_public_keys` is optional and defaults to the NA key valid at the
+decision's `decision_made_at` (key history, 1.5.0).
+
 **Response** `200`
 
 ```json
@@ -235,14 +615,14 @@ Verify a signed `BoundaryDecision`. Unauthenticated.
 
 ---
 
-## Boundary policies (v0.58)
+### Boundary policies (v0.58)
 
 Signed, versioned declarative policies that configure trusted gate types. See
 {doc}`../examples/declarative-boundary-policy` for the model and semantics.
-All admin routes are rate limited to 300 requests/min per IP by default; the
-public verify route to 60/min per IP.
+The admin routes share the admin rate limit and the public verify route the
+verify limit (see *Rate limits*).
 
-### `POST /admin/boundary-policies/validate`
+#### `POST /admin/boundary-policies/validate`
 
 Dry-run validation of policy intent against the NA's gate registry. Nothing is
 signed or stored. **Auth** — operator signature (standard tier).
@@ -256,7 +636,7 @@ signed or stored. **Auth** — operator signature (standard tier).
   "policy_id": "transfer-limits", "next_version": 3 }
 ```
 
-### `POST /admin/boundary-policies`
+#### `POST /admin/boundary-policies`
 
 Validate, sign and store a new **inactive** version. **Auth** — operator
 signature (privileged tier).
@@ -283,14 +663,14 @@ signature (privileged tier).
 **Errors** — `400 unexpected_field`, `400 missing_policy_id`,
 `400 missing_validity_window`, `400 invalid_boundary_policy`,
 `400 boundary_policy_invalid` (with `details.issues`), `401 admin_auth_failed`,
-`403` (standard tier).
+`403 insufficient_operator_tier` (a standard or read key).
 
-### `GET /admin/boundary-policies`
+#### `GET /admin/boundary-policies`
 
 Every stored version with `active`, `policy_digest`, validity, gate count and
 `integrity_ok`. **Auth** — operator signature.
 
-### `GET /admin/boundary-policies/active`
+#### `GET /admin/boundary-policies/active`
 
 **Auth** — operator signature.
 
@@ -303,12 +683,16 @@ Every stored version with `active`, `policy_digest`, validity, gate count and
 `policy_set_healthy=false` means every policy-aware evaluation is denied until
 the listed problems are fixed.
 
-### `GET /admin/boundary-policies/<policy_id>/history`
+#### `GET /admin/boundary-policies/<policy_id>/history`
 
 All versions of one policy, newest first, including the signed policy bodies.
 **Auth** — operator signature.
 
-### `POST /admin/boundary-policies/<policy_id>/activate`
+**Errors** — `400 boundary_policy_not_found` when no version of the policy is
+stored. This route answers `400`; activate and deactivate answer `404` with
+the same code.
+
+#### `POST /admin/boundary-policies/<policy_id>/activate`
 
 Re-verify a stored version and make it the active one; any other active
 version of the same policy is deactivated in the same transaction. Activating
@@ -322,12 +706,13 @@ tier).
 `409 boundary_policy_integrity_failed`,
 `409 boundary_policy_activation_refused`.
 
-### `POST /admin/boundary-policies/<policy_id>/deactivate`
+#### `POST /admin/boundary-policies/<policy_id>/deactivate`
 
 **Request** `{ "version": 1 }`. **Auth** — operator signature (privileged tier).
-**Errors** — `404 boundary_policy_not_found`, `409 boundary_policy_not_active`.
+**Errors** — `400 invalid_policy_version`, `404 boundary_policy_not_found`,
+`409 boundary_policy_not_active`.
 
-### `POST /admin/boundary/evaluate`
+#### `POST /admin/boundary/evaluate`
 
 Policy-aware evaluation: built-in gates, then every applicable active policy.
 **Auth** — operator signature (standard tier).
@@ -344,7 +729,8 @@ Policy-aware evaluation: built-in gates, then every applicable active policy.
 ```
 
 With `attestation_id` the NA loads the attestation from its store, verifies
-its signature against the NA key, checks that it is active and not revoked
+its signature against the NA key valid when it was issued (key history),
+checks that it is active and not revoked
 (locally or by an imported sovereign revocation feed), that the request time is
 within `valid_from`..`expires_at`, and that `context.requester_sovereign_id`
 (default: the attestation subject) is the subject. The provider is this NA's
@@ -379,12 +765,13 @@ attestation also returns `201` with a signed DENY whose `denial_reason` is
 or `400 context_party_mismatch`. An agreement the NA does not trust returns
 `422 agreement_untrusted` (v1.1.1, see *Agreements and their parties*).
 
-### `POST /boundary-policies/verify`
+#### `POST /boundary-policies/verify`
 
 Verify a signed `BoundaryPolicy`. Unauthenticated.
 
-**Request** `{ "policy": {...}, "issuer_public_keys": ["<base64-ed25519>"] }`
-(keys default to the NA key).
+**Request** `{ "policy": {...}, "issuer_public_keys": ["<base64-ed25519>"] }`.
+`issuer_public_keys` is optional and defaults to the NA key that was valid
+when the policy was issued (`issued_at`), taken from the key history (1.5.0).
 
 **Response** `200`
 `{ "valid": true, "reason": "valid", "policy_id": "...", "version": 1, "policy_digest": "..." }`
@@ -394,20 +781,25 @@ Verify a signed `BoundaryPolicy`. Unauthenticated.
 
 ---
 
-## Evidence store (v0.59)
+## Evidence
 
-Opt-in (`EVIDENCE_STORE=on`, `--evidence-store on`). When off, every route
-below returns `404 evidence_store_disabled` and nothing is stored. When on,
+### Evidence store (v0.59)
+
+Opt-in (`EVIDENCE_STORE=on`, `--evidence-store on`; off by default). When off,
+every route below except `GET /admin/evidence/status` answers
+`404 evidence_store_disabled`, before any signature is checked, and nothing is
+stored; the status route reports `"evidence_store": "off"`. When on,
 `/admin/boundary/evaluate` and `/admin/boundary/decide` store each signed
 decision with its context (and justification proof) before responding; a
 storage failure returns `503 evidence_store_unavailable`. See
 {doc}`../examples/evidence-store`.
 
-### `POST /evidence/execution`
+#### `POST /evidence/execution`
 
 Submit one signed `ExecutionEvidence` after acting. **Auth**: the record's
 signature, by a registered, active executor key for its
-`executor_sovereign_id`. Rate limit 120/min per IP.
+`executor_sovereign_id`. Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`
+(120/min per IP).
 
 **Request** `{ "evidence": { "<ExecutionEvidence>": "..." } }`. Optional v0.59
 fields `resource_id`, `resource_action` (`create`, `rotate`, `revoke`, `update`,
@@ -424,8 +816,11 @@ may also be sent as `null`). Extra fields, coerced types and other variants
 are refused as `evidence_malformed` with a message naming the difference, so
 the store keeps only what the signature covers.
 
-**Errors**: `422` with `evidence_malformed`, `evidence_unknown_executor`,
-`evidence_invalid_signature`, `evidence_decision_not_found`,
+**Errors**: `400 invalid_json`, `400 invalid_evidence` (`evidence` is not an
+object); `422` with `evidence_malformed`, `evidence_unknown_executor`,
+`evidence_invalid_signature`, `evidence_executor_key_retired`,
+`evidence_out_of_scope` (an observer key, or a resource outside the key's
+`resource_prefix`; both since 1.3.0), `evidence_decision_not_found`,
 `evidence_decision_denied`, `evidence_decision_mismatch`,
 `evidence_outside_decision_window`, `evidence_capability_mismatch`,
 `evidence_chain_gap`, `evidence_chain_mismatch`, `resource_chain_gap`,
@@ -433,28 +828,28 @@ the store keeps only what the signature covers.
 when the position or `evidence_id` is already taken by a different record. Every
 rejection is stored (without the payload) and audited.
 
-### Operator routes
+#### Operator routes
 
-All operator-signed; the admin rate limits apply (see *Rate limits* above).
+All operator-signed; the admin rate limits apply (see *Rate limits*).
 
 | Route | Purpose |
 |---|---|
 | `GET /admin/evidence` | Search by `vendor_id`, `attestation_id`, `capability`, `resource_id`, `outcome`, `entry_kind`, `decision_id`, `grant_id` (v1.6.0: a grant's uses and its revocation), `since`, `until`; page with `after_sequence` and `limit` (1-1000). Since v1.5.0 this and every evidence read below (status, verify, histories, resource heads, export, executor keys) accept the `read` tier |
-| `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result. At most 10,000 records (the oldest); `truncated: true` when a longer chain was cut, in which case read it through the export |
+| `GET /admin/evidence/resources/<resource_id>` | One resource's history, decision to execution, with a verification result. At most 10,000 records (the oldest); `truncated: true` when a longer chain was cut, in which case read it through the export. `404 resource_not_found` when there is none |
 | `GET /admin/evidence/resource-heads/<resource_id>` | `{resource_id, resource_sequence, record_digest, entry_kind, record_id}`: what the next record of the resource must link to (the latest stored record, or the latest retention checkpoint), from one indexed lookup; `404 resource_not_found` when there is none (v0.63.1). `entry_kind` and `record_id` (v1.6.0, additive) say what the head is: `execution` (its `evidence_id`), `grant_execution` (its `use_id`) or `retention_checkpoint` (`record_id` `null`). Controllers use this, not the history, before each action |
-| `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified; `truncated` as for resources |
+| `GET /admin/evidence/vendors/<vendor_id>` | A vendor's decisions and the evidence under them, verified; `truncated` as for resources; `404 vendor_not_found` when there are none |
 | `GET /admin/evidence/verify` | Verify every stored entry, chain and signature |
-| `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint, latest anchor and `unanchored_entries`; `unjudged_records`, reported whether `EVIDENCE_OUT_OF_BAND` is on or off since v1.3.1; `anchoring_blocked` while the latest anchor is dated ahead of this instance's clock (v1.3.1) |
+| `GET /admin/evidence/status` | Mode, entry count, last `store_sequence`, latest retention checkpoint, latest anchor and `unanchored_entries`; `unjudged_records`, reported whether `EVIDENCE_OUT_OF_BAND` is on or off since v1.3.1; `anchoring_blocked` while the latest anchor is dated ahead of this instance's clock (v1.3.1). Answers with the store off too: `{"evidence_store": "off", "retention_checkpoint": null}` |
 | `GET /admin/evidence/export` | `gm.evidence.event` JSON Lines (`application/x-ndjson`) after `since_sequence`; see {doc}`../reference/evidence-event-schema` |
 | `GET /admin/evidence/executor-keys` | Registered executor and observer keys, including retired ones, with their `role` and `resource_prefix` |
-| `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}`, and since v1.3.0 `role` (`executor`, the default, or `observer`) and `resource_prefix` (the key signs only for resources whose ID starts with it) (privileged; `409 executor_key_exists`, `400 invalid_key_role`, `400 invalid_resource_prefix`) |
-| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged). An active edge node's key is refused (`409 executor_key_is_edge_node`, v1.7.0): revoke the node with `/admin/revoke` |
-| `POST /admin/evidence/retention/apply` | `{ "older_than_days": N, "through_sequence": M }` (either or both; `through_sequence` since v1.5.0): remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged). `held_back` says when records not judged yet stop it (v1.3.1), or (v1.5.0, `"reason": "not_archived"`) when no archive covers what would go and `NA_RETENTION_REQUIRE_ARCHIVE` is on; `409 evidence_retention_refused` when the store does not hold every entry from its start, no longer continues from the latest anchor, or an entry to remove does not recompute (v1.3.1). Registry, key succession and archive entries are carried past the checkpoint with their first recorded time; since v1.5.0 a resource's latest record no longer stops it |
-| `POST /admin/evidence/audit-pack` | An audit pack (v1.5.0): `{from_sequence or since, until_sequence or until}` (all optional; the range widens to the anchors around it). `{manifest, files}`: the signed `AuditPackManifest` and every other file as text; see {doc}`../reference/audit-pack-format`. `409 audit_pack_not_anchored`, `409 audit_pack_too_large` (over 50,000 entries), `400 invalid_audit_pack`, `429` beyond `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` (a limit of its own); `read` tier. The NA records each pack it builds (manifest digest, whether its own checks passed) |
-| `GET /admin/evidence/archives` | Archive records, `archived_through_sequence` (how far an unbroken run of them covers the store) and `require_archive`; `read` tier (v1.5.0) |
-| `POST /admin/evidence/archives` | Record an archive (privileged, v1.5.0): `{manifest, location}` for a pack written to immutable storage and read back intact. The NA checks the manifest is signed by it as received, is one it built byte for byte, and passed its own checks, that its end anchor is its anchor of the last entry, and that the pack continues the archives without a gap, then appends a signed `ArchiveRecord` (entry kind `archive`). `201` `recorded`, or `200` `duplicate` for the same manifest; `400 invalid_archive`, `422 archive_manifest_invalid`, `409 archive_pack_unknown` (not a pack this NA built), `409 archive_pack_unverified` (its own checks failed), `409 archive_anchor_mismatch`, `409 archive_not_contiguous`, `409 archive_conflict` |
-| `GET /admin/evidence/anchors` | Signed `StoreAnchor`s in order, paged with `after_anchor` and `limit` (1-1000); `read` tier (v1.2.0) |
-| `POST /admin/evidence/anchors` | Sign the store's current head now: `201` with `"status": "anchored"`, or `200` with `"status": "unchanged"` and the latest anchor while the head has not moved; `read` tier; `409 evidence_anchor_refused` when the store no longer continues from the last anchor or the last anchor is dated ahead of the NA's clock (v1.2.0), or (v1.3.1) when the anchored head was rewritten, or the store does not start at entry 1 or right after the latest retention checkpoint, or misses an entry |
+| `POST /admin/evidence/executor-keys` | Register `{key_id, public_key, executor_sovereign_id}`, and since v1.3.0 `role` (`executor`, the default, or `observer`) and `resource_prefix` (the key signs only for resources whose ID starts with it) (privileged; `400 missing_executor_key_fields`, `400 invalid_public_key`, `400 invalid_key_role`, `400 invalid_resource_prefix`, `409 executor_key_exists`) |
+| `POST /admin/evidence/executor-keys/<key_id>/retire` | Retire a key: it still verifies old records and signs no new ones (privileged). `404 executor_key_not_found`, `409 executor_key_retired` (already retired). An active edge node's key is refused (`409 executor_key_is_edge_node`, v1.7.0): revoke the node with `/admin/revoke` |
+| `POST /admin/evidence/retention/apply` | `{ "older_than_days": N, "through_sequence": M }` (either or both; `through_sequence` since v1.5.0): remove a verifiable prefix behind a signed `RetentionCheckpoint` (privileged). `400 invalid_retention` without either, or with a value that is not a positive integer. `held_back` says when records not judged yet stop it (v1.3.1), or (v1.5.0, `"reason": "not_archived"`) when no archive covers what would go and `NA_RETENTION_REQUIRE_ARCHIVE` is on; `409 evidence_retention_refused` when the store does not hold every entry from its start, no longer continues from the latest anchor, or an entry to remove does not recompute (v1.3.1). Registry, key succession and archive entries are carried past the checkpoint with their first recorded time; since v1.5.0 a resource's latest record no longer stops it |
+| `POST /admin/evidence/audit-pack` | *Beta.* An audit pack (v1.5.0): `{from_sequence or since, until_sequence or until}` (all optional; the range widens to the anchors around it). `{manifest, files}`: the signed `AuditPackManifest` and every other file as text; see {doc}`../reference/audit-pack-format`. `409 audit_pack_not_anchored`, `409 audit_pack_too_large` (over 50,000 entries), `409 evidence_store_incomplete` (the store does not hold every entry of the range), `400 invalid_audit_pack`, `429` beyond `NA_RATE_LIMIT_AUDIT_PACKS_PER_HOUR` (a limit of its own); `read` tier. The NA records each pack it builds (manifest digest, whether its own checks passed) |
+| `GET /admin/evidence/archives` | *Beta.* Archive records, `archived_through_sequence` (how far an unbroken run of them covers the store) and `require_archive`; `read` tier (v1.5.0) |
+| `POST /admin/evidence/archives` | *Beta.* Record an archive (privileged, v1.5.0): `{manifest, location}` for a pack written to immutable storage and read back intact. The NA checks the manifest is signed by it as received, is one it built byte for byte, and passed its own checks, that its end anchor is its anchor of the last entry, and that the pack continues the archives without a gap, then appends a signed `ArchiveRecord` (entry kind `archive`). `201` `recorded`, or `200` `duplicate` for the same manifest; `400 invalid_archive`, `422 archive_manifest_invalid`, `409 archive_pack_unknown` (not a pack this NA built), `409 archive_pack_unverified` (its own checks failed), `409 archive_anchor_mismatch`, `409 archive_not_contiguous`, `409 archive_conflict` |
+| `GET /admin/evidence/anchors` | *Beta.* Signed `StoreAnchor`s in order, paged with `after_anchor` and `limit` (1-1000); `read` tier (v1.2.0) |
+| `POST /admin/evidence/anchors` | *Beta.* Sign the store's current head now: `201` with `"status": "anchored"`, or `200` with `"status": "unchanged"` and the latest anchor while the head has not moved; `read` tier; `409 evidence_anchor_refused` when the store no longer continues from the last anchor or the last anchor is dated ahead of the NA's clock (v1.2.0), or (v1.3.1) when the anchored head was rewritten, or the store does not start at entry 1 or right after the latest retention checkpoint, or misses an entry |
 
 Since v1.2.0 the NA signs the store's head (a `StoreAnchor`: `anchor_sequence`,
 `sovereign_id`, `store_sequence`, `entry_digest`, `anchored_at`,
@@ -475,8 +870,13 @@ with the switch off nothing is quarantined and the refusal carries no
 ### Changes outside the controlled path (v1.3.0)
 
 Observations, break-glass records, judgements, quarantine and registry
-records. The routes are beta until 1.5.0; the records' signed forms are
-stable. See {doc}`../operations/out-of-band-changes`.
+records. These routes need `EVIDENCE_OUT_OF_BAND=on` as well as the evidence
+store (both off by default). Otherwise the submission routes answer
+`404 evidence_store_disabled` or `404 out_of_band_disabled` before any
+signature is checked, and the operator routes answer them after the operator
+is authenticated. The routes are stable since 1.5.0 (beta in 1.3 and 1.4); the
+records' signed forms are stable since 1.3.0. See
+{doc}`../operations/out-of-band-changes`.
 
 #### `POST /evidence/observations`
 
@@ -494,7 +894,8 @@ judgement entry, or `null` when judging failed and is left to the judge
 route); `"status": "quarantined"` when the observation is outside its time
 bounds; `200` with `"status": "duplicate"` for the same observation again.
 
-**Errors**: `422` with `observation_malformed`,
+**Errors**: `400 invalid_observation` (`observation` is not an object);
+`422` with `observation_malformed`,
 `observation_invalid_signature`, `observation_unknown_key`,
 `observation_key_retired`, `observation_out_of_scope` or
 `observation_secret_material`; `409 observation_conflict` for a different
@@ -511,13 +912,15 @@ may carry secret material).
 times. **Response** `200` `{ "results": [...] }` in request order, each with
 `index` and the single route's body, or `"status": "refused"` with its
 `error` (`code`, `message`, and since 1.3.1 `details` when the refusal names
-a `quarantine_id`).
+a `quarantine_id`). `400 invalid_observation` when `observations` is not a
+non-empty list or holds more than 100.
 
 #### `POST /evidence/break-glass`
 
 Submit one signed `BreakGlassRecord`, `{ "record": {...} }`. **Auth**: the
 record's signature, by a registered, active executor key. Responses as for
-observations; errors `break_glass_malformed`, `break_glass_invalid_signature`,
+observations; errors `400 invalid_break_glass` (`record` is not an object),
+`break_glass_malformed`, `break_glass_invalid_signature`,
 `break_glass_unknown_key`, `break_glass_key_retired`,
 `break_glass_out_of_scope`, `break_glass_secret_material`,
 `409 break_glass_conflict` (another record with the same `break_glass_id`, or
@@ -547,8 +950,10 @@ repeats a record's ID).
 ### Remediation, reviews and notification (v1.4.0)
 
 Remediation records, reviews and the due queue, with
-`EVIDENCE_REMEDIATION=on` (otherwise `404 remediation_disabled`). The routes
-are beta until 1.5.0; the records' signed forms are stable. See
+`EVIDENCE_REMEDIATION=on` (off by default; otherwise
+`404 remediation_disabled`). Remediation also needs the evidence store and
+out-of-band records on. The routes are stable since 1.5.0 (beta in 1.4); the
+records' signed forms are stable. See
 {doc}`../operations/remediation-and-reviews` and
 {doc}`../operations/emergency-changes`.
 
@@ -677,17 +1082,25 @@ capability another active policy names, or a policy naming an active
 emergency policy's capability, is refused with
 `409 emergency_capability_conflict`.
 
+---
+
+## Grants and edge nodes
+
 ### Pre-issued grants (v1.6.0)
 
-Grants a holder uses while it cannot reach the NA, with
-`EVIDENCE_GRANTS=on` (otherwise `404 grants_disabled`, after the caller is
-authenticated). The routes are beta; the records' signed forms are stable.
+*Beta.* Grants a holder uses while it cannot reach the NA, with
+`EVIDENCE_GRANTS=on` and the evidence store on (both off by default). With
+the evidence store off, every grant route answers
+`404 evidence_store_disabled`. With grants off, the operator routes answer
+`404 grants_disabled` after the operator is authenticated, and the holder
+routes (`/grants/time-tokens`, `/evidence/grant-executions`) answer it before
+any signature is checked. The records' signed forms are stable.
 See {doc}`../operations/grants` for the rules and
 {doc}`../examples/pre-issued-grants` for a walkthrough.
 
 #### `POST /admin/grants`
 
-Issue a grant. **Auth**: operator signature, privileged.
+*Beta.* Issue a grant. **Auth**: operator signature, privileged.
 
 **Request**
 
@@ -743,17 +1156,19 @@ database holds no longer verifies under the NA's signature: it is not used.
 
 #### Reading and revoking grants
 
+*Beta.*
+
 | Route | Purpose |
 |---|---|
 | `GET /admin/grants` | Grants, newest first by `issued_at`, then `grant_id`: `?status=active` (not revoked, not past its end; it includes summaries that say `scheduled` or `exhausted`), `expired` or `revoked`, `?bearer_key_id=`, `?limit=` (1-500, default 100), `?before=` (the previous page's `next_before`: the ID of its last grant). `{grants: [...], next_before}`; each summary has `grant_id`, `status` (`active`, `scheduled`, `exhausted`, `expired`, `revoked`), `bearer_key_id`, `bearer_sovereign_id`, `capabilities`, `basis_kind`, `basis_id`, `valid_from`, `valid_until`, `max_uses`, `uses` (admitted), `issued_at`, `issued_by_operator`, `store_sequence`, `revoked_at`, `revocation_reason`. `400 invalid_grant_filter`, `400 invalid_page`; `read` tier |
 | `GET /admin/grants/<grant_id>` | One grant: its summary, `remaining_uses`, `chain_length` (the positions of its use chain, admitted and quarantined), `grant` (the signed grant), `policy_versions` and `revocation` (the signed `GrantRevocationRecord`, or `null`); `404 grant_not_found`; `read` tier |
-| `GET /admin/grants/<grant_id>/uses` | Its use chain, newest first: `?limit=` (1-500, default 100), `?before=` (a `use_sequence`, the previous page's `next_before`). `{grant_id, uses: [...], next_before}`; each use has `use_id`, `use_sequence`, `state` (`admitted`, or `quarantined` for a refused use that continued the chain), `rejection_code` (`null` when admitted), `executed_at`, `recorded_at`, `store_sequence`, `resource_id`, `resource_sequence` (the position the NA assigned; `null` when quarantined or without a resource) and `outcome`. A use refused as a conflict or a chain mismatch is not in the chain (see the `quarantine` entries). `404 grant_not_found`, `400 invalid_page`; `read` tier (beta, v1.6.0 review fixes) |
+| `GET /admin/grants/<grant_id>/uses` | Its use chain, newest first: `?limit=` (1-500, default 100), `?before=` (a `use_sequence`, the previous page's `next_before`). `{grant_id, uses: [...], next_before}`; each use has `use_id`, `use_sequence`, `state` (`admitted`, or `quarantined` for a refused use that continued the chain), `rejection_code` (`null` when admitted), `executed_at`, `recorded_at`, `store_sequence`, `resource_id`, `resource_sequence` (the position the NA assigned; `null` when quarantined or without a resource) and `outcome`. A use refused as a conflict or a chain mismatch is not in the chain (see the `quarantine` entries). `404 grant_not_found`, `400 invalid_page`; `read` tier (v1.6.0 review fixes) |
 | `POST /admin/grants/<grant_id>/revoke` | Revoke it now (privileged): `{ "reason": "..." }` (optional, 1 to 1024 characters). The body's `reason` is stored as the revocation's `detail`; the revocation's `reason` is always `operator`. `200` with `revocation`, `entry`, `entry_digest`; `404 grant_not_found`, `409 grant_already_revoked`, `400 invalid_grant_revocation` |
 
 #### `POST /grants/time-tokens`
 
-A time token for a grant's holder. **Auth**: the request's signature, by the
-grant's bearer key. Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`.
+*Beta.* A time token for a grant's holder. **Auth**: the request's signature,
+by the grant's bearer key. Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`.
 
 **Request** `{ "request": { "<TimeTokenRequest>": "..." } }`: `grant_id`,
 `use_sequence` (the uses the holder has made, 0 before the first),
@@ -774,8 +1189,8 @@ not the one the request names).
 
 #### `POST /evidence/grant-executions`
 
-Submit one signed `GrantExecutionEvidence`, `{ "evidence": {...} }`, in its
-exact serialized form. **Auth**: the record's signature, by the grant's
+*Beta.* Submit one signed `GrantExecutionEvidence`, `{ "evidence": {...} }`,
+in its exact serialized form. **Auth**: the record's signature, by the grant's
 bearer key. Rate limit `NA_RATE_LIMIT_EVIDENCE_PER_MINUTE`.
 
 **Response** `201` with `entry`, `entry_digest`, `payload`,
@@ -800,9 +1215,7 @@ With grants on, `GET /admin/evidence/status` reports `evidence_grants`,
 head's `entry_kind` (`execution` or `grant_execution`) and `record_id`; and
 `GET /sovereign-revocation-feed` lists `revoked_grant_ids`.
 
----
-
-## Edge nodes (v1.7.0)
+### Edge nodes (v1.7.0)
 
 *Beta.* The routes an edge agent calls, and the operators' view of edge
 nodes. An edge node enrols with an edge invite and registers its executor key
@@ -817,7 +1230,7 @@ these fields in the signed body:
 | --- | --- |
 | `cert_id`, `node_public_key` | A certificate of the node and its key |
 | `purpose` | `node_boundary_evaluate`, `node_state` or `node_resource_head`: the route's own |
-| `audience` | This NA's public key (`network_authority.public_key` of `/sovereign.json`) |
+| `audience` | This NA's genesis public key (`network_authority.public_key` of `/sovereign.json`). It stays the audience after a key succession; it is not `signing_key.public_key` |
 | `timestamp` | RFC 3339 UTC, within 300 seconds of the NA's clock |
 | `nonce` | A UUID, used once: the nonces of `/heartbeat` and every `/node/*` route share one scope per node key |
 | `signature` | Ed25519 by the node key over the canonical body without `signature` |
@@ -839,11 +1252,11 @@ is shared by every device behind one address. Break-glass records,
 observations and grant uses also count per executor key once their signature
 verifies (`NA_RATE_LIMIT_EXECUTOR_PER_MINUTE`, 120).
 
-### `POST /node/boundary/evaluate`
+#### `POST /node/boundary/evaluate`
 
-A signed decision for the node, under an attestation issued to it, with the
-node's sovereign ID as the requester. An attestation is issued to the node
-when this NA issued it (`issuer_sovereign_id` is this sovereign), its
+*Beta.* A signed decision for the node, under an attestation issued to it,
+with the node's sovereign ID as the requester. An attestation is issued to the
+node when this NA issued it (`issuer_sovereign_id` is this sovereign), its
 `subject_id` is the node's sovereign ID and its `subject_public_key` is unset
 or the node key.
 
@@ -883,10 +1296,10 @@ expired or not yet valid attestation gives a signed DENY, as there.
 `403 node_attestation_foreign` (an attestation not issued to the node, or
 unknown). Neither `403` signs or stores a decision.
 
-### `POST /node/state`
+#### `POST /node/state`
 
-The node's certificate, its executor key, the attestations issued to it and
-the grants its executor key bears.
+*Beta.* The node's certificate, its executor key, the attestations issued to
+it and the grants its executor key bears.
 
 **Request**
 
@@ -912,10 +1325,10 @@ the grants its executor key bears.
 | `attestations` | `[{"attestation": <signed MembershipAttestation>, "status": "active"}]`: those issued to the node, active and not expired |
 | `grants` | The signed `CapabilityGrant`s whose `bearer_key_id` is the executor key, neither revoked nor past their end, newest first, at most 100; `[]` with `EVIDENCE_GRANTS=off` |
 
-### `POST /node/evidence/resource-head`
+#### `POST /node/evidence/resource-head`
 
-Where the next record of a resource under the node's resource prefix must
-link.
+*Beta.* Where the next record of a resource under the node's resource prefix
+must link.
 
 **Request**
 
@@ -937,9 +1350,9 @@ link.
 or does not start with the node's prefix), `404 resource_not_found`,
 `404 evidence_store_disabled`.
 
-### `GET /admin/edge-nodes`
+#### `GET /admin/edge-nodes`
 
-Edge nodes, newest enrolment first (by `enrolled_at`, then
+*Beta.* Edge nodes, newest enrolment first (by `enrolled_at`, then
 `node_public_key`). **Auth**: operator signature, `read` tier. Query:
 `?status=online|offline|revoked`, `?node_sovereign_id=`, `?limit=` (1-500,
 default 100), `?before=` (the previous page's `next_before`: the
@@ -984,11 +1397,18 @@ with the store off). **Errors**: `400 invalid_edge_status`,
 
 ---
 
-## Trust evidence
+## Signed records
 
-### `POST /admin/trust-evidence`
+Four kinds of record the NA signs on request and anyone can verify: trust
+evidence, capability commitments and proofs, consensus votes and proofs, and
+data-usage policies and intents. The trust evidence, selective disclosure and
+consensus routes are *Beta*; the data-usage routes are stable.
 
-Sign a `TrustEvidence` record from a `TrustDecision`.
+### Trust evidence
+
+#### `POST /admin/trust-evidence`
+
+*Beta.* Sign a `TrustEvidence` record from a `TrustDecision`.
 
 **Auth** — operator signature required.
 
@@ -1012,16 +1432,21 @@ Sign a `TrustEvidence` record from a `TrustDecision`.
 }
 ```
 
+`verdict` is `allow`, `warn`, `block` or `escalate`. Each item of `signals`
+needs `code` and `severity` (`detail` is optional). `graph_digest` is optional
+and defaults to the digest of this NA's current recognition graph.
+
 **Response** `201` — `TrustEvidence` JSON with `signatures`.
 
-**Errors** — `400 missing_decision`, `400 invalid_decision`,
-`401 admin_auth_failed`, `422 evidence_build_failed`.
+**Errors** — `400 missing_decision`, `400 invalid_verdict`,
+`400 invalid_decision`, `401 admin_auth_failed`, `422 evidence_build_failed`.
 
 ---
 
-### `POST /trust-evidence/verify`
+#### `POST /trust-evidence/verify`
 
-Verify a `TrustEvidence` signature and optional graph digest. Unauthenticated.
+*Beta.* Verify a `TrustEvidence` signature and optional graph digest.
+Unauthenticated.
 
 **Request**
 
@@ -1032,6 +1457,9 @@ Verify a `TrustEvidence` signature and optional graph digest. Unauthenticated.
   "expected_graph_digest": "<optional-sha256-hex>"
 }
 ```
+
+`issuer_public_keys` is optional and defaults to the NA key valid at the
+evidence's `issued_at` (key history, 1.5.0).
 
 **Response** `200`
 
@@ -1049,11 +1477,12 @@ Verify a `TrustEvidence` signature and optional graph digest. Unauthenticated.
 
 ---
 
-## Selective disclosure
+### Selective disclosure
 
-### `POST /admin/disclosure/commit`
+#### `POST /admin/disclosure/commit`
 
-Commit to a list of capabilities under an `AgreementRecord`, signed by the NA.
+*Beta.* Commit to a list of capabilities under an `AgreementRecord`, signed by
+the NA.
 
 **Auth** — operator signature required.
 
@@ -1068,15 +1497,15 @@ Commit to a list of capabilities under an `AgreementRecord`, signed by the NA.
 
 **Response** `201` — `CapabilityCommitment` JSON with `signature`.
 
-**Errors** — `400 missing_commit_fields`, `401 admin_auth_failed`,
-`422 agreement_untrusted` (v1.1.1, see *Agreements and their parties*),
-`422 commit_failed`.
+**Errors** — `400 missing_commit_fields`, `400 invalid_agreement`,
+`401 admin_auth_failed`, `422 agreement_untrusted` (v1.1.1, see *Agreements
+and their parties*), `422 commit_failed`.
 
 ---
 
-### `POST /disclosure/prove`
+#### `POST /disclosure/prove`
 
-Generate a Merkle membership proof. Unauthenticated — all inputs are
+*Beta.* Generate a Merkle membership proof. Unauthenticated — all inputs are
 caller-supplied; no NA state is used.
 
 **Request**
@@ -1097,9 +1526,10 @@ caller-supplied; no NA state is used.
 
 ---
 
-### `POST /disclosure/verify`
+#### `POST /disclosure/verify`
 
-Verify a `CapabilityMembershipProof` against its commitment. Unauthenticated.
+*Beta.* Verify a `CapabilityMembershipProof` against its commitment.
+Unauthenticated.
 
 **Request**
 
@@ -1111,6 +1541,9 @@ Verify a `CapabilityMembershipProof` against its commitment. Unauthenticated.
 }
 ```
 
+`issuer_public_keys` is optional and defaults to the NA key valid at the
+commitment's `committed_at` (key history, 1.5.0).
+
 **Response** `200`
 
 ```json
@@ -1121,9 +1554,9 @@ Verify a `CapabilityMembershipProof` against its commitment. Unauthenticated.
 
 ---
 
-### `POST /admin/disclosure/nullifier`
+#### `POST /admin/disclosure/nullifier`
 
-Issue a one-time nullifier for a proof, signed by the NA.
+*Beta.* Issue a one-time nullifier for a proof, signed by the NA.
 
 **Auth** — operator signature required.
 
@@ -1135,15 +1568,16 @@ Issue a one-time nullifier for a proof, signed by the NA.
 
 **Response** `201` — `CapabilityNullifier` JSON with `signature`.
 
-**Errors** — `400 missing_proof`, `401 admin_auth_failed`, `422 nullifier_failed`.
+**Errors** — `400 missing_proof`, `400 invalid_proof`,
+`401 admin_auth_failed`, `422 nullifier_failed`.
 
 ---
 
-## Consensus
+### Consensus
 
-### `POST /admin/consensus/vote`
+#### `POST /admin/consensus/vote`
 
-Cast a `ValidatorVote` signed by the NA as validator.
+*Beta.* Cast a `ValidatorVote` signed by the NA as validator.
 
 **Auth** — operator signature required.
 
@@ -1159,18 +1593,20 @@ Cast a `ValidatorVote` signed by the NA as validator.
 
 **Response** `201` — `ValidatorVote` JSON with `signature`.
 
-Since v1.1.1 the justification proof must be one this NA signed; any other
-is refused with `422 justification_untrusted`.
+Since v1.1.1 the justification proof must be one this NA signed, and since
+1.5.0 one its current signing key signed: after a key succession, a proof the
+earlier key signed is refused. Any other is refused with
+`422 justification_untrusted`.
 
-**Errors** — `400 missing_vote_fields`, `400 invalid_justification`,
-`401 admin_auth_failed`, `422 justification_untrusted` (v1.1.1),
-`422 vote_failed`.
+**Errors** — `400 missing_vote_fields`, `400 invalid_vote_type` (`vote` is
+not a boolean), `400 invalid_justification`, `401 admin_auth_failed`,
+`422 justification_untrusted` (v1.1.1), `422 vote_failed`.
 
 ---
 
-### `POST /admin/consensus/proof`
+#### `POST /admin/consensus/proof`
 
-Assemble a `ConsensusProof` from votes, signed by the NA as assembler.
+*Beta.* Assemble a `ConsensusProof` from votes, signed by the NA as assembler.
 
 **Auth** — operator signature required.
 
@@ -1189,17 +1625,20 @@ Assemble a `ConsensusProof` from votes, signed by the NA as assembler.
 
 Since v1.1.1 `required_threshold` must be an integer from 1 to the number of
 distinct `validator_sovereign_ids` (`400 invalid_threshold`), and the
-justification proof must be one this NA signed (`422 justification_untrusted`).
+justification proof must be one this NA's current signing key signed
+(`422 justification_untrusted`; after a key succession, proofs the earlier key
+signed are refused).
 
-**Errors** — `400 missing_proof_fields`, `400 invalid_threshold` (v1.1.1),
+**Errors** — `400 missing_proof_fields`, `400 invalid_input` (the votes or the
+justification proof do not parse), `400 invalid_threshold` (v1.1.1),
 `401 admin_auth_failed`, `422 justification_untrusted` (v1.1.1),
 `422 proof_assembly_failed`.
 
 ---
 
-### `POST /consensus/verify`
+#### `POST /consensus/verify`
 
-Verify a `ConsensusProof`. Unauthenticated.
+*Beta.* Verify a `ConsensusProof`. Unauthenticated.
 
 **Request**
 
@@ -1218,8 +1657,9 @@ the *validators'* keys, not this service's — there is no default. A vote that 
 unsigned, or whose validator has no key in this map, is rejected rather than
 skipped.
 
-`assembler_public_keys` is optional and defaults to this Network Authority's own
-key, which only accepts a proof this service itself assembled and signed.
+`assembler_public_keys` is optional. Left out, it defaults to the NA key that
+was valid at the proof's `reached_at` (key history, 1.5.0), which accepts only
+a proof this NA assembled and signed.
 
 **Response** `200`
 
@@ -1240,24 +1680,17 @@ from the same validator count once.
 
 ---
 
-## Data usage
+### Data usage
 
-### `POST /admin/data-usage/policy`
+#### `POST /admin/data-usage/policy`
 
 Create and sign a `DataLicensePolicy` as licensor (NA). The signed policy is stored
 in the authority database and becomes the active policy returned by
 `GET /data-usage/policy`.
 
-**Auth** — operator signature (privileged tier since v0.62.0: the policy grants
-a licensee access to data sources). A standard-tier key gets
+**Auth** — operator signature, privileged tier (since v0.62.0): the policy
+grants a licensee access to data sources. A standard-tier key gets
 `403 insufficient_operator_tier`.
-
-Migration `011_data_license_policies.sql` adds durable policy versions and an
-atomic active-policy selection. Workers sharing the authority database observe
-the same active version, which survives restarts. Separate authority databases
-still require operator-managed policy distribution.
-
-**Auth** — operator signature required.
 
 **Request**
 
@@ -1275,19 +1708,25 @@ still require operator-managed policy distribution.
 
 **Response** `201` — `DataLicensePolicy` JSON with `signature`.
 
+The active policy is kept in the NA database, so every instance that shares
+the database serves the same version, and it survives restarts. NAs with
+separate databases do not share policies.
+
 **Errors** — `400 missing_policy_fields`, `400 invalid_timestamps`,
-`401 admin_auth_failed`.
+`400 invalid_timestamp_order`, `401 admin_auth_failed`,
+`403 insufficient_operator_tier`, `422 policy_sign_failed`.
 
 ```sh
 curl -X POST $NA/admin/data-usage/policy \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Key-Id: ..." -H "X-Admin-Signature: ..." \
+  -H "X-Admin-Key-Id: ..." -H "X-Admin-Timestamp: ..." \
+  -H "X-Admin-Nonce: ..." -H "X-Admin-Signature: ..." \
   -d '{"licensee_sovereign_id":"b","allowed_source_ids":["src-1"],"allowed_access_types":["read"],"valid_from":"...","valid_until":"..."}'
 ```
 
 ---
 
-### `GET /data-usage/policy`
+#### `GET /data-usage/policy`
 
 Return the currently active `DataLicensePolicy`. Unauthenticated.
 
@@ -1297,7 +1736,7 @@ Return the currently active `DataLicensePolicy`. Unauthenticated.
 
 ---
 
-### `POST /admin/data-usage/intent`
+#### `POST /admin/data-usage/intent`
 
 Create and sign a `DataAccessIntent` as agent (NA).
 
@@ -1328,7 +1767,7 @@ Create and sign a `DataAccessIntent` as agent (NA).
 
 ---
 
-### `POST /data-usage/verify`
+#### `POST /data-usage/verify`
 
 Verify a `DataAccessIntent` against a `DataLicensePolicy`. Unauthenticated.
 
@@ -1342,6 +1781,9 @@ Verify a `DataAccessIntent` against a `DataLicensePolicy`. Unauthenticated.
 }
 ```
 
+`agent_public_keys` is optional and defaults to the NA key valid at the
+intent's `declared_at` (key history, 1.5.0).
+
 **Response** `200`
 
 ```json
@@ -1354,70 +1796,3 @@ Verify a `DataAccessIntent` against a `DataLicensePolicy`. Unauthenticated.
 ```
 
 **Errors** — `400 missing_verify_fields`, `400 invalid_input`.
-
----
-
-## Health and readiness (v0.60)
-
-### `GET /healthz`
-
-Process liveness only: `{"status": "ok"}`.
-
-### `GET /readyz`
-
-Load-balancer readiness. Returns 200 when the database is reachable and
-writable at the expected schema version and the signing key is loaded. In HA
-mode, the shared rate limiter must also be in use:
-
-```json
-{
-  "status": "ready",
-  "instance": "host:1a2b3c4d",
-  "ha_mode": "off",
-  "database": {"backend": "sqlite", "writable": true, "schema_version": 13, "expected_schema_version": 13},
-  "signing_key": {"key_id": "na-local", "provider": "file", "fingerprint": "<sha256 of the public key>"},
-  "rate_limiter": "memory",
-  "db_path": "<SQLite path, or the PostgreSQL URL without its password>"
-}
-```
-
-When not ready: `503 service_not_ready`, with the same checks in
-`error.details`. The response never contains key material.
-
-### Concurrency conflicts (v0.60)
-
-With several NA instances, a request that loses a race the database decides
-gets `409`, and the client may retry it:
-
-| Code | Meaning |
-|---|---|
-| `boundary_policy_activation_conflict` | another version of the policy was activated at the same moment |
-| `boundary_policy_version_conflict` | concurrent publishes of one policy kept taking the next version |
-| `crl_publish_contention` | concurrent revocations kept taking the next CRL sequence |
-| `retention_in_progress` | evidence retention is already running on another instance |
-
----
-
-## Common error format
-
-All error responses use this envelope:
-
-```json
-{
-  "error": {
-    "code": "missing_offer_fields",
-    "message": "responder_sovereign_id and capabilities[] are required",
-    "details": {},
-    "request_id": "<uuid>"
-  }
-}
-```
-
-| HTTP status | Meaning |
-|---|---|
-| 400 | Missing or malformed input |
-| 401 | Invalid or missing operator signature (admin routes) |
-| 404 | Resource not found |
-| 409 | Conflicts with stored state, or lost a concurrent race (retryable, see above) |
-| 422 | Input is well-formed but rejected by the trust library |
-| 500 | Unexpected internal error |

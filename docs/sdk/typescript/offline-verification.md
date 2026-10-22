@@ -33,7 +33,7 @@ history, verified from the root key: each record then verifies only with the
 key valid at its own time (`na_key_not_valid_at_time` otherwise), across key
 successions. A list of keys keeps the behaviour before 1.5.0. Anchors, audit
 packs and the key history are described in
-[Key succession, audit packs and independent verification](audit-packs.md).
+[Key succession, audit packs and offline verification](audit-packs.md).
 
 Executor keys include
 `key_id`, `public_key` and `executor_sovereign_id`. Retired keys remain useful for
@@ -66,7 +66,7 @@ reason codes of the Python reference, and signs data access intents as an agent.
 ```typescript
 import {
   createDataAccessIntent, parseJson, seedSigner, verifyAgreement,
-  verifyDataAccessIntent, verifyDataLicensePolicySignature,
+  verifyDataAccessIntent, verifyDataLicensePolicySignature, type AgreementRecord,
 } from 'genesis-mesh-sdk';
 
 const agreement = parseJson(agreementText) as AgreementRecord;

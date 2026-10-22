@@ -17,8 +17,8 @@ The NA must run with `EVIDENCE_REMEDIATION=on` (which needs
 a policy with the sections below is refused (`policy_remediation_disabled`).
 The operator's side is described in
 {doc}`../../operations/remediation-and-reviews` and
-{doc}`../../operations/emergency-changes`. The routes are beta until 1.5.0;
-the records' signed forms are stable.
+{doc}`../../operations/emergency-changes`. The routes were beta in 1.4 and are
+stable from 1.5.0; the records' signed forms are stable.
 
 ## Policies
 
