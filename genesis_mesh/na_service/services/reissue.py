@@ -186,22 +186,22 @@ class ReissueService:
         not_current = 0
         previous_keys: set[str] = set()
         for attestation, signer in due.attestations[:budget]:
-            copy = attestation.model_copy(update={
-                "attestation_id": str(uuid.uuid4()), "issued_at": now, "issued_by": key_id, "signatures": []})
-            copy = MembershipAttestation.model_validate(copy.model_dump())
-            copy.signatures.append(self._na.signer.sign_model(copy))
-            if self._na.db.reissue_membership_attestation(attestation.attestation_id, copy):
+            new_attestation = MembershipAttestation.model_validate(attestation.model_copy(update={
+                "attestation_id": str(uuid.uuid4()), "issued_at": now, "issued_by": key_id, "signatures": []},
+            ).model_dump())
+            new_attestation.signatures.append(self._na.signer.sign_model(new_attestation))
+            if self._na.db.reissue_membership_attestation(attestation.attestation_id, new_attestation):
                 reissued["attestations"] += 1
                 previous_keys.add(signer.key_id or f"key-{signer.key_sequence}")
             else:
                 not_current += 1  # revoked or re-issued by another instance meanwhile
         budget -= len(due.attestations[:budget])
         for treaty, signer in due.treaties[:max(budget, 0)]:
-            copy = treaty.model_copy(update={
-                "treaty_id": str(uuid.uuid4()), "issued_at": now, "issued_by": key_id, "signatures": []})
-            copy = RecognitionTreaty.model_validate(copy.model_dump())
-            copy.signatures.append(self._na.signer.sign_model(copy))
-            if self._na.db.reissue_recognition_treaty(treaty.treaty_id, copy):
+            new_treaty = RecognitionTreaty.model_validate(treaty.model_copy(update={
+                "treaty_id": str(uuid.uuid4()), "issued_at": now, "issued_by": key_id, "signatures": []},
+            ).model_dump())
+            new_treaty.signatures.append(self._na.signer.sign_model(new_treaty))
+            if self._na.db.reissue_recognition_treaty(treaty.treaty_id, new_treaty):
                 reissued["treaties"] += 1
                 previous_keys.add(signer.key_id or f"key-{signer.key_sequence}")
             else:
