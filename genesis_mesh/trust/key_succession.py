@@ -98,9 +98,11 @@ def na_record_refusal(model: str, raw: Any, history: NAKeyHistory, *, now: datet
     applied: a record whose key ended more than the hand-over and the grace before ``now``
     no longer vouches for the present. Reasons, in order: ``unknown_field`` or
     ``non_canonical_form``, ``na_key_not_valid_at_time``, ``invalid_signature``,
-    ``outlives_key``. Without ``now`` the record is judged at its own time only.
+    ``record_malformed`` (signed, but its model refuses it: a grant whose
+    ``valid_from`` lies more than 24 hours after its ``issued_at``), ``outlives_key``.
+    Without ``now`` the record is judged at its own time only.
     """
-    from ..models.canonical_registry import signed_as_received, strict_refusal
+    from ..models.canonical_registry import model_accepts, signed_as_received, strict_refusal
     from ..models.key_succession import NA_VOUCHING_TIME_FIELDS, record_outlives_key
 
     field_name = NA_VOUCHING_TIME_FIELDS.get(model)
@@ -122,6 +124,8 @@ def na_record_refusal(model: str, raw: Any, history: NAKeyHistory, *, now: datet
     refusal = strict_refusal(model, raw, [signer])
     if refusal is not None:
         return refusal
+    if not model_accepts(model, raw):
+        return "record_malformed"
     if now is not None and record_outlives_key(history, signer, now):
         return "outlives_key"
     return None

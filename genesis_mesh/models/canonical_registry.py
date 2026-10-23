@@ -373,6 +373,25 @@ def _non_canonical(model: str, record: dict[str, Any]) -> bool:
     return received_canonical(model, record) != received_canonical(model, written)
 
 
+def model_accepts(model: str, record: Any) -> bool:
+    """True when the reference's model of ``model`` reads ``record`` (1.8.0).
+
+    The form checks above leave a record the model refuses to validation; a
+    reference that judges raw records calls this for that step. An unknown
+    model is accepted.
+    """
+    from pydantic import ValidationError
+
+    cls = _classes().get(model)
+    if cls is None:
+        return True
+    try:
+        cls.model_validate(record)
+    except ValidationError:
+        return False
+    return True
+
+
 def received_canonical(model: str, record: dict[str, Any], registry: dict[str, Any] | None = None) -> str:
     """The signed form of a record as received, as every SDK verifier rebuilds it.
 

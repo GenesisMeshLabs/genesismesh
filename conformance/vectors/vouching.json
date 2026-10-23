@@ -2900,6 +2900,228 @@
         "at_record_time": null,
         "now": "outlives_key"
       }
+    },
+    {
+      "id": "grant-valid-from-beyond-max-na-1",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A grant signed by na-1 that starts 30 days after its issue: malformed",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000950",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-02-01T00:00:00Z",
+          "valid_until": "2026-02-02T00:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-1"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-02T00:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-1",
+          "signature": {
+            "key_id": "na-1",
+            "sig": "QMxh/r2Ii5R6iz0XS+wGbu+0jqAGQfSUeeZuJiinto3GO3H9VDuvEF69BLZdCo2qSIruFd5R9R5GGOU0CnXgBw=="
+          }
+        },
+        "now": "2026-01-02T01:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "record_malformed",
+        "now": "record_malformed"
+      }
+    },
+    {
+      "id": "grant-valid-from-beyond-max-na-2",
+      "kind": "record_vouching",
+      "model": "CapabilityGrant",
+      "description": "A grant signed by na-2 that starts 30 days after its issue: malformed",
+      "input": {
+        "genesis": {
+          "network_name": "sovereign-c",
+          "network_version": "v1",
+          "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+          "network_authority": {
+            "public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-04-01T00:00:00Z"
+          },
+          "allowed_crypto_suites": [
+            "ed25519",
+            "x25519"
+          ],
+          "allowed_transports": [
+            "quic",
+            "wireguard"
+          ],
+          "policy_manifest": {
+            "hash": "sha256:conformance",
+            "url": null
+          },
+          "bootstrap_anchors": [],
+          "signatures": [
+            {
+              "key_id": "root",
+              "sig": "4PHo3R7lElf53ihREVIE+OKexQzWpcR24I07Yy3JbMGWzjrLwwT7eUpUAuaTcL7JfAIX5hqCZYDytMZNqJWwAw=="
+            }
+          ]
+        },
+        "successions": [
+          {
+            "succession_id": "00000000-0000-4000-8000-000000000401",
+            "sovereign_id": "sovereign-c",
+            "key_sequence": 2,
+            "previous_key_id": "na-1",
+            "previous_public_key": "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0=",
+            "new_key_id": "na-2",
+            "new_public_key": "3eO8zsfzpmoRFfRdcg9NwTXDrnxOItyjj9se/WpJX/g=",
+            "effective_at": "2026-01-11T00:00:00Z",
+            "new_valid_to": "2028-01-11T00:00:00Z",
+            "issued_at": "2026-01-05T00:00:00Z",
+            "signatures": [
+              {
+                "key_id": "root",
+                "sig": "XH03MBpjwBlTarFhSng/3Yk9x++MbT7FGfADEgsypMMsma4x9KVHzjBBtkiJA/MIbhDl7Tm6fgZ5A07TyocQBw=="
+              },
+              {
+                "key_id": "na-2",
+                "sig": "9Y9/4Tbo3PCQ9X1rKd6B15RQnU9HWHdBRvK7FbXnUONH1YqrBkB9GVS0XPI2GOHaY+TztY1Elo3I2et4YdanCQ=="
+              },
+              {
+                "key_id": "na-1",
+                "sig": "FYVZSM37Poy0lL73DXShwaXb9sWlGRkyQaagakFH4U9E9hWx9PPLBhz85pP6CJchrXu9T5dQIoqTrbZAjvpsDA=="
+              }
+            ]
+          }
+        ],
+        "root_public_key": "T9CZzNR9eJPf6ewkQU7LDZtUICMqrTDZHEZb4zy+ZcQ=",
+        "record": {
+          "grant_id": "00000000-0000-4000-8000-000000000951",
+          "bearer_key_id": "executor-b",
+          "bearer_public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
+          "bearer_sovereign_id": "sovereign-b",
+          "capabilities": [
+            "secret.rotate"
+          ],
+          "basis_kind": "attestation",
+          "basis_id": "00000000-0000-4000-8000-000000000001",
+          "basis_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "requester_sovereign_id": "vendor-acme",
+          "provider_sovereign_id": "sovereign-c",
+          "valid_from": "2026-02-10T01:00:00Z",
+          "valid_until": "2026-02-11T01:00:00Z",
+          "max_uses": 3,
+          "max_uses_per_time_token": 2,
+          "parameter_envelope": {},
+          "basis_checks": [],
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "secret-limits",
+                "version": 1,
+                "policy_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "signed_by": "na-2"
+              }
+            ],
+            "policy_set_digest": "f4c059e9c45a7e12c83a83e21547c0d8b7b79b6a1e983f94a93d89e3fc3e5ceb",
+            "gate_outcomes": [],
+            "registry_gate_types": []
+          },
+          "issued_at": "2026-01-11T01:00:00Z",
+          "issuer_sovereign_id": "sovereign-c",
+          "issued_by": "na-2",
+          "signature": {
+            "key_id": "na-2",
+            "sig": "pnaOgpnnDj8oRZSs5A2chNTrxRjuslC5RG004f8BxY0zo4Spi4FmnkdywRS1zwzu9M3jIr0CLMCGLaQHQk0EBQ=="
+          }
+        },
+        "now": "2026-01-11T02:00:00Z"
+      },
+      "expected": {
+        "at_record_time": "record_malformed",
+        "now": "record_malformed"
+      }
     }
   ]
 }

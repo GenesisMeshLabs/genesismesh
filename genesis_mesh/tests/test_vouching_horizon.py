@@ -7,6 +7,7 @@ model helpers it rests on.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -93,3 +94,25 @@ def test_the_decision_bound_is_unchanged():
     assert not decision_outlives_key(history, "old", limit)
     assert decision_outlives_key(history, "old", limit + timedelta(seconds=1))
     assert not decision_outlives_key(["old"], "old", limit + timedelta(days=1))
+
+
+def test_a_signed_record_its_model_refuses_is_malformed():
+    """The reference validates a raw record after its signature and form checks (1.8.0).
+
+    A grant that starts 30 days after its issue is signed and canonical, but the model refuses it,
+    so ``na_record_refusal`` must not accept it.
+    """
+    import json
+
+    from genesis_mesh.models.canonical_registry import model_accepts
+
+    vectors = json.loads((Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "vouching.json")
+                         .read_text(encoding="utf-8"))["vectors"]
+    late = [v for v in vectors if v["id"].startswith("grant-valid-from-beyond-max-")]
+    assert len(late) == 2
+    for vector in late:
+        assert not model_accepts("CapabilityGrant", vector["input"]["record"])
+        assert vector["expected"] == {"at_record_time": "record_malformed", "now": "record_malformed"}
+    fine = next(v for v in vectors if v["id"] == "grant-new-key")
+    assert model_accepts("CapabilityGrant", fine["input"]["record"])
+    assert model_accepts("NoSuchModel", {})

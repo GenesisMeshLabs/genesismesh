@@ -177,7 +177,24 @@ def vouching_vectors() -> list[dict[str, Any]]:
     add("grace-hint-shorter", "MembershipAttestation",
         "A shorter grace moves the horizon earlier", attestation,
         SUCCESSION_AT + HANDOVER + timedelta(hours=1), grace_seconds=3600)
+
+    # A grant starts within 24 hours of its issue (core 1.8.0), so a key's holder cannot sign one
+    # inside the key's window that starts long after the horizon. The model refuses it, whichever
+    # key signed it and whenever it is judged.
+    for key, issued, n in ((OLD, T0 + timedelta(days=1), 90), (NEW, SUCCESSION_AT + timedelta(hours=1), 91)):
+        add(f"grant-valid-from-beyond-max-{key[1]}", "CapabilityGrant",
+            f"A grant signed by {key[1]} that starts 30 days after its issue: malformed",
+            _late_grant(issued, *key, n), issued + timedelta(hours=1))
     return out
+
+
+def _late_grant(at: datetime, key: str, key_id: str, n: int) -> dict[str, Any]:
+    """A grant issued at ``at`` that starts 30 days later, signed as is (the model refuses it)."""
+    from genesis_mesh.models.grants import CapabilityGrant
+
+    grant = CapabilityGrant.model_validate(_grant(at, key, key_id, n))
+    late = grant.model_copy(update={"valid_from": at + timedelta(days=30), "valid_until": at + timedelta(days=31)})
+    return _sign_one(late, key, key_id)
 
 
 if __name__ == "__main__":
