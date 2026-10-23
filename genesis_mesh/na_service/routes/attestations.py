@@ -327,6 +327,15 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
                 issuer_sovereign_id=attestation.issuer_sovereign_id,
                 attestation_id=attestation.attestation_id,
             )
+        elif result.accepted and service.own_record_outlives_key(attestation):
+            # 1.8.0: held, but signed by a key whose vouching horizon has passed; the NA re-issued
+            # it under its current key (see superseded_by) if it was still valid then.
+            result = AttestationVerificationResult(
+                accepted=False,
+                reason="outlives_key",
+                issuer_sovereign_id=attestation.issuer_sovereign_id,
+                attestation_id=attestation.attestation_id,
+            )
         service.db.add_audit_event("membership_attestation_verified", {
             "attestation_id": attestation.attestation_id,
             "issuer_sovereign_id": attestation.issuer_sovereign_id,

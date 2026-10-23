@@ -19,7 +19,8 @@ from ..models import GenesisBlock, JoinCertificate, MembershipAttestation, Polic
 from ..models.revocation import CertificateRevocationList
 from ..observability import configure_logging
 from ..trust.context import GateRegistry
-from ..models.boundary_policy import MAX_GRACE_SECONDS
+from ..models.boundary_policy import MAX_GRACE_SECONDS, BoundaryPolicy
+from ..models.key_succession import record_outlives_key
 from ..models.remediation import MAX_WAIVER_SECONDS
 from ..trust.out_of_band import TimeBounds
 from ..trust.remediation import RemediationDefaults
@@ -50,6 +51,7 @@ from .services import (
 from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.agreement_trust import AgreementTrust
 from .services.key_history import KeyHistoryService
+from .services.reissue import record_signer
 from .services.boundary_policy import ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
@@ -147,6 +149,7 @@ class NetworkAuthorityService:
         decision_lifetime_seconds: int = 300,
         evidence_grants: str = "off",
         grant_limits: Optional[GrantLimits] = None,
+        succession_vouching_grace_seconds: int = 24 * 3600,
     ):
         """
         Initialize the Network Authority service.
@@ -332,6 +335,14 @@ class NetworkAuthorityService:
         if not 1 <= int(decision_lifetime_seconds) <= int(MAX_DECISION_LIFETIME.total_seconds()):
             raise ValueError(f"NA_DECISION_LIFETIME_SECONDS must be 1 to {int(MAX_DECISION_LIFETIME.total_seconds())}")
         self.decision_lifetime_seconds = int(decision_lifetime_seconds)
+        # v1.8.0: how long, after the hand-over, a record of a succeeded NA key still vouches for the
+        # present here; at most the default, which verifiers never exceed.
+        from ..models.key_succession import SUCCESSION_VOUCHING_GRACE
+
+        if not 0 <= int(succession_vouching_grace_seconds) <= int(SUCCESSION_VOUCHING_GRACE.total_seconds()):
+            raise ValueError("NA_SUCCESSION_VOUCHING_GRACE_SECONDS must be 0 to "
+                             f"{int(SUCCESSION_VOUCHING_GRACE.total_seconds())}")
+        self.succession_vouching_grace = timedelta(seconds=int(succession_vouching_grace_seconds))
         self.operator_key_holders = dict(operator_key_holders or {})
         unknown_holders = sorted(set(self.operator_key_holders) - set(self.operator_public_keys))
         if unknown_holders:
@@ -610,6 +621,33 @@ class NetworkAuthorityService:
             stored["attestation"].model_dump(mode="json") == attestation.model_dump(mode="json")
         )
 
+    def own_record_outlives_key(self, record: Any) -> bool:
+        """A record in this NA's own name whose signing key's vouching horizon has passed (1.8.0).
+
+        Judged now, such a record no longer vouches for the present
+        (``outlives_key``): its key ended more than the hand-over and the grace
+        (``NA_SUCCESSION_VOUCHING_GRACE_SECONDS``) ago. While it was still
+        valid, the NA re-issued it under the key that signs now
+        (``services/reissue.py``). Records of other sovereigns are not affected.
+        """
+        if getattr(record, "issuer_sovereign_id", None) != self.genesis_block.network_name:
+            return False
+        history = self.key_history.history()
+        signer = record_signer(record, history)
+        return signer is not None and record_outlives_key(history, signer.public_key, datetime.now(timezone.utc))
+
+    def boundary_policy_held(self, policy: BoundaryPolicy) -> bool:
+        """This NA holds ``policy`` exactly as signed (1.8.0).
+
+        A boundary policy verified against the NA's own keys is this NA's
+        only if it stored that version. Boundary policies are not re-issued
+        after a succession (that would change their digest and revoke the
+        grants bound to them), so they get this check, not the horizon.
+        """
+        row = self.db.get_boundary_policy_row(policy.policy_id, policy.version)
+        stored = self.db.parse_boundary_policy_row(row) if row else None
+        return stored is not None and stored.model_dump(mode="json") == policy.model_dump(mode="json")
+
     def revoke_attestation_lineage(self, attestation_id: str, reason: str) -> list[str]:
         """Revoke an attestation, every copy re-issued from or to it, and the grants on each (1.8.0).
 
@@ -742,6 +780,7 @@ def create_app(
     decision_lifetime_seconds: int = 300,
     evidence_grants: str = "off",
     grant_limits: Optional[GrantLimits] = None,
+    succession_vouching_grace_seconds: int = 24 * 3600,
 ) -> Flask:
     """Create a Flask app configured for WSGI servers."""
     service = NetworkAuthorityService(
@@ -776,6 +815,7 @@ def create_app(
         decision_lifetime_seconds=decision_lifetime_seconds,
         evidence_grants=evidence_grants,
         grant_limits=grant_limits,
+        succession_vouching_grace_seconds=succession_vouching_grace_seconds,
     )
     return service.app
 

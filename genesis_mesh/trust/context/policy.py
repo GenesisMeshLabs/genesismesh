@@ -87,7 +87,9 @@ PolicyResolutionFailure = Literal[
     "policy_expired",
 ]
 
-BoundaryPolicyVerificationReason = Literal["valid", "missing_signature", "invalid_signature"]
+# 1.8.0: ``not_held``, a policy the NA verifies against its own keys but does not
+# hold exactly as signed (the NA's verify route; the verifier never returns it).
+BoundaryPolicyVerificationReason = Literal["valid", "missing_signature", "invalid_signature", "not_held"]
 
 
 # ---------------------------------------------------------------------------

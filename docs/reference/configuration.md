@@ -101,6 +101,7 @@ routes they configure (see {doc}`public-contract`).
 | `RENEWAL_GRACE_SECONDS` | no | How long a renewed certificate's predecessor stays usable before the NA revokes it and lists it in the CRL (default 900). It must outlast a node's renewal retries and CRL propagation. `0` revokes the predecessor at once. |
 | `BOUNDARY_POLICY_ENFORCEMENT` | no | `optional` (default) or `required`; `required` refuses the legacy `/admin/boundary/decide` route. |
 | `NA_DECISION_LIFETIME_SECONDS` | no | How long a boundary decision the NA issues stays valid: 1 to 300 seconds (default 300). Verifiers refuse a decision that outlives the key that signed it by more than 300 seconds past its hand-over (`decision_outlives_key`), so 300 is also the most this may be (v1.5.0). |
+| `NA_SUCCESSION_VOUCHING_GRACE_SECONDS` | no | After a key succession, how long past the 300-second hand-over a record the old key signed still vouches for the present: 0 to 86400 seconds (default 86400, the most a verifier ever allows). Past it, the NA's verify routes refuse its own attestations and treaties of that key as `outlives_key`; the NA re-issued the ones still valid under the new key. `GET /na/key-history` publishes it as `vouching_grace_seconds`. Set it to 0 *before* recording a succession that follows a suspected compromise of the outgoing key (v1.8.0). |
 
 ### High availability (off by default)
 
