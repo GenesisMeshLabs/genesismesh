@@ -324,6 +324,34 @@ def test_the_sweep_arms_what_an_older_instance_or_a_failed_arming_left(client, n
     assert armed["review_pending"] == 1 and armed["actor"] == "operator-test" and armed["actor_holder"] == "bob"
 
 
+def test_the_sweep_reads_the_audit_log_once_per_batch(client, na_service, clock, monkeypatch):
+    """1.8.1: each decision the sweep armed read the newest 5000 audit events to find its requester,
+    so a batch of 200 took about 30 seconds on a busy store, inside the request that swept. A
+    restarted NA walks every such decision again, so every restart stalled the routes that sweep."""
+    _policy(client, review_required=True, guidance={"*": {"mode": "cancel", "grace_seconds": 600}})
+    clock.advance(minutes=2)
+    service = na_service.remediation_service
+    with monkeypatch.context() as m:
+        m.setattr(type(service), "_arm_decision", lambda self, *a: (_ for _ in ()).throw(RuntimeError("down")))
+        attestation_id = _issue(client, capabilities=[CAPABILITY], subject=VENDOR)["attestation_id"]
+        decisions = [_evaluate(client, attestation_id, CAPABILITY, {"app_id": f"b{n}", "lifetime_days": 30})
+                     for n in range(3)]
+    reads: list[tuple] = []
+    real = na_service.db.list_audit_events
+
+    def counting(*args, **kwargs):
+        if "decision_stored" in (kwargs.get("event_types") or ()):
+            reads.append(kwargs.get("event_types"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(na_service.db, "list_audit_events", counting)
+    service.sweep()
+    assert len(reads) == 1
+    for decision in decisions:
+        armed = na_service.db.get_remediation_state(decision.decision_id)
+        assert armed is not None and armed["actor"] == "operator-test"
+
+
 # ---------------------------------------------------------------------------
 # 5. Reviews the NA records verify offline
 # ---------------------------------------------------------------------------
