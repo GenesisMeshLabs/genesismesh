@@ -499,7 +499,7 @@ class MeshNodeRuntime:
         return None
 
     def _na_key_valid_at(self, public_key: str, at: datetime) -> bool:
-        """Whether ``public_key`` may sign a record dated ``at`` (1.7.1).
+        """Whether ``public_key`` may sign a record dated ``at`` (1.8.0).
 
         A key of the NA's key history is valid only inside its own window, so
         a succeeded key cannot sign CRLs or control commands dated after its

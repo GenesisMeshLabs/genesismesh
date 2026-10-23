@@ -76,7 +76,7 @@ admin POSTs the NA answers the same way when replayed (`judgeObservation`,
 `judgeBreakGlass`, `anchor()` and `recordArchive()`); and the verification
 routes of boundary decisions, attestations and policies. In 1.7.0 the
 agreement, trust-evidence, consensus, disclosure (`prove` and `verify`) and
-data-usage verification routes are not retried; from 1.7.1 (unreleased) they
+data-usage verification routes are not retried; from 1.8.0 they
 are. Other admin POSTs, including evaluation, issuance, policy publication and
 audit packs, are not retried. Admin retry attempts receive fresh signatures
 and nonces.

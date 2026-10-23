@@ -1,7 +1,9 @@
 # Plan v1.8.0 — Key Succession: a Vouching Horizon for Records of a Succeeded Key
 
-Status: proposed for the Maintainer's review (2026-10-22). Nothing in this plan
-is built yet. The 1.7.1 patches it builds on are separate pull requests:
+Status: Phase 2 (core) released in 1.8.0 (2026-10-23): core #111, #112, #113,
+#115, #116, #117, #118 and #121, with the 1.7.1 fixes folded into the same
+release. Phase 3 (the SDKs and the gateway docs) ships as 1.8.1. The
+Maintainer chose option (a) with the held check. The 1.7.1 patches it builds on are separate pull requests:
 - core #104: the CRL issuer after a succession;
 - core #105: nodes accept an NA key only inside its window;
 - core #107: `/attestations/verify` refuses an own-name attestation the NA never issued;

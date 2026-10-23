@@ -399,7 +399,7 @@ async def test_untargeted_then_retargetable():
     assert ok2 is True
 
 
-# ── Issuer key validity (1.7.1) ───────────────────────────────────────
+# ── Issuer key validity (1.8.0) ───────────────────────────────────────
 
 
 @pytest.mark.asyncio

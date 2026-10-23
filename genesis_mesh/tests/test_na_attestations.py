@@ -253,7 +253,7 @@ def test_operators_get_the_attestation_list(client):
 
 
 def test_attestation_verify_refuses_one_in_its_own_name_it_never_issued(na_service, client):
-    """1.7.1: an attestation in the NA's name that it does not hold is refused.
+    """1.8.0: an attestation in the NA's name that it does not hold is refused.
 
     Whoever holds a key the NA once signed with (after a succession, the
     outgoing key) could sign a new attestation in its name; the policy's keys

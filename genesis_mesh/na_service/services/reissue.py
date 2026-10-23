@@ -15,7 +15,7 @@ that horizon, the NA re-issues them under the key that signs now:
 - **The active policy manifest**, which every node fetches, is signed again
   under the same ``policy_id``. ``GET /policy`` and a rollback re-sign it too.
 - The CRL needs nothing here: the NA republishes it under the key that signs
-  now (core 1.7.1).
+  now (core 1.8.0).
 
 The job runs only on an instance whose key signs now: at start, on a lazy
 trigger (``maybe_reissue``, from the readiness probe and ``GET /policy``), and

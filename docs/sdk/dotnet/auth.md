@@ -173,7 +173,7 @@ A response body that is not strict JSON (duplicate keys, a lone surrogate,
 and the like) throws `StrictJsonException`, a `JsonException`, not a
 `GenesisMeshException`.
 
-**From 1.7.1 (unreleased).** A 403 throws `ForbiddenException`, a 409
+**From 1.8.0.** A 403 throws `ForbiddenException`, a 409
 `ConflictException`, a 413 `PayloadTooLargeException`, and any other 4xx
 without a type of its own `ClientErrorException`. `ServerException` is then a
 5xx only. All of them derive from `GenesisMeshException`. A
