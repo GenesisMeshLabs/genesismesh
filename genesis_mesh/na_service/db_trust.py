@@ -384,6 +384,27 @@ class TrustStoreMixin:
         return self._revoke_lineage("recognition_treaties", "treaty_id", treaty_id, reason)
     # -- re-issue lineage (v1.8.0) -----------------------------------------------
 
+    def lineage_heads(self, kind: str, issuer_sovereign_id: str) -> list[dict]:
+        """The ID, ``issued_at`` and ``expires_at`` of an issuer's active, current attestations
+        (``kind="attestation"``) or treaties (``"treaty"``): what the re-issue job looks through.
+
+        Only the three columns are read, so the job parses the signed JSON of
+        the few rows it may re-issue, not of every row.
+        """
+        table, id_column = {
+            "attestation": ("membership_attestations", "attestation_id"),
+            "treaty": ("recognition_treaties", "treaty_id"),
+        }[kind]
+        rows = self.conn.execute(
+            f"""
+            SELECT {id_column} AS record_id, issued_at, expires_at FROM {table}
+            WHERE issuer_sovereign_id = ? AND status = 'active' AND superseded_by IS NULL
+            ORDER BY issued_at ASC, {id_column} ASC
+            """,
+            (issuer_sovereign_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def _lineage_of(self, table: str, id_column: str, record_id: str) -> str | None:
         row = self.conn.execute(
             f"SELECT lineage_id FROM {table} WHERE {id_column} = ?", (record_id,)

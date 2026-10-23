@@ -87,7 +87,8 @@ key, and each NA signature with the key valid at the record's time.
 | `genesis-mesh na succession sign --history <file> --root-key <file> --new-public-key <key> --new-key-id <id> --effective-at <time> --out <file>` | Offline: verify the history from the root key, then sign the next NA key's succession with it (`--effective-in <seconds>` instead of `--effective-at`; `--valid-days`, default 365) |
 | `genesis-mesh na succession prove --file <file> --new-key <file> --out <file>` | Where the new NA key lives: sign the succession with it, proving it is held (`--env-file <settings>` uses the key provider of the NA settings instead of a key file). The NA refuses a succession without it |
 | `genesis-mesh na succession submit --na <url> --file <file>` | Record the succession the root key and the new key signed; the NA countersigns it with its current key. Privileged key. See {doc}`../../operations/key-succession` |
-| `genesis-mesh na doctor --env-file <file>` | Check an NA host against its settings: the root private key absent from where the NA's files live, the NA key valid now (and for how long), archives required. `--format json`. Exit code 1 when a check fails |
+| `genesis-mesh na reissue --na <url>` | After a succession, re-issue now the attestations and treaties the old key signed that outlive its vouching horizon, and sign the active policy manifest again; reports what is still due. The NA also does this on its own once the new key signs. Privileged key (v1.8.0) |
+| `genesis-mesh na doctor --env-file <file>` | Check an NA host against its settings: the root private key absent from where the NA's files live, the NA key valid now (and for how long), nothing left to re-issue after a succession (v1.8.0), archives required. `--format json`. Exit code 1 when a check fails |
 
 `genesis-mesh init` warns that it writes the root private key next to the NA
 key (v1.5.0): for anything but local use, move it offline.
