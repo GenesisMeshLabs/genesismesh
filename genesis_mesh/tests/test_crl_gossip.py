@@ -154,7 +154,7 @@ async def test_crl_reply_addresses_authenticated_peer_not_forged_sender():
 
 
 # ---------------------------------------------------------------------------
-# Times (1.7.1): the issuer key at the CRL's time, expiry, validity length
+# Times (1.8.0): the issuer key at the CRL's time, expiry, validity length
 # ---------------------------------------------------------------------------
 
 

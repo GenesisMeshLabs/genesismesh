@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.7.0 (2026-10-15). Several guarantees below depend on settings that
+As of v1.8.0 (2026-10-23). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -270,8 +270,12 @@ the TypeScript and Rust SDKs and in the edge agent.
   under an emergency capability, with
   {doc}`../operations/remediation-and-reviews`.
 - The NA key can be succeeded under an offline root key, and verifiers accept
-  a record signed by the key valid at its own time. A lost or compromised NA
-  key cannot sign its own succession, so it still means a new identity, with
+  a record signed by the key valid at its own time. Since v1.8.0 a record of
+  a succeeded key vouches for the present only until that key's horizon (the
+  hand-over and a grace of at most 24 hours), and the NA re-issues what is
+  still valid under the new key; the NA and mesh nodes apply the horizon, and
+  the SDKs follow in 1.8.1. A lost or compromised NA key cannot sign its own
+  succession, so it still means a new identity, with
   {doc}`../operations/key-succession`.
 - An operator with a read-tier key produces an audit pack for a range between
   two anchors, and an auditor verifies it offline from the root key and
@@ -307,7 +311,7 @@ the TypeScript and Rust SDKs and in the edge agent.
 
 ### Not yet true
 
-As of v1.7.0, two things are still not true:
+As of v1.8.0, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1351,6 +1355,52 @@ an operator ends its authority in one step.
 The program is complete: every change leaves a signed record, whether or not
 the Network Authority could be reached, and a security team can verify those
 records years later without trusting whoever runs the Network Authority.
+
+### After the program: key succession (v1.8)
+
+#### v1.8.0 — The Vouching Horizon
+
+A docs audit of every repository after 1.7 found that a key succession left
+a gap. Verifiers placed a record at the time its signer chose, so whoever
+kept the outgoing NA key could sign a new attestation, treaty, certificate,
+CRL, policy manifest or grant, date it inside the old key's window, and every
+verifier that followed the key history accepted it.
+
+1.8.0 closes that gap for the Network Authority and mesh nodes
+({doc}`../operations/key-succession`, `ops/plan-v1.8.0.md`):
+- A record of a key that has ended vouches for the present only until that
+  key's horizon: its end, the 300-second hand-over and a grace of at most 24
+  hours (`NA_SUCCESSION_VOUCHING_GRACE_SECONDS`, settable to 0 before a
+  succession that follows a suspected compromise).
+- Judged at its own time, as audit packs and exports judge it, a record is
+  unchanged.
+- Once the new key signs, the NA re-issues under it the attestations and
+  treaties that are still valid, under new IDs linked by a lineage, and signs
+  its policy manifest and CRL again. Revoking any copy revokes the lineage.
+- The NA's verify routes refuse what outlives its key (`outlives_key`), and
+  refuse an own-name attestation or boundary policy that the NA does not hold
+  (`not_held`).
+- Mesh nodes apply the horizon to certificates, manifests, CRLs and control
+  commands, follow the key history from their heartbeat, and renew a
+  certificate the old key signed once the succession takes effect.
+
+The release also carries the fixes of the audit:
+- the CRL names the key that signs it after a succession;
+- nodes accept an NA key only inside its window;
+- `/heartbeat` and `/renew` are rate limited;
+- a grant's `valid_from` lies within 24 hours of its issue;
+- migrations are numbered once each;
+- every page of the documentation was checked against the code.
+
+The SDKs' offline verifiers adopt the horizon in 1.8.1, after operators have
+upgraded their Network Authorities and let them re-issue.
+
+The release passed 2,751 core tests, 1,069 conformance vectors in 19 suites,
+and the PostgreSQL, interoperability, upgrade and documentation gates.
+
+**What became possible:** an operator rotates the NA key, and a copy of the
+old key kept somewhere stops being useful a day later, or five minutes later
+when the rotation answers a suspected compromise.
 
 ---
 

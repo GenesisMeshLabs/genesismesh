@@ -1,7 +1,7 @@
 # Direction
 
-Where the project is going and why. The current release is v1.7.0
-(2026-10-15).
+Where the project is going and why. The current release is v1.8.0
+(2026-10-23).
 
 - {doc}`strategy`: the positioning, the three layers and the design
   philosophy. Its "State at v0.56.0" section is historical.

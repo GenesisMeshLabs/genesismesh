@@ -431,7 +431,7 @@ policy says.
 `unknown_issuer`, `locally_revoked`, `bad_status`, `outside_validity_window`,
 `role_not_allowed`, `missing_signature`, `invalid_signature`. Then, for an
 attestation in this NA's own name only:
-- `not_held` (1.7.1): this NA does not hold it exactly as signed.
+- `not_held` (1.8.0): this NA does not hold it exactly as signed.
 - `outlives_key` (1.8.0): the key that signed it has passed its vouching
   horizon (its succession, the 300-second hand-over and
   `NA_SUCCESSION_VOUCHING_GRACE_SECONDS`). The NA re-issued it under its

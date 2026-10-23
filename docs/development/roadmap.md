@@ -6,8 +6,8 @@ implementers can evaluate and run.
 
 The current baseline is:
 
-- **Baseline date:** 2026-10-15
-- **Baseline release:** v1.7.0
+- **Baseline date:** 2026-10-23
+- **Baseline release:** v1.8.0
 - **Current phase:** Phase 2 - Externalization
 - **Last release program:** Governed Changes and Edge Trust (1.2 to 1.7,
   complete), Phase N in {doc}`phases/index`
@@ -30,7 +30,15 @@ reference and the only issuer of decisions.
 | v1.7.0 | The edge agent `genesis-mesh-edge` (beta), node-scoped decisions, edge revocation | Released |
 
 {doc}`phases/phase-n` describes what each stage changed. The program is
-complete with v1.7.0. Candidates it deferred, each to be planned on its own:
+complete with v1.7.0.
+
+After the program, v1.8.0 added the vouching horizon to key succession
+(`ops/plan-v1.8.0.md`): the Network Authority and mesh nodes stop accepting
+records of a succeeded key once its horizon has passed, and the NA re-issues
+what is still valid. v1.8.1 brings the horizon to the SDKs' offline
+verifiers and documents the gateway's anchors.
+
+Candidates the program deferred, each to be planned on its own:
 
 - **Audit packs:** inclusion proofs for a pack's cited entries (anchors over a
   Merkle tree of the store, pack format version 2).

@@ -383,7 +383,7 @@ def test_the_cli_signs_offline_and_submits_a_succession(net, tmp_path, monkeypat
     assert submitted.exit_code == 0, submitted.output
     signed_record = json.loads((tmp_path / "signed.json").read_text(encoding="utf-8"))
     assert len(signed_record["signatures"]) == 3
-    # 1.7.1: the genesis key has no key ID in the genesis block; the record names the one
+    # 1.8.0: the genesis key has no key ID in the genesis block; the record names the one
     # the NA signs under, not a made-up "na-key-1".
     assert signed_record["previous_key_id"] == "na-1"
     view = client.get("/na/key-history").get_json()
@@ -489,7 +489,7 @@ def test_verify_export_reads_the_key_history_from_the_root_key(net, tmp_path):
 
 
 def test_a_crl_signed_after_a_succession_names_the_new_key_as_its_issuer(net):
-    """Review fix (1.7.1): the next CRL copied the previous CRL's ``issuer``.
+    """Review fix (1.8.0): the next CRL copied the previous CRL's ``issuer``.
 
     After a succession the CRL is signed by the new key, but its ``issuer``
     still named the old key, so every verifier that finds the key by ``issuer``

@@ -59,7 +59,7 @@ The table records the review as of 2026-10-02 and is not rewritten.
   issuer with no such treaty.
 - **SR-10.** Since 1.7.0, edge agents (beta) also call `/heartbeat` and
   `/renew`, so these routes are no longer used only by the out-of-profile mesh
-  nodes. Since 1.7.1 they are rate limited per client address, sharing the
+  nodes. Since 1.8.0 they are rate limited per client address, sharing the
   `node_address` budget with the `/node/*` routes, which closes SR-10.
 ```
 

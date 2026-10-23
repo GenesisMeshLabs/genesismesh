@@ -30,14 +30,15 @@ Releases before 1.0.0 are unsupported; upgrade from 0.59 or later following `DEP
 
 | Version | Status |
 |---|---|
-| `1.7.x` | Supported |
-| `1.6.x` | Unsupported: upgrade to 1.7 |
-| `1.5.x` | Unsupported: upgrade to 1.7 |
-| `1.4.x` | Unsupported: upgrade to 1.7 |
-| `1.3.x` | Unsupported: upgrade to 1.7 |
-| `1.2.x` | Unsupported: upgrade to 1.7 |
-| `1.1.x` | Unsupported: upgrade to 1.7 |
-| `1.0.x` | Unsupported: upgrade to 1.7 |
+| `1.8.x` | Supported |
+| `1.7.x` | Unsupported: upgrade to 1.8 |
+| `1.6.x` | Unsupported: upgrade to 1.8 |
+| `1.5.x` | Unsupported: upgrade to 1.8 |
+| `1.4.x` | Unsupported: upgrade to 1.8 |
+| `1.3.x` | Unsupported: upgrade to 1.8 |
+| `1.2.x` | Unsupported: upgrade to 1.8 |
+| `1.1.x` | Unsupported: upgrade to 1.8 |
+| `1.0.x` | Unsupported: upgrade to 1.8 |
 | `< 1.0` | Unsupported |
 
 ## In Scope: What Genesis Mesh Defends Against
@@ -271,7 +272,7 @@ them externally.
 
 - **Denial of service.** Admin, verification, `/join`, `/heartbeat`,
   `/renew` and the `/node/*` routes are rate limited per client address
-  (since 1.7.1, `/heartbeat` and `/renew` share the `node_address` budget
+  (since 1.8.0, `/heartbeat` and `/renew` share the `node_address` budget
   with `/node/*`). Peer connections are not, and no per-IP limit stops a
   distributed flood. With
   the `memory` rate-limit store (the default on SQLite) each Gunicorn worker

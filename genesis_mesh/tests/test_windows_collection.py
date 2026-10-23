@@ -1,4 +1,4 @@
-"""The test tree collects where POSIX-only names are missing (1.7.1).
+"""The test tree collects where POSIX-only names are missing (1.8.0).
 
 The HA cluster helper used ``signal.SIGKILL`` as a default argument, which
 is evaluated at import; Windows has no SIGKILL, so ``pytest genesis_mesh/tests``
