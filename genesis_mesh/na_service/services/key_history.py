@@ -93,7 +93,8 @@ class KeyHistoryService:
             if genesis.network_authority.public_key != self._na.signer.public_key_b64:
                 raise ValueError("NA private key does not match genesis block")
             self._history = NAKeyHistory(sovereign_id=genesis.network_name, root_public_key=genesis.root_public_key,
-                                         keys=(genesis_key(genesis, self._na.key_id),))
+                                         keys=(genesis_key(genesis, self._na.key_id),)
+                                         ).with_vouching_grace(self._grace())
             self._refreshed_at = float("inf")
             return
         if db.na_key_history_length() == 0:
@@ -161,8 +162,12 @@ class KeyHistoryService:
             failure = result.failures[0] if result.failures else {"key_sequence": None, "reason": "invalid"}
             raise ValueError(f"the NA key history does not verify: key {failure['key_sequence']} "
                              f"{failure['reason']}")
-        self._history = result.history
+        self._history = result.history.with_vouching_grace(self._grace())
         self._refreshed_at = time.monotonic()
+
+    def _grace(self) -> timedelta | None:
+        """``NA_SUCCESSION_VOUCHING_GRACE_SECONDS`` (1.8.0): the grace this NA applies to its own records."""
+        return getattr(self._na, "succession_vouching_grace", None)
 
     def history(self) -> NAKeyHistory:
         """The verified key history (read again from the database every ``REFRESH_SECONDS``)."""
@@ -226,6 +231,9 @@ class KeyHistoryService:
             "keys": [{**k.to_dict(), **({"key_id": self._na.signer.key_id} if k.key_id is None and k.public_key == current
                                        else {}), "current": k.public_key == current} for k in history.keys],
             "signing_key_sequence": signing.key_sequence if signing is not None else None,
+            # 1.8.0: how long after its hand-over a record of a succeeded key vouches here. Unsigned, so a
+            # verifier takes it only to shorten its own grace (at most 86400 seconds).
+            "vouching_grace_seconds": int(history.vouching_grace.total_seconds()),
         }
 
     def status(self) -> dict[str, Any]:

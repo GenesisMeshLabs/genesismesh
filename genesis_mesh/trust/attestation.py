@@ -22,6 +22,9 @@ AttestationReason = Literal[
     # 1.7.1: an attestation in the verifying NA's own name that it never
     # issued, such as one signed with a key it has succeeded.
     "not_held",
+    # 1.8.0: one in the verifying NA's own name whose key's vouching horizon
+    # has passed (the NA re-issued it under its current key if still valid).
+    "outlives_key",
 ]
 
 
