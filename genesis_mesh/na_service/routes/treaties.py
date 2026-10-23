@@ -80,7 +80,9 @@ def _treaty_trust_keys(
 
     * A treaty that names this Network Authority as its issuer verifies only
       against this NA's own key and must be the treaty this NA stored; an
-      answer for it is this NA's own judgement (``this_authority``).
+      answer for it is this NA's own judgement (``this_authority``). Since
+      1.8.0 it is refused as ``outlives_key`` once the key that signed it
+      has passed its vouching horizon.
     * Another sovereign's treaty verifies against the keys the caller pins
       (``caller_supplied_keys``) or, without them, against the keys this NA
       pinned for that sovereign in its own active treaties
@@ -97,6 +99,9 @@ def _treaty_trust_keys(
         stored = service.db.get_recognition_treaty(treaty.treaty_id)
         if stored is None or _json_model(stored["treaty"]) != _json_model(treaty):
             return [], "this_authority", "not_held"
+        # 1.8.0: judged now, a treaty of a key whose vouching horizon has passed no longer vouches.
+        if service.own_record_outlives_key(treaty):
+            return [], "this_authority", "outlives_key"
         return service.na_public_keys_at(treaty.issued_at), "this_authority", None
     if supplied is not None:
         return supplied, "caller_supplied_keys", None

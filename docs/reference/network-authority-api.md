@@ -313,8 +313,11 @@ that signs now: after a key succession, a later key of the history, with
 `successions` (every `KeySuccessionRecord`, each signed by the root key, the
 new key and the outgoing NA key), `keys` (each key's `key_sequence`, `key_id`,
 `public_key`, `valid_from`, `succeeded_at`, `valid_to`, `valid_to_enforced`
-and `current`), `root_public_key`, `handover_seconds` (300) and
-`signing_key_sequence`. Public: a verifier checks it from the root key it
+and `current`), `root_public_key`, `handover_seconds` (300),
+`signing_key_sequence` and, since 1.8.0, `vouching_grace_seconds`: how long
+after its hand-over a record of a succeeded key still vouches here
+(`NA_SUCCESSION_VOUCHING_GRACE_SECONDS`). It is unsigned: a verifier uses it
+only to shorten its own grace, never to lengthen it past 86400 seconds. Public: a verifier checks it from the root key it
 holds, never from the key this response names. Limited to 120 requests a
 minute per address (`NA_RATE_LIMIT_READ_PER_MINUTE`). See
 {doc}`../operations/key-succession`.
@@ -914,7 +917,7 @@ Both routes report which keys their answer rests on in `trust_basis`:
 
 | `trust_basis` | When | Meaning |
 |---|---|---|
-| `this_authority` | the treaty names this Network Authority as its issuer | Verified against this NA's own key, and the treaty must be the one this NA stores: a copy it does not hold, or a changed copy, is refused with reason `not_held` (`treaty_not_held` with an attestation). Supplying any key other than this NA's own is refused with `422 caller_keys_not_accepted`. |
+| `this_authority` | the treaty names this Network Authority as its issuer | Verified against this NA's own key, and the treaty must be the one this NA stores: a copy it does not hold, or a changed copy, is refused with reason `not_held` (`treaty_not_held` with an attestation). Since 1.8.0 a held treaty whose signing key has passed its vouching horizon is refused with `outlives_key` (`treaty_outlives_key`). Supplying any key other than this NA's own is refused with `422 caller_keys_not_accepted`. |
 | `recognized_issuer_keys` | another sovereign's treaty, no keys supplied | Verified against the keys this NA pinned for that sovereign in its own treaties that are active, unrevoked and within their validity window; without such a treaty the reason is `issuer_not_recognized` (`treaty_issuer_not_recognized` with an attestation). |
 | `caller_supplied_keys` | another sovereign's treaty, `issuer_public_keys` (or `treaty_issuer_public_keys`) supplied | Verified against the keys the caller pinned. The answer says only that the treaty is valid under those keys; it is not this NA's recognition. |
 

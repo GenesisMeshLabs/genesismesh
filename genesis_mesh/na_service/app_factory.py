@@ -67,6 +67,7 @@ def build_app(settings: NASettings) -> Flask:
         review_actor_holders=settings.review_actor_holders,
         retention_require_archive=settings.retention_require_archive,
         decision_lifetime_seconds=settings.decision_lifetime_seconds,
+        succession_vouching_grace_seconds=settings.succession_vouching_grace_seconds,
         evidence_grants=settings.evidence_grants,
         grant_limits=GrantLimits(
             max_validity_seconds=settings.grant_max_validity_seconds, max_uses=settings.grant_max_uses,
