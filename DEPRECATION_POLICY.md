@@ -110,6 +110,12 @@ Therefore, within 1.x:
    which gains each new release. That matrix is the list of tested
    versions.
 
+   Verifiable means at the artifact's own time. Judged for the present, a
+   record of a succeeded NA key stops vouching once that key's horizon has
+   passed (`outlives_key`, 1.8.0). This was added under the security
+   exception, with no opt-out; networks that never succeeded their NA key
+   see no change.
+
 Beta signed artifacts may change in a minor version; the CHANGELOG says how
 artifacts from the previous version are handled.
 

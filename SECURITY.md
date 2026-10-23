@@ -225,7 +225,19 @@ them externally.
   its window as suspect. A key that is lost, or past its `new_valid_to`,
   cannot sign its own succession. If the root key was exposed, whoever also
   obtains an NA key can write a succession of their own. In either case
-  recovery is a new identity. Mitigation: keep the NA key
+  recovery is a new identity.
+
+  Since 1.8.0 a record of a succeeded key vouches for the present only until
+  that key's horizon: its end, the hand-over and a grace of at most 24
+  hours (`NA_SUCCESSION_VOUCHING_GRACE_SECONDS`). Verifiers that follow the
+  key history apply it: the NA's verify routes, mesh nodes, and the SDKs from
+  their 1.8.0 releases. The NA re-issues its still-valid records under the
+  new key. Setting the grace to 0 before recording a succession limits what
+  the holder of a copied key can still sign to 300 seconds past
+  `effective_at`. Records forged before the succession, while the copy went
+  unnoticed, stay valid until they expire.
+
+  Mitigation: keep the NA key
   in Azure Key Vault or another external secret manager (HA mode refuses key
   files) and the root key offline. See
   `docs/development/security-review-v1.md` (SR-06) and
