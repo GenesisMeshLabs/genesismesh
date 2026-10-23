@@ -29,7 +29,7 @@ from pydantic import ValidationError
 
 from ...models.boundary_policy import BoundaryPolicy
 from ...trust.agreement import AgreementRecord
-from ...trust.context import verify_boundary_policy
+from ...trust.context import BoundaryPolicyVerificationResult, verify_boundary_policy
 from ..errors import (
     BadRequestError,
     RateLimitError,
@@ -267,10 +267,17 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             raise BadRequestError("Invalid policy object", code="invalid_policy") from exc
         # v1.5.0 review fixes: the NA key valid when the policy was issued (the current key alone
         # refused every policy issued before a succession).
-        keys = data.get("issuer_public_keys") or service.na_keys_for_record(policy.issued_at)
+        supplied = data.get("issuer_public_keys")
+        keys = supplied or service.na_keys_for_record(policy.issued_at)
         if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
             raise BadRequestError("issuer_public_keys must be a list of strings", code="invalid_public_keys")
         result = verify_boundary_policy(policy, keys)
+        if result.valid and not supplied and not service.boundary_policy_held(policy):
+            # 1.8.0: verified against this NA's own keys, a policy is this NA's only as it stored it
+            # (a key it has succeeded could sign others). No horizon: policies are not re-issued.
+            result = BoundaryPolicyVerificationResult(
+                valid=False, reason="not_held", policy_id=result.policy_id, version=result.version,
+                policy_digest=result.policy_digest)
         service.db.add_audit_event("boundary_policy_verified", {
             "policy_id": result.policy_id,
             "version": result.version,

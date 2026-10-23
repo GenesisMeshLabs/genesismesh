@@ -429,7 +429,14 @@ policy says.
 
 `reason` is `accepted` or the first check that failed, in this order:
 `unknown_issuer`, `locally_revoked`, `bad_status`, `outside_validity_window`,
-`role_not_allowed`, `missing_signature`, `invalid_signature`.
+`role_not_allowed`, `missing_signature`, `invalid_signature`. Then, for an
+attestation in this NA's own name only:
+- `not_held` (1.7.1): this NA does not hold it exactly as signed.
+- `outlives_key` (1.8.0): the key that signed it has passed its vouching
+  horizon (its succession, the 300-second hand-over and
+  `NA_SUCCESSION_VOUCHING_GRACE_SECONDS`). The NA re-issued it under its
+  current key if it was still valid then; `GET /attestations/<id>` names the
+  copy in `superseded_by`.
 
 **Errors** — `400 missing_recognition_policy` (none sent and none active),
 `422 invalid_attestation_or_policy`.
@@ -778,6 +785,9 @@ Verify a signed `BoundaryPolicy`. Unauthenticated.
 **Request** `{ "policy": {...}, "issuer_public_keys": ["<base64-ed25519>"] }`.
 `issuer_public_keys` is optional and defaults to the NA key that was valid
 when the policy was issued (`issued_at`), taken from the key history (1.5.0).
+Verified against the NA's own keys, a policy must also be one this NA holds,
+exactly as signed; otherwise `reason` is `not_held` (1.8.0). Policies are not
+re-issued after a key succession, so they have no vouching horizon.
 
 **Response** `200`
 `{ "valid": true, "reason": "valid", "policy_id": "...", "version": 1, "policy_digest": "..." }`

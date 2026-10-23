@@ -59,6 +59,8 @@ class NASettings:
     retention_require_archive: bool = True
     deployment: str = "local"
     decision_lifetime_seconds: int = 300
+    # v1.8.0: how long a record of a succeeded NA key keeps vouching after the hand-over
+    succession_vouching_grace_seconds: int = 24 * 3600
     # v1.6.0 (Stage 5)
     evidence_grants: str = "off"
     grant_max_validity_seconds: int = 24 * 3600
@@ -146,6 +148,8 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         retention_require_archive=_on_off(e, "NA_RETENTION_REQUIRE_ARCHIVE", True),
         deployment=_deployment(e.get("NA_DEPLOYMENT", "local")),
         decision_lifetime_seconds=_decision_lifetime(_int(e, "NA_DECISION_LIFETIME_SECONDS", 300)),
+        succession_vouching_grace_seconds=_vouching_grace(
+            _int(e, "NA_SUCCESSION_VOUCHING_GRACE_SECONDS", 24 * 3600)),
         evidence_grants=e.get("EVIDENCE_GRANTS", "off"),
         grant_max_validity_seconds=_int(e, "NA_GRANT_MAX_VALIDITY_SECONDS", 24 * 3600),
         grant_max_uses=_int(e, "NA_GRANT_MAX_USES", 100),
@@ -159,6 +163,16 @@ def _decision_lifetime(value: int) -> int:
 
     if not 1 <= value <= int(MAX_DECISION_LIFETIME.total_seconds()):
         raise ValueError(f"NA_DECISION_LIFETIME_SECONDS must be 1 to {int(MAX_DECISION_LIFETIME.total_seconds())}")
+    return value
+
+
+def _vouching_grace(value: int) -> int:
+    """``NA_SUCCESSION_VOUCHING_GRACE_SECONDS`` (v1.8.0): 0 to 86400 seconds, never more."""
+    from ..models.key_succession import SUCCESSION_VOUCHING_GRACE
+
+    if not 0 <= value <= int(SUCCESSION_VOUCHING_GRACE.total_seconds()):
+        raise ValueError("NA_SUCCESSION_VOUCHING_GRACE_SECONDS must be 0 to "
+                         f"{int(SUCCESSION_VOUCHING_GRACE.total_seconds())}")
     return value
 
 
