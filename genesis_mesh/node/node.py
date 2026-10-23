@@ -17,7 +17,7 @@ from ..crypto import (
     verify_model_signature,
 )
 from ..models import GenesisBlock, JoinCertificate, PolicyManifest
-from ..models.key_succession import NAKey, NAKeyHistory
+from ..models.key_succession import NAKey, NAKeyHistory, na_keys_vouching_at, record_outlives_key
 from .persistent_runner import run_persistent_node
 
 logger = logging.getLogger(__name__)
@@ -102,9 +102,14 @@ class MeshNode:
                         succeeded_at=None, valid_to=authority.valid_to, valid_to_enforced=False),),
         )
 
-    def adopt_key_history(self, successions: Sequence[Any]) -> bool:
+    def adopt_key_history(self, successions: Sequence[Any], vouching_grace_seconds: Any = None) -> bool:
         """Take the NA's successions when they verify from the root key the genesis block names and
-        continue the history this node holds (a shorter or different history is refused)."""
+        continue the history this node holds (a shorter or different history is refused).
+
+        1.8.0: ``vouching_grace_seconds``, the NA's unsigned hint, only ever
+        shortens the default grace (``with_vouching_grace`` clamps it); a
+        missing or unreadable hint keeps the default.
+        """
         from ..trust.key_succession import verify_key_history
 
         result = verify_key_history(self.genesis_block.model_dump(mode="json"), list(successions),
@@ -118,12 +123,18 @@ class MeshNode:
         if offered[:len(held)] != held:
             logger.error("The NA's key history does not continue the one this node holds; keeping it")
             return False
-        self.key_history = result.history
-        if self.key_history_cache is not None and len(offered) > len(held):
+        grace = vouching_grace_seconds
+        if isinstance(grace, bool) or not isinstance(grace, (int, float)) or grace < 0:
+            grace = None
+        history = result.history.with_vouching_grace(grace)
+        changed = len(offered) > len(held) or history.vouching_grace != self.key_history.vouching_grace
+        self.key_history = history
+        if self.key_history_cache is not None and changed:
             try:
                 self.key_history_cache.parent.mkdir(parents=True, exist_ok=True)
                 self.key_history_cache.write_text(
-                    json.dumps({"successions": [s.to_wire() for s in result.history.successions]},
+                    json.dumps({"successions": [s.to_wire() for s in history.successions],
+                                "vouching_grace_seconds": int(history.vouching_grace.total_seconds())},
                                sort_keys=True, indent=2) + "\n", encoding="utf-8")
             except OSError as exc:
                 logger.warning("Could not cache the NA key history: %s", exc)
@@ -138,7 +149,7 @@ class MeshNode:
             logger.warning("Ignoring the cached NA key history: %s", exc)
             return
         if isinstance(cached, dict) and isinstance(cached.get("successions"), list):
-            self.adopt_key_history(cached["successions"])
+            self.adopt_key_history(cached["successions"], cached.get("vouching_grace_seconds"))
 
     def refresh_key_history(self, na_endpoint: str) -> bool:
         """Read the NA's key history (``GET /na/key-history``) and adopt it when it verifies.
@@ -158,15 +169,40 @@ class MeshNode:
             return False
         if not response.ok or not isinstance(view, dict) or not isinstance(view.get("successions"), list):
             return False
-        return self.adopt_key_history(view["successions"])
+        return self.adopt_key_history(view["successions"], view.get("vouching_grace_seconds"))
 
     def na_keys_at(self, at: datetime) -> list[str]:
         """The NA public keys a record dated ``at`` may be signed with."""
         return self.key_history.keys_at(at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc))
 
-    def verify_na_signed(self, model: Any, signatures: Sequence[Any], at: datetime) -> bool:
-        """True when one of ``signatures`` is by the NA key valid at ``at`` (the record's issue time)."""
-        return any(verify_model_signature(model, sig, key) for key in self.na_keys_at(at) for sig in signatures)
+    def verify_na_signed(self, model: Any, signatures: Sequence[Any], at: datetime, *,
+                         now: Optional[datetime] = None) -> bool:
+        """True when one of ``signatures`` is by the NA key valid at ``at`` (the record's issue time).
+
+        1.8.0: with ``now``, the record is judged for the present: a key whose
+        vouching horizon has passed (its succession, the hand-over and the
+        grace) no longer counts, so a record its holder dates inside its
+        window is refused once the horizon has passed.
+        """
+        at = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)
+        keys = self.na_keys_at(at) if now is None else na_keys_vouching_at(self.key_history, at, now)
+        return any(verify_model_signature(model, sig, key) for key in keys for sig in signatures)
+
+    def na_key_vouches(self, public_key: str, at: datetime, now: datetime) -> bool:
+        """Whether an NA key of the history may sign a record dated ``at``, judged at ``now`` (1.8.0).
+        A key that is not in the history is not an NA key and is not limited here."""
+        key = self.key_history.key_for(public_key)
+        if key is None:
+            return True
+        at = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)
+        return key.accepts(at) and not record_outlives_key(self.key_history, public_key, now)
+
+    def signer_of(self, model: Any, signatures: Sequence[Any]) -> Optional[NAKey]:
+        """The key of the NA's key history that signed ``model``, if any (1.8.0)."""
+        for key in self.key_history.keys:
+            if any(verify_model_signature(model, sig, key.public_key) for sig in signatures):
+                return key
+        return None
 
     def join_network(
         self,
@@ -246,8 +282,9 @@ class MeshNode:
             logger.error("Certificate is expired or not yet valid")
             return False
 
-        # Verify signature: by the NA key valid when it was issued (v1.5.0 review fixes)
-        if self.verify_na_signed(cert, cert.signatures, cert.issued_at):
+        # Verify signature: by the NA key valid when it was issued (v1.5.0 review fixes), and still
+        # vouching now (1.8.0)
+        if self.verify_na_signed(cert, cert.signatures, cert.issued_at, now=datetime.now(timezone.utc)):
             return True
 
         logger.error("No valid signatures found on certificate")
@@ -297,7 +334,7 @@ class MeshNode:
         Returns:
             True if policy is valid
         """
-        if self.verify_na_signed(policy, policy.signatures, policy.issued_at):
+        if self.verify_na_signed(policy, policy.signatures, policy.issued_at, now=datetime.now(timezone.utc)):
             return True
 
         logger.error("No valid signatures found on policy manifest")

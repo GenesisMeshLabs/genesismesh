@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+import random
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -36,6 +37,11 @@ from .rbac import RBACEnforcer
 
 
 logger = logging.getLogger(__name__)
+
+#: 1.8.0: a node whose certificate a succeeded NA key signed renews once the succession has taken
+#: effect, after a random delay of up to this long (and never more than half the vouching grace), so
+#: the nodes of a network do not all renew at once.
+SUCCESSION_RENEW_JITTER = timedelta(minutes=10)
 
 
 class _ExpectedWebSocketProbeFilter(logging.Filter):
@@ -171,6 +177,8 @@ class MeshNodeRuntime:
         self._running = False
         self._monitor_task: Optional[asyncio.Task] = None
         self._heartbeat_task: Optional[asyncio.Task] = None
+        # 1.8.0: where in the jitter window this node renews after a succession.
+        self._succession_renew_fraction = random.random()
 
     async def start(self):
         """Start the runtime and all P2P subsystems."""
@@ -456,7 +464,8 @@ class MeshNodeRuntime:
             raise ValueError("CRL is missing issuer key or signature")
         # v1.5.0 review fixes: by the NA key valid when it was issued, from the NA's key history.
         await asyncio.to_thread(self.node.refresh_key_history, self.na_endpoint)
-        if not self.node.verify_na_signed(crl, crl.signatures, crl.issued_at):
+        # 1.8.0: and by a key still vouching now (the NA signs its CRL again under the new key).
+        if not self.node.verify_na_signed(crl, crl.signatures, crl.issued_at, now=datetime.now(timezone.utc)):
             raise ValueError("CRL signature verification failed")
         self.crl_gossip.set_crl(crl)
 
@@ -494,10 +503,40 @@ class MeshNodeRuntime:
 
         A key of the NA's key history is valid only inside its own window, so
         a succeeded key cannot sign CRLs or control commands dated after its
-        hand-over. Other keys are not NA keys and are not limited here.
+        hand-over. Since 1.8.0 it also stops vouching once its horizon has
+        passed, whatever date the record carries. Other keys are not NA keys
+        and are not limited here.
         """
-        key = self.node.key_history.key_for(public_key)
-        return True if key is None else key.accepts(at)
+        return self.node.na_key_vouches(public_key, at, datetime.now(timezone.utc))
+
+    def _renew_after_succession(self) -> bool:
+        """Renew a certificate a succeeded NA key signed, once the succession has taken effect (1.8.0).
+
+        Peers stop accepting such a certificate once that key's vouching
+        horizon passes, so the node renews before then: after the succession,
+        plus this node's share of ``SUCCESSION_RENEW_JITTER`` (at most half
+        the grace). The heartbeat loop calls this each cycle, so a failed
+        renewal is retried. Returns True when it renewed.
+        """
+        cert = self.node.join_certificate
+        if cert is None:
+            return False
+        signer = self.node.signer_of(cert, cert.signatures)
+        if signer is None or signer.end is None:
+            return False
+        window = min(SUCCESSION_RENEW_JITTER, self.node.key_history.vouching_grace / 2)
+        if datetime.now(timezone.utc) < signer.end + window * self._succession_renew_fraction:
+            return False
+        try:
+            renewed = self.node.renew_certificate(self.na_endpoint)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Renewing the certificate after the NA key succession failed: %s", exc)
+            return False
+        if renewed:
+            logger.info("Renewed the certificate the succeeded NA key %s signed", signer.key_id or signer.key_sequence)
+        else:
+            logger.warning("Renewing the certificate after the NA key succession failed; retrying next cycle")
+        return renewed
 
     async def _heartbeat_loop(self) -> None:
         """Send a periodic HTTP heartbeat to the NA so active-node count stays current."""
@@ -514,6 +553,13 @@ class MeshNodeRuntime:
                         logger.warning("Heartbeat to NA failed")
                 except Exception:
                     logger.exception("Error sending heartbeat to NA")
+                # 1.8.0: learn of a key succession, and renew a certificate the succeeded key signed.
+                try:
+                    await asyncio.to_thread(self.node.refresh_key_history, self.na_endpoint)
+                    if await asyncio.to_thread(self._renew_after_succession) and self.node.join_certificate:
+                        await self._on_certificate_renewed(self.node.join_certificate)
+                except Exception:
+                    logger.exception("Error following the NA key history")
         except asyncio.CancelledError:
             pass
 
