@@ -1,6 +1,6 @@
-"""Migration numbers are unique and contiguous (1.7.1).
+"""Migration numbers are unique and contiguous (1.8.0).
 
-Before 1.7.1 two branches that each added ``020_*.sql`` merged cleanly, and
+Before 1.8.0 two branches that each added ``020_*.sql`` merged cleanly, and
 on SQLite the second migration was then skipped for good: the version claim
 failed as if another worker had applied it ("applied by another process").
 ``migration_files()`` now refuses a duplicate, a gap and a PostgreSQL

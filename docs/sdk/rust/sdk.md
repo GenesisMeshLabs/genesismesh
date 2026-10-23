@@ -331,8 +331,8 @@ The second line checks the crate without its HTTP client. The live test
 starts a disposable loopback NA with the Python named by `GM_E2E_PYTHON`
 (which must have the `genesis-mesh` core installed) and runs the governed
 lifecycle with SDK calls only; `GM_E2E_BASE_URL`, `GM_E2E_OPERATOR_SEED` and
-`GM_E2E_NA_PUBLIC_KEY` point it at an existing NA instead. From 1.7.1
-(unreleased) the live test is `#[ignore]`d, so it needs
+`GM_E2E_NA_PUBLIC_KEY` point it at an existing NA instead. From 1.8.0
+the live test is `#[ignore]`d, so it needs
 `-- --include-ignored`; with 1.7.0 the flag does no harm. CI runs it against
 the core branch of the same name, or `main`.
 

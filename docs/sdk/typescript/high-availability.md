@@ -24,7 +24,7 @@ Requests go to one instance at a time.
   token requests; the judgements, `anchor` and `recordArchive`, which a replay
   cannot repeat; and the verification routes of boundary decisions,
   attestations and policies) move to the next instance on a transport failure
-  or 502/503/504, then use `retry` with backoff. From 1.7.1 (unreleased) every
+  or 502/503/504, then use `retry` with backoff. From 1.8.0 every
   other verification route, and `disclosure.prove`, is idempotent too.
 - **Non-idempotent requests** (evaluate, issue, publish, revoke, audit packs,
   and in 1.7.0 the agreement, trust-evidence, consensus, disclosure and

@@ -204,7 +204,7 @@ case errors.As(err, &server):
 All typed errors embed `GenesisMeshError`, which carries `.Status`, `.Code`
 (the NA's `code` field) and `.Message` (the NA's message).
 
-**From 1.7.1 (unreleased).** A 403 is a `*ForbiddenError`, a 409 a
+**From 1.8.0.** A 403 is a `*ForbiddenError`, a 409 a
 `*ConflictError`, a 413 a `*PayloadTooLargeError`, and any other 4xx without a
 type of its own a `*ClientError`. `*ServerError` is then a 5xx only. Every
 error for an NA response implements the `APIError` interface

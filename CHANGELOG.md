@@ -1,5 +1,238 @@
 # Changelog
 
+## v1.8.0 - The Vouching Horizon
+
+### Security
+
+- **`/attestations/verify` refuses an attestation in the NA's own name that
+  it never issued.** The route accepted any attestation the recognition
+  policy's keys verified. After a key succession, whoever kept the outgoing
+  key could sign a new attestation in the NA's name, and the NA's own
+  verify route accepted it. An attestation naming this NA as its issuer now
+  verifies only as the NA stored it; otherwise the reason is `not_held`.
+  Attestations of other sovereigns are checked as before.
+- **`/heartbeat` and `/renew` are rate limited.** Edge agents call them,
+  and neither had a limit. Both now count against the per-address node
+  budget (`node_address`, 600 a minute by default) that the `/node/*` routes
+  already use.
+- **certifi 2026.10.19 in the container image.** The image pinned certifi
+  2026.7.22, which GHSA-6q48-6c7w-9gw2 (critical) affects. The image's
+  vulnerability gate refused every build until the pin moved.
+- **A grant starts within 24 hours of its issue.** `CapabilityGrant` refuses
+  a `valid_from` earlier than `issued_at` or more than 24 hours after it
+  (each within the 5-minute clock skew), as the NA already issues them.
+  Without the tie, a grant signed by a key could start at any date, long
+  after the key stopped signing. Every grant an NA issued keeps verifying.
+- **Nodes accept an NA key only inside its window.** CRL gossip and control
+  messages took any key of the NA's key history, at any time. After a key
+  succession, whoever still held the outgoing key could gossip a CRL or issue
+  a control command the nodes accepted. A gossiped CRL now has to be signed by
+  a key valid at its issue time. A control command has to come from a key
+  that is still valid now.
+- **Gossiped CRLs are checked on their times.** A node now refuses a gossiped
+  CRL that is expired, dated in the future, or valid for longer than 48 hours,
+  where an NA signs for 24. A CRL with a high sequence number no longer blocks
+  later CRLs once it has expired.
+- **`/boundary-policies/verify` checks that the NA holds the policy.**
+  Without caller keys, a policy verified against the NA's own keys is
+  refused as `not_held` unless this NA stored that version exactly as
+  signed. Before, whoever kept a succeeded key could sign a policy that
+  verified here. Policies are not re-issued, so they get no horizon.
+
+### Added
+
+- **Mesh nodes apply the vouching horizon.** A node now judges NA-signed
+  records for the present: its own and its peers' join certificates, the
+  policy manifest, and the bootstrap and gossiped CRLs. Control commands are
+  judged the same way. A record of a succeeded NA key stops counting once
+  that key's horizon has passed (its succession, the 5-minute hand-over and
+  the grace), whatever date it carries.
+  - The node takes the NA's `vouching_grace_seconds` only to shorten its
+    grace, and keeps it with its cached key history.
+  - The heartbeat loop reads the NA's key history again each cycle, so a
+    node learns of a succession without restarting.
+  - A node whose certificate the succeeded key signed renews it once the
+    succession has taken effect. The renewal comes after a random delay of
+    up to 10 minutes (at most half the grace), so the nodes of a network do
+    not all renew at once. A failed renewal is retried on the next cycle.
+- **Link previews for the public reference authority.** Every page of
+  `examples/public_dashboard` carries Open Graph and Twitter card tags, and
+  the app serves a 1200x630 card at `/social-card.png` in the dashboard's own
+  colours. A shared na.genesismesh.org link showed no preview before.
+- **Attestations and treaties carry a re-issue lineage.** After a key
+  succession the NA re-issues the records the old key signed under new IDs
+  (below); the lineage links the copies.
+  - Migration 020 adds `lineage_id`, `reissued_from` and `superseded_by` to
+    `membership_attestations` and `recognition_treaties`. Every stored record
+    starts its own lineage.
+  - A re-issue marks the previous copy superseded and stores the new one in
+    one transaction, and only while the previous copy is active and not yet
+    superseded. A revocation that wins the race is never undone by a copy
+    under a new ID.
+  - The previous copy stays `active`, so grants and decisions that name its
+    ID keep verifying; the NA never resolves an ID to its successor.
+  - `GET /attestations/<id>` and `GET /recognition-treaties/<id>` return
+    `reissued_from` and `superseded_by`. Lists, the unsigned attestation
+    count and `/node/state` show only the newest copy.
+- **The NA re-issues its records after a key succession.** Once the new key
+  signs, the NA re-issues under it the attestations and treaties in its own
+  name that the old key signed and that expire after the old key's vouching
+  horizon (its end, the 5-minute hand-over and the 24-hour grace). Each copy
+  has a new ID, `issued_at` now and otherwise the same content, and joins the
+  record's lineage. The previous copy stays active, so grants and decisions
+  that name it keep verifying. Records that lapse within the grace are left
+  to lapse, and revoked records are never re-issued.
+  - The active policy manifest is signed again under the same `policy_id`,
+    and so is a version that `POST /admin/policy/rollback` activates.
+  - The job runs at start, from the readiness probe and `GET /policy`, in
+    batches of 100. Instances may run it at once: each record gets one copy,
+    and a revocation racing the job still revokes every copy.
+  - `POST /admin/na/reissue` and `genesis-mesh na reissue` (privileged) run
+    it at once. A run that re-issues anything is audited as
+    `na_records_reissued`.
+  - `GET /readyz` reports `reissue_pending` and what is `due` under
+    `checks.reissue`, without affecting readiness, and `genesis-mesh na
+    doctor` warns while anything is due.
+- **The vouching horizon, in the model.** After an NA key succession,
+  whoever kept the outgoing key could sign a record dated inside that key's
+  window, and every verifier with the key history accepted it.
+  `NAKeyHistory.vouches_until`, `record_outlives_key` and
+  `na_keys_vouching_at` now say how long a record of a key that has ended
+  vouches for the present: until its end, the 5-minute hand-over and a grace
+  of at most 24 hours (`SUCCESSION_VOUCHING_GRACE`, shortened with
+  `with_vouching_grace`).
+  - Judged at its own time, as audit packs and exports do, a record is
+    unchanged.
+  - `trust.key_succession.na_record_refusal` applies the horizon to
+    attestations, treaties, revocation feeds and grants, with the reason
+    `outlives_key`. A signed record that its model refuses, such as a grant
+    that starts more than 24 hours after its issue, is `record_malformed`.
+  - The `vouching` conformance suite (32 vectors) pins it; only the core runs
+    it until the SDKs adopt the horizon.
+- **The vouching horizon on the NA's verify routes.** After a key succession,
+  a record in the NA's own name that the old key signed stops vouching once
+  the old key's horizon has passed: its succession, the 300-second hand-over
+  and the grace. The NA re-issued it under the new key while it was still
+  valid.
+  - `/attestations/verify` refuses such an attestation as `outlives_key`.
+  - `/recognition-treaties/verify` refuses such a treaty as `outlives_key`;
+    `/attestations/verify-with-treaty` refuses it as `treaty_outlives_key`.
+  - Records of other sovereigns are not affected.
+- **`NA_SUCCESSION_VOUCHING_GRACE_SECONDS`** sets the grace, from 0 to 86400
+  seconds (the default). A larger value is refused at start. `GET
+  /na/key-history` publishes it as `vouching_grace_seconds`. It is unsigned,
+  so verifiers use it only to shorten their own grace. Set it to 0 before
+  recording a succession that follows a suspected compromise of the outgoing
+  key.
+
+### Changed
+
+- **Contributor checks are stricter.** Pull requests merge through a merge
+  queue that re-runs the checks on top of `main`. A pull request titled
+  `fix: ...` that changes source files must change a test (the "Regression
+  test" check; the Maintainer's label `no-test-needed` waives it). Tests that
+  need PostgreSQL or nginx fail instead of skipping when `GM_E2E_REQUIRED=1`,
+  as in the CI job that provides them. The interoperability check now also
+  compares the Go and .NET SDKs' copies of the audit and grants conformance
+  vectors, and fails when no Go conformance test matches its filter.
+- **Architecture, coverage and lint ratchets for contributors.** An
+  architecture test enforces the layer rules of `AGENTS.md` (the layer
+  table, no trust module importing another, no database calls in route
+  files) against an allowlist of today's violations that may only shrink;
+  CI fails when line coverage of `trust/`, `models/` or
+  `na_service/services/` falls below its floor, and lints with ruff
+  (pyflakes and import errors). Hypothesis property tests cover strict JSON
+  input and the canonical form. Operator upgrade steps are written as
+  `upgrade.d/<version>/` fragments and folded into the upgrade guide at
+  release, as changelog entries are. Nothing changes for operators or
+  clients.
+- **Revoking an attestation or treaty revokes its whole lineage.** The revoke
+  routes return the IDs revoked as `lineage_ids`, and their audit events
+  record them. The sovereign revocation feed lists every revoked copy, since
+  a holder may present any of their IDs. Until records are re-issued, each
+  lineage has one record and nothing changes.
+
+### Fixed
+
+- **A succession record names the NA's real key ID.** The genesis block
+  names no key ID, so `na succession sign` wrote a made-up `na-key-1` as
+  `previous_key_id`. `GET /na/key-history` now lists the running key's own
+  ID for it, and the command uses that.
+- **`/api-reference` shows the privileged tier of
+  `/admin/agreements/counter`**, as enforced since 1.1.1.
+- **Provider-neutral model examples.** The CLI help, a model field
+  description and the agent-network example now use neutral example model
+  IDs.
+- **A CRL signed after a key succession names the key that signed it.** The
+  next CRL copied the previous one's `issuer`. After a succession that still
+  named the old key while the new key signed it, so the gateway and node CRL
+  gossip, which find the key by `issuer`, refused the authority's CRL. The
+  new key now re-signs the CRL as soon as it signs, without waiting for the
+  daily refresh. A gateway or node must still pin the new key; see the key
+  succession runbook.
+- **Migrations with the same number no longer skip one another.** When two
+  changes each added a migration with the same number, SQLite applied the
+  first and skipped the second as if another worker had already applied it,
+  so its tables never existed. The Network Authority now refuses to start (and
+  every test run fails) unless the migrations are numbered 001, 002, ... once
+  each, without gaps, and every PostgreSQL override has its shared migration.
+  SQLite also re-reads the applied versions before each migration, not once
+  per start. Released migrations already meet these rules, so existing
+  databases need nothing.
+- **The test suite collects on Windows again.** The HA cluster test helper no
+  longer reads `signal.SIGKILL` at import time; Windows has no SIGKILL, so
+  `pytest genesis_mesh/tests` stopped at collection there.
+
+### Documentation
+
+- **Every page checked against the code.** The operations, operator,
+  reference, development, example, concept, SDK and API pages were audited
+  against `main`. Wrong defaults, commands that did not run, stale versions
+  and overclaims are fixed. Pages that predate key succession now say that
+  planned rotation is possible, and that a compromised key still means a new
+  identity.
+- **Off-by-default features are marked.** Every page states which settings
+  a guarantee depends on. The evidence store, out-of-band records,
+  remediation and grants are off by default. The outbox, break-glass and
+  grant holders exist only in the TypeScript and Rust SDKs and the edge
+  agent.
+- **Safer instructions.** `terraform apply` no longer uses
+  `-auto-approve`. `proof cleanup` is documented as deleting every treaty,
+  attestation and feed. `treaty renew` documents its 24-hour default. The
+  incident runbook revokes a treaty with a signed command.
+- **New walkthroughs with recorded runs:**
+  - boundary policies;
+  - the evidence store;
+  - out-of-band changes;
+  - pre-issued grants;
+  - evidence anchors, a restore drill, audit verification, key succession
+    and the edge agent;
+  - the SDK tutorial, interoperability and `dev up`;
+  - the Tamarin proofs.
+
+  `docs/examples/assets/scripts/render_terminal_gif.py` renders a captured
+  run as a GIF, so each recording can be rebuilt.
+- **Grouped navigation.** The phases, the governed-change runbooks, the CLI
+  reference, the SDK pages and the project pages are grouped instead of
+  being long flat lists.
+
+### Upgrading
+
+- **Migration numbering is checked at startup.** A release's own migrations
+  pass the check. If a deployment or fork adds its own files to
+  `genesis_mesh/na_service/migrations/`, they must continue the sequence
+  after the release's last (`021_name.sql`, then `022_...`, since 1.8.0 adds
+  020), one number each; otherwise the Network
+  Authority stops at startup with `MigrationNumberingError`, naming the files.
+- **Upgrade the NA before its nodes.** Nodes refuse records of a succeeded
+  key once its horizon has passed. A 1.8.0 NA re-issues what is still needed
+  and signs its policy manifest and CRL again under the new key. An older NA
+  does none of this, so after a succession its nodes on 1.8.0 would refuse
+  the manifest it still serves.
+- **Migration 020 runs at start-up.** It adds three columns and an index to
+  each of the two tables and fills `lineage_id` for existing rows; it needs no
+  action.
+
 ## v1.7.0 - The Edge Agent
 
 ### Security

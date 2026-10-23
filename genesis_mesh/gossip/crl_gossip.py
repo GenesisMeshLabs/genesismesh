@@ -48,7 +48,7 @@ class CRLGossip:
             get_public_key: Function to get public key by key ID
             broadcast_func: Function to broadcast messages
             key_valid_at: Whether a public key may sign a record dated at a
-                time (1.7.1). The node passes its NA key history, so a key
+                time (1.8.0). The node passes its NA key history, so a key
                 that has been succeeded cannot sign a CRL dated after its
                 hand-over.
         """
@@ -251,7 +251,7 @@ class CRLGossip:
                 return False
 
             # Check if newer than current. An expired current CRL does not hold
-            # its place (1.7.1): a CRL with a forged high sequence would
+            # its place (1.8.0): a CRL with a forged high sequence would
             # otherwise block every later CRL for good.
             if self.current_crl and crl.sequence <= self.current_crl.sequence:
                 if _utc(self.current_crl.next_update) > datetime.now(timezone.utc)                         or _utc(crl.issued_at) <= _utc(self.current_crl.issued_at):
@@ -277,7 +277,7 @@ class CRLGossip:
             return False
 
     def _timing_refusal(self, crl: CertificateRevocationList, issuer_pubkey: str) -> Optional[str]:
-        """Why a gossiped CRL is refused on its times, or None (1.7.1).
+        """Why a gossiped CRL is refused on its times, or None (1.8.0).
 
         The issuer key must be valid at the CRL's issue time, the CRL must not
         be dated in the future or already expired, and it may not claim a

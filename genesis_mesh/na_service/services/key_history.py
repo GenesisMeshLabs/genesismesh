@@ -227,7 +227,7 @@ class KeyHistoryService:
             "handover_seconds": 300,
             "genesis": self._na.genesis_block.model_dump(mode="json"),
             "successions": [s.to_wire() for s in history.successions],
-            # The genesis block names no key ID; the running key's own is the one it signs under (1.7.1).
+            # The genesis block names no key ID; the running key's own is the one it signs under (1.8.0).
             "keys": [{**k.to_dict(), **({"key_id": self._na.signer.key_id} if k.key_id is None and k.public_key == current
                                        else {}), "current": k.public_key == current} for k in history.keys],
             "signing_key_sequence": signing.key_sequence if signing is not None else None,

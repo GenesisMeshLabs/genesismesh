@@ -3,7 +3,7 @@
 > **Added in v0.55.0** · Package: `genesismesh-sdk-dotnet` · Source: `sdk-dotnet/`
 
 C# client for the Genesis Mesh Network Authority HTTP API.
-Targets .NET 8 (`net8.0`); from 1.7.1 (unreleased) also .NET 10 (`net10.0`).
+Targets .NET 8 (`net8.0`); from 1.8.0 also .NET 10 (`net10.0`).
 One runtime dependency: `NSec.Cryptography 25.4.0` (Ed25519).
 
 **Scope.** The .NET SDK has the same scope as the Go SDK: its clients
@@ -94,11 +94,11 @@ Authority. It starts a disposable NA from the Python package
 installed:
 
 ```sh
-pip install "genesis-mesh==1.7.*"
+pip install "genesis-mesh==1.8.*"
 GM_E2E_PYTHON=python dotnet test --filter "Category=Live"
 ```
 
-Without `GM_E2E_PYTHON` the test returns at once. From 1.7.1 (unreleased) the
+Without `GM_E2E_PYTHON` the test returns at once. From 1.8.0 the
 solution also builds `net10.0`, so building `main` needs the .NET 10 SDK.
 
 ```{toctree}
