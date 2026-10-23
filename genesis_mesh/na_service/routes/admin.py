@@ -191,7 +191,8 @@ def create_admin_blueprint(service) -> Blueprint:
             if not service.db.activate_policy(policy_id):
                 raise NotFoundError("Unknown policy", code="policy_not_found")
 
-            policy = service.db.get_active_policy()
+            # v1.8.0: a version a succeeded key signed is signed again under the key that signs now.
+            policy = service.reissue_service.active_policy()
             return jsonify(policy.model_dump(mode="json"))
         except ApiError:
             raise

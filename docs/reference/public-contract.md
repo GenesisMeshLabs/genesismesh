@@ -85,6 +85,7 @@ disappears. Compatibility rules are in `DEPRECATION_POLICY.md`.
 | POST | `/admin/grants/<grant_id>/revoke` | beta |
 | GET | `/admin/grants/<grant_id>/uses` | beta |
 | POST | `/admin/invite` | stable |
+| POST | `/admin/na/reissue` | beta |
 | POST | `/admin/na/succession` | beta |
 | POST | `/admin/operator-keys/<key_id>/holder` | stable |
 | POST | `/admin/operator-keys/<key_id>/revoke` | stable |
@@ -294,6 +295,7 @@ signed formats evolve).
 | `genesis-mesh managed restore` | beta |
 | `genesis-mesh na doctor` | beta |
 | `genesis-mesh na migrate-db` | stable |
+| `genesis-mesh na reissue` | beta |
 | `genesis-mesh na start` | stable |
 | `genesis-mesh na succession history` | beta |
 | `genesis-mesh na succession prove` | beta |
