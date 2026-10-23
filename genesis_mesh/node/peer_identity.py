@@ -3,6 +3,7 @@
 import base64
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from ..crypto import public_key_from_b64, sign_data, verify_model_signature, verify_signature
@@ -49,8 +50,9 @@ class RuntimePeerIdentity:
         if self.crl_gossip.is_certificate_revoked(cert.cert_id):
             raise ValueError("Peer certificate is revoked")
 
-        # v1.5.0 review fixes: by the NA key valid when it was issued, from the key history.
-        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at):
+        # v1.5.0 review fixes: by the NA key valid when it was issued, from the key history;
+        # 1.8.0: and still vouching now (a peer renews once the NA's new key signs).
+        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at, now=datetime.now(timezone.utc)):
             raise ValueError("Peer certificate signature is invalid")
 
         verify_key = public_key_from_b64(cert.node_public_key)
@@ -99,7 +101,7 @@ class RuntimePeerIdentity:
         if self.crl_gossip.is_certificate_revoked(cert.cert_id):
             return False, []
 
-        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at):
+        if not self.node.verify_na_signed(cert, cert.signatures, cert.issued_at, now=datetime.now(timezone.utc)):
             return False, []
         if not peer_info.announcement_signature:
             return False, []
