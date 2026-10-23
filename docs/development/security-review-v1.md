@@ -47,7 +47,12 @@ The table records the review as of 2026-10-02 and is not rewritten.
   valid at the record's own time ({doc}`../operations/key-succession`). A lost
   or compromised NA key cannot sign its own succession, so it still means a
   new identity. The root key cannot be succeeded. SR-06 is closed for planned
-  rotation and remains an accepted risk for compromise.
+  rotation and remains an accepted risk for compromise. Since 1.8.0 a
+  record of the succeeded key vouches for the present only until that key's
+  horizon (the hand-over plus a grace of at most 24 hours, settable to 0
+  before a succession), and the NA re-issues its still-valid records under
+  the new key. Records forged before the succession stay valid until they
+  expire.
 - **SR-09.** Since v1.0.2 a feed import uses the keys pinned by this NA's own
   active treaties for the issuer. Keys an operator supplies must be among them
   (`caller_keys_not_accepted`); supplied keys alone are accepted only for an
