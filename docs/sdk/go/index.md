@@ -97,7 +97,7 @@ Authority. It starts a disposable NA from the Python package
 installed:
 
 ```sh
-pip install "genesis-mesh==1.7.*"
+pip install "genesis-mesh==1.8.*"
 GM_E2E_PYTHON=python go test -tags live -count=1 -run '^TestLiveContract$' ./genesismesh
 ```
 

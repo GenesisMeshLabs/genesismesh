@@ -23,7 +23,7 @@ Install the NA in a virtual environment and activate it:
 ```bash
 python -m venv local/venv
 source local/venv/bin/activate          # Windows: local\venv\Scripts\Activate.ps1
-pip install "genesis-mesh==1.7.*"
+pip install "genesis-mesh==1.8.*"
 ```
 
 Install the NA of the same version as your SDK. The SDK guides use routes

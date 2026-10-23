@@ -50,7 +50,7 @@ def history(na_endpoint: str, out_path: Path) -> None:
 
 
 def _listed_key_id(view: dict, public_key: str) -> str | None:
-    """The key ID the saved view lists for a key: for the genesis key, the running NA's own (1.7.1)."""
+    """The key ID the saved view lists for a key: for the genesis key, the running NA's own (1.8.0)."""
     for key in view.get("keys") or []:
         if isinstance(key, dict) and key.get("public_key") == public_key and isinstance(key.get("key_id"), str):
             return key["key_id"]

@@ -8,7 +8,7 @@ The **Tier** column is the lowest operator tier the NA accepts for the call:
 [tier table](../local-network-authority.md#keys-and-tiers)); `public` needs no
 key. A higher tier may call everything a lower one may. A key below the
 route's tier is refused with 403 `insufficient_operator_tier`. In 1.7.0 the
-SDK throws that as `ServerException`; from 1.7.1 (unreleased) it is a
+SDK throws that as `ServerException`; from 1.8.0 it is a
 `ForbiddenException` (see {doc}`auth`).
 
 ---
@@ -56,7 +56,7 @@ in the body; without them the NA answers 400 `missing_boundary_fields`.
 policies (`BOUNDARY_POLICY_ENFORCEMENT=required`, which `genesis-mesh init`
 sets, as on the {doc}`local NA <../local-network-authority>`) refuses it with
 409 `boundary_policy_required`. In 1.7.0 the SDK throws that as
-`ServerException`; from 1.7.1 (unreleased) it is a `ConflictException`. On
+`ServerException`; from 1.8.0 it is a `ConflictException`. On
 such an NA, call `POST /admin/boundary/evaluate` (standard tier) with a raw
 admin call: {doc}`auth` shows one. This SDK has no method for it.
 

@@ -86,7 +86,7 @@ def _intent(
     *,
     use_real_now: bool = False,
 ) -> DataAccessIntent:
-    # The wall clock when signed, not at import: a long run must not expire it (1.7.1).
+    # The wall clock when signed, not at import: a long run must not expire it (1.8.0).
     t = datetime.now(timezone.utc) if use_real_now else (now or _NOW)
     return create_data_access_intent(
         "agent-a", "dec-1",
@@ -389,7 +389,7 @@ def test_cli_data_record() -> None:
 
 
 def test_real_time_intents_stay_valid_however_long_the_run_takes(monkeypatch) -> None:
-    """An intent signed "now" is valid at the gate even when the module was imported long ago (1.7.1).
+    """An intent signed "now" is valid at the gate even when the module was imported long ago (1.8.0).
 
     ``_intent(use_real_now=True)`` used the import-time clock: once the suite had
     run for more than the intent's 300 seconds (a slow PostgreSQL run), the gate

@@ -35,7 +35,7 @@ POSTGRES_OVERRIDE_SUFFIX = ".postgres.sql"
 
 
 class MigrationNumberingError(RuntimeError):
-    """The shipped migrations are not numbered 001, 002, ... once each (1.7.1)."""
+    """The shipped migrations are not numbered 001, 002, ... once each (1.8.0)."""
 
 
 def _migration_number(path: Path) -> int:
@@ -50,7 +50,7 @@ def migration_files(backend: str) -> list[tuple[int, Path]]:
 
     Raises :class:`MigrationNumberingError` unless the shared migrations are
     numbered 1 to N, once each, and every PostgreSQL override names a shared
-    migration (1.7.1): two branches that each add the same number would
+    migration (1.8.0): two branches that each add the same number would
     otherwise merge cleanly, and SQLite would skip the second migration as if
     another worker had applied it.
     """
@@ -258,7 +258,7 @@ class NADatabase(
         )
         self._refuse_newer_schema()
         for version, path in migration_files("sqlite"):
-            # Read per migration (1.7.1): another worker may have applied it since this one started.
+            # Read per migration (1.8.0): another worker may have applied it since this one started.
             if self.conn.execute("SELECT 1 FROM schema_version WHERE version = ?", (version,)).fetchone():
                 continue
             self._apply_sqlite_migration(version, path.read_text(encoding="utf-8"))

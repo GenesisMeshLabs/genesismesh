@@ -81,7 +81,7 @@ authorization, and sovereign control need to be designed together.
 
 ## Current Maturity
 
-Genesis Mesh 1.7.0 is the current release. The stable surfaces are listed in
+Genesis Mesh 1.8.0 is the current release. The stable surfaces are listed in
 the {doc}`../reference/public-contract` and follow the deprecation policy for
 the 1.x line ({doc}`../stability`). The Rust SDK, the edge agent and the gateway
 are beta. The evidence store, out-of-band records, remediation and grants are

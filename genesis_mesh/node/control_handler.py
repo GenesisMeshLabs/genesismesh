@@ -49,7 +49,7 @@ class ControlMessageHandler:
             audit_logger: Optional security audit logger.
             health_monitor: Optional node health monitor.
             key_valid_at: Whether a public key may still sign at a time
-                (1.7.1). The node passes its NA key history, so an NA key
+                (1.8.0). The node passes its NA key history, so an NA key
                 that has been succeeded cannot issue a current command.
         """
         self.node_id = node_id
