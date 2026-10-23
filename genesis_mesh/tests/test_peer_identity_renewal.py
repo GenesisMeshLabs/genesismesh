@@ -35,7 +35,7 @@ class _StubNode:
         self.node_keypair = node_keypair
         self.join_certificate = join_certificate
 
-    def verify_na_signed(self, model, signatures, at):
+    def verify_na_signed(self, model, signatures, at, *, now=None):
         """v1.5.0 review fixes: the node checks NA signatures through its key history (here the genesis key)."""
         from genesis_mesh.crypto import verify_model_signature
 
