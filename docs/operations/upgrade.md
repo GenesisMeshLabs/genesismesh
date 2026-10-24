@@ -58,6 +58,22 @@ built wheel before every release.
    and, with `--genesis`, the NA key history from the root key. `/readyz`
    must report the expected schema version.
 
+## Upgrading to 1.8.1
+
+- **No migration.** 1.8.1 changes no schema and no setting of the Network
+  Authority: upgrade it as any patch release.
+- **SDKs and edge agents apply the vouching horizon.** The SDKs judge a
+  record for the present when you ask them to (a `now`), and their grant
+  holders and the edge agent always do. Run a Network Authority on 1.8.0 or
+  later and let it re-issue (`reissue_pending: false` on its `/readyz`)
+  before relying on them, or a record it has not re-issued yet stops
+  vouching a day after a succession. Edge agents renew a certificate the old
+  key signed within 10 minutes of `effective_at`.
+- **Gateways do not follow a succession on their own.** After `effective_at`,
+  and before the old key's last CRL expires, re-pin the network to the new
+  key: the gateway's key succession runbook (`docs/key-succession.md` in the
+  gateway repository) has the steps.
+
 ## Upgrading to 1.8
 
 1.8 adds migration 020: three columns and an index on the attestation and
