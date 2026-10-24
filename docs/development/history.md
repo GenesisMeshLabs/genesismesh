@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.8.0 (2026-10-23). Several guarantees below depend on settings that
+As of v1.8.1 (2026-10-24). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -274,7 +274,7 @@ the TypeScript and Rust SDKs and in the edge agent.
   a succeeded key vouches for the present only until that key's horizon (the
   hand-over and a grace of at most 24 hours), and the NA re-issues what is
   still valid under the new key; the NA and mesh nodes apply the horizon, and
-  the SDKs follow in 1.8.1. A lost or compromised NA key cannot sign its own
+  so, since 1.8.1, do the SDKs and the edge agent. A lost or compromised NA key cannot sign its own
   succession, so it still means a new identity, with
   {doc}`../operations/key-succession`.
 - An operator with a read-tier key produces an audit pack for a range between
@@ -311,7 +311,7 @@ the TypeScript and Rust SDKs and in the edge agent.
 
 ### Not yet true
 
-As of v1.8.0, two things are still not true:
+As of v1.8.1, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1401,6 +1401,40 @@ and the PostgreSQL, interoperability, upgrade and documentation gates.
 **What became possible:** an operator rotates the NA key, and a copy of the
 old key kept somewhere stops being useful a day later, or five minutes later
 when the rotation answers a suspected compromise.
+
+#### v1.8.1 — The Vouching Horizon in the SDKs
+
+A patch release that finishes the 1.8 plan (`ops/plan-v1.8.0.md`, Phase 3).
+The Network Authority and mesh nodes applied the vouching horizon in 1.8.0;
+1.8.1 brings it to the verifiers that run elsewhere:
+- The TypeScript, Rust, Go and .NET SDKs judge an attestation, treaty,
+  revocation feed or grant for the present when asked, and refuse one of a
+  key past its horizon (`outlives_key`). Their grant holders order revocation
+  feeds by the signer's key, so a feed with a forged high sequence, signed
+  with a succeeded key, no longer blocks the NA's later feeds. All four run
+  the shared `vouching` suite, and the interoperability job compares their
+  copies with the core's.
+- The edge agent checks the CRL and the attestations it relies on with the
+  horizon, rebuilds its grant holders after a succession, and renews a
+  certificate the old key signed within 10 minutes of `effective_at`, as mesh
+  nodes do.
+- The key succession runbooks of the core and the gateway say how a gateway
+  follows a succession: its operator re-pins the network to the new key after
+  `effective_at`, which works because the 1.8.0 CRL names the key that signs
+  it.
+- A restarted Network Authority no longer stalls on its first remediation
+  sweeps, which made the public demo's calls time out after the 1.8.0
+  upgrade.
+
+The SDKs stay compatible with their 1.8.0 APIs: the Rust crate takes the
+grace as a parameter and adds `verify_record_for_present` instead of new
+fields on 1.8.0 structs.
+
+The release passed 2,779 core tests, 1,069 conformance vectors in 19 suites,
+and the PostgreSQL, interoperability and documentation gates.
+
+**What became possible:** an application or a device that verifies records
+offline stops trusting a copied NA key when the authority does.
 
 ---
 

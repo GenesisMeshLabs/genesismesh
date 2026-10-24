@@ -231,8 +231,8 @@ them externally.
   Since 1.8.0 a record of a succeeded key vouches for the present only until
   that key's horizon: its end, the hand-over and a grace of at most 24
   hours (`NA_SUCCESSION_VOUCHING_GRACE_SECONDS`). Verifiers that follow the
-  key history apply it: the NA's verify routes, mesh nodes, and the SDKs from
-  their 1.8.0 releases. The NA re-issues its still-valid records under the
+  key history apply it: the NA's verify routes, mesh nodes, and the SDKs and
+  the edge agent from their 1.8.1 releases. The NA re-issues its still-valid records under the
   new key. Setting the grace to 0 before recording a succession limits what
   the holder of a copied key can still sign to 300 seconds past
   `effective_at`. Records forged before the succession, while the copy went

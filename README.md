@@ -19,7 +19,7 @@ shared root of trust between sovereigns.
 
 ## Status
 
-Genesis Mesh 1.x is the current release line (1.8.0 today). The surfaces
+Genesis Mesh 1.x is the current release line (1.8.1 today). The surfaces
 listed as stable in the [public contract](https://docs.genesismesh.org/reference/public-contract.html)
 follow [`DEPRECATION_POLICY.md`](DEPRECATION_POLICY.md) for the whole 1.x line,
 and upgrades from 0.59 onward are rehearsed in CI. The Rust SDK, the edge agent
