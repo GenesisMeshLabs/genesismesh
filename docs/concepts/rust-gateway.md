@@ -124,15 +124,16 @@ verified separately; the gateway does not merge signed CRLs or treat
 membership feeds as join revocation lists.
 
 The gateway checks certificates and CRLs with the authority keys pinned in its
-policy (`anchors`). It does not follow an authority's key history, and today
-it cannot follow a succession by re-pinning either: after a succession the
-authority's CRL still names the old key ID as its `issuer` while the new key
-signs it, so the gateway refuses that CRL whatever keys are pinned. From the
-succession's `effective_at` the gateway refuses certificates signed by the new
-key, and once the old key's last CRL expires the network, and with it
-`/ready`, goes not ready. Plan a succession with the gateway's key-succession
-runbook (`docs/key-succession.md` in the gateway repository) and
-{doc}`../operations/key-succession`.
+policy (`anchors`). It does not follow an authority's key history. From a
+succession's `effective_at` it refuses the authority's CRL, whose `issuer` is
+now the new key (1.8.0), and certificates the new key signs; once the old
+key's last CRL expires the network, and with it `/ready`, goes not ready. Its
+operator re-pins the network to the new key after `effective_at` and before
+that expiry: the new key as the network's anchor and the CRL the new key
+signed as its starting CRL. An authority before 1.8.0 kept the old key ID as
+the CRL's `issuer`, so no re-pin matched it. Plan a succession with the
+gateway's key-succession runbook (`docs/key-succession.md` in the gateway
+repository) and {doc}`../operations/key-succession`.
 
 The console can optionally publish a read-only live mesh view at `/v1/mesh`.
 Publication is disabled by default and is enabled per network with
