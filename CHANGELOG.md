@@ -1,5 +1,55 @@
 # Changelog
 
+## v1.8.1 - The Vouching Horizon in the SDKs
+
+### Added
+
+- **The SDKs apply the vouching horizon.** From 1.8.1 the TypeScript, Rust,
+  Go and .NET SDKs judge NA-signed records for the present when asked. A
+  record of a key that has ended vouches only until that key's end, the
+  hand-over and the grace, as the Network Authority and mesh nodes judge it
+  since 1.8.0. Each SDK runs the shared `vouching` conformance suite, and the
+  interoperability check compares their copies with the core's. The SDK
+  guides say what each one offers: offline verifiers with a `now`, the
+  reference's `na_record_refusal`, and in TypeScript and Rust a grant holder
+  that orders revocation feeds by their signer's key.
+
+### Changed
+
+- **The edge agent across a key succession.** The edge agent and key
+  succession pages say what the 1.8.1 agent does: it judges the CRL,
+  attestations and grants it relies on with the vouching horizon, rebuilds
+  its grant holders with the new key, and renews a certificate the old key
+  signed within 10 minutes of `effective_at`, as mesh nodes do.
+
+### Fixed
+
+- **The key succession runbook gives the right step for gateways.** It said
+  to add the new key to the gateway's anchors before `effective_at`, which
+  changes nothing: the gateway accepts a refreshed CRL only from the issuer
+  it was configured with. The gateway operator re-pins the network after
+  `effective_at`, with the new key as its anchor and the CRL the new key
+  signed, before the old key's last CRL expires; the gateway's
+  key-succession runbook has the steps. The Rust gateway concept page says
+  the same.
+- **A restarted Network Authority no longer stalls on its first remediation
+  sweeps.** With `EVIDENCE_REMEDIATION=on`, the sweep looks again, once per
+  instance, at the authorized decisions that have no remediation state. For
+  each one it read the newest 5000 audit events to find who asked for the
+  decision. A batch of 200 therefore took about 30 seconds on a busy store,
+  inside the request that triggered the sweep, and a restart repeated it
+  until every such decision had been looked at again. On the public
+  mesh.genesismesh.org stack, that made the demo job's calls time out after
+  the 1.8.0 upgrade. A batch now reads the audit log once.
+
+### Upgrading
+
+- **No migration.** 1.8.1 changes no schema and no setting of the Network
+  Authority. Upgrade the Network Authority to 1.8.0 or later, and let it
+  re-issue (`reissue_pending: false` on its `/readyz`), before relying on the
+  SDKs and edge agents that judge records for the present; gateway operators
+  re-pin a network after a key succession (see "Upgrading to 1.8.1").
+
 ## v1.8.0 - The Vouching Horizon
 
 ### Security
