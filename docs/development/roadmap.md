@@ -35,8 +35,9 @@ complete with v1.7.0.
 After the program, v1.8.0 added the vouching horizon to key succession
 (`ops/plan-v1.8.0.md`): the Network Authority and mesh nodes stop accepting
 records of a succeeded key once its horizon has passed, and the NA re-issues
-what is still valid. v1.8.1 brings the horizon to the SDKs' offline
-verifiers and documents the gateway's anchors.
+what is still valid. v1.8.1 brought the horizon to the SDKs' offline
+verifiers and the edge agent, and documented how a gateway re-pins a network
+after a succession.
 
 Candidates the program deferred, each to be planned on its own:
 

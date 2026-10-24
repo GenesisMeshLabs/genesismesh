@@ -2,7 +2,9 @@
 
 Status: Phase 2 (core) released in 1.8.0 (2026-10-23): core #111, #112, #113,
 #115, #116, #117, #118 and #121, with the 1.7.1 fixes folded into the same
-release. Phase 3 (the SDKs and the gateway docs) ships as 1.8.1. The
+release. Phase 3 (the SDKs, the edge agent and the gateway docs) released
+in 1.8.1 (2026-10-24): sdk-typescript #54, sdk-go #48, sdk-dotnet #49,
+sdk-rust #64 and #65, gateway #77, core #124, #125 and #126. The
 Maintainer chose option (a) with the held check. The 1.7.1 patches it builds on are separate pull requests:
 - core #104: the CRL issuer after a succession;
 - core #105: nodes accept an NA key only inside its window;
@@ -161,8 +163,10 @@ the active `PolicyManifest`, because every node fetches it, and the CRL
      the new reason and the setting).
    - The cross-sovereign steps: partners hold treaties naming the old key.
    - Availability: offline devices must sync within the horizon.
-   - The gateway: add the new key to its anchors **before** `effective_at`,
-     and remove the old one after the horizon.
+   - The gateway: its operator re-pins the network to the new key **after**
+     `effective_at` (core #125, gateway #77). Adding the new key before it
+     changes nothing: the gateway refreshes a CRL only from the issuer it was
+     configured with.
 
 **Phase 3, after NA 1.8.0 is published.**
 
@@ -172,7 +176,9 @@ the active `PolicyManifest`, because every node fetches it, and the CRL
 9. **sdk-rust** (`feat/vouching-horizon`), after sdk-rust #61.
    - The horizon in `verify_record` with a `now`.
    - A history-aware `GrantHolder` and `GovernedVerification`. This brings
-     back the 1.5.0 decision bound on the edge, which #61 does not.
+     back the 1.5.0 decision bound on the edge, which #61 does not. (1.8.1
+     shipped the `GrantHolder`; `GovernedVerification`'s key history waits
+     for a minor release, to keep the 1.8.0 API compatible.)
    - The edge agent renews from `effective_at`.
 10. **sdk-go** and 11. **sdk-dotnet** (`feat/grant-vouching`): `KeyEnd`,
     `RecordOutlivesKey`, `KeysVouchingAt`, the grant overloads with a `now`,
