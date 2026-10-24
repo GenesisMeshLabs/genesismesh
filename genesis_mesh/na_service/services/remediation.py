@@ -464,6 +464,9 @@ class RemediationService:
         each looked at once per instance. Returns how many were armed."""
         since = self.enabled_since()
         armed = 0
+        # 1.8.1: the requesters of a whole batch from one read of the audit log, not one read per
+        # decision (a batch of 200 read the newest 5000 events 200 times: about 30 seconds).
+        requesters: dict[str, str | None] | None = None
         for kind in ("judgement", "decision"):
             for seq, subject_id in self._db.subjects_without_state(
                     kind, recorded_since=since, after_sequence=self._repaired[kind], limit=SWEEP_BATCH):
@@ -476,10 +479,12 @@ class RemediationService:
                     else:
                         stored = self._db.get_decision_entry(subject_id)
                         if stored is not None:
+                            if requesters is None:
+                                requesters = self._decision_requesters()
                             self._arm_decision(
                                 BoundaryDecision.model_validate(stored["payload"]["decision"]),
                                 ContextRecord.model_validate(stored["payload"]["context"]),
-                                stored["entry"].payload_digest, self._decision_requester(subject_id))
+                                stored["entry"].payload_digest, requesters.get(subject_id))
                 except Exception as exc:  # noqa: BLE001 -- the next one is armed all the same
                     logger.warning("arming %s %s failed: %s", kind, subject_id, exc)
                     continue
@@ -489,12 +494,19 @@ class RemediationService:
 
     def _decision_requester(self, decision_id: str) -> str | None:
         """The operator key that asked for a decision, from its ``decision_stored`` audit event."""
+        return self._decision_requesters().get(decision_id)
+
+    def _decision_requesters(self) -> dict[str, str | None]:
+        """The operator key that asked for each decision of the newest ``REQUESTER_LOOKUP``
+        ``decision_stored`` audit events, by decision ID (the first event of an ID wins)."""
+        requesters: dict[str, str | None] = {}
         for event in self._db.list_audit_events(event_types=["decision_stored"], limit=REQUESTER_LOOKUP):
             details = event.get("details") or {}
-            if details.get("decision_id") == decision_id:
+            decision_id = details.get("decision_id")
+            if isinstance(decision_id, str) and decision_id not in requesters:
                 requester = details.get("requested_by")
-                return str(requester) if requester else None
-        return None
+                requesters[decision_id] = str(requester) if requester else None
+        return requesters
 
     def maybe_sweep(self) -> None:
         """Sweep at most every SWEEP_INTERVAL_SECONDS (after admissions and on reads)."""
