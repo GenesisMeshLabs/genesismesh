@@ -160,10 +160,16 @@ until then its peers refuse it.
    of your attestations and treaties to fetch the re-issued copies before the
    horizon.
 8. Mesh nodes renew the certificates the old key signed on their own,
-   within 10 minutes of `effective_at` (at most half the grace). Add the new
-   key to the gateway's anchors **before** `effective_at`, and remove the old
-   one after the horizon: the gateway pins keys and does not follow the key
-   history.
+   within 10 minutes of `effective_at` (at most half the grace). A gateway
+   pins keys and does not follow the key history, and it accepts a refreshed
+   CRL only from the issuer it was configured with. Its operator re-pins the
+   network **after** `effective_at`: the new key as its only anchor and the
+   CRL the new key signed as its starting CRL, before the last CRL the old
+   key signed expires (12 to 24 hours later). Adding the new key before
+   `effective_at` changes nothing. Tell each gateway operator the new key ID,
+   public key and `effective_at` in advance; the gateway's key-succession
+   runbook (`docs/key-succession.md` in the gateway repository) has the
+   steps.
 
 **After a suspected compromise of the outgoing key**, set
 `NA_SUCCESSION_VOUCHING_GRACE_SECONDS=0` on every instance **before**
