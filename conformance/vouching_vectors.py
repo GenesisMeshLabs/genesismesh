@@ -13,8 +13,9 @@ judged now (``trust.key_succession.na_record_refusal``). A verdict is
 ``null`` when the record verifies, else the reason. Reason codes are the
 contract.
 
-Until the SDKs adopt it, only the core runs this suite (``runner.py``); it is
-not copied to the SDKs.
+The core runs this suite (``runner.py``), and from 1.8.1 the TypeScript,
+Rust, Go and .NET SDKs carry byte-identical copies, which the interop job
+compares.
 """
 
 from __future__ import annotations
