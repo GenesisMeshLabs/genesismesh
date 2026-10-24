@@ -201,6 +201,14 @@ the revocation feed and `/node/state`. Offline it retries every 15 seconds,
 backing off to 60. The age of its snapshot is measured from times the NA
 signed, so a device clock running fast does not keep it fresh.
 
+Across a key succession (agent 1.8.1), the CRL and the attestations must be
+signed by an NA key valid at their own time that still vouches now, and the
+grant holders judge their grants the same way: a grant past its key's
+vouching horizon ends as `grant_expired`. A sync that brings the succession
+rebuilds the holders with the new key, and the agent renews a certificate
+the old key signed within 10 minutes of `effective_at`. See
+{doc}`key-succession`.
+
 **The device clock must be within five minutes of the NA's.** Keep it
 synchronised (NTP), and on a board without a battery-backed clock keep the
 last time across reboots (for example `fake-hwclock`). What happens
