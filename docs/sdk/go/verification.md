@@ -197,6 +197,14 @@ records directly.
   use `NAKeysValidAlways` for a party whose history you do not hold. An
   agreement a succeeded key signed stops vouching when that key's hand-over
   ends.
+- **The vouching horizon (1.8.1).** Judged for the present, a record of a
+  key that has ended vouches only until that key's end, the hand-over and a
+  grace of at most 24 hours (`SuccessionVouchingGrace`):
+  `RecordOutlivesKey`, `KeysVouchingAt` and `WithVouchingGrace` on
+  `NAKeyHistory`, `VerifyCapabilityGrantAt` (`outlives_key`) and
+  `NARecordRefusal` for attestations, treaties, revocation feeds and grants.
+  `VerifyKeyHistoryResponse` takes the NA's `vouching_grace_seconds` only to
+  shorten the grace. See {doc}`/operations/key-succession`.
 
 Audit packs and archives are not verified by this SDK: use the core's
 `genesis-mesh audit verify` or the Rust SDK's `genesis-mesh-verify`

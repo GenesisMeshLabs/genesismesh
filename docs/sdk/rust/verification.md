@@ -106,6 +106,27 @@ one, every key given is valid at every time. The keys the history yields
 prove nothing unless you got the root key some other way. See
 {doc}`/operations/key-succession`.
 
+### The vouching horizon (1.8.1)
+
+Judged for the present, a record of a key that has ended vouches only until
+that key's end, the 300-second hand-over and a grace of at most 24 hours
+(`SUCCESSION_VOUCHING_GRACE_SECONDS`); the NA re-issues what is still valid
+under the new key. Judged at its own time, a record is unchanged.
+
+- `NaKeyHistory::record_outlives_key` and `keys_vouching_at`, given the
+  grace; `NaKeys::vouching_at` for both kinds of keys.
+  `key_history::vouching_grace` turns the NA's published
+  `vouching_grace_seconds` into the grace (it only shortens).
+- `verify_record_for_present(kind, record, options, now, grace)`: with the
+  key history, an attestation or a grant of a key past its horizon is
+  `outlives_key`. `verify_record` and `genesis-mesh-verify` judge records
+  at their own time.
+- `vouching::na_record_refusal`: the reference's verdict on an attestation,
+  treaty, revocation feed or grant, pinned by the shared `vouching` suite.
+- `GrantHolder` takes the key history (`impl Into<NaKeys>`): the grant is
+  judged now, and revocation feeds are ordered by their signer's key, then
+  by `sequence`. `GrantHolder::with_vouching_grace` shortens its grace.
+
 ---
 
 ## Evidence exports and records
