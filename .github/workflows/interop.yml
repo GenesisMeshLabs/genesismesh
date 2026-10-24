@@ -132,6 +132,11 @@ jobs:
           cmp conformance/vectors/grants.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/grants.json
           # v1.7.0: and the node suite (node request signatures), which only the Rust SDK runs.
           cmp conformance/vectors/node.json sdks/sdk-rust/tests/fixtures/node.json
+          # 1.8.1: and the vouching suite (the vouching horizon of NA-signed records).
+          cmp conformance/vectors/vouching.json sdks/sdk-typescript/tests/fixtures/conformance/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-rust/tests/fixtures/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-go/genesismesh/testdata/conformance/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/vouching.json
 
       # A filter that matches no test passes in Go ("no tests to run"): require
       # at least one, so a renamed test cannot turn this step green.

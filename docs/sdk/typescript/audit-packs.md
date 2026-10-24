@@ -50,6 +50,41 @@ An agreement's `established_at` is not signed, so it places nothing: an
 agreement a succeeded key signed stops vouching when that key's hand-over
 ends (`verifyAgreement(record, keys, keys, digest, now)`).
 
+### The vouching horizon (1.8.0)
+
+Placed at its own time, a record shows which key signed it. Whoever kept the
+outgoing key after a succession could still sign a record dated inside that
+key's window. So, judged **for the present**, a record of a key that has ended
+vouches only until that key's horizon:
+- the key's end (its succession, or an enforced `valid_to`);
+- the 300-second hand-over;
+- the grace, 24 hours at most (`SUCCESSION_VOUCHING_GRACE_SECONDS`).
+
+The Network Authority re-issues what is still valid under the new key.
+Judged at its own time, as audit packs and exports judge it, a record is
+unchanged.
+
+| Where | What |
+|---|---|
+| `verifyAttestationSignature`, `verifyTreatySignature`, `verifyRevocationFeedSignature`, `verifyCapabilityGrant` | Take `{ now }`: with it and the key history, a key past its horizon at `now` does not count. Without it, the record is judged at its own time, as before |
+| `GrantHolder` | Always judges now. A grant of a key past its horizon is refused when the holder is built, and ends as `grant_expired` when it passes the horizon later. Revocation feeds are ordered by their signer's key sequence, then by `sequence`, so a feed of a later key always wins and an old key's feed stops blocking once that key is past its horizon |
+| `recordOutlivesKey`, `naKeysVouchingAt`, `NAKeyHistory.vouchesUntilMicros` | The horizon itself |
+| `naRecordRefusal` | The reason by name: `outlives_key`, `record_malformed` (signed, but refused by its model, such as a grant that starts more than 24 hours after its issue) and the signature reasons. The `vouching` conformance suite pins it |
+
+`gm.na.verifiedKeyHistory` takes the NA's `vouching_grace_seconds` (an NA
+from 1.8.0 publishes it) only to shorten the grace:
+`history.withVouchingGrace(seconds)` does the same for a history you hold.
+
+```typescript
+const history = await gm.na.verifiedKeyHistory(rootPublicKey);
+verifyAttestationSignature(attestation, history);                       // at its own time
+verifyAttestationSignature(attestation, history, { now: new Date() });  // for the present
+```
+
+Verifiers need a trustworthy clock, and offline devices must refresh the
+key history within the horizon. Upgrade the Network Authority to 1.8.0
+first and let it re-issue (`reissue_pending: false` on its `/readyz`).
+
 Fetch the history and verify it from the root key you hold. The served
 `keys` and `root_public_key` are ignored: the history is rebuilt from the
 genesis block down, and keys in the records prove nothing alone.
