@@ -35,8 +35,13 @@ both are demonstrations.
   the same VM; see {doc}`public-reference-dashboard`.
 - **[https://mesh.genesismesh.org](https://mesh.genesismesh.org)** is a
   gateway console in front of its own Network Authority, on one small VM with
-  Docker Compose (`infrastructure/mesh-demo/`). The NA is not published; only
-  the gateway reaches it.
+  Docker Compose (`infrastructure/mesh-demo/`). The NA's admin API is not
+  published. On the same VM:
+  - **`https://na.mesh.genesismesh.org`** serves only the NA's node routes, so
+    nodes and agents can join from elsewhere;
+  - **`https://mcp.genesismesh.org/mcp`** is the MCP server
+    (`genesismesh-mcp`), with an operator key of its own, for AI assistants and
+    agents with an approval code. See {doc}`../concepts/mcp-server`.
 
 ---
 

@@ -14,3 +14,26 @@ mesh.genesismesh.org {
 		}
 	}
 }
+
+mcp.genesismesh.org {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy na:8765 {
+		health_uri /health
+	}
+}
+
+# The mesh Network Authority's node-facing routes, for nodes and agents that join from elsewhere
+# (genesismesh-mcp guide genesis-mesh://guide/enroll-node). Never the admin API.
+na.mesh.genesismesh.org {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+	@node path /join /renew /heartbeat /node/* /agents /agents/* /genesis /na/key-history /policy /crl /sovereign-revocation-feed /recognition-treaties /recognition-treaties/* /recognition-policy /sovereign.json /healthz /readyz /evidence/execution /evidence/grant-executions /evidence/break-glass /evidence/observations /evidence/observations/batch /evidence/remediations /grants/time-tokens
+	handle @node {
+		reverse_proxy na:8000
+	}
+	handle {
+		header Content-Type "application/json"
+		respond `{"error":{"code":"not_a_node_route","message":"This host serves only the authority's node routes."}}` 404
+	}
+}

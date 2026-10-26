@@ -58,6 +58,12 @@ says what each one promises.
   static binaries with the Rust SDK release and the image
   `ghcr.io/genesismeshlabs/genesis-mesh-edge`. See
   [Edge agent](https://docs.genesismesh.org/operations/edge-agent.html).
+- **MCP server (development, outside the release train):**
+  [`genesismesh-mcp`](https://github.com/GenesisMeshLabs/genesismesh-mcp), which
+  gives AI assistants and agents the Network Authority's operations, offline
+  verification and signing as Model Context Protocol tools, over stdio or
+  Streamable HTTP with OAuth. Pinned to the release it supports. See
+  [MCP Server](https://docs.genesismesh.org/concepts/mcp-server.html).
 - **Gateway (beta):** `genesis-mesh-gateway`, a Rust service that checks
   signed join certificates against its policy, follows the authorities'
   revocation lists and forwards scoped calls to them. See
