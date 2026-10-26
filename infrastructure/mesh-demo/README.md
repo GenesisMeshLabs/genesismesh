@@ -125,9 +125,14 @@ curl -fsS https://mesh.genesismesh.org/ready
 curl -fsS https://mesh.genesismesh.org/demo-data/status.json
 ```
 
-Upgrade: set the new versions in `.env`, `docker compose build na`, load the
-new gateway image (verify its checksum and cosign signature first), then
-`docker compose up -d`. The NA republishes its CRL before expiry (v0.64.1).
+Upgrade, once a release is published: copy `upgrade.sh` beside
+`docker-compose.yml` and run `./upgrade.sh X.Y.Z`. It verifies the gateway
+image's signature (cosign 3), backs up the configuration and the volumes, sets
+the versions in `.env`, builds the NA from PyPI, restarts, and checks
+`verify-db` and readiness; the log is in `/root/upgrade-X.Y.Z/`. Read the
+release's upgrade notes first: a release that needs an operator step is not
+upgraded by the script alone. The NA republishes its CRL before expiry
+(v0.64.1).
 
 Reset the demo data: `docker compose down`, remove the `na-data`,
 `demo-state` and `demo-data` volumes, start again. The NA keeps its identity
