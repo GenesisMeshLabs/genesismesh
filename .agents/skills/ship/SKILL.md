@@ -459,7 +459,9 @@ Fail: **HARD STOP** — secrets staged for commit.
 
 ## PHASE 8 — Version bump
 
-Edit `pyproject.toml`: set `version = "{X.Y.Z}"`.
+Run `python scripts/check_version.py --set {X.Y.Z}`. It writes `VERSION`,
+`pyproject.toml`, the source fallback and every page and deployment example
+that states the current release (`SITES` in the script), then checks them.
 
 ---
 

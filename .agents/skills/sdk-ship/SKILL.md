@@ -378,17 +378,12 @@ mismatch fails the tag build. Fail: **HARD STOP** — release the core first.
 
 ## PHASE 8 — Version bump
 
-Update the version in the SDK package manifest to `X.Y.Z`:
-
-| Language | File | Field |
-|----------|------|-------|
-| TypeScript | `sdk-typescript/package.json` | `"version"` |
-| Go | `sdk-go/go.mod` | module path tag (set via git tag) |
-| C# | `sdk-cs/{Project}.csproj` | `<Version>` |
-| Rust SDK | `sdk-rust/Cargo.toml` and `VERSION` | `version` |
-| Rust gateway | `gateway/Cargo.toml` | `version` |
-
-Every component also keeps a `VERSION` file (the gateway uses `Cargo.toml`).
+`devtools/release.py prepare X.Y.Z` writes the version wherever each
+component declares it (`devtools/release.json`: `VERSION`, `package.json` and
+its lockfile, the `.csproj`, the three `Cargo.toml` of the Rust SDK and
+`Cargo.lock`, the gateway's `Cargo.toml`, `Cargo.lock` and `ui/openapi.json`),
+folds the changelog fragments and opens the `release/X.Y.Z` pull request. For
+one component only: `--repo sdk-go`.
 
 ---
 

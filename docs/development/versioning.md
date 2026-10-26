@@ -64,6 +64,37 @@ core `main`, which may already carry the next version's changes: the core's
 image workflow builds the gateway's tag of its version, and the SDKs' and the
 gateway's tag builds check out the core tag of theirs.
 
+## Cutting a release and propagating it
+
+Nobody edits version numbers by hand.
+
+- **The core states its version in one command.** Besides `VERSION`,
+  `pyproject.toml` and the source fallback, the core states the current release
+  in its README, the gateway and SDK pages, the install commands and the
+  Compose and Kubernetes examples. `scripts/check_version.py` lists every such
+  statement (`SITES`): the check (pre-commit, CI, the publish workflows) fails
+  when one lags `VERSION`, and `python scripts/check_version.py --set X.Y.Z`
+  writes them all. A page that starts stating the current release, for example
+  an install command with the version, is added to `SITES` in the same pull
+  request. Historical mentions ("from 1.7.0") are not sites.
+- **The train is cut at once.** `devtools/release.py prepare X.Y.Z --title
+  "..."` opens `release/X.Y.Z` in the six repositories: it writes the version
+  everywhere each declares it, folds the changelog fragments (a component with
+  none gets "Nothing changes in this SDK"), runs the repository's own version
+  check and opens the pull request. The core's pull request then gets its
+  release narrative; the Maintainer merges the core first, then the
+  components. `devtools/release.py tag X.Y.Z` signs and pushes the tags, the
+  core first, and creates the core's GitHub release, which publishes it.
+- **Everything that pins a release follows.** The MCP server, the labs, the
+  Backstage plugin, the sandbox and the websites extend the shared Renovate
+  preset (`devtools/renovate/genesis-mesh.json`). When a version is published,
+  Renovate opens one "Update Genesis Mesh" pull request in each; the .NET SDK
+  uses it to move its API baseline once NuGet has the release.
+- **The live hosts.** The Azure reference instance deploys a tag through
+  `deploy-release-azure-vm.yml`; mesh.genesismesh.org upgrades with
+  `infrastructure/mesh-demo/upgrade.sh X.Y.Z`. Both are production changes the
+  Maintainer starts.
+
 ## Changelogs: fragments, folded at release
 
 Work for the next version often starts before the current release merges. Two
