@@ -13,8 +13,9 @@ pins one Genesis Mesh release exactly: it refuses to start against another.
 ## Status
 
 `0.1.0.dev0`, unreleased and outside the coordinated release train. It is
-pinned to Genesis Mesh 1.8.1. CI runs it on Windows and Linux with Python 3.12
-and 3.14, and requires full line and branch coverage of its adapters.
+pinned to one exact Genesis Mesh release (its `pyproject.toml`). CI runs it on
+Windows and Linux with Python 3.12 and 3.14, and requires full line and branch
+coverage of its adapters.
 
 ## What it covers
 
