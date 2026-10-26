@@ -7,10 +7,11 @@ keeps signed activity flowing. Runs on one small VM (1 GB, Docker Compose).
 
 | Service | Role |
 | --- | --- |
-| `na` | The `genesis-mesh` NA (PyPI release, SQLite). Not published; reached by the gateway and the demo job only. |
+| `na` | The `genesis-mesh` NA (PyPI release, SQLite). Its admin API is not published: the gateway, the demo job and the MCP server reach it inside the VM. Its node routes are published at `na.mesh.genesismesh.org`. |
 | `demo` | `demo/demo_job.py` every 10 minutes: bootstrap, reference feed import, visitor badges, a governed secret rotation, published demo data. |
 | `gateway` | The released gateway image. Networks `genesis-mesh` and `gm-demo-public-na`; a maintainer client and a public demo client. |
-| `proxy` | Caddy: TLS (Let's Encrypt), HSTS, the gateway, and `/demo-data/` read-only. |
+| `mcp` | The MCP server (`genesismesh-mcp`, HTTP with OAuth), built from its repository. It shares the NA's network namespace, so it calls the NA on `127.0.0.1:8000`. |
+| `proxy` | Caddy: TLS (Let's Encrypt), HSTS, the gateway, `/demo-data/` read-only, `mcp.genesismesh.org` (the MCP server) and `na.mesh.genesismesh.org` (the NA's node routes only; everything else answers 404). |
 
 ## Keys
 
@@ -26,6 +27,8 @@ leaves it.
 | `demo-ops` | VM `.env` | Privileged operator for the demo job: issuing and revoking attestations and importing feeds need that tier. Revoke it with the operator-key revocation route if the VM is compromised. |
 | executor | VM `.env` | Signs the demo controller's execution evidence |
 | `mesh-reader` | VM `secrets/mesh-reader.key` | Read-tier operator for the gateway's mesh view: the NA lists attestations to operators only, and a read key opens that list and the node roster, nothing else. |
+| `mcp-ops` | VM `mcp/keys/operator.key` | Privileged operator for the MCP server, so its actions are attributed to it and it can be revoked alone. Named holder `mcp-agent`, set by a holder change that `demo-ops` proposed and `ops` approved. |
+| `mcp-signer` | VM `mcp/keys/signer.key` | The MCP server's offline signer, allowed for its signing tools by name |
 
 `.env` (mode 600): `GENESIS_MESH_VERSION`, `GATEWAY_VERSION`,
 `NA_PRIVATE_KEY_SEED`, `NA_PUBLIC_KEY`, `OPERATOR_PUBLIC_KEYS_JSON` (`ops`,
@@ -80,6 +83,38 @@ on `genesis-mesh`, and two clients:
 
 On first start, initialize the gateway's durable state once:
 `docker compose run --rm --no-deps gateway --init-state`.
+
+## MCP server and the public node route
+
+The `mcp` service runs `genesismesh-mcp-http` (see that repository's
+`docs/http-transport.md`). Build its image from the repository at a reviewed
+commit and set that tag in `docker-compose.yml`:
+
+```sh
+git clone https://github.com/GenesisMeshLabs/genesismesh-mcp.git src && git -C src checkout <commit>
+docker build -t genesismesh-mcp:<commit12> src
+```
+
+Its configuration is `mcp/` (owned by uid 10001, mode 600): `settings.json`
+(the tool profiles; `authority_url` `http://127.0.0.1:8000` with
+`allow_http_loopback`; `operator_key_file` `keys/operator.key` as `mcp-ops`;
+`node_enrollment_url` `https://na.mesh.genesismesh.org`) and `remote.json`
+(`issuer_url` `https://mcp.genesismesh.org`, `state_db` on the `mcp-state`
+volume, `host` `0.0.0.0`, `port` `8765`). Generate `mcp-ops` as for
+`mesh-reader`, add it to `OPERATOR_PUBLIC_KEYS_JSON`, and restart the NA
+before starting `mcp`. Clients and agents:
+
+```sh
+docker compose exec -T mcp genesismesh-mcp-admin --remote /config/remote.json issue-code --scopes gm:admin
+docker compose exec -T mcp genesismesh-mcp-admin --remote /config/remote.json create-agent --label ops-agent --scopes gm:admin --days 30
+docker compose exec -T mcp genesismesh-mcp-admin --remote /config/remote.json list
+docker compose exec -T mcp genesismesh-mcp-admin --remote /config/remote.json revoke <client_id>
+```
+
+The NA runs with `NA_PROXY_HOPS=1`: requests through Caddy carry the
+client's address in `X-Forwarded-For`, so the NA's per-client rate limits
+apply to nodes joining at `na.mesh.genesismesh.org`. The gateway, the demo
+job and the MCP server reach the NA directly.
 
 ## Operate
 

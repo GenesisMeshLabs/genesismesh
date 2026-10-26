@@ -221,6 +221,7 @@ concepts/introduction
 concepts/protocol
 concepts/context
 concepts/rust-gateway
+concepts/mcp-server
 ```
 
 ```{toctree}
