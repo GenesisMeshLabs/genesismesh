@@ -13,7 +13,7 @@ record has an "Implemented" line.
 | Decision | In effect (2026-10-22) |
 | --- | --- |
 | {doc}`0001-release-model` | No. No contract bundle yet; Phase C of the plan, parked |
-| {doc}`0002-sdk-tiers` | No. No capability matrix; Go and .NET still follow the lockstep train |
+| {doc}`0002-sdk-tiers` | No. No capability matrix; Go still follows the lockstep train. Superseded for .NET by 0008 |
 | {doc}`0003-verification-engine` | No. No generated per-kind tables |
 | {doc}`0004-forward-compatibility` | No. No `unverified_kind` outcome |
 | {doc}`0005-switch-lifecycle` | No. `upgrade.yml` still covers every release since 0.59.1 |
