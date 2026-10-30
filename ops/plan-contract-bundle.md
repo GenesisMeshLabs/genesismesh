@@ -58,8 +58,8 @@ Deliberately not in v1:
   "include": ["conformance/vectors/*.json", "conformance/fixtures/audit-pack-1.5.0/**",
               "contract/public-surface.json", "contract/kinds.json", "scripts/gm_contract.py"],
   "tiers": {
-    "verifier": "Offline verifier plus thin client (decision 0002): sdk-go",
-    "governed": "Governed client: sdk-typescript, sdk-rust, sdk-dotnet (decision 0008, in progress)",
+    "verifier": "Offline verifier plus thin client (decision 0002): sdk-go; sdk-dotnet until decision 0008 is implemented",
+    "governed": "Governed client: sdk-typescript, sdk-rust; sdk-dotnet once decision 0008 is implemented",
     "edge": "Edge agent: sdk-rust genesis-mesh-edge",
     "gateway": "Trust gateway console: gateway"
   },
