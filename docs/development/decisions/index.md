@@ -19,6 +19,7 @@ record has an "Implemented" line.
 | {doc}`0005-switch-lifecycle` | No. `upgrade.yml` still covers every release since 0.59.1 |
 | {doc}`0006-review` | Yes |
 | {doc}`0007-dormant-packages` | In part. The module map marks the packages; the contract only omits them |
+| {doc}`0008-dotnet-governed-client` | In progress (2026-10-30). sdk-dotnet adds the governed client features one pull request at a time |
 
 ```{toctree}
 :maxdepth: 1
@@ -30,4 +31,5 @@ record has an "Implemented" line.
 0005-switch-lifecycle
 0006-review
 0007-dormant-packages
+0008-dotnet-governed-client
 ```
