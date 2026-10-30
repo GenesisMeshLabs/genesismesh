@@ -385,7 +385,8 @@ Correction (2026-10-22): this section first said the three SDKs were
 "independent, decoupled packages" that "implement the complete stable HTTP
 surface". They release in the lockstep train ({doc}`versioning`). Today only
 the TypeScript SDK wraps every stable route; Go and .NET are a verifier plus
-a thin client ({doc}`decisions/0002-sdk-tiers`).
+a thin client ({doc}`decisions/0002-sdk-tiers`). From 2026-10-30 .NET is
+becoming a governed client ({doc}`decisions/0008-dotnet-governed-client`).
 
 The layer rules are in {doc}`architecture`; `test_architecture.py` enforces
 them, with the violations of 2026-10-16 allowlisted so they can only shrink.
