@@ -1,6 +1,6 @@
 # 0002: SDK capability tiers; Go and .NET as verifier plus thin client
 
-**Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
+**Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`. Superseded for .NET by {doc}`0008-dotnet-governed-client` (2026-10-30): .NET becomes a governed client. Go is unchanged.
 
 **Implemented:** not yet (2026-10-22). The docs have no capability matrix, and the Go and .NET SDKs are still at 1.7.0 in the lockstep train.
 
