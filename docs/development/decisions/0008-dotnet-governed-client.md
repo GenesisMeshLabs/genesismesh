@@ -2,7 +2,7 @@
 
 **Status:** accepted (Maintainer, 2026-10-30). Supersedes {doc}`0002-sdk-tiers` for .NET; Go is unchanged.
 
-**Implemented:** in progress (2026-10-30). sdk-dotnet adds the TypeScript SDK's features one pull request at a time, in the order a governed controller uses them. Merged for 1.9.0, not yet released: XML documentation on every public member, the transport (failover, retries, operator signers) and policies with policy-aware evaluation.
+**Implemented:** in sdk-dotnet for 1.9.0, not yet released (2026-11-04). sdk-dotnet added the TypeScript SDK's features one pull request at a time, in the order a governed controller uses them: XML documentation on every public member, the transport (failover, retries, operator signers), policies with policy-aware evaluation, the evidence store, governed actions with the evidence and record outboxes, break-glass, changes outside the governed path, remediation and reviews, pre-issued grants and their holder, and offline verification of exports, store anchors and audit packs. It runs every conformance vector a verifier can run, and its live tests run a partner controller's governed lifecycle against an NA. The capability matrix is on the SDK overview ({doc}`../../sdk/index`).
 
 ## Context
 
@@ -36,6 +36,6 @@ Decision 0002 kept .NET a verifier plus a thin client and ported no governed lif
 ## Consequences
 
 - Users choosing an SDK for a governed controller can choose .NET once the governed features ship. Until then the TypeScript SDK is the reference.
-- The capability matrix 0002 called for, not yet written, lists .NET as a governed client once the gap is closed. Until then .NET is a verifier plus a thin client with governed features in progress.
+- The capability matrix 0002 called for is on the SDK overview ({doc}`../../sdk/index`): .NET is a governed client from 1.9.0, and a verifier plus a thin client up to 1.8.1.
 - The conformance suites the .NET SDK runs grow with each feature, to the TypeScript SDK's set.
 - **The cost of not taking the 2.0 now.** The governed API is added in the package's current shape: no `Async` names, and the remaining untyped requests. 0002's reason for a 2.0 now was that it is cheap while adoption is zero. Once governed users adopt the SDK, that no longer holds: a later 2.0 breaks an API in use. This is accepted so that the governed features are not blocked on a redesign. New APIs are typed where the TypeScript SDK types them, to keep what a 2.0 must change small.

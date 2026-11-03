@@ -21,10 +21,11 @@ your machine: {doc}`local-network-authority`.
 Version 1.8.1 is the coordinated source version. Registry publication occurs
 only after the complete release gate passes in every component repository.
 
-The TypeScript SDK is the most complete client: from 0.59.1 it covers
+The TypeScript SDK is the reference client: from 0.59.1 it covers
 attestation-backed evaluation, the boundary policy lifecycle, the evidence
 store and offline verification, and from 0.60.0 failover across HA instances
-and readiness (see {doc}`typescript/index`).
+and readiness (see {doc}`typescript/index`). The .NET SDK reaches its
+features in 1.9.0 (see {doc}`dotnet/index` and the capabilities below).
 
 From 0.61.0 the TypeScript, Go and .NET SDKs verify agreements, boundary
 decisions (with their policy and attestation bindings), data license policies
@@ -43,12 +44,6 @@ queue and on every push to `main` (see
 | Rust SDK | `genesis-mesh-sdk` crate (Git dependency; not on crates.io) | 1.8.1 | `GenesisMeshLabs/sdk-rust` |
 | Rust gateway | `genesis-mesh-gateway` (GitHub release binaries; not on crates.io) | 1.8.1 | `GenesisMeshLabs/gateway` |
 
-The Go and .NET SDKs share the version number but not the whole surface: they
-have no evidence store client and no observation, break-glass or outbox API,
-and do not verify evidence exports. To record changes made outside the
-controlled path, use the TypeScript or Rust SDK, or the HTTP routes in
-{doc}`../operations/out-of-band-changes`.
-
 Rust has two components. The Rust SDK (`genesis-mesh-sdk`) is an NA client
 like the other three, including governed actions and offline evidence
 verification since 0.64.0 ({doc}`rust/sdk`). The gateway crate ships the
@@ -62,6 +57,38 @@ for one device, enrolled with an edge invite. Applications on the device ask
 it over a local API; it asks the NA when it can, and acts under grants or
 break-glass when it cannot. Only the Rust SDK runs the `node` conformance
 suite (node request signatures). See {doc}`../operations/edge-agent`.
+
+## Capabilities
+
+The SDKs share the version number, not the whole surface. Each sits in one of
+two tiers (decisions {doc}`../development/decisions/0002-sdk-tiers` and
+{doc}`../development/decisions/0008-dotnet-governed-client`):
+
+- **A governed client** runs a controller's changes under the NA's decisions
+  and records them: TypeScript and Rust, and .NET from 1.9.0.
+- **A verifier plus a thin client** calls the trust API and verifies its
+  signed records offline: Go, and .NET up to 1.8.1.
+
+| Capability | TypeScript | Rust SDK | .NET | Go |
+|---|---|---|---|---|
+| The trust API's clients, and raw admin calls | yes | yes | yes | yes |
+| Policies and policy-aware evaluation | yes | yes | from 1.9.0 | raw admin calls |
+| Several NA instances, with failover | yes | no | from 1.9.0 | no |
+| The evidence store and execution evidence | yes | yes | from 1.9.0 | no |
+| Governed actions and the evidence outbox | yes | yes | from 1.9.0 | no |
+| Observations, break-glass and the record outbox | yes | yes | from 1.9.0 | no |
+| Remediation and reviews | yes | yes | from 1.9.0 | no |
+| Pre-issued grants: issuing them and acting within one | yes | yes | from 1.9.0 | no |
+| Offline: boundary decisions, the NA key history and a grant's signature | yes | yes | yes | yes |
+| Offline: agreements, license policies and data access intents (the `interop` suite) | yes | no | yes | yes |
+| Offline: evidence exports and store anchors | yes | yes | from 1.9.0 | no |
+| Offline: audit packs and their completeness check | yes | yes | from 1.9.0 | no |
+| Typed request and response models | yes | no (JSON values) | yes | yes |
+| Node request signatures and the edge agent | no | yes | no | no |
+
+Where an SDK has no client for a route, call it with a signed raw admin call.
+To record changes made outside the controlled path without a governed client,
+use the HTTP routes in {doc}`../operations/out-of-band-changes`.
 
 ## Design principles
 
