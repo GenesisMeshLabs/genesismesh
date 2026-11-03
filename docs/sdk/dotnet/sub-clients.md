@@ -42,23 +42,51 @@ for the `responder_sovereign_id`. Issue it first via `POST /admin/recognition-tr
 
 ## `client.Boundary`
 
-Wraps the Boundary domain (`/admin/boundary/decide`, `/boundary/verify`).
+Wraps the Boundary domain (`/admin/boundary/evaluate`, `/admin/boundary/decide`,
+`/boundary/verify`).
 
 | Method | Tier | Description |
 |--------|------|-------------|
+| `Evaluate(EvaluateRequest, ct)` (1.9.0) | standard | Policy decision under one basis, `AttestationId` or `Agreement` → `BoundaryEvaluation` (the decision and its justification proof) |
 | `Decide(body, ct)` | standard | Issue a boundary decision → `BoundaryDecision` (legacy route) |
 | `Verify(body, ct)` | public | Verify a boundary decision |
 
-`Decide` needs `agreement` (an `AgreementRecord`) and `requested_capability`
-in the body; without them the NA answers 400 `missing_boundary_fields`.
+`Evaluate` is the route an NA that requires policies accepts. A denial is a
+signed decision with `Authorized == false`, not an error. To run your change
+only on a verified ALLOW and record it, use a governed action
+({doc}`governance`).
 
-**Governed NA.** `Decide` is the legacy route. An NA that requires boundary
-policies (`BOUNDARY_POLICY_ENFORCEMENT=required`, which `genesis-mesh init`
-sets, as on the {doc}`local NA <../local-network-authority>`) refuses it with
-409 `boundary_policy_required`. In 1.7.0 the SDK throws that as
-`ServerException`; from 1.8.0 it is a `ConflictException`. On
-such an NA, call `POST /admin/boundary/evaluate` (standard tier) with a raw
-admin call: {doc}`auth` shows one. This SDK has no method for it.
+`Decide` needs `agreement` (an `AgreementRecord`) and `requested_capability`
+in the body; without them the NA answers 400 `missing_boundary_fields`. It is
+the legacy route: an NA that requires boundary policies
+(`BOUNDARY_POLICY_ENFORCEMENT=required`, which `genesis-mesh init` sets, as on
+the {doc}`local NA <../local-network-authority>`) refuses it with 409
+`boundary_policy_required` (`ConflictException` from 1.8.0;
+`ServerException` in 1.7.0). Before 1.9.0 the SDK had no method for the
+evaluate route: call it with a raw admin call ({doc}`auth`).
+
+---
+
+## `client.Policy`
+
+The boundary policy lifecycle (`/admin/boundary-policies/*`,
+`/boundary-policies/verify`), from 1.9.0.
+
+| Method | Tier | Description |
+|--------|------|-------------|
+| `Validate(intent, ct)` | standard | Dry-run a policy against the NA's gate registry → `PolicyValidation` |
+| `Publish(intent, ct)` | privileged | Validate, sign and store a new inactive version → `BoundaryPolicy` |
+| `List(ct)` | standard | Every stored version of every policy |
+| `Active(ct)` | standard | The active set, its health and the enforcement mode |
+| `History(policyId, ct)` | standard | Every version of one policy, newest first, with the signed bodies |
+| `Activate(policyId, version, ct)` | privileged | Activate a version; an older version is a rollback |
+| `Deactivate(policyId, version, ct)` | privileged | Deactivate an active version |
+| `Verify(policy, issuerKeys, ct)` | public | Verify a policy's signature |
+
+`Publish` refuses an invalid intent with 400 `boundary_policy_invalid`, its
+issues in the exception's `Details`. A gate runs in `enforce` mode unless its
+`Mode` is `observe`: an observed failure is reported in the decision but does
+not deny.
 
 ---
 
@@ -82,6 +110,30 @@ with 400 `invalid_verdict` (`BadRequestException`).
 
 ---
 
+## `client.EvidenceStore`
+
+The execution evidence store (`/evidence/*`, `/admin/evidence/*`), from
+1.9.0. The NA must run with `EVIDENCE_STORE=on` (off by default); until then
+the routes answer 404 `evidence_store_disabled`. Changes outside the governed
+path also need `EVIDENCE_OUT_OF_BAND=on`, remediation `EVIDENCE_REMEDIATION=on`.
+
+| Methods | Tier | Guide |
+|---------|------|-------|
+| `Submit`, `SubmitObservation(s)`, `SubmitBreakGlass`, `SubmitRemediation` | public (signed by the executor or observer key) | {doc}`governance` |
+| `Enqueue`, `FlushPending`, `PendingHead`, `EnqueueRecord`, `FlushRecords` (outboxes) | as the submissions | {doc}`governance` |
+| `Search`, `Iterate`, `Status`, `Verify`, `ResourceHistory`, `VendorHistory`, `Export`, `ExportText`, `ExportAll`, `ListExecutorKeys`, `ResourceHead`, `StoredResourceHead`, `ResourceStates`, `LatestCheckpoint` | read | {doc}`governance`, {doc}`verification` |
+| `RegisterExecutorKey`, `RetireExecutorKey`, `ApplyRetention` | privileged | {doc}`governance` |
+| `Anchors`, `AllAnchors`, `Anchor`, `AuditPack`, `Archives` | read | {doc}`verification` |
+| `RecordArchive` | privileged | {doc}`verification` |
+| `ResourceChanges`, `AllResourceChanges`, `OperatorHolders` | read | {doc}`governance` |
+| `JudgeObservation`, `JudgeBreakGlass` | standard | {doc}`governance` |
+| `ProposeHolder`, `ApproveHolder` | privileged | {doc}`governance` |
+| `Remediations`, `AllRemediations`, `Remediation`, `Review` | read | {doc}`governance` |
+| `MarkNotified`, `RequestReview` | standard | {doc}`governance` |
+| `DecideReview` | privileged | {doc}`governance` |
+
+---
+
 ## `client.Attestation`
 
 Wraps the Attestation domain (`/admin/attestations/*`, `/admin/recognition-policy`).
@@ -91,6 +143,11 @@ Wraps the Attestation domain (`/admin/attestations/*`, `/admin/recognition-polic
 | `Issue(body, ct)` | privileged | Issue a membership attestation → `MembershipAttestation` |
 | `Revoke(id, body, ct)` | privileged | Revoke an attestation by ID |
 | `SavePolicy(body, ct)` | privileged | Set the recognition policy |
+| `Get(id, ct)` (1.9.0) | public | One attestation and its status → `AttestationRecord` |
+| `List(filter, ct)` (1.9.0) | read, or public | With a signing key: the attestations, filtered by issuer, subject or status. Without one: the count only |
+| `Verify(request, ct)` (1.9.0) | public | Verify an attestation against a recognition policy |
+| `GetPolicy(ct)` (1.9.0) | public | The NA's active recognition policy |
+| `RevocationFeed(issuerSovereignId, ct)` (1.9.0) | public | The signed feed of revoked attestations for an issuer; this NA by default |
 
 **Constraint:** `roles` must use a recognized prefix: `role:anchor`,
 `role:bridge`, `role:client`, `role:operator`, or `role:service:<name>`.
@@ -146,6 +203,47 @@ a missing or wrong field is refused with 400 `invalid_source`
 (`BadRequestException`).
 
 `source_type` must be one of `"personal"`, `"proprietary"`, `"public"`, `"synthetic"`.
+
+---
+
+## `client.Health`
+
+Liveness, readiness and health, from 1.9.0.
+
+| Method | Tier | Description |
+|--------|------|-------------|
+| `Liveness(ct)` | public | `GET /healthz`: the process is up |
+| `Readiness(ct)` | public | `GET /readyz`; a not-ready NA is returned with `Ready == false` and the failing checks, not thrown. A probe: it fails over but is not retried |
+| `Status(ct)` | public | `GET /health`: network, version, policy health and evidence store mode |
+| `Endpoints(ct)` | public | `/readyz` of every configured instance, probed directly |
+
+---
+
+## `client.NA`
+
+The NA's own keys, from 1.9.0. See {doc}`verification`.
+
+| Method | Tier | Description |
+|--------|------|-------------|
+| `KeyHistory(ct)` | public | `GET /na/key-history`: the genesis block, every succession and each key's validity, unverified |
+| `VerifiedKeyHistory(rootPublicKey, ct)` | public | The key history verified from the root key you hold; throws `KeyHistoryException` when it is refused |
+
+---
+
+## `client.Grants`
+
+Pre-issued grants, from 1.9.0. The NA must run with `EVIDENCE_GRANTS=on`
+(off by default). See {doc}`grants`.
+
+| Method | Tier | Description |
+|--------|------|-------------|
+| `IssueGrant(request, ct)` | privileged | Issue a grant: the signed grant and its first time token |
+| `Grants(page, ct)`, `AllGrants(...)` | read | Grants, newest first |
+| `Grant(id, ct)` | read | One grant with its state and revocation |
+| `GrantUses(id, page, ct)`, `AllGrantUses(id, ...)` | read | A grant's use chain, newest first |
+| `RevokeGrant(id, reason, ct)` | privileged | Revoke a grant |
+| `RequestTimeToken(request, ct)` | public (signed by the bearer key) | A fresh time token for the grant's holder |
+| `SubmitGrantUse(use, ct)` | public (signed by the bearer key) | Upload one signed use |
 
 ---
 

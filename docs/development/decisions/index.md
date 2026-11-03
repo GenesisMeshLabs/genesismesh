@@ -13,13 +13,13 @@ record has an "Implemented" line.
 | Decision | In effect (2026-10-22) |
 | --- | --- |
 | {doc}`0001-release-model` | No. No contract bundle yet; Phase C of the plan, parked |
-| {doc}`0002-sdk-tiers` | No. No capability matrix; Go still follows the lockstep train. Superseded for .NET by 0008 |
+| {doc}`0002-sdk-tiers` | In part. The capability matrix is on the SDK overview (2026-11-04); Go still follows the lockstep train. Superseded for .NET by 0008 |
 | {doc}`0003-verification-engine` | No. No generated per-kind tables |
 | {doc}`0004-forward-compatibility` | No. No `unverified_kind` outcome |
 | {doc}`0005-switch-lifecycle` | No. `upgrade.yml` still covers every release since 0.59.1 |
 | {doc}`0006-review` | Yes |
 | {doc}`0007-dormant-packages` | In part. The module map marks the packages; the contract only omits them |
-| {doc}`0008-dotnet-governed-client` | In progress (2026-10-30). sdk-dotnet adds the governed client features one pull request at a time |
+| {doc}`0008-dotnet-governed-client` | In sdk-dotnet for 1.9.0, not yet released (2026-11-04): the TypeScript SDK's governed features |
 
 ```{toctree}
 :maxdepth: 1

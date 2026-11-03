@@ -183,8 +183,11 @@ As of 1.7.0:
   policy-free `/admin/boundary/decide` route is refused. The attestation basis
   exists only on the policy-aware route.
 - The TypeScript and Rust SDKs evaluate under an `attestation_id` and verify
-  the attestation binding. The Go and .NET SDKs verify the binding offline
-  (`ExpectedAttestation`); they do not call the evaluate route.
+  the attestation binding, and so does the .NET SDK from 1.9.0
+  (`Boundary.Evaluate`, and `Governance.GovernedAction` with
+  `ExpectedAttestation`). The Go SDK, and the .NET SDK up to 1.8.1, verify the
+  binding offline (`ExpectedAttestation`); they do not call the evaluate
+  route.
 
 ## Test command
 

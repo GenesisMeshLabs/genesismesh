@@ -6,21 +6,36 @@ C# client for the Genesis Mesh Network Authority HTTP API.
 Targets .NET 8 (`net8.0`); from 1.8.0 also .NET 10 (`net10.0`).
 One runtime dependency: `NSec.Cryptography 25.4.0` (Ed25519).
 
-**Scope.** The .NET SDK has the same scope as the Go SDK: its clients
-(agreements, boundary decide and verify, trust evidence, attestations,
-selective disclosure, consensus, data usage, raw admin calls) and
-`OfflineVerifier` (agreements, boundary decisions, license policies and data
-access intents) are stable. It does not wrap the policy lifecycle,
-attestation evaluation or the evidence store: call those routes with raw
-admin calls ({doc}`auth`). It also verifies the NA's key history (1.5.0) and
-a pre-issued grant's signature (1.6.0) ({doc}`verification`). It has no
-outbox, break-glass, observation or remediation API and does not hold grants:
-those are in the TypeScript and Rust SDKs.
+**Scope.** From 1.9.0 the .NET SDK is a governed client, as the TypeScript
+SDK is (decision {doc}`../../development/decisions/0008-dotnet-governed-client`).
+Up to 1.8.1 it had the Go SDK's scope: the trust API's clients, offline
+verification of agreements, boundary decisions, license policies and data
+access intents, the NA's key history (1.5.0) and a pre-issued grant's
+signature (1.6.0). From 1.9.0 it also has:
+
+- **Calls to the NA:** policies and policy-aware evaluation, the evidence
+  store (execution evidence, histories, the export, executor keys, retention,
+  anchors, audit packs and archives), changes made outside the governed path,
+  remediation and reviews, pre-issued grants, health and the NA's key history
+  ({doc}`sub-clients`).
+- **Governed actions:** `Governance.GovernedAction` with the evidence outbox
+  and reconciliation, break-glass when the NA cannot be reached, the record
+  outbox, cancelling a denied change and urgent changes ({doc}`governance`),
+  and a `GrantHolder` that acts within a pre-issued grant ({doc}`grants`).
+- **Offline verification:** the NA's other signed records, an evidence export,
+  store anchors, audit packs and their completeness check
+  ({doc}`verification`).
+- **The transport:** several NA instances with failover, retries and signers
+  for a key the client does not hold (below).
+
+The node identity and the edge agent stay in the Rust SDK. 1.9.0 is not yet
+released: the package on NuGet is 1.8.1.
 
 To develop against a governed NA on your machine, see
 {doc}`../local-network-authority`. That NA requires boundary policies, so it
-refuses `Boundary.Decide`: a controller calls `/admin/boundary/evaluate` with a
-raw admin call instead (see {doc}`sub-clients`).
+refuses `Boundary.Decide`: a controller calls `Boundary.Evaluate` (1.9.0), or
+`/admin/boundary/evaluate` with a raw admin call before 1.9.0 (see
+{doc}`sub-clients`).
 
 ---
 
@@ -56,26 +71,59 @@ decides which admin methods it may call (see {doc}`sub-clients`).
 The client owns one `HttpClient`: create one client, reuse it, and dispose it
 when done.
 
-The client exposes 7 sub-clients:
+The client exposes 7 sub-clients up to 1.8.1, and 12 from 1.9.0:
 
 ```
 client.Agreement   client.Boundary    client.Evidence
 client.Attestation client.Disclosure  client.Consensus
 client.DataUsage
+client.Policy      client.EvidenceStore  client.Grants      (1.9.0)
+client.Health      client.NA                                (1.9.0)
 ```
 
 The offline verifiers are static methods of `OfflineVerifier`
-({doc}`verification`).
+({doc}`verification`); the governed actions are in `Governance`
+({doc}`governance`).
+
+### Several NA instances (1.9.0)
+
+```csharp
+using var client = new GenesisMeshClient(new ClientOptions
+{
+    BaseUrls = ["https://na-1.internal:9443", "https://na-2.internal:9443"],
+    Signer   = new SeedSigner(seed, "controller"),   // or your own ISigner, such as an HSM
+    Retry    = new RetrySettings { Attempts = 3 },
+});
+```
+
+- **`BaseUrls`:** several instances sharing one database, without a load
+  balancer. An idempotent request (a GET, a verification) moves to the next
+  instance on a connection failure or a 502, 503 or 504. Any other request
+  moves only when it never reached an instance.
+- **`Retry`:** idempotent requests are tried again after a connection failure
+  or a 429, 502, 503 or 504, with a doubling delay. A request that creates
+  state is never retried.
+- **`Signer`:** signs admin requests instead of `SigningKey` and `KeyId`.
+- **`HttpClient`, `HttpHandler`, `Headers` and `Timeout`:** for
+  `IHttpClientFactory`, connection lifetimes and gateways in front of the NA.
+- **`Outbox` and `RecordOutbox`:** durable storage for records the NA has not
+  admitted yet ({doc}`governance`).
 
 ---
 
 ## Pages
 
-- {doc}`sub-clients`: each sub-client's methods, the operator tier each one
-  needs, and the NA's constraints
-- {doc}`auth`: admin signatures, raw admin calls, errors and types
-- {doc}`verification`: offline verification, the NA key history and
-  pre-issued grants
+- **Calling the NA**
+  - {doc}`sub-clients`: each sub-client's methods, the operator tier each
+    one needs, and the NA's constraints
+  - {doc}`auth`: admin signatures, raw admin calls, errors and types
+- **A governed controller** (1.9.0)
+  - {doc}`governance`: governed actions, the outboxes, break-glass, changes
+    outside the governed path, remediation and reviews
+  - {doc}`grants`: pre-issued grants, and acting within one offline
+- **Verifying offline**
+  - {doc}`verification`: signed records, the NA key history, evidence
+    exports, store anchors and audit packs
 
 ---
 
@@ -107,5 +155,7 @@ solution also builds `net10.0`, so building `main` needs the .NET 10 SDK.
 
 sub-clients
 auth
+governance
+grants
 verification
 ```

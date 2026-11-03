@@ -6,6 +6,10 @@ method is a port of the Python reference and returns its reason codes. The
 shared conformance vectors check that they agree on the cases the vectors
 cover.
 
+From 1.9.0 it also verifies the NA's other signed records, an evidence export
+(every entry kind of the store), the store anchors an auditor holds, and audit
+packs with their completeness check (see the sections below).
+
 Two rules apply to every method on this page:
 
 - **Pass the JSON text as received** (`string`). Signatures cover the
@@ -203,10 +207,149 @@ Reasons, in order: `missing_signature`, `invalid_signature`, `unknown_field`,
 `non_canonical_form`, `na_key_not_valid_at_time`; `accepted` when valid.
 
 It does not check the grant's validity window, budget, parameter envelope or
-revocation. Holding grants (requesting them, holding time tokens, acting
-within a grant offline, recording its uses, falling back to break-glass) and
-verifying grants in an evidence export need the TypeScript or Rust SDK (see
-{doc}`../typescript/grants`).
+revocation. From 1.9.0 the grants' rules, the NA's grant routes and a holder
+that acts within a grant are in {doc}`grants`, and an export verifies grants,
+their uses and revocations (below). From 1.9.0 a grant must also be one the
+reference's model takes (`malformed` otherwise): a validity of at most 24
+hours, starting within 24 hours of its issue.
+
+---
+
+## Other signed records (1.9.0)
+
+```csharp
+bool decided = OfflineVerifier.VerifyDecisionSignature(decisionJson, new[] { naPublicKey });
+bool published = OfflineVerifier.VerifyPolicySignature(policyJson, history);
+bool issued = OfflineVerifier.VerifyAttestationSignature(attestationJson, history, DateTimeOffset.UtcNow);
+bool recognised = OfflineVerifier.VerifyTreatySignature(treatyJson, history);
+bool revoking = OfflineVerifier.VerifyRevocationFeedSignature(feedJson, history);
+```
+
+Each checks a signature over the record as received, by the NA's keys or by
+the key of its history valid at the record's time. A record must have no field
+this SDK does not know and be in canonical form: its timestamps as the
+reference writes them, and every field the reference always writes. With a
+time to judge at, an attestation, a treaty or a revocation feed must still
+vouch then.
+
+---
+
+## Evidence exports (1.9.0)
+
+An export, or a resource's history, verifies offline, without trusting the NA:
+
+```csharp
+var events = new List<EvidenceEvent>();
+await foreach (var e in admin.EvidenceStore.ExportAll()) events.Add(e);
+var result = OfflineVerifier.VerifyEvidenceEvents(events, new EvidenceVerifyOptions
+{
+    KeyHistory = await admin.NA.VerifiedKeyHistory(rootPublicKey),  // or NAPublicKeys = [naKey]
+    ExecutorKeys = await admin.EvidenceStore.ListExecutorKeys(),    // retired keys included
+});
+// result.Verified, result.Failures: StoreSequence, Reason, Detail
+```
+
+It is a port of the reference's `verify_evidence_events`, with its reason
+codes. It checks:
+
+- each envelope, its digests and the store chain;
+- every signature: the NA's under the key valid at the record's time, and
+  each executor's or observer's under a registered key with the role its kind
+  needs;
+- each execution record against its decision, and the decision, resource and
+  observation chains;
+- judgements, quarantine entries, remediation and review records, grant uses
+  and revocations, key successions and archive records, each against what the
+  run holds.
+
+A bad entry is a failure, never an exception. For an export that starts after
+a retention, pass `Checkpoint`, the NA-signed retention checkpoint as
+received. For a range of an audit pack, pass its cited entries as `Prior`.
+
+---
+
+## Store anchors (1.9.0)
+
+The store chain is hashed, not signed: whoever can write the NA's database can
+remove entries and rebuild the links. A store anchor is the NA's signed
+statement of the store's head, and anchors form their own chain. An auditor
+keeps copies of the anchors (`EvidenceStore.AllAnchors()`) out of the
+operator's reach and checks an export against them:
+
+```csharp
+var anchors = OfflineVerifier.ParseAnchors(heldAnchorsJson);  // the copies you hold
+var chain = OfflineVerifier.VerifyStoreAnchors(anchors, new AnchorVerifyOptions { KeyHistory = history });
+var run = OfflineVerifier.VerifyEvidenceEvents(events, options);
+OfflineVerifier.CheckEventsAgainstAnchors(events, anchors, run);
+// run.Anchors: how many anchors matched, where the anchored part of the run ends.
+```
+
+`VerifyStoreAnchors` checks each signature, the sovereign, the anchor chain
+and heads that only move forward. `CheckEventsAgainstAnchors` ties the run to
+the anchors at its start and its end, and checks each anchor inside it against
+its entry (`anchor_mismatch`).
+
+---
+
+## Audit packs (1.9.0)
+
+An audit pack is one range of the evidence store between two anchors, with
+everything its records cite, the NA's key history and a manifest the NA signs
+(protocol 1.5.0). An auditor verifies it offline, with no network and no
+private key, from what they hold themselves: the root public key and their
+copies of the anchors.
+
+```csharp
+var pack = await admin.EvidenceStore.AuditPack();                  // read tier
+var files = OfflineVerifier.AuditPackFiles(pack);                    // or ReadAuditPackDirectory("pack/")
+var result = OfflineVerifier.VerifyAuditPack(files, new VerifyAuditPackOptions
+{
+    RootPublicKey = rootPublicKey,   // held out of band
+    HeldAnchors = heldAnchors,       // your copies; null checks the pack's integrity only (no_held_anchors)
+    Changes = changes,               // optional: the completeness check against an outside log
+    Period = (from, until),          // optional: a period the pack must cover
+});
+// result.Verified; result.Failures and result.Warnings, each with its file, entry and reason
+```
+
+- **The manifest first:** every file of the format listed with its digest and
+  nothing else, in the NA's canonical form, signed as received by the NA key
+  valid at its `created_at`. A pack whose manifest fails is not checked
+  further.
+- **Keys:** NA keys come only from the key history, verified from the root
+  key. Executor and observer keys come from the registry records the NA signed
+  (`RegistryKeys`), or from `ExecutorKeys` you supply.
+- **The range:** tied to the anchors you hold; each cited entry checked
+  against a pack verified before or an anchor you hold; the entries verified
+  as an export, with the entries they cite; policies, attestations, treaties,
+  feeds and a grant's agreement each checked as received.
+- **The report:** `report.md` must be the report the pack's own files render
+  to (`RenderReport`, `report_mismatch`).
+- `EvidenceStore.RecordArchive` records that a pack was written to immutable
+  storage (privileged tier); `VerifyArchiveRecord` checks the NA's record of
+  it.
+
+### Completeness against an outside log
+
+A pack's records can be checked against a log kept outside Genesis Mesh, such
+as a cloud audit log or a ticketing export: every change made in the period
+should have its record.
+
+```csharp
+var changes = OfflineVerifier.ParseChanges(File.ReadAllText("changes.csv"), csv: true);
+var report = OfflineVerifier.CheckCompleteness(changes, rangeEntries, citedEntries, new CompletenessOptions
+{
+    From = periodStart,
+    To = periodEnd,                      // Tolerance: 300 seconds by default
+});
+// report.UnmatchedChanges: changes in the period the store does not record
+```
+
+`ParseChanges` reads CSV (a header row naming `source`, `source_event_id`,
+`resource_id`, `action`, `changed_at`, `actor`) as Python's `csv` module reads
+it, or JSON. `CheckCompleteness` matches a change naming a source event to the
+record of that event, and the rest per resource and action, for the most pairs
+and then the least total distance within the tolerance.
 
 ---
 
@@ -214,10 +357,8 @@ verifying grants in an evidence export need the TypeScript or Rust SDK (see
 
 The SDK runs these shared suites from
 `tests/GenesisMesh.Sdk.Tests/testdata/conformance/`: `interop` (the verifiers
-above), `canonical`, `field_registry`, `admin_auth`, `consensus`, the
-canonical form, key history and record time kinds of `audit`, and the
-canonical form and signature kinds of `grants`. It skips the kinds of those
-two suites it does not implement (packs, exports, anchors, completeness,
-envelopes, grant use and issuance), and a test fails when a new kind is
-neither run nor listed as skipped. It runs neither the `out_of_band` nor the
-`remediation` suite.
+above), `canonical`, `field_registry`, `admin_auth`, `consensus` and
+`vouching`. From 1.9.0 it also runs every vector of `audit` and
+`remediation`, and those of `grants` and `out_of_band` but the kinds only an
+NA can check (grant issuance; time bounds and policy history). A test fails
+when a new kind is neither run nor listed as not run.
