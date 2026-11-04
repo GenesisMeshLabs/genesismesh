@@ -62,6 +62,10 @@ Reading (read tier):
   `evidenceStore.storedResourceHead(id)` names a resource's head, which may
   be a grant use (`entry_kind`, `record_id`).
 
+From 1.9.0 `allGrants({ status, bearer_key_id, limit })` and
+`allGrantUses(id, limit)` follow the pages, and a `limit` outside 1 to 500 is
+refused (`RangeError`) before anything is sent.
+
 `revokeGrant(id, reason)` revokes one (privileged): `reason` is stored as the
 revocation's `detail`, and the revocation's `reason` is `operator`. The NA
 also revokes a grant itself: `attestation_revoked`, `policy_deactivated`,
@@ -105,7 +109,7 @@ checks each request offline, in this order:
 | Check | Refused as |
 |---|---|
 | No secret material in the request parameters | `grant_use_secret_material` |
-| The resource is within the bearer key's `resourcePrefix` (a use without a resource is not) | `grant_use_out_of_scope` |
+| The resource is within the bearer key's `resourcePrefix` (a use without a resource is not, under any prefix, the empty one included) | `grant_use_out_of_scope` |
 | The capability is one of the grant's | `grant_capability_mismatch` |
 | The request parameters are inside the closed envelope | `grant_envelope_mismatch` |
 | The budget, counting the holder's own uses but those the NA quarantined | `grant_budget_exhausted` (fallback) |
@@ -120,7 +124,9 @@ citing the latest time token, kept in the record outbox and submitted at once
 when the NA is reachable. A use is never dated before its time token or the
 previous use: the token proves the time is no earlier, so a clock behind the
 NA's dates the use at the token's time. An action that throws is recorded as
-a `failure` use and the error rethrown; metadata the secret guard refuses is
+a `failure` use and the error rethrown (1.9.0: the state is persisted after
+it, as after any use; when it cannot be, `GrantStateNotKeptError` carries the
+action's error as `actionError`); metadata the secret guard refuses is
 left out of the use and named in `dropped`. Calls to one holder run one at a
 time, so two uses never take one place in the chain.
 
@@ -139,12 +145,20 @@ than the holder knew of, and not counting it would keep the holder signing
 uses the NA refuses. The holder never
 signs a use the NA would refuse without storing it: secret material is
 checked first. A chain gap and a use dated ahead of the NA's clock
-(`grant_use_in_future`) are retried.
+(`grant_use_in_future`) are retried. From 1.9.0 a gap behind a use that never
+took its place in the chain (refused without a quarantine entry, or
+quarantined as a conflict or a chain mismatch) is not: it never closes, so the
+use behind it is a dead letter too (`evidence_predecessor_dead_lettered`).
+`flushRecords` sends a grant's uses in their chain's order, whatever order
+they were kept in.
 
 Persist `holder.state` (the `persist` option is called after every change)
 together with the record outbox, and resume with `new GrantHolder({ ...,
 state })`: the state holds the grant, the latest time token, the head of the
-use chain and the revocation feed.
+use chain and the revocation feed. From 1.9.0, on its first change a resumed
+holder takes up the latest use of its grant the record outbox holds beyond the
+state (kept before the process stopped, the state unpersisted), so no place in
+the chain is signed twice.
 
 ### Reconnecting
 
@@ -160,7 +174,10 @@ position of its resource's chain as it admits it. Steps the NA does not
 answer are skipped (`reachable: false`). When the NA answers that the grant
 has ended (`grant_expired`, `grant_revoked`, `grant_budget_exhausted`,
 `grant_bearer_key_retired`), the holder keeps that answer and stops using the
-grant. `refreshRevocationFeed()` and `refreshTimeToken()` run one step alone;
+grant. From 1.9.0 a time token the NA refuses for another reason, such as
+`time_token_request_stale` (this clock is more than 300 seconds off the
+NA's), is reported as `timeTokenRefusal`, and the upload still runs.
+`refreshRevocationFeed()` and `refreshTimeToken()` run one step alone;
 `updateRevocationFeed(feed)` takes a feed read elsewhere. A feed must be
 signed by the NA and issued by the grant's issuer, and an older feed never
 replaces a newer one, so a holder refuses a revoked grant once the feed it
@@ -178,7 +195,15 @@ basis attestation (or `fallback.attestation_id`):
   nothing (`result.authorized` is false). A DENY is never broken through;
 - an NA that cannot be reached (a network error, a timeout, `5xx`, `429`)
   runs the action with `{ path: 'break_glass' }`, and its `BreakGlassRecord`
-  waits in the record outbox to be judged after the fact.
+  waits in the record outbox to be judged after the fact;
+- any other error of the governed action (a refused evaluation, a decision
+  that fails verification) is thrown as it is, and nothing runs.
+
+From 1.9.0 the holder also falls back when the uses of its time token are
+spent and the NA will not issue another for a reason other than the grant's
+end, such as a clock more than 300 seconds off its own: the NA then decides.
+A bearer key the NA has retired (`grant_bearer_key_retired`) ends the grant
+with no fallback: `act` throws `GrantRefusedError`, from the first call on.
 
 The result is `{ path, unusable, result }`, `unusable` naming why the grant
 could not be used. Without `fallback` such a request throws
@@ -229,7 +254,8 @@ why request parameters are outside an envelope.
 - in a run from the store's start, a use and a revocation name a grant the run
   holds (`grant_missing`; in an audit pack `cited_record_missing`); a use is
   signed by the grant's bearer key (`grant_bearer_mismatch`), within that
-  key's `resource_prefix` (`grant_use_out_of_scope`), and names the grant's
+  key's `resource_prefix` (`grant_use_out_of_scope`; 1.9.0: a use without a
+  resource is outside any prefix, as the reference judges it), and names the grant's
   digest (`grant_mismatch`); a grant is revoked once
   (`duplicate_grant_revocation`); a `use_id` is not the ID of execution
   evidence or a break-glass record (`duplicate_record`);
