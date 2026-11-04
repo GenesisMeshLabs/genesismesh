@@ -226,7 +226,10 @@ no network and no private key, and checks, in order:
 6. **The report.** `report.md` is rendered from the manifest, the entries,
    `checks.json` and `states.json` (the NA's remediation states and
    notices), byte for byte (`renderReport`, `reportCell`); a difference is
-   `report_mismatch`, with the lines in `report_differences`.
+   `report_mismatch`, with the lines in `report_differences`. From 1.9.0 a
+   number written as a float stays one, as the reference reads it (a cell
+   writes `1e+16`, an ID `1.0`), and a reason or ID that is a list or an
+   object is Python's `str()` of it (`{'why': ['x']}`).
 7. **The period** the pack covers (`result.period`: from its start anchor, or
    the checkpoint it starts after, or its first entry, to its end anchor).
    With `period: [from, until]` the pack must cover it
@@ -245,7 +248,18 @@ With `changes`, `verifyAuditPack` matches each change against the pack's
 records over the period the pack covers. `parseChanges(text, { csv })` reads
 a changes file: JSON (each field a string or null) or CSV with the columns
 `source`, `source_event_id`, `resource_id`, `action`, `changed_at`, `actor`;
-`changed_at` is a strict RFC 3339 time with an offset. Matching:
+`changed_at` is a strict RFC 3339 time with an offset. From 1.9.0 it reads a
+file as the reference does:
+
+- CSV as Python's `csv` module reads it: a quote opens a quoted field only
+  at the start of a field (elsewhere it is text), a quote closing a field
+  followed by other text joins it, and the header is the first line, a blank
+  one included. A carriage return inside a line outside quotes, and a field
+  longer than 131072 characters, are refused, as the reference's `csv.Error`;
+- each value trimmed as Python's `str.strip()` trims it (U+001C to U+001F
+  and U+0085 included, U+FEFF kept).
+
+Matching:
 
 - a change repeating a (source, source event ID) pair is set aside (warning
   `change_duplicate`);
