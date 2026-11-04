@@ -37,7 +37,9 @@ After the program, v1.8.0 added the vouching horizon to key succession
 records of a succeeded key once its horizon has passed, and the NA re-issues
 what is still valid. v1.8.1 brought the horizon to the SDKs' offline
 verifiers and the edge agent, and documented how a gateway re-pins a network
-after a succession.
+after a succession. v1.9.0 made the .NET SDK a governed client at the
+TypeScript SDK's level ({doc}`decisions/0008-dotnet-governed-client`), and
+fixed what the comparison with the reference found in the TypeScript SDK.
 
 Candidates the program deferred, each to be planned on its own:
 

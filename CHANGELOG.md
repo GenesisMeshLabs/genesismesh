@@ -2,6 +2,37 @@
 
 ## v1.9.0 - The .NET SDK as a Governed Client
 
+### Added
+
+- **The .NET SDK is a governed client** (sdk-dotnet 1.9.0, decision 0008), at
+  the TypeScript SDK's level:
+  - sub-clients for policies, the evidence store, grants, health and the NA's
+    key history, with failover across Network Authority instances;
+  - governed actions with the evidence and record outboxes, break-glass,
+    observations, remediation and reviews;
+  - pre-issued grants and their holder, which keeps the TypeScript holder's
+    JSON state;
+  - offline verification of exports, store anchors and audit packs, with the
+    completeness check.
+
+  Its changelog lists every addition.
+- **The TypeScript SDK takes the fixes the .NET port found** (sdk-typescript
+  1.9.0), each where the Python reference answered otherwise:
+  - a record without its own time verifies under no key of the NA's key
+    history;
+  - a grant use behind one that never took its place in the chain is a dead
+    letter;
+  - the grant holder persists a failed action's use and takes up the uses its
+    record outbox kept;
+  - audit packs, reports and changes files are read as the reference reads
+    them;
+  - arguments the NA would refuse are refused before anything is sent;
+  - `allGrants` and `allGrantUses` follow the pages.
+
+  Its changelog lists every change.
+- **The Go and Rust SDKs, `genesis-mesh-verify`, the edge agent and the
+  gateway** carry the version, with dependency updates only.
+
 ### Changed
 
 - **One command states the version everywhere.** `scripts/check_version.py`

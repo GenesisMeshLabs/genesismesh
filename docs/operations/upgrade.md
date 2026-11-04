@@ -20,6 +20,7 @@ first. Each row below names the first one.
 
 | From | Status |
 | --- | --- |
+| 1.8.x | Supported. Read *Upgrading to 1.9* below first |
 | 1.7.x | Supported and rehearsed in CI. Read *Upgrading to 1.8* below first |
 | 1.6.x | Supported and rehearsed in CI, with grants on and an edge node enrolled after the upgrade. Read *Upgrading to 1.7* below first |
 | 1.5.x | Supported and rehearsed in CI, with the out-of-band and remediation records on, and grants on after the upgrade. Read *Upgrading to 1.6* below first |
@@ -57,6 +58,22 @@ built wheel before every release.
    policy digests, CRL continuity, the evidence chain, the evidence anchors
    and, with `--genesis`, the NA key history from the root key. `/readyz`
    must report the expected schema version.
+
+## Upgrading to 1.9
+
+- **No migration.** 1.9.0 changes no schema and no setting of the Network
+  Authority: its changes are in the SDKs and the documentation.
+- **The .NET SDK adds the governed client.** Its new sub-clients, governed
+  actions, outboxes, grants and audit pack verification are additions; see
+  its changelog.
+- **The TypeScript SDK refuses some arguments before sending** them, with a
+  `RangeError`, where the NA refused them after a signed request: a `limit`
+  out of range for `evidenceStore.anchors`, `grants.listGrants` and
+  `listGrantUses`, and a sequence below 1 for `evidenceStore.auditPack`.
+- **The TypeScript record outbox dead-letters a grant use it cannot place.**
+  A use behind one that never took its place in the chain is a dead letter
+  (`evidence_predecessor_dead_lettered`) instead of being retried forever:
+  look at the record outbox's dead letters after upgrading a holder.
 
 ## Upgrading to 1.8.1
 

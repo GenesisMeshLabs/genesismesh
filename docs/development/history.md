@@ -123,12 +123,13 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.8.1 (2026-10-24). Several guarantees below depend on settings that
+As of v1.9.0 (2026-11-04). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
-break-glass, observations, remediation helpers and grant holders exist only in
-the TypeScript and Rust SDKs and in the edge agent.
+break-glass, observations, remediation helpers and grant holders exist in the
+TypeScript, Rust and .NET SDKs and in the edge agent; the Go SDK verifies
+records offline and calls a subset of the routes.
 
 ### Protocol and runtime
 
@@ -187,13 +188,17 @@ the TypeScript and Rust SDKs and in the edge agent.
   canonical form, and refuses a signed field or an entry kind it does not
   know by name, in one check order, so one record gets one verdict
   everywhere (the `field_registry` and `canonical` conformance suites).
+- The TypeScript and .NET SDKs verify exports, store anchors and audit packs
+  offline, and check a pack's completeness, as the Python reference does:
+  compared with it case by case on packs, reports, changes files and anchors,
+  they give its answer on each.
 
 ### Project and process
 
 - The project is open-source, MIT-licensed, and installable from PyPI as
   `pip install genesis-mesh`.
-- Every shipped release has a written plan in `ops/` and a verified
-  release gate.
+- Every shipped release has a written plan and a verified release gate: the
+  plans are in `ops/`, and decision 0008 records the 1.9.0 program.
 - All three trust architecture cycles are shipped: governed relationships
   (v0.26–v0.31), runtime trust layer (v0.32–v0.37), and adversarial
   hardening (v0.38–v0.48).
@@ -203,7 +208,7 @@ the TypeScript and Rust SDKs and in the edge agent.
   cover an abstract model of the v0.26–v0.30 pipeline design, which is not
   checked against the current code; see
   {doc}`../examples/formal-verification`.
-- 2,618 tests pass. The layer rule and public boundary rule are enforced
+- 2,771 tests pass. The layer rule and public boundary rule are enforced
   in code and documented in `AGENTS.md`.
 - Animated terminal GIF demos, recorded from real runs, cover the protocol
   features up to v0.48, the operator flows and the cross-language run; later
@@ -224,7 +229,7 @@ the TypeScript and Rust SDKs and in the edge agent.
 - The pilot deployment profile is rehearsed in CI through the production
   entry point, from recognition to revocation and recovery, and a PostgreSQL
   backup is restored into a new database and verified on every change.
-- A protocol conformance suite exists in `conformance/`: 18 suites and 1037
+- A protocol conformance suite exists in `conformance/`: 19 suites and 1069
   deterministic vectors, run by the reference runner. Each SDK runs the
   suites for what it verifies, and CI checks its copies match;
   {doc}`interoperability` lists which SDK runs which suite.
@@ -254,7 +259,7 @@ the TypeScript and Rust SDKs and in the edge agent.
   against anchors copied to storage the auditor controls fails if an anchored
   entry was removed, rewritten or truncated, even by whoever runs the
   Network Authority, with {doc}`../operations/evidence-anchors`.
-- With an outbox, the TypeScript and Rust SDKs keep a governed action's
+- With an outbox, the TypeScript, Rust and .NET SDKs keep a governed action's
   signed evidence until the Network Authority admits it, so evidence survives
   the Network Authority being unreachable and the action's value is never
   lost with it.
@@ -311,7 +316,7 @@ the TypeScript and Rust SDKs and in the edge agent.
 
 ### Not yet true
 
-As of v1.8.1, two things are still not true:
+As of v1.9.0, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1435,6 +1440,53 @@ and the PostgreSQL, interoperability and documentation gates.
 
 **What became possible:** an application or a device that verifies records
 offline stops trusting a copied NA key when the authority does.
+
+### After the program: the .NET SDK as a governed client (v1.9)
+
+#### v1.9.0 — The .NET SDK as a Governed Client
+
+Until 1.9.0 only the TypeScript and Rust SDKs and the edge agent ran a
+governed change end to end. The .NET SDK verified records offline and called
+a subset of the routes, as decision 0002 had set it. A team building a
+credential lifecycle on .NET needs a governed controller, so decision 0008
+reversed that for .NET ({doc}`decisions/0008-dotnet-governed-client`), and
+1.9.0 brings the .NET SDK to the TypeScript SDK's level:
+- sub-clients for policies, the evidence store, grants, health and the NA's
+  key history, and failover across Network Authority instances;
+- governed actions with the evidence and record outboxes, break-glass,
+  observations of changes made outside the governed path, remediation by
+  rotating forward, and reviews;
+- pre-issued grants: their rules offline, the NA's grant routes, and a
+  `GrantHolder` that keeps the same JSON state as the TypeScript holder, so a
+  device can move between the two SDKs;
+- offline verification of exports (grant uses, key successions and archives
+  included), store anchors and audit packs, and the completeness check.
+
+The port was checked case by case against the Python reference, and where
+the TypeScript SDK answered differently, the reference was right. The
+TypeScript SDK takes those fixes in its own 1.9.0:
+- a record without its own time no longer verifies under a key of the NA's
+  key history;
+- a grant use behind one that never took its place in the chain becomes a
+  dead letter instead of being retried forever;
+- the grant holder persists a failed action's use and takes up the uses its
+  record outbox kept;
+- audit packs, reports and changes files are read as the reference reads
+  them;
+- arguments the NA would refuse are refused before anything is sent.
+
+The SDK overview now gives each SDK's tier in a capability matrix, as
+decision 0002 asked. The core documents the MCP server and the
+mesh.genesismesh.org stack. `scripts/check_version.py --set` and
+`devtools/release.py` state a release in every repository at once.
+
+The release passed 2,771 core tests, 1,069 conformance vectors in 19 suites,
+and the PostgreSQL, interoperability, upgrade and documentation gates.
+
+**What became possible:** a .NET service makes a governed change, keeps its
+evidence while the NA cannot be reached, acts within a grant offline, and
+hands an auditor a pack to verify offline, as a TypeScript service could
+already.
 
 ---
 

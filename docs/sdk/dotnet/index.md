@@ -28,8 +28,7 @@ signature (1.6.0). From 1.9.0 it also has:
 - **The transport:** several NA instances with failover, retries and signers
   for a key the client does not hold (below).
 
-The node identity and the edge agent stay in the Rust SDK. 1.9.0 is not yet
-released: the package on NuGet is 1.8.1.
+The node identity and the edge agent stay in the Rust SDK.
 
 To develop against a governed NA on your machine, see
 {doc}`../local-network-authority`. That NA requires boundary policies, so it
