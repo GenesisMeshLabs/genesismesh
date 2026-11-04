@@ -40,6 +40,7 @@ verifiers and the edge agent, and documented how a gateway re-pins a network
 after a succession. v1.9.0 made the .NET SDK a governed client at the
 TypeScript SDK's level ({doc}`decisions/0008-dotnet-governed-client`), and
 fixed what the comparison with the reference found in the TypeScript SDK.
+v1.9.1 fixed the same key-history flaw in the Rust SDK.
 
 Candidates the program deferred, each to be planned on its own:
 

@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.9.0 (2026-11-04). Several guarantees below depend on settings that
+As of v1.9.1 (2026-11-04). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -316,7 +316,7 @@ records offline and calls a subset of the routes.
 
 ### Not yet true
 
-As of v1.9.0, two things are still not true:
+As of v1.9.1, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1487,6 +1487,24 @@ and the PostgreSQL, interoperability, upgrade and documentation gates.
 evidence while the NA cannot be reached, acts within a grant offline, and
 hands an auditor a pack to verify offline, as a TypeScript service could
 already.
+
+#### v1.9.1 — Record Times in the Rust SDK
+
+A patch release for one security fix. Comparing the .NET port with the
+reference had shown a flaw in the TypeScript SDK's verifiers, fixed in its
+1.9.0. Given the NA's key history, they took every key of it for a record
+whose own time was null, so a succeeded key's signature over such a record
+verified forever. The Rust SDK had the same flaw in `verify_record` (for
+attestations and policies) and in `verify_store_anchors`. 1.9.1 gives such a
+record no key of a history (sdk-rust #72; advisories GHSA-rx24-98gh-f8mc and
+GHSA-cwf5-mqxw-75hq).
+
+The Network Authority never signs an undated record. The Go and .NET SDKs,
+the edge agent and `genesis-mesh-verify` were not affected, and nothing
+else changes.
+
+**What became possible:** a key succession ends a copied key's power over
+every SDK's verifiers, records without their own time included.
 
 ---
 
