@@ -1,5 +1,54 @@
 # Changelog
 
+## v1.9.0 - The .NET SDK as a Governed Client
+
+### Changed
+
+- **One command states the version everywhere.** `scripts/check_version.py`
+  knows every place the core states the current release (the README, the
+  gateway and SDK pages, the install commands, the Compose and Kubernetes
+  examples) and fails when one lags `VERSION`; `--set X.Y.Z` writes them all.
+  The supply-chain example workflow still installed 1.8.0: it now names the
+  current release. With `devtools/release.py` and the shared Renovate preset,
+  a release reaches the six train repositories and every repository that pins
+  it at once (see the versioning page).
+- **Upgrading mesh.genesismesh.org.** `infrastructure/mesh-demo/upgrade.sh
+  X.Y.Z` verifies the gateway image's signature, backs up, upgrades and checks
+  the live mesh for any release, replacing the per-version script.
+
+### Documentation
+
+- **The .NET SDK as a governed client.** The .NET SDK pages describe what
+  sdk-dotnet 1.9.0 adds:
+  - the new sub-clients (policies, the evidence store, grants, health and the
+    NA's key history), and failover across NA instances;
+  - a page on governed actions, the outboxes, break-glass, changes outside
+    the governed path, remediation and reviews;
+  - a page on pre-issued grants and their holder;
+  - offline verification of exports, store anchors and audit packs.
+- **The capability matrix.** The SDK overview gives each SDK's tier and what
+  it covers, as decision 0002 called for. Decisions 0002 and 0008 say where
+  they stand, and the attestation-backed evaluation example names the .NET
+  SDK's evaluate call.
+- **The MCP server.** A concept page describes `genesismesh-mcp`, the Model
+  Context Protocol server that gives AI assistants and agents the Network
+  Authority's operations, offline verification and signing: its tools,
+  profiles, transports (stdio, and Streamable HTTP with OAuth approval codes
+  and scoped agent tokens), how nodes that hold their own keys enroll, and the
+  live instance at mcp.genesismesh.org. The README lists it among the
+  components.
+- **The mesh.genesismesh.org stack.** `infrastructure/mesh-demo/` matches the
+  deployed stack: the `mcp` service and its `mcp-ops` key, the Caddy sites
+  `mcp.genesismesh.org` and `na.mesh.genesismesh.org` (the NA's node routes
+  only), and `NA_PROXY_HOPS=1`. The deployment page says the same.
+- **The TypeScript SDK's grants and audit pack pages** describe its 1.9.0 changes:
+  - `allGrants` and `allGrantUses`;
+  - a grant use behind one that never took its place in the chain becomes a dead letter;
+  - the holder keeps a failed action's place, takes up kept uses, and reports a refused time token;
+  - the empty resource prefix;
+  - CSV changes files read as Python's `csv` module reads them;
+  - report cells and IDs written as the reference writes them.
+
 ## v1.8.1 - The Vouching Horizon in the SDKs
 
 ### Added
