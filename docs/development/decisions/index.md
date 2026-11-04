@@ -19,7 +19,7 @@ record has an "Implemented" line.
 | {doc}`0005-switch-lifecycle` | No. `upgrade.yml` still covers every release since 0.59.1 |
 | {doc}`0006-review` | Yes |
 | {doc}`0007-dormant-packages` | In part. The module map marks the packages; the contract only omits them |
-| {doc}`0008-dotnet-governed-client` | In sdk-dotnet for 1.9.0, not yet released (2026-11-04): the TypeScript SDK's governed features |
+| {doc}`0008-dotnet-governed-client` | In sdk-dotnet 1.9.0 (released 2026-11-04): the TypeScript SDK's governed features |
 
 ```{toctree}
 :maxdepth: 1

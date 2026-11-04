@@ -2,7 +2,7 @@
 
 **Status:** accepted (Maintainer, 2026-10-30). Supersedes {doc}`0002-sdk-tiers` for .NET; Go is unchanged.
 
-**Implemented:** in sdk-dotnet for 1.9.0, not yet released (2026-11-04). sdk-dotnet added the TypeScript SDK's features one pull request at a time, in the order a governed controller uses them: XML documentation on every public member, the transport (failover, retries, operator signers), policies with policy-aware evaluation, the evidence store, governed actions with the evidence and record outboxes, break-glass, changes outside the governed path, remediation and reviews, pre-issued grants and their holder, and offline verification of exports, store anchors and audit packs. It runs every conformance vector a verifier can run, and its live tests run a partner controller's governed lifecycle against an NA. The capability matrix is on the SDK overview ({doc}`../../sdk/index`).
+**Implemented:** in sdk-dotnet 1.9.0, released 2026-11-04. sdk-dotnet added the TypeScript SDK's features one pull request at a time, in the order a governed controller uses them: XML documentation on every public member, the transport (failover, retries, operator signers), policies with policy-aware evaluation, the evidence store, governed actions with the evidence and record outboxes, break-glass, changes outside the governed path, remediation and reviews, pre-issued grants and their holder, and offline verification of exports, store anchors and audit packs. It runs every conformance vector a verifier can run, and its live tests run a partner controller's governed lifecycle against an NA. The capability matrix is on the SDK overview ({doc}`../../sdk/index`).
 
 ## Context
 
