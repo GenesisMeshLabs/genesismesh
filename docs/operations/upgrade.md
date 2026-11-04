@@ -20,7 +20,7 @@ first. Each row below names the first one.
 
 | From | Status |
 | --- | --- |
-| 1.8.x | Supported. Read *Upgrading to 1.9* below first |
+| 1.8.x | Supported and rehearsed in CI. Read *Upgrading to 1.9* below first |
 | 1.7.x | Supported and rehearsed in CI. Read *Upgrading to 1.8* below first |
 | 1.6.x | Supported and rehearsed in CI, with grants on and an edge node enrolled after the upgrade. Read *Upgrading to 1.7* below first |
 | 1.5.x | Supported and rehearsed in CI, with the out-of-band and remediation records on, and grants on after the upgrade. Read *Upgrading to 1.6* below first |
