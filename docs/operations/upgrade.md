@@ -59,6 +59,16 @@ built wheel before every release.
    and, with `--genesis`, the NA key history from the root key. `/readyz`
    must report the expected schema version.
 
+## Upgrading to 1.9.1
+
+- **No migration.** 1.9.1 changes no schema and no setting of the Network
+  Authority: upgrade it as any patch release.
+- **Upgrade the Rust SDK** (and anything built on it) if it verifies records
+  with the NA's key history. A record without its own time is signed by no
+  key of the history (GHSA-cwf5-mqxw-75hq); the NA never signs one, so no
+  genuine record is refused. The TypeScript SDK reads records this way from
+  1.9.0 (GHSA-rx24-98gh-f8mc).
+
 ## Upgrading to 1.9
 
 - **No migration.** 1.9.0 changes no schema and no setting of the Network
