@@ -16,10 +16,17 @@
     `attestation_status` gate failing on `attestation_subject_mismatch`), not
     an HTTP error.
   - Callers that evaluated under another subject's attestation now get DENY.
-  - The asking key stays in the evidence store as `requested_by`. A signed
-    record of it in the decision follows in 1.10.0.
-  - Edge-node evaluation, grants and out-of-band judgements are unchanged:
-    they do not evaluate for an operator key.
+  - The asking key is recorded as `requested_by` in the evidence store and,
+    new, in the `boundary_attestation_decision_made` audit event. A denial's
+    signed gate detail names it; a signed field for it in every decision
+    follows in 1.10.0.
+  - Unchanged in 1.9.2: grant issuance under an attestation (privileged keys
+    only), edge-node evaluation (signed by the node's own key) and
+    out-of-band judgements. 1.10.0 reviews every party-scoped basis.
+  - `expected_subject_id` checks the subject the decision names. A privileged
+    key can issue an attestation naming any subject with its own key bound, so
+    a relying party that must tell those apart also checks
+    `expected_attestation_id`.
   - No change to the API, the models or signed data: 1.9.1 verifiers verify
     1.9.2 decisions.
 

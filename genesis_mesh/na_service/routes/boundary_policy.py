@@ -193,6 +193,8 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             "attestation_id": attestation_id,
             "subject_id": basis.attestation.subject_id if basis.attestation else None,
             "requester_sovereign_id": requester_id,
+            # 1.9.2: the operator key that asked, which the attestation's subject must be.
+            "requested_by": caller_key_id,
             "requested_capability": capability,
             "authorized": decision.authorized,
             "denial_reason": decision.denial_reason,

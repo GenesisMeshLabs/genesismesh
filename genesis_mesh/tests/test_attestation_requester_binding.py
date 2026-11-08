@@ -24,6 +24,7 @@ from genesis_mesh.trust.context import verify_boundary_decision
 
 from .test_attestation_boundary import _store
 from .test_na_boundary_policy import _activate, _headers, _iso, _make_service
+from .test_na_trust_api import _make_agreement
 
 CAPABILITY = "partner.credential.create"
 
@@ -167,12 +168,14 @@ def test_2_the_denial_is_stored_and_audited(setup, na_service):
     made = [e for e in _events(service, "boundary_attestation_decision_made")
             if e["decision_id"] == decision.decision_id]
     assert made and made[-1]["authorized"] is False
+    assert made[-1]["requested_by"] == "asl" and made[-1]["requester_sovereign_id"] == "psl"
     assert made[-1]["denial_reason"] == "attestation_subject_mismatch"
     assert "attestation_status" in made[-1]["failed_gates"]
 
 
-def test_3_a_privileged_key_is_denied_too(setup):
-    att = _issue(setup)
+@pytest.mark.parametrize("bound_key", ["psl", None])
+def test_3_a_privileged_key_is_denied_too(setup, bound_key):
+    att = _issue(setup, subject_public_key=bound_key)
     _assert_mismatch(_decision(_evaluate(setup, att["attestation_id"], "operator-test")), "operator-test")
 
 
@@ -225,12 +228,29 @@ def test_8_revoked_and_expired_fail_as_before_with_the_right_key(setup, na_servi
     assert decision.authorized is False and decision.denial_reason == "attestation_expired"
 
 
+def test_9_agreement_basis_evaluation_is_unchanged(setup, na_service):
+    # Any operator key evaluates under an agreement as before: the binding is for attestations.
+    agreement = _make_agreement(setup, na_service)
+    for key_id in ("asl", "operator-test"):
+        resp = _post(setup, "/admin/boundary/evaluate",
+                     {"agreement": agreement, "requested_capability": "read", "context": {}}, key_id)
+        decision = _decision(resp)
+        assert decision.authorized is True and decision.attestation_binding is None
+
+
+#: AttestationBinding's fields in 1.9.1, which has ``extra="forbid"``.
+BINDING_FIELDS_1_9_1 = {
+    "attestation_id", "subject_id", "issuer_sovereign_id", "attestation_digest", "revocation_seq_checked",
+}
+
+
 def test_10_the_signed_form_is_unchanged(setup, na_service):
     att = _issue(setup)
+    assert set(AttestationBinding.model_fields) == BINDING_FIELDS_1_9_1
     for key_id in ("psl", "asl"):
         raw = _evaluate(setup, att["attestation_id"], key_id).get_json()["decision"]
         # No new field in the binding: a 1.9.1 verifier's strict form check accepts the decision.
-        assert set(raw["attestation_binding"]) == set(AttestationBinding.model_fields)
+        assert set(raw["attestation_binding"]) == BINDING_FIELDS_1_9_1
         assert decision_refusal(raw, _na_keys(na_service)) is None
         assert verify_boundary_decision(BoundaryDecision.model_validate(raw), _na_keys(na_service)).accepted
 
@@ -270,6 +290,9 @@ def test_unit_caller_is_subject():
     assert not caller_is_subject(att, "psl", other.public_key_b64)
     assert not caller_is_subject(att, "psl", None)
     assert not caller_is_subject(att, "psl", "not base64!")
+    # Key formats are not normalised: a key with whitespace or without padding fails closed.
+    assert not caller_is_subject(att, "psl", own.public_key_b64 + " ")
+    assert not caller_is_subject(att, "psl", own.public_key_b64.rstrip("="))
     unbound = att.model_copy(update={"subject_public_key": None})
     assert caller_is_subject(unbound, "psl", other.public_key_b64)
     assert not caller_is_subject(unbound, "asl", own.public_key_b64)
