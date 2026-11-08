@@ -59,6 +59,20 @@ built wheel before every release.
    and, with `--genesis`, the NA key history from the root key. `/readyz`
    must report the expected schema version.
 
+## Upgrading to 1.9.2
+
+- **No migration.** 1.9.2 changes no schema and no setting of the Network
+  Authority: upgrade it as any patch release.
+- **Attestations name the key that asks.** The NA now decides under an
+  attestation only for the operator key that signs the request: the key
+  bound as `subject_public_key`, or, with none bound, the key whose ID is
+  `subject_id`. Callers that evaluated under another subject's attestation
+  get a signed DENY with `attestation_subject_mismatch`; issue each
+  attestation to the key that will ask (GHSA-9v4g-3w8f-w5q9).
+- **Relying parties** can pass `expected_attestation_id` or
+  `expected_subject_id` to the 1.9.2 SDK verifiers. 1.9.1 verifiers still
+  verify 1.9.2 decisions.
+
 ## Upgrading to 1.9.1
 
 - **No migration.** 1.9.1 changes no schema and no setting of the Network
