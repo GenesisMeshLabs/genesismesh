@@ -324,6 +324,7 @@ def _raw(setup, key_id: str) -> dict:
 def _resigned_without_requester(raw: dict, na_service) -> BoundaryDecision:
     """The same decision as a 1.9.x NA wrote it: no requester, signed by the NA key."""
     decision = BoundaryDecision.model_validate(raw)
+    assert decision.attestation_binding is not None
     binding = decision.attestation_binding.model_copy(update={"requester_key_id": None})
     unsigned = decision.model_copy(
         update={"attestation_binding": binding, "signature": None}
