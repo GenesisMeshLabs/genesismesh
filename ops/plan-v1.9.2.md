@@ -211,9 +211,8 @@ These notes were checked against core `main` at v1.9.1.
 
 ## Decisions for the Maintainer
 
-1. **Disclosure:** keep the reproduction out of the public repository until
-   1.9.2 is released, through a draft advisory and a private fork, or
-   publish it now.
+1. **Disclosure:** decided 2026-11-08. The plan, with its reproduction, is
+   published before the fix.
 2. **Tests 3 and 6:** no exception for privileged keys, and no match by key
    ID alone. Both as proposed.
 3. **R10's answer for another subject's attestation:** 404 (proposed), so a
