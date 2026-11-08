@@ -11,6 +11,10 @@ module does no I/O and never reads the clock except through ``at``.
 
 Fail closed: a missing, tampered, revoked, expired or not-yet-valid
 attestation, or a requester other than its subject, denies.
+
+1.9.2: given the operator key that asked, the key must be the attestation's
+subject: its public key equals ``subject_public_key`` when the attestation
+binds one, and its key ID equals ``subject_id`` otherwise. No tier is exempt.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Sequence
 
 from ...crypto import verify_model_signature
+from ...crypto.node_auth import decode_ed25519_public_key
 from ...models.context import AttestationBinding, ContextRecord, GateResult
 from ...models.sovereign import MembershipAttestation
 
@@ -95,11 +100,19 @@ def assess_attestation_basis(
     feed_revoked: bool,
     revocation_seq_checked: int,
     requester_id: str,
+    caller_key_id: str | None = None,
+    caller_public_key: str | None = None,
 ) -> AttestationBasis:
     """Check existence, signature, revocation and subject of an attestation.
 
     ``stored_status`` is the NA's issuer-side status for the attestation;
     ``feed_revoked`` is True when an imported revocation feed lists it.
+
+    ``caller_key_id`` and ``caller_public_key`` name the verified operator key
+    that asked (1.9.2). When ``caller_key_id`` is given, that key must be the
+    attestation's subject (:func:`caller_is_subject`), or the basis fails with
+    ``attestation_subject_mismatch``. Callers that act for no operator key
+    (edge nodes, grant checks, out-of-band judgements) leave both out.
     """
 
     def _basis(failure: AttestationFailure | None, detail: str) -> AttestationBasis:
@@ -129,7 +142,36 @@ def assess_attestation_basis(
         return _basis("attestation_revoked", f"attestation status is {status!r}, not 'active'")
     if requester_id != attestation.subject_id:
         return _basis("attestation_subject_mismatch", "requester is not the attestation subject")
+    if caller_key_id is not None and not caller_is_subject(attestation, caller_key_id, caller_public_key):
+        return _basis(
+            "attestation_subject_mismatch",
+            f"operator key {caller_key_id!r} is not the attestation subject {attestation.subject_id!r}",
+        )
     return _basis(None, "attestation is active, signed by a trusted key, and not revoked")
+
+
+def _same_public_key(left: str | None, right: str | None) -> bool:
+    """True when both name the same Ed25519 public key (base64, compared as raw bytes)."""
+    if not left or not right:
+        return False
+    try:
+        return decode_ed25519_public_key(left) == decode_ed25519_public_key(right)
+    except ValueError:
+        return False
+
+
+def caller_is_subject(
+    attestation: MembershipAttestation, caller_key_id: str, caller_public_key: str | None
+) -> bool:
+    """Whether the operator key that asked is the attestation's subject (1.9.2).
+
+    With ``subject_public_key`` set, the caller's public key must be that key,
+    whatever its key ID: a replaced key fails even when its ID matches. Without
+    it, the caller's key ID must equal ``subject_id``.
+    """
+    if attestation.subject_public_key:
+        return _same_public_key(caller_public_key, attestation.subject_public_key)
+    return caller_key_id == attestation.subject_id
 
 
 def attestation_status_gate(basis: AttestationBasis) -> GateResult:

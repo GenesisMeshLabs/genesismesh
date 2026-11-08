@@ -28,7 +28,8 @@ from genesis_mesh.trust.execution import record_execution
 
 pytestmark = pytest.mark.integration
 
-VENDOR = "vendor-acme"
+# 1.9.2: the attestation's subject is the operator key that asks for decisions under it.
+VENDOR = "ops"
 SECRET = "kv:vendor-acme/api-key"
 
 

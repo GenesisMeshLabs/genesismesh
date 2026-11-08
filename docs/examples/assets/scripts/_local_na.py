@@ -48,6 +48,7 @@ class LocalNA:
         self.proc: subprocess.Popen | None = None
         self.audience = ""
         self.operator_key = None
+        self.operator_key_id = "operator-local"
 
     # -- lifecycle ---------------------------------------------------------
     def __enter__(self) -> "LocalNA":
@@ -93,7 +94,7 @@ class LocalNA:
         """Send one signed admin request as the privileged operator ``init`` created."""
         parts = urlsplit(path)
         headers = sign_admin_request(
-            self.operator_key, "operator-local", method=method, path=parts.path,
+            self.operator_key, self.operator_key_id, method=method, path=parts.path,
             query=parse_qs(parts.query, keep_blank_values=True), audience=self.audience,
             body=body if body is not None else {},
         )

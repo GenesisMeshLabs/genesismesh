@@ -34,7 +34,9 @@ from .test_attestation_boundary import _issue
 from .test_na_boundary_policy import _get, _make_service, _post
 from .test_na_trust_api import _make_agreement
 
-VENDOR = "vendor-acme"
+# 1.9.2: an attestation-basis decision is made only for the attestation's
+# subject, so the subject is the operator key the tests sign with.
+VENDOR = "operator-test"
 EXECUTOR = "secrets-controller"
 SECRET = "kv:vendor-acme/api-key"
 

@@ -56,7 +56,9 @@ from typing import Any
 POLICY_ID = "upgrade-rehearsal"
 RESOURCE = "kv:upgrade-rehearsal/secret"
 PARTNER = "partner-b"
-VENDOR = "vendor-acme"
+# 1.9.2: attestation-basis decisions are bound to the operator key that asks,
+# so the attestation the rehearsal decides under names that key as its subject.
+VENDOR = "ops"
 EXECUTOR = "secrets-controller"
 
 
@@ -417,6 +419,13 @@ def verify(state: dict, label: str, *, db_path: str | None = None, database_url:
 
     decision = _decide(api, state["vendor"]["attestation_id"])
     check("new decision under the old policy and attestation", decision["authorized"] is True, decision)
+    other = api.expect(api.admin("POST", "/admin/attestations", {
+        "subject_id": "vendor-acme", "roles": ["role:client"],
+        "claims": {"capabilities": ["secret.rotate"], "apps": ["billing"]}, "validity_hours": 24,
+    }), 201)
+    denied = _decide(api, other["attestation_id"])
+    check("1.9.2: another subject's attestation is denied to the operator key",
+          denied["authorized"] is False and denied["denial_reason"] == "attestation_subject_mismatch", denied)
     head = api.admin("GET", f"/admin/evidence/resources/{RESOURCE}").get_json()
     entries = head.get("entries", [])
     last = [e for e in entries if e.get("entry", {}).get("entry_kind") == "execution"][-1]["payload"]

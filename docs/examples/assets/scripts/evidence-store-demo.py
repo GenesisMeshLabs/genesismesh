@@ -58,7 +58,7 @@ def run(na: LocalNA, s: Session) -> None:
 
     s.step("Authorize, act, submit evidence")
     _, attestation = na.admin("POST", "/admin/attestations", {
-        "subject_id": "vendor-acme", "roles": ["role:client"], "claims": {"capabilities": [CAPABILITY]}})
+        "subject_id": na.operator_key_id, "roles": ["role:client"], "claims": {"capabilities": [CAPABILITY]}})
     evaluate = {"attestation_id": attestation["attestation_id"], "requested_capability": CAPABILITY}
     previous = None
     for action, version in (("create", "7"), ("rotate", "8")):

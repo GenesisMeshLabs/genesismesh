@@ -100,7 +100,7 @@ def run(na: LocalNA, s: Session) -> None:
           '"resource_prefix": "kv:vendor-acme/", ...}')
     s.ok(f"{observer.status}: observer key")
     _, attestation = na.admin("POST", "/admin/attestations", {
-        "subject_id": "vendor-acme", "roles": ["role:client"], "claims": {"capabilities": [CAPABILITY]}})
+        "subject_id": na.operator_key_id, "roles": ["role:client"], "claims": {"capabilities": [CAPABILITY]}})
     attestation_id = attestation["attestation_id"]
     time.sleep(1.5)  # every change below happens after the activation
 

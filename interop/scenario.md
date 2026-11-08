@@ -47,7 +47,8 @@ and licenses the data.
    enforcement required.
 3. The NA decides `transactions.read` under the agreement for 10 rows
    (authorized) and 500 rows (denied by the policy gate), and under a
-   membership attestation it issued to bank-a (authorized). Each decision binds
+   membership attestation it issued to the operator key that asks (authorized;
+   since 1.9.2 only an attestation's subject is given decisions under it). Each decision binds
    the policy versions it applied; the attestation decision also binds the
    attestation.
 4. The NA, as licensor, signs a data license policy for bank-a: sources

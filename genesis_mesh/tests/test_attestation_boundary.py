@@ -36,7 +36,9 @@ from genesis_mesh.trust.justification import verify_justification_proof
 from .test_na_boundary_policy import _activate, _iso, _make_service, _post
 from .test_na_trust_api import _make_agreement
 
-SUBJECT = "vendor-acme"
+# 1.9.2: an attestation-basis decision is made only for the attestation's
+# subject, so the subject is the operator key the tests sign with.
+SUBJECT = "operator-test"
 
 
 @pytest.fixture

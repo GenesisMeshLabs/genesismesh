@@ -19,6 +19,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import nacl.encoding
 import nacl.signing
 import requests
 
@@ -119,8 +120,11 @@ def main() -> int:
     denied = na.post("/admin/boundary/evaluate", {
         "agreement": agreement_json, "requested_capability": "transactions.read",
         "context": {**context, "request_parameters": {"rows": 500}}})["decision"]
+    # 1.9.2: a decision under an attestation is made only for its subject, so
+    # the attestation names the operator key that asks for it.
+    operator_public_key = na.key.verify_key.encode(encoder=nacl.encoding.Base64Encoder).decode()
     attestation = na.post("/admin/attestations", {
-        "subject_id": BANK_A, "roles": ["role:client"], "subject_public_key": bank.public_key_b64,
+        "subject_id": na.key_id, "roles": ["role:client"], "subject_public_key": operator_public_key,
         "claims": {"capabilities": ["transactions.read"], "region": "Zürich ✓"}})
     attested = na.post("/admin/boundary/evaluate", {
         "attestation_id": attestation["attestation_id"], "requested_capability": "transactions.read",

@@ -303,7 +303,7 @@ def test_context_may_repeat_the_agreements_own_parties(client):
 
 
 def test_attestation_basis_refuses_a_foreign_provider(client):
-    attestation = _issue(client, capabilities=["secret.manage"], subject="vendor-acme")
+    attestation = _issue(client, capabilities=["secret.manage"], subject="operator-test")
     resp = _post(client, "/admin/boundary/evaluate", {
         "attestation_id": attestation["attestation_id"], "requested_capability": "secret.manage",
         "context": {"provider_sovereign_id": "someone-else"},

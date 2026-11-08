@@ -84,7 +84,7 @@ def run(na: LocalNA, s: Session) -> None:
 
     s.step("Evaluate a transfer of 2500")
     status, attestation = na.admin("POST", "/admin/attestations", {
-        "subject_id": "vendor-acme", "roles": ["role:client"],
+        "subject_id": na.operator_key_id, "roles": ["role:client"],
         "claims": {"capabilities": [CAPABILITY]}})
     status, response = na.admin("POST", "/admin/boundary/evaluate", {
         "attestation_id": attestation["attestation_id"], "requested_capability": CAPABILITY,

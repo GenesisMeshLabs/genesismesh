@@ -21,11 +21,21 @@ attestation's claims. The key design decision is that attestation facts are
 request context's canonical form, and the signed attestation digest covers
 them.
 
-> **This is not identity proofing.** The attestation says the issuing
-> sovereign admitted the subject with these roles and claims. How the caller
-> proves it *is* that subject (mutual TLS, a session, a signed request) stays
-> the relying system's job. The NA checks that the declared requester equals
-> the attested subject; it does not authenticate the requester.
+> **Only the subject may ask (1.9.2).** The operator key that signs
+> `POST /admin/boundary/evaluate` must be the attestation's subject:
+> - when the attestation binds `subject_public_key`, the signing key's public
+>   key must equal it, whatever the key's ID;
+> - otherwise the signing key's ID must equal `subject_id`.
+>
+> No tier is exempt, privileged keys included. Any other key gets a signed
+> denial with `attestation_subject_mismatch`. Naming the subject in
+> `context.requester_sovereign_id` does not help another key, and a
+> `requester_sovereign_id` other than the subject fails as before. Before
+> 1.9.2 the NA checked only the declared requester, so any operator key could
+> be given decisions under any attestation.
+>
+> The attestation is still not identity proofing: how the subject came to hold
+> its operator key stays the operator's job.
 
 ## What an attestation-bound decision proves
 
@@ -39,7 +49,10 @@ A decision with an `attestation_binding` proves, under the NA's signature:
   revocation feed up to sequence `revocation_seq_checked`, and the request time
   was inside its validity window;
 - the requested capability was in `claims.capabilities`, and every applicable
-  policy gate (including any `attestation_claim.v1` gate) passed.
+  policy gate (including any `attestation_claim.v1` gate) passed;
+- from 1.9.2, the operator key that asked was the attestation's subject. The
+  decision does not name that key: the NA's evidence store records it as
+  `requested_by`.
 
 A denied decision proves which of those failed. Denial reasons are stable
 codes: `attestation_not_found`, `attestation_invalid` (signature does not
@@ -53,10 +66,14 @@ verify, so it was altered or not issued by this NA), `attestation_revoked`,
 
 The operator admits `vendor-acme` with the capability it may invoke and the
 apps it may use. `capabilities` and `apps` are the two conventional claim keys.
+The vendor asks with its own standard operator key, `vendor-acme`. Binding
+that key's public key means a key later configured under the same ID does not
+inherit the attestation.
 
 ```text
 POST /admin/attestations
 { "subject_id": "vendor-acme",
+  "subject_public_key": "<vendor-acme's operator public key, base64>",
   "roles": ["role:client"],
   "claims": { "capabilities": ["app.invoke"], "apps": ["billing", "reports"] },
   "validity_hours": 720 }
@@ -87,6 +104,8 @@ records only the presence and type of `app_id` unless the policy sets
 
 ### 3. Evaluate a request
 
+The vendor signs the request with its operator key `vendor-acme`:
+
 ```text
 POST /admin/boundary/evaluate
 { "attestation_id": "<attestation_id>",
@@ -98,7 +117,7 @@ The decision is authorized. Its gate results run in this order:
 
 | gate | checks |
 |---|---|
-| `attestation_status` | found, signature valid, active, not revoked, requester is the subject |
+| `attestation_status` | found, signature valid, active, not revoked, requester is the subject, and so is the signing operator key |
 | `attestation_validity` | request time within `valid_from`..`expires_at` |
 | `capability_check` | `app.invoke` is in `claims.capabilities` |
 | `freshness_check` | unchanged; an attestation carries no freshness commitment, so the commitment is 0 |
@@ -138,7 +157,23 @@ assert result.accepted
 
 A different attestation, or the same attestation with any claim changed,
 returns `attestation_binding_mismatch`; a decision without an attestation
-binding returns `attestation_binding_missing`. `verify_justification_proof`
+binding returns `attestation_binding_missing`.
+
+A relying party that knows only which attestation or subject it expects, not
+the attestation itself, passes `expected_attestation_id`, `expected_subject_id`
+or both (1.9.2). Verification fails with `attestation_binding_mismatch` when the
+decision's signed binding names another attestation or subject:
+
+```python
+result = verify_boundary_decision(
+    decision,
+    operator_public_keys=[na_public_key],
+    expected_attestation_id=attestation_id,
+    expected_subject_id="vendor-acme",
+)
+```
+
+`verify_justification_proof`
 with the decision also checks that every trace entry names the same gate, with
 the same outcome, as the decision (`trace_gate_mismatch` otherwise).
 

@@ -2077,6 +2077,16 @@
           "name": "at_record_time",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "expected_attestation_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "expected_subject_id",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
@@ -2364,6 +2374,16 @@
           "name": "requester_id",
           "kind": "keyword_only",
           "required": true
+        },
+        {
+          "name": "caller_key_id",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "caller_public_key",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
