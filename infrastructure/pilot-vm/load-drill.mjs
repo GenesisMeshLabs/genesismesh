@@ -13,13 +13,15 @@
 import { randomUUID, generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 const sdk = await import(process.env.GM_SDK_ENTRY ?? 'genesis-mesh-sdk');
-const { GenesisMeshClient, ExecutionRecorder, seedSigner, verifyEvidenceEvents } = sdk;
+const { GenesisMeshClient, ExecutionRecorder, seedSigner, verifyEvidenceEvents, publicKeyFromSeed } = sdk;
 const keys = JSON.parse(readFileSync(process.env.GM_KEYS_FILE, 'utf8'));
 const url = process.env.GM_URL;
 const gm = new GenesisMeshClient({ baseUrl: url, signingKeyBase64: keys.operator.seed, keyId: 'ops', timeout: 8000 });
 const seconds = Number(process.argv[2] ?? 90);
 const id = randomUUID();
-const att = await gm.attestation.issue({ subject_id: `failover-${id}`, roles: ['role:client'], claims: { capabilities: ['secret.rotate'] } });
+// 1.9.2: the NA decides under an attestation only for the key it binds: the operator's.
+const att = await gm.attestation.issue({ subject_id: `failover-${id}`, subject_public_key: publicKeyFromSeed(keys.operator.seed),
+  roles: ['role:client'], claims: { capabilities: ['secret.rotate'] } });
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const seed = privateKey.export({ type: 'pkcs8', format: 'der' }).subarray(-32).toString('base64');
 const pub = publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64');

@@ -50,6 +50,9 @@ REFERENCE_ID = os.environ.get("REFERENCE_SOVEREIGN_ID", "gm-demo-public-na")
 REFERENCE_KEY = os.environ["REFERENCE_PUBLIC_KEY"]
 OPERATOR_ID = os.environ.get("DEMO_OPERATOR_KEY_ID", "demo-ops")
 OPERATOR = SigningKey(base64.b64decode(os.environ["DEMO_OPERATOR_SEED"]))
+# 1.9.2: the NA decides under an attestation only for the key it binds, and the demo
+# asks with its operator key, so the controller's attestation binds that key.
+OPERATOR_PUBLIC_KEY = base64.b64encode(bytes(OPERATOR.verify_key)).decode()
 EXECUTOR_ID = os.environ.get("DEMO_EXECUTOR_KEY_ID", "mesh-demo-controller")
 EXECUTOR = SigningKey(base64.b64decode(os.environ["DEMO_EXECUTOR_SEED"]))
 OUT = Path(os.environ.get("DEMO_DATA_DIR", "/demo-data"))
@@ -113,11 +116,12 @@ def parse(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def issue(subject: str, lifetime: timedelta, claims: dict) -> dict:
+def issue(subject: str, lifetime: timedelta, claims: dict, subject_public_key: str | None = None) -> dict:
     hours = max(1, int(lifetime.total_seconds() // 3600))
-    return call("POST", "/admin/attestations", {
-        "subject_id": subject, "roles": ["role:client"], "validity_hours": hours, "claims": claims,
-    }, admin=True).json()
+    body = {"subject_id": subject, "roles": ["role:client"], "validity_hours": hours, "claims": claims}
+    if subject_public_key:
+        body["subject_public_key"] = subject_public_key
+    return call("POST", "/admin/attestations", body, admin=True).json()
 
 
 # -- bootstrap ---------------------------------------------------------------
@@ -170,11 +174,12 @@ def bootstrap(state: dict) -> None:
         }, admin=True)
 
     controller = state.get("controller")
-    if controller is None or parse(controller["expires_at"]) - now() < timedelta(days=1):
+    if (controller is None or parse(controller["expires_at"]) - now() < timedelta(days=1)
+            or controller.get("subject_public_key") != OPERATOR_PUBLIC_KEY):
         fresh = issue(CONTROLLER, timedelta(days=7), {
             "capabilities": ["sp-secret.create", "sp-secret.rotate"], "apps": [APP],
             "public_mesh": True, "demo": True,
-        })
+        }, subject_public_key=OPERATOR_PUBLIC_KEY)
         if controller is not None:
             call("POST", f"/admin/attestations/{controller['attestation_id']}/revoke",
                  {"reason": "superseded"}, admin=True, ok=(200, 404, 409))
