@@ -190,7 +190,16 @@ These notes were checked against core `main` at v1.9.1.
 - **The existing test file** is `genesis_mesh/tests/test_attestation_boundary.py`.
   It already asserts `attestation_subject_mismatch` for the body-supplied
   requester, which R4 keeps.
-- **sdk-php** is not in the release train. R6 applies to it if it ships.
+- **sdk-php** is not in the release train and has no offline verifier, so
+  R6 does not apply to it yet.
+- **R6 in each SDK (2026-11-08):**
+  - Python, Go, .NET and TypeScript take the two expectations as new
+    optional fields of their existing decision-verify options.
+  - Rust adds `verify_boundary_decision_expecting` with a
+    `#[non_exhaustive]` `ExpectedBinding` instead. `VerifyDecisionOptions`
+    is a public struct that callers build as a literal, so a new field
+    would be a breaking change in a patch release. R9's expected requester
+    can later be added to `ExpectedBinding` without breaking callers.
 
 ## Release order
 
