@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.9.1 (2026-11-04). Several guarantees below depend on settings that
+As of v1.9.2 (2026-11-08). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -316,7 +316,7 @@ records offline and calls a subset of the routes.
 
 ### Not yet true
 
-As of v1.9.1, two things are still not true:
+As of v1.9.2, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1505,6 +1505,28 @@ else changes.
 
 **What became possible:** a key succession ends a copied key's power over
 every SDK's verifiers, records without their own time included.
+
+#### v1.9.2 — Decisions Bound to the Asking Key
+
+A patch release for one security fix. Since 0.58.1, `POST
+/admin/boundary/evaluate` with an `attestation_id` checked the caller's tier
+but not that the caller was the attestation's subject. It compared the
+subject only with `context.requester_sovereign_id`, which the caller sets, so
+any operator key could get signed decisions under another subject's
+attestation. 1.9.2 binds the decision to the key that signs the request: its
+public key must equal the attestation's `subject_public_key` when one is
+bound, and its key ID must equal `subject_id` otherwise. A mismatch is a
+signed DENY, `attestation_subject_mismatch` (core #141; advisory
+GHSA-9v4g-3w8f-w5q9).
+
+The SDK verifiers gained `expected_attestation_id` and `expected_subject_id`,
+so a relying party can refuse a decision made under an attestation it did
+not expect. The plan was published with its reproduction before the fix
+(`ops/plan-v1.9.2.md`); its second half, a signed requester field in every
+decision and the review of the other party-scoped bases, is 1.10.0.
+
+**What became possible:** an attestation's capabilities are exercised only
+by the key it was issued to.
 
 ---
 

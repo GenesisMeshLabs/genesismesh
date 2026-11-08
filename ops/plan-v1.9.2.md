@@ -1,6 +1,7 @@
 # Plan v1.9.2 and v1.10.0 — Bind Decisions to the Requesting Operator Key
 
-Status: proposed (2026-11-08).
+Status: 1.9.2 released 2026-11-08 (core #141, release #142; advisory
+GHSA-9v4g-3w8f-w5q9). 1.10.0 is proposed.
 
 - **1.9.2 (patch):** a server fix and an SDK verifier option.
 - **1.10.0 (minor):** a signed requester field, roster scoping and the other
