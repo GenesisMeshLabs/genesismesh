@@ -24,6 +24,8 @@ signed form), the optional fields omitted from it when absent, and for
 agreements the fixed list of signed fields. Only the signed projection of a
 record is checked: the signature itself, and an agreement's fields outside
 its signed list, carry no meaning a verifier could misread.
+From 1.10.0 a nested model may list fields omitted when absent too
+(``NESTED_OMIT_WHEN_NONE``): ``AttestationBinding.requester_key_id``.
 
 ``conformance/vectors/field_registry.json`` carries the registry to the SDKs;
 a test fails when it differs from the models.
@@ -60,6 +62,14 @@ OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
     "RetentionCheckpoint": ("observation_heads",),
     # v1.6.0: the revoked grants a feed lists, written only with EVIDENCE_GRANTS=on.
     "SovereignRevocationFeed": ("revoked_grant_ids",),
+}
+
+
+#: Optional fields of nested (non-root) models left out of every form when absent, so a record
+#: that predates them keeps its form: a verifier rebuilding the reference's form must not write
+#: them as null (1.10.0).
+NESTED_OMIT_WHEN_NONE: dict[str, tuple[str, ...]] = {
+    "AttestationBinding": ("requester_key_id",),
 }
 
 
@@ -245,6 +255,8 @@ def build_registry() -> dict[str, Any]:
             spec["omit_when_none"] = list(omitted)
         if model.__name__ in CANONICAL_FIELDS:
             spec["canonical_fields"] = list(CANONICAL_FIELDS[model.__name__])
+    for name, omitted in NESTED_OMIT_WHEN_NONE.items():
+        done[name]["omit_when_none"] = list(omitted)
     from .evidence_store import EntryKind
 
     return {
