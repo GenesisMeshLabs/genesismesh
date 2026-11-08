@@ -13,7 +13,7 @@ locally, and exposes narrowly scoped services to relying applications.
 
 ## Version status
 
-The gateway ships with each Genesis Mesh release, at the same version (1.9.1
+The gateway ships with each Genesis Mesh release, at the same version (1.9.2
 today). It is beta: see the {doc}`../reference/public-contract`. The
 interoperability contract is protected by canonical-JSON and signature
 fixtures shared with the Python implementation.

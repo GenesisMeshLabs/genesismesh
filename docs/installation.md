@@ -22,8 +22,8 @@ The Network Authority and the trust gateway (beta) are also published as
 signed container images for `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.9.1
-docker pull ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.9.1
+docker pull ghcr.io/genesismeshlabs/genesis-mesh:1.9.2
+docker pull ghcr.io/genesismeshlabs/genesis-mesh-gateway:1.9.2
 ```
 
 Verify their signatures and deploy by digest; see
@@ -31,10 +31,10 @@ Verify their signatures and deploy by digest; see
 the `genesis-mesh` CLI:
 
 ```bash
-docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.9.1 --version
+docker run --rm --entrypoint genesis-mesh ghcr.io/genesismeshlabs/genesis-mesh:1.9.2 --version
 ```
 
-The edge agent (beta) ships as `ghcr.io/genesismeshlabs/genesis-mesh-edge:1.9.1`
+The edge agent (beta) ships as `ghcr.io/genesismeshlabs/genesis-mesh-edge:1.9.2`
 and as static Linux binaries with the Rust SDK release; see
 [Edge agent](operations/edge-agent.md).
 
