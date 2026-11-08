@@ -187,6 +187,12 @@ every SDK writes it: a grant received with `5.0` is not in canonical form.
 `SovereignRevocationFeed` omits `revoked_grant_ids` when absent (an NA
 without `EVIDENCE_GRANTS=on` writes the 1.5 form).
 
+Since 1.10.0 a decision's `AttestationBinding` names `requester_key_id`, the
+operator key that asked for the decision. Like a time token's
+`use_head_digest`, it is left out of every form when absent, so a binding
+without it is the 1.9.x binding, byte for byte. A 1.9.x verifier does not know
+the field and refuses a binding that carries it (`unknown_field`, below).
+
 ## Unknown fields
 
 A verifier that copied every field it received into the canonical form would

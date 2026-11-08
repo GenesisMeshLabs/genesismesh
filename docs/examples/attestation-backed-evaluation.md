@@ -173,6 +173,23 @@ result = verify_boundary_decision(
 )
 ```
 
+From 1.10.0 the binding also names the operator key that asked,
+`requester_key_id`, under the decision's signature. Pass
+`expected_requester_key_id` to accept only a decision that this key asked for:
+a different key fails with `attestation_binding_mismatch`, and a decision
+without the field (made by a 1.9.x NA) fails with
+`attestation_binding_missing` only when you pass it. A 1.9.x SDK refuses a
+1.10.0 decision that carries the field as `unknown_field`, so relying parties
+verify 1.10.0 decisions with a 1.10.0 SDK:
+
+```python
+result = verify_boundary_decision(
+    decision,
+    operator_public_keys=[na_public_key],
+    expected_requester_key_id="vendor-acme-ops",
+)
+```
+
 `verify_justification_proof`
 with the decision also checks that every trace entry names the same gate, with
 the same outcome, as the decision (`trace_gate_mismatch` otherwise).

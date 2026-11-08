@@ -2087,6 +2087,11 @@
           "name": "expected_subject_id",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "expected_requester_key_id",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },

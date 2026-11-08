@@ -450,7 +450,7 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.agreement:accept_counter` | counter, original_offer, signing_key, *issued_by, *now? | stable |
 | `genesis_mesh.trust.agreement:cosign_agreement` | record, signing_key, *issued_by | stable |
 | `genesis_mesh.trust.agreement:verify_agreement` | record, offerer_public_keys, responder_public_keys, *expected_graph_digest? | stable |
-| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation?, *at_record_time?, *expected_attestation_id?, *expected_subject_id? | stable |
+| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation?, *at_record_time?, *expected_attestation_id?, *expected_subject_id?, *expected_requester_key_id? | stable |
 | `genesis_mesh.trust.context:sign_boundary_policy` | policy, signing_key, issued_by | stable |
 | `genesis_mesh.trust.context:verify_boundary_policy` | policy, public_keys | stable |
 | `genesis_mesh.trust.context:validate_boundary_policy` | policy, registry | stable |

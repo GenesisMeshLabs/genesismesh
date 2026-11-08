@@ -77,6 +77,7 @@ def verify_boundary_decision(
     at_record_time: bool = False,
     expected_attestation_id: str | None = None,
     expected_subject_id: str | None = None,
+    expected_requester_key_id: str | None = None,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and expiry.
 
@@ -106,6 +107,12 @@ def verify_boundary_decision(
     must carry an AttestationBinding (``attestation_binding_missing``) whose
     ``attestation_id`` and ``subject_id`` equal the ones given
     (``attestation_binding_mismatch``). Both fields are signed.
+
+    ``expected_requester_key_id`` (1.10.0) checks the operator key that asked:
+    the binding's ``requester_key_id`` must equal it
+    (``attestation_binding_mismatch``). A decision without the field, such as
+    one made by a 1.9.x NA, fails only when this is given
+    (``attestation_binding_missing``).
     """
     ts = _utc(decision.decision_made_at) if at_record_time else _utc(now or datetime.now(timezone.utc))
 
@@ -174,6 +181,11 @@ def verify_boundary_decision(
             expected_attestation_id is not None
             and attestation_binding.attestation_id != expected_attestation_id
         ) or (expected_subject_id is not None and attestation_binding.subject_id != expected_subject_id):
+            return _reject("attestation_binding_mismatch")
+    if expected_requester_key_id is not None:
+        if attestation_binding is None or attestation_binding.requester_key_id is None:
+            return _reject("attestation_binding_missing")
+        if attestation_binding.requester_key_id != expected_requester_key_id:
             return _reject("attestation_binding_mismatch")
 
     if not decision.authorized:
