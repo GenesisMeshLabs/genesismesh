@@ -405,10 +405,19 @@ class BoundaryPolicyService:
 
     # -- attestation basis (v0.58.1) -----------------------------------------
 
-    def assess_attestation(self, attestation_id: str, requester_id: str | None) -> tuple[AttestationBasis, str]:
+    def assess_attestation(
+        self,
+        attestation_id: str,
+        requester_id: str | None,
+        *,
+        caller_key_id: str | None = None,
+        caller_public_key: str | None = None,
+    ) -> tuple[AttestationBasis, str]:
         """Load and check an attestation; return the basis and the requester id used.
 
         The requester defaults to the attestation subject when not supplied.
+        ``caller_key_id`` and ``caller_public_key`` name the operator key that
+        asked; given them, that key must be the attestation's subject (1.9.2).
         """
         row = self._na.db.get_membership_attestation(attestation_id)
         attestation = row["attestation"] if row else None
@@ -427,6 +436,8 @@ class BoundaryPolicyService:
             feed_revoked=feed_revoked,
             revocation_seq_checked=seq,
             requester_id=requester,
+            caller_key_id=caller_key_id,
+            caller_public_key=caller_public_key,
         )
         return basis, requester
 

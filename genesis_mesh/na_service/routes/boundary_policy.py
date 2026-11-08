@@ -172,11 +172,19 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
         requester = ctx.get("requester_sovereign_id") if isinstance(ctx, dict) else None
         if requester is not None and not isinstance(requester, str):
             raise BadRequestError("Invalid context record", code="invalid_context")
-        basis, requester_id = policies.assess_attestation(attestation_id, requester)
+        # 1.9.2: the verified operator key that asked must be the subject.
+        # ``_admin`` has checked this key ID's signature, so its key is known.
+        caller_key_id = request.headers.get("X-Admin-Key-Id") or ""
+        basis, requester_id = policies.assess_attestation(
+            attestation_id,
+            requester,
+            caller_key_id=caller_key_id,
+            caller_public_key=service.operator_public_keys.get(caller_key_id),
+        )
         context = policies.build_attestation_context(data, attestation_id, requester_id)
         decision, proof = policies.evaluate_attestation(context, basis)
         service.evidence_store_service.record_decision(
-            decision, context, proof, requested_by=request.headers.get("X-Admin-Key-Id"))
+            decision, context, proof, requested_by=caller_key_id)
 
         binding = decision.policy_binding
         service.db.add_audit_event("boundary_attestation_decision_made", {
@@ -185,6 +193,8 @@ def create_boundary_policy_blueprint(service: "NetworkAuthorityService") -> Blue
             "attestation_id": attestation_id,
             "subject_id": basis.attestation.subject_id if basis.attestation else None,
             "requester_sovereign_id": requester_id,
+            # 1.9.2: the operator key that asked, which the attestation's subject must be.
+            "requested_by": caller_key_id,
             "requested_capability": capability,
             "authorized": decision.authorized,
             "denial_reason": decision.denial_reason,

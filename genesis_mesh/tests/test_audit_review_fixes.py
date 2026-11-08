@@ -613,7 +613,7 @@ def test_the_na_votes_only_over_proofs_its_current_key_signed(net):
 
     service = net.start()
     client = _client(service)
-    att = _issue(client, capabilities=["secret.manage"], subject="vendor-acme")["attestation_id"]
+    att = _issue(client, capabilities=["secret.manage"], subject="operator-test")["attestation_id"]
     resp = _post(client, "/admin/boundary/evaluate", {"attestation_id": att, "requested_capability": "secret.manage",
                                                       "context": {"request_parameters": {"app_id": "billing"}}})
     proof = JustificationProof.model_validate(resp.get_json()["justification_proof"])

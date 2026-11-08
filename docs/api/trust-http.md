@@ -746,7 +746,11 @@ its signature against the NA key valid when it was issued (key history),
 checks that it is active and not revoked
 (locally or by an imported sovereign revocation feed), that the request time is
 within `valid_from`..`expires_at`, and that `context.requester_sovereign_id`
-(default: the attestation subject) is the subject. The provider is this NA's
+(default: the attestation subject) is the subject. Since 1.9.2 the operator
+key that signs the request must also be the subject, whatever its tier: its
+public key must equal the attestation's `subject_public_key` when one is
+bound, and its key ID must equal `subject_id` otherwise. Another key gets a
+signed DENY with `attestation_subject_mismatch`. The provider is this NA's
 sovereign; since v1.1.1 a different `context.provider_sovereign_id` is
 refused with `400 context_party_mismatch`. The context's `parent_kind`
 is always `"attestation"` and its `agreement_id` and `attestation_id` carry the

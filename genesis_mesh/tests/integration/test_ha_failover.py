@@ -96,7 +96,8 @@ def test_killing_an_instance_loses_and_duplicates_nothing(request):
 
     # Setup through the load balancer.
     att = client.post("/admin/attestations", {
-        "subject_id": "vendor-ha", "roles": ["role:client"],
+        # 1.9.2: the subject is the operator key that asks for decisions under it.
+        "subject_id": cluster.operator_key_id, "roles": ["role:client"],
         "claims": {"capabilities": ["secret.manage"], "apps": ["billing"]},
     })
     assert att is not None and att.status_code == 201, att and att.text

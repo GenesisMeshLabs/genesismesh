@@ -34,7 +34,7 @@ $ genesis-mesh trust boundary-policy explain --decision evaluate-response.json
 !no   Authorized : False
   Reason     : policy gate 'transfer-limits/amount-cap' failed
   Attestation: 5d025e3e-97b9-4344-ae6d-166c70e57b1d
-    subject  : vendor-acme
+    subject  : operator-local
     issuer   : USG
     digest   : 0fab7db364a2b58f…
     revocation seq checked: 0

@@ -127,7 +127,7 @@ def test_decisions_keep_the_id_they_were_given(net):
 
     service = net.start()
     client = _client(service)
-    attestation_id = _issue(client, capabilities=["secret.manage"], subject="vendor-acme")["attestation_id"]
+    attestation_id = _issue(client, capabilities=["secret.manage"], subject="operator-test")["attestation_id"]
     wait_until(_record_succession(net, service, client)["effective_at"])
     service.db.close()
     restarted = net.start()

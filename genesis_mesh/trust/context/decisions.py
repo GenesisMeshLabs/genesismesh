@@ -75,6 +75,8 @@ def verify_boundary_decision(
     expected_policies: Sequence[BoundaryPolicy] | None = None,
     expected_attestation: MembershipAttestation | None = None,
     at_record_time: bool = False,
+    expected_attestation_id: str | None = None,
+    expected_subject_id: str | None = None,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and expiry.
 
@@ -98,6 +100,12 @@ def verify_boundary_decision(
     When expected_attestation is provided (v0.58.1), the decision must carry an
     AttestationBinding naming that attestation, its subject and issuer, with a
     digest equal to the attestation's canonical signed body.
+
+    ``expected_attestation_id`` and ``expected_subject_id`` (1.9.2) check the
+    same binding without the attestation itself: given either, the decision
+    must carry an AttestationBinding (``attestation_binding_missing``) whose
+    ``attestation_id`` and ``subject_id`` equal the ones given
+    (``attestation_binding_mismatch``). Both fields are signed.
     """
     ts = _utc(decision.decision_made_at) if at_record_time else _utc(now or datetime.now(timezone.utc))
 
@@ -158,6 +166,14 @@ def verify_boundary_decision(
             or attestation_binding.issuer_sovereign_id != expected_attestation.issuer_sovereign_id
             or attestation_binding.attestation_digest != expected_attestation.digest()
         ):
+            return _reject("attestation_binding_mismatch")
+    if expected_attestation_id is not None or expected_subject_id is not None:
+        if attestation_binding is None:
+            return _reject("attestation_binding_missing")
+        if (
+            expected_attestation_id is not None
+            and attestation_binding.attestation_id != expected_attestation_id
+        ) or (expected_subject_id is not None and attestation_binding.subject_id != expected_subject_id):
             return _reject("attestation_binding_mismatch")
 
     if not decision.authorized:

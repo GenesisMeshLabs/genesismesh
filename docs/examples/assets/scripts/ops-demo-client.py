@@ -34,7 +34,6 @@ from genesis_mesh.crypto import load_private_key
 from genesis_mesh.crypto.admin_auth import sign_admin_request
 
 POLICY_ID = "ops-demo"
-SUBJECT = "vendor-acme"
 EXECUTOR = "secrets-controller"
 EXECUTOR_KEY_ID = "ctrl-1"
 STATE = Path("controller-state.json")
@@ -80,7 +79,9 @@ def _setup(na: NA) -> dict:
     }), 201)
     na.expect(na.admin("POST", f"/admin/boundary-policies/{POLICY_ID}/activate", {"version": policy["version"]}), 200)
     attestation = na.expect(na.admin("POST", "/admin/attestations", {
-        "subject_id": SUBJECT, "roles": ["role:client"],
+        # 1.9.2: only the attestation's subject may be evaluated under it, so
+        # the attestation is issued to the operator key that signs the requests.
+        "subject_id": na.key_id, "roles": ["role:client"],
         "claims": {"capabilities": ["secret.rotate"], "apps": ["billing"]}, "validity_hours": 24 * 30,
     }), 201)
     executor = nacl.signing.SigningKey.generate()
