@@ -59,6 +59,8 @@ class AttestationBasis:
     status_failure: AttestationFailure | None
     status_detail: str
     revocation_seq_checked: int
+    #: The operator key that asked (1.10.0), signed into the binding; None when no key asked.
+    requester_key_id: str | None = None
 
     @property
     def verified(self) -> bool:
@@ -77,6 +79,7 @@ class AttestationBasis:
             issuer_sovereign_id=att.issuer_sovereign_id if att else None,
             attestation_digest=att.digest() if att else None,
             revocation_seq_checked=self.revocation_seq_checked,
+            requester_key_id=self.requester_key_id,
         )
 
     def facts(self) -> dict[str, Any] | None:
@@ -113,6 +116,8 @@ def assess_attestation_basis(
     attestation's subject (:func:`caller_is_subject`), or the basis fails with
     ``attestation_subject_mismatch``. Callers that act for no operator key
     (edge nodes, grant checks, out-of-band judgements) leave both out.
+    From 1.10.0 the binding names ``caller_key_id`` as ``requester_key_id``,
+    whatever the outcome.
     """
 
     def _basis(failure: AttestationFailure | None, detail: str) -> AttestationBasis:
@@ -122,6 +127,7 @@ def assess_attestation_basis(
             status_failure=failure,
             status_detail=detail,
             revocation_seq_checked=revocation_seq_checked,
+            requester_key_id=caller_key_id,
         )
 
     if attestation is None:

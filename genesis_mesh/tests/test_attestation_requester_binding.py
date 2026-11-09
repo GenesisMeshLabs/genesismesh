@@ -1,4 +1,4 @@
-"""1.9.2: attestation-basis evaluation is bound to the operator key that asked.
+"""1.9.2 and 1.10.0: attestation-basis evaluation is bound to the operator key that asked.
 
 ``POST /admin/boundary/evaluate`` with ``attestation_id`` checked the caller's
 tier but not that the caller was the attestation's subject, so any operator
@@ -11,6 +11,7 @@ names are the acceptance tests of ``ops/plan-v1.9.2.md``.
 
 from __future__ import annotations
 
+import copy
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -18,7 +19,12 @@ import pytest
 
 from genesis_mesh.crypto import generate_keypair, sign_model
 from genesis_mesh.models import MembershipAttestation
-from genesis_mesh.models.canonical_registry import decision_refusal
+from genesis_mesh.models.canonical_registry import (
+    build_registry,
+    decision_refusal,
+    signed_as_received,
+    unknown_fields,
+)
 from genesis_mesh.models.context import AttestationBinding, BoundaryDecision
 from genesis_mesh.trust.context import verify_boundary_decision
 
@@ -245,14 +251,18 @@ BINDING_FIELDS_1_9_1 = {
 
 
 def test_10_the_signed_form_is_unchanged(setup, na_service):
+    """1.9.2 added no field. From 1.10.0 the binding adds only ``requester_key_id``
+    (ops/plan-v1.9.2.md R8), and a binding without it keeps the 1.9.1 form."""
     att = _issue(setup)
-    assert set(AttestationBinding.model_fields) == BINDING_FIELDS_1_9_1
+    assert set(AttestationBinding.model_fields) == BINDING_FIELDS_1_9_1 | {"requester_key_id"}
     for key_id in ("psl", "asl"):
         raw = _evaluate(setup, att["attestation_id"], key_id).get_json()["decision"]
-        # No new field in the binding: a 1.9.1 verifier's strict form check accepts the decision.
-        assert set(raw["attestation_binding"]) == BINDING_FIELDS_1_9_1
+        assert set(raw["attestation_binding"]) == BINDING_FIELDS_1_9_1 | {"requester_key_id"}
         assert decision_refusal(raw, _na_keys(na_service)) is None
         assert verify_boundary_decision(BoundaryDecision.model_validate(raw), _na_keys(na_service)).accepted
+    unbound = AttestationBinding(attestation_id="a", subject_id="s")
+    assert set(unbound.model_dump()) == BINDING_FIELDS_1_9_1
+    assert "requester_key_id" not in unbound.model_dump_json()
 
 
 def test_11_the_python_verifier_checks_expected_ids(setup, na_service):
@@ -296,3 +306,100 @@ def test_unit_caller_is_subject():
     unbound = att.model_copy(update={"subject_public_key": None})
     assert caller_is_subject(unbound, "psl", other.public_key_b64)
     assert not caller_is_subject(unbound, "asl", own.public_key_b64)
+
+
+# -- 1.10.0 (R8, R9): the operator key that asked is signed into the decision ------------------
+# ``AttestationBinding.requester_key_id`` names the key that asked, whatever the outcome, under
+# the decision's signature; ``verify_boundary_decision`` takes ``expected_requester_key_id``. A
+# decision without the field (a 1.9.x NA) verifies, and fails only when a requester is expected.
+
+
+def _raw(setup, key_id: str) -> dict:
+    att = _issue(setup)
+    resp = _evaluate(setup, att["attestation_id"], key_id)
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()["decision"]
+
+
+def _resigned_without_requester(raw: dict, na_service) -> BoundaryDecision:
+    """The same decision as a 1.9.x NA wrote it: no requester, signed by the NA key."""
+    decision = BoundaryDecision.model_validate(raw)
+    assert decision.attestation_binding is not None
+    binding = decision.attestation_binding.model_copy(update={"requester_key_id": None})
+    unsigned = decision.model_copy(
+        update={"attestation_binding": binding, "signature": None}
+    )
+    return unsigned.model_copy(
+        update={
+            "signature": sign_model(
+                unsigned, na_service.na_private_key, na_service.key_id
+            )
+        }
+    )
+
+
+@pytest.mark.parametrize("key_id, authorized", [("psl", True), ("asl", False)])
+def test_12_the_decision_names_the_asking_key_under_its_signature(
+    setup, na_service, key_id, authorized
+):
+    raw = _raw(setup, key_id)
+    assert raw["authorized"] is authorized
+    assert raw["attestation_binding"]["requester_key_id"] == key_id
+    keys = _na_keys(na_service)
+    assert decision_refusal(raw, keys) is None
+    assert verify_boundary_decision(BoundaryDecision.model_validate(raw), keys).accepted
+    edited = copy.deepcopy(raw)
+    edited["attestation_binding"]["requester_key_id"] = (
+        "psl" if key_id == "asl" else "asl"
+    )
+    # The SDKs verify the signature over the record as received: the field is covered.
+    assert signed_as_received("BoundaryDecision", raw, keys)
+    assert not signed_as_received("BoundaryDecision", edited, keys)
+    assert (
+        verify_boundary_decision(BoundaryDecision.model_validate(edited), keys).reason
+        == "invalid_signature"
+    )
+
+
+def test_13_an_expected_requester_passes_only_for_the_key_that_asked(setup, na_service):
+    decision = _decision(_evaluate(setup, _issue(setup)["attestation_id"], "psl"))
+    keys = _na_keys(na_service)
+    assert (
+        verify_boundary_decision(decision, keys, expected_requester_key_id="psl").reason
+        == "authorized"
+    )
+    other = verify_boundary_decision(decision, keys, expected_requester_key_id="asl")
+    assert (other.accepted, other.reason) == (False, "attestation_binding_mismatch")
+    both = verify_boundary_decision(
+        decision, keys, expected_subject_id="psl", expected_requester_key_id="asl"
+    )
+    assert both.reason == "attestation_binding_mismatch"
+
+
+def test_14_a_decision_without_a_requester_fails_only_when_one_is_expected(
+    setup, na_service
+):
+    old = _resigned_without_requester(_raw(setup, "psl"), na_service)
+    assert old.attestation_binding.requester_key_id is None
+    assert "requester_key_id" not in old.model_dump_json()
+    keys = _na_keys(na_service)
+    assert verify_boundary_decision(old, keys).reason == "authorized"
+    assert (
+        verify_boundary_decision(old, keys, expected_subject_id="psl").reason
+        == "authorized"
+    )
+    missing = verify_boundary_decision(old, keys, expected_requester_key_id="psl")
+    assert (missing.accepted, missing.reason) == (False, "attestation_binding_missing")
+    assert decision_refusal(old.model_dump(mode="json"), keys) is None
+
+
+def test_a_1_9_verifier_refuses_the_new_field_as_unknown(setup):
+    """Why verifying 1.10.0 decisions needs 1.10.0 SDKs: the 1.9.x registry lacks the field."""
+    raw = _raw(setup, "psl")
+    registry = build_registry()
+    assert unknown_fields("BoundaryDecision", raw, registry) == []
+    old = copy.deepcopy(registry)
+    del old["models"]["AttestationBinding"]["fields"]["requester_key_id"]
+    assert unknown_fields("BoundaryDecision", raw, old) == [
+        "attestation_binding.requester_key_id"
+    ]

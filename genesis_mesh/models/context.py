@@ -150,6 +150,12 @@ class AttestationBinding(BaseModel):
 
     For ``attestation_not_found`` only ``attestation_id`` is known and the
     other identity fields are None.
+
+    ``requester_key_id`` (1.10.0) names the operator key that asked for the
+    decision. It is written only when known, and its key is left out of every
+    serialized form when None, so a binding without it keeps the 1.9.x form
+    byte for byte. A 1.9.x verifier refuses a binding that carries it as an
+    unknown field: verifying 1.10.0 decisions needs a 1.10.0 SDK.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -165,6 +171,11 @@ class AttestationBinding(BaseModel):
         default=0,
         ge=0,
         description="Latest imported revocation-feed sequence for the issuer at evaluation time",
+    )
+    requester_key_id: str | None = Field(
+        default=None,
+        description="Operator key that asked for the decision (1.10.0); omitted when unknown",
+        exclude_if=lambda value: value is None,
     )
 
 

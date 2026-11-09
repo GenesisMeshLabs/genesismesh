@@ -879,11 +879,22 @@ def gen_interop() -> None:
         registry=registry, policy_public_keys=keys["na"], now=now,
     )
     tampered_decision = allowed.model_copy(update={"denial_reason": "edited"})
+    # 1.10.0: the operator key that asked, here the subject's own key, is signed into the binding.
+    asked_basis = assess_attestation_basis(
+        UUID3, attestation, issuer_public_keys=keys["na"], stored_status="active",
+        feed_revoked=False, revocation_seq_checked=0, requester_id=SOV_B,
+        caller_key_id="b-ops", caller_public_key=pub_b64("b"),
+    )
+    asked, _ = engine.evaluate_attestation_with_policies(
+        context(10, attestation_id=UUID3), asked_basis, KEYS["c"], issued_by="na-key", policies=[policy],
+        registry=registry, policy_public_keys=keys["na"], now=now,
+    )
 
-    def decision_vector(vid, desc, decision, *, at, expected_policies=None, expected_attestation=None):
+    def decision_vector(vid, desc, decision, *, at, expected_policies=None, expected_attestation=None,
+                        expected_requester_key_id=None):
         res = verify_boundary_decision(
             decision, keys["na"], now=at, expected_policies=expected_policies,
-            expected_attestation=expected_attestation,
+            expected_attestation=expected_attestation, expected_requester_key_id=expected_requester_key_id,
         )
         inp: dict = {"decision": _model_to_dict(decision), "operator_public_keys": keys["na"],
                      "now": at.isoformat().replace("+00:00", "Z")}
@@ -891,6 +902,8 @@ def gen_interop() -> None:
             inp["expected_policies"] = [_model_to_dict(p) for p in expected_policies]
         if expected_attestation is not None:
             inp["expected_attestation"] = _model_to_dict(expected_attestation)
+        if expected_requester_key_id is not None:
+            inp["expected_requester_key_id"] = expected_requester_key_id
         vectors.append({"id": vid, "kind": "boundary_decision", "description": desc, "input": inp,
                         "expected": {"accepted": res.accepted, "reason": res.reason, "authorized": res.authorized}})
 
@@ -906,6 +919,13 @@ def gen_interop() -> None:
     other = attestation.model_copy(update={"subject_id": "someone-else"})
     decision_vector("bd-007", "Expected attestation differs from the binding", attested, at=now,
                     expected_attestation=other)
+    decision_vector("bd-008", "Attestation-basis ALLOW naming the operator key that asked (1.10.0)", asked,
+                    at=now, expected_policies=[policy], expected_attestation=attestation,
+                    expected_requester_key_id="b-ops")
+    decision_vector("bd-009", "Expected requester differs from the one the binding names (1.10.0)", asked,
+                    at=now, expected_requester_key_id="c-ops")
+    decision_vector("bd-010", "Expected requester, but the binding names none (a 1.9.x decision)", attested,
+                    at=now, expected_requester_key_id="b-ops")
 
     # ── data access intents against a license policy ──────────────────────────
     license_policy = DataLicensePolicy(
