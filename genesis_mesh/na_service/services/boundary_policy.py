@@ -36,6 +36,7 @@ from ...trust.context import (
     sign_boundary_policy,
     validate_boundary_policy,
 )
+from ...trust.context.attestation_basis import caller_is_subject
 from ..errors import BadRequestError, ConflictError, NotFoundError
 
 if TYPE_CHECKING:
@@ -404,6 +405,15 @@ class BoundaryPolicyService:
         )
 
     # -- attestation basis (v0.58.1) -----------------------------------------
+
+    @staticmethod
+    def caller_is_attestation_subject(
+        attestation: Any, caller_key_id: str, caller_public_key: str | None
+    ) -> bool:
+        """Whether an operator key is the attestation's subject, by the rule that binds
+        decisions to their subject (1.9.2); 1.10.0 also scopes standard keys' reads by it."""
+        return caller_is_subject(attestation, caller_key_id, caller_public_key)
+
 
     def assess_attestation(
         self,
