@@ -74,7 +74,7 @@ HTTP_SURFACES: tuple[Surface, ...] = (
     Surface("GET", "/recognition-policy", "Recognition policy", "Current portable-trust acceptance policy.", "safe", "browser_safe", "None", True),
     Surface("GET", "/sovereign-revocation-feed", "Sovereign revocation feed", "Export revocations issued by a sovereign.", "safe", "browser_safe", "None", True),
     Surface("GET", "/attestations", "Membership attestations", "Count of issued membership attestations. The list (subjects, keys, roles, claims) requires operator authentication.", "safe", "browser_safe", "None for the count; operator signature for the list", True),
-    Surface("GET", "/attestations/{attestation_id}", "Membership attestation", "One issued membership attestation and its status.", "safe", "browser_safe", "None"),
+    Surface("GET", "/attestations/{attestation_id}", "Membership attestation", "Status and lineage of one issued membership attestation. The attestation (subject, key, roles, claims) requires operator authentication.", "safe", "browser_safe", "None for the status; operator signature for the attestation"),
     Surface("GET", "/data-usage/policy", "Data usage policy", "The active signed DataLicensePolicy.", "safe", "browser_safe", "None", True, rate_limit="120/min per IP"),
     Surface(
         "GET",

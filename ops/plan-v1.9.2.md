@@ -130,7 +130,8 @@ relax R2. If it is supplied and differs from the attestation's
 - standard-tier keys see only attestations whose subject is the caller, by
   the same rule as R2. Others return 404, or are left out of the list;
 - read and privileged keys: unchanged;
-- unsigned requests: unchanged (count only, no subject filter).
+- unsigned requests: the list unchanged (count only, no subject filter); the
+  read by ID gives the status and lineage only (decision 4).
 
 **R11. The same binding for every party-scoped basis.**
 - Review each route that evaluates or acts under a party-scoped object:
@@ -153,6 +154,7 @@ relax R2. If it is supplied and differs from the attestation's
 | 15 | Standard key lists attestations | Only its own |
 | 16 | Standard key reads another subject's attestation by ID | 404 |
 | 17 | Read-tier key lists attestations | All, as in 1.9.1 |
+| 17a | Unsigned read by ID, including an ID from the revocation feed | Status and lineage only, no attestation |
 | 18 | One case per route found in R11 | Another party's object gives a signed DENY |
 
 ## The two contested cases
@@ -225,5 +227,15 @@ These notes were checked against core `main` at v1.9.1.
    published before the fix.
 2. **Tests 3 and 6:** no exception for privileged keys, and no match by key
    ID alone. Both as proposed.
-3. **R10's answer for another subject's attestation:** 404 (proposed), so a
-   standard key cannot learn whether an attestation ID exists.
+3. **R10's answer for another subject's attestation:** decided 2026-11-09.
+   404, as proposed, so a standard key cannot learn whether an attestation ID
+   exists (core #145).
+4. **The unsigned read by ID:** decided 2026-11-09. It gave the whole
+   attestation to anyone with its ID, on the view that only the holder and
+   those it was shown to know the ID. The public revocation feed lists every
+   revoked ID, so that view did not hold. From 1.10.0 an unsigned read gives
+   the status and lineage only (`attestation_id`, `status`, `revoked_at`,
+   `revocation_reason`, `reissued_from`, `superseded_by`), as the unsigned
+   list gives the count only; a signed read gives the attestation, scoped by
+   R10. The TypeScript and .NET SDKs sign `attestation.get` when the client
+   has a key.

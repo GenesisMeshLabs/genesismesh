@@ -50,7 +50,7 @@ def test_admin_can_issue_membership_attestation(client):
     assert attestation["roles"] == ["role:client"]
     assert attestation["signatures"]
 
-    stored = client.get(f"/attestations/{attestation['attestation_id']}")
+    stored = client.get(f"/attestations/{attestation['attestation_id']}", headers=admin_headers(client, {}))
     assert stored.status_code == 200
     payload = stored.get_json()
     assert payload["status"] == "active"

@@ -26,7 +26,7 @@ from genesis_mesh.models import (
 from genesis_mesh.na_service import db as db_module
 from genesis_mesh.na_service.db import NADatabase
 
-from .test_na_boundary_policy import _make_service, _post
+from .test_na_boundary_policy import _get, _make_service, _post
 
 SUBJECT = "vendor-acme"
 
@@ -290,9 +290,13 @@ def test_routes_show_the_lineage_and_revoke_all_of_it(client, na_service):
     db.reissue_membership_attestation(old.attestation_id, new)
 
     # A decision binds the ID it was given: the old ID still reads as itself.
-    body = client.get(f"/attestations/{old.attestation_id}").get_json()
+    body = _get(client, f"/attestations/{old.attestation_id}").get_json()
     assert body["attestation"]["attestation_id"] == old.attestation_id
     assert body["status"] == "active" and body["superseded_by"] == new.attestation_id
+    # Unsigned (1.10.0), the read is the status and lineage, which still link the copies.
+    status = client.get(f"/attestations/{old.attestation_id}").get_json()
+    assert (status["attestation_id"], status["superseded_by"]) == (old.attestation_id, new.attestation_id)
+    assert "attestation" not in status
     assert client.get(f"/attestations/{new.attestation_id}").get_json()["reissued_from"] == old.attestation_id
     assert client.get("/attestations").get_json() == {"count": 1}
 

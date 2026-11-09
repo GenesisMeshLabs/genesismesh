@@ -77,7 +77,7 @@ client can make up to `WEB_CONCURRENCY` times each limit; see
 | `GET /na/key-history` | Public | 120/min per IP | The NA's key history (beta, v1.5.0). |
 | `GET /data-usage/policy` | Public | 120/min per IP | The active data license policy; see the Trust API reference. |
 | `GET /attestations` | Public (count) / **Operator** (list) | — | The list names each subject with its public key, roles and claims. A `read` key is enough. From 1.10.0 a `standard` key lists only the attestations whose subject it is (its key bound as `subject_public_key`, or with none bound its key ID as `subject_id`); `read` and `privileged` keys list them all. |
-| `GET /attestations/<id>` | Public / Operator | — | One attestation by its ID, which only its holder and the parties it was shown to know. Signed by a `standard` key (1.10.0), another subject's attestation is a `404 attestation_not_found`, as for an ID that does not exist. An unsigned read stays public. |
+| `GET /attestations/<id>` | Public / Operator | — | One attestation by its ID. Signed (a `read` key or above), the stored record with the attestation; from a `standard` key (1.10.0), another subject's attestation is a `404 attestation_not_found`, as for an ID that does not exist. Unsigned (1.10.0), its status and lineage only. |
 | `GET /recognition-treaties`, `/recognition-treaties/<id>`, `/recognition-policy`, `/sovereign-revocation-feed` | Public | — | Signed cross-sovereign trust material. |
 | `GET /recognition-graph`, `/connectome`, `/connectome.json`, `/connectome/trust-path`, `/atlas`, `/atlas.json` | Public | — | Views derived from the recognition graph. |
 | `GET /`, `/dashboard`, `/dashboard.json`, `/surfaces`, `/api-reference`, `/cli-reference`, `/swagger.json` | Public | — | Read-only console pages and their JSON. |
@@ -888,8 +888,16 @@ member. A public view of the members, such as the gateway's mesh view at
 mesh.genesismesh.org, reads the list with a `read` key and decides itself
 what to show.
 
-`GET /attestations/<attestation_id>` is public: it answers only for an ID its
-caller already holds. An unknown ID returns `404 attestation_not_found`.
+`GET /attestations/<attestation_id>` signed with the operator headers returns
+the record above; a `standard` key gets it only for an attestation whose
+subject it is, and `404 attestation_not_found` for any other, as for an ID
+that does not exist (1.10.0). Unsigned, it returns the status and lineage
+only (1.10.0): `{"attestation_id": ..., "status": ..., "revoked_at": ...,
+"revocation_reason": ..., "reissued_from": ..., "superseded_by": ...}`. An ID
+is no secret, since the revocation feed lists every revoked one, so the
+attestation itself, with its subject, key, roles and claims, goes to
+operators only. The holder keeps the attestation it was given. An unknown ID
+returns `404 attestation_not_found`.
 
 ### `GET /recognition-treaties` and `GET /recognition-treaties/<treaty_id>`
 

@@ -43,6 +43,24 @@ def _row_payload(row: dict) -> dict:
     }
 
 
+def _status_payload(row: dict) -> dict:
+    """Render an attestation's status and lineage, without the attestation (1.10.0).
+
+    This is what anyone may learn from an ID: whether it holds now and which
+    copy re-issued it. The revocation feed already publishes revoked IDs and
+    their reasons. The attestation names its subject, key, roles and claims,
+    so it goes to operators only.
+    """
+    return {
+        "attestation_id": row["attestation"].attestation_id,
+        "status": row["status"],
+        "revoked_at": row["revoked_at"],
+        "revocation_reason": row["revocation_reason"],
+        "reissued_from": row["reissued_from"],
+        "superseded_by": row["superseded_by"],
+    }
+
+
 def _policy_with_db_revocation(
     service: "NetworkAuthorityService",
     attestation: MembershipAttestation,
@@ -230,10 +248,15 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
     def get_attestation(attestation_id: str):
         """Return a persisted membership attestation by ID.
 
-        Unsigned, it is public: the ID is known only to the holder and to the
-        parties it was shown to. Signed by a standard-tier operator key
-        (1.10.0), another subject's attestation is answered as one that does
-        not exist, so the key cannot learn which IDs exist.
+        Signed by an operator key (read tier or above), it is the stored
+        record with the attestation. A standard-tier key (1.10.0, plan R10)
+        gets another subject's attestation answered as one that does not
+        exist, so the key cannot learn which IDs exist.
+
+        Unsigned (1.10.0), it is the status and lineage only, as the unsigned
+        list is the count only (v1.0.2): an ID is not a secret, since the
+        public revocation feed lists every revoked one, so the attestation
+        itself (subject, key, roles and claims) goes to operators only.
         """
         signed = bool(request.headers.get("X-Admin-Key-Id"))
         if signed:
@@ -241,7 +264,7 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         row = service.db.get_membership_attestation(attestation_id)
         if not row or (signed and not _visible_to_caller(row)):
             raise NotFoundError("Attestation not found", code="attestation_not_found")
-        return jsonify(_row_payload(row))
+        return jsonify(_row_payload(row) if signed else _status_payload(row))
 
     @bp.route("/attestations", methods=["GET"])
     def list_attestations():
