@@ -262,6 +262,7 @@ def verify_invocation_token(
     bearer_sovereign_id: str,
     use_records: list[InvocationUseRecord] | None = None,
     at_time: datetime | None = None,
+    bearer_public_keys: list[str] | None = None,
 ) -> InvocationTokenVerificationResult:
     """Verify an InvocationToken against a specific invocation request.
 
@@ -271,7 +272,12 @@ def verify_invocation_token(
         requested_capability: The capability the bearer wants to invoke.
         bearer_sovereign_id: Claimed identity of the bearer.
         use_records: Known InvocationUseRecords for this token (for budget check).
+            Only records for this token count (1.10.0): one naming another
+            token, or the bearer, is left out.
         at_time: Time to check expiry against (default: now).
+        bearer_public_keys: Base64-encoded public keys of the bearer (1.10.0).
+            When given, only use records signed by one of them count, so
+            another party cannot spend the token's budget by writing records.
 
     Returns:
         InvocationTokenVerificationResult with reason code.
@@ -300,7 +306,7 @@ def verify_invocation_token(
         return _fail(valid=False, reason="capability_not_granted")
 
     if token.max_invocations is not None:
-        use_count = len(use_records) if use_records else 0
+        use_count = len(_counted_uses(token, use_records or [], bearer_public_keys))
         if use_count >= token.max_invocations:
             return _fail(valid=False, reason="budget_exhausted")
 
@@ -308,6 +314,29 @@ def verify_invocation_token(
         return _fail(valid=False, reason="policy_violated")
 
     return _ok(valid=True, reason="valid")
+
+
+def _counted_uses(
+    token: InvocationToken,
+    use_records: list[InvocationUseRecord],
+    bearer_public_keys: list[str] | None,
+) -> list[InvocationUseRecord]:
+    """The use records that spend this token's budget (1.10.0, plan R11).
+
+    A record counts when it names this token and its bearer and, given the
+    bearer's keys, carries a signature by one of them.
+    """
+    counted = []
+    for record in use_records:
+        if record.token_id != token.token_id or record.used_by_sovereign_id != token.bearer_sovereign_id:
+            continue
+        if bearer_public_keys is not None and (
+            record.signature is None
+            or not any(verify_model_signature(record, record.signature, pub) for pub in bearer_public_keys)
+        ):
+            continue
+        counted.append(record)
+    return counted
 
 
 # ---------------------------------------------------------------------------

@@ -466,7 +466,7 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.context:resolve_policies` | active, context, registry, public_keys, now, *integrity_failures? | beta |
 | `genesis_mesh.trust.context:assess_attestation_basis` | attestation_id, attestation, *issuer_public_keys, *stored_status, *feed_revoked, *revocation_seq_checked, *requester_id, *caller_key_id?, *caller_public_key? | beta |
 | `genesis_mesh.trust.invocation_token:issue_invocation_token` | agreement, bearer_sovereign_id, capabilities, signing_key, *issued_by, *valid_for_seconds?, *max_invocations?, *policy_constraints?, *delegation?, *now? | beta |
-| `genesis_mesh.trust.invocation_token:verify_invocation_token` | token, issuer_public_keys, *requested_capability, *bearer_sovereign_id, *use_records?, *at_time? | beta |
+| `genesis_mesh.trust.invocation_token:verify_invocation_token` | token, issuer_public_keys, *requested_capability, *bearer_sovereign_id, *use_records?, *at_time?, *bearer_public_keys? | beta |
 | `genesis_mesh.trust.logic_attestation:create_model_attestation` | agent_sovereign_id, model_id, model_version_tag, system_prompt, tool_ids, signing_key, *token_id?, *valid_for_seconds?, *now? | beta |
 | `genesis_mesh.trust.logic_attestation:verify_model_attestation` | attestation, policy, agent_public_keys, *at_time? | beta |
 | `genesis_mesh.trust.evidence:build_trust_evidence` | decision, issuer_sovereign_id, graph_digest, issued_by, signing_key, *metadata?, *now? | beta |

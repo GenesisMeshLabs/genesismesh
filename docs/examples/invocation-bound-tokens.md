@@ -271,9 +271,15 @@ assert use2.prev_use_digest == use.digest()
 
 Each `InvocationUseRecord` carries `prev_use_digest = SHA-256(prior.canonical_json)`,
 so a party that holds all the records can check their order. This release has
-no verifier for the chain: `verify_invocation_token()` only counts the records,
-and no function walks the links. Unlike `ExecutionEvidence` (v0.29), the chain
-is not checked for you.
+no verifier for the chain: `verify_invocation_token()` counts the records, and
+no function walks the links. Unlike `ExecutionEvidence` (v0.29), the chain is
+not checked for you.
+
+From 1.10.0 it counts only the records that name this token and its bearer.
+Given `bearer_public_keys` (`--bearer-key` on `trust token verify`), it also
+counts only records signed by one of those keys, so another party cannot
+spend the token's budget by writing records. The token names its bearer by
+sovereign ID only, so the verifier supplies the bearer's keys.
 
 ```text
 use-1  prev_use_digest=None

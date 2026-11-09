@@ -572,3 +572,60 @@ def test_cli_token_record_use_chained():
     use2 = InvocationUseRecord.model_validate_json(Path(out2_path).read_text())
     use1 = InvocationUseRecord.model_validate_json(Path(out1_path).read_text())
     assert use2.prev_use_digest == use1.digest()
+
+
+# -- 1.10.0 (plan R11, test 18b): only the bearer's use records spend a token's budget ----------------
+
+
+def _budget_token():
+    agreement, sk = _make_agreement()
+    tok = issue_invocation_token(
+        agreement, "agent-b", ["transactions.read"], sk,
+        issued_by="op", max_invocations=1, now=_NOW,
+    )
+    return tok, sk
+
+
+def _verify_with(tok, sk, records, bearer_keys=None):
+    return verify_invocation_token(
+        tok, [_pub_b64(sk)],
+        requested_capability="transactions.read",
+        bearer_sovereign_id="agent-b",
+        use_records=records,
+        at_time=_NOW,
+        bearer_public_keys=bearer_keys,
+    )
+
+
+def test_a_use_record_signed_by_another_key_does_not_spend_the_budget():
+    tok, sk = _budget_token()
+    bearer, other = _signing_key(), _signing_key()
+    forged = record_invocation_use(tok, "transactions.read", "success", other, used_by="other", now=_NOW)
+    assert _verify_with(tok, sk, [forged], [_pub_b64(bearer)]).valid
+    own = record_invocation_use(tok, "transactions.read", "success", bearer, used_by="agent-b", now=_NOW)
+    assert _verify_with(tok, sk, [forged, own], [_pub_b64(bearer)]).reason == "budget_exhausted"
+
+
+def test_a_use_record_for_another_token_does_not_spend_the_budget():
+    tok, sk = _budget_token()
+    other_tok, _ = _budget_token()
+    elsewhere = record_invocation_use(other_tok, "transactions.read", "success", sk, used_by="a", now=_NOW)
+    assert _verify_with(tok, sk, [elsewhere]).valid
+    here = record_invocation_use(tok, "transactions.read", "success", sk, used_by="a", now=_NOW)
+    assert _verify_with(tok, sk, [elsewhere, here]).reason == "budget_exhausted"
+
+
+def test_cli_token_verify_counts_only_records_the_bearer_key_signed():
+    runner = CliRunner()
+    agreement, sk = _make_agreement()
+    tok = issue_invocation_token(
+        agreement, "agent-b", ["transactions.read"], sk, issued_by="op",
+        max_invocations=1, now=datetime.now(timezone.utc),
+    )
+    bearer, other = _signing_key(), _signing_key()
+    forged = record_invocation_use(tok, "transactions.read", "success", other, used_by="other")
+    args = ["token", "verify", "--token", _write_tmp(tok), "--verify-key", _write_pub(sk),
+            "--capability", "transactions.read", "--bearer", "agent-b", "--use-record", _write_tmp(forged)]
+    assert runner.invoke(trust, args).exit_code == 1  # without the bearer's key, every record counts
+    result = runner.invoke(trust, [*args, "--bearer-key", _write_pub(bearer)])
+    assert result.exit_code == 0, result.output
