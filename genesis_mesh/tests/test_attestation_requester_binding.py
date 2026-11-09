@@ -403,3 +403,87 @@ def test_a_1_9_verifier_refuses_the_new_field_as_unknown(setup):
     assert unknown_fields("BoundaryDecision", raw, old) == [
         "attestation_binding.requester_key_id"
     ]
+
+
+# -- 1.10.0 (R10): a standard-tier key sees only the attestations whose subject it is -----------
+# GET /attestations lists, and a signed GET /attestations/<id> reads, only the caller's own
+# attestations for a standard-tier key, by the subject rule of 1.9.2; another subject's
+# attestation is answered as one that does not exist. Read and privileged keys see all of them,
+# and unsigned requests are unchanged: the count only, and the public read by ID.
+
+
+def _get(client, url: str, key_id: str | None):
+    if key_id is None:
+        return client.get(url)
+    return client.get(url, headers=_headers(client.keys[key_id], key_id, {}, client=client, method="GET", url=url))
+
+
+@pytest.fixture
+def roster(client, na_service):
+    reader = generate_keypair()
+    na_service.operator_public_keys["rdr"] = reader.public_key_b64
+    na_service.operator_key_tiers["rdr"] = "read"
+    client.keys["rdr"] = reader
+    own = _issue(client, subject="psl", subject_public_key="psl")
+    by_id = _issue(client, subject="psl", subject_public_key=None)  # no key bound: the key ID is the subject
+    other = _issue(client, subject="asl", subject_public_key="asl")
+    foreign_key = _issue(client, subject="psl", subject_public_key="asl")  # psl's ID, asl's key bound
+    return client, {"own": own, "by_id": by_id, "other": other, "foreign_key": foreign_key}
+
+
+def _listed(client, key_id: str, query: str = "") -> set[str]:
+    resp = _get(client, f"/attestations{query}", key_id)
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    ids = {row["attestation"]["attestation_id"] for row in body["attestations"]}
+    assert body["count"] == len(ids)
+    return ids
+
+
+def test_15_a_standard_key_lists_only_its_own_attestations(roster):
+    client, att = roster
+    mine = {att["own"]["attestation_id"], att["by_id"]["attestation_id"]}
+    assert _listed(client, "psl") == mine
+    assert _listed(client, "psl", "?subject_id=asl") == set()
+    assert _listed(client, "asl") == {att["other"]["attestation_id"], att["foreign_key"]["attestation_id"]}
+    assert _listed(client, "operator-std") == set()
+
+
+def test_16_a_standard_key_reads_another_subjects_attestation_as_missing(roster):
+    client, att = roster
+    assert _get(client, f"/attestations/{att['own']['attestation_id']}", "psl").status_code == 200
+    assert _get(client, f"/attestations/{att['by_id']['attestation_id']}", "psl").status_code == 200
+    missing = _get(client, "/attestations/00000000-0000-4000-8000-00000000dead", "psl")
+    for name in ("other", "foreign_key"):
+        resp = _get(client, f"/attestations/{att[name]['attestation_id']}", "psl")
+        assert resp.status_code == 404, name
+        # Indistinguishable from an ID that does not exist (decision 3), apart from the request ID.
+        assert {k: v for k, v in resp.get_json()["error"].items() if k != "request_id"} == {
+            k: v for k, v in missing.get_json()["error"].items() if k != "request_id"
+        }
+
+
+@pytest.mark.parametrize("key_id", ["rdr", "operator-test"])
+def test_17_read_and_privileged_keys_see_every_attestation(roster, key_id):
+    client, att = roster
+    assert _listed(client, key_id) == {a["attestation_id"] for a in att.values()}
+    for a in att.values():
+        assert _get(client, f"/attestations/{a['attestation_id']}", key_id).status_code == 200
+
+
+def test_unsigned_roster_requests_are_unchanged(roster):
+    client, att = roster
+    body = _get(client, "/attestations", None).get_json()
+    assert body == {"count": 4}
+    assert _get(client, "/attestations?subject_id=psl", None).status_code == 401
+    # The read by ID stays public: the ID is known only to those it was shown to.
+    for a in att.values():
+        assert _get(client, f"/attestations/{a['attestation_id']}", None).status_code == 200
+
+
+def test_a_signed_read_by_id_must_verify(roster):
+    client, att = roster
+    url = f"/attestations/{att['own']['attestation_id']}"
+    headers = _headers(client.keys["psl"], "psl", {}, client=client, method="GET", url=url)
+    headers["X-Admin-Key-Id"] = "asl"  # psl's signature presented as asl's
+    assert client.get(url, headers=headers).status_code == 401

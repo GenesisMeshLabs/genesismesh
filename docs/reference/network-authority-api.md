@@ -76,8 +76,8 @@ client can make up to `WEB_CONCURRENCY` times each limit; see
 | `GET /genesis`, `/policy`, `/crl`, `/sovereign.json` | Public | — | Signed trust material, public by design. |
 | `GET /na/key-history` | Public | 120/min per IP | The NA's key history (beta, v1.5.0). |
 | `GET /data-usage/policy` | Public | 120/min per IP | The active data license policy; see the Trust API reference. |
-| `GET /attestations` | Public (count) / **Operator** (list) | — | The list names each subject with its public key, roles and claims. A `read` key is enough. |
-| `GET /attestations/<id>` | Public | — | One attestation by its ID, which only its holder and the parties it was shown to know. |
+| `GET /attestations` | Public (count) / **Operator** (list) | — | The list names each subject with its public key, roles and claims. A `read` key is enough. From 1.10.0 a `standard` key lists only the attestations whose subject it is (its key bound as `subject_public_key`, or with none bound its key ID as `subject_id`); `read` and `privileged` keys list them all. |
+| `GET /attestations/<id>` | Public / Operator | — | One attestation by its ID, which only its holder and the parties it was shown to know. Signed by a `standard` key (1.10.0), another subject's attestation is a `404 attestation_not_found`, as for an ID that does not exist. An unsigned read stays public. |
 | `GET /recognition-treaties`, `/recognition-treaties/<id>`, `/recognition-policy`, `/sovereign-revocation-feed` | Public | — | Signed cross-sovereign trust material. |
 | `GET /recognition-graph`, `/connectome`, `/connectome.json`, `/connectome/trust-path`, `/atlas`, `/atlas.json` | Public | — | Views derived from the recognition graph. |
 | `GET /`, `/dashboard`, `/dashboard.json`, `/surfaces`, `/api-reference`, `/cli-reference`, `/swagger.json` | Public | — | Read-only console pages and their JSON. |

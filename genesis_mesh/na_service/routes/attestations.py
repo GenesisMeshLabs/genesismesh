@@ -201,11 +201,45 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
             )
         return jsonify(_json_model(policy))
 
+    def _verify_operator_read() -> None:
+        """Authenticate an operator view (read tier or above), as /admin/* is limited (v1.1.0)."""
+        if not service.rate_limiter.allow(
+            f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
+        ):
+            raise RateLimitError()
+        ok, error = service._verify_admin_request({}, required_tier="read")
+        if not ok:
+            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
+
+    def _visible_to_caller(row: dict) -> bool:
+        """Whether the verified operator key may see this attestation (1.10.0, plan R10).
+
+        A standard-tier key sees only attestations whose subject it is, by the
+        rule that binds decisions to their subject (1.9.2): the key bound as
+        ``subject_public_key``, or, with none bound, the key whose ID is
+        ``subject_id``. Read and privileged keys see every attestation.
+        """
+        key_id = request.headers.get("X-Admin-Key-Id") or ""
+        if service.operator_key_tiers.get(key_id) != "standard":
+            return True
+        return service.boundary_policies.caller_is_attestation_subject(
+            row["attestation"], key_id, service.operator_public_keys.get(key_id)
+        )
+
     @bp.route("/attestations/<attestation_id>", methods=["GET"])
     def get_attestation(attestation_id: str):
-        """Return a persisted membership attestation by ID."""
+        """Return a persisted membership attestation by ID.
+
+        Unsigned, it is public: the ID is known only to the holder and to the
+        parties it was shown to. Signed by a standard-tier operator key
+        (1.10.0), another subject's attestation is answered as one that does
+        not exist, so the key cannot learn which IDs exist.
+        """
+        signed = bool(request.headers.get("X-Admin-Key-Id"))
+        if signed:
+            _verify_operator_read()
         row = service.db.get_membership_attestation(attestation_id)
-        if not row:
+        if not row or (signed and not _visible_to_caller(row)):
             raise NotFoundError("Attestation not found", code="attestation_not_found")
         return jsonify(_row_payload(row))
 
@@ -218,6 +252,8 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
         is enough. An unsigned request gets the count, optionally by
         ``status``; filtering by subject or issuer would answer "is this
         subject a member", so it needs an operator signature (v1.0.2).
+        From 1.10.0 a standard-tier key lists only the attestations whose
+        subject it is (plan R10); read and privileged keys list them all.
         """
         status = request.args.get("status")
         if not request.headers.get("X-Admin-Key-Id"):
@@ -228,18 +264,15 @@ def create_attestation_blueprint(service: "NetworkAuthorityService") -> Blueprin
                 )
             return jsonify({"count": len(service.db.list_membership_attestations(status=status))})
         # The operator view is an admin request: same limit as /admin/* (v1.1.0).
-        if not service.rate_limiter.allow(
-            f"admin:{request.remote_addr or 'unknown'}", service.rate_limits.admin, 60
-        ):
-            raise RateLimitError()
-        ok, error = service._verify_admin_request({}, required_tier="read")
-        if not ok:
-            raise UnauthorizedError(error or "Unauthorized", code="admin_auth_failed")
-        rows = service.db.list_membership_attestations(
-            issuer_sovereign_id=request.args.get("issuer_sovereign_id"),
-            subject_id=request.args.get("subject_id"),
-            status=status,
-        )
+        _verify_operator_read()
+        rows = [
+            row for row in service.db.list_membership_attestations(
+                issuer_sovereign_id=request.args.get("issuer_sovereign_id"),
+                subject_id=request.args.get("subject_id"),
+                status=status,
+            )
+            if _visible_to_caller(row)
+        ]
         return jsonify({
             "count": len(rows),
             "attestations": [_row_payload(row) for row in rows],
