@@ -77,10 +77,18 @@ over on a channel you trust.
 
 The NA refuses (`409 node_sovereign_in_use`) a sovereign ID that is already
 someone's: this NA's own network name, an active edge node's, an outstanding
-(unused, unexpired) edge invite's, an active executor key's, or the subject of
-an attestation this NA issued. The one exception is the successor of a revoked
-edge node, which reuses its sovereign ID and keeps the attestations issued to
-it. Issue the device's attestations after its edge invite.
+(unused, unexpired) edge invite's, an active executor key's, an operator key
+ID (1.10.0), or the subject of an attestation this NA issued. The one
+exception is the successor of a revoked edge node, which reuses its sovereign
+ID and keeps the attestations issued to it. Issue the device's attestations
+after its edge invite.
+
+An attestation with no `subject_public_key` names its subject by ID only. From
+1.10.0, when that ID is both an edge node's sovereign ID and an operator key ID
+(an operator key added after the node enrolled), neither may act under the
+attestation by ID: the node gets `403 node_attestation_foreign`, and the
+operator key a signed DENY with `attestation_subject_mismatch`. Bind a subject
+key to avoid this.
 
 **Resource prefixes** are plain string prefixes, compared character by
 character, so the NA requires each to end with `/` or `:` (`400

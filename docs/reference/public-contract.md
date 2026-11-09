@@ -464,7 +464,7 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.context:BoundaryEngine` | operator_sovereign_id, *decision_valid_seconds?, *require_freshness_proof? | beta |
 | `genesis_mesh.trust.context:GateRegistry` | (none) | beta |
 | `genesis_mesh.trust.context:resolve_policies` | active, context, registry, public_keys, now, *integrity_failures? | beta |
-| `genesis_mesh.trust.context:assess_attestation_basis` | attestation_id, attestation, *issuer_public_keys, *stored_status, *feed_revoked, *revocation_seq_checked, *requester_id, *caller_key_id?, *caller_public_key? | beta |
+| `genesis_mesh.trust.context:assess_attestation_basis` | attestation_id, attestation, *issuer_public_keys, *stored_status, *feed_revoked, *revocation_seq_checked, *requester_id, *caller_key_id?, *caller_public_key?, *subject_id_names_caller? | beta |
 | `genesis_mesh.trust.invocation_token:issue_invocation_token` | agreement, bearer_sovereign_id, capabilities, signing_key, *issued_by, *valid_for_seconds?, *max_invocations?, *policy_constraints?, *delegation?, *now? | beta |
 | `genesis_mesh.trust.invocation_token:verify_invocation_token` | token, issuer_public_keys, *requested_capability, *bearer_sovereign_id, *use_records?, *at_time? | beta |
 | `genesis_mesh.trust.logic_attestation:create_model_attestation` | agent_sovereign_id, model_id, model_version_tag, system_prompt, tool_ids, signing_key, *token_id?, *valid_for_seconds?, *now? | beta |

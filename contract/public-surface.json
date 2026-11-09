@@ -2389,6 +2389,11 @@
           "name": "caller_public_key",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "subject_id_names_caller",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },

@@ -185,7 +185,8 @@ class EdgeService:
 
     def _check_sovereign_free(self, sovereign: str) -> None:
         """An edge sovereign ID is no other party's (review fixes): not this NA's network name, not an
-        active edge node's or an outstanding edge invite's, not an active executor key's, and not the
+        active edge node's or an outstanding edge invite's, not an active executor key's, not an operator
+        key ID (1.10.0, plan R11), and not the
         subject of an attestation this NA issued, unless every earlier use of it was an edge node of
         that sovereign, now revoked (its successor keeps its attestations, Decision 22)."""
         network = self._na.genesis_block.network_name
@@ -196,12 +197,13 @@ class EdgeService:
             or any(invite["node_sovereign_id"] == sovereign
                    for invite in self._db.outstanding_edge_invites(datetime.now(timezone.utc)))
             or self._db.active_executor_key_sovereign(sovereign)
+            or sovereign in self._na.operator_public_keys
             or (not earlier and self._db.attestation_subject_exists(network, sovereign))
         )
         if taken:
             raise ConflictError(
                 "This sovereign ID is in use: this NA's name, an edge node or an outstanding edge invite, an "
-                "active executor key, or the subject of an attestation this NA issued",
+                "active executor key, an operator key ID, or the subject of an attestation this NA issued",
                 code="node_sovereign_in_use",
             )
 
@@ -446,10 +448,14 @@ class EdgeService:
 
     def _issued_to(self, attestation: Any, edge: dict[str, Any]) -> bool:
         """An attestation is issued to a node: this NA issued it, to the node's sovereign ID, with no
-        subject key or the node's key."""
-        return (attestation.issuer_sovereign_id == self._na.genesis_block.network_name
-                and attestation.subject_id == edge["node_sovereign_id"]
-                and attestation.subject_public_key in (None, edge["node_public_key"]))
+        subject key or the node's key. With no subject key, the node's sovereign ID must not also be
+        an operator key ID (1.10.0, plan R11): the ID alone would not say which party it names."""
+        if (attestation.issuer_sovereign_id != self._na.genesis_block.network_name
+                or attestation.subject_id != edge["node_sovereign_id"]):
+            return False
+        if attestation.subject_public_key is None:
+            return edge["node_sovereign_id"] not in self._na.operator_public_keys
+        return bool(attestation.subject_public_key == edge["node_public_key"])
 
     def evaluate(self, data: dict[str, Any], edge: dict[str, Any]) -> tuple["BoundaryDecision", Any]:
         """``POST /node/boundary/evaluate``: a decision under an attestation issued to the node, with

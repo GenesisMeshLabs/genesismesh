@@ -105,6 +105,7 @@ def assess_attestation_basis(
     requester_id: str,
     caller_key_id: str | None = None,
     caller_public_key: str | None = None,
+    subject_id_names_caller: bool = True,
 ) -> AttestationBasis:
     """Check existence, signature, revocation and subject of an attestation.
 
@@ -148,7 +149,9 @@ def assess_attestation_basis(
         return _basis("attestation_revoked", f"attestation status is {status!r}, not 'active'")
     if requester_id != attestation.subject_id:
         return _basis("attestation_subject_mismatch", "requester is not the attestation subject")
-    if caller_key_id is not None and not caller_is_subject(attestation, caller_key_id, caller_public_key):
+    if caller_key_id is not None and not caller_is_subject(
+        attestation, caller_key_id, caller_public_key, subject_id_names_caller=subject_id_names_caller
+    ):
         return _basis(
             "attestation_subject_mismatch",
             f"operator key {caller_key_id!r} is not the attestation subject {attestation.subject_id!r}",
@@ -167,17 +170,24 @@ def _same_public_key(left: str | None, right: str | None) -> bool:
 
 
 def caller_is_subject(
-    attestation: MembershipAttestation, caller_key_id: str, caller_public_key: str | None
+    attestation: MembershipAttestation,
+    caller_key_id: str,
+    caller_public_key: str | None,
+    *,
+    subject_id_names_caller: bool = True,
 ) -> bool:
     """Whether the operator key that asked is the attestation's subject (1.9.2).
 
     With ``subject_public_key`` set, the caller's public key must be that key,
     whatever its key ID: a replaced key fails even when its ID matches. Without
-    it, the caller's key ID must equal ``subject_id``.
+    it, the caller's key ID must equal ``subject_id``, unless
+    ``subject_id_names_caller`` is False: the NA passes False when the
+    ``subject_id`` also names one of its edge nodes, so the ID alone does not
+    say which party it is (1.10.0, plan R11).
     """
     if attestation.subject_public_key:
         return _same_public_key(caller_public_key, attestation.subject_public_key)
-    return caller_key_id == attestation.subject_id
+    return subject_id_names_caller and caller_key_id == attestation.subject_id
 
 
 def attestation_status_gate(basis: AttestationBasis) -> GateResult:
