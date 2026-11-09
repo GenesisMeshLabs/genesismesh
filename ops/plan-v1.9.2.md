@@ -157,8 +157,7 @@ relax R2. If it is supplied and differs from the attestation's
 | 17a | Unsigned read by ID, including an ID from the revocation feed | Status and lineage only, no attestation |
 | 18 | One case per route found in R11 | Another party's object gives a signed DENY |
 | 18a | Edge node and operator key share an ID | Refused at enrollment and at issuance |
-| 18b | Guard: own token, decision made for another subject | Refused |
-| 18c | Use record signed by another key | Refused; not counted |
+| 18b | Use record signed by another key | Refused; not counted |
 
 ## The two contested cases
 
@@ -245,15 +244,17 @@ and subject. Decision 6.
 **Invocation tokens: no NA route.** Tokens are offline (`trust/invocation_token.py`,
 the `trust token` CLI) and enforced by the local guard (`guard/daemon.py`,
 `trust/mediation.py`).
-- The guard binds the token to the signing agent (bearer equals agent). It
-  checks the decision's signature, `authorized`, expiry and agreement ID,
-  but not whom the decision was made for: an agent holding its own token for
-  agreement X can pair it with a decision another key obtained for X. For an
-  attestation-basis decision, the guard should require
-  `attestation_binding.subject_id` to equal the token's bearer. Fix PR 2.
+- The guard is correct for this review. It binds the token to the signing
+  agent (bearer equals agent) and requires the token's agreement ID to equal
+  the decision's. A token is issued for an agreement only, and an
+  attestation-basis decision carries the attestation ID as its agreement ID,
+  so no token pairs with another subject's attestation-basis decision.
+- Outside R11: a decision names no capability, so under one agreement a
+  bearer can pair its token with a decision made for another capability.
+  Binding a decision to its request is its own hardening item.
 - Offline use records: `record_invocation_use` accepts any signing key, and
   `verify_invocation_token` counts records without checking their signer or
-  token ID. Another party can spend a token's budget, not gain uses. Fix PR 3.
+  token ID. Another party can spend a token's budget, not gain uses. Fix PR 2.
 
 **Edge-node evaluation (`POST /node/boundary/evaluate`): correct for bound
 attestations, open by ID for unbound ones.**
@@ -272,11 +273,10 @@ attestations, open by ID for unbound ones.**
 
 ### R11 fix PRs
 
-1. Edge: keep edge sovereign IDs and operator key IDs apart (test 18a).
-2. Guard: an attestation-basis decision must name the token's bearer as its
-   subject (test 18b).
-3. Offline tokens: a use record must be signed by the bearer's key, and
-   verification checks each record's signer and token ID (test 18c).
+1. Edge: keep edge sovereign IDs and operator key IDs apart (test 18a;
+   core #148).
+2. Offline tokens: a use record must be signed by the bearer's key, and
+   verification checks each record's signer and token ID (test 18b).
 
 ## Release order
 
