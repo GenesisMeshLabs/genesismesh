@@ -408,8 +408,9 @@ def test_a_1_9_verifier_refuses_the_new_field_as_unknown(setup):
 # -- 1.10.0 (R10): a standard-tier key sees only the attestations whose subject it is -----------
 # GET /attestations lists, and a signed GET /attestations/<id> reads, only the caller's own
 # attestations for a standard-tier key, by the subject rule of 1.9.2; another subject's
-# attestation is answered as one that does not exist. Read and privileged keys see all of them,
-# and unsigned requests are unchanged: the count only, and the public read by ID.
+# attestation is answered as one that does not exist. Read and privileged keys see all of them.
+# Unsigned, the list is the count only (v1.0.2), and the read by ID is the status and lineage
+# only (1.10.0): the public revocation feed names every revoked ID, so an ID is no secret.
 
 
 def _get(client, url: str, key_id: str | None):
@@ -471,14 +472,42 @@ def test_17_read_and_privileged_keys_see_every_attestation(roster, key_id):
         assert _get(client, f"/attestations/{a['attestation_id']}", key_id).status_code == 200
 
 
-def test_unsigned_roster_requests_are_unchanged(roster):
-    client, att = roster
+STATUS_FIELDS = {"attestation_id", "status", "revoked_at", "revocation_reason", "reissued_from", "superseded_by"}
+
+
+def test_an_unsigned_list_is_the_count_only(roster):
+    client, _ = roster
     body = _get(client, "/attestations", None).get_json()
     assert body == {"count": 4}
     assert _get(client, "/attestations?subject_id=psl", None).status_code == 401
-    # The read by ID stays public: the ID is known only to those it was shown to.
+
+
+def test_an_unsigned_read_by_id_is_the_status_only(roster):
+    client, att = roster
     for a in att.values():
-        assert _get(client, f"/attestations/{a['attestation_id']}", None).status_code == 200
+        resp = _get(client, f"/attestations/{a['attestation_id']}", None)
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert set(body) == STATUS_FIELDS
+        assert (body["attestation_id"], body["status"]) == (a["attestation_id"], "active")
+    missing = _get(client, "/attestations/00000000-0000-4000-8000-00000000dead", None)
+    assert (missing.status_code, missing.get_json()["error"]["code"]) == (404, "attestation_not_found")
+
+
+def test_the_revocation_feed_does_not_lead_to_revoked_members(roster):
+    """The public feed names revoked IDs: reading one unsigned gives no subject, key, roles or claims."""
+    client, att = roster
+    url = f"/admin/attestations/{att['other']['attestation_id']}/revoke"
+    body = {"reason": "offboarded"}
+    headers = _headers(client.keys["operator-test"], "operator-test", body, client=client, method="POST", url=url)
+    assert client.post(url, json=body, headers=headers).status_code == 200
+    feed = client.get("/sovereign-revocation-feed").get_json()
+    assert att["other"]["attestation_id"] in feed["revoked_attestation_ids"]
+    for attestation_id in feed["revoked_attestation_ids"]:
+        read = _get(client, f"/attestations/{attestation_id}", None).get_json()
+        assert set(read) == STATUS_FIELDS
+        assert (read["status"], read["revocation_reason"]) == ("revoked", "offboarded")
+        assert "asl" not in json.dumps(read)
 
 
 def test_a_signed_read_by_id_must_verify(roster):

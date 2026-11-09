@@ -87,7 +87,10 @@ the new key once it signs:
   that are active and that expire after the horizon. Each gets a copy with a
   new ID, `issued_at` now and the same content otherwise.
   - `reissued_from` and `superseded_by` (`GET /attestations/<id>`,
-    `GET /recognition-treaties/<id>`) link the copies.
+    `GET /recognition-treaties/<id>`) link the copies. From 1.10.0 an
+    unsigned read of an attestation gives these links and its status; the
+    re-issued attestation itself is read with an operator signature and handed
+    to its holder.
   - The previous copy stays active, so decisions and grants that name its
     ID keep working; the NA never resolves an ID to its successor.
   - Revoking either copy revokes both, and the revocation feed lists both.

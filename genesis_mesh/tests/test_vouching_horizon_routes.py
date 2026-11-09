@@ -28,7 +28,7 @@ from genesis_mesh.na_service.settings import load_settings
 
 from .succession_support import Network, public_b64, wait_until
 from .test_evidence_store import _client
-from .test_na_boundary_policy import _intent, _post
+from .test_na_boundary_policy import _get, _intent, _post
 
 
 @pytest.fixture(autouse=True)
@@ -120,7 +120,7 @@ def test_past_the_horizon_the_old_copy_outlives_its_key_and_the_reissued_copy_ve
     old = client.post("/attestations/verify", json={"attestation": attestation, "recognition_policy": policy})
     assert old.get_json()["accepted"] is False and old.get_json()["reason"] == "outlives_key"
     successor_id = client.get(f"/attestations/{attestation['attestation_id']}").get_json()["superseded_by"]
-    successor = client.get(f"/attestations/{successor_id}").get_json()["attestation"]
+    successor = _get(client, f"/attestations/{successor_id}").get_json()["attestation"]
     new = client.post("/attestations/verify", json={"attestation": successor, "recognition_policy": policy})
     assert new.get_json()["accepted"] is True, new.get_json()
 
