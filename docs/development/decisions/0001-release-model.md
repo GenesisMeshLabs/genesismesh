@@ -2,7 +2,7 @@
 
 **Status:** accepted (Maintainer, 2026-10-16). **Plan:** `ops/plan-architecture.md`.
 
-**Implemented:** not yet (2026-10-22). No contract bundle or compatibility table exists; the lockstep train in {doc}`../versioning` still applies. The bundle and the release model are Phase C of the plan, which is parked.
+**Implemented:** not yet (2026-11-11). No contract bundle or compatibility table exists; the lockstep train in {doc}`../versioning` still applies. The Maintainer scheduled this decision for 1.11.0, alongside that release's functional scope: the first contract bundle is core 1.11.0, and the release model switches over in the same release. The maintainer plan is `ops/plan-v1.11.0-release-model.md`. The rest of Phase C stays parked.
 
 ## Context
 
