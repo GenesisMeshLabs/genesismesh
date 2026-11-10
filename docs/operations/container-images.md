@@ -208,7 +208,8 @@ details, including the one-time volume handover from images built with the
 | Health check | `genesis-mesh-gateway --healthcheck`. |
 | Configuration | `GATEWAY_POLICY_FILE`, the gateway policy, mounted read-only; `GATEWAY_STATE_FILE`, its durable state, created once with `--init-state` before the first start. |
 
-The image is distroless: it has no shell or package manager. Policy, state
+The image is distroless and its binaries are static (musl, from 1.10.1): it
+has no shell, package manager, libc or shared libraries. Policy, state
 and operations are covered in the gateway's
 [platform controls](https://github.com/GenesisMeshLabs/gateway/blob/main/docs/platform.md)
 and [deployment](https://github.com/GenesisMeshLabs/gateway/blob/main/docs/deployment.md)
@@ -265,6 +266,7 @@ the published images on both architectures. It checks:
 Each release also scans both architectures of each image before tagging.
 Both gates block any critical or high-severity finding, with or without a
 released fix, and any secret. The Network Authority image is built on Alpine,
-whose packages carry no high-severity findings; the gateway image on
-distroless Debian. The
+whose packages carry no high-severity findings; the gateway image holds
+static binaries on `distroless/static` (from 1.10.1), without libc, OpenSSL
+or zlib. The
 scan reports are kept with the workflow run.
