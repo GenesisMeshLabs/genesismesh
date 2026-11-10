@@ -737,6 +737,8 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     for table in lineage_tables:  # read by 1.8 code only
         for column in lineage_columns:
             old.db.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+    # Read by 1.10 code only: an attestation's subject ID is checked against edge nodes.
+    old.db.conn.execute("CREATE TABLE edge_nodes (node_sovereign_id TEXT, enrolled_at TEXT)")
     old.db.conn.commit()
     client = _client(old)
     controller = Controller(client)
@@ -755,6 +757,7 @@ def test_a_1_2_store_upgrades_with_every_digest_policy_and_anchor_intact(clock, 
     for table in lineage_tables:
         for column in lineage_columns:
             old.db.conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+    old.db.conn.execute("DROP TABLE edge_nodes")
     old.db.conn.commit()
     old.db.close()
 

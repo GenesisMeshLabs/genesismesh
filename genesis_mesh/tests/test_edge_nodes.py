@@ -9,10 +9,12 @@ CRL, retires its executor key and so revokes the grants it bears.
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
+import nacl.signing
 import pytest
 
 from genesis_mesh.crypto import sign_model
@@ -771,3 +773,48 @@ def test_the_executor_rate_limit_is_a_setting():
     assert load_settings({"GENESIS_FILE": "g.json",
                           "NA_RATE_LIMIT_EXECUTOR_PER_MINUTE": "30"}).rate_limits.executor == 30
     assert load_settings({"GENESIS_FILE": "g.json"}).rate_limits.executor == 120
+
+
+# -- 1.10.0 (plan R11, test 18a): an edge sovereign ID and an operator key ID are kept apart ----------
+# An attestation with no subject key names its subject by ID only. If an edge node's sovereign ID were
+# also an operator key ID, each could act under the other's unbound attestations.
+
+
+def test_an_operator_key_id_is_refused_as_an_edge_sovereign(client):
+    resp = edge_invite(client, "operator-std")
+    assert resp.status_code == 409 and _code(resp) == "node_sovereign_in_use"
+
+
+def _shared_id(client, na_service) -> tuple[EdgeAgent, str]:
+    """A node enrolled as SOVEREIGN, then an operator key added under the same ID, and an unbound
+    attestation to that ID."""
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    attestation_id = _attest(client)
+    assert agent.evaluate(attestation_id, CAPABILITY).status_code == 201
+    shared = nacl.signing.SigningKey.generate()
+    na_service.operator_public_keys[SOVEREIGN] = base64.b64encode(bytes(shared.verify_key)).decode()
+    na_service.operator_key_tiers[SOVEREIGN] = "standard"
+    return agent, attestation_id
+
+
+def test_a_node_whose_id_is_an_operator_key_cannot_act_under_an_unbound_attestation(client, na_service):
+    agent, attestation_id = _shared_id(client, na_service)
+    resp = agent.evaluate(attestation_id, CAPABILITY)
+    assert resp.status_code == 403 and _code(resp) == "node_attestation_foreign"
+
+
+def test_an_operator_key_whose_id_is_an_edge_node_cannot_act_under_its_unbound_attestation(client, na_service):
+    _, attestation_id = _shared_id(client, na_service)
+    service = na_service.boundary_policies
+    row = na_service.db.get_membership_attestation(attestation_id)
+    key = na_service.operator_public_keys[SOVEREIGN]
+    basis, _ = service.assess_attestation(attestation_id, None, caller_key_id=SOVEREIGN, caller_public_key=key)
+    assert basis.status_failure == "attestation_subject_mismatch"
+    assert not service.caller_is_attestation_subject(row["attestation"], SOVEREIGN, key)
+
+
+def test_a_key_bound_attestation_still_names_the_node(client, na_service):
+    agent = EdgeAgent(client).enrolled(invite_token(client))
+    attestation_id = _attest(client, subject_public_key=agent.node_public_key)
+    na_service.operator_public_keys[SOVEREIGN] = agent.node_public_key  # even the same key under the shared ID
+    assert agent.evaluate(attestation_id, CAPABILITY).status_code == 201

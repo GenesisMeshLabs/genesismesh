@@ -406,14 +406,26 @@ class BoundaryPolicyService:
 
     # -- attestation basis (v0.58.1) -----------------------------------------
 
-    @staticmethod
+    def subject_id_names_operator(self, attestation: Any) -> bool:
+        """Whether an attestation's ``subject_id`` can name an operator key (1.10.0, plan R11).
+
+        Not when the attestation binds no subject key and its ``subject_id`` is
+        also an edge node's sovereign ID: the ID alone does not say which party
+        it names, so neither party may claim the attestation by ID.
+        """
+        if attestation is None or attestation.subject_public_key:
+            return True
+        return not self._na.db.edge_nodes_of(attestation.subject_id)
+
     def caller_is_attestation_subject(
-        attestation: Any, caller_key_id: str, caller_public_key: str | None
+        self, attestation: Any, caller_key_id: str, caller_public_key: str | None
     ) -> bool:
         """Whether an operator key is the attestation's subject, by the rule that binds
         decisions to their subject (1.9.2); 1.10.0 also scopes standard keys' reads by it."""
-        return caller_is_subject(attestation, caller_key_id, caller_public_key)
-
+        return caller_is_subject(
+            attestation, caller_key_id, caller_public_key,
+            subject_id_names_caller=self.subject_id_names_operator(attestation),
+        )
 
     def assess_attestation(
         self,
@@ -448,6 +460,7 @@ class BoundaryPolicyService:
             requester_id=requester,
             caller_key_id=caller_key_id,
             caller_public_key=caller_public_key,
+            subject_id_names_caller=caller_key_id is None or self.subject_id_names_operator(attestation),
         )
         return basis, requester
 
