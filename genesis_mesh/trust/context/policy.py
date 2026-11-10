@@ -10,7 +10,9 @@ Resolution is deterministic and fails closed:
 5. selectors matched against the context; a matching policy before
    ``valid_from`` is scheduled (does not apply), one after ``valid_until``
    -> ``policy_expired``
-6. applied policies ordered by ``(policy_id, version)``; gates by ``order``
+6. with coverage required (1.10.0), no applied policy with an enforce-mode
+   gate -> ``no_applicable_policy``
+7. applied policies ordered by ``(policy_id, version)``; gates by ``order``
 
 Steps 3 and 4 run over *every* active policy before any selector is matched:
 a policy whose signature or structure cannot be trusted cannot be trusted to
@@ -85,6 +87,8 @@ PolicyResolutionFailure = Literal[
     "gate_type_unavailable",
     "policy_invalid",
     "policy_expired",
+    # 1.10.0: BOUNDARY_POLICY_COVERAGE=required and no policy with an enforce-mode gate applies.
+    "no_applicable_policy",
 ]
 
 # 1.8.0: ``not_held``, a policy the NA verifies against its own keys but does not
@@ -402,8 +406,14 @@ def resolve_policies(
     now: datetime,
     *,
     integrity_failures: Sequence[str] = (),
+    require_coverage: bool = False,
 ) -> ResolvedPolicySet:
-    """Deterministically select the applicable active policies (see module docstring)."""
+    """Deterministically select the applicable active policies (see module docstring).
+
+    ``require_coverage`` (1.10.0) fails resolution with ``no_applicable_policy``
+    when no applied policy has an enforce-mode gate: a request no policy
+    governs is denied instead of resting on the built-in gates alone.
+    """
     if integrity_failures:
         return _failed("policy_store_integrity_failed")
 
@@ -427,6 +437,8 @@ def resolve_policies(
         if now > policy.valid_until:
             return _failed("policy_expired", policy)
         applied.append(policy)
+    if require_coverage and not any(g.mode == "enforce" for p in applied for g in p.gates):
+        return _failed("no_applicable_policy")
     return ResolvedPolicySet(status="resolved", applied=tuple(applied))
 
 

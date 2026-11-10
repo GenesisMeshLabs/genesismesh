@@ -56,7 +56,28 @@ fn decision_now(decision: &Value, na_public_key: String, policy: Value) -> bool 
 ```
 
 `accepted` says the decision is authentic, unexpired and bound as expected;
-`authorized` says it allows the action. To audit an archived decision, set
+`authorized` says it allows the action.
+
+To require that an ALLOW rests on a policy without pinning its version
+(1.10.0), name it in an `ExpectedBinding` and call
+`verify_boundary_decision_expecting`:
+
+```rust
+use genesis_mesh_sdk::verify::{verify_boundary_decision_expecting, ExpectedBinding};
+
+let check = verify_boundary_decision_expecting(
+    decision,
+    &VerifyDecisionOptions { operator_public_keys: vec![na_public_key], ..Default::default() },
+    &ExpectedBinding::new().policy_id("internal-credentials"),
+);
+```
+
+Each named policy must be in the binding, at any version the NA signed, with
+at least one of its enforce-mode gates evaluated; otherwise the ALLOW is
+refused with `policy_binding_mismatch`, as when the policy was deactivated or
+its selector stopped matching. A DENY is reported as it is. A governed
+action's callback receives the decision, so it can run this check before it
+changes anything. To audit an archived decision, set
 `at_record_time: true` (1.5.0): it is then judged as of its own
 `decision_made_at`, so it still verifies years later. It is off by default,
 because a decision about to be acted on must be judged as of now.

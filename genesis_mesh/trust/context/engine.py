@@ -233,6 +233,7 @@ class BoundaryEngine:
         freshness_proof: FreshnessProof | None = None,
         freshness_proof_issuer_keys: list[str] | None = None,
         now: datetime | None = None,
+        require_policy_coverage: bool = False,
     ) -> "tuple[BoundaryDecision, JustificationProof]":
         """Evaluate built-in gates plus every applicable active BoundaryPolicy.
 
@@ -245,6 +246,10 @@ class BoundaryEngine:
         yields ``authorized=False``.  Built-in gates keep their short-circuit
         semantics; configured gates are all evaluated so the proof shows every
         failing rule.
+
+        ``require_policy_coverage`` (1.10.0): a request no policy with an
+        enforce-mode gate applies to is a signed DENY whose binding fails
+        resolution with ``no_applicable_policy``.
         """
         from ...models.justification import GateTrace
         from ..justification import sign_justification_proof
@@ -256,6 +261,7 @@ class BoundaryEngine:
         dr: str | None = denial_reason(run.first_failure) if run.first_failure else None
         binding, dr, authorized = _apply_policies(
             run, context, ts, dr, policies, registry, policy_public_keys, policy_integrity_failures,
+            require_coverage=require_policy_coverage,
         )
         embedded_proof: FreshnessProof | None = freshness_proof if (authorized and freshness_proof) else None
 
@@ -298,6 +304,7 @@ class BoundaryEngine:
         policy_public_keys: Sequence[str],
         policy_integrity_failures: Sequence[str] = (),
         now: datetime | None = None,
+        require_policy_coverage: bool = False,
     ) -> "tuple[BoundaryDecision, JustificationProof]":
         """Evaluate a request under a MembershipAttestation (v0.58.1).
 
@@ -349,6 +356,7 @@ class BoundaryEngine:
             dr = attestation_denial_reason(run.first_failure) or denial_reason(run.first_failure)
         policy_binding, dr, authorized = _apply_policies(
             run, context, ts, dr, policies, registry, policy_public_keys, policy_integrity_failures,
+            require_coverage=require_policy_coverage,
         )
 
         decision = BoundaryDecision(
@@ -398,6 +406,8 @@ def _apply_policies(
     registry: GateRegistry,
     policy_public_keys: Sequence[str],
     policy_integrity_failures: Sequence[str],
+    *,
+    require_coverage: bool = False,
 ) -> tuple[PolicyBinding, str | None, bool]:
     """Resolve and evaluate configured policy gates after the built-in gates.
 
@@ -409,6 +419,7 @@ def _apply_policies(
     resolution = resolve_policies(
         policies, context, registry, policy_public_keys, ts,
         integrity_failures=policy_integrity_failures,
+        require_coverage=require_coverage,
     )
     records: list[ConfiguredGateRecord] = []
 

@@ -450,7 +450,7 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.agreement:accept_counter` | counter, original_offer, signing_key, *issued_by, *now? | stable |
 | `genesis_mesh.trust.agreement:cosign_agreement` | record, signing_key, *issued_by | stable |
 | `genesis_mesh.trust.agreement:verify_agreement` | record, offerer_public_keys, responder_public_keys, *expected_graph_digest? | stable |
-| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation?, *at_record_time?, *expected_attestation_id?, *expected_subject_id?, *expected_requester_key_id? | stable |
+| `genesis_mesh.trust.context:verify_boundary_decision` | decision, operator_public_keys, *freshness_proof_issuer_keys?, *now?, *expected_policies?, *expected_attestation?, *at_record_time?, *expected_attestation_id?, *expected_subject_id?, *expected_requester_key_id?, *expected_policy_ids? | stable |
 | `genesis_mesh.trust.context:sign_boundary_policy` | policy, signing_key, issued_by | stable |
 | `genesis_mesh.trust.context:verify_boundary_policy` | policy, public_keys | stable |
 | `genesis_mesh.trust.context:validate_boundary_policy` | policy, registry | stable |
@@ -463,7 +463,7 @@ Symbols not listed are internal. Parameters are listed in order;
 | `genesis_mesh.trust.data_usage:verify_data_access_intent` | intent, policy, agent_public_keys, *at_time? | stable |
 | `genesis_mesh.trust.context:BoundaryEngine` | operator_sovereign_id, *decision_valid_seconds?, *require_freshness_proof? | beta |
 | `genesis_mesh.trust.context:GateRegistry` | (none) | beta |
-| `genesis_mesh.trust.context:resolve_policies` | active, context, registry, public_keys, now, *integrity_failures? | beta |
+| `genesis_mesh.trust.context:resolve_policies` | active, context, registry, public_keys, now, *integrity_failures?, *require_coverage? | beta |
 | `genesis_mesh.trust.context:assess_attestation_basis` | attestation_id, attestation, *issuer_public_keys, *stored_status, *feed_revoked, *revocation_seq_checked, *requester_id, *caller_key_id?, *caller_public_key?, *subject_id_names_caller? | beta |
 | `genesis_mesh.trust.invocation_token:issue_invocation_token` | agreement, bearer_sovereign_id, capabilities, signing_key, *issued_by, *valid_for_seconds?, *max_invocations?, *policy_constraints?, *delegation?, *now? | beta |
 | `genesis_mesh.trust.invocation_token:verify_invocation_token` | token, issuer_public_keys, *requested_capability, *bearer_sovereign_id, *use_records?, *at_time?, *bearer_public_keys? | beta |

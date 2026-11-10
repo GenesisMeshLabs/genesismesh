@@ -2092,6 +2092,11 @@
           "name": "expected_requester_key_id",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "expected_policy_ids",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
@@ -2336,6 +2341,11 @@
         },
         {
           "name": "integrity_failures",
+          "kind": "keyword_only",
+          "required": false
+        },
+        {
+          "name": "require_coverage",
           "kind": "keyword_only",
           "required": false
         }

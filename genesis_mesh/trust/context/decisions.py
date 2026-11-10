@@ -78,6 +78,7 @@ def verify_boundary_decision(
     expected_attestation_id: str | None = None,
     expected_subject_id: str | None = None,
     expected_requester_key_id: str | None = None,
+    expected_policy_ids: Sequence[str] | None = None,
 ) -> BoundaryDecisionVerificationResult:
     """Verify a BoundaryDecision's signature and expiry.
 
@@ -113,6 +114,16 @@ def verify_boundary_decision(
     (``attestation_binding_mismatch``). A decision without the field, such as
     one made by a 1.9.x NA, fails only when this is given
     (``attestation_binding_missing``).
+
+    ``expected_policy_ids`` (1.10.0) names policies by ID, at whatever version
+    the NA signed into the binding: an authorized decision must carry a
+    PolicyBinding (``policy_binding_missing``) in which each named policy was
+    applied and at least one enforce-mode gate of that applied version was
+    evaluated (``policy_binding_mismatch``). A relying party that keeps its
+    scope rules in a policy so refuses an ALLOW that rests on the built-in
+    gates alone, as when the policy was deactivated or its selector stopped
+    matching, without pinning versions as ``expected_policies`` does. A DENY
+    is reported as it is: it authorizes nothing.
     """
     ts = _utc(decision.decision_made_at) if at_record_time else _utc(now or datetime.now(timezone.utc))
 
@@ -162,6 +173,18 @@ def verify_boundary_decision(
         bound_refs = [(a.policy_id, a.version, a.policy_digest) for a in binding.policies]
         if expected_refs != bound_refs or policy_set_digest(binding.policies) != binding.policy_set_digest:
             return _reject("policy_binding_mismatch")
+    if expected_policy_ids and decision.authorized:
+        if binding is None:
+            return _reject("policy_binding_missing")
+        if policy_set_digest(binding.policies) != binding.policy_set_digest:
+            return _reject("policy_binding_mismatch")
+        applied = {a.policy_id: a.version for a in binding.policies}
+        for policy_id in expected_policy_ids:
+            if policy_id not in applied or not any(
+                e.policy_id == policy_id and e.policy_version == applied[policy_id] and e.mode == "enforce"
+                for e in binding.gate_evaluations
+            ):
+                return _reject("policy_binding_mismatch")
 
     attestation_binding = decision.attestation_binding
     if expected_attestation is not None:

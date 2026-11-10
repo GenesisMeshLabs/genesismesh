@@ -63,8 +63,8 @@
       "description": "Counter flow: dual-signed agreement verifies",
       "input": {
         "agreement": {
-          "agreement_id": "f24145ff-e59d-4872-9dbd-8300b633d607",
-          "offer_id": "51e68704-f6b7-4d1d-b9b0-fa63b5fd5a6c",
+          "agreement_id": "d5efa9b2-a710-42bb-ad9c-3d89d0de5cd0",
+          "offer_id": "9a2b91e6-999c-467a-8cfc-5832d2e1174f",
           "offerer_sovereign_id": "sovereign-a",
           "responder_sovereign_id": "sovereign-b",
           "agreed_terms": {
@@ -80,7 +80,7 @@
             "freshness_commitment": 0
           },
           "offerer_evidence": {
-            "evidence_id": "ac51928a-9a4d-47f1-a17c-3098c3ef316d",
+            "evidence_id": "484de543-0e77-4c1c-95e6-2e4513703103",
             "issuer_sovereign_id": "sovereign-a",
             "source_sovereign_id": "sovereign-a",
             "target_sovereign_id": "sovereign-b",
@@ -97,19 +97,19 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.851901+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.389229+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-                "sig": "VViF6Avxp8SroZoVHKTBmV0GN3pGf2ZMWDih2MVo2cYyAJIqTRFzyXwswXc8ysNjvWiZjcouI4w8bC1OYfJmAA=="
+                "sig": "cul0FwNuaWDavVDDPl7yC2uq3pjao4ZQ8By5b0y+W2ZRZlPZsETiUKDb38kanVYfkt+TyAOE5OUJlbzPKt6xDw=="
               }
             ]
           },
           "responder_evidence": {
-            "evidence_id": "f13d0d2e-9984-4000-a4d2-b20302d0033d",
+            "evidence_id": "dc2529ab-c15b-4eb8-abe5-c9e09bc96676",
             "issuer_sovereign_id": "sovereign-b",
             "source_sovereign_id": "sovereign-b",
             "target_sovereign_id": "sovereign-a",
@@ -126,14 +126,14 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852316+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.389835+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-                "sig": "dUPSPZi67PB+UuwHF8dY9L6tJcBxcPTYqfis5JOHdYm255JCnW2weJvHDFMV/T9vMWyct7OBpuD/K/UhQm/AAw=="
+                "sig": "IYRqroqefPYEPooW9zlwvzlCJS1ZqAWeMDKzDCkfD9yif0IvxPmcp5KLCSC87Z+SgOqx1wXB2RkEcJf4C2FgAA=="
               }
             ]
           },
@@ -143,11 +143,11 @@
           "signatures": [
             {
               "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "GlBJRTeqSFiSAMQX089+4N0PUExSjzxUszm0oBep0h4e7KuaaUctKzu9k9AJa4Od83o5IIrqAKuuy0y+M01jDA=="
+              "sig": "zZHM+sp0moCVTdKiR9ypLaIqB1y1mO+uOqRjnYlxf8tm9BjGPPiQyA2UNJ2ltuDzdEnAot7I61TWrlH13s8QDw=="
             },
             {
               "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-              "sig": "aYF9HGZSNq/HG3axL6Xpi1C70dbhaW4bsrd75cmEIaBMrTffd0aPu0uMgcALVkuxa05WQz4iSSHxuFOQFdPaBQ=="
+              "sig": "0kTBif4Ryp2s8+wORfSO4PZbpJsifMG0d0KxwuYSvxl7sG68m0tM+fhaX8ejNmiEerXCVVXhaVQWjnWuXA2LCQ=="
             }
           ]
         },
@@ -169,8 +169,8 @@
       "description": "Direct acceptance plus cosign; non-ASCII text and floats (1.0) in the signed terms",
       "input": {
         "agreement": {
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
-          "offer_id": "70eff7ab-2d55-44da-beaf-48ca3b203e31",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "offer_id": "0659d841-31eb-4c45-946d-b22cd401779c",
           "offerer_sovereign_id": "sovereign-a",
           "responder_sovereign_id": "sovereign-b",
           "agreed_terms": {
@@ -191,7 +191,7 @@
             "freshness_commitment": 0
           },
           "offerer_evidence": {
-            "evidence_id": "8e72c5c6-0b1e-4d48-8657-1278942f4e78",
+            "evidence_id": "34cb1703-2fa6-4c62-a339-2e54a3c97e73",
             "issuer_sovereign_id": "sovereign-a",
             "source_sovereign_id": "sovereign-a",
             "target_sovereign_id": "sovereign-b",
@@ -208,19 +208,19 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852687+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390356+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-                "sig": "VN+S/ReQ1Z89csjCxJFu0E+2HGAu35h5LOLnE7L11TSgPqZ84ojnLvOHs28V2c+IT5hKgLz6o8v0l3Kp71BcBg=="
+                "sig": "uUkt5jt5NjIuZ1gB/UtKzMDVNCCTJ1IHiEpV2Hg6/hMyOZxpxkYUjgKTDk1Bg51+VXTuE3wXbzIGMfXcEMb+DA=="
               }
             ]
           },
           "responder_evidence": {
-            "evidence_id": "b78cb0be-b03c-416f-bddb-6c6b4c409e89",
+            "evidence_id": "40abfdee-93e7-4a11-8ebe-8d2ef7713fee",
             "issuer_sovereign_id": "sovereign-b",
             "source_sovereign_id": "sovereign-b",
             "target_sovereign_id": "sovereign-a",
@@ -237,14 +237,14 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852924+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390773+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-                "sig": "GFMDp+YJxlNdZq4XNNsiQaOnMgkNVDTzBdRBK3S8vdcc+svhx/xQ4quXiQf3SIdp7vKMaAIOIBfwE4FeNINGAA=="
+                "sig": "FB31zMwMFGruE+Q21i3I15IeFxOzpT8y2tpJpxlmYYfDIeLF7D5frdDcvZ6CXSbISMX4SeZEOaW0TeeGpC2LDw=="
               }
             ]
           },
@@ -254,11 +254,11 @@
           "signatures": [
             {
               "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "ldc4gZOqT5zZSRabCf0Ynt8i0gj9E+aq8v4miFMDHy9zt7jUJf3QI4OTi2AYg4IILBWW/V6MBgAGKvLmoOjkCQ=="
+              "sig": "HgIED16SMROSEv/15ibp+OkuEZ+1B9ZnWK08Fu18CmFgb1C0JPaj0aTllUeqrWyKUkt0HBHmyMLOdwcStUDdAQ=="
             },
             {
               "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-              "sig": "QtcmnRCe26aCVyrB7PEkhsaTY0t0PT8eErWwfDWGq+uyWF8/gN83KPA7RSEsY2tTZlIdZA/8BWkFpcjeRWAQAA=="
+              "sig": "HNhiAx66OI1VyJfz9yNZtxJSnmSOIj7L8+X8sP21dVkG4ZO0xkD17pxdbqbrAtw2aNptsC4Pr4xNHB8FAdVtCg=="
             }
           ]
         },
@@ -280,8 +280,8 @@
       "description": "Half-signed (responder only): offerer signature missing",
       "input": {
         "agreement": {
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
-          "offer_id": "70eff7ab-2d55-44da-beaf-48ca3b203e31",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "offer_id": "0659d841-31eb-4c45-946d-b22cd401779c",
           "offerer_sovereign_id": "sovereign-a",
           "responder_sovereign_id": "sovereign-b",
           "agreed_terms": {
@@ -302,7 +302,7 @@
             "freshness_commitment": 0
           },
           "offerer_evidence": {
-            "evidence_id": "8e72c5c6-0b1e-4d48-8657-1278942f4e78",
+            "evidence_id": "34cb1703-2fa6-4c62-a339-2e54a3c97e73",
             "issuer_sovereign_id": "sovereign-a",
             "source_sovereign_id": "sovereign-a",
             "target_sovereign_id": "sovereign-b",
@@ -319,19 +319,19 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852687+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390356+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-                "sig": "VN+S/ReQ1Z89csjCxJFu0E+2HGAu35h5LOLnE7L11TSgPqZ84ojnLvOHs28V2c+IT5hKgLz6o8v0l3Kp71BcBg=="
+                "sig": "uUkt5jt5NjIuZ1gB/UtKzMDVNCCTJ1IHiEpV2Hg6/hMyOZxpxkYUjgKTDk1Bg51+VXTuE3wXbzIGMfXcEMb+DA=="
               }
             ]
           },
           "responder_evidence": {
-            "evidence_id": "b78cb0be-b03c-416f-bddb-6c6b4c409e89",
+            "evidence_id": "40abfdee-93e7-4a11-8ebe-8d2ef7713fee",
             "issuer_sovereign_id": "sovereign-b",
             "source_sovereign_id": "sovereign-b",
             "target_sovereign_id": "sovereign-a",
@@ -348,14 +348,14 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852924+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390773+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-                "sig": "GFMDp+YJxlNdZq4XNNsiQaOnMgkNVDTzBdRBK3S8vdcc+svhx/xQ4quXiQf3SIdp7vKMaAIOIBfwE4FeNINGAA=="
+                "sig": "FB31zMwMFGruE+Q21i3I15IeFxOzpT8y2tpJpxlmYYfDIeLF7D5frdDcvZ6CXSbISMX4SeZEOaW0TeeGpC2LDw=="
               }
             ]
           },
@@ -365,7 +365,7 @@
           "signatures": [
             {
               "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "ldc4gZOqT5zZSRabCf0Ynt8i0gj9E+aq8v4miFMDHy9zt7jUJf3QI4OTi2AYg4IILBWW/V6MBgAGKvLmoOjkCQ=="
+              "sig": "HgIED16SMROSEv/15ibp+OkuEZ+1B9ZnWK08Fu18CmFgb1C0JPaj0aTllUeqrWyKUkt0HBHmyMLOdwcStUDdAQ=="
             }
           ]
         },
@@ -387,8 +387,8 @@
       "description": "Agreed capabilities edited after signing",
       "input": {
         "agreement": {
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
-          "offer_id": "70eff7ab-2d55-44da-beaf-48ca3b203e31",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "offer_id": "0659d841-31eb-4c45-946d-b22cd401779c",
           "offerer_sovereign_id": "sovereign-a",
           "responder_sovereign_id": "sovereign-b",
           "agreed_terms": {
@@ -409,7 +409,7 @@
             "freshness_commitment": 0
           },
           "offerer_evidence": {
-            "evidence_id": "8e72c5c6-0b1e-4d48-8657-1278942f4e78",
+            "evidence_id": "34cb1703-2fa6-4c62-a339-2e54a3c97e73",
             "issuer_sovereign_id": "sovereign-a",
             "source_sovereign_id": "sovereign-a",
             "target_sovereign_id": "sovereign-b",
@@ -426,19 +426,19 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852687+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390356+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-                "sig": "VN+S/ReQ1Z89csjCxJFu0E+2HGAu35h5LOLnE7L11TSgPqZ84ojnLvOHs28V2c+IT5hKgLz6o8v0l3Kp71BcBg=="
+                "sig": "uUkt5jt5NjIuZ1gB/UtKzMDVNCCTJ1IHiEpV2Hg6/hMyOZxpxkYUjgKTDk1Bg51+VXTuE3wXbzIGMfXcEMb+DA=="
               }
             ]
           },
           "responder_evidence": {
-            "evidence_id": "b78cb0be-b03c-416f-bddb-6c6b4c409e89",
+            "evidence_id": "40abfdee-93e7-4a11-8ebe-8d2ef7713fee",
             "issuer_sovereign_id": "sovereign-b",
             "source_sovereign_id": "sovereign-b",
             "target_sovereign_id": "sovereign-a",
@@ -455,14 +455,14 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852924+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390773+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-                "sig": "GFMDp+YJxlNdZq4XNNsiQaOnMgkNVDTzBdRBK3S8vdcc+svhx/xQ4quXiQf3SIdp7vKMaAIOIBfwE4FeNINGAA=="
+                "sig": "FB31zMwMFGruE+Q21i3I15IeFxOzpT8y2tpJpxlmYYfDIeLF7D5frdDcvZ6CXSbISMX4SeZEOaW0TeeGpC2LDw=="
               }
             ]
           },
@@ -472,11 +472,11 @@
           "signatures": [
             {
               "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "ldc4gZOqT5zZSRabCf0Ynt8i0gj9E+aq8v4miFMDHy9zt7jUJf3QI4OTi2AYg4IILBWW/V6MBgAGKvLmoOjkCQ=="
+              "sig": "HgIED16SMROSEv/15ibp+OkuEZ+1B9ZnWK08Fu18CmFgb1C0JPaj0aTllUeqrWyKUkt0HBHmyMLOdwcStUDdAQ=="
             },
             {
               "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-              "sig": "QtcmnRCe26aCVyrB7PEkhsaTY0t0PT8eErWwfDWGq+uyWF8/gN83KPA7RSEsY2tTZlIdZA/8BWkFpcjeRWAQAA=="
+              "sig": "HNhiAx66OI1VyJfz9yNZtxJSnmSOIj7L8+X8sP21dVkG4ZO0xkD17pxdbqbrAtw2aNptsC4Pr4xNHB8FAdVtCg=="
             }
           ]
         },
@@ -498,8 +498,8 @@
       "description": "Graph digest does not match the expected one",
       "input": {
         "agreement": {
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
-          "offer_id": "70eff7ab-2d55-44da-beaf-48ca3b203e31",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "offer_id": "0659d841-31eb-4c45-946d-b22cd401779c",
           "offerer_sovereign_id": "sovereign-a",
           "responder_sovereign_id": "sovereign-b",
           "agreed_terms": {
@@ -520,7 +520,7 @@
             "freshness_commitment": 0
           },
           "offerer_evidence": {
-            "evidence_id": "8e72c5c6-0b1e-4d48-8657-1278942f4e78",
+            "evidence_id": "34cb1703-2fa6-4c62-a339-2e54a3c97e73",
             "issuer_sovereign_id": "sovereign-a",
             "source_sovereign_id": "sovereign-a",
             "target_sovereign_id": "sovereign-b",
@@ -537,19 +537,19 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852687+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390356+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-                "sig": "VN+S/ReQ1Z89csjCxJFu0E+2HGAu35h5LOLnE7L11TSgPqZ84ojnLvOHs28V2c+IT5hKgLz6o8v0l3Kp71BcBg=="
+                "sig": "uUkt5jt5NjIuZ1gB/UtKzMDVNCCTJ1IHiEpV2Hg6/hMyOZxpxkYUjgKTDk1Bg51+VXTuE3wXbzIGMfXcEMb+DA=="
               }
             ]
           },
           "responder_evidence": {
-            "evidence_id": "b78cb0be-b03c-416f-bddb-6c6b4c409e89",
+            "evidence_id": "40abfdee-93e7-4a11-8ebe-8d2ef7713fee",
             "issuer_sovereign_id": "sovereign-b",
             "source_sovereign_id": "sovereign-b",
             "target_sovereign_id": "sovereign-a",
@@ -566,14 +566,14 @@
               }
             ],
             "graph_digest": "c0276f004fb5d364de9c3ebff66900b67e717bf699d7a3e1a4d27cb13478a6f2",
-            "evaluated_at": "2026-11-08T18:35:20.852924+00:00",
+            "evaluated_at": "2026-11-10T08:58:38.390773+00:00",
             "issued_at": "2026-01-01T00:00:00Z",
             "issued_by": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
             "metadata": {},
             "signatures": [
               {
                 "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-                "sig": "GFMDp+YJxlNdZq4XNNsiQaOnMgkNVDTzBdRBK3S8vdcc+svhx/xQ4quXiQf3SIdp7vKMaAIOIBfwE4FeNINGAA=="
+                "sig": "FB31zMwMFGruE+Q21i3I15IeFxOzpT8y2tpJpxlmYYfDIeLF7D5frdDcvZ6CXSbISMX4SeZEOaW0TeeGpC2LDw=="
               }
             ]
           },
@@ -583,11 +583,11 @@
           "signatures": [
             {
               "key_id": "Kay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=",
-              "sig": "ldc4gZOqT5zZSRabCf0Ynt8i0gj9E+aq8v4miFMDHy9zt7jUJf3QI4OTi2AYg4IILBWW/V6MBgAGKvLmoOjkCQ=="
+              "sig": "HgIED16SMROSEv/15ibp+OkuEZ+1B9ZnWK08Fu18CmFgb1C0JPaj0aTllUeqrWyKUkt0HBHmyMLOdwcStUDdAQ=="
             },
             {
               "key_id": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
-              "sig": "QtcmnRCe26aCVyrB7PEkhsaTY0t0PT8eErWwfDWGq+uyWF8/gN83KPA7RSEsY2tTZlIdZA/8BWkFpcjeRWAQAA=="
+              "sig": "HNhiAx66OI1VyJfz9yNZtxJSnmSOIj7L8+X8sP21dVkG4ZO0xkD17pxdbqbrAtw2aNptsC4Pr4xNHB8FAdVtCg=="
             }
           ]
         },
@@ -610,9 +610,9 @@
       "description": "Policy-aware ALLOW under an agreement, policy binding checked",
       "input": {
         "decision": {
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "context_id": "ctx-10-agr",
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
           "authorized": true,
           "denial_reason": null,
           "gate_results": [
@@ -678,7 +678,7 @@
                 "outcome": "missing_context"
               }
             ],
-            "context_digest": "302a1ab36bf9c418ab10662e042da8e57219e97784e4c16913aa5c89df958b90",
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
             "registry_gate_types": [
               "max_value.v1",
               "required_parameter.v1"
@@ -689,7 +689,7 @@
           "attestation_binding": null,
           "signature": {
             "key_id": "na-key",
-            "sig": "vVqhNdgkArOQW8i7ZnwjiD3NK4861pksaPHNH9XVfpa7huwbotyMxgK6R3Ki09YcWut+zVHHOfbIFM7VYMZTDg=="
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
           }
         },
         "operator_public_keys": [
@@ -759,9 +759,9 @@
       "description": "Policy gate DENY (rows over 90): a verified denial",
       "input": {
         "decision": {
-          "decision_id": "c7609be8-b2fe-4ded-bfbf-f6e4e9f6de49",
+          "decision_id": "e2fae172-2f84-4a1c-9635-1a251e16d4dc",
           "context_id": "ctx-500-agr",
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
           "authorized": false,
           "denial_reason": "policy gate 'statements-read/max-rows' failed",
           "gate_results": [
@@ -827,7 +827,7 @@
                 "outcome": "missing_context"
               }
             ],
-            "context_digest": "76d4f3c1ab36127d4d30c91a7708d64b5924fa613820e9ec0633e74b96492999",
+            "context_digest": "e233181785444c62b37b8e255d8808582bf1138cd55db3e6e1b00940f96e974a",
             "registry_gate_types": [
               "max_value.v1",
               "required_parameter.v1"
@@ -838,7 +838,7 @@
           "attestation_binding": null,
           "signature": {
             "key_id": "na-key",
-            "sig": "8Hyp31rdG+O2A7hc1CdKDqDdDZej8HirS3Zv8wJjkZI9q37ekdq5l0LBoTU1dWBVSMT/SjrNMfUK/DzulbeUDQ=="
+            "sig": "C7KmnQlBdWn9mfKa7Z6Nq37uFcc1oENWswFXfaSOSvORsnWLBpLLjlmdNRv3cWhriMI92ldcaGAT1C19yQNHDA=="
           }
         },
         "operator_public_keys": [
@@ -908,7 +908,7 @@
       "description": "Attestation-basis ALLOW, policy and attestation bindings checked",
       "input": {
         "decision": {
-          "decision_id": "3797250d-0be3-4ab8-857f-912675c43661",
+          "decision_id": "5802240c-8696-4335-886b-473b1be0a0e1",
           "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
           "agreement_id": "00000000-0000-4000-8000-000000000003",
           "authorized": true,
@@ -998,7 +998,7 @@
           },
           "signature": {
             "key_id": "na-key",
-            "sig": "FpY4VcjNDZz0E6ana+kbrNANri60i7EQC1SS7LSABzASgu+cudjj/EUQbyPjujeL/GgAlg8FSaEMqsM9MmDOAw=="
+            "sig": "xgr2Cfp2eGPHdIkcnNoXSSxZ5sCPeHbshgcsn1K+3SEnwnScs6Oa3zfz2F6fVKi7B+JlfcFVZLSkt1vPFPSFBA=="
           }
         },
         "operator_public_keys": [
@@ -1096,9 +1096,9 @@
       "description": "denial_reason edited after signing",
       "input": {
         "decision": {
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "context_id": "ctx-10-agr",
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
           "authorized": true,
           "denial_reason": "edited",
           "gate_results": [
@@ -1164,7 +1164,7 @@
                 "outcome": "missing_context"
               }
             ],
-            "context_digest": "302a1ab36bf9c418ab10662e042da8e57219e97784e4c16913aa5c89df958b90",
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
             "registry_gate_types": [
               "max_value.v1",
               "required_parameter.v1"
@@ -1175,7 +1175,7 @@
           "attestation_binding": null,
           "signature": {
             "key_id": "na-key",
-            "sig": "vVqhNdgkArOQW8i7ZnwjiD3NK4861pksaPHNH9XVfpa7huwbotyMxgK6R3Ki09YcWut+zVHHOfbIFM7VYMZTDg=="
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
           }
         },
         "operator_public_keys": [
@@ -1195,9 +1195,9 @@
       "description": "Expected policy set differs from the binding",
       "input": {
         "decision": {
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "context_id": "ctx-10-agr",
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
           "authorized": true,
           "denial_reason": null,
           "gate_results": [
@@ -1263,7 +1263,7 @@
                 "outcome": "missing_context"
               }
             ],
-            "context_digest": "302a1ab36bf9c418ab10662e042da8e57219e97784e4c16913aa5c89df958b90",
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
             "registry_gate_types": [
               "max_value.v1",
               "required_parameter.v1"
@@ -1274,7 +1274,7 @@
           "attestation_binding": null,
           "signature": {
             "key_id": "na-key",
-            "sig": "vVqhNdgkArOQW8i7ZnwjiD3NK4861pksaPHNH9XVfpa7huwbotyMxgK6R3Ki09YcWut+zVHHOfbIFM7VYMZTDg=="
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
           }
         },
         "operator_public_keys": [
@@ -1295,9 +1295,9 @@
       "description": "Verified after decision_valid_until",
       "input": {
         "decision": {
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "context_id": "ctx-10-agr",
-          "agreement_id": "4a16663e-85c1-425b-a894-c05d20f4d651",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
           "authorized": true,
           "denial_reason": null,
           "gate_results": [
@@ -1363,7 +1363,7 @@
                 "outcome": "missing_context"
               }
             ],
-            "context_digest": "302a1ab36bf9c418ab10662e042da8e57219e97784e4c16913aa5c89df958b90",
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
             "registry_gate_types": [
               "max_value.v1",
               "required_parameter.v1"
@@ -1374,7 +1374,7 @@
           "attestation_binding": null,
           "signature": {
             "key_id": "na-key",
-            "sig": "vVqhNdgkArOQW8i7ZnwjiD3NK4861pksaPHNH9XVfpa7huwbotyMxgK6R3Ki09YcWut+zVHHOfbIFM7VYMZTDg=="
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
           }
         },
         "operator_public_keys": [
@@ -1394,7 +1394,7 @@
       "description": "Expected attestation differs from the binding",
       "input": {
         "decision": {
-          "decision_id": "3797250d-0be3-4ab8-857f-912675c43661",
+          "decision_id": "5802240c-8696-4335-886b-473b1be0a0e1",
           "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
           "agreement_id": "00000000-0000-4000-8000-000000000003",
           "authorized": true,
@@ -1484,7 +1484,7 @@
           },
           "signature": {
             "key_id": "na-key",
-            "sig": "FpY4VcjNDZz0E6ana+kbrNANri60i7EQC1SS7LSABzASgu+cudjj/EUQbyPjujeL/GgAlg8FSaEMqsM9MmDOAw=="
+            "sig": "xgr2Cfp2eGPHdIkcnNoXSSxZ5sCPeHbshgcsn1K+3SEnwnScs6Oa3zfz2F6fVKi7B+JlfcFVZLSkt1vPFPSFBA=="
           }
         },
         "operator_public_keys": [
@@ -1532,7 +1532,7 @@
       "description": "Attestation-basis ALLOW naming the operator key that asked (1.10.0)",
       "input": {
         "decision": {
-          "decision_id": "2ee558cc-243a-46af-9365-0b5964ed6500",
+          "decision_id": "66d377ff-807e-4c93-81bb-e6eb4a5775ed",
           "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
           "agreement_id": "00000000-0000-4000-8000-000000000003",
           "authorized": true,
@@ -1623,7 +1623,7 @@
           },
           "signature": {
             "key_id": "na-key",
-            "sig": "qx4WL6njN9TuF6aeutu7jxRMR4Vj45fL7cS1rRT4QxgRkgRgXOjnJw9AmEX2srUIfOX7nfY6g0qdiqgwswRMBg=="
+            "sig": "nS0D9NTCItwqSiuqfh2Z3bfN4X9vIH3o211og5RimVSg3fFluE97h72QmmBCujJEbVldAhQdPuOnoeQjG0+aDA=="
           }
         },
         "operator_public_keys": [
@@ -1722,7 +1722,7 @@
       "description": "Expected requester differs from the one the binding names (1.10.0)",
       "input": {
         "decision": {
-          "decision_id": "2ee558cc-243a-46af-9365-0b5964ed6500",
+          "decision_id": "66d377ff-807e-4c93-81bb-e6eb4a5775ed",
           "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
           "agreement_id": "00000000-0000-4000-8000-000000000003",
           "authorized": true,
@@ -1813,7 +1813,7 @@
           },
           "signature": {
             "key_id": "na-key",
-            "sig": "qx4WL6njN9TuF6aeutu7jxRMR4Vj45fL7cS1rRT4QxgRkgRgXOjnJw9AmEX2srUIfOX7nfY6g0qdiqgwswRMBg=="
+            "sig": "nS0D9NTCItwqSiuqfh2Z3bfN4X9vIH3o211og5RimVSg3fFluE97h72QmmBCujJEbVldAhQdPuOnoeQjG0+aDA=="
           }
         },
         "operator_public_keys": [
@@ -1834,7 +1834,7 @@
       "description": "Expected requester, but the binding names none (a 1.9.x decision)",
       "input": {
         "decision": {
-          "decision_id": "3797250d-0be3-4ab8-857f-912675c43661",
+          "decision_id": "5802240c-8696-4335-886b-473b1be0a0e1",
           "context_id": "ctx-10-00000000-0000-4000-8000-000000000003",
           "agreement_id": "00000000-0000-4000-8000-000000000003",
           "authorized": true,
@@ -1924,7 +1924,7 @@
           },
           "signature": {
             "key_id": "na-key",
-            "sig": "FpY4VcjNDZz0E6ana+kbrNANri60i7EQC1SS7LSABzASgu+cudjj/EUQbyPjujeL/GgAlg8FSaEMqsM9MmDOAw=="
+            "sig": "xgr2Cfp2eGPHdIkcnNoXSSxZ5sCPeHbshgcsn1K+3SEnwnScs6Oa3zfz2F6fVKi7B+JlfcFVZLSkt1vPFPSFBA=="
           }
         },
         "operator_public_keys": [
@@ -1936,6 +1936,579 @@
       "expected": {
         "accepted": false,
         "reason": "attestation_binding_missing",
+        "authorized": true
+      }
+    },
+    {
+      "id": "bd-011",
+      "kind": "boundary_decision",
+      "description": "ALLOW under the expected policy ID, at any version, its gates evaluated (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-read"
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "reason": "authorized",
+        "authorized": true
+      }
+    },
+    {
+      "id": "bd-012",
+      "kind": "boundary_decision",
+      "description": "ALLOW no policy covered, but a policy ID is expected (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "ae7c0be5-8fd7-4ffb-8c21-31cf9718d74d",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [],
+            "policy_set_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "gate_evaluations": [],
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
+            "registry_gate_types": [],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "AehLhCW7Rasdp7m3yWiHWeyi8aebu3j0WTo3mgJGuwAo5U6yx16H3S+7n3oIpP/90C+Tn7H3bX8lfkUKic5tBA=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-read"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "policy_binding_mismatch",
+        "authorized": true
+      }
+    },
+    {
+      "id": "bd-013",
+      "kind": "boundary_decision",
+      "description": "ALLOW only an observe-mode policy covered, its ID expected (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "e75a0ffe-24eb-417c-94c7-a60accaa8c70",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-audit/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-audit",
+                "version": 3,
+                "policy_digest": "ea9f22052ffea4e2300cce2c49cd063d8cbad381a2207e0f2d73330f2c49e8aa",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "de47e638b7e696b8e172ad38e07639a365ce9ae3684210d1cc5bd0c27510db31",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-audit",
+                "policy_version": 3,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 0,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
+            "registry_gate_types": [
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "uAGxwZQT7EMLC20AND1f7sz6OL54wgeN1Q957klCXuC0gdVvRtF4ZaL9WJVr6MlIFtndOx1ixdYnzJWZ0KYOCA=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-audit"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "policy_binding_mismatch",
+        "authorized": true
+      }
+    },
+    {
+      "id": "bd-014",
+      "kind": "boundary_decision",
+      "description": "A DENY is reported as a DENY whatever policy ID is expected (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "e2fae172-2f84-4a1c-9635-1a251e16d4dc",
+          "context_id": "ctx-500-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": false,
+          "denial_reason": "policy gate 'statements-read/max-rows' failed",
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": false,
+              "detail": "request_parameters.rows violates <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": false,
+                "outcome": "fail"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "e233181785444c62b37b8e255d8808582bf1138cd55db3e6e1b00940f96e974a",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "C7KmnQlBdWn9mfKa7Z6Nq37uFcc1oENWswFXfaSOSvORsnWLBpLLjlmdNRv3cWhriMI92ldcaGAT1C19yQNHDA=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-audit"
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "reason": "unauthorized_policy_gate_failure",
+        "authorized": false
+      }
+    },
+    {
+      "id": "bd-015",
+      "kind": "boundary_decision",
+      "description": "DENY no_applicable_policy, from an NA with coverage required (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "6613d314-052e-4a0a-8ede-87ec77e8640a",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": false,
+          "denial_reason": "policy resolution failed: no_applicable_policy",
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "policy_resolution",
+              "passed": false,
+              "detail": "policy resolution failed: no_applicable_policy"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [],
+            "policy_set_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "gate_evaluations": [],
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
+            "registry_gate_types": [],
+            "resolution_status": "failed",
+            "resolution_failure": "no_applicable_policy"
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "dqbBG+QInQOngjuh8fJ/UmezSnPN8h0Yua3yDJ+VpRiPLG2Pala32+H+/xDf3q4Nkta9U/V6A2LwLkeCERFXCg=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-read"
+        ]
+      },
+      "expected": {
+        "accepted": true,
+        "reason": "unauthorized_policy_resolution_failed",
+        "authorized": false
+      }
+    },
+    {
+      "id": "bd-016",
+      "kind": "boundary_decision",
+      "description": "ALLOW without a policy binding, a policy ID expected (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "1f9f67d1-a452-45ba-ab05-bfb66b4a2937",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": null,
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "UOoC1z0vkegtBPVf254J4A/lq+H7gwLzdLdhLNKLGGXzwqx0DxzX1pLL8Z/cJBrBXir+5xMMFDYtKDiVlcrNBw=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-read"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "policy_binding_missing",
+        "authorized": true
+      }
+    },
+    {
+      "id": "bd-017",
+      "kind": "boundary_decision",
+      "description": "ALLOW under one expected policy ID, another one missing (1.10.0)",
+      "input": {
+        "decision": {
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
+          "context_id": "ctx-10-agr",
+          "agreement_id": "e75f028c-9443-4c35-b51f-bf3a2aa57f77",
+          "authorized": true,
+          "denial_reason": null,
+          "gate_results": [
+            {
+              "gate_name": "capability_check",
+              "passed": true,
+              "detail": "capability 'transactions.read' is in agreed scope"
+            },
+            {
+              "gate_name": "validity_window",
+              "passed": true,
+              "detail": "request at 2026-01-01T01:00:00+00:00 is within [2026-01-01T00:00:00+00:00, 2027-01-01T00:00:00+00:00]"
+            },
+            {
+              "gate_name": "freshness_check",
+              "passed": true,
+              "detail": "freshness seq 0 >= commitment 0"
+            },
+            {
+              "gate_name": "statements-read/max-rows",
+              "passed": true,
+              "detail": "request_parameters.rows satisfies <= 90.0"
+            },
+            {
+              "gate_name": "statements-read/purpose",
+              "passed": false,
+              "detail": "[observe] required fact 'attributes.purpose' is missing"
+            }
+          ],
+          "decision_made_at": "2026-01-01T01:00:00Z",
+          "decision_valid_until": "2026-01-01T01:05:00Z",
+          "operator_sovereign_id": "sovereign-c",
+          "freshness_proof": null,
+          "policy_binding": {
+            "policies": [
+              {
+                "policy_id": "statements-read",
+                "version": 1,
+                "policy_digest": "7921f8ac5dccd5cfb09489e69ca1d0325158e7b457de65a7fc4563af7f7b8601",
+                "signed_by": "na-key"
+              }
+            ],
+            "policy_set_digest": "9d9e631b0cf70c36993f14a6d9d73844e65711134a7651a0ed57ff72f9a62c25",
+            "gate_evaluations": [
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "max-rows",
+                "gate_type": "max_value.v1",
+                "order": 0,
+                "mode": "enforce",
+                "passed": true,
+                "outcome": "pass"
+              },
+              {
+                "policy_id": "statements-read",
+                "policy_version": 1,
+                "gate_id": "purpose",
+                "gate_type": "required_parameter.v1",
+                "order": 1,
+                "mode": "observe",
+                "passed": false,
+                "outcome": "missing_context"
+              }
+            ],
+            "context_digest": "5b3e0f4d971d0df6e95eb78e8e2c3fac7f1fb2b20948002078e14f9fe952b427",
+            "registry_gate_types": [
+              "max_value.v1",
+              "required_parameter.v1"
+            ],
+            "resolution_status": "resolved",
+            "resolution_failure": null
+          },
+          "attestation_binding": null,
+          "signature": {
+            "key_id": "na-key",
+            "sig": "5iVJaDK9pJK1yjPwqa2c2E0swxC/KdTwEwQn+jSWxoJo3BOxi085eXDtxajv9cHWnUCbN2HwXW779VcwCEdpCA=="
+          }
+        },
+        "operator_public_keys": [
+          "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0="
+        ],
+        "now": "2026-01-01T01:00:00Z",
+        "expected_policy_ids": [
+          "statements-read",
+          "statements-audit"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "policy_binding_mismatch",
         "authorized": true
       }
     },
@@ -2017,9 +2590,9 @@
       "description": "Compliant read of a licensed source",
       "input": {
         "intent": {
-          "intent_id": "6ab3bc2d-8aef-4592-bea7-4dd6cdf0cef3",
+          "intent_id": "d516d13e-af68-4919-b160-9c8251dda73a",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-prod",
@@ -2036,7 +2609,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "0oYIablQOIslr5PQYWpEdXQmwr9PiOARn+5Q2zKv3zjBpGl0rA/ylVJE1wrUUBBI5nI9bH+glI8e/qu7Ryp3BA=="
+            "sig": "EtjpJgW4iemrvzw1bxssrFNwb/0IuPNupKJVziXhTUIKA6Jp2Hus0t/g2PIWrJm2H/b7RrqrdLO5p+R8t+eLAQ=="
           }
         },
         "policy": {
@@ -2079,9 +2652,9 @@
       "description": "Unlicensed source",
       "input": {
         "intent": {
-          "intent_id": "29c71937-1071-447f-8bd6-4ba134df2006",
+          "intent_id": "04ab1190-6e17-414d-ae4a-3815881b804b",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-hr",
@@ -2098,7 +2671,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "DdX3nuCA370nIEV29bAegcocP37AenAxA1ANwipzouqoO/Vm1LHm42Cb0ivB2K7lPATugec1tEQnct3UbkKUCA=="
+            "sig": "APiZIlk0aKTOORYb6VaFlnB2iVxacPjWQZpQkK0iyz+PIDhSG6l53qB3yCwicRLIJKLF40aPKZqrKhOxMgAgAA=="
           }
         },
         "policy": {
@@ -2143,9 +2716,9 @@
       "description": "Prohibited classification tag",
       "input": {
         "intent": {
-          "intent_id": "42d52f3b-a4ac-4f02-8ab6-072fa78c4cd7",
+          "intent_id": "47a79068-7210-48a7-bbe2-47e5477d80ae",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-prod",
@@ -2165,7 +2738,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "7Z/A95WcrJwfI3lJZEvndA6HM9TFT5lFYutsXEFAfbuxGAq7G9U8FqXDIg0J8rFUfgdLMX55Lk+IxgjxNot/Cw=="
+            "sig": "tVQNWrhFkndfMb25qipDleyJn8l7bpVxYlW8D97GKTIO7bhionECH6bUtUQq+zzXDvmSa987iyehlZ6b8yo8Bw=="
           }
         },
         "policy": {
@@ -2210,9 +2783,9 @@
       "description": "Access type not permitted, and over the volume cap",
       "input": {
         "intent": {
-          "intent_id": "22f912f1-f815-4c08-ab32-9bc7b935dc35",
+          "intent_id": "df754789-e435-4f4d-8b94-4cc9bec9997a",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-archive",
@@ -2230,7 +2803,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "QPz8cnYOpoqJ3/WQ7uHLhx1r7qQlSMoQdmOiF4Bcjau8hVRSazXLf3FY3a/M4PEAlPIYwVA05k21+lfnFlQGAw=="
+            "sig": "CqUzFoRpkZSHrD6FOPCNtIR+SgqUJng737FZudCxCSnKABKpl+dJw+xokCl7l/0Uk+gLbCFTo0FpB3MjDqREAw=="
           }
         },
         "policy": {
@@ -2276,9 +2849,9 @@
       "description": "Intent verified after it expired",
       "input": {
         "intent": {
-          "intent_id": "56b688b5-3ad4-498f-85d4-bed6531babc7",
+          "intent_id": "f7adfcbf-64e6-4223-a87c-448d248d0632",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-prod",
@@ -2295,7 +2868,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "TE/ELisIBSC6mjqWPoVYmjibvIk3zsJr/yxxMOSgmtkk5jjonAMPjVkgHoJR2Dk9F7qSrc42r3ZLGtQi6VplAA=="
+            "sig": "Hyhnpdg2h8dZeApTljVYUvxe3TG04bvEfnd82VIxsAq1+byYAk3zf9NpU1uczuQ/Si48/Dr61a1wJnNp33gFCA=="
           }
         },
         "policy": {
@@ -2340,9 +2913,9 @@
       "description": "Signed by a key that is not the agent's",
       "input": {
         "intent": {
-          "intent_id": "f325a705-f2f9-4a11-9c1b-b04674cfc1fa",
+          "intent_id": "7ab9a6ab-70b1-4821-bcf8-ff10922eeefb",
           "agent_sovereign_id": "sovereign-b",
-          "decision_id": "fb115bc5-e2f1-4756-9967-f118471b8057",
+          "decision_id": "00baa91e-d3e3-4b3c-bd0f-05df8d9c798b",
           "declared_sources": [
             {
               "source_id": "db-prod",
@@ -2359,7 +2932,7 @@
           "expires_at": "2026-01-01T01:30:00Z",
           "signature": {
             "key_id": "sovereign-b",
-            "sig": "PRhizl3v07KKDeKkJVviYmzZUgKVVRXZs5NX7wXR3OTQEzsuhZvaZSqawLZy7wSGIphAZqQCkn1s5oTBrb9IDg=="
+            "sig": "co9Uzr+eQpXm7Eloiyzml12MOJzvMM13HFyzPYWIzNkPf1xHmxrjWJo6jJltvPJO9PEdW868d+LJzLQjg+EiDQ=="
           }
         },
         "policy": {

@@ -86,8 +86,10 @@ signatures are identical to v0.56.
   check (`policy_store_integrity_failed`), a referenced gate type is not
   installed (`gate_type_unavailable`), a policy is structurally invalid
   (`policy_invalid`), two versions of one policy are active
-  (`ambiguous_resolution`), or a matching active policy has expired
-  (`policy_expired`). Missing facts and gate exceptions fail the gate.
+  (`ambiguous_resolution`), a matching active policy has expired
+  (`policy_expired`), or, with `BOUNDARY_POLICY_COVERAGE=required`, no policy
+  with an enforce-mode gate applies (`no_applicable_policy`, 1.10.0). Missing
+  facts and gate exceptions fail the gate.
   Malformed or unauthenticated HTTP requests stay ordinary HTTP errors.
 - **One broken policy denies everything.** Signatures and structure of *all*
   active policies are checked before any selector is matched: a policy that
@@ -102,6 +104,44 @@ signatures are identical to v0.56.
 Never put credentials, tokens or secret values in `request_parameters` or
 `attributes`. Supply metadata about them instead, such as `mfa_verified`,
 `token_present` or `credential_age_days`.
+
+## Requests no policy covers (1.10.0)
+
+A request no active policy applies to is evaluated by the built-in gates
+alone: `capability_check` and the validity and freshness gates. If they
+pass, the decision is an ALLOW whose binding lists no policies and no gate
+evaluations. `BOUNDARY_POLICY_ENFORCEMENT=required` does not change that; it
+only refuses the policy-free `/admin/boundary/decide` route.
+
+That matters when the scope rules live in policy gates, such as "the app
+must be in the attestation's claims". If the policy is deactivated, or its
+selector stops matching (a capability renamed, a parent kind left out), the
+rule no longer applies, and the ALLOW still verifies. There are two
+defences, and they work together:
+
+- **On the NA:** `BOUNDARY_POLICY_COVERAGE=required` (off by default) makes
+  such a request a signed DENY. The binding's `resolution_status` is
+  `failed`, its `resolution_failure` is `no_applicable_policy`, and the
+  `denial_reason` is `policy resolution failed: no_applicable_policy`. Like
+  every decision, the DENY goes to the evidence store when it is on, and the
+  offline verifiers report it as `unauthorized_policy_resolution_failed`. A
+  policy counts only when at least one of its gates is in `enforce` mode: a
+  policy of `observe`-mode gates decides nothing. The setting also refuses
+  `/admin/boundary/decide`, which applies no policy. `/health`,
+  `GET /admin/boundary-policies/active` and the dashboard show the mode.
+- **On the relying party:** the expected policy IDs (`expected_policy_ids`
+  in Python and Rust, `expectedPolicyIds` in TypeScript, `ExpectedPolicyIds`
+  in .NET, `ExpectedPolicyIDs` in Go) name the policies an ALLOW must rest
+  on, at whatever version the NA signed. Each named policy must be in the
+  binding, with at least one enforce-mode gate of that version evaluated;
+  otherwise the verifier refuses the decision with `policy_binding_mismatch`
+  (`policy_binding_missing` without a binding). A DENY is reported as it is,
+  since it authorizes nothing. Use the expected signed policies
+  (`expected_policies`) instead to pin exact versions.
+
+The NA setting protects every caller of that NA; the expected IDs protect a
+controller even when the NA runs without the setting, and need no change to
+the controller when a policy gets a new version.
 
 ## Built-in gate types
 
@@ -253,6 +293,9 @@ assert verify_boundary_policy(policy, [na_pub_b64]).valid
 result = verify_boundary_decision(decision, [na_pub_b64], expected_policies=[policy])
 print(result.reason)   # "unauthorized_policy_gate_failure"
 assert verify_justification_proof(proof, [na_pub_b64], decision=decision).valid
+
+# 1.10.0: any version of the policy, as long as its gates applied.
+result = verify_boundary_decision(decision, [na_pub_b64], expected_policy_ids=["transfer-limits"])
 ```
 
 ## Python API
@@ -360,7 +403,8 @@ As of 1.7.0:
   and use `required_parameter.v1` there.
 - The TypeScript, Go, .NET and Rust SDKs verify a policy-bound decision
   offline against the expected signed policies (`expectedPolicies`,
-  `ExpectedPolicies`, `expected_policies`).
+  `ExpectedPolicies`, `expected_policies`), and since 1.10.0 against the
+  expected policy IDs (see "Requests no policy covers").
 
 ## Test command
 
@@ -368,5 +412,6 @@ As of 1.7.0:
 python -m pytest genesis_mesh/tests/test_boundary_policy.py \
     genesis_mesh/tests/test_na_boundary_policy.py \
     genesis_mesh/tests/test_cli_boundary_policy.py \
+    genesis_mesh/tests/test_policy_coverage.py \
     genesis_mesh/tests/integration/test_boundary_policy_lifecycle.py -q
 ```

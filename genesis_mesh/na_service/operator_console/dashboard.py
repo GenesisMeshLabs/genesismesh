@@ -441,6 +441,7 @@ def _boundary_policy_summary(service) -> dict[str, Any]:
         })
     return {
         "enforcement": service.boundary_policy_enforcement,
+        "coverage": service.boundary_policy_coverage,
         "healthy": health.healthy,
         "status": "healthy" if health.healthy else "unhealthy",
         "problem_count": len(health.problems),
@@ -715,6 +716,7 @@ def render_dashboard(service) -> str:
                     <strong>Boundary policies</strong>
                     {_status_badge(model['boundary_policies']['status'])}
                     <span class="muted">Enforcement: {escape(model['boundary_policies']['enforcement'])}</span>
+                    <span class="muted">Coverage: {escape(model['boundary_policies']['coverage'])}</span>
                 </div>
                 <div class="signal-card signal-card-wide">
                     <strong>Operator notes</strong>

@@ -131,7 +131,11 @@ key isolated inside the service.
   NA's public key.
 - **Setting:** `BOUNDARY_POLICY_ENFORCEMENT` is `optional` by default. Set it
   to `required` to refuse the legacy, policy-free `/admin/boundary/decide`
-  route; otherwise that route remains a way around the policies.
+  route; otherwise that route remains a way around the policies. A request
+  no active policy applies to is still decided by the built-in gates alone;
+  set `BOUNDARY_POLICY_COVERAGE=required` (1.10.0) to deny it instead, or
+  have the relying party name the policies an ALLOW must rest on (the
+  expected policy IDs).
 - **Only detectable:** a decision is a signed statement that the NA allowed or
   denied a request at a time. It does not prove the change was made, or made
   only once; execution evidence in the evidence store records that.

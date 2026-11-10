@@ -890,11 +890,36 @@ def gen_interop() -> None:
         registry=registry, policy_public_keys=keys["na"], now=now,
     )
 
+    # 1.10.0: expected policy IDs. A decision no policy covered, one only an observe-mode policy
+    # covered, and the DENY an NA with BOUNDARY_POLICY_COVERAGE=required signs for the first.
+    observe_only = sign_boundary_policy(BoundaryPolicy(
+        policy_id="statements-audit", version=3, description="Observe the purpose only",
+        valid_from=T0, valid_until=T1,
+        selector=PolicySelector(capabilities=["transactions.*"]),
+        gates=[GateSpec(gate_id="purpose", gate_type="required_parameter.v1", order=0, mode="observe",
+                        config={"path": "attributes.purpose"})],
+        issued_at=T0, issued_by="na-key", issuer_sovereign_id=SOV_C,
+    ), KEYS["c"], "na-key")
+    uncovered, _ = engine.evaluate_with_policies(
+        context(10), cosigned, KEYS["c"], issued_by="na-key", policies=[], registry=registry,
+        policy_public_keys=keys["na"], now=now,
+    )
+    observed, _ = engine.evaluate_with_policies(
+        context(10), cosigned, KEYS["c"], issued_by="na-key", policies=[observe_only], registry=registry,
+        policy_public_keys=keys["na"], now=now,
+    )
+    coverage_denied, _ = engine.evaluate_with_policies(
+        context(10), cosigned, KEYS["c"], issued_by="na-key", policies=[], registry=registry,
+        policy_public_keys=keys["na"], now=now, require_policy_coverage=True,
+    )
+    legacy_allowed = engine.evaluate(context(10), cosigned, KEYS["c"], issued_by="na-key", now=now)
+
     def decision_vector(vid, desc, decision, *, at, expected_policies=None, expected_attestation=None,
-                        expected_requester_key_id=None):
+                        expected_requester_key_id=None, expected_policy_ids=None):
         res = verify_boundary_decision(
             decision, keys["na"], now=at, expected_policies=expected_policies,
             expected_attestation=expected_attestation, expected_requester_key_id=expected_requester_key_id,
+            expected_policy_ids=expected_policy_ids,
         )
         inp: dict = {"decision": _model_to_dict(decision), "operator_public_keys": keys["na"],
                      "now": at.isoformat().replace("+00:00", "Z")}
@@ -904,6 +929,8 @@ def gen_interop() -> None:
             inp["expected_attestation"] = _model_to_dict(expected_attestation)
         if expected_requester_key_id is not None:
             inp["expected_requester_key_id"] = expected_requester_key_id
+        if expected_policy_ids is not None:
+            inp["expected_policy_ids"] = list(expected_policy_ids)
         vectors.append({"id": vid, "kind": "boundary_decision", "description": desc, "input": inp,
                         "expected": {"accepted": res.accepted, "reason": res.reason, "authorized": res.authorized}})
 
@@ -926,6 +953,20 @@ def gen_interop() -> None:
                     at=now, expected_requester_key_id="c-ops")
     decision_vector("bd-010", "Expected requester, but the binding names none (a 1.9.x decision)", attested,
                     at=now, expected_requester_key_id="b-ops")
+    decision_vector("bd-011", "ALLOW under the expected policy ID, at any version, its gates evaluated (1.10.0)",
+                    allowed, at=now, expected_policy_ids=["statements-read"])
+    decision_vector("bd-012", "ALLOW no policy covered, but a policy ID is expected (1.10.0)", uncovered,
+                    at=now, expected_policy_ids=["statements-read"])
+    decision_vector("bd-013", "ALLOW only an observe-mode policy covered, its ID expected (1.10.0)", observed,
+                    at=now, expected_policy_ids=["statements-audit"])
+    decision_vector("bd-014", "A DENY is reported as a DENY whatever policy ID is expected (1.10.0)", denied,
+                    at=now, expected_policy_ids=["statements-audit"])
+    decision_vector("bd-015", "DENY no_applicable_policy, from an NA with coverage required (1.10.0)",
+                    coverage_denied, at=now, expected_policy_ids=["statements-read"])
+    decision_vector("bd-016", "ALLOW without a policy binding, a policy ID expected (1.10.0)", legacy_allowed,
+                    at=now, expected_policy_ids=["statements-read"])
+    decision_vector("bd-017", "ALLOW under one expected policy ID, another one missing (1.10.0)", allowed,
+                    at=now, expected_policy_ids=["statements-read", "statements-audit"])
 
     # ── data access intents against a license policy ──────────────────────────
     license_policy = DataLicensePolicy(

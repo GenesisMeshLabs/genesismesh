@@ -59,7 +59,8 @@ def create_boundary_blueprint(service: "NetworkAuthorityService") -> Blueprint:
 
         # v0.58: with policy enforcement required, the policy-free legacy path
         # would be a bypass. Refuse it and point callers at the evaluate route.
-        if service.boundary_policy_enforcement == "required":
+        # 1.10.0: so does required coverage, which only the evaluate route applies.
+        if "required" in (service.boundary_policy_enforcement, service.boundary_policy_coverage):
             service.db.add_audit_event("boundary_legacy_decide_refused", {
                 "requested_capability": data.get("requested_capability"),
             })
