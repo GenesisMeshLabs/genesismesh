@@ -603,6 +603,53 @@ _ENVELOPE_FIELDS: dict[str, dict[str, str]] = {
 }
 
 
+#: v1.11.0: the release that added each entry kind (``contract/kinds.json``).
+_KIND_SINCE: dict[str, str] = {
+    "decision": "0.59.0", "justification": "0.59.0", "execution": "0.59.0", "retention_checkpoint": "0.59.0",
+    "observation": "1.3.0", "break_glass": "1.3.0", "judgement": "1.3.0", "quarantine": "1.3.0", "registry": "1.3.0",
+    "remediation": "1.4.0", "review": "1.4.0",
+    "key_succession": "1.5.0", "archive": "1.5.0",
+    "grant": "1.6.0", "grant_execution": "1.6.0", "grant_revocation": "1.6.0",
+}
+
+
+def kind_registry() -> dict[str, Any]:
+    """v1.11.0: what a verifier must know of each entry kind, for ``contract/kinds.json``.
+
+    One entry per ``EntryKind``, from the tables the store's verification uses: the record
+    model, where it sits in the payload, its record ID field, who signs it, the field that dates
+    an NA-signed record when it is read alone, the envelope fields derived from it, and whether
+    retention carries it forward. The contract bundle ships it so a consumer can check its own
+    kind tables against the core's.
+
+    ``signer`` is ``na`` (an NA key valid at the record's time), ``registered_key`` (a registered
+    executor key) or ``key_succession``: the outgoing NA key, the new key (proof of possession)
+    and the root key when the key history has one (``_check_succession_entry``). A decision's
+    payload also carries its unsigned ``context`` (``unsigned_paths``), never refused for its fields.
+    """
+    kinds: dict[str, Any] = {}
+    for kind in typing.get_args(EntryKind):
+        model = "BoundaryDecision" if kind == "decision" else _PAYLOAD_MODELS[kind]
+        if kind == "key_succession":
+            signer = "key_succession"
+        elif kind in _KEY_SIGNED_KINDS:
+            signer = "registered_key"
+        else:
+            signer = "na"
+        kinds[kind] = {
+            "carried_by_retention": kind in CARRIED_KINDS,
+            "envelope": dict(sorted(_ENVELOPE_FIELDS.get(kind, {}).items())),
+            "id_field": _RECORD_ID[kind],
+            "model": model,
+            "payload_path": ["decision"] if kind == "decision" else [],
+            "signer": signer,
+            "since": _KIND_SINCE[kind],
+            "time_field": _key_models.NA_RECORD_TIME_FIELDS.get(model) if signer == "na" else None,
+            "unsigned_paths": [["context"]] if kind == "decision" else [],
+        }
+    return {"schema": "gm.contract.kinds/1", "kinds": kinds}
+
+
 def _unknown_payload_fields(
     kind: str,
     payload: Any,

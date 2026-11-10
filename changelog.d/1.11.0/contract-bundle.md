@@ -1,0 +1,3 @@
+### Added
+
+- **Contract bundle manifest.** `contract/bundle.json` lists the files the SDKs and the gateway are tested against: the conformance suites, the frozen audit pack, the public surface and the new record-kind table `contract/kinds.json`. It also names the suites and kinds each tier of consumer must run. `scripts/gm_contract.py manifest` generates the committed `contract/MANIFEST.json`, which records each file's hash and a `contract_digest` naming the contract. `scripts/gm_contract.py archive` builds a reproducible release archive. The CI job "Contract bundle" fails on a stale manifest or kind table, and on a new suite that no tier decision covers. This is the first step of the 1.11.0 release model; no consumer pins the bundle yet.

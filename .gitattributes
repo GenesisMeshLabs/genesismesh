@@ -28,3 +28,7 @@ conformance/fixtures/** linguist-generated=true
 docs/reference/public-contract.md linguist-generated=true
 requirements-image.lock linguist-generated=true
 requirements-build.lock linguist-generated=true
+# The contract bundle's manifest and kind table (scripts/gm_contract.py manifest,
+# scripts/render_contract_kinds.py): hashed byte for byte, so never converted.
+contract/MANIFEST.json -text linguist-generated=true
+contract/kinds.json -text linguist-generated=true

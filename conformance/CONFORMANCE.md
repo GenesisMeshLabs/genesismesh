@@ -96,10 +96,49 @@ canonical output, regenerate and commit the updated vectors:
 
 ```bash
 python conformance/generate_vectors.py
-git add conformance/vectors/
+git add conformance/vectors/ contract/kinds.json contract/MANIFEST.json
 git commit -m "chore(conformance): regenerate vectors for vX.Y.Z"
 ```
+
+The generator also rewrites `contract/kinds.json` and
+`contract/MANIFEST.json`, the contract bundle's manifest (below).
 
 Only regenerate vectors after updating `CHANGELOG.md` and bumping the
 version — stale vectors must never be committed ahead of the code change
 that produces them.
+
+## Contract bundle
+
+From 1.11.0 the vectors reach the SDKs and the gateway as a versioned
+contract bundle instead of copies taken from `main`. The bundle is the
+set of files listed in `contract/bundle.json`:
+
+- the suites in `conformance/vectors/`;
+- the frozen audit pack in `conformance/fixtures/`;
+- `contract/public-surface.json` and `contract/kinds.json`;
+- the tool `scripts/gm_contract.py`.
+
+`contract/MANIFEST.json` lists each file with its sha256, each suite with
+its vectors per kind, and the kinds each tier of consumer must run:
+
+| Tier | Consumers |
+|---|---|
+| `verifier` | sdk-go |
+| `governed` | sdk-typescript, sdk-rust, sdk-dotnet |
+| `edge` | the sdk-rust edge agent |
+| `gateway` | gateway |
+
+`"all"` in `bundle.json` means every kind of the suite except its
+`na_only_kinds`, so a new kind in such a suite is required at once. A
+new suite without an entry fails the check, so every new suite needs a
+decision on who must run it. Its `contract_digest` names the contract
+itself: two releases with the same digest carry the same contract.
+
+```bash
+python scripts/gm_contract.py manifest          # rewrite contract/MANIFEST.json
+python scripts/gm_contract.py manifest --check  # CI "Contract bundle" and pre-commit
+python scripts/gm_contract.py archive --out dist/contract
+```
+
+The plan for publishing the bundle with each core release, and for
+consumers pinning it, is `ops/plan-v1.11.0-release-model.md`.

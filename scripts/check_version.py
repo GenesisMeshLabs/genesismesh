@@ -39,6 +39,9 @@ SITES: tuple[tuple[str, str, int], ...] = (
     ("deploy/compose/docker-compose.images.yml", IMAGE, 4),
     ("deploy/kubernetes/na-deployment.yaml", IMAGE, 1),
     ("docs/examples/assets/github-actions/supply-chain-trust-gate.yml", rf"genesis-mesh=={NUMBER}", 1),
+    # v1.11.0: the contract bundle a release publishes is named after it (scripts/gm_contract.py);
+    # neither field is in the contract digest, so writing them keeps the manifest current.
+    ("contract/MANIFEST.json", rf'"(?:bundle|core)_version": "{NUMBER}"', 2),
 )
 
 

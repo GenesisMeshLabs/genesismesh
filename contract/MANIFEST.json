@@ -1,0 +1,562 @@
+{
+  "bundle_version": "1.10.1",
+  "contract": {
+    "error_codes": "/error_codes",
+    "kinds": "contract/kinds.json",
+    "public_surface": "contract/public-surface.json",
+    "routes": null
+  },
+  "contract_digest": "sha256:828e73d112670eb8af6c5bf7fa03bf3eff09d4a7306c8eedd31fd3cb5e3ace89",
+  "core_version": "1.10.1",
+  "files": {
+    "conformance/fixtures/audit-pack-1.5.0/anchors.json": {
+      "bytes": 1413,
+      "sha256": "1f96636de68de39a6c1bbaefd8a7b7a43415a9711b6a9a1c260ed9d595e95587"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/anchors.jsonl": {
+      "bytes": 1191,
+      "sha256": "a646d6ad4893e52b64ace49a7ed66367a0d44f99a2205bf03a57813053fc8ef1"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/checks.json": {
+      "bytes": 1474,
+      "sha256": "66a846ee03fdc3b23ed69eb7d6876a2c760aa664d9950ea2c13140e38cb435fe"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/cited.jsonl": {
+      "bytes": 4962,
+      "sha256": "39f3b74d5ab2859bf061ab15ed6e33b8a08167aa1d16e7da618dec2945793ea2"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/entries.jsonl": {
+      "bytes": 9773,
+      "sha256": "a499b0f1c9ed189b060a479813074ea80efc5ec14654a4956d55aebf060ae777"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/genesis.json": {
+      "bytes": 570,
+      "sha256": "b47d720a6069af191cffd55abd3d9499d25c44289819396579709152ec66fde7"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/keys/executor-keys.json": {
+      "bytes": 470,
+      "sha256": "56187893987d6502d1adb79cef6e048480e5803106ff42229100f40dc63d2eeb"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/keys/na-key-history.json": {
+      "bytes": 770,
+      "sha256": "c8a7628aa717e16e1036c7b524c19d3ffc208f1b597417ed34ec33d857d21dda"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/manifest.json": {
+      "bytes": 1935,
+      "sha256": "d8aa422927f6d8e1b1b2d3a562394234d7309bb85b3b0e1c122303c32dcb1c87"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/policies.jsonl": {
+      "bytes": 709,
+      "sha256": "a14bef44bb75e2402537a6641ceb74b95a10b4423e5365022c569a06f750944e"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/report.md": {
+      "bytes": 1527,
+      "sha256": "60ec47f9a4cb783497c6aabbc14196342c3856744b0ab04bd3f93f1622bc2e63"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/states.json": {
+      "bytes": 27,
+      "sha256": "cae0e57ff68c7556ef2ab5c32a5029180823867673f281321ee848b796b07a46"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/trust/attestations.jsonl": {
+      "bytes": 489,
+      "sha256": "416b9c5bd8a3a2f9709afdde0464f4476a54298619faeb0f689e97a761f8ca15"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/trust/feeds.jsonl": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/pack/trust/treaties.jsonl": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "conformance/fixtures/audit-pack-1.5.0/root.pub": {
+      "bytes": 45,
+      "sha256": "52248e908172649ae48cf4578d1e8e83d67f1282edd17b67df664c5c29f9c91d"
+    },
+    "conformance/vectors/admin_auth.json": {
+      "bytes": 4631,
+      "sha256": "f75219dc405a1e3ab87c34f79d93333bc374172b56c42142859fa06ad8e69604"
+    },
+    "conformance/vectors/attestations.json": {
+      "bytes": 1626,
+      "sha256": "2157fd4a10b5beb52a39055fc2453303877e494996135632ac75c59fea90cd9c"
+    },
+    "conformance/vectors/audit.json": {
+      "bytes": 1060810,
+      "sha256": "21d85c695b2db30f6d82f96774636daef9287a120662ed67d021fb26ba849b5e"
+    },
+    "conformance/vectors/canonical.json": {
+      "bytes": 120933,
+      "sha256": "706f8118c10abadae8f9238c20a4c4d3c5ffd7191f6b32c06ac51c1a298dc98b"
+    },
+    "conformance/vectors/consensus.json": {
+      "bytes": 3637,
+      "sha256": "99be28b5655cf2745d35eb0618232919921b69136545f0a5b9a4ad02f356edc7"
+    },
+    "conformance/vectors/data_usage.json": {
+      "bytes": 1933,
+      "sha256": "26f1ba73b80db04e165d46e370f37db034d274aa1a86e81dacab4c3e31204337"
+    },
+    "conformance/vectors/field_registry.json": {
+      "bytes": 358117,
+      "sha256": "52ac07ace4674dba5747a4d3d5529e84e74cd8b8f8662e1c7358e8e202ae022c"
+    },
+    "conformance/vectors/grants.json": {
+      "bytes": 574494,
+      "sha256": "6d0a69e4066175b9e0e47913ea44e19797e8dd6b31cef5a7ab4dd9bc0faf43ce"
+    },
+    "conformance/vectors/ibct.json": {
+      "bytes": 1136,
+      "sha256": "b508524d051a2d2448e7e33c8e7d950cf63a97d49a739895ead59fd25584dd14"
+    },
+    "conformance/vectors/interop.json": {
+      "bytes": 108051,
+      "sha256": "d7d2886f27eb129bc8ff6d130967e95976dcb98ba2af5fa814fe63bb1648bf73"
+    },
+    "conformance/vectors/node.json": {
+      "bytes": 19395,
+      "sha256": "c2bde766ca2a4aec0a370d7b66f953b531947e285e7c726990a6279a9ba6d6cd"
+    },
+    "conformance/vectors/out_of_band.json": {
+      "bytes": 784950,
+      "sha256": "79ad173a6934d6f445f77a7aee41cd1358b16da37c0fa726615ceb32bee636e5"
+    },
+    "conformance/vectors/remediation.json": {
+      "bytes": 845937,
+      "sha256": "ca60780a1f7dadf86e399602a5e27f47f1fdbcc4960df316333904fee2b9b00c"
+    },
+    "conformance/vectors/revocation.json": {
+      "bytes": 1098,
+      "sha256": "e62797a0feda79c6a98ef4ef4b7e2d5271a45c9100adb0ad978df0610a6c6169"
+    },
+    "conformance/vectors/selective_disclosure.json": {
+      "bytes": 3294,
+      "sha256": "0e5a338c110e2f37838a10ff88965c2251fcd7493fe3bad5a6c8216eea64d390"
+    },
+    "conformance/vectors/signatures.json": {
+      "bytes": 1964,
+      "sha256": "e77621588b38068b963c915331b1c3562c2b62302ea03b1da598a1dd882304a1"
+    },
+    "conformance/vectors/treaties.json": {
+      "bytes": 1379,
+      "sha256": "f75093196f508d316a8c449db583069fdfd39b11a9c4ad8d32b0ce40d5946907"
+    },
+    "conformance/vectors/trust_evidence.json": {
+      "bytes": 1500,
+      "sha256": "8687dce33d309da04b67dabd12ae1c809ff74335aa6a45b8ffe944910f7502cf"
+    },
+    "conformance/vectors/vouching.json": {
+      "bytes": 114390,
+      "sha256": "fc1cf7dc5cb3939a162483f316a7fa8bab3527fed8b1d0118bce370faae88e58"
+    },
+    "contract/kinds.json": {
+      "bytes": 6774,
+      "sha256": "e391a24d47cee274e1d49b7d88876b88d77e375669a8624099ef5303fa177685"
+    },
+    "contract/public-surface.json": {
+      "bytes": 100928,
+      "sha256": "33aa3ba0a7b371c75cc23a48571493cfc045fdde539b04ea35f50b250daf8dcf"
+    },
+    "scripts/gm_contract.py": {
+      "bytes": 18677,
+      "sha256": "c0a83009324a52a309ae9d6f41a1d609eabaabace32569a476e7bd07c68cf1f6"
+    }
+  },
+  "fixtures": {
+    "audit-pack-1.5.0": {
+      "dir": "conformance/fixtures/audit-pack-1.5.0/"
+    }
+  },
+  "format_level": null,
+  "schema": "gm.contract.manifest/1",
+  "suites": {
+    "admin_auth": {
+      "file": "conformance/vectors/admin_auth.json",
+      "kinds": {
+        "*": 3
+      },
+      "na_only_kinds": [],
+      "required": {
+        "gateway": [
+          "*"
+        ],
+        "governed": [
+          "*"
+        ],
+        "verifier": [
+          "*"
+        ]
+      },
+      "suite_version": "1.0.2",
+      "vectors": 3
+    },
+    "attestations": {
+      "file": "conformance/vectors/attestations.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "audit": {
+      "file": "conformance/vectors/audit.json",
+      "kinds": {
+        "canonical_form": 3,
+        "changes_file": 13,
+        "completeness": 5,
+        "decision_at_record_time": 2,
+        "key_at": 8,
+        "key_history": 19,
+        "pack": 22,
+        "record_time": 17,
+        "registry_keys": 1,
+        "report_cell": 1,
+        "verify_anchors": 2,
+        "verify_export": 13,
+        "verify_range": 2
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "canonical_form",
+          "changes_file",
+          "completeness",
+          "decision_at_record_time",
+          "key_at",
+          "key_history",
+          "pack",
+          "record_time",
+          "registry_keys",
+          "report_cell",
+          "verify_anchors",
+          "verify_export",
+          "verify_range"
+        ],
+        "verifier": [
+          "canonical_form",
+          "decision_at_record_time",
+          "key_at",
+          "key_history",
+          "record_time"
+        ]
+      },
+      "suite_version": "1.5.0",
+      "vectors": 108
+    },
+    "canonical": {
+      "file": "conformance/vectors/canonical.json",
+      "kinds": {
+        "json": 80,
+        "timestamp": 30,
+        "verify_agreement": 4,
+        "verify_decision": 10,
+        "verify_intent": 3
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "json",
+          "timestamp",
+          "verify_decision"
+        ],
+        "verifier": [
+          "json",
+          "timestamp",
+          "verify_agreement",
+          "verify_decision",
+          "verify_intent"
+        ]
+      },
+      "suite_version": "1.2.0",
+      "vectors": 127
+    },
+    "consensus": {
+      "file": "conformance/vectors/consensus.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {
+        "verifier": [
+          "*"
+        ]
+      },
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "data_usage": {
+      "file": "conformance/vectors/data_usage.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "field_registry": {
+      "file": "conformance/vectors/field_registry.json",
+      "kinds": {
+        "entry_kind": 17,
+        "export": 4,
+        "unknown_fields": 150,
+        "verify_agreement": 1,
+        "verify_decision": 2
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "entry_kind",
+          "export",
+          "unknown_fields",
+          "verify_decision"
+        ],
+        "verifier": [
+          "unknown_fields",
+          "verify_agreement",
+          "verify_decision"
+        ]
+      },
+      "suite_version": "1.2.0",
+      "vectors": 174
+    },
+    "grants": {
+      "file": "conformance/vectors/grants.json",
+      "kinds": {
+        "canonical_form": 8,
+        "envelope": 11,
+        "envelope_parameter": 15,
+        "issuance": 59,
+        "use": 27,
+        "verify_export": 26,
+        "verify_record": 12
+      },
+      "na_only_kinds": [
+        "issuance"
+      ],
+      "required": {
+        "governed": [
+          "canonical_form",
+          "envelope",
+          "envelope_parameter",
+          "use",
+          "verify_export",
+          "verify_record"
+        ],
+        "verifier": [
+          "canonical_form",
+          "verify_record"
+        ]
+      },
+      "suite_version": "1.6.0",
+      "vectors": 158
+    },
+    "ibct": {
+      "file": "conformance/vectors/ibct.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "interop": {
+      "file": "conformance/vectors/interop.json",
+      "kinds": {
+        "agreement": 5,
+        "boundary_decision": 17,
+        "canonical_json": 5,
+        "data_access_intent": 6,
+        "data_license_policy": 2
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "boundary_decision"
+        ],
+        "verifier": [
+          "agreement",
+          "boundary_decision",
+          "canonical_json",
+          "data_access_intent",
+          "data_license_policy"
+        ]
+      },
+      "suite_version": "0.61.0",
+      "vectors": 35
+    },
+    "node": {
+      "file": "conformance/vectors/node.json",
+      "kinds": {
+        "crl": 2,
+        "join_certificate": 2,
+        "join_request": 1,
+        "node_request": 5,
+        "node_request_tampered": 1
+      },
+      "na_only_kinds": [],
+      "required": {
+        "edge": [
+          "crl",
+          "join_certificate",
+          "join_request",
+          "node_request",
+          "node_request_tampered"
+        ]
+      },
+      "suite_version": "1.7.0",
+      "vectors": 11
+    },
+    "out_of_band": {
+      "file": "conformance/vectors/out_of_band.json",
+      "kinds": {
+        "canonical_form": 6,
+        "metadata_problem": 21,
+        "policy_history": 5,
+        "time_bounds": 7,
+        "verify_export": 37,
+        "verify_record": 4
+      },
+      "na_only_kinds": [
+        "policy_history",
+        "time_bounds"
+      ],
+      "required": {
+        "governed": [
+          "canonical_form",
+          "metadata_problem",
+          "verify_export",
+          "verify_record"
+        ]
+      },
+      "suite_version": "1.3.0",
+      "vectors": 80
+    },
+    "remediation": {
+      "file": "conformance/vectors/remediation.json",
+      "kinds": {
+        "admin_approval": 7,
+        "canonical_form": 3,
+        "decision_plan": 3,
+        "due_time": 4,
+        "emergency_map": 3,
+        "policy_canonical": 3,
+        "policy_validation": 7,
+        "remediation_check": 15,
+        "remediation_plan": 13,
+        "review_approval": 16,
+        "review_holders": 6,
+        "review_request": 4,
+        "rfc3339": 22,
+        "steps_problem": 5,
+        "transition": 198,
+        "verify_export": 28,
+        "verify_record": 3
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "admin_approval",
+          "canonical_form",
+          "decision_plan",
+          "due_time",
+          "emergency_map",
+          "policy_canonical",
+          "policy_validation",
+          "remediation_check",
+          "remediation_plan",
+          "review_approval",
+          "review_holders",
+          "review_request",
+          "rfc3339",
+          "steps_problem",
+          "transition",
+          "verify_export",
+          "verify_record"
+        ]
+      },
+      "suite_version": "1.4.0",
+      "vectors": 340
+    },
+    "revocation": {
+      "file": "conformance/vectors/revocation.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "selective_disclosure": {
+      "file": "conformance/vectors/selective_disclosure.json",
+      "kinds": {
+        "*": 2
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 2
+    },
+    "signatures": {
+      "file": "conformance/vectors/signatures.json",
+      "kinds": {
+        "*": 2
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 2
+    },
+    "treaties": {
+      "file": "conformance/vectors/treaties.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "trust_evidence": {
+      "file": "conformance/vectors/trust_evidence.json",
+      "kinds": {
+        "*": 1
+      },
+      "na_only_kinds": [],
+      "required": {},
+      "suite_version": "0.51.0",
+      "vectors": 1
+    },
+    "vouching": {
+      "file": "conformance/vectors/vouching.json",
+      "kinds": {
+        "record_vouching": 32
+      },
+      "na_only_kinds": [],
+      "required": {
+        "governed": [
+          "record_vouching"
+        ],
+        "verifier": [
+          "record_vouching"
+        ]
+      },
+      "suite_version": "1.8.0",
+      "vectors": 32
+    }
+  },
+  "tiers": {
+    "edge": "Edge agent: sdk-rust genesis-mesh-edge",
+    "gateway": "Trust gateway console: gateway",
+    "governed": "Governed client: sdk-typescript, sdk-rust, sdk-dotnet (decision 0008, since 1.9.0)",
+    "verifier": "Offline verifier plus thin client (decision 0002): sdk-go"
+  },
+  "tool": {
+    "path": "scripts/gm_contract.py",
+    "sha256": "c0a83009324a52a309ae9d6f41a1d609eabaabace32569a476e7bd07c68cf1f6"
+  }
+}

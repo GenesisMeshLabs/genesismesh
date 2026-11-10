@@ -170,4 +170,3 @@ def test_a_request_for_one_na_is_refused_by_another_with_the_same_network_name()
     assert replayed.status_code == 401
     accepted = make_client(first).post("/admin/invite", json=body, headers=headers)
     assert accepted.status_code == 201
-
