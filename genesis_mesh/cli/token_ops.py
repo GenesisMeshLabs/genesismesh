@@ -224,6 +224,10 @@ def token_issue(
     help="InvocationUseRecord JSON files (for budget checking). Repeatable.",
 )
 @click.option(
+    "--bearer-key", "bearer_key_inputs", multiple=True,
+    help="Bearer public key (base64 or file). Given, only use records it signed count. Repeatable.",
+)
+@click.option(
     "--format", "output_format",
     type=click.Choice(["table", "json"]), default="table",
 )
@@ -233,6 +237,7 @@ def token_verify(
     capability: str,
     bearer_sovereign_id: str,
     use_record_paths: tuple[str, ...],
+    bearer_key_inputs: tuple[str, ...],
     output_format: str,
 ) -> None:
     """Verify an InvocationToken for a specific capability invocation.
@@ -272,6 +277,7 @@ def token_verify(
         requested_capability=capability,
         bearer_sovereign_id=bearer_sovereign_id,
         use_records=use_records if use_records else None,
+        bearer_public_keys=[_parse_public_key(k) for k in bearer_key_inputs] if bearer_key_inputs else None,
     )
 
     if output_format == "json":

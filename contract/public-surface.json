@@ -2486,6 +2486,11 @@
           "name": "at_time",
           "kind": "keyword_only",
           "required": false
+        },
+        {
+          "name": "bearer_public_keys",
+          "kind": "keyword_only",
+          "required": false
         }
       ]
     },
