@@ -20,6 +20,7 @@ first. Each row below names the first one.
 
 | From | Status |
 | --- | --- |
+| 1.9.x | Supported and rehearsed in CI. Read *Upgrading to 1.10.0* below first |
 | 1.8.x | Supported and rehearsed in CI. Read *Upgrading to 1.9* below first |
 | 1.7.x | Supported and rehearsed in CI. Read *Upgrading to 1.8* below first |
 | 1.6.x | Supported and rehearsed in CI, with grants on and an edge node enrolled after the upgrade. Read *Upgrading to 1.7* below first |
@@ -58,6 +59,28 @@ built wheel before every release.
    policy digests, CRL continuity, the evidence chain, the evidence anchors
    and, with `--genesis`, the NA key history from the root key. `/readyz`
    must report the expected schema version.
+
+## Upgrading to 1.10.0
+
+- **No migration.** 1.10.0 changes no schema. Its one new setting,
+  `BOUNDARY_POLICY_COVERAGE`, is `optional` by default, which keeps the
+  behaviour as it was.
+- **Upgrade the SDKs first.** A decision under an attestation carries the new
+  signed field `requester_key_id`, and a 1.9.x SDK verifier refuses it as
+  `unknown_field`. Move relying parties and governed clients to the 1.10.0
+  SDKs before, or with, the Network Authority.
+- **Attestation reads are scoped.** A `standard` key lists and reads only its
+  own attestations, and an unsigned read by ID gives the status and lineage
+  only. Give dashboards and audits a `read` key, and sign reads by ID.
+- **Edge nodes:** an edge invite for a sovereign ID that is also an operator
+  key ID is refused (`409 node_sovereign_in_use`).
+- **Invocation tokens:** `verify_invocation_token` counts only the bearer's
+  use records. Pass `bearer_public_keys` to check their signatures as well.
+- **Denying requests no policy covers** (`BOUNDARY_POLICY_COVERAGE=required`):
+  before you set it, make sure each capability the NA decides has an active
+  policy with an enforce-mode gate, because every other request becomes a
+  signed DENY (`no_applicable_policy`). The setting also refuses
+  `/admin/boundary/decide`.
 
 ## Upgrading to 1.9.2
 

@@ -1,6 +1,7 @@
 # Plan: first production use case feedback (1.10.0)
 
-Status: item 1 in progress, items 2 and 3 planned (2026-11-10).
+Status: item 1 released in 1.10.0 (2026-11-10); item 3, then item 2, next
+(1.11.0).
 
 ## The use case
 
