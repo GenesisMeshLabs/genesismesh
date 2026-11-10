@@ -156,6 +156,8 @@ relax R2. If it is supplied and differs from the attestation's
 | 17 | Read-tier key lists attestations | All, as in 1.9.1 |
 | 17a | Unsigned read by ID, including an ID from the revocation feed | Status and lineage only, no attestation |
 | 18 | One case per route found in R11 | Another party's object gives a signed DENY |
+| 18a | Edge node and operator key share an ID | Refused at enrollment and at issuance |
+| 18b | Use record signed by another key | Refused; not counted |
 
 ## The two contested cases
 
@@ -204,6 +206,78 @@ These notes were checked against core `main` at v1.9.1.
     would be a breaking change in a patch release. R9's expected requester
     can later be added to `ExpectedBinding` without breaking callers.
 
+## R11 review (2026-11-09)
+
+Each route that evaluates or acts under a party-scoped object, against core
+`main` after #146. "Correct" means a caller cannot act under an object issued
+to another party.
+
+**Agreement basis on `/admin/boundary/evaluate`: correct.** An agreement's
+parties are sovereigns, not operator keys. It must be signed by two
+different trusted parties (`require_trusted`), and the decision's requester
+is fixed to the agreement's responder (`agreement_parties`, v1.1.1: a context
+naming another party is refused). No operator key is a party, so the R2 rule
+has nothing to bind.
+
+**Grant uses and time tokens: correct.** `POST /evidence/grant-executions`
+and `POST /grants/time-tokens` must be signed by the grant's bearer key, and
+a use must name the bearer's sovereign. No operator key can use a grant.
+
+**Grant issuance (`POST /admin/grants`, privileged): not bound.**
+- `_basis` and `_recheck` call `assess_attestation(id, None)`, so the R2
+  check is skipped (left out on purpose in 1.9.2).
+- A privileged key that is not the attestation's subject gets a signed DENY
+  from `/admin/boundary/evaluate` (R5), but can issue a grant under the same
+  attestation to any executor key, which then acts under it.
+- The bearer is not the subject by design (`test_grants.py`: bearer
+  `edge-device-1`, subject `VENDOR`).
+- Binding issuance to the subject would end that delegation model: the
+  operator issues grants for a vendor. Decision 5.
+
+**Grant reads (`GET /admin/grants`, `/<id>`, `/<id>/uses`, read tier): not
+scoped.** A standard key sees every grant: its basis attestation ID, subject,
+validity window and use chain. That undoes R10, which answers another
+subject's attestation as 404. The evidence store reads (`/admin/evidence/*`,
+read tier) give a standard key every decision too, with its attestation ID
+and subject. Decision 6.
+
+**Invocation tokens: no NA route.** Tokens are offline (`trust/invocation_token.py`,
+the `trust token` CLI) and enforced by the local guard (`guard/daemon.py`,
+`trust/mediation.py`).
+- The guard is correct for this review. It binds the token to the signing
+  agent (bearer equals agent) and requires the token's agreement ID to equal
+  the decision's. A token is issued for an agreement only, and an
+  attestation-basis decision carries the attestation ID as its agreement ID,
+  so no token pairs with another subject's attestation-basis decision.
+- Outside R11: a decision names no capability, so under one agreement a
+  bearer can pair its token with a decision made for another capability.
+  Binding a decision to its request is its own hardening item.
+- Offline use records: `record_invocation_use` accepts any signing key, and
+  `verify_invocation_token` counts records without checking their signer or
+  token ID. Another party can spend a token's budget, not gain uses. Fix PR 2.
+
+**Edge-node evaluation (`POST /node/boundary/evaluate`): correct for bound
+attestations, open by ID for unbound ones.**
+- `_issued_to` requires this NA as issuer, the node's sovereign ID as
+  subject, and no subject key or the node's key: stricter than R2.
+- An attestation with no subject key matches by ID alone, and nothing keeps
+  edge sovereign IDs apart from operator key IDs: `_check_sovereign_free`
+  does not compare with operator key IDs, and issuing an attestation does
+  not check edge sovereigns. If the two collide, each can act under the
+  other's unbound attestations. Fix PR 1: refuse a node sovereign ID that is
+  an operator key ID, and an operator-key-ID subject that is an edge
+  sovereign.
+- The foreign case stays an HTTP 403 `node_attestation_foreign`, audited,
+  with no decision: the node never acts, so there is nothing to sign.
+  Decision 7 (proposed: keep it).
+
+### R11 fix PRs
+
+1. Edge: keep edge sovereign IDs and operator key IDs apart (test 18a;
+   core #148).
+2. Offline tokens: a use record must be signed by the bearer's key, and
+   verification checks each record's signer and token ID (test 18b).
+
 ## Release order
 
 1. **1.9.2:**
@@ -239,3 +313,15 @@ These notes were checked against core `main` at v1.9.1.
    list gives the count only; a signed read gives the attestation, scoped by
    R10. The TypeScript and .NET SDKs sign `attestation.get` when the client
    has a key.
+5. **Grant issuance under another subject's attestation:** open. Today a
+   privileged key may issue a grant under any attestation, to any executor.
+   Options: (a) keep it, and document grants as the operator's delegation,
+   outside R2; (b) apply R2, so only the subject's key may issue under its
+   attestation; (c) apply R2 unless the attestation's claims allow
+   delegation. Proposed: (a), recorded in the changelog.
+6. **Standard-tier reads of other parties' grants and evidence:** open.
+   Options: (a) scope grant reads like R10 (own subject) and leave the
+   evidence store at read tier; (b) also scope evidence reads per key;
+   (c) keep both, and document that standard keys see the audit stream.
+   Proposed: (a), and (b) as its own plan.
+7. **Edge foreign attestation:** 403 or signed DENY. Proposed: keep 403.
