@@ -65,7 +65,7 @@ This is a release-process workstream. It runs alongside the 1.11 functional scop
 One tested PR at a time, against `main`, no stacked PRs. Core PRs run the PostgreSQL suite before push.
 
 ### 5.1 Core: the contract bundle (bundle design C1 and C2)
-- `scripts/gm_contract.py` (stdlib only) and `contract/bundle.json`, with tiers:
+- `scripts/gm_contract.py` (stdlib only) and `contract/bundle.json` (#155), with tiers:
   - `verifier`: sdk-go;
   - `governed`: sdk-typescript, sdk-rust, sdk-dotnet;
   - `edge`: sdk-rust edge;
@@ -76,7 +76,7 @@ One tested PR at a time, against `main`, no stacked PRs. Core PRs run the Postgr
   - the manifest is current;
   - every suite has a tier;
   - the archive builds identically twice.
-- `contract-bundle.yml` attaches `genesis-mesh-contract-X.Y.Z.tar.gz`, `SHA256SUMS-contract` and their sigstore bundles to the core release. It never creates the release.
+- `contract-bundle.yml` attaches `genesis-mesh-contract-X.Y.Z.tar` (uncompressed: deflate output differs between platforms, and the checksum must not), `SHA256SUMS-contract` and their sigstore bundles to the core release. It never creates the release.
 - **Unknown-field coverage.** The bundle must carry, as required kinds for every tier, the vectors where a record with an unknown signed field is refused (`field_registry` `unknown_fields`). Rejected cases count as much as accepted ones.
 
 ### 5.2 Consumers: conformance receipts (bundle design X1)
