@@ -355,6 +355,7 @@ def run_interop(vectors: list[dict]) -> list[str]:
                     expected_attestation=MembershipAttestation.model_validate(inp["expected_attestation"])
                     if "expected_attestation" in inp else None,
                     expected_requester_key_id=inp.get("expected_requester_key_id"),
+                    expected_policy_ids=inp.get("expected_policy_ids"),
                 )
                 got = {"accepted": decision.accepted, "reason": decision.reason, "authorized": decision.authorized}
             elif kind == "data_license_policy":

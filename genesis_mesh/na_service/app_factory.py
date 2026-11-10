@@ -47,6 +47,7 @@ def build_app(settings: NASettings) -> Flask:
         operator_key_tiers=settings.operator_key_tiers,
         renewal_grace_seconds=settings.renewal_grace_seconds,
         boundary_policy_enforcement=settings.boundary_policy_enforcement,
+        boundary_policy_coverage=settings.boundary_policy_coverage,
         evidence_store=settings.evidence_store,
         evidence_out_of_band=settings.evidence_out_of_band,
         anchor_interval_seconds=settings.anchor_interval_seconds,

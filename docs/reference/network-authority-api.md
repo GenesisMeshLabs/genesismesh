@@ -220,7 +220,8 @@ can reach it sees that path or host. Filter it at the proxy if that matters.
 A summary, not a readiness check: `status` is always `healthy`. It also
 returns `network`, `version`, `boundary_policies` (`healthy`, or `unhealthy`
 when an active boundary policy fails re-verification, which makes every
-policy-aware evaluation deny), `boundary_policy_enforcement` and
+policy-aware evaluation deny), `boundary_policy_enforcement`,
+`boundary_policy_coverage` (1.10.0, `optional` or `required`) and
 `evidence_store` (`on` or `off`).
 
 ### `GET /nodes`

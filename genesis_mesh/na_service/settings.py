@@ -37,6 +37,7 @@ class NASettings:
     operator_key_tiers: dict[str, str] = field(default_factory=dict)
     renewal_grace_seconds: int = 900
     boundary_policy_enforcement: str = "optional"
+    boundary_policy_coverage: str = "optional"
     evidence_store: str = "off"
     evidence_out_of_band: str = "off"
     anchor_interval_seconds: int = 3600
@@ -118,6 +119,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> NASettings:
         operator_key_tiers=_json_object(e, "OPERATOR_KEY_TIERS_JSON"),
         renewal_grace_seconds=_int(e, "RENEWAL_GRACE_SECONDS", 900),
         boundary_policy_enforcement=e.get("BOUNDARY_POLICY_ENFORCEMENT", "optional"),
+        boundary_policy_coverage=e.get("BOUNDARY_POLICY_COVERAGE", "optional"),
         evidence_store=e.get("EVIDENCE_STORE", "off"),
         evidence_out_of_band=e.get("EVIDENCE_OUT_OF_BAND", "off"),
         anchor_interval_seconds=_int(e, "NA_ANCHOR_INTERVAL_SECONDS", 3600),

@@ -75,6 +75,7 @@ EVIDENCE_STORE=on
 | `NA_PROXY_HOPS` | `0` | Set it to the number of reverse proxies in front of the NA, or rate limits and audit addresses see the proxy. |
 | `NA_DEPLOYMENT` | `local` | `managed` refuses to start when the root key is near the NA's files. |
 | `BOUNDARY_POLICY_ENFORCEMENT` | `optional` | `required` refuses the legacy `/admin/boundary/decide` route. |
+| `BOUNDARY_POLICY_COVERAGE` | `optional` | `required` (1.10.0) denies a request no policy governs, for scope rules kept in policy gates. |
 | `EVIDENCE_STORE` | `off` | Off, the NA keeps no hash-chained, anchored evidence. Entries are not written retroactively. |
 
 Add operator keys with the lowest tier their work needs. Generate each on its

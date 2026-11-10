@@ -53,6 +53,7 @@ if (!d.Authorized)
 | `AtRecordTime` | Judge the decision as of its own `decision_made_at` (1.5.0) |
 | `FreshnessProofIssuerKeys` | When set, an embedded freshness proof must verify under these keys |
 | `ExpectedPolicies` | Signed `BoundaryPolicy` JSON; when not null, the decision's policy binding must equal it |
+| `ExpectedPolicyIds` | Policy IDs an ALLOW must rest on, at any version the NA signed, each with an enforce-mode gate evaluated (1.10.0); a DENY is reported as it is |
 | `ExpectedAttestation` | Signed `MembershipAttestation` JSON; when set, the attestation binding must match it |
 
 **Refused** (`Accepted` false), in the order checked: `missing_signature`,

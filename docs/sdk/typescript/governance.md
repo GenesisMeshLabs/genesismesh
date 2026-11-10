@@ -40,6 +40,12 @@ const result = await governedAction(gm, recorder, {
 
 Use a trusted NA public key. `verify` and explicit `expectedPolicies` are
 required. An empty policy list explicitly requires an empty policy binding.
+Since 1.10.0, `expectedPolicyIds: ['policy-id']` may stand in for the signed
+policies, or join them: the ALLOW must rest on each named policy, at any
+version the NA signed, with at least one of its enforce-mode gates evaluated.
+A controller whose scope rules live in a policy then refuses the ALLOW an NA
+gives once that policy is deactivated or its selector stops matching
+(`policy_binding_mismatch`), without a code change for each new version.
 An ALLOW under an attestation also requires `expectedAttestation`. Agreement
 requests use `agreement` instead of `attestation_id` and check the agreement ID.
 The helper supplies a context ID when absent and checks the response against it.

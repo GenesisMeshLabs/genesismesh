@@ -52,7 +52,7 @@ from .services.evidence_store import EVIDENCE_STORE_MODES
 from .services.agreement_trust import AgreementTrust
 from .services.key_history import KeyHistoryService
 from .services.reissue import record_signer
-from .services.boundary_policy import ENFORCEMENT_MODES
+from .services.boundary_policy import COVERAGE_MODES, ENFORCEMENT_MODES
 from .routes import (
     create_admin_blueprint,
     create_agreement_blueprint,
@@ -127,6 +127,7 @@ class NetworkAuthorityService:
         renewal_grace_seconds: int = 900,
         gate_registry: Optional[GateRegistry] = None,
         boundary_policy_enforcement: str = "optional",
+        boundary_policy_coverage: str = "optional",
         evidence_store: str = "off",
         database_url: Optional[str] = None,
         ha_mode: str = "off",
@@ -173,6 +174,11 @@ class NetworkAuthorityService:
                 legacy /admin/boundary/decide route available; "required"
                 refuses it so every decision goes through the policy-aware
                 /admin/boundary/evaluate route.
+            boundary_policy_coverage: "optional" (default) lets a request no
+                policy applies to rest on the built-in gates; "required"
+                (1.10.0) denies it with a signed DENY whose policy binding
+                fails resolution with ``no_applicable_policy``, and refuses
+                /admin/boundary/decide as "required" enforcement does.
             evidence_store: "off" (default) stores nothing; "on" keeps an
                 append-only record of every decision and of the execution
                 evidence controllers submit (v0.59).
@@ -274,6 +280,9 @@ class NetworkAuthorityService:
                 f"boundary_policy_enforcement must be one of {ENFORCEMENT_MODES}"
             )
         self.boundary_policy_enforcement = boundary_policy_enforcement
+        if boundary_policy_coverage not in COVERAGE_MODES:
+            raise ValueError(f"boundary_policy_coverage must be one of {COVERAGE_MODES}")
+        self.boundary_policy_coverage = boundary_policy_coverage
         registry = gate_registry if gate_registry is not None else GateRegistry.default()
         if not registry.frozen:
             # A registry that can still change at runtime is not a trusted set.
@@ -758,6 +767,7 @@ def create_app(
     renewal_grace_seconds: int = 900,
     gate_registry: Optional[GateRegistry] = None,
     boundary_policy_enforcement: str = "optional",
+    boundary_policy_coverage: str = "optional",
     evidence_store: str = "off",
     database_url: Optional[str] = None,
     ha_mode: str = "off",
@@ -793,6 +803,7 @@ def create_app(
         renewal_grace_seconds=renewal_grace_seconds,
         gate_registry=gate_registry,
         boundary_policy_enforcement=boundary_policy_enforcement,
+        boundary_policy_coverage=boundary_policy_coverage,
         evidence_store=evidence_store,
         evidence_out_of_band=evidence_out_of_band,
         database_url=database_url,
@@ -848,6 +859,12 @@ def main():
         help="'required' refuses the legacy /admin/boundary/decide route",
     )
     parser.add_argument(
+        "--boundary-policy-coverage",
+        choices=COVERAGE_MODES,
+        default="optional",
+        help="'required' denies a request no policy with an enforce-mode gate applies to",
+    )
+    parser.add_argument(
         "--evidence-store",
         choices=EVIDENCE_STORE_MODES,
         default="off",
@@ -870,6 +887,7 @@ def main():
         operator_public_keys=load_operator_public_keys(args.operator_public_key),
         operator_key_tiers=load_operator_key_tiers(args.operator_key_tier),
         boundary_policy_enforcement=args.boundary_policy_enforcement,
+        boundary_policy_coverage=args.boundary_policy_coverage,
         evidence_store=args.evidence_store,
     )
     raise SystemExit(

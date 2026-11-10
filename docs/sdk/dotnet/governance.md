@@ -95,6 +95,12 @@ if (!result.Authorized) Log(result.Summary.EnforcedFailures);
   and still be valid. Otherwise `DecisionVerificationException` names the
   reason and nothing runs. A denial returns `Authorized == false` with a
   summary of the failing gates.
+- **Policy IDs instead of versions** (1.10.0): set
+  `ExpectedPolicyIds = ["partner-credentials"]` in place of, or with,
+  `ExpectedPolicies`. The ALLOW must then rest on each named policy, at any
+  version the NA signed, with at least one of its enforce-mode gates
+  evaluated, so an ALLOW given after the policy was deactivated or its
+  selector stopped matching is refused (`policy_binding_mismatch`).
 - **The record** chains from the resource's head: the newest pending record
   in the outbox, otherwise the NA's head.
 - **With an outbox** every record is kept until the NA admits it, and a failed

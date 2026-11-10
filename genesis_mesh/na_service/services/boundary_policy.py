@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 
 BoundaryPolicyEnforcement = Literal["optional", "required"]
 ENFORCEMENT_MODES: tuple[str, ...] = ("optional", "required")
+#: 1.10.0: BOUNDARY_POLICY_COVERAGE. "required" denies a request no policy with an enforce-mode gate applies to.
+COVERAGE_MODES: tuple[str, ...] = ("optional", "required")
 
 #: Intent fields a publish/validate request may carry.
 INTENT_FIELDS: frozenset[str] = frozenset(
@@ -114,6 +116,14 @@ class BoundaryPolicyService:
     @property
     def enforcement(self) -> str:
         return self._na.boundary_policy_enforcement
+
+    @property
+    def coverage(self) -> str:
+        return self._na.boundary_policy_coverage
+
+    @property
+    def coverage_required(self) -> bool:
+        return self._na.boundary_policy_coverage == "required"
 
     def policy_public_keys(self, at: datetime | None = None) -> list[str]:
         """The NA keys its records verify with: the key valid at ``at`` (v1.5.0, the key history), or
@@ -354,6 +364,7 @@ class BoundaryPolicyService:
             })
         return {
             "enforcement": self.enforcement,
+            "coverage": self.coverage,
             "policy_set_healthy": health.healthy,
             "problems": health.problems,
             "registry_gate_types": self.registry.gate_types(),
@@ -402,6 +413,7 @@ class BoundaryPolicyService:
             policy_public_keys=self.policy_public_keys(),
             policy_integrity_failures=loaded.integrity_failures,
             now=datetime.now(timezone.utc),
+            require_policy_coverage=self.coverage_required,
         )
 
     # -- attestation basis (v0.58.1) -----------------------------------------
@@ -516,4 +528,5 @@ class BoundaryPolicyService:
             policy_public_keys=self.policy_public_keys(),
             policy_integrity_failures=loaded.integrity_failures,
             now=datetime.now(timezone.utc),
+            require_policy_coverage=self.coverage_required,
         )

@@ -232,6 +232,7 @@ def _app_from_env_file(env_file: Path) -> tuple[Flask, int]:
     )
     click.echo(f"Settings: {env_file}", err=True)
     click.echo(f"  Boundary policy enforcement: {settings.boundary_policy_enforcement}", err=True)
+    click.echo(f"  Boundary policy coverage: {settings.boundary_policy_coverage}", err=True)
     click.echo(f"  Evidence store: {settings.evidence_store}", err=True)
     click.echo(f"  Operator keys: {tiers or 'none'}", err=True)
     click.echo(
