@@ -1,4 +1,4 @@
-Status: accepted design for Phase C of `ops/plan-architecture.md` (2026-10-16). Implementation is in progress; the Maintainer's decisions are at the end (no bot for now; core 1.7.1 is the first bundle).
+Status: accepted design for Phase C of `ops/plan-architecture.md` (2026-10-16). Not implemented. On 2026-11-11 the Maintainer scheduled it for 1.11.0: `ops/plan-v1.11.0-release-model.md` rebases this design onto 1.10.1 and takes precedence where the two differ (the first bundle is core 1.11.0, not 1.7.1). The Maintainer's decisions are at the end (no bot for now).
 
 # Phase C implementation contract: versioned contract bundle and the new release model
 
