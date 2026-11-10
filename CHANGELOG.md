@@ -1,5 +1,108 @@
 # Changelog
 
+## v1.10.0 - Who Asked, Under Which Policy
+
+### Security
+
+- **An edge node and an operator key no longer share an ID (plan R11).** An
+  attestation with no `subject_public_key` names its subject by ID only, and
+  edge sovereign IDs and operator key IDs were not kept apart. If the two were
+  the same string, each could act under the other's unbound attestations: the
+  node through `POST /node/boundary/evaluate`, the operator key through
+  `POST /admin/boundary/evaluate` (and, from 1.10.0, the roster). Now:
+  - an edge invite for a sovereign ID that is an operator key ID is refused
+    with `409 node_sovereign_in_use`;
+  - when the IDs still meet (an operator key added after the node enrolled),
+    neither may act under an unbound attestation to that ID: the node gets
+    `403 node_attestation_foreign`, and the operator key a signed DENY with
+    `attestation_subject_mismatch`. An attestation that binds a subject key is
+    unaffected. (Acceptance test 18a.)
+- **Only the bearer's use records spend an invocation token's budget (plan
+  R11).** `verify_invocation_token` counted every use record it was given, so
+  anyone could spend a token's budget by writing records. From 1.10.0 it
+  counts only records that name the token and its bearer. Given the new
+  `bearer_public_keys` (`--bearer-key` on `genesis-mesh trust token verify`),
+  it also counts only records signed by one of those keys. The token names
+  its bearer by sovereign ID only, so the verifier supplies the keys.
+  (Acceptance test 18b.)
+- **A standard-tier operator key sees only its own attestations.**
+  `GET /attestations` gave every operator key the full list, with each
+  subject's public key, roles, claims and attestation ID. From 1.10.0, a
+  `standard` key lists only the attestations whose subject it is, by the rule
+  that binds decisions to their subject since 1.9.2: its key bound as
+  `subject_public_key`, or with none bound its key ID as `subject_id`. A
+  signed `GET /attestations/<id>` from a `standard` key answers another
+  subject's attestation as `404 attestation_not_found`, exactly as for an ID
+  that does not exist. `read` and `privileged` keys see every attestation, as
+  before. (ops/plan-v1.9.2.md R10, acceptance tests 15 to 17a, decisions 3 and 4.)
+- **An unsigned read by ID gives the status only.** An unsigned
+  `GET /attestations/<id>` returned the whole attestation, with its subject,
+  public key, roles and claims, on the view that only the holder knows the
+  ID. The public revocation feed lists every revoked ID, so anyone could read
+  every revoked member's attestation. From 1.10.0 an unsigned read returns
+  `attestation_id`, `status`, `revoked_at`, `revocation_reason`,
+  `reissued_from` and `superseded_by`, without `attestation`, as an unsigned
+  `GET /attestations` returns only the count (v1.0.2). An unknown ID is still
+  `404 attestation_not_found`.
+- A signed read by ID is now authenticated like the list (read tier or
+  above, the admin rate limit); a request whose signature does not verify gets
+  `401 admin_auth_failed`. Before 1.10.0 the signature headers were ignored.
+
+### Added
+
+- **`BOUNDARY_POLICY_COVERAGE=required` denies a request no policy governs.**
+  Without it, a request no active policy applies to is decided by the
+  built-in gates alone, so scope rules kept in a policy stop applying when
+  the policy is deactivated or its selector stops matching, and the ALLOW
+  still verifies. With it, such a request is a signed DENY: the binding's
+  resolution fails with `no_applicable_policy`, the decision goes to the
+  evidence store like any other, and verifiers report
+  `unauthorized_policy_resolution_failed`. Only a policy with an
+  enforce-mode gate counts. The setting is off by default, also refuses
+  `/admin/boundary/decide`, and shows in `/health`, the active policy set and
+  the dashboard (`genesis-mesh-na --boundary-policy-coverage`).
+- **`verify_boundary_decision(..., expected_policy_ids=[...])`** names the
+  policies an ALLOW must rest on, at any version the NA signed: each must be
+  in the binding with at least one enforce-mode gate of that version
+  evaluated (`policy_binding_mismatch`; `policy_binding_missing` without a
+  binding). A DENY is reported as it is. `resolve_policies()` and the
+  engine's policy-aware evaluations take `require_coverage` and
+  `require_policy_coverage`.
+- **Conformance vectors** `bd-011` to `bd-017` in `interop.json`: expected
+  policy IDs against a covered ALLOW, an uncovered one, an observe-only
+  policy, a DENY, the `no_applicable_policy` DENY, a decision without a
+  binding, and a policy ID missing from the binding.
+- **Decisions under an attestation name the operator key that asked.**
+  `AttestationBinding.requester_key_id` is the key ID of the operator key that
+  signed the `POST /admin/boundary/evaluate` request, for every outcome, and
+  the decision's signature covers it. Bases without an asking operator key
+  (edge nodes, grants, out-of-band judgements) leave it out, and so does a
+  binding when the field is unknown: such a binding keeps its 1.9.x form byte
+  for byte. (ops/plan-v1.9.2.md R8, acceptance test 12.)
+- **`verify_boundary_decision(..., expected_requester_key_id=...)`** accepts
+  only a decision that the given key asked for (`attestation_binding_mismatch`
+  otherwise). A decision without the field, such as one from a 1.9.x NA,
+  verifies as before and fails (`attestation_binding_missing`) only when an
+  expected requester is given. (R9, tests 13 and 14.)
+- **Conformance vectors** `bd-008` to `bd-010` in `interop.json`: a decision
+  naming its requester, a different expected requester, and an expected
+  requester against a 1.9.x decision. The field registry lists the new field.
+
+### Upgrading
+
+- **Tooling that lists attestations with a `standard` key** sees only that
+  key's own attestations. Give a `read` key to anything that must see the
+  whole roster, such as dashboards and audits.
+- **Clients that read an attestation by ID without signing** get its status
+  and lineage, not the attestation. Sign the read with an operator key (the
+  TypeScript and .NET SDKs 1.10.0 sign `attestation.get` whenever the client
+  has a key), or keep the attestation from when it was issued. A holder gets a
+  re-issued copy from its operator.
+- **Verify 1.10.0 decisions with 1.10.0 SDKs.** SDK verifiers refuse a signed
+  field they do not know (since 1.2.0), so a 1.9.x SDK refuses a 1.10.0
+  attestation-basis decision as `unknown_field`. Upgrade the SDKs of relying
+  parties and governed clients before, or with, the Network Authority.
+
 ## v1.9.2 - Decisions Bound to the Asking Key
 
 ### Security
