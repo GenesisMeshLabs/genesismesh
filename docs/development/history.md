@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.9.2 (2026-11-08). Several guarantees below depend on settings that
+As of v1.10.0 (2026-11-10). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -316,7 +316,7 @@ records offline and calls a subset of the routes.
 
 ### Not yet true
 
-As of v1.9.2, two things are still not true:
+As of v1.10.0, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1527,6 +1527,36 @@ decision and the review of the other party-scoped bases, is 1.10.0.
 
 **What became possible:** an attestation's capabilities are exercised only
 by the key it was issued to.
+
+#### v1.10.0 — Who Asked, Under Which Policy
+
+The second half of the 1.9.2 plan, and the first release shaped by a
+production use case.
+
+Every decision under an attestation now names the operator key that asked
+(`AttestationBinding.requester_key_id`, covered by the signature), and the
+SDK verifiers take `expected_requester_key_id` (core #144). A standard-tier
+key lists, and reads by ID, only its own attestations. An unsigned read by ID
+gives the status and lineage only, since the public revocation feed lists
+every revoked ID (#145, #146). The review of the other party-scoped bases
+(R11) kept edge sovereign IDs and operator key IDs apart (#148), and made
+only the bearer's use records spend an invocation token (#149).
+
+The first team to run the NA in production has two credential controllers on
+the TypeScript SDK. Their scope rules (which apps, which vaults) live in
+policy gates. They found that a request no active policy covered was decided
+by the built-in gates alone. So deactivating a policy, or a selector that
+stopped matching, removed those rules, and the ALLOW still verified.
+`BOUNDARY_POLICY_COVERAGE=required` makes the NA deny such a request itself
+(`no_applicable_policy`); the DENY is signed and recorded in the evidence
+store. Every SDK verifier takes `expected_policy_ids`, which accepts any
+version of a named policy, as long as it applied with enforce-mode gates
+(#150; `ops/plan-v1.10.0-adoption.md`). The sandbox replays that use case end
+to end on PostgreSQL (`npm run usecase`).
+
+**What became possible:** a relying party can tell from a decision alone
+which key asked for it and which policies it rests on, and an NA can refuse
+what no policy governs.
 
 ---
 
