@@ -44,8 +44,9 @@ v1.9.1 fixed the same key-history flaw in the Rust SDK. v1.9.2 bound
 attestation-basis decisions to the operator key that asks, and v1.10.0
 signed the requester into every decision (`ops/plan-v1.9.2.md`). v1.10.0
 also let the NA deny a request no policy covers, the first ask of a
-production use case (`ops/plan-v1.10.0-adoption.md`). Its other two asks,
-read access for people and audit export with PostgreSQL, come next.
+production use case (`ops/plan-v1.10.0-adoption.md`), and v1.10.1 published
+the gateway image again, now static. Its other two asks, read access for
+people and audit export with PostgreSQL, come next.
 
 Candidates the program deferred, each to be planned on its own:
 

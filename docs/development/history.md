@@ -123,7 +123,7 @@ proof separate from maintainer-operated evidence.
 
 ## 4. What Is True Today
 
-As of v1.10.0 (2026-11-10). Several guarantees below depend on settings that
+As of v1.10.1 (2026-11-10). Several guarantees below depend on settings that
 are off by default: the evidence store needs `EVIDENCE_STORE=on`,
 out-of-band records `EVIDENCE_OUT_OF_BAND=on`, remediation
 `EVIDENCE_REMEDIATION=on`, and grants `EVIDENCE_GRANTS=on`. The outbox,
@@ -316,7 +316,7 @@ records offline and calls a subset of the routes.
 
 ### Not yet true
 
-As of v1.10.0, two things are still not true:
+As of v1.10.1, two things are still not true:
 
 - A second, independently implemented sovereign has not yet exchanged a
   treaty, trust bundle and revocation feed with the Python reference.
@@ -1557,6 +1557,20 @@ to end on PostgreSQL (`npm run usecase`).
 **What became possible:** a relying party can tell from a decision alone
 which key asked for it and which policies it rests on, and an NA can refuse
 what no policy governs.
+
+#### v1.10.1 — A Static Gateway Image
+
+A patch release for the gateway image. Its runtime was
+`distroless/cc-debian13`, whose glibc, OpenSSL and zlib the gateway does not
+use; the release scan stopped the 1.9.2 and 1.10.0 gateway images on that zlib
+(CVE-2026-76844, CVE-2026-85091), so neither was published. The gateway's
+binaries are now static (musl, cross-compiled with Zig) on
+`distroless/static`, with no libc or shared libraries (gateway #93). The rest
+of the train moves to 1.10.1 unchanged, so every component again shares one
+version.
+
+**What became possible:** a gateway image for the current release, and a
+runtime image without a C library to patch.
 
 ---
 
