@@ -56,7 +56,8 @@ genesis_mesh/
 changelog.d/     changelog fragments, one per change (see its README.md)
 upgrade.d/       upgrade-note fragments for docs/operations/upgrade.md (its README.md)
 conformance/     conformance vectors and runner (copied into the SDKs)
-contract/        public-surface.json, the classified public surface
+contract/        public-surface.json (the classified public surface); bundle.json,
+                 kinds.json and MANIFEST.json (the contract bundle, scripts/gm_contract.py)
 deploy/, docker/ Compose, systemd and container files
 docs/            Sphinx documentation source
 examples/        agent-network reference applications

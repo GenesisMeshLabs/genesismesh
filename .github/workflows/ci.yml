@@ -178,6 +178,48 @@ jobs:
           if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
           test "$RESULT" = success
 
+  # v1.11.0: the contract bundle (contract/bundle.json, scripts/gm_contract.py).
+  # The committed manifest and kind table must be current, every suite needs a
+  # tier decision, and the release archive must build the same bytes twice.
+  # The tool is vendored by every consumer, so it also runs on their oldest
+  # Python (3.11) with the standard library alone.
+  contract-bundle:
+    name: Contract bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.11 (the tool's floor)
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: The manifest is current and the archive builds (standard library only)
+        run: |
+          python --version
+          python scripts/gm_contract.py manifest --check
+          python scripts/gm_contract.py archive --out "$RUNNER_TEMP/contract"
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
+
+      - name: The kind table is current
+        run: python scripts/render_contract_kinds.py --check
+
+      - name: Bundle tests (spec rules, reproducible archive)
+        run: python -m pytest genesis_mesh/tests/test_contract_bundle.py -q
+
   postgres:
     name: PostgreSQL backend and HA failover
     needs: changes-postgres

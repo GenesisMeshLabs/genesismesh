@@ -257,7 +257,7 @@ def test_managed_restore_rejects_non_na_sqlite_file(tmp_path):
     assert "does not look like a Genesis Mesh NA database" in result.output
 
 
-@pytest.mark.skipif(os.name == "nt" or os.geteuid() == 0, reason="POSIX permissions; root ignores them")
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="POSIX permissions; root ignores them")
 def test_managed_restore_reads_a_backup_on_read_only_media(tmp_path):
     """Validating a backup never writes to it, so a read-only backup directory
     works (as a backup volume mounted read-only into a container) (v1.0.2)."""

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
 import sys
 from typing import Any
 from datetime import datetime, timedelta, timezone
@@ -3458,6 +3459,13 @@ def main() -> int:
         print(f"\nFailed suites: {', '.join(failed)}", file=sys.stderr)
         return 1
     print(f"\nGenerated {len(selected)}/{len(selected)} suites successfully.")
+    # v1.11.0: the contract bundle lists every suite with its hash and kinds; refresh it with them.
+    root = VECTORS_DIR.parents[1]
+    for script in ("render_contract_kinds.py", "gm_contract.py"):
+        args = [sys.executable, str(root / "scripts" / script)] + (["manifest"] if script == "gm_contract.py" else [])
+        if subprocess.run(args, cwd=root).returncode != 0:
+            print(f"\nscripts/{script} failed: the contract bundle is stale", file=sys.stderr)
+            return 1
     return 0
 
 

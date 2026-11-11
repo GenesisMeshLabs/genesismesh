@@ -689,4 +689,3 @@ def test_a_feed_from_an_unrecognized_issuer_uses_supplied_keys(client, na_servic
     assert imported.status_code == 200
     events = [e for e in na_service.db.list_audit_events() if e["event_type"] == "sovereign_revocation_feed_imported"]
     assert events[-1]["details"]["trust_basis"] == "caller_supplied_keys"
-

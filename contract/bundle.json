@@ -1,0 +1,41 @@
+{
+  "schema": "gm.contract.spec/1",
+  "include": [
+    "conformance/vectors/*.json",
+    "conformance/fixtures/audit-pack-1.5.0/**",
+    "contract/public-surface.json",
+    "contract/kinds.json",
+    "scripts/gm_contract.py"
+  ],
+  "tiers": {
+    "verifier": "Offline verifier plus thin client (decision 0002): sdk-go",
+    "governed": "Governed client: sdk-typescript, sdk-rust, sdk-dotnet (decision 0008, since 1.9.0)",
+    "edge": "Edge agent: sdk-rust genesis-mesh-edge",
+    "gateway": "Trust gateway console: gateway"
+  },
+  "suites": {
+    "admin_auth": {"required": {"verifier": "all", "governed": "all", "gateway": "all"}},
+    "canonical": {"required": {"verifier": "all", "governed": ["json", "timestamp", "verify_decision"]}},
+    "field_registry": {"required": {
+      "verifier": ["unknown_fields", "verify_decision", "verify_agreement"],
+      "governed": ["unknown_fields", "verify_decision", "entry_kind", "export"]}},
+    "interop": {"required": {"verifier": "all", "governed": ["boundary_decision"]}},
+    "consensus": {"required": {"verifier": "all"}},
+    "audit": {"required": {
+      "verifier": ["canonical_form", "key_history", "key_at", "decision_at_record_time", "record_time"],
+      "governed": "all"}},
+    "grants": {"na_only_kinds": ["issuance"], "required": {"verifier": ["canonical_form", "verify_record"], "governed": "all"}},
+    "out_of_band": {"na_only_kinds": ["time_bounds", "policy_history"], "required": {"governed": "all"}},
+    "remediation": {"required": {"governed": "all"}},
+    "vouching": {"required": {"verifier": "all", "governed": "all"}},
+    "node": {"required": {"edge": "all"}},
+    "signatures": {"required": {}},
+    "treaties": {"required": {}},
+    "attestations": {"required": {}},
+    "revocation": {"required": {}},
+    "ibct": {"required": {}},
+    "trust_evidence": {"required": {}},
+    "selective_disclosure": {"required": {}},
+    "data_usage": {"required": {}}
+  }
+}

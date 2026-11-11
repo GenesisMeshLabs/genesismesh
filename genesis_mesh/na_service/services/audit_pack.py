@@ -407,4 +407,3 @@ class AuditPackService:
         return {"archives": [json.loads(r["record_json"]) for r in rows],
                 "archived_through_sequence": store.archived_through(),
                 "require_archive": self._na.retention_require_archive}
-
