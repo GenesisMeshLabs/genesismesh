@@ -12,9 +12,16 @@ its required-check name.
 
 Every changed path is put in one category. A job runs when any changed path
 is in one of its categories. A path no rule knows is ``unknown`` and runs
-every job, as does a change to this script or to the workflow file that
-calls it. So the rules can only make CI run more, never hide a change. When
+every job. So does a change to this script, to ``changes.yml``, or to any
+workflow that calls it: a pull request that edits how its own jobs are
+chosen runs them all. A renamed file counts under both its old and its new
+path. So the rules can only make CI run more, never hide a change. When
 anything goes wrong (no base, a git error), the answer is ``run=true``.
+
+The check runs the pull request's own copy of this script and of
+``changes.yml``. Each guards edits to the other, but a pull request that
+breaks both is caught only by review. Both are CI workflow paths, which the
+Maintainer reviews.
 """
 
 from __future__ import annotations
@@ -24,11 +31,18 @@ import fnmatch
 import os
 import subprocess
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+#: The workflows that call changes.yml. A change to one of them, or to any workflow that calls it
+#: now (a renamed or new caller), runs every group.
+CALLERS = frozenset({"ci.yml", "upgrade.yml", "pilot-readiness.yml", "interop.yml"})
 
 #: (pattern, category), first match wins. ``*`` matches across ``/`` (fnmatch).
 RULES: tuple[tuple[str, str], ...] = (
     ("scripts/ci_changes.py", "ci-changes"),
     (".github/workflows/changes.yml", "ci-changes"),
+    *((f".github/workflows/{name}", "ci-changes") for name in sorted(CALLERS)),
     (".github/workflows/*", "workflow:{name}"),
     (".github/*", "github-meta"),
     ("genesis_mesh/tests/*", "tests"),
@@ -70,23 +84,34 @@ RULES: tuple[tuple[str, str], ...] = (
 
 #: The categories each group runs for (``unknown`` and ``ci-changes`` always run every group).
 GROUPS: dict[str, frozenset[str]] = {
-    "upgrade": frozenset({"package", "build", "workflow:upgrade.yml", "script:upgrade_rehearsal.py"}),
-    "pilot": frozenset({"package", "build", "workflow:pilot-readiness.yml", "script:pilot_rehearsal.py",
+    "upgrade": frozenset({"package", "build", "script:upgrade_rehearsal.py"}),
+    "pilot": frozenset({"package", "build", "script:pilot_rehearsal.py",
                         "script:recovery_drill.py", "script:upgrade_rehearsal.py"}),
-    "interop": frozenset({"package", "build", "conformance", "interop", "workflow:interop.yml"}),
+    "interop": frozenset({"package", "build", "conformance", "interop"}),
     "postgres": frozenset({"package", "tests", "build", "conformance", "contract", "examples", "interop",
-                           "workflow:ci.yml", "script:*"}),
-    "container": frozenset({"package", "build", "image", "workflow:ci.yml", "script:container_smoke.py",
+                           "script:*"}),
+    "container": frozenset({"package", "build", "image", "script:container_smoke.py",
                             "script:image_vuln_gate.py", "script:lock_image_requirements.py"}),
 }
 ALWAYS = frozenset({"unknown", "ci-changes"})
 
 
-def category(path: str) -> str:
+def category(path: str, root: Path = ROOT) -> str:
     for pattern, name in RULES:
         if fnmatch.fnmatchcase(path, pattern):
-            return name.format(name=path.rsplit("/", 1)[-1])
+            found = name.format(name=path.rsplit("/", 1)[-1])
+            if found.startswith("workflow:") and _calls_detection(root / path):
+                return "ci-changes"
+            return found
     return "unknown"
+
+
+def _calls_detection(workflow: Path) -> bool:
+    """A workflow (new or renamed) that calls changes.yml decides how its own jobs are chosen."""
+    try:
+        return "workflows/changes.yml" in workflow.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 def runs(group: str, paths: list[str]) -> bool:
@@ -98,10 +123,13 @@ def runs(group: str, paths: list[str]) -> bool:
     return False
 
 
-def changed_paths(base: str, head: str) -> list[str] | None:
+def changed_paths(base: str, head: str, repo: Path | None = None) -> list[str] | None:
     """Paths changed between the merge base of ``base`` and ``head``, and ``head``; None on any error."""
+    git = ["git"] if repo is None else ["git", "-C", str(repo)]
     try:
-        out = subprocess.run(["git", "diff", "--name-only", "-z", f"{base}...{head}"], check=True,
+        # --no-renames: a moved file counts under its old path too (a module moved out of the
+        # package is a package change).
+        out = subprocess.run([*git, "diff", "--no-renames", "--name-only", "-z", f"{base}...{head}"], check=True,
                              capture_output=True).stdout
     except (OSError, subprocess.CalledProcessError):
         return None

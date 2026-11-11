@@ -4,6 +4,11 @@ name: Changes
 # entry touch anything the job tests? scripts/ci_changes.py holds the rules.
 # Pushes to main and manual runs always answer run=true. If this job fails,
 # the callers run their jobs anyway (they skip only on an explicit "false").
+#
+# In the merge queue each entry is judged on its own change (base_sha to
+# head_sha). That is safe because the queue's grouping strategy is ALLGREEN:
+# every entry must pass. Under HEADGREEN, a skipped head entry could merge a
+# failing entry before it; revisit this before changing the strategy.
 
 on:
   workflow_call:

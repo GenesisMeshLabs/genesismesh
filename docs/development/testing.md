@@ -90,8 +90,9 @@ The rules only ever make CI run more:
 - The jobs always run on a push to `main` and on a manual run.
 - They always run for any change to the package or its build inputs
   (`pyproject.toml`, the requirements, `VERSION`, `.gitattributes`).
-- They always run for a path no rule knows, and for a change to the
-  detection itself.
+- They always run for a path no rule knows, for a change to the
+  detection itself, and for a change to any workflow that calls it.
+- A renamed file counts under its old path as well as its new one.
 - If the detection job fails, the jobs run anyway.
 
 A new top-level file or directory needs a rule: the unit test

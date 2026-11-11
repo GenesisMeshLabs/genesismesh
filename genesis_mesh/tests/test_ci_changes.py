@@ -77,7 +77,7 @@ def test_each_group_runs_for_its_own_workflow_and_scripts() -> None:
 
 
 def test_unrelated_workflows_and_tests_do_not_run_other_groups() -> None:
-    assert not _run("upgrade", ".github/workflows/interop.yml")
+    assert not _run("upgrade", ".github/workflows/docs.yml")
     assert not _run("container", "genesis_mesh/tests/test_grants.py")
     assert not _run("upgrade", "conformance/vectors/canonical.json", "contract/MANIFEST.json")
     assert not _run("interop", "scripts/gm_contract.py", "contract/bundle.json")
@@ -102,11 +102,72 @@ def test_writes_the_decision_for_github_actions(tmp_path: Path, monkeypatch: pyt
     assert output.read_text() == "run=false\n"
 
 
-@pytest.mark.parametrize("workflow,group", [("upgrade.yml", "upgrade"), ("pilot-readiness.yml", "pilot"),
-                                            ("interop.yml", "interop"), ("ci.yml", "container"),
-                                            ("ci.yml", "postgres")])
-def test_each_group_is_wired_into_its_workflow(workflow: str, group: str) -> None:
+def _job(workflow: str, job: str) -> str:
+    """One top-level job's block of a workflow file (the text up to the next job)."""
     text = (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
-    assert re.search(rf"uses: \./\.github/workflows/changes\.yml\s+with:\s+group: {group}\b", text)
-    # Jobs skip only on an explicit "false": a failed detection runs them.
-    assert "outputs.run != 'false'" in text
+    match = re.search(rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [\w-]+:\n|\Z)", text)
+    assert match, f"{workflow} has no job {job}"
+    return match.group(1)
+
+
+#: (workflow, detection job, group, gated job, summary job or None)
+WIRING = [
+    ("upgrade.yml", "changes", "upgrade", "upgrade", "rehearsals"),
+    ("pilot-readiness.yml", "changes", "pilot", "pilot", None),
+    ("interop.yml", "changes", "interop", "interop", None),
+    ("ci.yml", "changes-container", "container", "container", "containers"),
+    ("ci.yml", "changes-postgres", "postgres", "postgres", None),
+]
+
+
+@pytest.mark.parametrize("workflow,detect,group,gated,summary", WIRING)
+def test_each_group_is_wired_into_its_workflow(workflow: str, detect: str, group: str, gated: str,
+                                               summary: str | None) -> None:
+    block = _job(workflow, detect)
+    assert "uses: ./.github/workflows/changes.yml" in block and f"group: {group}\n" in block
+    job = _job(workflow, gated)
+    assert f"needs: {detect}\n" in job
+    # Jobs skip only on an explicit "false": a failed or cancelled detection runs them.
+    assert "if: ${{ !cancelled() && needs." + detect + ".outputs.run != 'false' }}" in job
+    if summary:
+        text = _job(workflow, summary)
+        assert f"needs: [{detect}, {gated}]" in text and "if: always()" in text
+        # A skip passes only when the detection said "false"; anything else must be success.
+        assert 'if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi' in text
+        assert text.rstrip().endswith('test "$RESULT" = success')
+    assert workflow in cc.CALLERS
+
+
+def test_every_workflow_that_calls_the_detection_is_a_listed_caller() -> None:
+    callers = {p.name for p in (ROOT / ".github" / "workflows").glob("*.yml")
+               if p.name != "changes.yml" and "workflows/changes.yml" in p.read_text(encoding="utf-8")}
+    assert callers == set(cc.CALLERS)
+
+
+def test_a_new_or_renamed_workflow_that_calls_the_detection_runs_everything(tmp_path: Path) -> None:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "upgrades.yml").write_text("jobs:\n  changes:\n    uses: ./.github/workflows/changes.yml\n")
+    (workflows / "other.yml").write_text("jobs:\n  build:\n    runs-on: ubuntu-latest\n")
+    assert cc.category(".github/workflows/upgrades.yml", root=tmp_path) == "ci-changes"
+    assert cc.category(".github/workflows/other.yml", root=tmp_path) == "workflow:other.yml"
+
+
+def test_a_renamed_file_counts_under_its_old_path(tmp_path: Path) -> None:
+    """Regression: git's rename detection reported only the new path, so moving a module out of
+    the package into docs/ skipped every job."""
+    def git(*args: str) -> None:
+        subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@example.org",
+                        *args], check=True, capture_output=True)
+
+    (tmp_path / "genesis_mesh").mkdir()
+    (tmp_path / "genesis_mesh" / "mod.py").write_text("VALUE = 1\n" * 20)
+    git("init", "-q")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+    (tmp_path / "docs").mkdir()
+    git("mv", "genesis_mesh/mod.py", "docs/mod.py")
+    git("commit", "-q", "-m", "move")
+    paths = cc.changed_paths("HEAD~1", "HEAD", repo=tmp_path)
+    assert paths is not None and sorted(paths) == ["docs/mod.py", "genesis_mesh/mod.py"]
+    assert all(cc.runs(group, paths) for group in GROUPS)
