@@ -144,6 +144,18 @@ def test_gateway_prints_the_image_by_digest_and_what_it_must_report(
     assert f"gateway: v1.10.1 is {REVISION}" in err
 
 
+def test_an_annotated_gateway_tag_is_followed_to_its_commit(
+        pinned: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # The gateway's release tags are annotated: the revision is the commit, not the tag object.
+    tag_object = "859fd03" + "0" * 33
+    answers = {"/repos/GenesisMeshLabs/gateway/git/ref/tags/v1.10.1": {"object": {"type": "tag", "sha": tag_object}},
+               f"/repos/GenesisMeshLabs/gateway/git/tags/{tag_object}": {"object": {"type": "commit",
+                                                                                    "sha": REVISION}}}
+    assert pins.main(["gateway"], github=answers.__getitem__) == 0
+    out = capsys.readouterr().out
+    assert f"GATEWAY_REVISION={REVISION}" in out and tag_object not in out
+
+
 def test_an_unresolvable_gateway_tag_prints_no_line_at_all(pinned: Path, capsys: pytest.CaptureFixture[str]) -> None:
     import urllib.error
 
@@ -192,6 +204,10 @@ def test_the_container_jobs_verify_and_pull_the_pinned_gateway_image(workflow: s
     pull = text.index('docker pull "$GATEWAY_IMAGE"')
     smoke = text.index("python scripts/container_smoke.py")
     assert read < verify < pull < smoke
+    if "docker/login-action" in text:
+        # A job that logs in to push still verifies and pulls the public gateway anonymously.
+        step = text[text.rindex("run: |", 0, verify):pull]
+        assert 'DOCKER_CONFIG="$(mktemp -d)"' in step and "export DOCKER_CONFIG" in step
     run = text[smoke:text.index("\n\n", smoke) if "\n\n" in text[smoke:] else len(text)]
     for option in ('--gateway-image "$GATEWAY_IMAGE"', '--gateway-version "$GATEWAY_VERSION"',
                    '--gateway-revision "$GATEWAY_REVISION"'):

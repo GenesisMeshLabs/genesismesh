@@ -2,7 +2,8 @@
 """Exercise the Genesis Mesh container images end to end with Docker.
 
     python scripts/container_smoke.py --image genesis-mesh:local \
-        [--gateway-image genesis-mesh-gateway:local] [--version 1.1.0]         [--gateway-version 1.10.1 --gateway-revision <commit>] \
+        [--gateway-image genesis-mesh-gateway:local] [--version 1.1.0] \
+        [--gateway-version 1.10.1] [--gateway-revision <commit>] \
         [--legacy-image genesis-mesh:legacy] [--context-dir .] \
         [--compose-file deploy/compose/docker-compose.images.yml] \
         [--edge-image ghcr.io/genesismeshlabs/genesis-mesh-edge:1.7.0] [--only NAME]

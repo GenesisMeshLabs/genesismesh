@@ -147,9 +147,13 @@ jobs:
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         if: steps.existing.outputs.digest == ''
 
+      # Anonymously, as any user would: an empty Docker config leaves this
+      # job's GHCR login (for the push) out of the gateway's public package.
       - name: Verify and pull the pinned gateway image
         if: steps.existing.outputs.digest == ''
         run: |
+          DOCKER_CONFIG="$(mktemp -d)"
+          export DOCKER_CONFIG
           cosign verify "$GATEWAY_IMAGE" --certificate-identity "$GATEWAY_IDENTITY" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
           docker pull "$GATEWAY_IMAGE"
