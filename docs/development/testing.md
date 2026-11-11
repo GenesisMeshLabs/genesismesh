@@ -82,7 +82,9 @@ Five jobs take most of a pull request's CI time:
 From 1.11.0 each of them first asks `scripts/ci_changes.py` whether the
 change touches anything it tests. A change to documentation, plans or
 fragments skips all five. A change to the contract bundle skips all but
-the PostgreSQL suite.
+the PostgreSQL suite. A change to the SDK pins
+(`contract/consumer-pins.json`) runs the interoperability run and the
+PostgreSQL suite.
 
 Each required check is reported by a small summary job, not by the heavy
 job itself. The summary passes when the heavy job succeeded, or when the

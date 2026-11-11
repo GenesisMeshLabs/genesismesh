@@ -77,6 +77,15 @@ def test_each_group_runs_for_its_own_workflow_and_scripts() -> None:
     assert _run("postgres", "scripts/gm_contract.py")  # the suite tests the scripts
 
 
+@pytest.mark.parametrize("path", ["contract/consumer-pins.json", "scripts/consumer_pins.py"])
+def test_a_pin_bump_runs_the_interoperability_run_against_the_new_pins(path: str) -> None:
+    # 1.11.0: Interoperability checks out the SDKs at contract/consumer-pins.json.
+    assert cc.category("contract/consumer-pins.json") == "consumer-pins"
+    assert _run("interop", path)
+    assert _run("postgres", path)  # test_consumer_pins.py reads both
+    assert not _run("upgrade", path) and not _run("pilot", path)
+
+
 def test_unrelated_workflows_and_tests_do_not_run_other_groups() -> None:
     assert not _run("upgrade", ".github/workflows/docs.yml")
     assert not _run("container", "genesis_mesh/tests/test_grants.py")

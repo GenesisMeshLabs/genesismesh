@@ -44,8 +44,9 @@ They do not check revocation, which needs the issuer's live state.
 `conformance/vectors/interop.json` (suite `interop`) holds 25 vectors for
 these artifacts and for canonical JSON edge cases: astral characters, DEL, big
 integers and Python float formatting (`1e-05`, `90.0`). The Go, TypeScript
-and .NET SDKs keep a copy in their tests, and CI checks that each copy matches
-the core file.
+and .NET SDKs keep a copy in their tests. From 1.11.0 each SDK checks its copy
+against the contract bundle it pins, and the core's Interoperability run uses
+the SDK releases pinned in `contract/consumer-pins.json`.
 
 ```bash
 python conformance/runner.py interop
