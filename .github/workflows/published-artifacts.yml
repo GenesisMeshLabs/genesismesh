@@ -134,6 +134,7 @@ jobs:
         run: |
           python scripts/container_smoke.py --image "$NA_IMAGE:$VERSION_UNDER_TEST" \
             --gateway-image "$GW_IMAGE:$VERSION_UNDER_TEST" --version "$VERSION_UNDER_TEST" \
+            --gateway-version "$VERSION_UNDER_TEST" \
             --compose-file deploy/compose/docker-compose.images.yml
 
   verifier:

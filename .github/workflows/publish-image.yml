@@ -131,40 +131,44 @@ jobs:
           rm reports/image.tar
           python scripts/image_vuln_gate.py reports/trivy-amd64.json
 
-      # The gateway of the same release when it is already tagged, else main;
-      # the 1.0 image for the volume handover scenario.
-      - name: Choose the gateway revision
+      # 1.11.0: the release is tested with the gateway release pinned in this
+      # revision's contract/consumer-pins.json, as its published image by
+      # digest, signed by the gateway's release workflow at that tag. The core
+      # no longer waits for a gateway of its own version, and a dry run tests
+      # the same gateway as the release would.
+      - name: Read the pinned gateway release
         if: steps.existing.outputs.digest == ''
-        # A release tests the gateway it ships with: the gateway's tag for this
-        # version when it exists, main otherwise. A dry run rehearses the next
-        # release and always uses main: before the version bump, the tag for
-        # VERSION is the previous release, built from an older Dockerfile.
-        # Bump the core and the gateway together before a dry run: the
-        # harness checks that the gateway's version label equals VERSION.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          ref=main
-          if [ "$PUBLISH" = "true" ] && git ls-remote --exit-code --tags https://github.com/GenesisMeshLabs/gateway.git "refs/tags/v$VERSION" > /dev/null; then ref="v$VERSION"; fi
-          echo "GATEWAY_REF=$ref" >> "$GITHUB_ENV"
+          set -euo pipefail
+          python scripts/consumer_pins.py gateway | tee -a "$GITHUB_ENV"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         if: steps.existing.outputs.digest == ''
-        with:
-          repository: GenesisMeshLabs/gateway
-          ref: ${{ env.GATEWAY_REF }}
-          path: gateway-src
 
-      - name: Build the gateway and the 1.0 image for the harness
+      # Anonymously, as any user would: an empty Docker config leaves this
+      # job's GHCR login (for the push) out of the gateway's public package.
+      - name: Verify and pull the pinned gateway image
         if: steps.existing.outputs.digest == ''
         run: |
-          gw_version="$(python -c 'import tomllib; print(tomllib.load(open("gateway-src/Cargo.toml", "rb"))["package"]["version"])')"
-          docker buildx build --load -t genesis-mesh-gateway:harness --build-arg VERSION="$gw_version" gateway-src
-          git archive v1.0.1 | docker buildx build --load -t genesis-mesh:legacy -
+          DOCKER_CONFIG="$(mktemp -d)"
+          export DOCKER_CONFIG
+          cosign verify "$GATEWAY_IMAGE" --certificate-identity "$GATEWAY_IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          docker pull "$GATEWAY_IMAGE"
+
+      # The 1.0 image for the volume handover scenario.
+      - name: Build the 1.0 image for the harness
+        if: steps.existing.outputs.digest == ''
+        run: git archive v1.0.1 | docker buildx build --load -t genesis-mesh:legacy -
 
       - name: Container smoke tests (every scenario)
         if: steps.existing.outputs.digest == ''
         run: |
           python scripts/container_smoke.py --image genesis-mesh:candidate --version "$VERSION" \
-            --gateway-image genesis-mesh-gateway:harness --legacy-image genesis-mesh:legacy \
+            --gateway-image "$GATEWAY_IMAGE" --gateway-version "$GATEWAY_VERSION" \
+            --gateway-revision "$GATEWAY_REVISION" --legacy-image genesis-mesh:legacy \
             --context-dir . --compose-file deploy/compose/docker-compose.images.yml
 
       - name: Build multi-arch and push by digest (untagged)

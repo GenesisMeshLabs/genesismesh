@@ -57,7 +57,10 @@ as CI does. It needs the PostgreSQL server binaries (`initdb`, `pg_ctl`) on
 - A PR titled `fix: ...` that changes source files must change a test too (the
   "Regression test" check).
 - A change that spans repositories uses the same branch name in each. Merge the
-  SDK and gateway side first.
+  SDK side first and pin its `main` commit in `contract/consumer-pins.json`.
+  The core's container jobs test the gateway release pinned there: a core
+  change that needs newer gateway behaviour waits for a gateway release and
+  pins its tag and image digest.
 
 ## Code standards
 

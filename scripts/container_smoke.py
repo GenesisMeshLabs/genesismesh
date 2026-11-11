@@ -3,6 +3,7 @@
 
     python scripts/container_smoke.py --image genesis-mesh:local \
         [--gateway-image genesis-mesh-gateway:local] [--version 1.1.0] \
+        [--gateway-version 1.10.1] [--gateway-revision <commit>] \
         [--legacy-image genesis-mesh:legacy] [--context-dir .] \
         [--compose-file deploy/compose/docker-compose.images.yml] \
         [--edge-image ghcr.io/genesismeshlabs/genesis-mesh-edge:1.7.0] [--only NAME]
@@ -91,6 +92,8 @@ class Context:
     image: str
     gateway_image: Optional[str]
     version: Optional[str]
+    gateway_version: Optional[str] = None
+    gateway_revision: Optional[str] = None
     legacy_image: Optional[str] = None
     context_dir: Optional[str] = None
     compose_file: Optional[str] = None
@@ -742,15 +745,24 @@ def gw_metadata(ctx: Context) -> str:
     labels = cfg.get("Labels") or {}
     for key in ("source", "version", "revision", "licenses", "description"):
         expect(f"org.opencontainers.image.{key}" in labels, f"missing OCI label {key}")
-    if ctx.version:
-        expect(labels["org.opencontainers.image.version"] == ctx.version, "version label mismatch")
+    # The gateway release under test (1.11.0: the pinned one), not the core's version.
+    if ctx.gateway_version:
+        expect(labels["org.opencontainers.image.version"] == ctx.gateway_version,
+               f"gateway version label {labels['org.opencontainers.image.version']!r}, "
+               f"expected {ctx.gateway_version!r}")
+    if ctx.gateway_revision:
+        expect(labels["org.opencontainers.image.revision"] == ctx.gateway_revision,
+               f"gateway revision label {labels['org.opencontainers.image.revision']!r}, "
+               f"expected {ctx.gateway_revision!r}")
     binary = docker("run", "--rm", ctx.gateway_image, "--version").stdout.strip()
     expect(binary == f"genesis-mesh-gateway {labels['org.opencontainers.image.version']}",
            f"gateway binary reports {binary!r}, label says {labels['org.opencontainers.image.version']!r}")
     proc = docker("run", "--rm", ctx.gateway_image, check=False, timeout=60)
     expect(proc.returncode == 1 and "requires GATEWAY_POLICY_FILE" in proc.stderr,
            f"gateway without a policy: {proc.returncode} {proc.stderr[-300:]}")
-    return "uid 10001, 8080, workdir /var/lib/gateway, healthcheck, OCI labels = binary version; refuses without a policy"
+    expected = f" = {ctx.gateway_version}" if ctx.gateway_version else ""
+    return (f"uid 10001, 8080, workdir /var/lib/gateway, healthcheck, OCI labels = binary version{expected}; "
+            "refuses without a policy")
 
 
 def gw_wait_healthy(ctx: Context, name: str = "gw") -> None:
@@ -1373,12 +1385,16 @@ def main() -> int:
     parser.add_argument("--image", required=True, help="Genesis Mesh image to test")
     parser.add_argument("--gateway-image", help="Gateway image to test with the authority")
     parser.add_argument("--version", help="Expected version (labels and genesis_mesh.__version__)")
+    parser.add_argument("--gateway-version", help="Expected gateway version (its labels and binary)")
+    parser.add_argument("--gateway-revision", help="Expected gateway commit (its revision label)")
     parser.add_argument("--legacy-image", help="Earlier image whose /data volume the new image must adopt")
     parser.add_argument("--context-dir", help="Repository whose .dockerignore the build-context scenario checks")
     parser.add_argument("--compose-file", help="Compose example to run (needs --gateway-image)")
     parser.add_argument("--edge-image", help="Edge agent image to run against the authority (v1.7.0)")
     parser.add_argument("--only", action="append", help="Run only these scenarios (repeatable)")
     args = parser.parse_args()
+    if (args.gateway_version or args.gateway_revision) and not args.gateway_image:
+        parser.error("--gateway-version / --gateway-revision need --gateway-image")
 
     scenarios = list(NA_SCENARIOS) + (list(GW_SCENARIOS) if args.gateway_image else [])
     for name, (option, fn) in OPTIONAL.items():
@@ -1399,6 +1415,7 @@ def main() -> int:
             print(f"SKIP  {name:<24} (needs --gateway-image / --legacy-image / --context-dir / --compose-file "
                   "/ --edge-image)", flush=True)
     ctx = Context(image=args.image, gateway_image=args.gateway_image, version=args.version,
+                  gateway_version=args.gateway_version, gateway_revision=args.gateway_revision,
                   legacy_image=args.legacy_image, context_dir=args.context_dir, compose_file=args.compose_file,
                   edge_image=args.edge_image)
     docker("network", "create", "--label", f"gmt.run={RUN}", NET)
