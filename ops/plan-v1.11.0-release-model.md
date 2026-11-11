@@ -1,4 +1,7 @@
-Status: proposed (2026-11-11). The Maintainer un-parked the release-model part of Phase C for 1.11.0 ("Let's proceed with 1.11"). Nothing is implemented yet. The rest of Phase C stays parked.
+Status: in progress (2026-11-11). The Maintainer un-parked the release-model part of Phase C for 1.11.0 ("Let's proceed with 1.11"). The rest of Phase C stays parked.
+- Merged: §5.1 (core #155) and §5.9 (core #157).
+- §5.2: done in sdk-go, sdk-typescript and sdk-dotnet before this plan; sdk-rust and the gateway follow.
+- The four open decisions of §9 were decided on 2026-11-11, as recommended.
 
 # Plan v1.11.0: the new release model
 
@@ -81,6 +84,10 @@ One tested PR at a time, against `main`, no stacked PRs. Core PRs run the Postgr
 
 ### 5.2 Consumers: conformance receipts (bundle design X1)
 One PR per repository (sdk-typescript, sdk-go, sdk-dotnet, sdk-rust, gateway). Every vector runner writes a receipt when `GM_CONFORMANCE_RECEIPTS` is set. No dependency: this can start immediately.
+- **Already done** in sdk-go (#42), sdk-typescript (#48) and sdk-dotnet (#44), during the bundle design's first round. Their receipts still match the 1.10.1 suites.
+- **sdk-rust:** one runner per suite (ten suites). The kinds it leaves out by design are listed once, in `tests/receipts`.
+- **gateway:** the Rust signer writes the `admin_auth` receipt. The browser signer (`tools/test_ui_signing.mjs`) runs the same vectors without a receipt, because `receipt-check` adds up the receipts of a suite and every vector counts once.
+- **Seen while testing, for §5.4:** on a Windows checkout with `core.autocrlf`, the copies have CRLF line endings and no longer match the lock byte for byte. The X2 PRs keep the copies LF in `.gitattributes` (`eol=lf`, or `-text` for the manifest copy), as the core does (`* text=auto eol=lf`).
 
 ### 5.3 Core: stop reading consumer branches (bundle design C3)
 - `contract/consumer-pins.json`, initially at each consumer's 1.10.1 tag. Interop checks out those tags.
@@ -88,6 +95,7 @@ One PR per repository (sdk-typescript, sdk-go, sdk-dotnet, sdk-rust, gateway). E
   - the gateway comes from the pinned release, by digest, not from `main` or a tag of the core's version;
   - `container_smoke.py --gateway-version` checks label = manifest version = binary.
 - `check_release_train.py` keeps only the core's own monotonic check. The cross-component ceiling moves to the nightly audit.
+- **The Network Authority reports its contract bundle** (decision 3): `/health` gains `contract_bundle` (the bundle version and `contract_digest` it was built with). It is additive; parsing stays strict, so an SDK that meets an unknown signed field still refuses it, but can now name the newer bundle in its error.
 
 ### 5.4 Consumers: pin the bundle and replace the train checks (bundle design X2)
 One PR per repository, after the core 1.11.0 bundle exists. Before that, use a commit pin and do not release.
@@ -104,6 +112,7 @@ One PR per repository, after the core 1.11.0 bundle exists. Before that, use a c
 
 ### 5.5 sdk-rust: verifier and edge tag streams (bundle design X3)
 - `genesis-mesh-verify-vX.Y.Z` and `genesis-mesh-edge-vX.Y.Z`, each with its own release and changelog root.
+- In 1.11 (decision 2).
 - **Maintainer:** add both patterns to the "release tags are immutable" ruleset before the first stream tag.
 - Until a stream's first release, the manifest records the verifier and edge at their last `v1.10.x` assets.
 
@@ -137,7 +146,7 @@ One PR per repository, after the core 1.11.0 bundle exists. Before that, use a c
 - **Compatibility table** (bundle design C4), nightly and on every bundle release. Rows are each component's latest releases (current and previous minor); columns are the latest bundles.
   - A cell is `pass`, `fail`, `n/a (pre-bundle)` or **`refuses newer records`**: the expected result when an older verifier meets a newer signed field. That last state is never shown as compatible.
   - An untested combination is blank, never "compatible".
-- **Where the manifest lives:** open decision 1 (§9).
+- **Where the manifest lives** (decision 1): `releases/<set>.json` in the core repository, added by a reviewed PR. A copy signed with cosign `sign-blob` (the identity of a core workflow on `main`) is attached to a GitHub release named after the set. A minor's set is named after its core release (`1.11.0`); a component-only patch adds a set such as `1.11.0+gateway.1.11.1`.
 
 ### 5.8 Documentation and process
 - `docs/development/versioning.md` rewritten (bundle design C3); ADR 0001's "Implemented" line updated.
@@ -196,19 +205,20 @@ If any rehearsal fails, fix the gate and repeat. Nothing is released on a failed
 4. `versioning.md`, the ship skills and the checklist switch to the new model in the same release.
 5. From then on, a patch is released only for the component that changed, followed by a new manifest for the set.
 
-## 9. Open decisions for the Maintainer
+## 9. Decisions of the Maintainer
+Decided on 2026-11-11: all four as recommended ("Proceed with decisions as mentioned").
 1. **Where the release manifest lives and who signs it.**
-   - *Recommendation:* a committed `releases/<set>.json` in the core repository, added by a reviewed PR, plus a signed copy (cosign `sign-blob`, identity of a core workflow on `main`) attached to a GitHub release named after the set.
+   - **Decided:** a committed `releases/<set>.json` in the core repository, added by a reviewed PR, plus a signed copy (cosign `sign-blob`, identity of a core workflow on `main`) attached to a GitHub release named after the set (§5.7).
    - The core release stays the natural anchor for a minor.
-   - A component-only patch adds a set such as `1.11.0+gateway.1.11.1`. Alternatively, sets get their own names (`2026.11.1`).
+   - A component-only patch adds a set such as `1.11.0+gateway.1.11.1`. Date names (`2026.11.1`) are not used.
 2. **The Rust verifier and edge tag streams in 1.11 or later.**
-   - *Recommendation:* in 1.11, since the manifest names them.
-   - The ruleset edit is yours.
+   - **Decided:** in 1.11, since the manifest names them (§5.5).
+   - The ruleset edit is the Maintainer's.
 3. **The Network Authority reports its contract bundle version** (`/health` `contract_bundle`) so an older SDK can name the mismatch instead of only `unknown_field`.
-   - *Recommendation:* yes, small and additive.
+   - **Decided:** yes, small and additive (§5.3).
    - Parsing stays strict.
 4. **The required-check changes on each repository** (add "Contract bundle", keep `release-train` with its new meaning, remove the core-main dependent checks). These are ruleset edits.
-   - *Recommendation:* make them in one batch per repository, right after its X2 PR merges.
+   - **Decided:** the Maintainer makes them in one batch per repository, right after its X2 PR merges (§5.4).
 
 ## 10. Done when
 - Every consumer's required checks read only its own repository, its pinned core commit and immutable release assets.
