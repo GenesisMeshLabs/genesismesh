@@ -69,6 +69,39 @@ The checks a pull request must pass, and how to run each one locally:
 The "Published artifacts" workflow runs on a schedule and on demand. It checks
 the released packages and images, not a pull request.
 
+### Jobs a pull request may skip
+
+Five jobs take most of a pull request's CI time:
+
+- the container images;
+- the PostgreSQL suite;
+- the upgrade rehearsals;
+- the recovery drill and pilot rehearsal;
+- the interoperability run.
+
+From 1.11.0 each of them first asks `scripts/ci_changes.py` whether the
+change touches anything it tests. A change to documentation, plans or
+fragments skips all five. A change to the contract bundle skips all but
+the PostgreSQL suite. A skipped job still reports success under its
+required-check name.
+
+The rules only ever make CI run more:
+
+- The jobs always run on a push to `main` and on a manual run.
+- They always run for any change to the package or its build inputs
+  (`pyproject.toml`, the requirements, `VERSION`, `.gitattributes`).
+- They always run for a path no rule knows, and for a change to the
+  detection itself.
+- If the detection job fails, the jobs run anyway.
+
+A new top-level file or directory needs a rule: the unit test
+`test_ci_changes.py` fails until it has one. To see what a branch would
+run:
+
+```bash
+python scripts/ci_changes.py upgrade --base origin/main --head HEAD
+```
+
 ## Documentation Build
 
 ```powershell

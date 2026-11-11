@@ -1,0 +1,57 @@
+name: Changes
+
+# Called by the workflows with heavy jobs: does this pull request or merge-queue
+# entry touch anything the job tests? scripts/ci_changes.py holds the rules.
+# Pushes to main and manual runs always answer run=true. If this job fails,
+# the callers run their jobs anyway (they skip only on an explicit "false").
+
+on:
+  workflow_call:
+    inputs:
+      group:
+        description: The job group in scripts/ci_changes.py
+        required: true
+        type: string
+    outputs:
+      run:
+        description: '"true" when the group has something to test, "false" otherwise'
+        value: ${{ jobs.detect.outputs.run }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Check out repository (with history, to diff)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Decide
+        id: decide
+        env:
+          GROUP: ${{ inputs.group }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
+          QUEUE_HEAD: ${{ github.event.merge_group.head_sha }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE"; head="$PR_HEAD" ;;
+            merge_group) base="$QUEUE_BASE"; head="$QUEUE_HEAD" ;;
+            *) base=""; head="" ;;
+          esac
+          # A change to the detection itself runs everything, whatever the
+          # changed script would answer.
+          if [ -n "$base" ] && git diff --name-only "$base...$head" -- scripts/ci_changes.py .github/workflows/changes.yml | grep -q .; then
+            echo "The change detection itself changed: run"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 scripts/ci_changes.py "$GROUP" --base "$base" --head "$head"

@@ -1,0 +1,3 @@
+### Changed
+
+- **Pull requests skip the CI jobs they cannot affect.** The container images, the PostgreSQL suite, the upgrade rehearsals, the pilot rehearsal and the interoperability run first ask `scripts/ci_changes.py` whether the change touches anything they test. A documentation or plan change skips them all. A skipped job reports success under its required-check name. The jobs still run on every push to `main`, on manual runs, for any package or build change, for paths no rule knows, and when the detection itself changes or fails. See "Jobs a pull request may skip" in `docs/development/testing.md`.

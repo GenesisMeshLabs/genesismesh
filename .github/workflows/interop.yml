@@ -19,8 +19,18 @@ permissions:
   contents: read
 
 jobs:
+  # Skipped when a pull request touches nothing the scenario runs (the package,
+  # its build inputs, the vectors, interop/); a job skipped by its condition
+  # reports success under its required-check name.
+  changes:
+    uses: ./.github/workflows/changes.yml
+    with:
+      group: interop
+
   interop:
     name: Python, Go, TypeScript and C# agree
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

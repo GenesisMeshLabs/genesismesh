@@ -76,8 +76,23 @@ jobs:
       - name: CLI smoke workflow
         run: python -m genesis_mesh.cli dev up
 
+  # The image builds and the PostgreSQL suite are skipped when a pull request
+  # touches none of their inputs (scripts/ci_changes.py); pushes to main and
+  # manual runs always run them.
+  changes-container:
+    uses: ./.github/workflows/changes.yml
+    with:
+      group: container
+
+  changes-postgres:
+    uses: ./.github/workflows/changes.yml
+    with:
+      group: postgres
+
   container:
     name: Container images on ${{ matrix.arch }} (Network Authority and gateway)
+    needs: changes-container
+    if: ${{ !cancelled() && needs.changes-container.outputs.run != 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -150,19 +165,23 @@ jobs:
   # One stable required-check name over the architecture matrix.
   containers:
     name: Container images
-    needs: container
+    needs: [changes-container, container]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Every architecture passed
         env:
           RESULT: ${{ needs.container.result }}
+          RUN: ${{ needs.changes-container.outputs.run }}
         run: |
-          echo "Container images: $RESULT"
+          echo "Container images: $RESULT (relevant changes: ${RUN:-unknown})"
+          if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
           test "$RESULT" = success
 
   postgres:
     name: PostgreSQL backend and HA failover
+    needs: changes-postgres
+    if: ${{ !cancelled() && needs.changes-postgres.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:

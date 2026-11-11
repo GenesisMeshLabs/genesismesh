@@ -21,8 +21,17 @@ permissions:
   contents: read
 
 jobs:
+  # Skipped when a pull request touches nothing the drill and rehearsal run; a
+  # job skipped by its condition reports success under its required-check name.
+  changes:
+    uses: ./.github/workflows/changes.yml
+    with:
+      group: pilot
+
   pilot:
     name: Recovery drill and pilot rehearsal
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:
