@@ -92,10 +92,17 @@ Preview it with `python -m http.server 8000 --directory docs/pages`.
 
 Branch off `main`. Do not commit directly to `main`.
 
-A change that spans repositories uses the same branch name in each. CI tests
-a core branch against the gateway and SDK branches of that name when they
-exist, and against their `main` otherwise. Merge the SDK and gateway side
-first: in the merge queue the core is tested against their `main`.
+A change that spans repositories uses the same branch name in each. An SDK's
+CI tests its branch against the core branch of that name when it exists.
+
+The core's Interoperability run does not pick SDK branches: it checks out
+each SDK at the release (or `main` commit) pinned in
+`contract/consumer-pins.json` (`scripts/consumer_pins.py`), the same in the
+pull request, the merge queue and on `main`. When a core change needs newer
+SDK behaviour, merge the SDK side first and pin its `main` commit in the core
+pull request; the SDK's next release replaces the commit with its tag. The
+container images job still builds the gateway branch of the same name (its
+`main` in the merge queue), so merge the gateway side first.
 
 ## 5. Commit style
 

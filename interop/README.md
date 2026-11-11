@@ -42,6 +42,12 @@ implementations, and every verdict to match the expected one. The Rust SDK,
 Interoperability workflow checks out the Rust SDK only to compare its copies
 of the conformance vectors; the Rust SDK runs those vectors in its own CI.
 
+The workflow checks out every SDK at the revision pinned in
+`contract/consumer-pins.json`: a release tag, or a commit on the SDK's `main`.
+`python scripts/consumer_pins.py env` resolves each pin to its commit on
+GitHub and prints it. Locally, `run_all.sh` uses the sibling checkouts as they
+are.
+
 | Path | Contents |
 | --- | --- |
 | `run_all.sh` | Starts the NA, runs the four legs in order, compares the results |
