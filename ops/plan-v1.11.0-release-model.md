@@ -151,7 +151,7 @@ The core runs about 40 checks on every pull request. Upgrade rehearsals, image b
 The fix, added on 2026-11-11 at the Maintainer's request:
 - `scripts/ci_changes.py` puts each changed path in one category.
 - A reusable `changes.yml` workflow asks it, for each heavy job, whether the change touches anything that job tests.
-- A job with nothing to test is skipped and reports success under its required-check name. The required-check list is unchanged.
+- A job with nothing to test is skipped. A summary job carries each required-check name. It passes on success, or on a skip the detection asked for. A failure or a cancellation fails it; with no answer the job runs and must succeed. The required-check list is unchanged.
 
 The rules can only make CI run more:
 - jobs always run on pushes to `main` and manual runs;

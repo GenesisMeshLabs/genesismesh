@@ -221,7 +221,7 @@ jobs:
         run: python -m pytest genesis_mesh/tests/test_contract_bundle.py -q
 
   postgres:
-    name: PostgreSQL backend and HA failover
+    name: PostgreSQL suite and HA failover tests
     needs: changes-postgres
     if: ${{ !cancelled() && needs.changes-postgres.outputs.run != 'false' }}
     runs-on: ubuntu-latest
@@ -270,6 +270,24 @@ jobs:
 
       - name: Run integration tests on PostgreSQL, including the two-instance HA failover
         run: python -m pytest genesis_mesh/tests/integration -v -s -W error::DeprecationWarning -m integration
+
+  # The required check "PostgreSQL backend and HA failover": passes when the suite passed, or when the
+  # change detection said there was nothing to test and the suite was skipped.
+  # A failed or cancelled run fails it. With no detection output the job runs and must succeed.
+  postgres-result:
+    name: PostgreSQL backend and HA failover
+    needs: [changes-postgres, postgres]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Passed, or nothing to test
+        env:
+          RESULT: ${{ needs.postgres.result }}
+          RUN: ${{ needs.changes-postgres.outputs.run }}
+        run: |
+          echo "PostgreSQL backend and HA failover: $RESULT (relevant changes: ${RUN:-unknown})"
+          if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
+          test "$RESULT" = success
 
   changelog:
     name: Changelog fragments

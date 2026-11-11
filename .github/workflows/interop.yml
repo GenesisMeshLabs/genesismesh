@@ -20,15 +20,15 @@ permissions:
 
 jobs:
   # Skipped when a pull request touches nothing the scenario runs (the package,
-  # its build inputs, the vectors, interop/); a job skipped by its condition
-  # reports success under its required-check name.
+  # its build inputs, the vectors, interop/). The required check is the
+  # summary job at the end, which a cancelled or failed run never passes.
   changes:
     uses: ./.github/workflows/changes.yml
     with:
       group: interop
 
   interop:
-    name: Python, Go, TypeScript and C# agree
+    name: Interoperability run (Python, Go, TypeScript and C#)
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
@@ -177,3 +177,21 @@ jobs:
             interop/fixtures/
             !interop/fixtures/na.json
           if-no-files-found: ignore
+
+  # The required check "Python, Go, TypeScript and C# agree": passes when the interoperability run passed, or when the
+  # change detection said there was nothing to test and the interoperability run was skipped.
+  # A failed or cancelled run fails it. With no detection output the job runs and must succeed.
+  interop-result:
+    name: Python, Go, TypeScript and C# agree
+    needs: [changes, interop]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Passed, or nothing to test
+        env:
+          RESULT: ${{ needs.interop.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+        run: |
+          echo "Python, Go, TypeScript and C# agree: $RESULT (relevant changes: ${RUN:-unknown})"
+          if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
+          test "$RESULT" = success

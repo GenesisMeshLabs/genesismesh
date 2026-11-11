@@ -7,8 +7,9 @@ The upgrade rehearsals, the container images, the PostgreSQL suite, the
 interoperability proof and the pilot rehearsal take most of a pull request's
 CI time. Each still runs on every push to ``main``, every manual run and
 every change that can affect it. A pull request or merge-queue entry that
-touches none of a job's inputs skips it, and the job reports success under
-its required-check name.
+touches none of a job's inputs skips it. A summary job carries the
+required-check name and passes only when the job succeeded or was skipped
+on an explicit ``run=false``.
 
 Every changed path is put in one category. A job runs when any changed path
 is in one of its categories. A path no rule knows is ``unknown`` and runs

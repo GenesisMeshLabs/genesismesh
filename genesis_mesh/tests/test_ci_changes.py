@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from types import ModuleType
@@ -103,39 +104,101 @@ def test_writes_the_decision_for_github_actions(tmp_path: Path, monkeypatch: pyt
 
 
 def _job(workflow: str, job: str) -> str:
-    """One top-level job's block of a workflow file (the text up to the next job)."""
+    """One top-level job's block of a workflow file: its lines indented deeper than the job key.
+
+    It ends at the next line at the job key's own indent, a job or a comment before one (a
+    comment there once made the block end in it).
+    """
     text = (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
-    match = re.search(rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [\w-]+:\n|\Z)", text)
+    match = re.search(rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  \S|^\S|\Z)", text)
     assert match, f"{workflow} has no job {job}"
     return match.group(1)
 
 
-#: (workflow, detection job, group, gated job, summary job or None)
+#: (workflow, detection job, group, gated job, summary job, the summary's required-check name)
 WIRING = [
-    ("upgrade.yml", "changes", "upgrade", "upgrade", "rehearsals"),
-    ("pilot-readiness.yml", "changes", "pilot", "pilot", None),
-    ("interop.yml", "changes", "interop", "interop", None),
-    ("ci.yml", "changes-container", "container", "container", "containers"),
-    ("ci.yml", "changes-postgres", "postgres", "postgres", None),
+    ("upgrade.yml", "changes", "upgrade", "upgrade", "rehearsals", "Upgrade rehearsals"),
+    ("pilot-readiness.yml", "changes", "pilot", "pilot", "pilot-result", "Recovery drill and pilot rehearsal"),
+    ("interop.yml", "changes", "interop", "interop", "interop-result", "Python, Go, TypeScript and C# agree"),
+    ("ci.yml", "changes-container", "container", "container", "containers", "Container images"),
+    ("ci.yml", "changes-postgres", "postgres", "postgres", "postgres-result", "PostgreSQL backend and HA failover"),
 ]
 
+#: The required status checks of the main branch ruleset (read from GitHub on 2026-11-11; the
+#: ruleset is the Maintainer's, this list only notices when a workflow stops reporting a name).
+REQUIRED_CHECKS = (
+    "Tests and smoke checks", "PostgreSQL backend and HA failover", "Python, Go, TypeScript and C# agree",
+    "Recovery drill and pilot rehearsal", "Changelog fragments", "Container images", "Upgrade rehearsals",
+    "Regression test",
+)
 
-@pytest.mark.parametrize("workflow,detect,group,gated,summary", WIRING)
+
+def _job_names() -> dict[str, list[tuple[str, str]]]:
+    """Every job ``name:`` in the workflows -> [(workflow, job id)]."""
+    names: dict[str, list[tuple[str, str]]] = {}
+    for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"(?m)^  ([\w-]+):\n    name: (.+)$", text):
+            names.setdefault(match.group(2).strip(), []).append((path.name, match.group(1)))
+    return names
+
+
+@pytest.mark.parametrize("workflow,detect,group,gated,summary,required", WIRING)
 def test_each_group_is_wired_into_its_workflow(workflow: str, detect: str, group: str, gated: str,
-                                               summary: str | None) -> None:
+                                               summary: str, required: str) -> None:
     block = _job(workflow, detect)
     assert "uses: ./.github/workflows/changes.yml" in block and f"group: {group}\n" in block
     job = _job(workflow, gated)
     assert f"needs: {detect}\n" in job
     # Jobs skip only on an explicit "false": a failed or cancelled detection runs them.
     assert "if: ${{ !cancelled() && needs." + detect + ".outputs.run != 'false' }}" in job
-    if summary:
-        text = _job(workflow, summary)
-        assert f"needs: [{detect}, {gated}]" in text and "if: always()" in text
-        # A skip passes only when the detection said "false"; anything else must be success.
-        assert 'if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi' in text
-        assert text.rstrip().endswith('test "$RESULT" = success')
+    # The gated job never carries the required name: a job skipped by its condition reports
+    # success, so a skip on cancellation would pass the check. The summary carries it.
+    text = _job(workflow, summary)
+    assert text.startswith(f"    name: {required}\n")
+    assert f"needs: [{detect}, {gated}]" in text and "if: always()" in text
+    assert f"RESULT: ${{{{ needs.{gated}.result }}}}" in text
+    assert f"RUN: ${{{{ needs.{detect}.outputs.run }}}}" in text
+    assert 'if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi' in text
+    assert text.rstrip().endswith('test "$RESULT" = success')
     assert workflow in cc.CALLERS
+
+
+def test_every_required_check_is_reported_by_exactly_one_job_and_never_by_a_gated_one() -> None:
+    names = _job_names()
+    gated = {(workflow, job) for workflow, _, _, job, _, _ in WIRING}
+    for required in REQUIRED_CHECKS:
+        assert len(names.get(required, [])) == 1, f"{required!r} reported by {names.get(required)}"
+        assert names[required][0] not in gated, f"{required!r} is a gated job"
+
+
+def _summary_script(workflow: str, summary: str) -> str:
+    text = _job(workflow, summary)
+    match = re.search(r"(?ms)run: \|\n(.*)", text)
+    assert match
+    return "\n".join(line[10:] for line in match.group(1).splitlines())
+
+
+RESULTS = ("success", "failure", "cancelled", "skipped")
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize("workflow,detect,group,gated,summary,required", WIRING)
+def test_a_summary_passes_only_on_success_or_on_a_skip_the_detection_asked_for(
+        workflow: str, detect: str, group: str, gated: str, summary: str, required: str) -> None:
+    """The summary's own shell script, run for every detection answer and job result.
+
+    ``RUN`` is empty when the detection job failed, was cancelled or wrote no output.
+    """
+    script = _summary_script(workflow, summary)
+    bash = shutil.which("bash")
+    assert bash
+    for run in ("true", "false", ""):
+        for result in RESULTS:
+            done = subprocess.run([bash, "-e", "-c", script], env={"RUN": run, "RESULT": result, "PATH": ""},
+                                  capture_output=True, text=True)
+            expected = result == "success" or (run == "false" and result == "skipped")
+            assert (done.returncode == 0) == expected, (required, run, result, done.stdout, done.stderr)
 
 
 def test_every_workflow_that_calls_the_detection_is_a_listed_caller() -> None:

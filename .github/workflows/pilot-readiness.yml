@@ -21,15 +21,16 @@ permissions:
   contents: read
 
 jobs:
-  # Skipped when a pull request touches nothing the drill and rehearsal run; a
-  # job skipped by its condition reports success under its required-check name.
+  # Skipped when a pull request touches nothing the drill and rehearsal run. The
+  # required check is the summary job at the end, which a cancelled or failed
+  # run never passes.
   changes:
     uses: ./.github/workflows/changes.yml
     with:
       group: pilot
 
   pilot:
-    name: Recovery drill and pilot rehearsal
+    name: Recovery drill and pilot rehearsal (run)
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
@@ -73,3 +74,21 @@ jobs:
 
       - name: Pilot deployment profile, recognition to revocation
         run: python scripts/pilot_rehearsal.py --postgres-url "$PG_URL"
+
+  # The required check "Recovery drill and pilot rehearsal": passes when the drill and rehearsal passed, or when the
+  # change detection said there was nothing to test and the drill and rehearsal was skipped.
+  # A failed or cancelled run fails it. With no detection output the job runs and must succeed.
+  pilot-result:
+    name: Recovery drill and pilot rehearsal
+    needs: [changes, pilot]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Passed, or nothing to test
+        env:
+          RESULT: ${{ needs.pilot.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+        run: |
+          echo "Recovery drill and pilot rehearsal: $RESULT (relevant changes: ${RUN:-unknown})"
+          if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
+          test "$RESULT" = success

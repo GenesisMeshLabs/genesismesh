@@ -82,8 +82,14 @@ Five jobs take most of a pull request's CI time:
 From 1.11.0 each of them first asks `scripts/ci_changes.py` whether the
 change touches anything it tests. A change to documentation, plans or
 fragments skips all five. A change to the contract bundle skips all but
-the PostgreSQL suite. A skipped job still reports success under its
-required-check name.
+the PostgreSQL suite.
+
+Each required check is reported by a small summary job, not by the heavy
+job itself. The summary passes when the heavy job succeeded, or when the
+detection explicitly answered "nothing to test" and the heavy job was
+skipped. A failed or cancelled heavy job fails it. With no answer (the
+detection failed or wrote no output) the heavy job runs and must succeed.
+The required-check names do not change.
 
 The rules only ever make CI run more:
 
