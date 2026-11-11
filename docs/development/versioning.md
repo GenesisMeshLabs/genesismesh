@@ -71,9 +71,11 @@ before the core tag exists shows up in the audit until the core tag is
 published.
 
 A release tag is tested against the core release of the same version, never
-core `main`, which may already carry the next version's changes: the core's
-image workflow builds the gateway's tag of its version, and the SDKs' and the
-gateway's tag builds check out the core tag of theirs.
+core `main`, which may already carry the next version's changes: the SDKs'
+and the gateway's tag builds check out the core tag of theirs. From 1.11.0
+the core's image workflow tests the gateway release pinned in
+`contract/consumer-pins.json`, by image digest, not a gateway of its own
+version.
 
 ## Cutting a release and propagating it
 

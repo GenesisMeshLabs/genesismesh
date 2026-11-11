@@ -1,5 +1,6 @@
 {
   "schema": "gm.consumer-pins/1",
+  "gateway": {"ref": "v1.10.1", "image": "sha256:036bf16ebbcb7534e5a5cd8f98589c6960dd3a1c91c25831fece305b29c94953"},
   "sdk-dotnet": {"ref": "v1.10.1"},
   "sdk-go": {"ref": "v1.10.1"},
   "sdk-rust": {"ref": "v1.10.1"},

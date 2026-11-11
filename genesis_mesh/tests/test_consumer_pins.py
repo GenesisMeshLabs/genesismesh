@@ -37,7 +37,7 @@ def _write(tmp_path: Path, data: object) -> Path:
 
 
 def _valid(**refs: str) -> dict[str, object]:
-    data: dict[str, object] = {"schema": pins.SCHEMA}
+    data: dict[str, object] = {"schema": pins.SCHEMA, "gateway": {"ref": "v1.10.1", "image": "sha256:" + "0" * 64}}
     for name in pins.CONSUMERS:
         data[name] = {"ref": refs.get(name.replace("-", "_"), "v1.10.1")}
     return data
@@ -64,6 +64,7 @@ def test_a_branch_a_short_commit_or_a_loose_version_is_refused(tmp_path: Path, r
 @pytest.mark.parametrize("change", [
     lambda d: d.pop("sdk-go"),
     lambda d: d.pop("sdk-rust"),
+    lambda d: d.pop("gateway"),
     lambda d: d.update({"sdk-python": {"ref": "v1.10.1"}}),
     lambda d: d.update({"schema": "gm.consumer-pins/2"}),
     lambda d: d.update({"sdk-go": {"ref": "v1.10.1", "note": "x"}}),

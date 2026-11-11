@@ -33,7 +33,10 @@ pushing the tag.
 - [ ] `git tag -s vX.Y.Z -m "vX.Y.Z"` (signed) on the merged release commit
 - [ ] `git push origin vX.Y.Z` (changes reach `main` only through a PR)
 - [ ] Core first: publish the core release before tagging the gateway, whose
-      image job builds the Network Authority from the core tag
+      image job builds the Network Authority from the core tag. The core's
+      image job tests with the gateway release pinned in
+      `contract/consumer-pins.json` (1.11.0), so it does not wait for the
+      gateway; after a gateway release, a PR pins its tag and image digest
 - [ ] A release image run that fails after tagging is finished by re-running
       it (it verifies the published digest and completes the tags and notes);
       never by a dispatch run

@@ -106,27 +106,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A coordinated change is tested against the gateway branch of the same
-      # name when it exists, and against main otherwise (always in the merge
-      # queue, whose ref is gh-readonly-queue/...: merge the gateway side first).
-      - name: Choose the gateway revision
-        env:
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          ref=main
-          if git ls-remote --exit-code --heads https://github.com/GenesisMeshLabs/gateway.git "refs/heads/$BRANCH" > /dev/null; then ref="$BRANCH"; fi
-          echo "Testing with gateway revision: $ref"
-          echo "GATEWAY_REF=$ref" >> "$GITHUB_ENV"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: GenesisMeshLabs/gateway
-          ref: ${{ env.GATEWAY_REF }}
-          path: gateway-src
-
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
+
+      # 1.11.0: the gateway release pinned in contract/consumer-pins.json, as
+      # its published image by digest; never a branch picked by name or main.
+      # Its signature must come from the gateway's release workflow at that tag.
+      - name: Read the pinned gateway release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python scripts/consumer_pins.py gateway | tee -a "$GITHUB_ENV"
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Verify and pull the pinned gateway image
+        run: |
+          cosign verify "$GATEWAY_IMAGE" --certificate-identity "$GATEWAY_IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          docker pull "$GATEWAY_IMAGE"
 
       # BuildKit and the Dockerfiles' base images (pinned by digest) come through
       # mirrors, falling back to Docker Hub: its outages failed every image job.
@@ -142,9 +142,6 @@ jobs:
         run: |
           docker buildx build --load -t genesis-mesh:ci \
             --build-arg VERSION="$(tr -d '[:space:]' < VERSION)" --build-arg REVISION="$GITHUB_SHA" .
-          GW_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' gateway-src/Cargo.toml | head -n 1)"
-          docker buildx build --load -t genesis-mesh-gateway:ci \
-            --build-arg VERSION="$GW_VERSION" --build-arg REVISION="$(git -C gateway-src rev-parse HEAD)" gateway-src
           # The 1.0.x image ran as another uid; its volumes must be refused until handed over.
           git archive v1.0.1 | docker buildx build --load -t genesis-mesh:legacy -
 
@@ -159,7 +156,8 @@ jobs:
 
       - name: Container smoke tests
         run: |
-          python scripts/container_smoke.py --image genesis-mesh:ci --gateway-image genesis-mesh-gateway:ci \
+          python scripts/container_smoke.py --image genesis-mesh:ci --gateway-image "$GATEWAY_IMAGE" \
+            --gateway-version "$GATEWAY_VERSION" --gateway-revision "$GATEWAY_REVISION" \
             --legacy-image genesis-mesh:legacy --context-dir . \
             --compose-file deploy/compose/docker-compose.images.yml
 
