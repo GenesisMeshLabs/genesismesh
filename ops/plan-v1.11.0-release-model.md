@@ -145,6 +145,21 @@ One PR per repository, after the core 1.11.0 bundle exists. Before that, use a c
 - The Releasing sections of every consumer (CONTRIBUTING.md / AGENT.md; sdk-rust `RELEASING.md` per stream; gateway `docs/distribution.md`: "a CVE patch ships as X.Y.Z+1 without a core release").
 - `docs/operations/upgrade.md`: how to read the manifest and the table before an upgrade, and the upgrade order when a contract change needs it (SDKs first).
 
+### 5.9 CI runs what a change can affect
+The core runs about 40 checks on every pull request. Upgrade rehearsals, image builds, the PostgreSQL suite, the pilot rehearsal and the interoperability run happen even for a change to documentation or the contract tooling.
+
+The fix, added on 2026-11-11 at the Maintainer's request:
+- `scripts/ci_changes.py` puts each changed path in one category.
+- A reusable `changes.yml` workflow asks it, for each heavy job, whether the change touches anything that job tests.
+- A job with nothing to test is skipped. A summary job carries each required-check name. It passes on success, or on a skip the detection asked for. A failure or a cancellation fails it; with no answer the job runs and must succeed. The required-check list is unchanged.
+
+The rules can only make CI run more:
+- jobs always run on pushes to `main` and manual runs;
+- they always run for package and build changes, unknown paths, and changes to the detection itself;
+- they run if the detection job fails.
+
+The consumer repositories get the same treatment in their X2 PRs (§5.4), where their own heavy jobs are known.
+
 ## 6. Safeguards
 - Images are checked against their own binary and the exact manifest entry, with signature and Trivy gates intact. None of them compares only major.minor.
 - Artifact versions are resolved once; the published-artifacts run tests exactly those; the manifest is published last.

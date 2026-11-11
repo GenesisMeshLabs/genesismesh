@@ -19,8 +19,17 @@ permissions:
   contents: read
 
 jobs:
+  # A pull request that touches nothing the rehearsal runs (the package, its
+  # build inputs, this workflow, the rehearsal script) skips the matrix.
+  changes:
+    uses: ./.github/workflows/changes.yml
+    with:
+      group: upgrade
+
   upgrade:
     name: Upgrade from ${{ matrix.from }}
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,16 +73,19 @@ jobs:
         run: python scripts/upgrade_rehearsal.py --from "${{ matrix.from }}" --postgres-url postgresql://genesis:genesis@localhost:5432/gm_test
 
   # One stable required-check name over the matrix, which grows by one
-  # version per release: fails if any rehearsal failed or was cancelled.
+  # version per release: fails if any rehearsal failed or was cancelled, and
+  # passes on a skip only when the change detection said there was nothing to test.
   rehearsals:
     name: Upgrade rehearsals
-    needs: upgrade
+    needs: [changes, upgrade]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Every upgrade rehearsal passed
         env:
           RESULT: ${{ needs.upgrade.result }}
+          RUN: ${{ needs.changes.outputs.run }}
         run: |
-          echo "Upgrade rehearsals: $RESULT"
+          echo "Upgrade rehearsals: $RESULT (relevant changes: ${RUN:-unknown})"
+          if [ "$RUN" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
           test "$RESULT" = success
