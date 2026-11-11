@@ -1,0 +1,7 @@
+{
+  "schema": "gm.consumer-pins/1",
+  "sdk-dotnet": {"ref": "v1.10.1"},
+  "sdk-go": {"ref": "v1.10.1"},
+  "sdk-rust": {"ref": "v1.10.1"},
+  "sdk-typescript": {"ref": "v1.10.1"}
+}

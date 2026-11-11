@@ -49,6 +49,8 @@ RULES: tuple[tuple[str, str], ...] = (
     ("genesis_mesh/tests/*", "tests"),
     ("genesis_mesh/*", "package"),
     ("conformance/*", "conformance"),
+    # The SDK releases the Interoperability run checks out.
+    ("contract/consumer-pins.json", "consumer-pins"),
     ("contract/*", "contract"),
     ("interop/*", "interop"),
     ("examples/*", "examples"),
@@ -88,9 +90,10 @@ GROUPS: dict[str, frozenset[str]] = {
     "upgrade": frozenset({"package", "build", "script:upgrade_rehearsal.py"}),
     "pilot": frozenset({"package", "build", "script:pilot_rehearsal.py",
                         "script:recovery_drill.py", "script:upgrade_rehearsal.py"}),
-    "interop": frozenset({"package", "build", "conformance", "interop"}),
-    "postgres": frozenset({"package", "tests", "build", "conformance", "contract", "examples", "interop",
-                           "script:*"}),
+    "interop": frozenset({"package", "build", "conformance", "interop", "consumer-pins",
+                          "script:consumer_pins.py"}),
+    "postgres": frozenset({"package", "tests", "build", "conformance", "contract", "consumer-pins", "examples",
+                           "interop", "script:*"}),
     "container": frozenset({"package", "build", "image", "script:container_smoke.py",
                             "script:image_vuln_gate.py", "script:lock_image_requirements.py"}),
 }
