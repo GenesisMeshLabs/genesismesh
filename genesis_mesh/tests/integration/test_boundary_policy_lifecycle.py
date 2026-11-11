@@ -11,6 +11,9 @@ justification proof offline, and can tell which policy version produced each.
 
 from __future__ import annotations
 
+import json
+import re
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, timedelta, timezone
 
@@ -26,6 +29,26 @@ from genesis_mesh.models.justification import JustificationProof
 from genesis_mesh.na_service.server import NetworkAuthorityService
 from genesis_mesh.trust.context import verify_boundary_decision, verify_boundary_policy
 from genesis_mesh.trust.justification import verify_justification_proof
+
+
+def _discloses(value: Any, amount: int, key: str = "") -> bool:
+    """Whether a JSON document holds ``amount`` as a number, or as a number in a text.
+
+    IDs and timestamps (keys ending ``_id`` or ``_at``) are random or clock digits, not values:
+    searching the serialized text failed whenever a timestamp's fraction held the digits
+    (``00:02:48.250099``).
+    """
+    if isinstance(value, dict):
+        return any(_discloses(item, amount, name) for name, item in value.items())
+    if isinstance(value, list):
+        return any(_discloses(item, amount, key) for item in value)
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return value == amount
+    if isinstance(value, str) and not key.endswith(("_id", "_at")):
+        return re.search(rf"(?<![\w.]){amount}(?:\.0+)?(?![\w.])", value) is not None
+    return False
 
 pytestmark = pytest.mark.integration
 
@@ -183,7 +206,7 @@ def test_policy_lifecycle_survives_restart_and_is_verifiable_offline(tmp_path):
     # The proof explains the rule without disclosing the amount.
     entry = next(e for e in denied_proof.trace.entries if e.gate_name == "transfer-limits/amount-cap")
     assert entry.inputs["condition"] == {"operator": "<=", "max": 1000.0}
-    assert "2500" not in denied_proof.to_canonical_json()
+    assert not _discloses(json.loads(denied_proof.to_canonical_json()), 2500)
 
     # The audit trail, persisted across the restart, records the full lifecycle.
     events = [e["event_type"] for e in service.db.list_audit_events()]
@@ -195,3 +218,14 @@ def test_policy_lifecycle_survives_restart_and_is_verifiable_offline(tmp_path):
     ):
         assert expected in events
     assert events.count("boundary_policy_activated") == 2
+
+
+def test_disclosure_check_ignores_clock_and_id_digits_but_finds_the_amount() -> None:
+    """Regression: the proof check failed when a timestamp's fraction held the amount's digits."""
+    proof = {"proof_issued_at": "2026-11-11T00:02:48.250099Z", "decision_id": "a-2500-b",
+             "trace": {"entries": [{"reason": "request_parameters.amount violates <= 1000.0", "result": False}]}}
+    assert not _discloses(proof, 2500)
+    assert _discloses({"inputs": {"value": 2500}}, 2500)
+    assert _discloses({"inputs": {"value": 2500.0}}, 2500)
+    assert _discloses({"entries": [{"reason": "amount 2500 exceeds 1000"}]}, 2500)
+    assert not _discloses({"entries": [{"reason": "amount 25000 exceeds 1000"}]}, 2500)
