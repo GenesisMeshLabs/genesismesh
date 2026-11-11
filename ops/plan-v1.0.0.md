@@ -258,4 +258,3 @@ PyPI install (fixed before the candidate, PR #49).
 - Clean install of `genesis-mesh==1.0.0` from PyPI: quickstart and `dev up`
   pass. Live smoke of the public sites and services: 39 checks pass.
 - Pending evidence, as stated in the release notes: Workstreams 1 and 2.
-

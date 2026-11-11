@@ -63,7 +63,7 @@ def registry() -> dict:
 def test_the_committed_registry_matches_the_models(suite, registry):
     assert suite["registry"] == registry, (
         "conformance/vectors/field_registry.json is stale: run "
-        "`python conformance/generate_vectors.py field_registry` and copy it to the SDKs"
+        "`python conformance/generate_vectors.py field_registry`; consumers pick it up by bumping their contract bundle pin"
     )
 
 

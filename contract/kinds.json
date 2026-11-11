@@ -1,0 +1,248 @@
+{
+  "kinds": {
+    "archive": {
+      "carried_by_retention": true,
+      "envelope": {
+        "record_id": "archive_id"
+      },
+      "id_field": "archive_id",
+      "model": "ArchiveRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.5.0",
+      "time_field": "archived_at",
+      "unsigned_paths": []
+    },
+    "break_glass": {
+      "carried_by_retention": false,
+      "envelope": {
+        "attestation_id": "attestation_id",
+        "capability": "capability",
+        "executor_sovereign_id": "executor_sovereign_id",
+        "outcome": "outcome",
+        "record_id": "break_glass_id",
+        "resource_action": "resource_action",
+        "resource_id": "resource_id"
+      },
+      "id_field": "break_glass_id",
+      "model": "BreakGlassRecord",
+      "payload_path": [],
+      "signer": "registered_key",
+      "since": "1.3.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "decision": {
+      "carried_by_retention": false,
+      "envelope": {},
+      "id_field": "decision_id",
+      "model": "BoundaryDecision",
+      "payload_path": [
+        "decision"
+      ],
+      "signer": "na",
+      "since": "0.59.0",
+      "time_field": "decision_made_at",
+      "unsigned_paths": [
+        [
+          "context"
+        ]
+      ]
+    },
+    "execution": {
+      "carried_by_retention": false,
+      "envelope": {},
+      "id_field": "evidence_id",
+      "model": "ExecutionEvidence",
+      "payload_path": [],
+      "signer": "registered_key",
+      "since": "0.59.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "grant": {
+      "carried_by_retention": false,
+      "envelope": {
+        "executor_sovereign_id": "bearer_sovereign_id",
+        "record_id": "grant_id"
+      },
+      "id_field": "grant_id",
+      "model": "CapabilityGrant",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.6.0",
+      "time_field": "issued_at",
+      "unsigned_paths": []
+    },
+    "grant_execution": {
+      "carried_by_retention": false,
+      "envelope": {
+        "capability": "capability",
+        "exec_sequence_no": "use_sequence",
+        "executor_sovereign_id": "executor_sovereign_id",
+        "outcome": "outcome",
+        "record_id": "use_id",
+        "resource_action": "resource_action",
+        "resource_id": "resource_id",
+        "subject_id": "grant_id"
+      },
+      "id_field": "use_id",
+      "model": "GrantExecutionEvidence",
+      "payload_path": [],
+      "signer": "registered_key",
+      "since": "1.6.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "grant_revocation": {
+      "carried_by_retention": false,
+      "envelope": {
+        "outcome": "reason",
+        "record_id": "revocation_id",
+        "subject_id": "grant_id"
+      },
+      "id_field": "revocation_id",
+      "model": "GrantRevocationRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.6.0",
+      "time_field": "revoked_at",
+      "unsigned_paths": []
+    },
+    "judgement": {
+      "carried_by_retention": false,
+      "envelope": {
+        "capability": "capability",
+        "matched_evidence_id": "matched_evidence_id",
+        "outcome": "verdict",
+        "record_id": "judgement_id",
+        "resource_action": "action",
+        "resource_id": "resource_id",
+        "subject_id": "subject_id"
+      },
+      "id_field": "judgement_id",
+      "model": "JudgementRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.3.0",
+      "time_field": "judged_at",
+      "unsigned_paths": []
+    },
+    "justification": {
+      "carried_by_retention": false,
+      "envelope": {},
+      "id_field": "proof_id",
+      "model": "JustificationProof",
+      "payload_path": [],
+      "signer": "na",
+      "since": "0.59.0",
+      "time_field": "proof_issued_at",
+      "unsigned_paths": []
+    },
+    "key_succession": {
+      "carried_by_retention": true,
+      "envelope": {
+        "record_id": "succession_id"
+      },
+      "id_field": "succession_id",
+      "model": "KeySuccessionRecord",
+      "payload_path": [],
+      "signer": "key_succession",
+      "since": "1.5.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "observation": {
+      "carried_by_retention": false,
+      "envelope": {
+        "capability": "capability",
+        "executor_sovereign_id": "observer_sovereign_id",
+        "record_id": "observation_id",
+        "resource_action": "action",
+        "resource_id": "resource_id"
+      },
+      "id_field": "observation_id",
+      "model": "ObservationRecord",
+      "payload_path": [],
+      "signer": "registered_key",
+      "since": "1.3.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "quarantine": {
+      "carried_by_retention": false,
+      "envelope": {
+        "outcome": "rejection_code",
+        "record_id": "quarantine_id",
+        "resource_id": "resource_id"
+      },
+      "id_field": "quarantine_id",
+      "model": "QuarantineRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.3.0",
+      "time_field": "quarantined_at",
+      "unsigned_paths": []
+    },
+    "registry": {
+      "carried_by_retention": true,
+      "envelope": {
+        "outcome": "event",
+        "record_id": "registry_record_id"
+      },
+      "id_field": "registry_record_id",
+      "model": "RegistryRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.3.0",
+      "time_field": "effective_at",
+      "unsigned_paths": []
+    },
+    "remediation": {
+      "carried_by_retention": false,
+      "envelope": {
+        "executor_sovereign_id": "executor_sovereign_id",
+        "outcome": "outcome",
+        "record_id": "remediation_id",
+        "resource_id": "resource_id",
+        "subject_id": "subject_id"
+      },
+      "id_field": "remediation_id",
+      "model": "RemediationRecord",
+      "payload_path": [],
+      "signer": "registered_key",
+      "since": "1.4.0",
+      "time_field": null,
+      "unsigned_paths": []
+    },
+    "retention_checkpoint": {
+      "carried_by_retention": false,
+      "envelope": {},
+      "id_field": "checkpoint_id",
+      "model": "RetentionCheckpoint",
+      "payload_path": [],
+      "signer": "na",
+      "since": "0.59.0",
+      "time_field": "created_at",
+      "unsigned_paths": []
+    },
+    "review": {
+      "carried_by_retention": false,
+      "envelope": {
+        "capability": "capability",
+        "outcome": "verdict",
+        "record_id": "review_id",
+        "resource_id": "resource_id",
+        "subject_id": "subject_id"
+      },
+      "id_field": "review_id",
+      "model": "ReviewRecord",
+      "payload_path": [],
+      "signer": "na",
+      "since": "1.4.0",
+      "time_field": "decided_at",
+      "unsigned_paths": []
+    }
+  },
+  "schema": "gm.contract.kinds/1"
+}

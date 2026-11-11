@@ -37,6 +37,22 @@ repos:
         pass_filenames: false
         stages: [pre-commit, pre-push]
 
+      - id: contract-bundle
+        name: contract bundle manifest is current
+        entry: python scripts/gm_contract.py manifest --check
+        language: system
+        pass_filenames: false
+        files: ^(conformance/|contract/|scripts/gm_contract\.py$|VERSION$)
+        stages: [pre-commit, pre-push]
+
+      - id: contract-kinds
+        name: contract kind table is current
+        entry: python scripts/render_contract_kinds.py --check
+        language: system
+        pass_filenames: false
+        files: ^(genesis_mesh/(trust|models)/|contract/kinds\.json$)
+        stages: [pre-commit, pre-push]
+
       - id: check-added-large-files-local
         name: check added large files
         entry: python scripts/check_added_large_files.py --maxkb 4096

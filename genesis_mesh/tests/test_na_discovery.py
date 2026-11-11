@@ -297,4 +297,3 @@ def test_an_agent_whose_key_contains_a_double_slash_can_be_read_and_removed(clie
         json={"version": "v1", "signed_at": signed_at, "signature": sign_data(envelope, keypair.private_key)},
     )
     assert resp.status_code == 200
-

@@ -110,6 +110,14 @@ def wait_ready(url: str, timeout: float = 30.0) -> dict:
     raise TimeoutError(f"{url} not ready: {last}")
 
 
+def _kill_group(pid: int, sig: int | None = None) -> None:
+    """Signal a whole process group, SIGKILL by default. POSIX only (the cluster runs nginx on
+    Linux); the platform check keeps the module importable and type-checked on Windows."""
+    if sys.platform == "win32":
+        raise OSError("process groups need a POSIX system")
+    os.killpg(pid, signal.SIGKILL if sig is None else sig)
+
+
 @dataclass
 class Instance:
     name: str
@@ -226,7 +234,7 @@ class HACluster:
         SIGKILL, and a default evaluated at import broke test collection there.
         """
         instance = next(i for i in self.instances if i.name == name)
-        os.killpg(instance.process.pid, signal.SIGKILL if sig is None else sig)
+        _kill_group(instance.process.pid, sig)
         instance.process.wait(timeout=15)
         # Workers outlive the master by a moment and still hold the listening
         # socket: a connection accepted then is reset after nginx has sent the
@@ -246,14 +254,14 @@ class HACluster:
         for proc in procs:
             if proc.poll() is None:
                 try:
-                    os.killpg(proc.pid, signal.SIGTERM)
+                    _kill_group(proc.pid, signal.SIGTERM)
                 except ProcessLookupError:
                     pass
         for proc in procs:
             try:
                 proc.wait(timeout=15)
             except subprocess.TimeoutExpired:
-                os.killpg(proc.pid, signal.SIGKILL)
+                _kill_group(proc.pid)
 
     @property
     def url(self) -> str:
