@@ -89,6 +89,15 @@ def test_a_pin_bump_runs_the_interoperability_run_and_the_containers_against_the
     assert not _run("upgrade", path) and not _run("pilot", path)
 
 
+def test_the_packages_contract_bundle_digest_changes_with_the_contract() -> None:
+    # Generated with contract/MANIFEST.json: a vector change that moves the digest
+    # rewrites it, and must not pull in the rehearsals and the image build.
+    assert cc.category("genesis_mesh/contract_bundle.py") == "contract"
+    changed = ("conformance/vectors/canonical.json", "contract/MANIFEST.json", "genesis_mesh/contract_bundle.py")
+    assert _run("postgres", *changed)
+    assert not _run("upgrade", *changed) and not _run("pilot", *changed) and not _run("container", *changed)
+
+
 def test_unrelated_workflows_and_tests_do_not_run_other_groups() -> None:
     assert not _run("upgrade", ".github/workflows/docs.yml")
     assert not _run("container", "genesis_mesh/tests/test_grants.py")

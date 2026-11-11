@@ -28,7 +28,7 @@ ROOT = PACKAGE.parent
 #: otherwise. A module belongs to the longest name it equals or starts with
 #: (``name.``); ``EXACT`` names match only themselves.
 LAYERS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("foundation", ("genesis_mesh.strict_json",)),
+    ("foundation", ("genesis_mesh.strict_json", "genesis_mesh.contract_bundle")),
     ("models", ("genesis_mesh.models",)),
     ("crypto", ("genesis_mesh.crypto",)),
     ("trust", ("genesis_mesh.trust",)),

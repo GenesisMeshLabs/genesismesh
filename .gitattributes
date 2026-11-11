@@ -21,11 +21,13 @@ conformance/fixtures/** -text
 # review shows the code that produced them. Regenerate, never hand-edit:
 # conformance vectors (conformance/generate_vectors.py and *_vectors.py; SDKs
 # copy them), the frozen audit pack fixtures, the rendered contract page
-# (scripts/render_public_contract.py) and the hashed lock files
+# (scripts/render_public_contract.py), the package's contract bundle version
+# and digest (scripts/gm_contract.py manifest) and the hashed lock files
 # (scripts/lock_image_requirements.py).
 conformance/vectors/** linguist-generated=true
 conformance/fixtures/** linguist-generated=true
 docs/reference/public-contract.md linguist-generated=true
+genesis_mesh/contract_bundle.py linguist-generated=true
 requirements-image.lock linguist-generated=true
 requirements-build.lock linguist-generated=true
 # The contract bundle's manifest and kind table (scripts/gm_contract.py manifest,

@@ -478,6 +478,7 @@ def build_dashboard_model(service) -> dict[str, Any]:
             "id": service.genesis_block.network_name,
             "version": service.genesis_block.network_version,
         },
+        "contract_bundle": dict(service.contract_bundle),
         "readiness": _readiness(service),
         "nodes": {"active": active_nodes, "tracked": tracked_nodes},
         "connectome_summary": connectome["summary"],
@@ -679,6 +680,10 @@ def render_dashboard(service) -> str:
                 <span class="hero-meta-item">
                     <span class="hero-meta-label">Version</span>
                     <strong>{escape(model['sovereign']['version'])}</strong>
+                </span>
+                <span class="hero-meta-item">
+                    <span class="hero-meta-label">Contract bundle</span>
+                    <strong title="{escape(model['contract_bundle']['contract_digest'])}">{escape(model['contract_bundle']['bundle_version'])} &middot; {escape(model['contract_bundle']['contract_digest'].removeprefix('sha256:')[:12])}</strong>
                 </span>
             </div>
             <div class="stats" aria-label="Dashboard summary">
