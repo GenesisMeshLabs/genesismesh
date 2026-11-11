@@ -94,7 +94,7 @@ One PR per repository (sdk-typescript, sdk-go, sdk-dotnet, sdk-rust, gateway). E
 - `ci.yml` container job and `publish-image.yml`:
   - the gateway comes from the pinned release, by digest, not from `main` or a tag of the core's version;
   - `container_smoke.py --gateway-version` checks label = manifest version = binary.
-- `check_release_train.py` keeps only the core's own monotonic check. The cross-component ceiling moves to the nightly audit.
+- `check_release_train.py` keeps only the core's own monotonic check. The cross-component ceiling moves to the nightly audit: `check_release_train.py --audit-ceiling` in `release-train-audit.yml`, until the compatibility table (§5.7, bundle design C4) takes it over as `release_streams.py audit-ceiling`.
 - **The Network Authority reports its contract bundle** (decision 3): `/health` gains `contract_bundle` (the bundle version and `contract_digest` it was built with). It is additive; parsing stays strict, so an SDK that meets an unknown signed field still refuses it, but can now name the newer bundle in its error.
 
 ### 5.4 Consumers: pin the bundle and replace the train checks (bundle design X2)

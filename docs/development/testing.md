@@ -56,7 +56,7 @@ The checks a pull request must pass, and how to run each one locally:
 
 | Workflow: job | What it checks | Local command |
 | --- | --- | --- |
-| CI: Tests and smoke checks | ruff, the version and release-train checks, unit tests with coverage floors, integration tests, pip-audit, mypy, compileall, an upgrade rehearsal of the built wheel, `genesis-mesh dev up` | The commands above; `python scripts/check_version.py`; `python scripts/coverage_floor.py coverage.json` after a `--cov` run |
+| CI: Tests and smoke checks | ruff, the version checks (including that `VERSION` is not behind a core release), unit tests with coverage floors, integration tests, pip-audit, mypy, compileall, an upgrade rehearsal of the built wheel, `genesis-mesh dev up` | The commands above; `python scripts/check_version.py`; `python scripts/check_release_train.py`; `python scripts/coverage_floor.py coverage.json` after a `--cov` run |
 | CI: Container images | Builds the NA and gateway images on amd64 and arm64, scans them for vulnerabilities and runs the container smoke checks | See *Container Smoke Checks* below |
 | CI: PostgreSQL backend and HA failover | The suite and the integration tests on PostgreSQL 17, with `GM_E2E_REQUIRED=1` | `python scripts/test_postgres.py` |
 | CI: Changelog fragments | Fragments in `changelog.d/` and `upgrade.d/`; only `release/<version>` edits `CHANGELOG.md` | `python scripts/changelog.py check --base origin/main --branch <branch>`; `python scripts/upgrade_notes.py check` |
@@ -66,8 +66,13 @@ The checks a pull request must pass, and how to run each one locally:
 | Interoperability | The conformance vectors, and the live run in which Python, Go, TypeScript and C# judge the same records | `interop/run_all.sh` (see `interop/README.md`) |
 | Documentation: Build Sphinx docs | The docs build with warnings as errors | See *Documentation Build* below |
 
-The "Published artifacts" workflow runs on a schedule and on demand. It checks
-the released packages and images, not a pull request.
+Two workflows run on a schedule and on demand, never on a pull request:
+
+- "Published artifacts" checks the released packages and images.
+- "Release train audit" checks that no component's newest release is of a newer
+  major.minor than the core's latest release
+  (`python scripts/check_release_train.py --audit-ceiling`). A failed scheduled
+  run opens an issue, or comments on the open one.
 
 ### Jobs a pull request may skip
 

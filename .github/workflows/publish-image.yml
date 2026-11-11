@@ -60,10 +60,11 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Version and release train
+      # check_release_train.py reads the core's own tags only (the nightly
+      # release-train-audit.yml checks the other components).
+      - name: Version and the core's own releases
         id: version
         env:
-          RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
           if [ "$PUBLISH" = "true" ]; then python scripts/check_version.py --tag "$TAG"; else python scripts/check_version.py; fi

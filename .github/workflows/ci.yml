@@ -41,10 +41,11 @@ jobs:
       - name: Verify release version
         run: python scripts/check_version.py
 
-      - name: Verify release train (no component released ahead of VERSION)
+      # The core's own tags only; the cross-component ceiling is audited
+      # nightly (release-train-audit.yml), so a component release never turns
+      # this job red.
+      - name: Verify the core version (not behind a core release)
         run: python scripts/check_release_train.py
-        env:
-          RELEASE_TRAIN_TOKEN: ${{ secrets.RELEASE_TRAIN_TOKEN }}
 
       - name: Run unit tests (measuring coverage of trust, models and services)
         run: >-

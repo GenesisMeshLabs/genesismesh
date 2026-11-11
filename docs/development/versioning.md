@@ -46,18 +46,29 @@ that does not match the repository's declared version.
 ## The core leads the train
 
 The core repository (`genesismesh`) chooses each coordinated version, and no
-component may release ahead of it. Two automated gates enforce this:
+component may release ahead of it. Three automated checks enforce this:
 
-- **Core gate.** `scripts/check_release_train.py` runs in CI and before PyPI
-  publication. It fails when any component repository, or the core itself, has
-  already published a tag newer than the core `VERSION`. A new core version must
-  therefore be newer than every version already released anywhere in the train.
+- **Core gate.** `scripts/check_release_train.py` runs in CI and before PyPI and
+  image publication. It reads only the core's own tags and fails when the core
+  has already released a version newer than `VERSION`, so a core version number
+  never names two releases. Another component's release cannot turn the core's
+  CI red.
+- **Nightly ceiling audit.** The "Release train audit" workflow runs
+  `scripts/check_release_train.py --audit-ceiling` every night, never on a pull
+  request. It fails when a component's newest release is of a newer major.minor
+  than the core's latest release, and a failed run opens an issue.
 - **Component gate.** Each component's CI fails when its declared version is
   newer than the core `VERSION` on `main`, and a tag build fails unless its
   version equals that `VERSION` or an existing core tag.
 
-A component that needs a fix between coordinated releases waits for, or triggers,
-the next coordinated patch release; it does not take the next number on its own.
+Until each component pins a contract bundle (1.11.0 plan, section 5.4), the
+component gate keeps the components in lockstep: a component that needs a fix
+between coordinated releases waits for, or triggers, the next coordinated patch
+release. The nightly audit already applies the 1.11 rule, under which a
+component's patch numbers are its own below the core's latest released
+major.minor. Release the core first: a component that tags the core's `VERSION`
+before the core tag exists shows up in the audit until the core tag is
+published.
 
 A release tag is tested against the core release of the same version, never
 core `main`, which may already carry the next version's changes: the core's
