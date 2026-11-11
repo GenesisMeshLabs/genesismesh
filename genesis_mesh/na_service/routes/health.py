@@ -44,6 +44,7 @@ def create_health_blueprint(service) -> Blueprint:
 
         ``boundary_policies`` is "unhealthy" when any active policy fails
         re-verification -- every policy-aware evaluation then denies.
+        ``contract_bundle`` names the contract bundle it was built with (1.11.0).
         """
         policy_health = service.boundary_policies.health()
         return jsonify(
@@ -55,6 +56,7 @@ def create_health_blueprint(service) -> Blueprint:
                 "boundary_policy_enforcement": service.boundary_policy_enforcement,
                 "boundary_policy_coverage": service.boundary_policy_coverage,
                 "evidence_store": service.evidence_store,
+                "contract_bundle": dict(service.contract_bundle),
             }
         )
 

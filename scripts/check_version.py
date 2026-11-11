@@ -42,6 +42,8 @@ SITES: tuple[tuple[str, str, int], ...] = (
     # v1.11.0: the contract bundle a release publishes is named after it (scripts/gm_contract.py);
     # neither field is in the contract digest, so writing them keeps the manifest current.
     ("contract/MANIFEST.json", rf'"(?:bundle|core)_version": "{NUMBER}"', 2),
+    # The package's copy of the bundle version (/health contract_bundle), written with the manifest.
+    ("genesis_mesh/contract_bundle.py", rf'BUNDLE_VERSION = "{NUMBER}"', 1),
 )
 
 

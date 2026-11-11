@@ -1,0 +1,3 @@
+### Added
+
+- **The Network Authority names its contract bundle.** `GET /health` and `/dashboard.json` gain `contract_bundle`: `bundle_version` (the core release) and `contract_digest`, the digest of the contract in `contract/MANIFEST.json`. The dashboard shows both. When an SDK meets a field it does not know, the two tell which bundle the service speaks. `scripts/gm_contract.py manifest` writes them into `genesis_mesh/contract_bundle.py` with the manifest, `check_version.py --set` bumps the version there too, and `manifest --check` (the CI job "Contract bundle") fails when the two files differ. The field is additive; no SDK rejects it, and none reads it yet. `/health` is public, so it now names the exact core release; filter it at the proxy if that matters.

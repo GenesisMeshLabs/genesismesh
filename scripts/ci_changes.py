@@ -47,6 +47,9 @@ RULES: tuple[tuple[str, str], ...] = (
     (".github/workflows/*", "workflow:{name}"),
     (".github/*", "github-meta"),
     ("genesis_mesh/tests/*", "tests"),
+    # Generated with contract/MANIFEST.json (two constants, checked byte for byte
+    # by `gm_contract.py manifest --check`): it changes with the contract.
+    ("genesis_mesh/contract_bundle.py", "contract"),
     ("genesis_mesh/*", "package"),
     ("conformance/*", "conformance"),
     # The SDK releases the Interoperability run checks out.
