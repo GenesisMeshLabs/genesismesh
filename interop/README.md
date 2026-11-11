@@ -38,13 +38,15 @@ suites in `conformance/vectors/`, which each SDK runs in part.
 
 `assert_results.py` requires every artifact to be judged by at least two
 implementations, and every verdict to match the expected one. The Rust SDK,
-`genesis-mesh-verify` and the gateway are not legs of this run; the Rust SDK
-runs the conformance vectors in its own CI.
+`genesis-mesh-verify` and the gateway are not legs of this run. The
+Interoperability workflow checks out the Rust SDK only to compare its copies
+of the conformance vectors; the Rust SDK runs those vectors in its own CI.
 
-The Interoperability workflow checks out the Go, TypeScript and .NET SDKs at
-the refs pinned in `contract/consumer-pins.json`: a release tag, or a commit
-on the SDK's `main` (`python scripts/consumer_pins.py env --verify` prints and
-checks them). Locally, `run_all.sh` uses the sibling checkouts as they are.
+The workflow checks out every SDK at the revision pinned in
+`contract/consumer-pins.json`: a release tag, or a commit on the SDK's `main`.
+`python scripts/consumer_pins.py env` resolves each pin to its commit on
+GitHub and prints it. Locally, `run_all.sh` uses the sibling checkouts as they
+are.
 
 | Path | Contents |
 | --- | --- |

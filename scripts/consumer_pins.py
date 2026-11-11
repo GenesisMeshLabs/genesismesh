@@ -1,44 +1,55 @@
-"""The consumer releases the core's CI runs against (``contract/consumer-pins.json``).
+"""The SDK revisions the core's CI runs against (``contract/consumer-pins.json``).
 
-    python scripts/consumer_pins.py check             # the file's form
-    python scripts/consumer_pins.py env --verify      # SDK_GO_REF=... lines, each ref checked on GitHub
+    python scripts/consumer_pins.py check     # the file's form, offline
+    python scripts/consumer_pins.py env       # SDK_GO_REF=<commit> lines, each pin resolved on GitHub
 
 From 1.11.0 the core's CI no longer picks SDK branches by name. The
-Interoperability run checks out each SDK at the ref pinned here: a release
-tag (``vX.Y.Z``) or a commit on that repository's ``main`` (40 hex). A core
-change that needs newer SDK behaviour pins the SDK's ``main`` commit that has
-it, in the same pull request; a later SDK release replaces the commit with its
-tag. So a core pull request is tested against the same SDK code in its own
-run, in the merge queue and on ``main``, whatever merges elsewhere.
+Interoperability run checks out each SDK at the revision pinned here: a
+release tag (``vX.Y.Z``) or a commit on that repository's ``main`` (40 hex).
+A core change that needs newer SDK behaviour pins the SDK's ``main`` commit
+that has it, in the same pull request; a later SDK release replaces the
+commit with its tag. So a core pull request is tested against the same SDK
+code in its own run, in the merge queue and on ``main``, whatever merges
+elsewhere.
 
-``--verify`` asks GitHub that each tag exists and each commit is on ``main``
-(the compare API: ``main`` is ahead of it or identical). A token in
-``GITHUB_TOKEN`` is sent only to ``api.github.com``. Stdlib only.
+``env`` resolves every pin on GitHub to the commit it names and prints that
+commit, never a name: a branch called like a tag cannot stand in for it. A
+tag must exist; a commit must be on ``main`` (the compare API answers
+``ahead`` or ``identical`` for ``<commit>...main``). Anything else, including
+GitHub being unreachable or refusing the request, fails. A token in
+``GITHUB_TOKEN`` is sent to ``api.github.com`` only, never on a redirect.
+Stdlib only.
 """
 
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = ROOT / "contract" / "consumer-pins.json"
 SCHEMA = "gm.consumer-pins/1"
 ORGANIZATION = "GenesisMeshLabs"
-#: The pinned repositories and the environment variable each ref goes to.
+API = "https://api.github.com"
+#: The pinned repositories and the environment variable each commit goes to.
 CONSUMERS = {
     "sdk-dotnet": "SDK_DOTNET_REF",
     "sdk-go": "SDK_GO_REF",
+    "sdk-rust": "SDK_RUST_REF",
     "sdk-typescript": "SDK_TS_REF",
 }
-TAG = re.compile(r"v\d+\.\d+\.\d+")
+TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 COMMIT = re.compile(r"[0-9a-f]{40}")
+
+GitHub = Callable[[str], object]
 
 
 class PinError(Exception):
@@ -78,53 +89,79 @@ def load(path: Path | None = None) -> dict[str, str]:
     return refs
 
 
-def _github(path: str) -> object:
-    request = urllib.request.Request(f"https://api.github.com{path}",
-                                     headers={"Accept": "application/vnd.github+json",
-                                              "User-Agent": "genesis-mesh-consumer-pins"})
+def github_api(path: str) -> object:
+    """GET ``api.github.com<path>`` as JSON."""
+    request = urllib.request.Request(f"{API}{path}", headers={"Accept": "application/vnd.github+json",
+                                                              "User-Agent": "genesis-mesh-consumer-pins"})
     token = os.environ.get("GITHUB_TOKEN")
     if token:
-        request.add_header("Authorization", f"Bearer {token}")
+        # Not copied onto a redirect, which could point at another host.
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 
 
-def verify(name: str, ref: str, github=_github) -> None:
-    """Fails unless the tag exists, or the commit is on ``main``."""
-    repo = f"/repos/{ORGANIZATION}/{name}"
+def _ask(github: GitHub, name: str, path: str, what: str) -> dict[str, object]:
     try:
-        if TAG.fullmatch(ref):
-            github(f"{repo}/git/ref/tags/{ref}")
-            return
-        status = github(f"{repo}/compare/{ref}...main")
+        answer = github(path)
     except urllib.error.HTTPError as exc:
-        raise PinError(f"{name}: {ref} not found on GitHub ({exc.code})") from exc
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        raise PinError(f"{name}: could not check {ref}: {exc}") from exc
-    if not isinstance(status, dict) or status.get("status") not in ("ahead", "identical"):
-        found = status.get("status") if isinstance(status, dict) else status
-        raise PinError(f"{name}: commit {ref} is not on main (compare status {found!r})")
+        if exc.code == 404:
+            raise PinError(f"{name}: {what} not found on GitHub") from exc
+        raise PinError(f"{name}: GitHub answered {exc.code} for {what} (rate limit or outage?)") from exc
+    except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as exc:
+        raise PinError(f"{name}: could not check {what}: {exc}") from exc
+    if not isinstance(answer, dict):
+        raise PinError(f"{name}: unexpected answer for {what}: {answer!r}")
+    return answer
 
 
-def main(argv: list[str] | None = None) -> int:
+def _sha(value: object) -> str | None:
+    if isinstance(value, dict) and isinstance(value.get("sha"), str) and COMMIT.fullmatch(value["sha"]):
+        return value["sha"]
+    return None
+
+
+def resolve(name: str, ref: str, github: GitHub = github_api) -> str:
+    """The commit ``ref`` names in ``name``: a tag's commit (annotated tags
+    dereferenced), or the pinned commit once it is known to be on ``main``."""
+    repo = f"/repos/{ORGANIZATION}/{name}"
+    if TAG.fullmatch(ref):
+        target = _ask(github, name, f"{repo}/git/ref/tags/{ref}", f"tag {ref}").get("object")
+        # An annotated tag points at a tag object; follow it to the commit.
+        for _ in range(3):
+            if not isinstance(target, dict):
+                break
+            if target.get("type") == "commit" and _sha(target):
+                return str(target["sha"])
+            if target.get("type") != "tag" or not _sha(target):
+                break
+            target = _ask(github, name, f"{repo}/git/tags/{target['sha']}", f"tag {ref}").get("object")
+        raise PinError(f"{name}: tag {ref} does not name a commit")
+    status = _ask(github, name, f"{repo}/compare/{ref}...main?per_page=1", f"commit {ref}").get("status")
+    if status not in ("ahead", "identical"):
+        raise PinError(f"{name}: commit {ref} is not on main (compare status {status!r})")
+    return ref
+
+
+def main(argv: list[str] | None = None, github: GitHub = github_api) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("check", help="check the file's form")
-    env = sub.add_parser("env", help="print NAME=ref lines for $GITHUB_ENV")
-    env.add_argument("--verify", action="store_true", help="check each ref on GitHub")
+    sub.add_parser("check", help="check the file's form (offline)")
+    sub.add_parser("env", help="print NAME=<commit> lines for $GITHUB_ENV, each pin resolved on GitHub")
     args = parser.parse_args(argv)
     try:
         refs = load()
-        if args.command == "env":
-            for name, ref in refs.items():
-                if args.verify:
-                    verify(name, ref)
-                print(f"{CONSUMERS[name]}={ref}")
-        else:
+        if args.command == "check":
             print(", ".join(f"{name} {ref}" for name, ref in refs.items()))
+            return 0
+        # Resolve all first: a failure prints no line at all.
+        commits = {name: resolve(name, ref, github) for name, ref in refs.items()}
     except PinError as exc:
         print(f"consumer pins: {exc}", file=sys.stderr)
         return 1
+    for name, commit in commits.items():
+        print(f"{name}: {refs[name]} is {commit}", file=sys.stderr)
+        print(f"{CONSUMERS[name]}={commit}")
     return 0
 
 

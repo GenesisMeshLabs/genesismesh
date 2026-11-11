@@ -39,13 +39,15 @@ jobs:
       # contract/consumer-pins.json, never at a branch picked by name: a change
       # is tested against the same SDK code in its pull request, in the merge
       # queue and on main. A core change that needs newer SDK behaviour pins
-      # the SDK's main commit in the same pull request (scripts/consumer_pins.py).
+      # the SDK's main commit in the same pull request. Each pin is resolved
+      # to its commit on GitHub, and the commit is checked out
+      # (scripts/consumer_pins.py).
       - name: Read the pinned SDK revisions
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 scripts/consumer_pins.py env --verify | tee -a "$GITHUB_ENV"
+          python3 scripts/consumer_pins.py env | tee -a "$GITHUB_ENV"
 
       - name: Check out the Go SDK
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,6 +69,13 @@ jobs:
           repository: GenesisMeshLabs/sdk-dotnet
           ref: ${{ env.SDK_DOTNET_REF }}
           path: sdks/sdk-dotnet
+
+      - name: Check out the Rust SDK (vector copies only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: GenesisMeshLabs/sdk-rust
+          ref: ${{ env.SDK_RUST_REF }}
+          path: sdks/sdk-rust
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -95,11 +104,55 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -e .
 
-      # The core checks the vectors themselves. From 1.11.0 each SDK checks its
-      # own copies against the contract bundle it pins (its "Contract bundle"
-      # job); a pinned SDK release may lag the vectors on main by design.
-      - name: Conformance vectors pass
-        run: python conformance/runner.py
+      # The pinned SDKs' copies of the vectors must equal the core's. This
+      # stays until each SDK checks its copies against the contract bundle it
+      # pins (1.11.0 plan, section 5.4): until then a core change to the vectors
+      # pins SDK main commits that carry the new copies.
+      - name: Conformance vectors are current
+        run: |
+          python conformance/runner.py
+          for sdk in sdk-go/genesismesh/testdata sdk-typescript/tests/fixtures sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata; do
+            for suite in interop consensus admin_auth field_registry canonical; do
+              cmp "conformance/vectors/$suite.json" "sdks/$sdk/conformance/$suite.json"
+            done
+          done
+          for suite in admin_auth field_registry canonical; do
+            cmp "conformance/vectors/$suite.json" "sdks/sdk-rust/tests/fixtures/$suite.json"
+          done
+          # v1.3.0: the SDKs that verify exports run the out_of_band suite.
+          cmp conformance/vectors/out_of_band.json sdks/sdk-typescript/tests/fixtures/conformance/out_of_band.json
+          cmp conformance/vectors/out_of_band.json sdks/sdk-rust/tests/fixtures/out_of_band.json
+          # v1.4.0: and the remediation suite (remediation and review records).
+          cmp conformance/vectors/remediation.json sdks/sdk-typescript/tests/fixtures/conformance/remediation.json
+          cmp conformance/vectors/remediation.json sdks/sdk-rust/tests/fixtures/remediation.json
+          # v1.5.0: and the audit suite (key history, packs, completeness).
+          cmp conformance/vectors/audit.json sdks/sdk-typescript/tests/fixtures/conformance/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-rust/tests/fixtures/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-go/genesismesh/testdata/conformance/audit.json
+          cmp conformance/vectors/audit.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/audit.json
+          # v1.6.0: and the grants suite (grants, time tokens, grant uses, revocations).
+          cmp conformance/vectors/grants.json sdks/sdk-typescript/tests/fixtures/conformance/grants.json
+          cmp conformance/vectors/grants.json sdks/sdk-rust/tests/fixtures/grants.json
+          cmp conformance/vectors/grants.json sdks/sdk-go/genesismesh/testdata/conformance/grants.json
+          cmp conformance/vectors/grants.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/grants.json
+          # v1.7.0: and the node suite (node request signatures), which only the Rust SDK runs.
+          cmp conformance/vectors/node.json sdks/sdk-rust/tests/fixtures/node.json
+          # 1.8.1: and the vouching suite (the vouching horizon of NA-signed records).
+          cmp conformance/vectors/vouching.json sdks/sdk-typescript/tests/fixtures/conformance/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-rust/tests/fixtures/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-go/genesismesh/testdata/conformance/vouching.json
+          cmp conformance/vectors/vouching.json sdks/sdk-dotnet/tests/GenesisMesh.Sdk.Tests/testdata/conformance/vouching.json
+
+      # A filter that matches no test passes in Go ("no tests to run"): require
+      # at least one, so a renamed test cannot turn this step green.
+      - name: Go verifier conformance
+        working-directory: sdks/sdk-go
+        run: |
+          set -o pipefail
+          go test ./... -run 'Conformance|Canonical' -v | tee "$RUNNER_TEMP/go-conformance.txt"
+          passed="$(grep -c '^--- PASS' "$RUNNER_TEMP/go-conformance.txt" || true)"
+          echo "Go conformance tests passed: $passed"
+          if [ "$passed" -eq 0 ]; then echo "::error::no Go conformance test matched"; exit 1; fi
 
       - name: Run the four legs
         env:
