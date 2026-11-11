@@ -68,7 +68,7 @@ client can make up to `WEB_CONCURRENCY` times each limit; see
 | Surface | Class | Rate limit | Notes |
 |---|---|---|---|
 | `GET /healthz`, `/readyz` | Public | — | Liveness and readiness. `/readyz` also names the database path or PostgreSQL host (`db_path`). |
-| `GET /health` | Public | — | Summary: network, version, boundary policy health, enforcement mode and evidence store mode. Not a readiness check. |
+| `GET /health` | Public | — | Summary: network, version, boundary policy health, enforcement mode and evidence store mode. Not a readiness check. From 1.11.0 also `contract_bundle`: the contract bundle the service was built with, as `bundle_version` (the core version) and `contract_digest` (from `contract/MANIFEST.json`). |
 | `GET /metrics` | **Deployment-restricted** | — | Aggregate counters. Prometheus cannot perform signed-envelope auth, so restrict by deployment. Beta. |
 | `GET /nodes` | Public (count) / **Operator** (roster) | — | The roster carries keys, roles and remote addresses. A `read` key is enough. |
 | `GET /agents?capability=` | Public | — | Peer discovery protocol. Returns matching descriptors. |
@@ -221,8 +221,19 @@ A summary, not a readiness check: `status` is always `healthy`. It also
 returns `network`, `version`, `boundary_policies` (`healthy`, or `unhealthy`
 when an active boundary policy fails re-verification, which makes every
 policy-aware evaluation deny), `boundary_policy_enforcement`,
-`boundary_policy_coverage` (1.10.0, `optional` or `required`) and
-`evidence_store` (`on` or `off`).
+`boundary_policy_coverage` (1.10.0, `optional` or `required`),
+`evidence_store` (`on` or `off`) and, from 1.11.0, `contract_bundle`:
+
+```json
+"contract_bundle": {"bundle_version": "1.11.0", "contract_digest": "sha256:<hex>"}
+```
+
+`bundle_version` is the core release the service was built from, and
+`contract_digest` names the contract in that release's `contract/MANIFEST.json`:
+two releases with the same contract report the same digest. Comparing it with
+the bundle an SDK pins tells whether a field the SDK does not know comes from a
+newer contract. The route is public, so it also names the exact core release to
+anyone who can reach it. Filter it at the proxy if that matters.
 
 ### `GET /nodes`
 

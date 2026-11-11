@@ -11,6 +11,7 @@ from flask import Flask
 from werkzeug.routing import PathConverter
 import nacl.signing
 
+from ..contract_bundle import BUNDLE_VERSION, CONTRACT_DIGEST
 from ..crypto import (
     public_key_from_b64,
     verify_model_signature,
@@ -292,6 +293,10 @@ class NetworkAuthorityService:
         if evidence_store not in EVIDENCE_STORE_MODES:
             raise ValueError(f"evidence_store must be one of {EVIDENCE_STORE_MODES}")
         self.evidence_store = evidence_store
+        # The contract bundle this NA was built with (1.11.0, /health and the
+        # dashboard), from the package itself rather than the installed
+        # distribution's metadata, so a source checkout reports it correctly.
+        self.contract_bundle: dict[str, str] = {"bundle_version": BUNDLE_VERSION, "contract_digest": CONTRACT_DIGEST}
         if isinstance(anchor_interval_seconds, bool) or not isinstance(anchor_interval_seconds, int) \
                 or anchor_interval_seconds < 0:
             raise ValueError("anchor_interval_seconds must be 0 or more")

@@ -96,12 +96,14 @@ canonical output, regenerate and commit the updated vectors:
 
 ```bash
 python conformance/generate_vectors.py
-git add conformance/vectors/ contract/kinds.json contract/MANIFEST.json
+git add conformance/vectors/ contract/kinds.json contract/MANIFEST.json genesis_mesh/contract_bundle.py
 git commit -m "chore(conformance): regenerate vectors for vX.Y.Z"
 ```
 
-The generator also rewrites `contract/kinds.json` and
-`contract/MANIFEST.json`, the contract bundle's manifest (below).
+The generator also rewrites `contract/kinds.json`,
+`contract/MANIFEST.json`, the contract bundle's manifest (below), and
+`genesis_mesh/contract_bundle.py`, the bundle version and digest the Network
+Authority reports in `/health`.
 
 Only regenerate vectors after updating `CHANGELOG.md` and bumping the
 version — stale vectors must never be committed ahead of the code change
@@ -135,7 +137,7 @@ decision on who must run it. Its `contract_digest` names the contract
 itself: two releases with the same digest carry the same contract.
 
 ```bash
-python scripts/gm_contract.py manifest          # rewrite contract/MANIFEST.json
+python scripts/gm_contract.py manifest          # rewrite contract/MANIFEST.json and genesis_mesh/contract_bundle.py
 python scripts/gm_contract.py manifest --check  # CI "Contract bundle" and pre-commit
 python scripts/gm_contract.py archive --out dist/contract
 ```

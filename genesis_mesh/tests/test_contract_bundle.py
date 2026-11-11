@@ -286,12 +286,15 @@ def test_rewording_a_tier_keeps_the_contract_digest(core: Path) -> None:
 def test_the_release_version_bump_keeps_the_manifest_current(core: Path) -> None:
     """``check_version.py --set`` rewrites the version labels in place; no regeneration needed."""
     check_version = _load("check_version")
-    (pattern,) = [p for name, p, _ in check_version.SITES if name == "contract/MANIFEST.json"]
     assert gm.main(["--repo", str(core), "manifest"]) == 0
-    path = core / "contract" / "MANIFEST.json"
-    text = path.read_text(encoding="utf-8")
-    bumped, count = re.subn(pattern, lambda m: m.group(0).replace(m.group(1), "1.12.0"), text)
-    assert count == 2
-    path.write_bytes(bumped.encode("utf-8"))
+    # The manifest and the package's copy of its version (/health contract_bundle).
+    for rel, expected in (("contract/MANIFEST.json", 2), (gm.DIGEST_MODULE_PATH, 1)):
+        (pattern,) = [p for name, p, _ in check_version.SITES if name == rel]
+        path = core / rel
+        text = path.read_text(encoding="utf-8")
+        bumped, count = re.subn(pattern, lambda m: m.group(0).replace(m.group(1), "1.12.0"), text)
+        assert count == expected, rel
+        path.write_bytes(bumped.encode("utf-8"))
     (core / "VERSION").write_text("1.12.0\n")
     assert gm.main(["--repo", str(core), "manifest", "--check"]) == 0
+    assert 'BUNDLE_VERSION = "1.12.0"' in (core / gm.DIGEST_MODULE_PATH).read_text(encoding="ascii")

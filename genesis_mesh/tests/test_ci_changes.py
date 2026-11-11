@@ -77,6 +77,15 @@ def test_each_group_runs_for_its_own_workflow_and_scripts() -> None:
     assert _run("postgres", "scripts/gm_contract.py")  # the suite tests the scripts
 
 
+def test_the_packages_contract_bundle_digest_changes_with_the_contract() -> None:
+    # Generated with contract/MANIFEST.json: a vector change that moves the digest
+    # rewrites it, and must not pull in the rehearsals and the image build.
+    assert cc.category("genesis_mesh/contract_bundle.py") == "contract"
+    changed = ("conformance/vectors/canonical.json", "contract/MANIFEST.json", "genesis_mesh/contract_bundle.py")
+    assert _run("postgres", *changed)
+    assert not _run("upgrade", *changed) and not _run("pilot", *changed) and not _run("container", *changed)
+
+
 def test_unrelated_workflows_and_tests_do_not_run_other_groups() -> None:
     assert not _run("upgrade", ".github/workflows/docs.yml")
     assert not _run("container", "genesis_mesh/tests/test_grants.py")

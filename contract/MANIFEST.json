@@ -158,8 +158,8 @@
       "sha256": "33aa3ba0a7b371c75cc23a48571493cfc045fdde539b04ea35f50b250daf8dcf"
     },
     "scripts/gm_contract.py": {
-      "bytes": 18677,
-      "sha256": "c0a83009324a52a309ae9d6f41a1d609eabaabace32569a476e7bd07c68cf1f6"
+      "bytes": 20253,
+      "sha256": "fa1658dacfc9edb16a85b3ff7c18802c48adb467f9de7b593af9ab4716c4f512"
     }
   },
   "fixtures": {
@@ -557,6 +557,6 @@
   },
   "tool": {
     "path": "scripts/gm_contract.py",
-    "sha256": "c0a83009324a52a309ae9d6f41a1d609eabaabace32569a476e7bd07c68cf1f6"
+    "sha256": "fa1658dacfc9edb16a85b3ff7c18802c48adb467f9de7b593af9ab4716c4f512"
   }
 }
