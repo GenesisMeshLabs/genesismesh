@@ -9,6 +9,7 @@ bounded set of audit events.
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -17,7 +18,7 @@ import pytest
 from genesis_mesh.crypto import sign_data
 from genesis_mesh.na_service.auth import MAX_ADMIN_HEADER_LENGTH
 from genesis_mesh.na_service.operator_console.dashboard import build_dashboard_model
-from genesis_mesh.na_service.rate_limit import RateLimits
+from genesis_mesh.na_service.rate_limit import DatabaseRateLimiter, RateLimits
 
 from .na_server_helpers import join_node, make_client, make_na_service
 
@@ -37,13 +38,22 @@ ROUTES_LIMITED_SINCE_1_1 = [
 ]
 
 
+def _frozen_clock(service):
+    """On PostgreSQL the NA counts in clock-aligned minutes: requests that
+    straddle a minute boundary would see the count reset half way."""
+    if isinstance(service.rate_limiter, DatabaseRateLimiter):
+        frozen = time.time()
+        service.rate_limiter = DatabaseRateLimiter(service.db, clock=lambda: frozen)
+    return service
+
+
 def _auth_failures(service) -> list[dict]:
     return [e for e in service.db.list_audit_events() if e["event_type"] == "admin_auth_failed"]
 
 
 @pytest.mark.parametrize(("method", "path"), ROUTES_LIMITED_SINCE_1_1)
 def test_admin_requests_are_rate_limited(method, path):
-    service = make_na_service()
+    service = _frozen_clock(make_na_service())
     # v1.1.0: an admin limit below the failed-authentication limit, so the
     # route's own admin limit is what refuses the request.
     service.rate_limits = RateLimits(admin=5)
@@ -152,7 +162,7 @@ def test_failed_admin_attempts_do_not_reach_the_public_dashboard():
 @pytest.mark.parametrize("path", ["/heartbeat", "/renew"])
 def test_heartbeat_and_renew_share_the_per_address_node_limit(path):
     """1.8.0: /heartbeat and /renew had no rate limit; edge agents call them."""
-    service = make_na_service()
+    service = _frozen_clock(make_na_service())
     service.rate_limits = RateLimits(node_address=3)
     client = service.app.test_client()
     for _ in range(3):
