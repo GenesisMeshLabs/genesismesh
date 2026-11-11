@@ -78,11 +78,13 @@ def test_each_group_runs_for_its_own_workflow_and_scripts() -> None:
 
 
 @pytest.mark.parametrize("path", ["contract/consumer-pins.json", "scripts/consumer_pins.py"])
-def test_a_pin_bump_runs_the_interoperability_run_against_the_new_pins(path: str) -> None:
-    # 1.11.0: Interoperability checks out the SDKs at contract/consumer-pins.json.
+def test_a_pin_bump_runs_the_interoperability_run_and_the_containers_against_the_new_pins(path: str) -> None:
+    # 1.11.0: Interoperability checks out the SDKs at contract/consumer-pins.json,
+    # and the container jobs pull the gateway image pinned there.
     assert cc.category(path) == {"contract/consumer-pins.json": "consumer-pins",
                                  "scripts/consumer_pins.py": "script:consumer_pins.py"}[path]
     assert _run("interop", path)
+    assert _run("container", path)
     assert _run("postgres", path)  # test_consumer_pins.py reads both
     assert not _run("upgrade", path) and not _run("pilot", path)
 

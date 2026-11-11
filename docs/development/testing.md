@@ -57,7 +57,7 @@ The checks a pull request must pass, and how to run each one locally:
 | Workflow: job | What it checks | Local command |
 | --- | --- | --- |
 | CI: Tests and smoke checks | ruff, the version and release-train checks, unit tests with coverage floors, integration tests, pip-audit, mypy, compileall, an upgrade rehearsal of the built wheel, `genesis-mesh dev up` | The commands above; `python scripts/check_version.py`; `python scripts/coverage_floor.py coverage.json` after a `--cov` run |
-| CI: Container images | Builds the NA and gateway images on amd64 and arm64, scans them for vulnerabilities and runs the container smoke checks | See *Container Smoke Checks* below |
+| CI: Container images | Builds the NA image on amd64 and arm64, scans it for vulnerabilities and runs the container smoke checks with the pinned gateway release | See *Container Smoke Checks* below |
 | CI: PostgreSQL backend and HA failover | The suite and the integration tests on PostgreSQL 17, with `GM_E2E_REQUIRED=1` | `python scripts/test_postgres.py` |
 | CI: Changelog fragments | Fragments in `changelog.d/` and `upgrade.d/`; only `release/<version>` edits `CHANGELOG.md` | `python scripts/changelog.py check --base origin/main --branch <branch>`; `python scripts/upgrade_notes.py check` |
 | Regression test | A `fix:` PR that changes source files changes a test | `python scripts/regression_test_check.py` (reads the PR title and commits from environment variables; see its docstring) |
@@ -82,9 +82,9 @@ Five jobs take most of a pull request's CI time:
 From 1.11.0 each of them first asks `scripts/ci_changes.py` whether the
 change touches anything it tests. A change to documentation, plans or
 fragments skips all five. A change to the contract bundle skips all but
-the PostgreSQL suite. A change to the SDK pins
-(`contract/consumer-pins.json`) runs the interoperability run and the
-PostgreSQL suite.
+the PostgreSQL suite. A change to the SDK and gateway pins
+(`contract/consumer-pins.json`) runs the interoperability run, the
+container images and the PostgreSQL suite.
 
 Each required check is reported by a small summary job, not by the heavy
 job itself. The summary passes when the heavy job succeeded, or when the
@@ -167,6 +167,23 @@ the Network Authority or gateway scenarios on arm64), and
 `published-artifacts.yml` runs it against the published images on both
 architectures, including the edge agent image.
 
+From 1.11.0 the core's container jobs (`ci.yml` and `publish-image.yml`) do
+not build the gateway. They test with the gateway release pinned in
+`contract/consumer-pins.json`, its published image by digest:
+
+- `python scripts/consumer_pins.py gateway` resolves the pinned tag on GitHub
+  and prints the image, the version and commit it must report, and the
+  signing identity (the gateway's `distribution.yml` at that tag);
+- `cosign verify` checks the signature against that identity before the
+  image is pulled;
+- `--gateway-version` and `--gateway-revision` make the `gw-metadata`
+  scenario check that the image's labels and its binary report exactly that
+  release.
+
+A core change that needs newer gateway behaviour waits for a gateway release
+and pins it (its tag and its image index digest, from the gateway release
+notes) in the same pull request.
+
 Run it locally against images built from checkouts of both repositories:
 
 ```bash
@@ -179,7 +196,9 @@ python scripts/container_smoke.py --image genesis-mesh:local \
 
 `--only NAME` runs one scenario (repeat it for several),
 `--legacy-image` adds the upgrade from an image built with the 1.0
-Dockerfile, `--edge-image` adds the edge agent scenario, and `--version`
+Dockerfile, `--edge-image` adds the edge agent scenario, `--version`
 checks the image labels and `genesis_mesh.__version__` against a release
-version (the release workflow passes it). Every container, volume and network the script creates carries
+version (the release workflow passes it), and `--gateway-version` and
+`--gateway-revision` check the gateway image's labels and binary against
+the gateway release under test. Every container, volume and network the script creates carries
 the label `gmt.run=<run id>` and is removed when it finishes.

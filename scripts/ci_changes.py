@@ -49,7 +49,8 @@ RULES: tuple[tuple[str, str], ...] = (
     ("genesis_mesh/tests/*", "tests"),
     ("genesis_mesh/*", "package"),
     ("conformance/*", "conformance"),
-    # The SDK releases the Interoperability run checks out.
+    # The SDK releases the Interoperability run checks out and the gateway
+    # release the container jobs test with.
     ("contract/consumer-pins.json", "consumer-pins"),
     ("contract/*", "contract"),
     ("interop/*", "interop"),
@@ -94,8 +95,9 @@ GROUPS: dict[str, frozenset[str]] = {
                           "script:consumer_pins.py"}),
     "postgres": frozenset({"package", "tests", "build", "conformance", "contract", "consumer-pins", "examples",
                            "interop", "script:*"}),
-    "container": frozenset({"package", "build", "image", "script:container_smoke.py",
-                            "script:image_vuln_gate.py", "script:lock_image_requirements.py"}),
+    "container": frozenset({"package", "build", "image", "consumer-pins", "script:consumer_pins.py",
+                            "script:container_smoke.py", "script:image_vuln_gate.py",
+                            "script:lock_image_requirements.py"}),
 }
 ALWAYS = frozenset({"unknown", "ci-changes"})
 

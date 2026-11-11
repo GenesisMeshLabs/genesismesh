@@ -101,8 +101,9 @@ each SDK at the release (or `main` commit) pinned in
 pull request, the merge queue and on `main`. When a core change needs newer
 SDK behaviour, merge the SDK side first and pin its `main` commit in the core
 pull request; the SDK's next release replaces the commit with its tag. The
-container images job still builds the gateway branch of the same name (its
-`main` in the merge queue), so merge the gateway side first.
+container images jobs test the gateway release pinned in the same file, by
+its image digest. A core change that needs newer gateway behaviour waits for
+a gateway release and pins it.
 
 ## 5. Commit style
 

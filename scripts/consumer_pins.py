@@ -1,9 +1,11 @@
-"""The SDK revisions the core's CI runs against (``contract/consumer-pins.json``).
+"""The SDK and gateway revisions the core's CI runs against (``contract/consumer-pins.json``).
 
     python scripts/consumer_pins.py check     # the file's form, offline
     python scripts/consumer_pins.py env       # SDK_GO_REF=<commit> lines, each pin resolved on GitHub
+    python scripts/consumer_pins.py gateway   # GATEWAY_IMAGE=<image@digest> and its expected version,
+                                              # revision and signing identity
 
-From 1.11.0 the core's CI no longer picks SDK branches by name. The
+From 1.11.0 the core's CI no longer picks SDK or gateway branches by name. The
 Interoperability run checks out each SDK at the revision pinned here: a
 release tag (``vX.Y.Z``) or a commit on that repository's ``main`` (40 hex).
 A core change that needs newer SDK behaviour pins the SDK's ``main`` commit
@@ -18,6 +20,15 @@ tag must exist; a commit must be on ``main`` (the compare API answers
 ``ahead`` or ``identical`` for ``<commit>...main``). Anything else, including
 GitHub being unreachable or refusing the request, fails. A token in
 ``GITHUB_TOKEN`` is sent to ``api.github.com`` only, never on a redirect.
+
+The container jobs (``ci.yml`` and ``publish-image.yml``) test the Network
+Authority with the gateway release pinned here, never one built from a branch
+or from ``main``. The gateway is pinned to a release tag and its published
+image index digest, since only releases have images. ``gateway`` resolves the
+tag to its commit and prints the image by digest, the version and revision its
+labels and binary must report, and the identity its cosign signature must
+carry: the gateway's ``distribution.yml`` at that tag. A core change that
+needs newer gateway behaviour waits for a gateway release and pins it.
 Stdlib only.
 """
 
@@ -33,6 +44,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = ROOT / "contract" / "consumer-pins.json"
@@ -46,8 +58,13 @@ CONSUMERS = {
     "sdk-rust": "SDK_RUST_REF",
     "sdk-typescript": "SDK_TS_REF",
 }
+#: The gateway is pinned to a release and its image, signed by the gateway's own release workflow.
+GATEWAY = "gateway"
+GATEWAY_IMAGE = "ghcr.io/genesismeshlabs/genesis-mesh-gateway"
+GATEWAY_WORKFLOW = ".github/workflows/distribution.yml"
 TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 COMMIT = re.compile(r"[0-9a-f]{40}")
+DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 
 GitHub = Callable[[str], object]
 
@@ -65,8 +82,25 @@ def _no_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return seen
 
 
-def load(path: Path | None = None) -> dict[str, str]:
-    """The pinned ref of each consumer, after checking the file's form."""
+class GatewayPin(NamedTuple):
+    ref: str  #: the release tag, vX.Y.Z
+    digest: str  #: the image index digest published for it, sha256:<64 hex>
+
+    @property
+    def version(self) -> str:
+        return self.ref.removeprefix("v")
+
+    @property
+    def image(self) -> str:
+        return f"{GATEWAY_IMAGE}@{self.digest}"
+
+    @property
+    def identity(self) -> str:
+        return f"https://github.com/{ORGANIZATION}/{GATEWAY}/{GATEWAY_WORKFLOW}@refs/tags/{self.ref}"
+
+
+def _read(path: Path | None) -> tuple[str, dict[str, object]]:
+    """The file's name and its entries, after checking the schema and the set of names."""
     path = PINS if path is None else path
     try:
         data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicates)
@@ -75,16 +109,39 @@ def load(path: Path | None = None) -> dict[str, str]:
     if not isinstance(data, dict) or data.get("schema") != SCHEMA:
         raise PinError(f"{path.name}: schema must be {SCHEMA!r}")
     names = set(data) - {"schema"}
-    if names != set(CONSUMERS):
-        raise PinError(f"{path.name}: consumers {sorted(names)}, expected {sorted(CONSUMERS)}")
+    expected = set(CONSUMERS) | {GATEWAY}
+    if names != expected:
+        raise PinError(f"{path.name}: consumers {sorted(names)}, expected {sorted(expected)}")
+    return path.name, data
+
+
+def load_gateway(path: Path | None = None) -> GatewayPin:
+    """The pinned gateway release and image digest, after checking the whole file's form."""
+    load(path)  # the SDK entries too: a file is valid as a whole or not at all
+    file, data = _read(path)
+    entry = data[GATEWAY]
+    if (not isinstance(entry, dict) or set(entry) != {"ref", "image"}
+            or not all(isinstance(value, str) for value in entry.values())):
+        raise PinError(f"{file}: {GATEWAY} must be {{\"ref\": \"vX.Y.Z\", \"image\": \"sha256:...\"}}")
+    if not TAG.fullmatch(entry["ref"]):
+        raise PinError(f"{file}: {GATEWAY} ref {entry['ref']!r} is not a release tag vX.Y.Z "
+                       "(only gateway releases have images)")
+    if not DIGEST.fullmatch(entry["image"]):
+        raise PinError(f"{file}: {GATEWAY} image {entry['image']!r} is not an image digest sha256:<64 hex>")
+    return GatewayPin(entry["ref"], entry["image"])
+
+
+def load(path: Path | None = None) -> dict[str, str]:
+    """The pinned ref of each SDK, after checking the file's form."""
+    file, data = _read(path)
     refs = {}
     for name in sorted(CONSUMERS):
         entry = data[name]
         if not isinstance(entry, dict) or set(entry) != {"ref"} or not isinstance(entry["ref"], str):
-            raise PinError(f"{path.name}: {name} must be {{\"ref\": \"...\"}}")
+            raise PinError(f"{file}: {name} must be {{\"ref\": \"...\"}}")
         ref = entry["ref"]
         if not (TAG.fullmatch(ref) or COMMIT.fullmatch(ref)):
-            raise PinError(f"{path.name}: {name} ref {ref!r} is neither a release tag vX.Y.Z nor a 40-hex commit")
+            raise PinError(f"{file}: {name} ref {ref!r} is neither a release tag vX.Y.Z nor a 40-hex commit")
         refs[name] = ref
     return refs
 
@@ -147,12 +204,24 @@ def main(argv: list[str] | None = None, github: GitHub = github_api) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="check the file's form (offline)")
-    sub.add_parser("env", help="print NAME=<commit> lines for $GITHUB_ENV, each pin resolved on GitHub")
+    sub.add_parser("env", help="print NAME=<commit> lines for $GITHUB_ENV, each SDK pin resolved on GitHub")
+    sub.add_parser("gateway", help="print the pinned gateway image by digest and what it must report, "
+                                   "for $GITHUB_ENV (its tag resolved on GitHub)")
     args = parser.parse_args(argv)
     try:
         refs = load()
+        gateway = load_gateway()
         if args.command == "check":
-            print(", ".join(f"{name} {ref}" for name, ref in refs.items()))
+            print(", ".join([f"{name} {ref}" for name, ref in refs.items()]
+                            + [f"{GATEWAY} {gateway.ref} ({gateway.digest})"]))
+            return 0
+        if args.command == "gateway":
+            revision = resolve(GATEWAY, gateway.ref, github)
+            print(f"{GATEWAY}: {gateway.ref} is {revision}, image {gateway.digest}", file=sys.stderr)
+            print(f"GATEWAY_IMAGE={gateway.image}")
+            print(f"GATEWAY_VERSION={gateway.version}")
+            print(f"GATEWAY_REVISION={revision}")
+            print(f"GATEWAY_IDENTITY={gateway.identity}")
             return 0
         # Resolve all first: a failure prints no line at all.
         commits = {name: resolve(name, ref, github) for name, ref in refs.items()}
