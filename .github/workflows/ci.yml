@@ -215,8 +215,8 @@ jobs:
       - name: The kind table is current
         run: python scripts/render_contract_kinds.py --check
 
-      - name: Bundle tests (spec rules, reproducible archive)
-        run: python -m pytest genesis_mesh/tests/test_contract_bundle.py -q
+      - name: Bundle tests (spec rules, reproducible archive, consumer commands)
+        run: python -m pytest genesis_mesh/tests/test_contract_bundle.py genesis_mesh/tests/test_contract_consumer.py -q
 
   postgres:
     name: PostgreSQL suite and HA failover tests
