@@ -15,7 +15,10 @@ pushing the tag.
 - [ ] Package version bumped in `pyproject.toml`
 - [ ] `VERSION`, `pyproject.toml`, and the source fallback all match
 - [ ] TypeScript, Go, .NET, Rust SDK, and gateway repositories declare the same release version
-- [ ] `python scripts/check_release_train.py` passes (no component has released ahead of `VERSION`)
+- [ ] `python scripts/check_release_train.py` passes (`VERSION` is not behind a core release)
+- [ ] Look at the latest "Release train audit" run (informational: a component
+      released above the core's latest major.minor is resolved by releasing the
+      core, never a reason to hold it)
 - [ ] `python scripts/check_version.py --tag vX.Y.Z` passes
 - [ ] CHANGELOG updated with a new version section
 - [ ] `docs/development/history.md` updated with the new version entry

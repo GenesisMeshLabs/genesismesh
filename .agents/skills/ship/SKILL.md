@@ -442,11 +442,15 @@ typically does not change this table; a minor or major release does.
 ```
 python scripts/check_release_train.py
 ```
-Pass: no component repository (SDKs, gateway, or this repository) has published
-a tag newer than `VERSION`.
-Fail: **HARD STOP** — the chosen version would reuse a number another component
-already released. Pick a version newer than every listed release; see
+Pass: the core has not published a tag newer than `VERSION`.
+Fail: **HARD STOP** — the chosen version would reuse a core release number.
+Pick a version newer than the latest core tag; see
 `docs/development/versioning.md`.
+
+Informational: `python scripts/check_release_train.py --audit-ceiling` (the
+nightly "Release train audit") lists any component released above the core's
+latest major.minor. It never blocks a core release: releasing the core at that
+major.minor is what resolves it. Report a breach to the Maintainer.
 
 ### 7K — No staged secrets
 ```

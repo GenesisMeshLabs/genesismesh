@@ -1,12 +1,23 @@
-"""Keep the coordinated release train ahead of every component's released tags.
+"""Check the core's own version, and audit the other components nightly.
 
-Genesis Mesh leads one coordinated product version (docs/development/versioning.md).
-A component that tags a version the core has not reached creates a number that
-means two different releases. This check fails when any component repository,
-including this one, has already published a tag newer than ``VERSION``.
+The default run is the core's own monotonic check, for pull requests and the
+publish workflows: ``VERSION`` must not be behind a release the core has
+already tagged, so a version number never means two different core releases.
+It reads only this repository's tags; a component's release can never turn
+the core's CI red.
 
-Component repositories run the mirror check: they may not declare or tag a
-version newer than the core ``VERSION`` on ``main``.
+``--audit-ceiling`` is the cross-component ceiling, run nightly, never on pull
+requests. A component follows the core: its newest release may not be of a
+newer major.minor than the core's latest release, because a component release
+pins a released contract bundle, and bundles are core releases. Patch numbers
+are each component's own. The Rust verifier and edge streams have their own
+tag prefixes and are not read. Every component listed here follows the core;
+an ``own-major`` component (ops/plan-contract-bundle.md, C1) would need its
+``supports`` range instead, and the compatibility table (C4) takes this audit
+over once it exists.
+
+Component repositories run their own check against their pinned bundle
+(docs/development/versioning.md).
 """
 
 from __future__ import annotations
@@ -20,7 +31,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ORGANIZATION = "GenesisMeshLabs"
-COMPONENTS = ("genesismesh", "sdk-typescript", "sdk-go", "sdk-dotnet", "sdk-rust", "gateway")
+CORE = "genesismesh"
+COMPONENTS = ("sdk-typescript", "sdk-go", "sdk-dotnet", "sdk-rust", "gateway")
 TAG = re.compile(r"refs/tags/v(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -82,32 +94,75 @@ def released_versions(component: str) -> list[tuple[int, int, int]]:
     return versions  # type: ignore[return-value]
 
 
-def conflicts(version: tuple[int, int, int], released: dict[str, list[tuple[int, int, int]]]) -> list[str]:
-    """Describe every component whose newest release is ahead of ``version``."""
+def behind(version: tuple[int, int, int], core_released: list[tuple[int, int, int]]) -> str | None:
+    """Describe the core release ``version`` is behind, or return None."""
+    newest = max(core_released, default=None)
+    if newest is not None and newest > version:
+        return f"{CORE} already released v{_text(newest)}"
+    return None
+
+
+def ceiling_breaches(
+    core_released: list[tuple[int, int, int]], released: dict[str, list[tuple[int, int, int]]],
+) -> list[str]:
+    """Describe every component whose newest release is above the core's major.minor."""
+    core = max(core_released, default=None)
+    if core is None:
+        raise SystemExit(f"{CORE} has no release tags to audit against")
     problems = []
     for component, versions in released.items():
         newest = max(versions, default=None)
-        if newest is not None and newest > version:
-            problems.append(f"{component} already released v{'.'.join(map(str, newest))}")
+        if newest is not None and newest[:2] > core[:2]:
+            problems.append(
+                f"{component} released v{_text(newest)}, above the core's latest release v{_text(core)}"
+            )
     return problems
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--version", help="Version to check (default: VERSION file)")
-    args = parser.parse_args(argv)
-    text = args.version or (ROOT / "VERSION").read_text(encoding="utf-8")
+def _text(version: tuple[int, int, int]) -> str:
+    return ".".join(map(str, version))
+
+
+def check_core(text: str) -> int:
     version = parse(text)
-    problems = conflicts(version, {c: released_versions(c) for c in COMPONENTS})
+    problem = behind(version, released_versions(CORE))
+    if problem:
+        print(problem)
+        raise SystemExit(
+            f"VERSION {text.strip()} is behind the core's own releases: the next core version "
+            "must be newer than its latest tag; see docs/development/versioning.md."
+        )
+    print(f"Core version verified: v{text.strip()} is not behind any core release")
+    return 0
+
+
+def audit_ceiling() -> int:
+    core_released = released_versions(CORE)
+    problems = ceiling_breaches(core_released, {c: released_versions(c) for c in COMPONENTS})
+    core = _text(max(core_released))
     if problems:
         for problem in problems:
             print(problem)
         raise SystemExit(
-            f"VERSION {text.strip()} is behind the release train. Choose a version newer than "
-            "every released component; see docs/development/versioning.md."
+            f"A component released above the core's latest release v{core}. A component release "
+            "pins a released bundle; see docs/development/versioning.md."
         )
-    print(f"Release train verified: v{text.strip()} is not behind any component release")
+    print(f"Ceiling verified: no component released above the core's latest release v{core}")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--version", help="Version to check (default: VERSION file)")
+    group.add_argument(
+        "--audit-ceiling", action="store_true",
+        help="Audit every component's newest release against the core's latest release (nightly)",
+    )
+    args = parser.parse_args(argv)
+    if args.audit_ceiling:
+        return audit_ceiling()
+    return check_core(args.version or (ROOT / "VERSION").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
