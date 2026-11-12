@@ -1,0 +1,3 @@
+### Changed
+
+- **The core's release-train check reads only the core's own tags.** In CI and in the PyPI and image publish workflows, `scripts/check_release_train.py` now fails only when the core has already released a version newer than `VERSION`, so another component's release can no longer turn a core check red. The cross-component ceiling moves to a nightly "Release train audit" workflow (`check_release_train.py --audit-ceiling`), which fails when a component's newest release is of a newer major.minor than the core's latest release and opens or updates an issue when a scheduled run fails. Patch numbers are each component's own under that ceiling.
