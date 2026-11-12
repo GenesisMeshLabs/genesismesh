@@ -15,10 +15,21 @@ Core commands (they refuse to run outside a core checkout):
     python scripts/gm_contract.py manifest --check    # fail when it is stale or the spec is wrong
     python scripts/gm_contract.py archive --out DIR   # reproducible release archive + SHA256SUMS-contract
 
-The consumer commands (sync, verify, receipt-check, release-check) follow in
-the next change of ``ops/plan-v1.11.0-release-model.md``. Consumers vendor
-this file byte for byte, so it must stay importable on Python 3.11 with the
-standard library alone; ``manifest --check`` enforces that.
+Consumer commands (an SDK or the gateway, with ``contract-bundle/consumer.json``):
+
+    python scripts/gm_contract.py sync --core-ref <40-hex>   # copy the bundle at a core commit on main, pin it
+    python scripts/gm_contract.py sync --core-path ../genesismesh  # local development; never passes verify
+    python scripts/gm_contract.py sync --core-ref <sha> --no-lock  # canaries: copies only, lock untouched
+    python scripts/gm_contract.py verify [--online]          # copies, tool and manifest copy match the lock
+    python scripts/gm_contract.py conformance [--json-out F] # run the tests with receipts, then receipt-check
+    python scripts/gm_contract.py receipt-check --receipts DIR
+    python scripts/gm_contract.py core-ref                   # the pinned core commit, for workflows
+
+Release pins (``sync --version``/``--latest``), ``release-check``, ``latest``,
+``fragment`` and ``status`` follow in the next change of
+``ops/plan-v1.11.0-release-model.md``. Consumers vendor this file byte for
+byte, so it must stay importable on Python 3.11 with the standard library
+alone; ``manifest --check`` enforces that.
 
 Exit codes: 0 ok, 1 check failed, 2 usage error.
 """
@@ -402,6 +413,588 @@ def cmd_archive(root: Path, out: Path) -> int:
     return 0
 
 
+# --- Consumer side ------------------------------------------------------------------------------
+#
+# A consumer (an SDK or the gateway) declares in contract-bundle/consumer.json which bundle files
+# it copies where, which tiers it implements and how it runs its conformance tests. `sync` copies
+# a bundle in and pins it in contract-bundle/bundle.lock; `verify` checks the copies against the
+# pin; `conformance` runs the tests with receipts and `receipt-check` compares the receipts with
+# the pinned manifest. Release pins (`sync --version`, `release-check`) follow in the next change.
+
+CONSUMER_DIR = "contract-bundle"
+CONSUMER_PATH = f"{CONSUMER_DIR}/consumer.json"
+LOCK_PATH = f"{CONSUMER_DIR}/bundle.lock"
+MANIFEST_COPY_PATH = f"{CONSUMER_DIR}/MANIFEST.json"
+CONSUMER_SCHEMA = "gm.contract.consumer/1"
+LOCK_SCHEMA = "gm.contract.lock/1"
+RECEIPT_SCHEMA = "gm.contract.receipt/1"
+CONSUMER_KEYS = frozenset({"schema", "component", "tiers", "tool_path", "files", "regenerate",
+                           "conformance", "streams", "version_policy"})
+LOCK_KEYS = frozenset({"schema", "source", "bundle_version", "core_tag", "core_commit", "archive",
+                       "manifest_sha256", "contract_digest", "files", "tool_sha256"})
+RECEIPT_KEYS = frozenset({"schema", "suite", "file", "runner", "run", "not_run"})
+CORE_REPOSITORY = "GenesisMeshLabs/genesismesh"
+RAW_URL = "https://raw.githubusercontent.com/{repo}/{commit}/{path}"
+COMPARE_URL = "https://api.github.com/repos/{repo}/compare/{commit}...main"
+COMMIT = re.compile(r"[0-9a-f]{40}")
+SHA256 = re.compile(r"[0-9a-f]{64}")
+RECEIPTS_ENV = "GM_CONFORMANCE_RECEIPTS"
+CACHE_ENV = "GM_CONTRACT_CACHE"
+
+
+def _relative(path: Any, what: str, directory: bool = False) -> str:
+    """A relative POSIX path inside the checkout; a directory mapping ends in ``/``."""
+    if not isinstance(path, str) or path.endswith("/") != directory:
+        raise ContractError(f"{CONSUMER_PATH}: {what} {path!r} must be a relative "
+                            f"{'directory ending in /' if directory else 'file path'}")
+    body = path[:-1] if directory else path
+    if (not body or "\\" in body or body.startswith("/") or ":" in body
+            or any(part in ("", ".", "..") for part in body.split("/"))):
+        raise ContractError(f"{CONSUMER_PATH}: {what} {path!r} is not a relative path inside the checkout")
+    return path
+
+
+def _commands(value: Any, what: str) -> list[list[str]]:
+    if (not isinstance(value, list) or not all(isinstance(c, list) and c and all(isinstance(a, str) and a for a in c)
+                                               for c in value)):
+        raise ContractError(f"{CONSUMER_PATH}: {what!r} must be a list of commands, each a non-empty list of strings")
+    return value
+
+
+def load_consumer(repo: Path) -> dict[str, Any]:
+    """``contract-bundle/consumer.json``, checked for shape; the mapping is checked against a manifest later."""
+    path = repo / CONSUMER_PATH
+    if not path.is_file():
+        raise ContractError(f"{repo} has no {CONSUMER_PATH}: the consumer commands run in an SDK or gateway checkout")
+    data = read_json(path)
+    if not isinstance(data, dict) or data.get("schema") != CONSUMER_SCHEMA:
+        raise ContractError(f"{CONSUMER_PATH}: schema must be {CONSUMER_SCHEMA!r}")
+    unknown = sorted(set(data) - CONSUMER_KEYS)
+    missing = sorted({"component", "tiers", "tool_path", "files", "conformance"} - set(data))
+    if unknown or missing:
+        raise ContractError(f"{CONSUMER_PATH}: unknown keys {unknown}, missing keys {missing}")
+    tiers = data["tiers"]
+    if (not isinstance(data["component"], str) or not data["component"] or not isinstance(tiers, list) or not tiers
+            or not all(isinstance(t, str) for t in tiers) or len(set(tiers)) != len(tiers)):
+        raise ContractError(f"{CONSUMER_PATH}: 'component' is a name and 'tiers' a non-empty list without repeats")
+    _relative(data["tool_path"], "tool_path")
+    files = data["files"]
+    if not isinstance(files, dict) or not files:
+        raise ContractError(f"{CONSUMER_PATH}: 'files' maps bundle paths to paths in this checkout")
+    for source, dest in files.items():
+        directory = source.endswith("/")
+        _relative(source, "bundle path", directory)
+        _relative(dest, f"destination of {source}", directory)
+    _commands(data.get("regenerate", []), "regenerate")
+    _commands(data["conformance"], "conformance")
+    return data
+
+
+def mapping(consumer: dict[str, Any], manifest: dict[str, Any]) -> dict[str, str]:
+    """Destination -> bundle path for every copy, a directory mapping expanded over the manifest."""
+    reserved = {consumer["tool_path"], LOCK_PATH, MANIFEST_COPY_PATH, CONSUMER_PATH}
+    out: dict[str, str] = {}
+    for source, dest in consumer["files"].items():
+        if source.endswith("/"):
+            # sync removes what the bundle drops from a directory copy, so the directory must hold
+            # nothing else of the consumer's own: not the tool, the lock or the manifest copy.
+            if any(path.startswith(dest) for path in (*reserved, CONSUMER_DIR + "/")):
+                raise ContractError(f"{CONSUMER_PATH}: the directory {dest!r} would hold the tool or "
+                                    f"{CONSUMER_DIR}/; copy the bundle into a directory of its own")
+            pairs =[(rel, dest + rel[len(source):]) for rel in manifest["files"] if rel.startswith(source)]
+        else:
+            pairs = [(source, dest)] if source in manifest["files"] else []
+        if not pairs:
+            raise ContractError(f"{CONSUMER_PATH}: {source!r} names no file of bundle {manifest['bundle_version']}")
+        for rel, target in pairs:
+            if rel == manifest["tool"]["path"]:
+                raise ContractError(f"{CONSUMER_PATH}: the tool is copied to tool_path, not through 'files'")
+            if target in reserved or target.startswith(CONSUMER_DIR + "/"):
+                raise ContractError(f"{CONSUMER_PATH}: {target!r} is reserved for the tool, the lock or the manifest")
+            if target in out:
+                raise ContractError(f"{CONSUMER_PATH}: two bundle files are copied to {target!r}")
+            out[target] = rel
+    return dict(sorted(out.items()))
+
+
+def check_manifest(data: bytes) -> dict[str, Any]:
+    """A manifest read from a bundle source: its schema, and a digest that matches its content."""
+    try:
+        manifest = json.loads(data.decode("utf-8"), object_pairs_hook=_no_duplicates)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ContractError(f"the bundle manifest is not JSON ({exc})") from exc
+    if not isinstance(manifest, dict) or manifest.get("schema") != MANIFEST_SCHEMA:
+        raise ContractError(f"the bundle manifest's schema is not {MANIFEST_SCHEMA!r}")
+    try:
+        digest = "sha256:" + contract_digest(manifest)
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ContractError(f"the bundle manifest is incomplete ({exc!r})") from exc
+    if manifest.get("contract_digest") != digest:
+        raise ContractError("the bundle manifest's contract_digest does not match its content")
+    # A manifest that agrees with itself can still be hostile (any commit, a fork's included, is
+    # served under the core's name): every path in it must be a plain relative path, and every
+    # hash a sha256, before a single file is fetched or written.
+    files = manifest["files"]
+    if not isinstance(files, dict) or not files:
+        raise ContractError("the bundle manifest lists no files")
+    for rel, entry in files.items():
+        if not _plain_path(rel):
+            raise ContractError(f"the bundle manifest lists an unsafe path {rel!r}")
+        if not isinstance(entry, dict) or not isinstance(entry.get("sha256"), str) or not SHA256.fullmatch(entry["sha256"]):
+            raise ContractError(f"the bundle manifest has no sha256 for {rel!r}")
+    tool = manifest["tool"]
+    if not isinstance(tool, dict) or tool.get("path") not in files or tool.get("sha256") != files[tool["path"]]["sha256"]:
+        raise ContractError("the bundle manifest's tool is not one of its files")
+    suites = manifest["suites"]
+    if not isinstance(suites, dict) or not all(isinstance(s, dict) and s.get("file") in files for s in suites.values()):
+        raise ContractError("the bundle manifest names a suite file it does not list")
+    return manifest
+
+
+def _plain_path(path: Any) -> bool:
+    """A relative POSIX file path: no drive, no backslash, no empty, ``.`` or ``..`` segment."""
+    return (isinstance(path, str) and bool(path) and "\\" not in path and ":" not in path
+            and not path.startswith("/") and all(part not in ("", ".", "..") for part in path.split("/")))
+
+
+def inside(repo: Path, rel: str) -> Path:
+    """``repo / rel``, refusing a path that leaves the checkout (through ``..`` or a symbolic link)."""
+    target = (repo / rel).resolve()
+    if target != repo.resolve() and repo.resolve() not in target.parents:
+        raise ContractError(f"{rel!r} resolves outside the checkout")
+    return target
+
+
+def required_suites(manifest: dict[str, Any], tiers: list[str]) -> dict[str, set[str]]:
+    """Suite -> the kinds the given tiers must run, for every suite that requires any."""
+    unknown = sorted(set(tiers) - set(manifest["tiers"]))
+    if unknown:
+        raise ContractError(f"{CONSUMER_PATH}: tiers {unknown} are not in bundle {manifest['bundle_version']} "
+                            f"(it has {sorted(manifest['tiers'])})")
+    out: dict[str, set[str]] = {}
+    for name, suite in manifest["suites"].items():
+        kinds = {k for tier in tiers for k in suite["required"].get(tier, [])}
+        if kinds:
+            out[name] = kinds
+    return out
+
+
+# Fetching (commit pins) -------------------------------------------------------------------------
+
+def cache_dir() -> Path:
+    configured = os.environ.get(CACHE_ENV)
+    return Path(configured) if configured else Path.home() / ".cache" / "genesis-mesh" / "contract"
+
+
+def fetch_url(url: str) -> bytes:
+    """GET ``url``. A token (GITHUB_TOKEN or GH_TOKEN) is sent to api.github.com and nowhere else."""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(url, headers={"User-Agent": "gm_contract"})
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        # Unredirected: urllib copies ordinary headers onto a redirect, wherever it leads.
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
+        request.add_header("Accept", "application/vnd.github+json")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.read()
+    except (urllib.error.URLError, OSError) as exc:
+        raise ContractError(f"cannot fetch {url} ({exc})") from exc
+
+
+def on_main(commit: str) -> None:
+    """Fail unless ``commit`` is core ``main`` or one of its ancestors (GitHub's compare API)."""
+    try:
+        compare = json.loads(fetch_url(COMPARE_URL.format(repo=CORE_REPOSITORY, commit=commit)))
+    except ValueError as exc:
+        raise ContractError(f"GitHub's compare answer is not JSON ({exc})") from exc
+    status = compare.get("status") if isinstance(compare, dict) else None
+    if status not in ("ahead", "identical"):
+        raise ContractError(f"core {commit[:12]} is not on core main (compare status {status!r}): pin a merged commit")
+
+
+class CommitSource:
+    """The bundle at a core commit, read from raw.githubusercontent.com.
+
+    Files are cached by their sha256 and used only when they still hash to it. The manifest is
+    cached by commit for ``--offline`` alone: an online sync always fetches it again.
+    """
+
+    def __init__(self, commit: str, offline: bool = False) -> None:
+        if not COMMIT.fullmatch(commit):
+            raise ContractError(f"--core-ref must be a full 40-character commit hash, not {commit!r}")
+        self.commit = commit
+        self.offline = offline
+        self.cache = cache_dir()
+
+    def _fetch(self, rel: str) -> bytes:
+        if self.offline:
+            raise ContractError(f"--offline: {rel} at {self.commit[:12]} is not in the cache {self.cache}")
+        return fetch_url(RAW_URL.format(repo=CORE_REPOSITORY, commit=self.commit, path=rel))
+
+    def manifest_bytes(self) -> bytes:
+        cached = self.cache / "commits" / self.commit / "MANIFEST.json"
+        data = cached.read_bytes() if self.offline and cached.is_file() else self._fetch(MANIFEST_PATH)
+        check_manifest(data)
+        if not self.offline:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            cached.write_bytes(data)
+        return data
+
+    def file(self, rel: str, sha256: str) -> bytes:
+        cached = self.cache / "objects" / sha256
+        if cached.is_file():
+            data = cached.read_bytes()
+            if sha256_bytes(data) == sha256:
+                return data
+        data = self._fetch(rel)
+        if sha256_bytes(data) == sha256:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            cached.write_bytes(data)
+        return data
+
+
+class PathSource:
+    """The bundle in a core checkout on disk (local development; its lock never passes ``verify``)."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = core_root(root.resolve())
+        self.commit: str | None = None
+        try:
+            self.commit = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"], check=True,
+                                         capture_output=True, text=True).stdout.strip() or None
+        except (OSError, subprocess.CalledProcessError):
+            pass
+
+    def manifest_bytes(self) -> bytes:
+        path = self.root / MANIFEST_PATH
+        if not path.is_file():
+            raise ContractError(f"{self.root} has no {MANIFEST_PATH}")
+        return path.read_bytes()
+
+    def file(self, rel: str, sha256: str) -> bytes:
+        return (self.root / rel).read_bytes()
+
+
+def write_if_changed(path: Path, data: bytes) -> bool:
+    if path.is_file() and path.read_bytes() == data:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return True
+
+
+def _run(command: list[str], repo: Path, env: dict[str, str] | None = None) -> int:
+    """Run a consumer.json command in the checkout; the program is looked up on PATH (npm.cmd on Windows)."""
+    import shutil
+
+    program = shutil.which(command[0]) or command[0]
+    print("+ " + " ".join(command), flush=True)
+    try:
+        return subprocess.run([program, *command[1:]], cwd=repo, env=env).returncode
+    except OSError as exc:
+        raise ContractError(f"cannot run {command[0]!r} ({exc})") from exc
+
+
+def directory_destinations(consumer: dict[str, Any]) -> list[str]:
+    return [dest for source, dest in consumer["files"].items() if source.endswith("/")]
+
+
+def extra_files(repo: Path, consumer: dict[str, Any], copies: dict[str, str]) -> list[str]:
+    """Files under a directory mapping that the bundle does not have."""
+    extra = []
+    for dest in directory_destinations(consumer):
+        base = repo / dest
+        if base.is_dir():
+            extra += [p.relative_to(repo).as_posix() for p in base.rglob("*")
+                      if p.is_file() and p.relative_to(repo).as_posix() not in copies]
+    return sorted(extra)
+
+
+def cmd_sync(repo: Path, source: CommitSource | PathSource, write_lock: bool) -> int:
+    consumer = load_consumer(repo)
+    manifest_bytes = source.manifest_bytes()
+    manifest = check_manifest(manifest_bytes)
+    copies = mapping(consumer, manifest)
+    required = required_suites(manifest, consumer["tiers"])
+    mapped = set(copies.values())
+    unmapped = sorted(name for name in required if manifest["suites"][name]["file"] not in mapped)
+    if unmapped:
+        raise ContractError(f"{CONSUMER_PATH}: suites required by tiers {consumer['tiers']} are not copied: {unmapped}")
+
+    blobs: dict[str, bytes] = {}
+    for rel in sorted({*copies.values(), manifest["tool"]["path"]}):
+        data = source.file(rel, manifest["files"][rel]["sha256"])
+        if sha256_bytes(data) != manifest["files"][rel]["sha256"]:
+            raise ContractError(f"{rel} does not match the bundle manifest (a stale manifest at the source?)")
+        blobs[rel] = data
+
+    if isinstance(source, CommitSource) and write_lock and not source.offline:
+        on_main(source.commit)   # before anything is written: a lock names a merged core commit
+    targets = {dest: inside(repo, dest) for dest in copies}
+    try:
+        previous = set(read_lock(repo)["files"]) if (repo / LOCK_PATH).is_file() else set()
+    except ContractError:
+        previous = set()
+
+    changed = [dest for dest, rel in copies.items() if write_if_changed(targets[dest], blobs[rel])]
+    # Only copies the previous pin made and this one drops: never a file sync did not write.
+    for stale in sorted(previous - set(copies)):
+        path = inside(repo, stale) if _plain_path(stale) else None
+        if path is not None and path.is_file():
+            path.unlink()
+            changed.append(f"{stale} (removed)")
+    if write_if_changed(inside(repo, MANIFEST_COPY_PATH), manifest_bytes):
+        changed.append(MANIFEST_COPY_PATH)
+    tool = blobs[manifest["tool"]["path"]]
+    if write_lock and write_if_changed(inside(repo, consumer["tool_path"]), tool):
+        changed.append(consumer["tool_path"])
+    for command in consumer.get("regenerate", []):
+        if _run(command, repo) != 0:
+            raise ContractError(f"regenerate command failed: {' '.join(command)} ({LOCK_PATH} left as it was)")
+    if write_lock:
+        lock = {
+            "schema": LOCK_SCHEMA,
+            "source": "path" if isinstance(source, PathSource) else "commit",
+            "bundle_version": manifest["bundle_version"],
+            "core_tag": None,
+            "core_commit": source.commit,
+            "archive": None,
+            "manifest_sha256": sha256_bytes(manifest_bytes),
+            "contract_digest": manifest["contract_digest"],
+            "files": {dest: {"from": rel, "sha256": manifest["files"][rel]["sha256"]} for dest, rel in copies.items()},
+            "tool_sha256": sha256_bytes(tool),
+        }
+        if write_if_changed(inside(repo, LOCK_PATH), render(lock)):
+            changed.append(LOCK_PATH)
+    label = pin_label(manifest["bundle_version"], source.commit)
+    print(f"bundle {label} ({manifest['contract_digest'][:19]}): "
+          + (", ".join(changed) if changed else "nothing changed"))
+    if not write_lock:
+        print(f"--no-lock: {LOCK_PATH} and {consumer['tool_path']} were left as they are")
+    return 0
+
+
+def pin_label(version: str, commit: str | None) -> str:
+    return f"{version}+g{commit[:12]}" if commit else version
+
+
+def read_lock(repo: Path) -> dict[str, Any]:
+    path = repo / LOCK_PATH
+    if not path.is_file():
+        raise ContractError(f"no {LOCK_PATH}: run `gm_contract.py sync` first")
+    lock = read_json(path)
+    if not isinstance(lock, dict) or lock.get("schema") != LOCK_SCHEMA or set(lock) != LOCK_KEYS:
+        raise ContractError(f"{LOCK_PATH}: not a {LOCK_SCHEMA} lock with exactly the keys {sorted(LOCK_KEYS)}")
+    if lock["source"] not in ("release", "commit", "path"):
+        raise ContractError(f"{LOCK_PATH}: source must be release, commit or path")
+    return lock
+
+
+def verify_offline(repo: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """(consumer, lock, manifest) after checking every copy, the tool and the manifest copy against the lock."""
+    consumer = load_consumer(repo)
+    lock = read_lock(repo)
+    problems: list[str] = []
+    if lock["source"] == "path":
+        problems.append(f"{LOCK_PATH} pins a local core checkout (source 'path'): sync from a commit or a "
+                        "release before committing")
+    if lock["source"] == "commit":
+        if not (isinstance(lock["core_commit"], str) and COMMIT.fullmatch(lock["core_commit"])):
+            problems.append(f"{LOCK_PATH}: a commit pin needs a 40-character core_commit")
+        if lock["core_tag"] is not None or lock["archive"] is not None:
+            problems.append(f"{LOCK_PATH}: a commit pin has no core_tag or archive")
+    if lock["source"] == "release":
+        problems.append(f"{LOCK_PATH}: release pins are checked from the next version of this tool")
+    copy_path = repo / MANIFEST_COPY_PATH
+    if not copy_path.is_file():
+        raise ContractError(f"no {MANIFEST_COPY_PATH}: run `gm_contract.py sync`")
+    manifest_bytes = copy_path.read_bytes()
+    manifest = check_manifest(manifest_bytes)
+    if sha256_bytes(manifest_bytes) != lock["manifest_sha256"]:
+        problems.append(f"{MANIFEST_COPY_PATH} is not the manifest {LOCK_PATH} pins")
+    for key in ("bundle_version", "contract_digest"):
+        if manifest[key] != lock[key]:
+            problems.append(f"{LOCK_PATH} {key} {lock[key]!r} differs from the manifest's {manifest[key]!r}")
+    copies = mapping(consumer, manifest)
+    expected = {dest: {"from": rel, "sha256": manifest["files"][rel]["sha256"]} for dest, rel in copies.items()}
+    if lock["files"] != expected:
+        problems.append(f"{LOCK_PATH} files differ from {CONSUMER_PATH} applied to the pinned manifest: "
+                        "run `gm_contract.py sync` with the same pin")
+    for dest, entry in expected.items():
+        path = repo / dest
+        if not path.is_file():
+            problems.append(f"{dest} is missing")
+        elif sha256_bytes(path.read_bytes()) != entry["sha256"]:
+            problems.append(f"{dest} differs from {entry['from']} in the pinned bundle (edited, or line endings "
+                            "changed: mark it -text in .gitattributes)")
+    problems += [f"{extra} is not in the pinned bundle" for extra in extra_files(repo, consumer, copies)]
+    tool = repo / consumer["tool_path"]
+    tool_sha = sha256_bytes(tool.read_bytes()) if tool.is_file() else None
+    if tool_sha != lock["tool_sha256"] or tool_sha != manifest["tool"]["sha256"]:
+        problems.append(f"{consumer['tool_path']} is not the tool of the pinned bundle")
+    mapped = set(copies.values())
+    for name in sorted(required_suites(manifest, consumer["tiers"])):
+        if manifest["suites"][name]["file"] not in mapped:
+            problems.append(f"suite {name} is required by tiers {consumer['tiers']} and not copied")
+    if problems:
+        raise ContractError("verify failed:\n  " + "\n  ".join(problems))
+    return consumer, lock, manifest
+
+
+def verify_online(lock: dict[str, Any]) -> None:
+    """A commit pin: the manifest at that commit is the pinned one, and the commit is on core ``main``."""
+    if lock["source"] != "commit":
+        raise ContractError(f"verify --online checks commit pins; a {lock['source']} pin is checked from the "
+                            "next version of this tool")
+    commit = lock["core_commit"]
+    data = fetch_url(RAW_URL.format(repo=CORE_REPOSITORY, commit=commit, path=MANIFEST_PATH))
+    if sha256_bytes(data) != lock["manifest_sha256"]:
+        raise ContractError(f"the manifest at core {commit[:12]} is not the one {LOCK_PATH} pins")
+    on_main(commit)
+
+
+def cmd_verify(repo: Path, online: bool) -> int:
+    consumer, lock, manifest = verify_offline(repo)
+    if online:
+        verify_online(lock)
+    print(f"{consumer['component']}: bundle {pin_label(lock['bundle_version'], lock['core_commit'])} "
+          f"verified{' online' if online else ''} ({len(lock['files'])} copies)")
+    return 0
+
+
+def _counts(value: Any, what: str) -> dict[str, int]:
+    if not isinstance(value, dict) or not all(isinstance(k, str) and type(n) is int and n >= 0 for k, n in value.items()):
+        raise ContractError(f"{what}: must map kinds to counts (whole numbers, 0 or more)")
+    return value
+
+
+def check_receipts(repo: Path, consumer: dict[str, Any], manifest: dict[str, Any],
+                   receipts: Path) -> dict[str, Any]:
+    """The summary of the receipts in ``receipts`` against the manifest; raises on any failure (see A6)."""
+    copies = mapping(consumer, manifest)
+    by_suite: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    problems: list[str] = []
+    if not receipts.is_dir():
+        raise ContractError(f"the receipts directory {receipts} does not exist")
+    files = sorted(receipts.glob("*.json"))
+    for path in files:
+        receipt = read_json(path)
+        if not isinstance(receipt, dict) or receipt.get("schema") != RECEIPT_SCHEMA or set(receipt) != RECEIPT_KEYS:
+            problems.append(f"{path.name}: not a {RECEIPT_SCHEMA} receipt with exactly {sorted(RECEIPT_KEYS)}")
+            continue
+        if not all(isinstance(receipt[key], str) for key in ("suite", "file", "runner")):
+            problems.append(f"{path.name}: suite, file and runner must be strings")
+            continue
+        suite = receipt["suite"]
+        if suite not in manifest["suites"]:
+            problems.append(f"{path.name}: suite {suite!r} is not in bundle {manifest['bundle_version']}")
+            continue
+        _counts(receipt["run"], f"{path.name} run")
+        _counts(receipt["not_run"], f"{path.name} not_run")
+        source = manifest["suites"][suite]["file"]
+        dest = receipt["file"]
+        if copies.get(dest) != source:
+            problems.append(f"{path.name}: {dest!r} is not where {CONSUMER_PATH} copies {source}")
+        elif not (repo / dest).is_file() or sha256_bytes((repo / dest).read_bytes()) != manifest["files"][source]["sha256"]:
+            problems.append(f"{path.name}: {dest} is not the bundle's {source}")
+        by_suite.setdefault(suite, []).append((path.name, receipt))
+
+    required = required_suites(manifest, consumer["tiers"])
+    summary: dict[str, Any] = {}
+    for suite in sorted(set(required) | set(by_suite)):
+        kinds: dict[str, int] = manifest["suites"][suite]["kinds"]
+        entries = by_suite.get(suite, [])
+        if not entries:
+            problems.append(f"suite {suite}: required by tiers {consumer['tiers']}, and no runner wrote a receipt")
+            continue
+        run: dict[str, int] = {}
+        not_run: dict[str, int] = {}
+        for name, receipt in entries:
+            for kind in sorted(set(receipt["run"]) | set(receipt["not_run"])):
+                if kind not in kinds:
+                    problems.append(f"{name}: kind {kind!r} is not in suite {suite}")
+            for kind, n in receipt["run"].items():
+                run[kind] = run.get(kind, 0) + n
+            for kind, n in receipt["not_run"].items():
+                not_run[kind] = not_run.get(kind, 0) + n
+        for kind, total in kinds.items():
+            accounted = run.get(kind, 0) + not_run.get(kind, 0)
+            if accounted != total:
+                problems.append(f"suite {suite} kind {kind}: {accounted} vectors accounted for "
+                                f"({run.get(kind, 0)} run, {not_run.get(kind, 0)} not run), the bundle has {total}")
+        for kind in sorted(required.get(suite, set())):
+            if run.get(kind, 0) < kinds[kind]:
+                problems.append(f"suite {suite} kind {kind}: required, {run.get(kind, 0)} of {kinds[kind]} run")
+        summary[suite] = {
+            "required": sorted(required.get(suite, set())),
+            "run": dict(sorted(run.items())),
+            "not_run": dict(sorted(not_run.items())),
+            "runners": sorted(receipt["runner"] for _, receipt in entries),
+        }
+    if problems:
+        raise ContractError("receipt-check failed:\n  " + "\n  ".join(problems))
+    return summary
+
+
+def cmd_receipt_check(repo: Path, receipts: Path, json_out: Path | None = None) -> int:
+    consumer = load_consumer(repo)
+    manifest = check_manifest((repo / MANIFEST_COPY_PATH).read_bytes()) if (repo / MANIFEST_COPY_PATH).is_file() else None
+    if manifest is None:
+        raise ContractError(f"no {MANIFEST_COPY_PATH}: run `gm_contract.py sync`")
+    summary = check_receipts(repo, consumer, manifest, receipts)
+    if json_out is not None:
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        json_out.write_bytes(render({
+            "schema": "gm.contract.conformance/1",
+            "component": consumer["component"],
+            "tiers": consumer["tiers"],
+            "bundle_version": manifest["bundle_version"],
+            "contract_digest": manifest["contract_digest"],
+            "suites": summary,
+        }))
+    for suite, entry in summary.items():
+        print(f"{suite}: {sum(entry['run'].values())} run, {sum(entry['not_run'].values())} not run"
+              + (f" (required: {', '.join(entry['required'])})" if entry["required"] else ""))
+    print(f"{consumer['component']}: receipts match bundle {manifest['bundle_version']} for tiers {consumer['tiers']}")
+    return 0
+
+
+def cmd_conformance(repo: Path, receipts: Path | None, json_out: Path | None, lock_check: bool) -> int:
+    import tempfile
+
+    if lock_check:
+        verify_offline(repo)
+    consumer = load_consumer(repo)
+    with tempfile.TemporaryDirectory(prefix="gm-receipts-") as scratch:
+        target = receipts.resolve() if receipts is not None else Path(scratch)
+        if target.is_dir() and any(target.glob("*.json")):
+            raise ContractError(f"{target} already holds receipts: give an empty directory")
+        target.mkdir(parents=True, exist_ok=True)
+        env = {**os.environ, RECEIPTS_ENV: str(target)}
+        for command in consumer["conformance"]:
+            if _run(command, repo, env) != 0:
+                raise ContractError(f"conformance command failed: {' '.join(command)}")
+        return cmd_receipt_check(repo, target, json_out)
+
+
+def cmd_core_ref(repo: Path) -> int:
+    lock = read_lock(repo)
+    if not (isinstance(lock["core_commit"], str) and COMMIT.fullmatch(lock["core_commit"])):
+        raise ContractError(f"{LOCK_PATH} names no 40-character core commit")
+    print(lock["core_commit"])
+    return 0
+
+
+def usage(parser: argparse.ArgumentParser, message: str) -> int:
+    """A usage error: exit code 2, as argparse gives for the errors it finds itself."""
+    parser.print_usage(sys.stderr)
+    print(f"{parser.prog}: error: {message}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="gm_contract.py", description=__doc__.split("\n\n")[0])
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1],
@@ -411,9 +1004,48 @@ def main(argv: list[str] | None = None) -> int:
     manifest.add_argument("--check", action="store_true", help="Fail when the committed manifest is stale")
     archive = sub.add_parser("archive", help="Build the release archive and SHA256SUMS-contract (core only)")
     archive.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args(argv)
+    sync = sub.add_parser("sync", help="Copy a bundle into this consumer and pin it")
+    pin = sync.add_mutually_exclusive_group(required=True)
+    pin.add_argument("--core-ref", metavar="SHA", help="A core commit (40 hex) on main")
+    pin.add_argument("--core-path", type=Path, metavar="DIR", help="A core checkout (local development only)")
+    sync.add_argument("--no-lock", action="store_true",
+                      help="Write the copies and the manifest copy, not the lock or the tool (canaries)")
+    sync.add_argument("--offline", action="store_true", help="With --core-ref: use only the cache")
+    verify = sub.add_parser("verify", help="Check the copies, the tool and the manifest copy against the lock")
+    verify.add_argument("--online", action="store_true", help="Also check the pin against GitHub")
+    conformance = sub.add_parser("conformance", help="Run the conformance commands with receipts, then receipt-check")
+    conformance.add_argument("--receipts", type=Path, help="Where the runners write receipts (an empty directory)")
+    conformance.add_argument("--json-out", type=Path, help="Write the per-suite summary as JSON")
+    conformance.add_argument("--no-lock-check", action="store_true",
+                             help="Skip verify (after sync --no-lock: the copies follow the manifest copy)")
+    receipt = sub.add_parser("receipt-check", help="Compare receipts with the pinned manifest")
+    receipt.add_argument("--receipts", type=Path, required=True)
+    receipt.add_argument("--json-out", type=Path)
+    sub.add_parser("core-ref", help="Print the pinned core commit")
     try:
-        root = core_root(args.repo.resolve())
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    if args.command == "sync":
+        if args.core_ref is not None and not COMMIT.fullmatch(args.core_ref):
+            return usage(parser, f"--core-ref must be a full 40-character commit hash, not {args.core_ref!r}")
+        if args.offline and args.core_path is not None:
+            return usage(parser, "--offline applies to --core-ref; a core checkout is already local")
+    try:
+        repo = args.repo.resolve()
+        if args.command == "sync":
+            if args.core_ref is not None:
+                return cmd_sync(repo, CommitSource(args.core_ref, args.offline), not args.no_lock)
+            return cmd_sync(repo, PathSource(args.core_path), not args.no_lock)
+        if args.command == "verify":
+            return cmd_verify(repo, args.online)
+        if args.command == "conformance":
+            return cmd_conformance(repo, args.receipts, args.json_out, not args.no_lock_check)
+        if args.command == "receipt-check":
+            return cmd_receipt_check(repo, args.receipts, args.json_out)
+        if args.command == "core-ref":
+            return cmd_core_ref(repo)
+        root = core_root(repo)
         if args.command == "manifest":
             return cmd_manifest(root, args.check)
         return cmd_archive(root, args.out)

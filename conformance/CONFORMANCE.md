@@ -142,5 +142,52 @@ python scripts/gm_contract.py manifest --check  # CI "Contract bundle" and pre-c
 python scripts/gm_contract.py archive --out dist/contract
 ```
 
-The plan for publishing the bundle with each core release, and for
-consumers pinning it, is `ops/plan-v1.11.0-release-model.md`.
+### Pinning the bundle in a consumer
+
+A consumer (an SDK or the gateway) vendors `scripts/gm_contract.py` and
+declares its side in `contract-bundle/consumer.json`:
+- its tiers;
+- which bundle files it copies where (a key ending in `/` copies a whole
+  directory);
+- the commands that regenerate derived files;
+- the commands that run its conformance tests.
+
+`sync` copies the bundle in and writes the pin to
+`contract-bundle/bundle.lock`, next to an exact copy of the pinned manifest
+(`contract-bundle/MANIFEST.json`):
+
+```bash
+python scripts/gm_contract.py sync --core-ref <40-hex commit on core main>
+python scripts/gm_contract.py sync --core-path ../genesismesh   # local development only
+python scripts/gm_contract.py verify --online
+python scripts/gm_contract.py conformance --json-out conformance.json
+```
+
+- **A commit pin** (`--core-ref`) reads the files from that core commit.
+  `verify --online` checks that the commit is on core `main` and that its
+  manifest is the pinned one. Until the core publishes its first bundle with
+  1.11.0, consumers pin commits and do not release.
+- **A path pin** (`--core-path`) is for trying a core change locally:
+  `verify` always refuses it, so it cannot be merged.
+- **`verify`** checks every copy, the vendored tool and the manifest copy
+  against the lock, and that every suite the consumer's tiers require is
+  copied. Mark the copies, the lock and the manifest copy `-text` in
+  `.gitattributes`: a checkout that converts line endings changes their
+  bytes.
+- **`conformance`** runs the test commands with `GM_CONFORMANCE_RECEIPTS`
+  set, then `receipt-check`. Each runner writes a receipt saying how many
+  vectors of each kind it ran and how many it does not run by design. The
+  check fails when:
+  - a required suite has no receipt;
+  - a required kind is run short;
+  - across a suite's runners, a kind's vectors are not each accounted for
+    exactly once;
+  - a receipt names a copy that differs from the bundle.
+- **`sync --no-lock`** writes the copies and the manifest copy but leaves
+  the lock and the tool, for canaries that test against core `main`; then
+  run `conformance --no-lock-check`.
+
+Release pins (`sync --version`), `release-check` and the publishing of the
+bundle with each core release follow in the next change. The plan for
+publishing the bundle with each core release, and for consumers pinning it,
+is `ops/plan-v1.11.0-release-model.md`.
